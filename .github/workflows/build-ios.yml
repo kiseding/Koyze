@@ -1,0 +1,83 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze Dart and Flutter sources
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run deterministic Flutter tests
+        run: flutter test --exclude-tags live
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: pod install
+
+      - name: Build unsigned iOS app
+        run: flutter build ios --release --no-codesign
+
+      - name: Package and validate Apple ID sideload IPA
+        run: |
+          set -euo pipefail
+          test -d build/ios/iphoneos/Runner.app
+          test -f build/ios/iphoneos/Runner.app/PrivacyInfo.xcprivacy
+          plutil -lint build/ios/iphoneos/Runner.app/PrivacyInfo.xcprivacy
+          rm -rf build/ios/ipa-sideload
+          mkdir -p build/ios/ipa-sideload/Payload
+          ditto build/ios/iphoneos/Runner.app build/ios/ipa-sideload/Payload/Runner.app
+          rm -rf build/ios/ipa-sideload/Payload/Runner.app/PlugIns
+          test ! -d build/ios/ipa-sideload/Payload/Runner.app/PlugIns
+          (
+            cd build/ios/ipa-sideload
+            ditto -c -k --sequesterRsrc --keepParent Payload ../Koyze-Apple-ID-Sideload.ipa
+          )
+          unzip -t build/ios/Koyze-Apple-ID-Sideload.ipa
+          unzip -Z1 build/ios/Koyze-Apple-ID-Sideload.ipa | grep -qx 'Payload/Runner.app/Info.plist'
+          unzip -Z1 build/ios/Koyze-Apple-ID-Sideload.ipa | grep -qx 'Payload/Runner.app/PrivacyInfo.xcprivacy'
+          ! unzip -Z1 build/ios/Koyze-Apple-ID-Sideload.ipa | grep -q '/PlugIns/'
+
+      - name: Upload Apple ID sideload IPA
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Koyze-Apple-ID-Sideload-IPA
+          path: build/ios/Koyze-Apple-ID-Sideload.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload iOS IPA to Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: build/ios/Koyze-Apple-ID-Sideload.ipa
