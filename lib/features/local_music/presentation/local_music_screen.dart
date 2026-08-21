@@ -222,8 +222,12 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       }
     }
     if (Platform.isIOS) {
-      final path = await SecurityScopedDirectory.select();
-      if (path != null && mounted) await _scan(path);
+      try {
+        final path = await SecurityScopedDirectory.select();
+        if (path != null && mounted) await _scan(path);
+      } catch (error) {
+        if (mounted) _showError('选择音乐文件夹失败', error);
+      }
       return;
     }
     try {

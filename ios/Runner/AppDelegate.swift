@@ -188,7 +188,12 @@ import UniformTypeIdentifiers
   }
 
   private func topViewController() -> UIViewController? {
-    var controller = window?.rootViewController
+    let sceneWindow = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .first(where: { $0.activationState == .foregroundActive })?
+      .windows
+      .first(where: { $0.isKeyWindow })
+    var controller = sceneWindow?.rootViewController ?? window?.rootViewController
     while let presented = controller?.presentedViewController {
       controller = presented
     }
