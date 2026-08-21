@@ -887,6 +887,32 @@ void main() {
     expect(handler.playbackState.value.controls, contains(MediaControl.pause));
   });
 
+  test('playback stream error skips failed track and keeps navigation usable',
+      () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+    await handler.setPlaylist(const [
+      MediaItem(id: 'A', title: 'A'),
+      MediaItem(id: 'B', title: 'B'),
+      MediaItem(id: 'C', title: 'C'),
+    ]);
+
+    player.emitPlaybackError(StateError('native stream failed'));
+    await pumpEventQueue();
+
+    expect(handler.currentQueueIndex, 1);
+    expect(handler.mediaItem.value?.id, 'B');
+    expect(player.playing, isTrue);
+
+    await handler.skipToNext();
+    expect(handler.currentQueueIndex, 2);
+    expect(handler.mediaItem.value?.id, 'C');
+    expect(player.playing, isTrue);
+  });
+
   test('stale play failure cannot overwrite newer source state', () async {
     final player = _PlaybackStateAudioPlayer()
       ..sourceInstallProcessingState = ProcessingState.ready;
@@ -1537,6 +1563,10 @@ class _PlaybackStateAudioPlayer extends AudioPlayer {
     );
     _events.add(_event);
     _processingStates.add(processingState);
+  }
+
+  void emitPlaybackError(Object error) {
+    _events.addError(error, StackTrace.current);
   }
 
   @override

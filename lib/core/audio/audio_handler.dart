@@ -895,11 +895,36 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       provenance.interruptionGeneration == _interruptionGeneration;
 
   void _init() {
-    _playbackEventSubscription = _player.playbackEventStream.listen((_) {
-      _publishKnownDurationIfChanged();
-      _recordSuccessfulPlayback();
-      _publishPlaybackState();
-    });
+    _playbackEventSubscription = _player.playbackEventStream.listen(
+      (_) {
+        _publishKnownDurationIfChanged();
+        _recordSuccessfulPlayback();
+        _publishPlaybackState();
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        final occurrenceId = _activeOccurrenceId;
+        final itemId = _activeItemId;
+        if (_disposed ||
+            occurrenceId == null ||
+            itemId == null ||
+            !_commands.installedSourceIsAuthoritative ||
+            _installedPlaybackGeneration != _playGeneration ||
+            _installedMediaId != itemId) {
+          return;
+        }
+        AppLog.instance.record(
+          'audio.playback',
+          'native playback stream failed item=$itemId: $error',
+          level: AppLogLevel.error,
+          stackTrace: stackTrace,
+        );
+        _handleAuthoritativePlaybackError(
+          error,
+          stackTrace,
+          allowCurrentRetry: false,
+        );
+      },
+    );
     _durationSubscription = _player.durationStream.listen((_) {
       _publishKnownDurationIfChanged();
     });
@@ -1410,7 +1435,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     });
   }
 
-  void _handleAuthoritativePlaybackError(Object error, StackTrace stackTrace) {
+  void _handleAuthoritativePlaybackError(
+    Object error,
+    StackTrace stackTrace, {
+    bool allowCurrentRetry = true,
+  }) {
     if (_disposed) return;
     if (_automaticFailureSkippingHalted) return;
     final generation = _playGeneration;
@@ -1425,6 +1454,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       playingOverride: false,
     );
     final retryCurrent =
+        allowCurrentRetry &&
         occurrenceId != null &&
         _playRecoveryAttemptedOccurrenceId != occurrenceId;
     if (retryCurrent) {

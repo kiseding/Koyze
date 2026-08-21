@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/services.dart';
 import '../domain/music_item.dart';
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/network/outbound_url.dart';
@@ -174,6 +175,7 @@ class PlayerService {
   }
 
   Future<void> togglePlay() async {
+    unawaited(HapticFeedback.selectionClick());
     if (audioHandler is LxAudioHandler) {
       final handler = audioHandler as LxAudioHandler;
       handler.player.playing ? await handler.pause() : await handler.play();
@@ -292,8 +294,16 @@ class PlayerService {
     }
   }
 
-  Future<void> next() => audioHandler.skipToNext();
-  Future<void> previous() => audioHandler.skipToPrevious();
+  Future<void> next() {
+    unawaited(HapticFeedback.selectionClick());
+    return audioHandler.skipToNext();
+  }
+
+  Future<void> previous() {
+    unawaited(HapticFeedback.selectionClick());
+    return audioHandler.skipToPrevious();
+  }
+
   Future<void> seek(Duration position) => audioHandler.seek(position);
   Future<void> stop() => audioHandler.stop();
 
