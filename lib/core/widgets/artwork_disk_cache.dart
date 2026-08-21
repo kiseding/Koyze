@@ -37,7 +37,12 @@ class ArtworkDiskCache {
   String? _root;
   Future<void>? _ready;
 
-  static final instance = ArtworkDiskCache();
+  static ArtworkDiskCache instance = ArtworkDiskCache();
+
+  static void configureRoot(String? root) {
+    if (root == null || root.isEmpty) return;
+    instance = ArtworkDiskCache(rootOverride: root);
+  }
 
   Future<void> ensureReady() {
     return _ready ??= _init();

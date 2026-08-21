@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../../player/domain/music_item.dart';
 import '../../search/presentation/search_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../../startup_lifecycle.dart';
+import '../../../core/storage/portable_mode.dart';
 
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   // Startup hydrates this notifier before constructing the service. Do not
@@ -15,6 +17,11 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
   final wifiOnly = ref.read(wifiOnlyDownloadProvider);
   final connectivity = Connectivity();
   final service = DownloadService(
+    downloadDirectory: PortableMode.root == null
+        ? null
+        : () async => Directory(
+            '${PortableMode.root!}${Platform.pathSeparator}downloads',
+          ),
     wifiOnly: wifiOnly,
     connectivity: connectivity.onConnectivityChanged.map((results) {
       if (results.contains(ConnectivityResult.wifi) ||

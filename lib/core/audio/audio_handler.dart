@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:io' show Platform;
 
 import 'package:audio_service/audio_service.dart';
@@ -2706,6 +2707,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         }
 
         if (url == null || url.isEmpty) {
+          final localPath = _localPathFor(item);
+          if (localPath != null) {
+            url = Uri.file(localPath).toString();
+          }
+        }
+        if (url == null || url.isEmpty) {
           if (urlResolver != null) {
             // 强制按当前 preferredQuality 重新解析，忽略过期的 extras.url
             final resolveExtras = item.extras == null
@@ -2974,6 +2981,26 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         await _commands.releasePreservingIntent(preservingPauseOwner);
       }
     }
+  }
+
+  String? _localPathFor(MediaItem item) {
+    final extras = item.extras;
+    final isLocal =
+        extras?['local'] == true ||
+        extras?['source']?.toString() == 'local' ||
+        extras?['platform']?.toString() == 'local';
+    if (!isLocal) return null;
+    final rawPath = extras?['filePath']?.toString();
+    if (rawPath != null && rawPath.isNotEmpty && File(rawPath).existsSync()) {
+      return rawPath;
+    }
+    final rawUrl = extras?['url']?.toString();
+    final uri = rawUrl == null ? null : Uri.tryParse(rawUrl);
+    if (uri?.scheme == 'file') {
+      final path = uri!.toFilePath();
+      return File(path).existsSync() ? path : null;
+    }
+    return null;
   }
 
   Future<void> _recoverAuthoritativeSource({

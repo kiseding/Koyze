@@ -9,6 +9,7 @@ import 'package:koyze/core/audio/audio_runtime.dart';
 import 'package:koyze/core/audio/playback_cache_service.dart';
 import 'package:koyze/core/logging/app_log.dart';
 import 'package:koyze/core/storage/cache_maintenance_service.dart';
+import 'package:koyze/core/storage/portable_mode.dart';
 import 'package:koyze/features/custom_source/presentation/custom_source_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/search/presentation/search_provider.dart';
@@ -26,6 +27,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 import 'package:koyze/features/playlist/data/file_playlist_repository.dart';
 import 'package:koyze/features/sync/data/sync_identity_store.dart';
 import 'package:koyze/router/app_router.dart';
@@ -67,6 +69,16 @@ Future<void> _bootstrap(
 Future<void> _bootstrapUnsafe(
   ValueNotifier<StartupBootstrapState> bootstrapStatus,
 ) async {
+  await PortableMode.initialize();
+  final portableRoot = PortableMode.root;
+  if (portableRoot != null) {
+    SharedPreferencesStorePlatform.instance = PortablePreferencesStore(
+      '$portableRoot${Platform.pathSeparator}config.json',
+    );
+    ArtworkDiskCache.configureRoot(
+      '$portableRoot${Platform.pathSeparator}artwork_cache',
+    );
+  }
   // 创建 Riverpod Container 以在应用启动前访问 Providers
   final preferences = await SharedPreferences.getInstance();
   // Establish stable anonymous identity before any later sync integration.
@@ -383,7 +395,11 @@ Future<void> _bootstrapUnsafe(
         );
 
         // 4. 关键：连接 AudioHandler 和 MusicSourceService + 播放缓存
-        final playbackCache = PlaybackCacheService();
+        final playbackCache = PlaybackCacheService(
+          cacheRootOverride: PortableMode.root == null
+              ? null
+              : '${PortableMode.root!}${Platform.pathSeparator}playback_cache',
+        );
         runtime.ownCache(playbackCache.dispose);
         await playbackCache.init();
         container.read(downloadServiceProvider).setPlaybackCache(playbackCache);
@@ -475,6 +491,14 @@ Future<void> _bootstrapUnsafe(
                       musicItem.meta?['local'] == true) &&
                   localUrl != null &&
                   localUrl.isNotEmpty) {
+                final localUri = Uri.tryParse(localUrl);
+                final localFile = localUri?.scheme == 'file'
+                    ? File(localUri!.toFilePath())
+                    : null;
+                debugPrint(
+                  '[urlResolver] local playback path=${localFile?.path} '
+                  'exists=${localFile?.existsSync()}',
+                );
                 return localUrl;
               }
               debugPrint(

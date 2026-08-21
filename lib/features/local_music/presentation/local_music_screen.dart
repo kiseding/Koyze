@@ -9,6 +9,7 @@ import 'package:koyze/core/widgets/artwork_disk_cache.dart';
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
 import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
+import 'package:koyze/features/local_music/domain/local_metadata_writer.dart';
 import 'package:koyze/features/local_music/domain/security_scoped_directory.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
@@ -357,6 +358,18 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           } catch (_) {
             // 远程封面失败不影响歌词和歌曲身份保存。
           }
+        }
+        if (!track.hasEmbeddedTags) {
+          final artworkBytes = artwork == null
+              ? null
+              : await ArtworkDiskCache.instance.bytesForUrl(artwork);
+          await writeScrapedMetadata(
+            path,
+            title: identity.name,
+            artist: identity.singer,
+            album: identity.album,
+            artwork: artworkBytes,
+          );
         }
         await library.applyScrapedIdentity(path, identityJson);
       }

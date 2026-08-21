@@ -1,11 +1,13 @@
 import 'dart:io';
 
+import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
 import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
 import 'package:koyze/features/local_music/domain/local_music_scraper.dart';
+import 'package:koyze/features/local_music/domain/local_metadata_writer.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 
 void main() {
@@ -342,6 +344,47 @@ void main() {
       expect(tracks.single.artist, '未知歌手');
       expect(tracks.single.hasEmbeddedTags, isFalse);
     });
+
+    test(
+      'metadata writer leaves an unsupported or invalid file unchanged',
+      () async {
+        final path = '${tempDir.path}/invalid.mp3';
+        await File(path).writeAsBytes([0, 1, 2, 3]);
+
+        final written = await writeScrapedMetadata(
+          path,
+          title: 'Title',
+          artist: 'Artist',
+          album: 'Album',
+        );
+
+        expect(written, isFalse);
+        expect(await File(path).readAsBytes(), [0, 1, 2, 3]);
+      },
+    );
+
+    test(
+      'metadata writer creates an ID3 tag for a tagless MP3 frame',
+      () async {
+        final path = '${tempDir.path}/tagless.mp3';
+        await File(
+          path,
+        ).writeAsBytes([0xff, 0xfb, ...List<int>.filled(4096, 0)]);
+
+        final written = await writeScrapedMetadata(
+          path,
+          title: 'Title',
+          artist: 'Artist',
+          album: 'Album',
+        );
+
+        expect(written, isTrue);
+        final metadata = readMetadata(File(path));
+        expect(metadata.title, 'Title');
+        expect(metadata.artist, 'Artist');
+        expect(metadata.album, 'Album');
+      },
+    );
 
     test('scanner does not follow directory or file symlinks', () async {
       if (Platform.isWindows) return;

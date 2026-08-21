@@ -31,6 +31,7 @@ dependencies:
   # 存储
   path_provider: ^2.1.4
   shared_preferences: ^2.2.3
+  shared_preferences_platform_interface: ^2.4.2
   flutter_secure_storage: ^9.2.4
   
   # JS 引擎
