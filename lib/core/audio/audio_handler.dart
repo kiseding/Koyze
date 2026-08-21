@@ -57,6 +57,9 @@ AudioSource audioSourceFor(
     return SilenceAudioSource(duration: const Duration(days: 1), tag: tag);
   }
   final uri = playableUri(url);
+  if (uri.scheme == 'file') {
+    return AudioSource.file(uri.toFilePath(), tag: tag);
+  }
   // ProgressiveAudioSource 覆盖本地 file / 普通 http 媒体；m3u8/mpd 仍走 uri 工厂
   final path = uri.path.toLowerCase();
   if (path.endsWith('.m3u8') || path.endsWith('.mpd')) {

@@ -146,7 +146,11 @@ class ArtworkDiskCache {
       if (bytes.isEmpty) return null;
       return put(resolved, bytes);
     } catch (error) {
-      debugPrint('[ArtworkDiskCache] download failed: ${error.runtimeType}');
+      debugPrint(
+        '[ArtworkDiskCache] download failed url=$url '
+        'headers=${artworkRequestHeaders(url).keys.toList()} '
+        'error=$error',
+      );
       return null;
     }
   }

@@ -465,8 +465,14 @@ Future<void> _bootstrapUnsafe(
               );
               // 本地文件不应进入网络音源解析链；Windows 尤其会因盘符
               // 路径被当成远程歌曲而解析失败。
-              final localUrl = musicItem.url;
-              if (musicItem.source == 'local' &&
+              final localPath = musicItem.meta?['filePath']?.toString();
+              final localUrl =
+                  musicItem.url ??
+                  (localPath != null && localPath.isNotEmpty
+                      ? Uri.file(localPath).toString()
+                      : null);
+              if ((musicItem.source == 'local' ||
+                      musicItem.meta?['local'] == true) &&
                   localUrl != null &&
                   localUrl.isNotEmpty) {
                 return localUrl;

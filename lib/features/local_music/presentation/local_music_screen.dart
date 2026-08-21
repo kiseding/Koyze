@@ -119,7 +119,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                   backgroundColor: AppColors.accentOf(context),
                 ),
                 icon: const Icon(Icons.folder_open, size: 18),
-                label: const Text('添加文件夹'),
+                label: Text(Platform.isIOS ? '选择音乐文件' : '添加文件夹'),
               ),
             ],
           ),
@@ -221,44 +221,53 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         return;
       }
     }
+    if (Platform.isIOS) {
+      // iOS Files provider 不能稳定暴露可递归 list 的目录路径，直接用
+      // 文件选择器逐个读取并复制到 App 沙盒。
+      await _pickIosFiles();
+      return;
+    }
     try {
       final path = await FilePicker.getDirectoryPath(dialogTitle: '选择音乐文件夹');
       if (path == null || !mounted) return;
-      if (Platform.isIOS) {
-        // Files.app 的“我的 iPhone”目录可能是安全作用域临时路径。
-        // 先把用户选中的子目录复制到 App 沙盒，后续扫描/播放不依赖
-        // 文件提供商在退出 picker 后是否继续开放该路径。
-        final imported = await _importIosDirectory(path);
-        if (imported == null) return;
-        await _scan(imported);
-        return;
-      }
       await _scan(path);
     } catch (error) {
       if (mounted) _showError('选择文件夹失败', error);
     }
   }
 
-  Future<String?> _importIosDirectory(String sourcePath) async {
+  Future<void> _pickIosFiles() async {
     try {
       final root = await getApplicationDocumentsDirectory();
       final target = Directory('${root.path}/ImportedMusic');
       await target.create(recursive: true);
-      await for (final entity in Directory(
-        sourcePath,
-      ).list(recursive: true, followLinks: false)) {
-        if (entity is! File) continue;
-        final relative = entity.path
-            .substring(sourcePath.length)
-            .replaceFirst(RegExp(r'^[/\\]+'), '');
-        final destination = File('${target.path}/$relative');
+      final result = await FilePicker.pickFiles(
+        dialogTitle: '选择本地音乐文件',
+        type: FileType.audio,
+        allowMultiple: true,
+        withReadStream: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      for (final picked in result.files) {
+        final stream = picked.readStream;
+        final path = picked.path;
+        if (stream == null && path == null) continue;
+        final destination = File('${target.path}/${picked.name}');
         await destination.parent.create(recursive: true);
-        await entity.copy(destination.path);
+        if (stream != null) {
+          final sink = destination.openWrite();
+          try {
+            await sink.addStream(stream);
+          } finally {
+            await sink.close();
+          }
+        } else {
+          await File(path!).copy(destination.path);
+        }
       }
-      return target.path;
+      if (mounted) await _scan(target.path);
     } catch (error) {
       if (mounted) _showError('导入 iPhone 文件夹失败', error);
-      return null;
     }
   }
 
