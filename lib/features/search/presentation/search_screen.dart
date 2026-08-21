@@ -147,8 +147,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             ),
                             child: PopupMenuButton<String>(
                               tooltip: '选择平台',
-                              offset: const Offset(0, 40),
+                              offset: const Offset(0, 8),
                               color: AppColors.dialogBg(context),
+                              elevation: 10,
+                              shadowColor: Colors.black.withValues(alpha: 0.2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              popUpAnimationStyle: AnimationStyle(
+                                duration: motionDuration(
+                                  context,
+                                  MotionDuration.normal,
+                                ),
+                                reverseDuration: motionDuration(
+                                  context,
+                                  MotionDuration.micro,
+                                ),
+                                curve: MotionCurve.easeOut,
+                                reverseCurve: MotionCurve.easeIn,
+                              ),
                               onSelected: (id) {
                                 ref
                                         .read(selectedSourceIdProvider.notifier)
@@ -162,25 +179,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 for (final s in list)
                                   PopupMenuItem(
                                     value: s.id,
+                                    height: 44,
                                     child: Row(
                                       children: [
-                                        Text(
-                                          s.name,
-                                          style: TextStyle(
-                                            color: primary,
-                                            fontWeight: s.id == selectedSourceId
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
+                                        Expanded(
+                                          child: Text(
+                                            s.name,
+                                            style: TextStyle(
+                                              color: primary,
+                                              fontWeight:
+                                                  s.id == selectedSourceId
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                            ),
                                           ),
                                         ),
-                                        if (s.id == selectedSourceId) ...[
-                                          const Spacer(),
+                                        if (s.id == selectedSourceId)
                                           Icon(
-                                            Icons.check,
+                                            Icons.check_rounded,
                                             color: accent,
                                             size: 18,
                                           ),
-                                        ],
                                       ],
                                     ),
                                   ),
@@ -201,7 +220,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                       ),
                                     ),
                                     Icon(
-                                      Icons.arrow_drop_down,
+                                      Icons.keyboard_arrow_down_rounded,
                                       color: muted,
                                       size: 20,
                                     ),

@@ -273,6 +273,18 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   color: AppColors.onScaffold(context),
                 ),
                 color: AppColors.dialogBg(context),
+                elevation: 10,
+                shadowColor: Colors.black.withValues(alpha: 0.2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                offset: const Offset(0, 8),
+                popUpAnimationStyle: AnimationStyle(
+                  duration: const Duration(milliseconds: 280),
+                  reverseDuration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOutCubic,
+                  reverseCurve: Curves.easeInCubic,
+                ),
                 onSelected: (value) async {
                   try {
                     switch (value) {

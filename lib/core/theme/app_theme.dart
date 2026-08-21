@@ -90,11 +90,14 @@ abstract final class AppTheme {
           borderSide: BorderSide.none,
         ),
       ),
-      popupMenuTheme: const PopupMenuThemeData(
+      popupMenuTheme: PopupMenuThemeData(
         color: AppColors.surfaceDark,
-        textStyle: TextStyle(color: AppColors.textPrimary),
-        // 弹出无缩放/淡入动效（按钮侧再设 popUpAnimationStyle.noAnimation）
+        textStyle: const TextStyle(color: AppColors.textPrimary),
         position: PopupMenuPosition.under,
+        elevation: 8,
+        shadowColor: Colors.black.withValues(alpha: 0.28),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        menuPadding: const EdgeInsets.symmetric(vertical: 6),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: AppColors.surfaceDark,
@@ -239,10 +242,14 @@ abstract final class AppTheme {
           borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
       ),
-      popupMenuTheme: const PopupMenuThemeData(
+      popupMenuTheme: PopupMenuThemeData(
         color: AppColors.lightSurface,
-        textStyle: TextStyle(color: AppColors.lightText),
+        textStyle: const TextStyle(color: AppColors.lightText),
         position: PopupMenuPosition.under,
+        elevation: 10,
+        shadowColor: Colors.black.withValues(alpha: 0.16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        menuPadding: const EdgeInsets.symmetric(vertical: 6),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: AppColors.lightSurface,

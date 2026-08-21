@@ -73,8 +73,17 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                 color: AppColors.secondaryText(context),
               ),
               color: AppColors.card(context),
+              elevation: 10,
+              shadowColor: Colors.black.withValues(alpha: 0.2),
+              offset: const Offset(0, 8),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              popUpAnimationStyle: AnimationStyle(
+                duration: const Duration(milliseconds: 280),
+                reverseDuration: const Duration(milliseconds: 150),
+                curve: Curves.easeOutCubic,
+                reverseCurve: Curves.easeInCubic,
               ),
               onSelected: (value) {
                 if (value == 'pause_all') _pauseAll(ref);

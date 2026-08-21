@@ -227,6 +227,91 @@ void main() {
       expect(titleFromFileName('noext'), 'noext');
     });
 
+    test('filename queries support both artist-title directions', () {
+      expect(LocalMusicScraper.filenameQueries('周杰伦 - 晴天.mp3'), const [
+        LocalFilenameQuery(title: '晴天', artist: '周杰伦'),
+        LocalFilenameQuery(title: '周杰伦', artist: '晴天'),
+      ]);
+      expect(
+        LocalMusicScraper.filenameQueries('01 - 晴天 - 周杰伦 (2003).flac'),
+        const [
+          LocalFilenameQuery(title: '周杰伦', artist: '晴天'),
+          LocalFilenameQuery(title: '晴天', artist: '周杰伦'),
+        ],
+      );
+    });
+
+    test('filename queries keep pure song names without guessing artist', () {
+      expect(LocalMusicScraper.filenameQueries('晴天 [320k].mp3'), const [
+        LocalFilenameQuery(title: '晴天'),
+      ]);
+    });
+
+    test('filename matching accepts exact title, artist and duration', () {
+      final track = LocalTrack(
+        path: '/music/晴天 - 周杰伦.mp3',
+        fileName: '晴天 - 周杰伦.mp3',
+        extension: 'mp3',
+        size: 1,
+        modifiedAt: DateTime(2026),
+        title: '晴天 - 周杰伦',
+        artist: '未知歌手',
+        album: '',
+        duration: const Duration(seconds: 269),
+        hasEmbeddedTags: false,
+      );
+      final match = LocalMusicScraper.bestMatchForQueries(
+        track,
+        LocalMusicScraper.filenameQueries(track.fileName),
+        [
+          MusicItem(
+            id: 'tx:1',
+            name: '晴天',
+            singer: '周杰伦',
+            album: '叶惠美',
+            duration: Duration(seconds: 269),
+            source: 'tx',
+            platform: 'tx',
+            songmid: '1',
+          ),
+        ],
+      );
+
+      expect(match?.name, '晴天');
+      expect(match?.singer, '周杰伦');
+    });
+
+    test('filename matching rejects a title-only result without duration', () {
+      final track = LocalTrack(
+        path: '/music/晴天.mp3',
+        fileName: '晴天.mp3',
+        extension: 'mp3',
+        size: 1,
+        modifiedAt: DateTime(2026),
+        title: '晴天',
+        artist: '未知歌手',
+        album: '',
+        duration: Duration.zero,
+        hasEmbeddedTags: false,
+      );
+      final match = LocalMusicScraper.bestMatchForQueries(
+        track,
+        LocalMusicScraper.filenameQueries(track.fileName),
+        [
+          MusicItem(
+            id: 'tx:1',
+            name: '晴天',
+            singer: '周杰伦',
+            source: 'tx',
+            platform: 'tx',
+            songmid: '1',
+          ),
+        ],
+      );
+
+      expect(match, isNull);
+    });
+
     test('scanner lists audio files recursively', () async {
       final musicDir = Directory('${tempDir.path}/music');
       await musicDir.create(recursive: true);

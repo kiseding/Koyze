@@ -135,9 +135,15 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   }
 
   Widget _summaryCard(String label, String value, [int? countValue]) {
+    final valueStyle = TextStyle(
+      fontSize: value.length > 6 ? 13 : 16,
+      fontWeight: FontWeight.w700,
+      color: AppColors.onScaffold(context),
+      height: 1.1,
+    );
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         decoration: BoxDecoration(
           color: AppColors.card(context),
           borderRadius: BorderRadius.circular(14),
@@ -146,25 +152,20 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         child: Column(
           children: [
             countValue != null
-                ? AnimatedCount(
-                    value: countValue,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onScaffold(context),
-                    ),
-                  )
+                ? AnimatedCount(value: countValue, style: valueStyle)
                 : Text(
                     value,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onScaffold(context),
-                    ),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: valueStyle,
                   ),
             const SizedBox(height: 2),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 10,
                 color: AppColors.mutedText(context),
@@ -342,9 +343,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
 
   String _fmtDuration(double seconds) {
     final totalMinutes = (seconds / 60).round();
-    if (totalMinutes < 60) return '$totalMinutes 分';
+    if (totalMinutes < 60) return '${totalMinutes}m';
     final hours = totalMinutes ~/ 60;
     final minutes = totalMinutes % 60;
-    return '$hours 时 $minutes 分';
+    if (hours < 100 && minutes == 0) return '${hours}h';
+    if (hours < 100) return '${hours}h${minutes}m';
+    // 超长时长压缩显示，避免四卡片被撑成两行。
+    if (minutes == 0) return '${hours}h';
+    return '${hours}h${minutes}m';
   }
 }
