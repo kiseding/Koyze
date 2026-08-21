@@ -138,7 +138,9 @@ class LocalMusicLibrary {
         final entry = _files[path];
         if (entry == null) return false;
         final identity = _scrapedIdentity[path];
-        return identity?['lyrics']?.toString().isNotEmpty == true;
+        // 歌词和封面分别刮削；不能因为已有歌词就跳过缺封面的文件。
+        return identity?['lyrics']?.toString().isNotEmpty == true &&
+            identity?['artwork']?.toString().isNotEmpty == true;
       },
       onProgress: onProgress,
     );
@@ -274,6 +276,13 @@ class LocalMusicLibrary {
     Map<String, dynamic> identity,
   ) async {
     _scrapedIdentity[path] = Map<String, dynamic>.from(identity);
+    final artwork = identity['artwork']?.toString();
+    final current = _files[path];
+    if (current != null && artwork != null && artwork.isNotEmpty) {
+      _files[path] = {...current, 'artwork': artwork};
+      await Future.wait([_persistIndex(), _persistScrapedIdentity()]);
+      return;
+    }
     await _persistScrapedIdentity();
   }
 
@@ -332,7 +341,8 @@ class LocalMusicLibrary {
       source: 'local',
       platform: identity?['platform']?.toString() ?? 'local',
       artwork: artwork,
-      url: 'file://$path',
+      // Uri.file handles Windows drive letters and iOS paths correctly.
+      url: Uri.file(path).toString(),
       lyricsUrl: lyricsUrl,
       isPlayable: true,
       songmid: songmid,

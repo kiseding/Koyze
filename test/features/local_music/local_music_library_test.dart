@@ -329,6 +329,20 @@ void main() {
       expect(tracks.length, lessThanOrEqualTo(4));
     });
 
+    test('scanner keeps files whose metadata parser fails', () async {
+      final musicDir = Directory('${tempDir.path}/fallback');
+      await musicDir.create(recursive: true);
+      final file = File('${musicDir.path}/Artist - Title.mp3');
+      await file.writeAsBytes([0, 1, 2, 3]);
+
+      final tracks = await LocalMusicScanner().scanDirectory(musicDir.path);
+
+      expect(tracks, hasLength(1));
+      expect(tracks.single.title, 'Artist - Title');
+      expect(tracks.single.artist, '未知歌手');
+      expect(tracks.single.hasEmbeddedTags, isFalse);
+    });
+
     test('scanner does not follow directory or file symlinks', () async {
       if (Platform.isWindows) return;
       final root = Directory('${tempDir.path}/root')..createSync();

@@ -130,16 +130,14 @@ class LocalMusicScanner {
   }
 
   Future<LocalTrack?> _readTrack(File file) async {
+    final fileName = file.uri.pathSegments.last;
+    final dot = fileName.lastIndexOf('.');
+    final extension = dot > 0 ? fileName.substring(dot + 1).toLowerCase() : '';
     try {
       final stat = await file.stat();
       // 纯 Dart 解析器不引入平台原生库，避免 Android/iOS 链接阶段失败。
       // 提取内嵌封面供本地音乐显示（无在线刮削时使用）。
       final tag = readMetadata(file, getImage: true);
-      final fileName = file.uri.pathSegments.last;
-      final dot = fileName.lastIndexOf('.');
-      final extension = dot > 0
-          ? fileName.substring(dot + 1).toLowerCase()
-          : '';
       final title = tag.title ?? titleFromFileName(fileName);
       final artist = tag.artist ?? '未知歌手';
       final album = tag.album ?? '';
@@ -162,8 +160,26 @@ class LocalMusicScanner {
         embeddedArtwork: artwork,
       );
     } catch (error) {
-      // 无法读取或解析的文件跳过（损坏 / 无权限 / 非音频伪装）。
-      return null;
+      // 某些 Windows 编码器和 iOS 文件类型无法读取 tag，但文件本身仍
+      // 可以播放。保留文件并用文件名作为低置信度刮削输入，不要整首丢掉。
+      try {
+        final stat = await file.stat();
+        return LocalTrack(
+          path: file.path,
+          fileName: fileName,
+          extension: extension,
+          size: stat.size,
+          modifiedAt: stat.modified,
+          title: titleFromFileName(fileName),
+          artist: '未知歌手',
+          album: '',
+          duration: Duration.zero,
+          hasEmbeddedTags: false,
+        );
+      } catch (_) {
+        // 文件在扫描过程中被删除或无权访问。
+        return null;
+      }
     }
   }
 }

@@ -251,6 +251,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   child: TextField(
                                     controller: _searchController,
                                     focusNode: _searchFocus,
+                                    autofocus: true,
                                     style: TextStyle(
                                       color: primary,
                                       fontSize: 15,
