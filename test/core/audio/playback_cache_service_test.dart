@@ -86,6 +86,33 @@ void main() {
     expect(a.length, 40);
   });
 
+  test(
+    'copyCachedToDirectory reuses an exact-quality cache without download',
+    () async {
+      final lease = await cache.acquireOrDownload(
+        remoteUrl: 'https://media.example/song.mp3',
+        platform: 'tx',
+        songId: '001abc',
+        quality: '320k',
+      );
+      expect(lease, isNotNull);
+      await lease!.release();
+
+      final destination = Directory('${tempDir.path}/downloads');
+      await destination.create();
+      final copied = await cache.copyCachedToDirectory(
+        platform: 'tx',
+        songId: '001abc',
+        quality: '320k',
+        destinationDirectory: destination.path,
+      );
+
+      expect(copied, isNotNull);
+      expect(await File(copied!).exists(), isTrue);
+      expect(downloadCount, 1);
+    },
+  );
+
   test('dispose does not close an injected Dio', () async {
     final adapter = _RangeResponseAdapter(
       (_) => ResponseBody.fromString('', 200),

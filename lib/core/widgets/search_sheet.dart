@@ -191,6 +191,7 @@ class _SearchSheetState extends State<_SearchSheet>
     );
   }
 
-  /// 弹窗滑入约 400ms，过半后聚焦弹出键盘。
-  Duration _focusDelay() => const Duration(milliseconds: 220);
+  /// 等待 ModalBottomSheet 完成进入动画后再交给输入框聚焦，避免焦点
+  /// 在路由动画期间被底层页面重新夺回，导致键盘刚弹出就关闭。
+  Duration _focusDelay() => const Duration(milliseconds: 650);
 }

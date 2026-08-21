@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:koyze/core/theme/app_colors.dart';
+import 'package:koyze/core/widgets/artwork_disk_cache.dart';
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
 import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
@@ -222,9 +224,41 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     try {
       final path = await FilePicker.getDirectoryPath(dialogTitle: '选择音乐文件夹');
       if (path == null || !mounted) return;
+      if (Platform.isIOS) {
+        // Files.app 的“我的 iPhone”目录可能是安全作用域临时路径。
+        // 先把用户选中的子目录复制到 App 沙盒，后续扫描/播放不依赖
+        // 文件提供商在退出 picker 后是否继续开放该路径。
+        final imported = await _importIosDirectory(path);
+        if (imported == null) return;
+        await _scan(imported);
+        return;
+      }
       await _scan(path);
     } catch (error) {
       if (mounted) _showError('选择文件夹失败', error);
+    }
+  }
+
+  Future<String?> _importIosDirectory(String sourcePath) async {
+    try {
+      final root = await getApplicationDocumentsDirectory();
+      final target = Directory('${root.path}/ImportedMusic');
+      await target.create(recursive: true);
+      await for (final entity in Directory(
+        sourcePath,
+      ).list(recursive: true, followLinks: false)) {
+        if (entity is! File) continue;
+        final relative = entity.path
+            .substring(sourcePath.length)
+            .replaceFirst(RegExp(r'^[/\\]+'), '');
+        final destination = File('${target.path}/$relative');
+        await destination.parent.create(recursive: true);
+        await entity.copy(destination.path);
+      }
+      return target.path;
+    } catch (error) {
+      if (mounted) _showError('导入 iPhone 文件夹失败', error);
+      return null;
     }
   }
 
@@ -331,7 +365,23 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       );
       final identity = await scraper.scrapeTrack(track);
       if (identity != null) {
-        await library.applyScrapedIdentity(path, identity.toJson());
+        final identityJson = identity.toJson();
+        // 在线封面先写入 identity，再下载到本地缓存，避免 Windows/iOS
+        // 锁屏和本地列表依赖网络图片时显示为空。
+        final artwork = identity.artwork;
+        if (artwork != null && artwork.isNotEmpty) {
+          try {
+            final localArtwork = await ArtworkDiskCache.instance.localArtUri(
+              artwork,
+            );
+            if (localArtwork?.scheme == 'file') {
+              identityJson['artwork'] = localArtwork.toFilePath();
+            }
+          } catch (_) {
+            // 远程封面失败不影响歌词和歌曲身份保存。
+          }
+        }
+        await library.applyScrapedIdentity(path, identityJson);
       }
       if (!mounted) return;
       setState(() {

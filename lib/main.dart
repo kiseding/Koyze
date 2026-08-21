@@ -386,6 +386,7 @@ Future<void> _bootstrapUnsafe(
         final playbackCache = PlaybackCacheService();
         runtime.ownCache(playbackCache.dispose);
         await playbackCache.init();
+        container.read(downloadServiceProvider).setPlaybackCache(playbackCache);
         disposals.register(
           cacheMaintenance.attachPlaybackCache(playbackCache.clear),
         );
@@ -462,6 +463,14 @@ Future<void> _bootstrapUnsafe(
               final musicItem = MusicItem.fromJson(
                 Map<String, dynamic>.from(rawExtras),
               );
+              // 本地文件不应进入网络音源解析链；Windows 尤其会因盘符
+              // 路径被当成远程歌曲而解析失败。
+              final localUrl = musicItem.url;
+              if (musicItem.source == 'local' &&
+                  localUrl != null &&
+                  localUrl.isNotEmpty) {
+                return localUrl;
+              }
               debugPrint(
                 '[urlResolver] 歌曲信息: platform=${musicItem.platform}, source=${musicItem.source}, songmid=${musicItem.songmid}',
               );

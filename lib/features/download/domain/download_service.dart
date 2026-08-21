@@ -179,6 +179,7 @@ class DownloadService {
 
   final Dio _dio;
   final SourceMediaTransport _sourceMediaTransport;
+  PlaybackCacheService? _playbackCache;
   final List<DownloadTask> _tasks = [];
   final StreamController<List<DownloadTask>> _tasksController =
       StreamController<List<DownloadTask>>.broadcast();
@@ -297,6 +298,10 @@ class DownloadService {
 
   void setMusicSourceService(MusicSourceService service) {
     _musicSourceService = service;
+  }
+
+  void setPlaybackCache(PlaybackCacheService cache) {
+    _playbackCache = cache;
   }
 
   Future<void> init() async {
@@ -656,6 +661,35 @@ class DownloadService {
       final preferred = (latest.quality == null || latest.quality!.isEmpty)
           ? '320k'
           : latest.quality!;
+      final cachedPath = await _playbackCache?.copyCachedToDirectory(
+        platform: latest.platform ?? latest.source ?? 'kw',
+        songId: latest.songmid?.isNotEmpty == true
+            ? latest.songmid!
+            : (latest.hash?.isNotEmpty == true ? latest.hash! : latest.musicId),
+        quality: preferred,
+        destinationDirectory: _downloadDir!,
+      );
+      if (cachedPath != null) {
+        final cachedFile = File(cachedPath);
+        final extension = cachedPath.substring(cachedPath.lastIndexOf('.'));
+        final savePath = _finalPathFor(task.id, attempt.revision, extension);
+        final size = await cachedFile.length();
+        await cachedFile.copy(savePath);
+        await _safeDelete(cachedPath);
+        if (_isCurrent(attempt)) {
+          _updateCurrent(
+            attempt,
+            status: DownloadStatus.completed,
+            progress: 1.0,
+            savePath: savePath,
+            completedAt: DateTime.now(),
+            fileSize: size,
+            quality: preferred,
+            errorMsg: '',
+          );
+        }
+        return;
+      }
       var completedOk = false;
       final resolved = await downloadWithFreshLinkRetry(
         cancelToken: cancelToken,

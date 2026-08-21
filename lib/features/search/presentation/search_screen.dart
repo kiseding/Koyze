@@ -48,7 +48,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       });
     } else {
       _autofocusTimer = Timer(delay, () {
-        if (mounted) _searchFocus.requestFocus();
+        if (!mounted) return;
+        _searchFocus.requestFocus();
+        // 部分平台在 ModalBottomSheet 完成转场的同一帧会清掉焦点，
+        // 再确认一次，避免键盘弹出后立即消失。
+        Future<void>.delayed(const Duration(milliseconds: 180), () {
+          if (mounted && !_searchFocus.hasFocus) {
+            _searchFocus.requestFocus();
+          }
+        });
       });
     }
     // 只在「是否有文字」变化时 setState（清除按钮显隐）。
@@ -251,7 +259,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   child: TextField(
                                     controller: _searchController,
                                     focusNode: _searchFocus,
-                                    autofocus: true,
+                                    autofocus: widget.autofocusDelay == null,
                                     style: TextStyle(
                                       color: primary,
                                       fontSize: 15,

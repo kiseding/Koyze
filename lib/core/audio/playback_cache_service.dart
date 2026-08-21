@@ -1031,6 +1031,29 @@ class PlaybackCacheService {
     );
   }
 
+  /// 将精确音质的播放缓存复制到下载目录；命中时不访问网络。
+  Future<String?> copyCachedToDirectory({
+    required String platform,
+    required String songId,
+    required String quality,
+    required String destinationDirectory,
+  }) async {
+    if (_disposed) return null;
+    await init();
+    final key = cacheKey(platform: platform, songId: songId, quality: quality);
+    return _withKeyTransaction(key, () async {
+      final hit = await _lookupValidLocked(key);
+      if (hit == null) return null;
+      final source = File(hit.path);
+      final extension = hit.path.contains('.')
+          ? hit.path.substring(hit.path.lastIndexOf('.'))
+          : '.audio';
+      final target = File('$destinationDirectory/$key$extension');
+      await source.copy(target.path);
+      return target.path;
+    });
+  }
+
   Future<String?> _getOrDownloadPath({
     required String key,
     required String remoteUrl,
