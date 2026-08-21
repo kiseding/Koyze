@@ -207,7 +207,13 @@ private final class SecurityScopedDirectoryAccess: NSObject, UIDocumentPickerDel
       return
     }
     pendingResult = result
-    let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
+    // Use the pre-iOS-14 initializer because the app still supports older
+    // deployment targets. The public.folder UTI provides the same directory
+    // security-scoped URL behavior on supported iOS versions.
+    let picker = UIDocumentPickerViewController(
+      documentTypes: ["public.folder"],
+      in: .open
+    )
     picker.delegate = self
     picker.allowsMultipleSelection = false
     presenter.present(picker, animated: true)
