@@ -374,8 +374,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
             final localArtwork = await ArtworkDiskCache.instance.localArtUri(
               artwork,
             );
-            if (localArtwork?.scheme == 'file') {
-              identityJson['artwork'] = localArtwork.toFilePath();
+            if (localArtwork case final uri? when uri.scheme == 'file') {
+              identityJson['artwork'] = uri.toFilePath();
             }
           } catch (_) {
             // 远程封面失败不影响歌词和歌曲身份保存。
