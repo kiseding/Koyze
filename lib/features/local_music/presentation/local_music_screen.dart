@@ -1,15 +1,14 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:koyze/core/theme/app_colors.dart';
 import 'package:koyze/core/widgets/artwork_disk_cache.dart';
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
 import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
+import 'package:koyze/features/local_music/domain/security_scoped_directory.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
@@ -119,7 +118,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                   backgroundColor: AppColors.accentOf(context),
                 ),
                 icon: const Icon(Icons.folder_open, size: 18),
-                label: Text(Platform.isIOS ? '选择音乐文件' : '添加文件夹'),
+                label: const Text('添加文件夹'),
               ),
             ],
           ),
@@ -222,9 +221,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       }
     }
     if (Platform.isIOS) {
-      // iOS Files provider 不能稳定暴露可递归 list 的目录路径，直接用
-      // 文件选择器逐个读取并复制到 App 沙盒。
-      await _pickIosFiles();
+      final path = await SecurityScopedDirectory.select();
+      if (path != null && mounted) await _scan(path);
       return;
     }
     try {
@@ -233,41 +231,6 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       await _scan(path);
     } catch (error) {
       if (mounted) _showError('选择文件夹失败', error);
-    }
-  }
-
-  Future<void> _pickIosFiles() async {
-    try {
-      final root = await getApplicationDocumentsDirectory();
-      final target = Directory('${root.path}/ImportedMusic');
-      await target.create(recursive: true);
-      final result = await FilePicker.pickFiles(
-        dialogTitle: '选择本地音乐文件',
-        type: FileType.audio,
-        allowMultiple: true,
-        withReadStream: true,
-      );
-      if (result == null || result.files.isEmpty) return;
-      for (final picked in result.files) {
-        final stream = picked.readStream;
-        final path = picked.path;
-        if (stream == null && path == null) continue;
-        final destination = File('${target.path}/${picked.name}');
-        await destination.parent.create(recursive: true);
-        if (stream != null) {
-          final sink = destination.openWrite();
-          try {
-            await sink.addStream(stream);
-          } finally {
-            await sink.close();
-          }
-        } else {
-          await File(path!).copy(destination.path);
-        }
-      }
-      if (mounted) await _scan(target.path);
-    } catch (error) {
-      if (mounted) _showError('导入 iPhone 文件夹失败', error);
     }
   }
 

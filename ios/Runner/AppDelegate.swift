@@ -1,12 +1,14 @@
 import Flutter
 import UIKit
 import Darwin
+import UniformTypeIdentifiers
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var sourceTasks: [String: URLSessionDataTask] = [:]
   private var cancelledSourceTaskIDs = Set<String>()
   private let sourceTaskLock = NSLock()
+  private lazy var directoryAccess = SecurityScopedDirectoryAccess()
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -52,6 +54,25 @@ import Darwin
           message: error.localizedDescription,
           details: nil
         ))
+      }
+    }
+
+    let directoryChannel = FlutterMethodChannel(
+      name: "koyze/security_scoped_directory",
+      binaryMessenger: registrar.messenger()
+    )
+    directoryChannel.setMethodCallHandler { [weak self] call, result in
+      guard let self else { return }
+      switch call.method {
+      case "selectDirectory":
+        self.directoryAccess.select(presenter: self.topViewController(), result: result)
+      case "restoreDirectories":
+        result(self.directoryAccess.restore())
+      case "stopAccess":
+        self.directoryAccess.stopAll()
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
       }
     }
 
@@ -164,6 +185,81 @@ import Darwin
       sourceTaskLock.unlock()
       task.resume()
     }
+  }
+
+  private func topViewController() -> UIViewController? {
+    var controller = window?.rootViewController
+    while let presented = controller?.presentedViewController {
+      controller = presented
+    }
+    return controller
+  }
+}
+
+private final class SecurityScopedDirectoryAccess: NSObject, UIDocumentPickerDelegate {
+  private let bookmarkKey = "koyze.security_scoped_directory_bookmarks"
+  private var activeURLs: [String: URL] = [:]
+  private var pendingResult: FlutterResult?
+
+  func select(presenter: UIViewController?, result: @escaping FlutterResult) {
+    guard let presenter else {
+      result(FlutterError(code: "no_presenter", message: "Unable to present directory picker", details: nil))
+      return
+    }
+    pendingResult = result
+    let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
+    picker.delegate = self
+    picker.allowsMultipleSelection = false
+    presenter.present(picker, animated: true)
+  }
+
+  func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+    guard let url = urls.first, url.startAccessingSecurityScopedResource() else {
+      pendingResult?(FlutterError(code: "access_denied", message: "Directory access was denied", details: nil))
+      pendingResult = nil
+      return
+    }
+    activeURLs[url.path] = url
+    do {
+      var bookmarks = UserDefaults.standard.dictionary(forKey: bookmarkKey) as? [String: String] ?? [:]
+      bookmarks[url.path] = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil).base64EncodedString()
+      UserDefaults.standard.set(bookmarks, forKey: bookmarkKey)
+      pendingResult?(url.path)
+    } catch {
+      url.stopAccessingSecurityScopedResource()
+      pendingResult?(FlutterError(code: "bookmark_failed", message: error.localizedDescription, details: nil))
+    }
+    pendingResult = nil
+  }
+
+  func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+    pendingResult?(nil)
+    pendingResult = nil
+  }
+
+  func restore() -> [String] {
+    let bookmarks = UserDefaults.standard.dictionary(forKey: bookmarkKey) as? [String: String] ?? [:]
+    var paths: [String] = []
+    for (fallbackPath, encoded) in bookmarks {
+      guard let data = Data(base64Encoded: encoded) else { continue }
+      do {
+        var stale = false
+        let url = try URL(resolvingBookmarkData: data, bookmarkDataIsStale: &stale)
+        guard url.startAccessingSecurityScopedResource() else { continue }
+        activeURLs[fallbackPath] = url
+        paths.append(url.path)
+      } catch {
+        continue
+      }
+    }
+    return paths
+  }
+
+  func stopAll() {
+    for url in activeURLs.values {
+      url.stopAccessingSecurityScopedResource()
+    }
+    activeURLs.removeAll()
   }
 }
 

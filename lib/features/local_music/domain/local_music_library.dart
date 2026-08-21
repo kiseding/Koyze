@@ -8,6 +8,7 @@ import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 
 import 'local_music_scanner.dart';
+import 'security_scoped_directory.dart';
 
 /// 持久化的本地音乐索引：目录 → 文件列表 → 元数据。
 /// 与 PlaylistService 的 `local` 系统歌单解耦：这里保存扫描索引与
@@ -63,6 +64,7 @@ class LocalMusicLibrary {
     _downloadDirectory = _storage.getString(_downloadDirKey);
     _loadIndex();
     _loadScrapedIdentity();
+    await SecurityScopedDirectory.restore();
     await _pruneMissingFiles();
     _initialized = true;
   }
