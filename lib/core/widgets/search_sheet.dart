@@ -46,7 +46,6 @@ class _SearchSheetState extends State<_SearchSheet>
   double _dragOffset = 0;
   bool _draggingFromScroll = false;
   bool _settling = false;
-  bool _closing = false;
 
   late final AnimationController _settle = AnimationController(
     vsync: this,
@@ -92,11 +91,10 @@ class _SearchSheetState extends State<_SearchSheet>
   }
 
   Future<void> _finishDrag(double velocity) async {
-    if (_settling || _closing) return;
+    if (_settling) return;
     _draggingFromScroll = false;
     if (_dragOffset > _closeThreshold || velocity > 700) {
       if (!mounted) return;
-      _closing = true;
       Navigator.pop(context);
       return;
     }
@@ -167,7 +165,6 @@ class _SearchSheetState extends State<_SearchSheet>
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onVerticalDragStart: (_) {
-                  if (_closing) return;
                   if (_settle.isAnimating) _settle.stop();
                 },
                 onVerticalDragUpdate: _onDragUpdate,

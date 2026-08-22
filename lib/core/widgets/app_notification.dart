@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
 import '../motion/motion_tokens.dart';
 
-enum AppNotificationType { info, success, error }
+enum AppNotificationType { info, success, warning, error }
 
 class AppNotification {
   const AppNotification({
@@ -204,11 +204,13 @@ class _AppNotificationBanner extends StatelessWidget {
     final accent = switch (notification.type) {
       AppNotificationType.info => AppColors.info,
       AppNotificationType.success => AppColors.success,
+      AppNotificationType.warning => AppColors.warning,
       AppNotificationType.error => AppColors.error,
     };
     final icon = switch (notification.type) {
       AppNotificationType.info => Icons.info_outline_rounded,
       AppNotificationType.success => Icons.check_circle_outline_rounded,
+      AppNotificationType.warning => Icons.warning_amber_rounded,
       AppNotificationType.error => Icons.error_outline_rounded,
     };
     final dark = AppColors.isDark(context);
@@ -218,6 +220,7 @@ class _AppNotificationBanner extends StatelessWidget {
     final status = switch (notification.type) {
       AppNotificationType.info => '提示',
       AppNotificationType.success => '成功',
+      AppNotificationType.warning => '警告',
       AppNotificationType.error => '错误',
     };
 

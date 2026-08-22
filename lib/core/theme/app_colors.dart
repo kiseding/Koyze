@@ -19,6 +19,7 @@ abstract final class AppColors {
   static const Color black = Color(0xFF000000);
 
   static const Color success = Color(0xFF1ED760);
+  static const Color warning = Color(0xFFFFB340);
   static const Color error = Color(0xFFFF453A); // iOS system red
   static const Color info = Color(0xFF0A84FF);
 
