@@ -452,6 +452,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       final path = song.meta?['filePath']?.toString();
       if (path == null) continue;
       final entry = library.files[path];
+      final bitrate = entry?['bitrate'];
       final track = LocalTrack(
         path: path,
         fileName: entry?['fileName']?.toString() ?? path,
@@ -462,6 +463,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         artist: entry?['artist']?.toString() ?? song.singer,
         album: entry?['album']?.toString() ?? '',
         duration: Duration(seconds: entry?['duration'] ?? 0),
+        bitrate: bitrate is int ? bitrate : null,
         hasEmbeddedTags: entry?['hasEmbeddedTags'] == true,
         hasEmbeddedArtwork: entry?['hasEmbeddedArtwork'] == true,
       );

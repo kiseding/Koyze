@@ -100,11 +100,18 @@ class _SearchSheetState extends State<_SearchSheet>
       if (!mounted) return;
       _dismissStarted = true;
       FocusManager.instance.primaryFocus?.unfocus();
+      _settling = true;
+      _settle.duration = MotionDuration.micro;
+      _startSettle(_dragOffset, widget.height);
+      await _settle.forward(from: 0);
+      _dragOffset = widget.height;
+      if (!mounted) return;
       Navigator.pop(context);
       return;
     }
     if (_dragOffset > 0) {
       _settling = true;
+      _settle.duration = MotionDuration.normal;
       _startSettle(_dragOffset, 0);
       await _settle.forward(from: 0);
       if (mounted) {

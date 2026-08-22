@@ -186,6 +186,30 @@ void main() {
       expect(song.id, startsWith('local:'));
     });
 
+    test('local songs carry actual quality from scanned bitrate', () async {
+      final storage = StorageService.forTesting(
+        await SharedPreferences.getInstance(),
+      );
+      final path = '${tempDir.path}/bitrate.mp3';
+      await File(path).writeAsBytes([0x49, 0x44, 0x33]);
+      await storage.setJsonList('local_music_index_v1', [
+        {
+          'path': path,
+          'fileName': 'bitrate.mp3',
+          'extension': 'mp3',
+          'title': 'Bitrate',
+          'artist': 'Local',
+          'duration': 60,
+          'bitrate': 192000,
+        },
+      ]);
+
+      final library = LocalMusicLibrary(storage: storage);
+      await library.init();
+
+      expect(library.songs.single.meta?['localActualQuality'], '192k');
+    });
+
     test('scraped identity survives re-init (artwork restored)', () async {
       final storage = StorageService.forTesting(
         await SharedPreferences.getInstance(),

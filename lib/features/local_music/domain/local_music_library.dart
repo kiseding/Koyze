@@ -164,6 +164,7 @@ class LocalMusicLibrary {
         'hasEmbeddedTags': track.hasEmbeddedTags,
         'hasEmbeddedArtwork': track.hasEmbeddedArtwork,
         'duration': track.duration.inSeconds,
+        if (track.bitrate != null) 'bitrate': track.bitrate,
         if (artworkPath != null) 'artwork': artworkPath,
       };
     }
@@ -360,9 +361,23 @@ class LocalMusicLibrary {
         'filePath': path,
         'ext': entry['extension']?.toString() ?? '',
         'local': true,
+        if (_localActualQuality(entry) != null)
+          'localActualQuality': _localActualQuality(entry),
         if (localLyrics != null && localLyrics.isNotEmpty)
           'localLyrics': localLyrics,
       },
     );
+  }
+
+  String? _localActualQuality(Map<String, dynamic> entry) {
+    final extension = entry['extension']?.toString().toLowerCase() ?? '';
+    if (const {'flac', 'alac', 'ape', 'wav', 'aiff'}.contains(extension)) {
+      return 'flac';
+    }
+    final bitrate = entry['bitrate'];
+    if (bitrate is! int || bitrate <= 0) return null;
+    if (bitrate >= 280000) return '320k';
+    if (bitrate >= 176000) return '192k';
+    return '128k';
   }
 }

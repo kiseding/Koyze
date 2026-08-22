@@ -41,6 +41,7 @@ final localSongsProvider = FutureProvider<List<LocalTrack>>((ref) async {
       artist: entry['artist']?.toString() ?? '',
       album: entry['album']?.toString() ?? '',
       duration: Duration(seconds: entry['duration'] ?? 0),
+      bitrate: entry['bitrate'] is int ? entry['bitrate'] as int : null,
       hasEmbeddedTags: entry['hasEmbeddedTags'] == true,
       hasEmbeddedArtwork: entry['hasEmbeddedArtwork'] == true,
     );

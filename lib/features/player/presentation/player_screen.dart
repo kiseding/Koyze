@@ -631,9 +631,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final media = ref.watch(currentMediaItemProvider).value;
     final extras = media?.extras ?? music.toJson();
     final platform = (extras['platform'] ?? music.platform).toString();
+    final isLocal =
+        extras['local'] == true ||
+        extras['source']?.toString() == 'local' ||
+        platform == 'local';
     final requested = extras['requestedQuality']?.toString() ?? '320k';
     // 只展示实际播放音质，不用 requestedQuality 冒充
     final actualRaw = extras['actualQuality']?.toString();
+    final meta = extras['meta'];
+    final localActualRaw =
+        extras['localActualQuality']?.toString() ??
+        (meta is Map ? meta['localActualQuality']?.toString() : null);
     final remote = extras['remoteUrl']?.toString();
     // 本地音乐无 actualQuality/remoteUrl，但可从 file:// 扩展名推断音质
     // （.flac → 无损、.mp3 → 320k 等），避免一直显示“解析中…”。
@@ -643,10 +651,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               extras['url']?.toString();
     final actual = (actualRaw != null && actualRaw.isNotEmpty)
         ? actualRaw
+        : (localActualRaw != null && localActualRaw.isNotEmpty)
+        ? localActualRaw
         : (urlForQuality != null && urlForQuality.isNotEmpty
-              ? correctQualityFromUrl(urlForQuality, requested)
+              ? isLocal
+                    ? _localFallbackQualityFromUrl(urlForQuality)
+                    : correctQualityFromUrl(urlForQuality, requested)
               : null);
-    final qualityText = actual != null ? qualityLabel(actual) : '解析中…';
+    final qualityText = actual != null
+        ? qualityLabel(actual)
+        : (isLocal ? '未知音质' : '解析中…');
     // 纯透明底，整体下移 10px；点击收起全屏播放器
     return Padding(
       padding: const EdgeInsets.only(top: 14, bottom: 4),
@@ -666,6 +680,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ),
       ),
     );
+  }
+
+  String? _localFallbackQualityFromUrl(String url) {
+    final lower = url.toLowerCase();
+    if (lower.endsWith('.flac') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.ape') ||
+        lower.endsWith('.alac') ||
+        lower.endsWith('.aiff')) {
+      return 'flac';
+    }
+    return null;
   }
 
   Widget _buildAppBar(BuildContext context, MusicItem music) {

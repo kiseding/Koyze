@@ -55,6 +55,8 @@ String platformLabel(String p) {
       return '酷狗音乐';
     case 'mg':
       return '咪咕音乐';
+    case 'local':
+      return '本地音乐';
     default:
       return p.isEmpty ? '未知' : p;
   }

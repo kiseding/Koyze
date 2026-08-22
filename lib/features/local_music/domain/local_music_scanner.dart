@@ -42,6 +42,7 @@ class LocalTrack {
     required this.artist,
     required this.album,
     required this.duration,
+    this.bitrate,
     this.hasEmbeddedTags = true,
     this.hasEmbeddedArtwork = false,
     this.embeddedArtwork,
@@ -56,6 +57,7 @@ class LocalTrack {
   final String artist;
   final String album;
   final Duration duration;
+  final int? bitrate;
   final bool hasEmbeddedTags;
   final bool hasEmbeddedArtwork;
   final Uint8List? embeddedArtwork;
@@ -71,6 +73,7 @@ class LocalTrack {
       artist: artist ?? this.artist,
       album: album ?? this.album,
       duration: duration,
+      bitrate: bitrate,
       hasEmbeddedTags: hasEmbeddedTags,
       hasEmbeddedArtwork: hasEmbeddedArtwork,
       embeddedArtwork: embeddedArtwork,
@@ -157,6 +160,7 @@ class LocalMusicScanner {
         artist: artist,
         album: album,
         duration: duration,
+        bitrate: _bitrateOf(tag),
         hasEmbeddedTags:
             tag.title?.trim().isNotEmpty == true &&
             tag.artist?.trim().isNotEmpty == true,
@@ -178,6 +182,7 @@ class LocalMusicScanner {
           artist: '未知歌手',
           album: '',
           duration: Duration.zero,
+          bitrate: null,
           hasEmbeddedTags: false,
         );
       } catch (_) {
@@ -194,5 +199,10 @@ class LocalMusicScanner {
       // A broken embedded picture must not hide otherwise valid text tags.
       return readMetadata(file);
     }
+  }
+
+  int? _bitrateOf(dynamic tag) {
+    final bitrate = tag.bitrate;
+    return bitrate is int && bitrate > 0 ? bitrate : null;
   }
 }
