@@ -35,8 +35,18 @@ Future<bool> writeScrapedMetadata(
     } else {
       writeMetadata(file, metadata);
     }
+    // Verify the writer actually produced readable metadata. Some containers
+    // are readable but do not support creating a new tag block.
+    final verified = readMetadata(file, getImage: artwork != null);
+    if (verified.title?.trim() != title.trim() ||
+        verified.artist?.trim() != artist.trim()) {
+      return false;
+    }
     return true;
-  } catch (_) {
+  } catch (error) {
+    // Keep the index-based scrape result even when a container is read-only.
+    // The caller can report this separately to the user.
+    stderr.writeln('[LocalMetadataWriter] failed path=$path error=$error');
     return false;
   }
 }

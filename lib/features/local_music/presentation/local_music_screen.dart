@@ -97,47 +97,81 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     List<String> directories,
     String? downloadDirectory,
   ) {
+    final accent = AppColors.accentOf(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  directories.isEmpty && downloadDirectory == null
-                      ? '尚未添加扫描文件夹'
-                      : '扫描文件夹（${directories.length}）',
-                  style: TextStyle(color: AppColors.secondaryText(context)),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.card(context),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.cardBorder(context)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.library_music_rounded, color: accent),
                 ),
-              ),
-              FilledButton.icon(
-                onPressed: _scanning || _scraping
-                    ? null
-                    : () => _pickDirectory(),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.accentOf(context),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '本地音乐库',
+                        style: TextStyle(
+                          color: AppColors.onScaffold(context),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        directories.isEmpty && downloadDirectory == null
+                            ? '添加文件夹后自动扫描和匹配'
+                            : '已配置 ${directories.length} 个扫描位置',
+                        style: TextStyle(
+                          color: AppColors.mutedText(context),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                icon: const Icon(Icons.folder_open, size: 18),
-                label: const Text('添加文件夹'),
-              ),
-            ],
+                FilledButton.icon(
+                  onPressed: _scanning || _scraping
+                      ? null
+                      : () => _pickDirectory(),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: accent,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    minimumSize: const Size(0, 40),
+                  ),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('添加'),
+                ),
+              ],
+            ),
           ),
           if (downloadDirectory != null)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: 10),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.download_done,
-                    size: 16,
-                    color: AppColors.accentOf(context),
-                  ),
+                  Icon(Icons.download_done, size: 16, color: accent),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      '下载目录（自动收录）: $downloadDirectory',
+                      '下载目录 · 自动收录\n$downloadDirectory',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -151,35 +185,48 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
             ),
           if (directories.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: 10),
               child: Column(
                 children: [
                   for (final dir in directories)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            dir,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: AppColors.mutedText(context),
-                              fontSize: 12,
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.miniBar(context),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.folder_rounded, size: 18, color: accent),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              dir,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.mutedText(context),
+                                fontSize: 12,
+                              ),
                             ),
                           ),
-                        ),
-                        FxIconButton(
-                          tooltip: '移除',
-                          icon: Icon(
-                            Icons.close,
-                            size: 16,
-                            color: AppColors.mutedText(context),
+                          FxIconButton(
+                            tooltip: '移除',
+                            icon: Icon(
+                              Icons.close,
+                              size: 16,
+                              color: AppColors.mutedText(context),
+                            ),
+                            onPressed: _scanning || _scraping
+                                ? null
+                                : () => _removeDirectory(dir),
                           ),
-                          onPressed: _scanning || _scraping
-                              ? null
-                              : () => _removeDirectory(dir),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                 ],
               ),
