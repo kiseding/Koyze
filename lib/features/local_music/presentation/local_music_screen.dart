@@ -391,22 +391,40 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       final identity = await scraper.scrapeTrack(track);
       if (identity != null) {
         final identityJson = identity.toJson();
-        // 在线封面先写入 identity，再下载到本地缓存，避免 Windows/iOS
-        // 锁屏和本地列表依赖网络图片时显示为空。
+        // Embedded artwork is authoritative. Keep the local file and never
+        // replace it with a remote thumbnail from the scraper.
+        final existingArtwork = song.artwork;
+        final existingArtworkUri = existingArtwork == null
+            ? null
+            : Uri.tryParse(existingArtwork);
+        final embeddedArtworkPath = existingArtworkUri?.scheme == 'file'
+            ? existingArtworkUri!.toFilePath()
+            : null;
+        final hasEmbeddedArtwork =
+            embeddedArtworkPath != null &&
+            await File(embeddedArtworkPath).exists();
         final artwork = identity.artwork;
-        if (artwork != null && artwork.isNotEmpty) {
+        if (hasEmbeddedArtwork) {
+          identityJson['artwork'] = embeddedArtworkPath;
+        } else if (artwork != null && artwork.isNotEmpty) {
+          // Remote artwork must be downloaded successfully before it enters
+          // the local identity; a failed CDN request must not leave a broken
+          // HTTP URL that the local list cannot render.
           try {
             final localArtwork = await ArtworkDiskCache.instance.localArtUri(
               artwork,
             );
             if (localArtwork case final uri? when uri.scheme == 'file') {
-              identityJson['artwork'] = uri.toFilePath();
+              final localPath = uri.toFilePath();
+              if (await File(localPath).exists()) {
+                identityJson['artwork'] = localPath;
+              }
             }
           } catch (_) {
-            // 远程封面失败不影响歌词和歌曲身份保存。
+            // Remote artwork failure does not affect lyrics or identity.
           }
         }
-        if (!track.hasEmbeddedTags) {
+        if (!track.hasEmbeddedTags && !hasEmbeddedArtwork) {
           final artworkBytes = artwork == null
               ? null
               : await ArtworkDiskCache.instance.bytesForUrl(artwork);
