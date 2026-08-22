@@ -220,17 +220,18 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                               ),
                             ),
                           ),
-                          FxIconButton(
-                            tooltip: '移除',
-                            icon: Icon(
-                              Icons.close,
-                              size: 16,
-                              color: AppColors.mutedText(context),
+                          if (dir != downloadDirectory)
+                            FxIconButton(
+                              tooltip: '移除',
+                              icon: Icon(
+                                Icons.close,
+                                size: 16,
+                                color: AppColors.mutedText(context),
+                              ),
+                              onPressed: _scanning || _scraping || _tagWriting
+                                  ? null
+                                  : () => _removeDirectory(dir),
                             ),
-                            onPressed: _scanning || _scraping || _tagWriting
-                                ? null
-                                : () => _removeDirectory(dir),
-                          ),
                         ],
                       ),
                     ),
@@ -240,12 +241,61 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           if (directories.isNotEmpty || downloadDirectory != null)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: OutlinedButton.icon(
-                onPressed: _scanning || _scraping || _tagWriting
-                    ? null
-                    : () => _writeScrapedTags(),
-                icon: const Icon(Icons.edit_note_rounded, size: 18),
-                label: const Text('尝试写回原文件标签'),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.card(context),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.cardBorder(context)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(Icons.edit_note_rounded, color: accent),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '注入tag',
+                            style: TextStyle(
+                              color: AppColors.onScaffold(context),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '将歌名，歌手，专辑，封面等信息写入歌曲文件，需要读写权限',
+                            style: TextStyle(
+                              color: AppColors.mutedText(context),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    FilledButton(
+                      onPressed: _scanning || _scraping || _tagWriting
+                          ? null
+                          : () => _writeScrapedTags(),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: accent,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        minimumSize: const Size(0, 40),
+                      ),
+                      child: const Text('开始'),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],

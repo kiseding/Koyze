@@ -20,6 +20,7 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
     isScrollControlled: true,
     isDismissible: true,
     enableDrag: false,
+    requestFocus: false,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black45,
     sheetAnimationStyle: AnimationStyle(
@@ -46,6 +47,7 @@ class _SearchSheetState extends State<_SearchSheet>
   double _dragOffset = 0;
   bool _draggingFromScroll = false;
   bool _settling = false;
+  bool _dismissStarted = false;
 
   late final AnimationController _settle = AnimationController(
     vsync: this,
@@ -76,6 +78,7 @@ class _SearchSheetState extends State<_SearchSheet>
   }
 
   void _applyDragDelta(double dy) {
+    if (_dismissStarted) return;
     if (dy == 0) return;
     _dragOffset = max(0, _dragOffset + dy);
     if (_settle.isAnimating) _settle.stop();
@@ -91,10 +94,12 @@ class _SearchSheetState extends State<_SearchSheet>
   }
 
   Future<void> _finishDrag(double velocity) async {
-    if (_settling) return;
+    if (_settling || _dismissStarted) return;
     _draggingFromScroll = false;
     if (_dragOffset > _closeThreshold || velocity > 700) {
       if (!mounted) return;
+      _dismissStarted = true;
+      FocusManager.instance.primaryFocus?.unfocus();
       Navigator.pop(context);
       return;
     }
@@ -112,6 +117,7 @@ class _SearchSheetState extends State<_SearchSheet>
   }
 
   bool _onScrollNotification(ScrollNotification notification) {
+    if (_dismissStarted) return true;
     // 列表已在顶部时继续下拉：弹窗跟手；已有位移时继续接管手势。
     if (notification is ScrollUpdateNotification) {
       final metrics = notification.metrics;
@@ -165,6 +171,7 @@ class _SearchSheetState extends State<_SearchSheet>
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onVerticalDragStart: (_) {
+                  if (_dismissStarted) return;
                   if (_settle.isAnimating) _settle.stop();
                 },
                 onVerticalDragUpdate: _onDragUpdate,
