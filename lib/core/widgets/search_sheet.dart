@@ -84,6 +84,9 @@ class _SearchSheetState extends State<_SearchSheet>
     _dragOffset = max(0, _dragOffset + dy);
     if (_settle.isAnimating) _settle.stop();
     setState(() {});
+    if (_dragOffset > _closeThreshold) {
+      unawaited(_dismissSheet());
+    }
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
@@ -97,15 +100,8 @@ class _SearchSheetState extends State<_SearchSheet>
   Future<void> _finishDrag(double velocity) async {
     if (_settling || _dismissStarted) return;
     _draggingFromScroll = false;
-    if (_dragOffset > _closeThreshold || velocity > 700) {
-      if (!mounted) return;
-      _dismissStarted = true;
-      FocusManager.instance.primaryFocus?.unfocus();
-      _settling = true;
-      await _animateSettle(_dragOffset, widget.height, MotionDuration.micro);
-      _dragOffset = widget.height;
-      if (!mounted) return;
-      Navigator.pop(context);
+    if (velocity > 700) {
+      await _dismissSheet();
       return;
     }
     if (_dragOffset > 0) {
@@ -118,6 +114,17 @@ class _SearchSheetState extends State<_SearchSheet>
         });
       }
     }
+  }
+
+  Future<void> _dismissSheet() async {
+    if (_dismissStarted || !mounted) return;
+    _dismissStarted = true;
+    FocusManager.instance.primaryFocus?.unfocus();
+    _settling = true;
+    await _animateSettle(_dragOffset, widget.height, MotionDuration.micro);
+    _dragOffset = widget.height;
+    if (!mounted) return;
+    Navigator.pop(context);
   }
 
   bool _onScrollNotification(ScrollNotification notification) {
