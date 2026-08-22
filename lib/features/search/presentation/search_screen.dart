@@ -19,11 +19,15 @@ import '../../../core/motion/list_entrance.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key, this.autofocusDelay});
+  const SearchScreen({super.key, this.autofocusDelay, this.canAutofocus});
 
   /// 进入后延迟聚焦输入框并弹出输入法。
   /// 首页搜索弹窗在滑入 2/3 时聚焦；独立搜索页立即聚焦。
   final Duration? autofocusDelay;
+
+  /// Sheet dismissal can begin while the delayed focus retry is still pending.
+  /// The caller can veto focus to avoid re-opening the iOS keyboard mid-close.
+  final bool Function()? canAutofocus;
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -44,16 +48,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final delay = widget.autofocusDelay;
     if (delay == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _searchFocus.requestFocus();
+        if (mounted && _canAutofocus) _searchFocus.requestFocus();
       });
     } else {
       _autofocusTimer = Timer(delay, () {
-        if (!mounted) return;
+        if (!mounted || !_canAutofocus) return;
         _searchFocus.requestFocus();
         // 部分平台在 ModalBottomSheet 完成转场的同一帧会清掉焦点，
         // 再确认一次，避免键盘弹出后立即消失。
         Future<void>.delayed(const Duration(milliseconds: 180), () {
-          if (mounted && !_searchFocus.hasFocus) {
+          if (mounted && _canAutofocus && !_searchFocus.hasFocus) {
             _searchFocus.requestFocus();
           }
         });
@@ -71,6 +75,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       }
     });
   }
+
+  bool get _canAutofocus => widget.canAutofocus?.call() ?? true;
 
   @override
   void dispose() {

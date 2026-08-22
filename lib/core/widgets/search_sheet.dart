@@ -25,7 +25,7 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
     barrierColor: Colors.black45,
     sheetAnimationStyle: AnimationStyle(
       duration: MotionDuration.container,
-      reverseDuration: MotionDuration.micro,
+      reverseDuration: Duration.zero,
       curve: MotionCurve.easeOut,
       reverseCurve: MotionCurve.easeIn,
     ),
@@ -71,10 +71,11 @@ class _SearchSheetState extends State<_SearchSheet>
                 Curves.easeOutCubic.transform(_settle.value)
       : _dragOffset;
 
-  void _startSettle(double from, double to) {
+  Future<void> _animateSettle(double from, double to, Duration duration) {
     _settleFrom = from;
     _settleTo = to;
-    _settle.forward(from: 0);
+    _settle.duration = duration;
+    return _settle.forward(from: 0);
   }
 
   void _applyDragDelta(double dy) {
@@ -101,9 +102,7 @@ class _SearchSheetState extends State<_SearchSheet>
       _dismissStarted = true;
       FocusManager.instance.primaryFocus?.unfocus();
       _settling = true;
-      _settle.duration = MotionDuration.micro;
-      _startSettle(_dragOffset, widget.height);
-      await _settle.forward(from: 0);
+      await _animateSettle(_dragOffset, widget.height, MotionDuration.micro);
       _dragOffset = widget.height;
       if (!mounted) return;
       Navigator.pop(context);
@@ -111,9 +110,7 @@ class _SearchSheetState extends State<_SearchSheet>
     }
     if (_dragOffset > 0) {
       _settling = true;
-      _settle.duration = MotionDuration.normal;
-      _startSettle(_dragOffset, 0);
-      await _settle.forward(from: 0);
+      await _animateSettle(_dragOffset, 0, MotionDuration.normal);
       if (mounted) {
         setState(() {
           _dragOffset = 0;
@@ -200,7 +197,12 @@ class _SearchSheetState extends State<_SearchSheet>
                   ),
                 ),
               ),
-              Expanded(child: SearchScreen(autofocusDelay: _focusDelay())),
+              Expanded(
+                child: SearchScreen(
+                  autofocusDelay: _focusDelay(),
+                  canAutofocus: () => !_dismissStarted,
+                ),
+              ),
             ],
           ),
         ),
