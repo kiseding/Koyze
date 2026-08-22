@@ -1,6 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +8,6 @@ import 'package:koyze/core/widgets/artwork_disk_cache.dart';
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
 import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
-import 'package:koyze/features/local_music/domain/local_metadata_writer.dart';
 import 'package:koyze/features/local_music/domain/local_music_scraper.dart';
 import 'package:koyze/features/local_music/domain/android_directory_access.dart';
 import 'package:koyze/features/local_music/domain/security_scoped_directory.dart';
@@ -419,7 +416,6 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
             embeddedArtworkPath != null &&
             await File(embeddedArtworkPath).exists();
         final artwork = identity.artwork;
-        Uint8List? scrapedArtworkBytes;
         if (hasEmbeddedArtwork) {
           identityJson['artwork'] = embeddedArtworkPath;
         } else if (artwork != null && artwork.isNotEmpty) {
@@ -436,31 +432,12 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
               );
               if (localFile != null && await localFile.exists()) {
                 identityJson['artwork'] = localFile.path;
-                scrapedArtworkBytes = await localFile.readAsBytes();
                 break;
               }
             } catch (_) {
               // Try the next CDN rendition.
             }
           }
-        }
-        // Tag presence and embedded artwork are independent: a previous pass
-        // may have written title/artist while the cover download failed.
-        var wroteTags = true;
-        if (!track.hasEmbeddedTags || !track.hasEmbeddedArtwork) {
-          wroteTags = await writeScrapedMetadata(
-            path,
-            title: identity.name,
-            artist: identity.singer,
-            album: identity.album,
-            artwork: scrapedArtworkBytes,
-          );
-        }
-        if (!wroteTags && mounted) {
-          showAppNotification(
-            '已刮削歌曲信息，但系统禁止修改原文件标签',
-            type: AppNotificationType.warning,
-          );
         }
         await library.applyScrapedIdentity(path, identityJson);
       }

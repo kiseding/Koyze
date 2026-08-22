@@ -337,9 +337,15 @@ class LocalMusicLibrary {
       id: songmid != null
           ? 'local:$songmid'
           : 'local:${sha1.convert(utf8.encode(path)).toString()}',
-      name: entry['title'] ?? titleFromFileName(fileName),
-      singer: entry['artist'] ?? '未知歌手',
-      album: entry['album']?.toString() ?? '',
+      name:
+          identity?['name']?.toString() ??
+          entry['title']?.toString() ??
+          titleFromFileName(fileName),
+      singer:
+          identity?['singer']?.toString() ??
+          entry['artist']?.toString() ??
+          '未知歌手',
+      album: identity?['album']?.toString() ?? entry['album']?.toString() ?? '',
       duration: Duration(seconds: entry['duration'] ?? 0),
       source: 'local',
       platform: identity?['platform']?.toString() ?? 'local',

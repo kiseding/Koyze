@@ -220,6 +220,44 @@ void main() {
       expect(song.platform, 'wy');
       expect(song.artwork, 'https://example.com/art.jpg');
     });
+
+    test(
+      'scraped identity overrides read-only file tags in app index',
+      () async {
+        final storage = StorageService.forTesting(
+          await SharedPreferences.getInstance(),
+        );
+        final path = '${tempDir.path}/readonly.mp3';
+        await File(path).writeAsBytes([0x49, 0x44, 0x33]);
+        await storage.setJsonList('local_music_index_v1', [
+          {
+            'path': path,
+            'fileName': 'readonly.mp3',
+            'extension': 'mp3',
+            'title': 'Original Title',
+            'artist': 'Original Artist',
+            'album': 'Original Album',
+            'duration': 180,
+          },
+        ]);
+
+        final library = LocalMusicLibrary(storage: storage);
+        await library.init();
+        await library.applyScrapedIdentity(path, {
+          'platform': 'tx',
+          'songmid': 'mid-readonly',
+          'name': 'Scraped Title',
+          'singer': 'Scraped Artist',
+          'album': 'Scraped Album',
+        });
+
+        final song = library.songs.single;
+        expect(song.name, 'Scraped Title');
+        expect(song.singer, 'Scraped Artist');
+        expect(song.album, 'Scraped Album');
+        expect(library.files[path]?['title'], 'Original Title');
+      },
+    );
   });
 
   group('LocalMusicScanner', () {
