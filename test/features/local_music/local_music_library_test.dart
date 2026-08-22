@@ -529,5 +529,22 @@ void main() {
         'https://img1.kuwo.cn/star/albumcover/500/cover.jpg',
       );
     });
+
+    test('artwork candidates include lower resolution CDN fallbacks', () {
+      expect(
+        LocalMusicScraper.artworkCandidates(
+          'tx',
+          'https://y.gtimg.cn/music/photo_new/T002R500x500M000abc.jpg',
+        ),
+        contains('https://y.gtimg.cn/music/photo_new/T002R500x500M000abc.jpg'),
+      );
+      expect(
+        LocalMusicScraper.artworkCandidates(
+          'wy',
+          'https://p1.music.126.net/abc.jpg?param=1000y1000',
+        ),
+        contains('https://p1.music.126.net/abc.jpg?param=500y500'),
+      );
+    });
   });
 }

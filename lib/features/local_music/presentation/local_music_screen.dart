@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -391,6 +392,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       final identity = await scraper.scrapeTrack(track);
       if (identity != null) {
         final identityJson = identity.toJson();
+        // Never persist an unverified remote artwork URL for local music.
+        identityJson.remove('artwork');
         // Embedded artwork is authoritative. Keep the local file and never
         // replace it with a remote thumbnail from the scraper.
         final existingArtwork = song.artwork;
@@ -404,36 +407,40 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
             embeddedArtworkPath != null &&
             await File(embeddedArtworkPath).exists();
         final artwork = identity.artwork;
+        Uint8List? scrapedArtworkBytes;
         if (hasEmbeddedArtwork) {
           identityJson['artwork'] = embeddedArtworkPath;
         } else if (artwork != null && artwork.isNotEmpty) {
           // Remote artwork must be downloaded successfully before it enters
           // the local identity; a failed CDN request must not leave a broken
           // HTTP URL that the local list cannot render.
-          try {
-            final localArtwork = await ArtworkDiskCache.instance.localArtUri(
-              artwork,
-            );
-            if (localArtwork case final uri? when uri.scheme == 'file') {
-              final localPath = uri.toFilePath();
-              if (await File(localPath).exists()) {
-                identityJson['artwork'] = localPath;
+          for (final candidate in LocalMusicScraper.artworkCandidates(
+            identity.platform,
+            artwork,
+          )) {
+            try {
+              final localFile = await ArtworkDiskCache.instance.ensureLocalFile(
+                candidate,
+              );
+              if (localFile != null && await localFile.exists()) {
+                identityJson['artwork'] = localFile.path;
+                scrapedArtworkBytes = await localFile.readAsBytes();
+                break;
               }
+            } catch (_) {
+              // Try the next CDN rendition.
             }
-          } catch (_) {
-            // Remote artwork failure does not affect lyrics or identity.
           }
         }
-        if (!track.hasEmbeddedTags && !hasEmbeddedArtwork) {
-          final artworkBytes = artwork == null
-              ? null
-              : await ArtworkDiskCache.instance.bytesForUrl(artwork);
+        // Tag presence and embedded artwork are independent: a previous pass
+        // may have written title/artist while the cover download failed.
+        if (!hasEmbeddedArtwork) {
           await writeScrapedMetadata(
             path,
             title: identity.name,
             artist: identity.singer,
             album: identity.album,
-            artwork: artworkBytes,
+            artwork: scrapedArtworkBytes,
           );
         }
         await library.applyScrapedIdentity(path, identityJson);

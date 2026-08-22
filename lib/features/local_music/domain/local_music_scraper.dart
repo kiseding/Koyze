@@ -292,4 +292,32 @@ class LocalMusicScraper {
         return artwork;
     }
   }
+
+  /// Ordered artwork fallbacks. Some CDNs expose metadata for a 1000px URL
+  /// but reject that exact rendition while the original 500px image works.
+  static List<String> artworkCandidates(String platform, String? artwork) {
+    if (artwork == null || artwork.isEmpty) return const [];
+    final upgraded = highResolutionArtworkUrl(platform, artwork);
+    final candidates = <String>{
+      if (upgraded != null && upgraded.isNotEmpty) upgraded,
+      artwork,
+    };
+    switch (platform) {
+      case 'tx':
+        candidates.add(
+          (upgraded ?? artwork)
+              .replaceAll('R1000x1000', 'R500x500')
+              .replaceAll('R800x800', 'R500x500'),
+        );
+      case 'wy':
+        candidates
+          ..add('${artwork.split('?').first}?param=500y500')
+          ..add(artwork.split('?').first);
+      case 'kw':
+        candidates
+          ..add(artwork.replaceFirst('/500/', '/300/'))
+          ..add(artwork.replaceFirst('/500/', '/120/'));
+    }
+    return candidates.where((value) => value.isNotEmpty).toList();
+  }
 }
