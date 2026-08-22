@@ -2660,7 +2660,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         cachedRequestedQuality: cachedQ,
         currentRequestedQuality: preferredQuality,
       );
-      String? currentUrl = canReuse ? cachedUrl : null;
+      final localPath = _localPathFor(item);
+      final isLocalMedia = localPath != null;
+      String? currentUrl = isLocalMedia
+          ? Uri.file(localPath).toString()
+          : (canReuse ? cachedUrl : null);
 
       var sourceInstallAttempted = false;
       var sourceTransitionFollows = false;
@@ -2671,7 +2675,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         var checkedExistingPath = false;
         var rejectedResolverProducedFile = false;
 
-        if (canReuse && url != null && url.isNotEmpty) {
+        if (canReuse && !isLocalMedia && url != null && url.isNotEmpty) {
           stagedLease = await _takePendingLeaseForUrl(occurrenceId, url);
           if (stagedLease == null) {
             checkedExistingPath = true;
@@ -2707,7 +2711,6 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         }
 
         if (url == null || url.isEmpty) {
-          final localPath = _localPathFor(item);
           if (localPath != null) {
             url = Uri.file(localPath).toString();
           }
@@ -2738,7 +2741,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         if (url != null &&
             url.isNotEmpty &&
             stagedLease == null &&
-            !checkedExistingPath) {
+            !checkedExistingPath &&
+            !isLocalMedia) {
           stagedLease = await _takePendingLeaseForUrl(occurrenceId, url);
           if (stagedLease == null) {
             final classification = await _classifyExistingCachePath(url);

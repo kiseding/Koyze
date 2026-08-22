@@ -28,6 +28,14 @@ class MainActivity : AudioServiceActivity() {
                             result.success(writeFileBytes(path, bytes))
                         }
                     }
+                    "readFileBytes" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("invalid_args", "Missing path", null)
+                        } else {
+                            result.success(readFileBytes(path))
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -110,5 +118,33 @@ class MainActivity : AudioServiceActivity() {
             }
         } ?: return false
         return true
+    }
+
+    private fun readFileBytes(path: String): ByteArray? {
+        val tree = getSharedPreferences(prefsName, MODE_PRIVATE)
+            .getString(treeUriKey, null)?.let(Uri::parse) ?: return null
+        val root = resolveTreePath(tree) ?: return null
+        val normalizedRoot = java.io.File(root).canonicalPath
+        val normalizedPath = java.io.File(path).canonicalPath
+        if (!normalizedPath.startsWith("$normalizedRoot/")) return null
+        val relative = normalizedPath.removePrefix("$normalizedRoot/")
+        val segments = relative.split('/').filter { it.isNotEmpty() }
+        var current = DocumentsContract.getTreeDocumentId(tree)
+        for (segment in segments) {
+            val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, current)
+            contentResolver.query(
+                children,
+                arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                "${DocumentsContract.Document.COLUMN_DISPLAY_NAME} = ?",
+                arrayOf(segment),
+                null,
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return null
+                current = cursor.getString(0)
+            } ?: return null
+        }
+        val document = DocumentsContract.buildDocumentUriUsingTree(tree, current)
+        return contentResolver.openInputStream(document)?.use { it.readBytes() }
     }
 }

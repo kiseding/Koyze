@@ -162,6 +162,7 @@ class LocalMusicLibrary {
         'artist': track.artist,
         'album': track.album,
         'hasEmbeddedTags': track.hasEmbeddedTags,
+        'hasEmbeddedArtwork': track.hasEmbeddedArtwork,
         'duration': track.duration.inSeconds,
         if (artworkPath != null) 'artwork': artworkPath,
       };

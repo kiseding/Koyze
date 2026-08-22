@@ -32,6 +32,7 @@ Future<bool> writeScrapedMetadata(
         Picture(artwork, artworkMimeType, PictureType.coverFront),
       ]);
     }
+    dynamic verified;
     if (Platform.isAndroid && path.startsWith('/')) {
       // Android external-media paths may be backed by a SAF tree URI. Write
       // the fully updated file through ContentResolver when available.
@@ -47,9 +48,11 @@ Future<bool> writeScrapedMetadata(
           writeMetadata(temporary, metadata);
         }
         final bytes = await temporary.readAsBytes();
-        final written = await const MethodChannel(
-          'koyze/android_file_access',
-        ).invokeMethod<bool>('writeFileBytes', {'path': path, 'bytes': bytes});
+        final channel = const MethodChannel('koyze/android_file_access');
+        final written = await channel.invokeMethod<bool>('writeFileBytes', {
+          'path': path,
+          'bytes': bytes,
+        });
         if (written != true) {
           // App-owned paths do not need SAF. Fall back to direct writing.
           if (noTagMp3 && metadata is Mp3Metadata) {
@@ -57,20 +60,32 @@ Future<bool> writeScrapedMetadata(
           } else {
             writeMetadata(file, metadata);
           }
+          verified = readMetadata(file, getImage: artwork != null);
+        } else {
+          // File(path) may be a stale view of a SAF-backed document. Verify
+          // the bytes returned by ContentResolver instead of the stale path.
+          final actual = await channel.invokeMethod<Uint8List>(
+            'readFileBytes',
+            {'path': path},
+          );
+          if (actual == null || actual.isEmpty) return false;
+          await temporary.writeAsBytes(actual, flush: true);
         }
+        verified = readMetadata(temporary, getImage: artwork != null);
       } finally {
         if (await temporary.exists()) await temporary.delete();
       }
     } else if (noTagMp3 && metadata is Mp3Metadata) {
       Id3v4Writer().write(file, metadata);
+      verified = readMetadata(file, getImage: artwork != null);
     } else {
       writeMetadata(file, metadata);
+      verified = readMetadata(file, getImage: artwork != null);
     }
     // Verify the writer actually produced readable metadata. Some containers
     // are readable but do not support creating a new tag block.
-    final verified = readMetadata(file, getImage: artwork != null);
-    if (verified.title?.trim() != title.trim() ||
-        verified.artist?.trim() != artist.trim()) {
+    if (verified?.title?.trim() != title.trim() ||
+        verified?.artist?.trim() != artist.trim()) {
       return false;
     }
     return true;

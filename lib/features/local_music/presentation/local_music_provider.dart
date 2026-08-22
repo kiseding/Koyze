@@ -42,6 +42,7 @@ final localSongsProvider = FutureProvider<List<LocalTrack>>((ref) async {
       album: entry['album']?.toString() ?? '',
       duration: Duration(seconds: entry['duration'] ?? 0),
       hasEmbeddedTags: entry['hasEmbeddedTags'] == true,
+      hasEmbeddedArtwork: entry['hasEmbeddedArtwork'] == true,
     );
   }).toList();
 });

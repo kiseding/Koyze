@@ -43,6 +43,7 @@ class LocalTrack {
     required this.album,
     required this.duration,
     this.hasEmbeddedTags = true,
+    this.hasEmbeddedArtwork = false,
     this.embeddedArtwork,
   });
 
@@ -56,6 +57,7 @@ class LocalTrack {
   final String album;
   final Duration duration;
   final bool hasEmbeddedTags;
+  final bool hasEmbeddedArtwork;
   final Uint8List? embeddedArtwork;
 
   LocalTrack copyWith({String? title, String? artist, String? album}) {
@@ -70,6 +72,7 @@ class LocalTrack {
       album: album ?? this.album,
       duration: duration,
       hasEmbeddedTags: hasEmbeddedTags,
+      hasEmbeddedArtwork: hasEmbeddedArtwork,
       embeddedArtwork: embeddedArtwork,
     );
   }
@@ -137,7 +140,7 @@ class LocalMusicScanner {
       final stat = await file.stat();
       // 纯 Dart 解析器不引入平台原生库，避免 Android/iOS 链接阶段失败。
       // 提取内嵌封面供本地音乐显示（无在线刮削时使用）。
-      final tag = readMetadata(file, getImage: true);
+      final tag = _readMetadataWithArtworkFallback(file);
       final title = tag.title ?? titleFromFileName(fileName);
       final artist = tag.artist ?? '未知歌手';
       final album = tag.album ?? '';
@@ -157,6 +160,7 @@ class LocalMusicScanner {
         hasEmbeddedTags:
             tag.title?.trim().isNotEmpty == true &&
             tag.artist?.trim().isNotEmpty == true,
+        hasEmbeddedArtwork: artwork != null && artwork.isNotEmpty,
         embeddedArtwork: artwork,
       );
     } catch (error) {
@@ -180,6 +184,15 @@ class LocalMusicScanner {
         // 文件在扫描过程中被删除或无权访问。
         return null;
       }
+    }
+  }
+
+  dynamic _readMetadataWithArtworkFallback(File file) {
+    try {
+      return readMetadata(file, getImage: true);
+    } catch (_) {
+      // A broken embedded picture must not hide otherwise valid text tags.
+      return readMetadata(file);
     }
   }
 }

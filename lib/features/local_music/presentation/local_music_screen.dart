@@ -399,6 +399,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         album: entry?['album']?.toString() ?? '',
         duration: Duration(seconds: entry?['duration'] ?? 0),
         hasEmbeddedTags: entry?['hasEmbeddedTags'] == true,
+        hasEmbeddedArtwork: entry?['hasEmbeddedArtwork'] == true,
       );
       final identity = await scraper.scrapeTrack(track);
       if (identity != null) {
@@ -446,7 +447,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         // Tag presence and embedded artwork are independent: a previous pass
         // may have written title/artist while the cover download failed.
         var wroteTags = true;
-        if (!hasEmbeddedArtwork) {
+        if (!track.hasEmbeddedTags || !track.hasEmbeddedArtwork) {
           wroteTags = await writeScrapedMetadata(
             path,
             title: identity.name,
