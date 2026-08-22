@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import 'package:koyze/core/widgets/artwork_disk_cache.dart';
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
 import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
+import 'package:koyze/features/local_music/domain/local_metadata_writer.dart';
 import 'package:koyze/features/local_music/domain/local_music_scraper.dart';
 import 'package:koyze/features/local_music/domain/android_directory_access.dart';
 import 'package:koyze/features/local_music/domain/security_scoped_directory.dart';
@@ -26,6 +29,7 @@ class LocalMusicScreen extends ConsumerStatefulWidget {
 class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
   bool _scanning = false;
   bool _scraping = false;
+  bool _tagWriting = false;
   int _scanned = 0;
   int _total = 0;
   String _status = '';
@@ -64,14 +68,16 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                 color: AppColors.onScaffold(context),
                 size: 22,
               ),
-              onPressed: _scanning || _scraping ? null : () => _rescan(),
+              onPressed: _scanning || _scraping || _tagWriting
+                  ? null
+                  : () => _rescan(),
             ),
           ],
         ),
         body: Column(
           children: [
             _buildHeader(context, dirs, downloadDir),
-            if (_scanning || _scraping) _buildProgress(context),
+            if (_scanning || _scraping || _tagWriting) _buildProgress(context),
             Expanded(
               child: Center(
                 child: Text(
@@ -148,7 +154,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                   ),
                 ),
                 FilledButton.icon(
-                  onPressed: _scanning || _scraping
+                  onPressed: _scanning || _scraping || _tagWriting
                       ? null
                       : () => _pickDirectory(),
                   style: FilledButton.styleFrom(
@@ -221,7 +227,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                               size: 16,
                               color: AppColors.mutedText(context),
                             ),
-                            onPressed: _scanning || _scraping
+                            onPressed: _scanning || _scraping || _tagWriting
                                 ? null
                                 : () => _removeDirectory(dir),
                           ),
@@ -229,6 +235,17 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                       ),
                     ),
                 ],
+              ),
+            ),
+          if (directories.isNotEmpty || downloadDirectory != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: OutlinedButton.icon(
+                onPressed: _scanning || _scraping || _tagWriting
+                    ? null
+                    : () => _writeScrapedTags(),
+                icon: const Icon(Icons.edit_note_rounded, size: 18),
+                label: const Text('尝试写回原文件标签'),
               ),
             ),
         ],
@@ -460,6 +477,103 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       '本地音乐已更新（${songs.length} 首）',
       type: AppNotificationType.info,
     );
+  }
+
+  Future<void> _writeScrapedTags() async {
+    final library = await ref.read(localMusicLibraryProvider.future);
+    await _requestTagWritePermissions();
+    final songs = library.songs;
+    if (songs.isEmpty) {
+      if (mounted) _showError('没有可写入的本地歌曲', StateError('empty'));
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _tagWriting = true;
+      _scanned = 0;
+      _total = songs.length;
+      _status = '正在尝试写回原文件标签…';
+    });
+    var attempted = 0;
+    var written = 0;
+    try {
+      for (var index = 0; index < songs.length; index++) {
+        final song = songs[index];
+        final path = song.meta?['filePath']?.toString();
+        if (path == null || path.isEmpty) continue;
+        final identity = library.scrapedIdentity(path);
+        if (identity == null) continue;
+        final title = identity['name']?.toString();
+        final artist = identity['singer']?.toString();
+        if (title == null ||
+            title.isEmpty ||
+            artist == null ||
+            artist.isEmpty) {
+          continue;
+        }
+        attempted++;
+        final artworkBytes = await _localArtworkBytes(
+          identity['artwork']?.toString() ?? song.artwork,
+        );
+        if (await writeScrapedMetadata(
+          path,
+          title: title,
+          artist: artist,
+          album: identity['album']?.toString() ?? song.album,
+          artwork: artworkBytes,
+        )) {
+          written++;
+        }
+        if (!mounted) return;
+        setState(() {
+          _scanned = index + 1;
+          _status = '正在写回原文件标签 $_scanned / $_total';
+        });
+      }
+      if (!mounted) return;
+      setState(() {
+        _tagWriting = false;
+      });
+      showAppNotification(
+        attempted == 0 ? '没有可写回的刮削标签' : '标签写回完成：成功 $written / $attempted',
+        type: written == attempted && attempted > 0
+            ? AppNotificationType.success
+            : AppNotificationType.info,
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _tagWriting = false;
+        });
+        _showError('写回标签失败', error);
+      }
+    }
+  }
+
+  Future<void> _requestTagWritePermissions() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await Permission.audio.request();
+      await Permission.storage.request();
+    } catch (_) {
+      // SAF tree grants may still allow writing even when broad storage
+      // permissions are unavailable on newer Android versions.
+    }
+  }
+
+  Future<Uint8List?> _localArtworkBytes(String? artwork) async {
+    if (artwork == null || artwork.isEmpty) return null;
+    try {
+      final uri = Uri.tryParse(artwork);
+      final file = uri?.scheme == 'file'
+          ? File(uri!.toFilePath())
+          : (uri?.scheme.isNotEmpty == true ? null : File(artwork));
+      if (file == null || !await file.exists()) return null;
+      final bytes = await file.readAsBytes();
+      return bytes.isEmpty ? null : bytes;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _removeDirectory(String directoryPath) async {
