@@ -12,6 +12,7 @@ import 'package:koyze/features/local_music/domain/local_music_library.dart';
 import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
 import 'package:koyze/features/local_music/domain/local_metadata_writer.dart';
 import 'package:koyze/features/local_music/domain/local_music_scraper.dart';
+import 'package:koyze/features/local_music/domain/android_directory_access.dart';
 import 'package:koyze/features/local_music/domain/security_scoped_directory.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
@@ -280,6 +281,15 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       }
       return;
     }
+    if (Platform.isAndroid) {
+      try {
+        final path = await AndroidDirectoryAccess.select();
+        if (path != null && mounted) await _scan(path);
+      } catch (error) {
+        if (mounted) _showError('选择音乐文件夹失败', error);
+      }
+      return;
+    }
     try {
       final path = await FilePicker.getDirectoryPath(dialogTitle: '选择音乐文件夹');
       if (path == null || !mounted) return;
@@ -435,13 +445,20 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         }
         // Tag presence and embedded artwork are independent: a previous pass
         // may have written title/artist while the cover download failed.
+        var wroteTags = true;
         if (!hasEmbeddedArtwork) {
-          await writeScrapedMetadata(
+          wroteTags = await writeScrapedMetadata(
             path,
             title: identity.name,
             artist: identity.singer,
             album: identity.album,
             artwork: scrapedArtworkBytes,
+          );
+        }
+        if (!wroteTags && mounted) {
+          showAppNotification(
+            '已刮削歌曲信息，但系统禁止修改原文件标签',
+            type: AppNotificationType.warning,
           );
         }
         await library.applyScrapedIdentity(path, identityJson);

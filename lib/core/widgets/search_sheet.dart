@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -23,7 +24,7 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
     barrierColor: Colors.black45,
     sheetAnimationStyle: AnimationStyle(
       duration: MotionDuration.container,
-      reverseDuration: MotionDuration.normal,
+      reverseDuration: MotionDuration.micro,
       curve: MotionCurve.easeOut,
       reverseCurve: MotionCurve.easeIn,
     ),
@@ -44,6 +45,8 @@ class _SearchSheetState extends State<_SearchSheet>
     with SingleTickerProviderStateMixin {
   double _dragOffset = 0;
   bool _draggingFromScroll = false;
+  bool _settling = false;
+  bool _closing = false;
 
   late final AnimationController _settle = AnimationController(
     vsync: this,
@@ -89,16 +92,24 @@ class _SearchSheetState extends State<_SearchSheet>
   }
 
   Future<void> _finishDrag(double velocity) async {
+    if (_settling || _closing) return;
     _draggingFromScroll = false;
     if (_dragOffset > _closeThreshold || velocity > 700) {
       if (!mounted) return;
+      _closing = true;
       Navigator.pop(context);
       return;
     }
     if (_dragOffset > 0) {
+      _settling = true;
       _startSettle(_dragOffset, 0);
       await _settle.forward(from: 0);
-      if (mounted) setState(() => _dragOffset = 0);
+      if (mounted) {
+        setState(() {
+          _dragOffset = 0;
+          _settling = false;
+        });
+      }
     }
   }
 
@@ -123,13 +134,7 @@ class _SearchSheetState extends State<_SearchSheet>
       }
     } else if (notification is ScrollEndNotification && _draggingFromScroll) {
       final velocity = notification.dragDetails?.primaryVelocity ?? 0;
-      _finishDrag(velocity);
-      return true;
-    } else if (notification is UserScrollNotification &&
-        notification.direction == ScrollDirection.idle &&
-        _draggingFromScroll &&
-        _dragOffset > 0) {
-      _finishDrag(0);
+      unawaited(_finishDrag(velocity));
       return true;
     }
     return false;
@@ -162,6 +167,7 @@ class _SearchSheetState extends State<_SearchSheet>
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onVerticalDragStart: (_) {
+                  if (_closing) return;
                   if (_settle.isAnimating) _settle.stop();
                 },
                 onVerticalDragUpdate: _onDragUpdate,

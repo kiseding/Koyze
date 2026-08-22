@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// Writes the identity found by the scraper back into writable audio formats.
 /// Unsupported containers are left untouched; the library index still keeps
@@ -30,7 +32,36 @@ Future<bool> writeScrapedMetadata(
         Picture(artwork, artworkMimeType, PictureType.coverFront),
       ]);
     }
-    if (noTagMp3 && metadata is Mp3Metadata) {
+    if (Platform.isAndroid && path.startsWith('/')) {
+      // Android external-media paths may be backed by a SAF tree URI. Write
+      // the fully updated file through ContentResolver when available.
+      final temporary = File(
+        '${(await getTemporaryDirectory()).path}/koyze-tag-${file.uri.pathSegments.last}.tmp',
+      );
+      try {
+        await temporary.parent.create(recursive: true);
+        await file.copy(temporary.path);
+        if (noTagMp3 && metadata is Mp3Metadata) {
+          Id3v4Writer().write(temporary, metadata);
+        } else {
+          writeMetadata(temporary, metadata);
+        }
+        final bytes = await temporary.readAsBytes();
+        final written = await const MethodChannel(
+          'koyze/android_file_access',
+        ).invokeMethod<bool>('writeFileBytes', {'path': path, 'bytes': bytes});
+        if (written != true) {
+          // App-owned paths do not need SAF. Fall back to direct writing.
+          if (noTagMp3 && metadata is Mp3Metadata) {
+            Id3v4Writer().write(file, metadata);
+          } else {
+            writeMetadata(file, metadata);
+          }
+        }
+      } finally {
+        if (await temporary.exists()) await temporary.delete();
+      }
+    } else if (noTagMp3 && metadata is Mp3Metadata) {
       Id3v4Writer().write(file, metadata);
     } else {
       writeMetadata(file, metadata);

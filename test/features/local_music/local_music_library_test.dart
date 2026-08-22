@@ -439,6 +439,37 @@ void main() {
       expect(identity.platform, 'tx');
     });
 
+    test('matches live title variants while preserving online artwork', () {
+      final track = LocalTrack(
+        path: '/tmp/live.mp3',
+        fileName: '阿刁（live）.mp3',
+        extension: 'mp3',
+        size: 100,
+        modifiedAt: DateTime.now(),
+        title: '阿刁（live）',
+        artist: '赵雷',
+        album: '',
+        duration: const Duration(seconds: 240),
+        hasEmbeddedTags: true,
+      );
+
+      final identity = LocalMusicScraper.bestMatch(track, [
+        MusicItem(
+          id: 'live-1',
+          name: '阿刁',
+          singer: '赵雷',
+          source: 'tx',
+          platform: 'tx',
+          songmid: 'live-1',
+          duration: const Duration(seconds: 240),
+          artwork: 'https://example.com/a.jpg',
+        ),
+      ]);
+
+      expect(identity?.name, '阿刁');
+      expect(identity?.artwork, 'https://example.com/a.jpg');
+    });
+
     test('rejects title mismatch and duration mismatch', () {
       final track = LocalTrack(
         path: '/tmp/a.mp3',

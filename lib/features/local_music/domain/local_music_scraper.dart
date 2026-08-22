@@ -181,8 +181,14 @@ class LocalMusicScraper {
         final normalizedTitle = _normalize(query.title);
         final normalizedArtist = _normalize(query.artist);
         final normalizedSongTitle = _normalize(song.name);
-        if (normalizedSongTitle != normalizedTitle) continue;
-        var score = 6;
+        final exactTitle = normalizedSongTitle == normalizedTitle;
+        final sameRecordingTitle =
+            _titleWithoutVersion(normalizedSongTitle) ==
+            _titleWithoutVersion(normalizedTitle);
+        if (!exactTitle && !sameRecordingTitle) continue;
+        // Keep exact recording titles ahead of a base-title fallback, while
+        // allowing filenames such as "阿刁（live）" to match "阿刁".
+        var score = exactTitle ? 6 : 4;
         if (track.duration > Duration.zero && song.duration > Duration.zero) {
           final diff = (song.duration.inSeconds - track.duration.inSeconds)
               .abs();
@@ -234,6 +240,20 @@ class LocalMusicScraper {
       .toLowerCase()
       .replaceAll(RegExp(r'[\u2010-\u2015]'), '-')
       .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  static String _titleWithoutVersion(String value) => value
+      .replaceAll(
+        RegExp(
+          r'\s*[\(（\[]\s*(?:live|现场|演唱会|acoustic|unplugged|remix|\d{4}版|live版|现场版)\s*[\)）\]]\s*$',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(r'\s+(?:live|现场|acoustic|unplugged)\s*$', caseSensitive: false),
+        '',
+      )
       .trim();
 
   /// 解析常见文件名格式，并保留两个方向供在线结果评分：
