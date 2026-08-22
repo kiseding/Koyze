@@ -11,6 +11,7 @@ import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
 import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
 import 'package:koyze/features/local_music/domain/local_metadata_writer.dart';
+import 'package:koyze/features/local_music/domain/local_music_scraper.dart';
 import 'package:koyze/features/local_music/domain/security_scoped_directory.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
