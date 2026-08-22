@@ -134,11 +134,25 @@ class LocalMusicLibrary {
       _directories = [..._directories, directoryPath];
       await _persistDirectories();
     }
+    final discoveredPaths = <String>{};
     final tracks = await _scanner.scanDirectory(
       directoryPath,
+      onDiscoveredPath: discoveredPaths.add,
       shouldSkip: (path) {
         final entry = _files[path];
         if (entry == null) return false;
+        try {
+          final stat = File(path).statSync();
+          final indexedModified = DateTime.tryParse(
+            entry['modifiedAt']?.toString() ?? '',
+          );
+          if (entry['size'] != stat.size || indexedModified != stat.modified) {
+            _scrapedIdentity.remove(path);
+            return false;
+          }
+        } catch (_) {
+          return false;
+        }
         final identity = _scrapedIdentity[path];
         // 歌词和封面分别刮削；不能因为已有歌词就跳过缺封面的文件。
         return identity?['lyrics']?.toString().isNotEmpty == true &&
@@ -167,6 +181,18 @@ class LocalMusicLibrary {
         if (track.bitrate != null) 'bitrate': track.bitrate,
         if (artworkPath != null) 'artwork': artworkPath,
       };
+    }
+    final prefix = directoryPath.endsWith(Platform.pathSeparator)
+        ? directoryPath
+        : '$directoryPath${Platform.pathSeparator}';
+    final stalePaths = _files.keys
+        .where(
+          (path) => path.startsWith(prefix) && !discoveredPaths.contains(path),
+        )
+        .toList(growable: false);
+    for (final path in stalePaths) {
+      _files.remove(path);
+      _scrapedIdentity.remove(path);
     }
     await _persistIndex();
     return tracks.length;
@@ -335,9 +361,7 @@ class LocalMusicLibrary {
     final localLyrics = identity?['lyrics']?.toString();
 
     return MusicItem(
-      id: songmid != null
-          ? 'local:$songmid'
-          : 'local:${sha1.convert(utf8.encode(path)).toString()}',
+      id: 'local:${sha1.convert(utf8.encode(path)).toString()}',
       name:
           identity?['name']?.toString() ??
           entry['title']?.toString() ??

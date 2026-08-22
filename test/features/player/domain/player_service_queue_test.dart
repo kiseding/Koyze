@@ -208,6 +208,29 @@ void main() {
     ]);
   });
 
+  test('playNext current item is a no-op', () async {
+    audioHandler = handler;
+    final currentMusic = MusicItem(
+      id: 'current',
+      name: 'Current',
+      singer: '',
+      source: 'test',
+    );
+    final item = MediaItem(
+      id: currentMusic.identityKey,
+      title: currentMusic.name,
+      extras: currentMusic.toJson(),
+    );
+    await handler.setPlaylist([item]);
+
+    await PlayerService().playNext(currentMusic);
+
+    expect(handler.queueItems.map((item) => item.id), [
+      currentMusic.identityKey,
+    ]);
+    expect(handler.currentQueueIndex, 0);
+  });
+
   test(
     'in-flight queue load follows active item after metadata move',
     () async {

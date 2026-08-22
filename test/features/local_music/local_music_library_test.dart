@@ -121,6 +121,72 @@ void main() {
       expect(library.files.containsKey('$downloadDir/song.mp3'), isTrue);
     });
 
+    test('rescan removes deleted files from an existing directory', () async {
+      final storage = StorageService.forTesting(
+        await SharedPreferences.getInstance(),
+      );
+      final dir = '${tempDir.path}/rescan-delete';
+      await Directory(dir).create(recursive: true);
+      final removed = File('$dir/removed.mp3');
+      await removed.writeAsBytes([0x49, 0x44, 0x33]);
+      await storage.setStringList('local_music_dirs_v1', [dir]);
+      await storage.setJsonList('local_music_index_v1', [
+        {
+          'path': removed.path,
+          'fileName': 'removed.mp3',
+          'extension': 'mp3',
+          'title': 'Removed',
+          'artist': 'Artist',
+          'duration': 0,
+        },
+      ]);
+
+      final library = LocalMusicLibrary(storage: storage);
+      await library.init();
+      await removed.delete();
+      await library.rescanAll();
+
+      expect(library.files.containsKey(removed.path), isFalse);
+    });
+
+    test(
+      'rescan reparses changed files and clears stale scraped identity',
+      () async {
+        final storage = StorageService.forTesting(
+          await SharedPreferences.getInstance(),
+        );
+        final dir = '${tempDir.path}/rescan-change';
+        await Directory(dir).create(recursive: true);
+        final changed = File('$dir/changed.mp3');
+        await changed.writeAsBytes([0x49, 0x44, 0x33]);
+        final oldModified = DateTime(2026, 1, 1).toIso8601String();
+        await storage.setStringList('local_music_dirs_v1', [dir]);
+        await storage.setJsonList('local_music_index_v1', [
+          {
+            'path': changed.path,
+            'fileName': 'changed.mp3',
+            'extension': 'mp3',
+            'size': 1,
+            'modifiedAt': oldModified,
+            'title': 'Old',
+            'artist': 'Old Artist',
+            'duration': 0,
+          },
+        ]);
+        await storage.setJsonList('local_music_scrape_v1', [
+          {'path': changed.path, 'name': 'Stale', 'singer': 'Stale Artist'},
+        ]);
+
+        final library = LocalMusicLibrary(storage: storage);
+        await library.init();
+        await changed.writeAsBytes([0, 1, 2, 3, 4]);
+        await library.rescanAll();
+
+        expect(library.scrapedIdentity(changed.path), isNull);
+        expect(library.files[changed.path]?['title'], 'changed');
+      },
+    );
+
     test('builds MusicItem with dual identity from scraped data', () async {
       final storage = StorageService.forTesting(
         await SharedPreferences.getInstance(),

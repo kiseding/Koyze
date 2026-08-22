@@ -30,7 +30,9 @@ void routeWidgetLaunch(Uri? uri) {
   if (uri == null) return;
   final host = uri.host.toLowerCase();
   if (host == 'nowplaying') {
-    appRouter.push('/player');
+    if (appRouter.routerDelegate.currentConfiguration.uri.path != '/player') {
+      appRouter.push('/player');
+    }
   }
 }
 

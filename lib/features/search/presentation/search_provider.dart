@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/music_source_service.dart';
 import '../../../core/storage/storage_service.dart';
@@ -123,11 +125,8 @@ class SearchNotifier extends StateNotifier<SearchState> {
       query: query,
       sourceId: sourceId,
     );
-    final localMatches = sourceId == 'local' || sourceId == 'favorites'
-        ? const <MusicItem>[]
-        : await _loadLocalMatches?.call(query, 5) ?? const [];
-    if (_owns(generation, query, sourceId)) {
-      state = state.copyWith(localMatches: localMatches);
+    if (sourceId != 'local' && sourceId != 'favorites') {
+      unawaited(_loadSupplementalLocalMatches(generation, query, sourceId));
     }
     await _loadPage(
       generation: generation,
@@ -152,6 +151,17 @@ class SearchNotifier extends StateNotifier<SearchState> {
       page: page,
       append: true,
     );
+  }
+
+  Future<void> _loadSupplementalLocalMatches(
+    int generation,
+    String query,
+    String sourceId,
+  ) async {
+    final localMatches = await _loadLocalMatches?.call(query, 5) ?? const [];
+    if (_owns(generation, query, sourceId)) {
+      state = state.copyWith(localMatches: localMatches);
+    }
   }
 
   Future<void> _loadPage({

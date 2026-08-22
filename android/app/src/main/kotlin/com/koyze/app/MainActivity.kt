@@ -73,7 +73,12 @@ class MainActivity : AudioServiceActivity() {
         } catch (_: SecurityException) {}
         getSharedPreferences(prefsName, MODE_PRIVATE).edit()
             .putString(treeUriKey, uri.toString()).apply()
-        result.success(resolveTreePath(uri))
+        val path = resolveTreePath(uri)
+        if (path == null) {
+            result.error("unsupported_tree", "Only primary shared storage folders are supported", null)
+        } else {
+            result.success(path)
+        }
     }
 
     private fun resolveTreePath(uri: Uri): String? {
@@ -111,7 +116,7 @@ class MainActivity : AudioServiceActivity() {
             } ?: return false
         }
         val document = DocumentsContract.buildDocumentUriUsingTree(tree, current)
-        contentResolver.openFileDescriptor(document, "w")?.use { descriptor ->
+        contentResolver.openFileDescriptor(document, "rwt")?.use { descriptor ->
             java.io.FileOutputStream(descriptor.fileDescriptor).use { output ->
                 output.write(bytes)
                 output.flush()

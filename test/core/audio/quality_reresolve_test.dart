@@ -13,6 +13,7 @@ void main() {
       shouldReuseCachedPlayUrl(
         cachedUrl: 'file:///tmp/a.flac',
         cachedRequestedQuality: 'flac',
+        cachedActualQuality: 'flac',
         currentRequestedQuality: 'flac',
       ),
       isTrue,
@@ -21,14 +22,16 @@ void main() {
       shouldReuseCachedPlayUrl(
         cachedUrl: 'file:///tmp/a.mp3',
         cachedRequestedQuality: '320k',
+        cachedActualQuality: '320k',
         currentRequestedQuality: 'flac',
       ),
-      isTrue,
+      isFalse,
     );
     expect(
       shouldReuseCachedPlayUrl(
         cachedUrl: 'https://cdn.example/song.mp3?token=expired',
         cachedRequestedQuality: '320k',
+        cachedActualQuality: '320k',
         currentRequestedQuality: '320k',
       ),
       isFalse,
@@ -38,6 +41,7 @@ void main() {
       shouldReuseCachedPlayUrl(
         cachedUrl: 'file:///tmp/a.mp3',
         cachedRequestedQuality: null,
+        cachedActualQuality: null,
         currentRequestedQuality: '320k',
       ),
       isTrue,
@@ -46,6 +50,7 @@ void main() {
       shouldReuseCachedPlayUrl(
         cachedUrl: '/absolute/path/song.flac',
         cachedRequestedQuality: null,
+        cachedActualQuality: 'flac',
         currentRequestedQuality: 'flac',
       ),
       isTrue,
@@ -54,6 +59,7 @@ void main() {
       shouldReuseCachedPlayUrl(
         cachedUrl: null,
         cachedRequestedQuality: 'flac',
+        cachedActualQuality: 'flac',
         currentRequestedQuality: 'flac',
       ),
       isFalse,
@@ -62,6 +68,7 @@ void main() {
       shouldReuseCachedPlayUrl(
         cachedUrl: 'data:audio/wav;base64,xx',
         cachedRequestedQuality: 'flac',
+        cachedActualQuality: 'flac',
         currentRequestedQuality: 'flac',
       ),
       isFalse,
@@ -114,122 +121,132 @@ void main() {
     expect(playing.resumeAfterReload, isTrue);
   });
 
-  test('paused quality change reloads at engine position without resuming',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    await handler.pause();
-    final playCalls = player.playCalls;
+  test(
+    'paused quality change reloads at engine position without resuming',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      await handler.pause();
+      final playCalls = player.playCalls;
 
-    await handler.applyPreferredQuality('flac');
+      await handler.applyPreferredQuality('flac');
 
-    expect(player.initialPositions.last, const Duration(seconds: 42));
-    expect(player.playCalls, playCalls);
-    expect(player.playing, isFalse);
-  });
+      expect(player.initialPositions.last, const Duration(seconds: 42));
+      expect(player.playCalls, playCalls);
+      expect(player.playing, isFalse);
+    },
+  );
 
-  test('playing quality change pauses, reloads position, and resumes',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    final playCalls = player.playCalls;
+  test(
+    'playing quality change pauses, reloads position, and resumes',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      final playCalls = player.playCalls;
 
-    await handler.applyPreferredQuality('flac');
+      await handler.applyPreferredQuality('flac');
 
-    expect(player.pauseCalls, 1);
-    expect(player.initialPositions.last, const Duration(seconds: 42));
-    expect(player.playCalls, playCalls + 1);
-    expect(player.playing, isTrue);
-  });
+      expect(player.pauseCalls, 1);
+      expect(player.initialPositions.last, const Duration(seconds: 42));
+      expect(player.playCalls, playCalls + 1);
+      expect(player.playing, isTrue);
+    },
+  );
 
-  test('quality begun during interruption resumes new quality after end',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    await handler.beginAudioInterruption();
+  test(
+    'quality begun during interruption resumes new quality after end',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      await handler.beginAudioInterruption();
 
-    await handler.applyPreferredQuality('flac');
+      await handler.applyPreferredQuality('flac');
 
-    expect(player.initialPositions.last, const Duration(seconds: 42));
-    expect(handler.queueItems.single.extras?['requestedQuality'], 'flac');
-    expect(player.playing, isFalse);
-    await handler.endAudioInterruption(mayResume: true);
-    expect(player.playing, isTrue);
-  });
+      expect(player.initialPositions.last, const Duration(seconds: 42));
+      expect(handler.queueItems.single.extras?['requestedQuality'], 'flac');
+      expect(player.playing, isFalse);
+      await handler.endAudioInterruption(mayResume: true);
+      expect(player.playing, isTrue);
+    },
+  );
 
-  test('quality begun during interruption stays paused after denied end',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    await handler.beginAudioInterruption();
+  test(
+    'quality begun during interruption stays paused after denied end',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      await handler.beginAudioInterruption();
 
-    await handler.applyPreferredQuality('flac');
-    await handler.endAudioInterruption(mayResume: false);
+      await handler.applyPreferredQuality('flac');
+      await handler.endAudioInterruption(mayResume: false);
 
-    expect(player.initialPositions.last, const Duration(seconds: 42));
-    expect(handler.queueItems.single.extras?['requestedQuality'], 'flac');
-    expect(player.playing, isFalse);
-  });
+      expect(player.initialPositions.last, const Duration(seconds: 42));
+      expect(handler.queueItems.single.extras?['requestedQuality'], 'flac');
+      expect(player.playing, isFalse);
+    },
+  );
 
-  test('explicit pause during interruption keeps quality reload paused',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    await handler.beginAudioInterruption();
-    await handler.pause();
+  test(
+    'explicit pause during interruption keeps quality reload paused',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      await handler.beginAudioInterruption();
+      await handler.pause();
 
-    await handler.applyPreferredQuality('flac');
-    await handler.endAudioInterruption(mayResume: true);
+      await handler.applyPreferredQuality('flac');
+      await handler.endAudioInterruption(mayResume: true);
 
-    expect(player.initialPositions.last, const Duration(seconds: 42));
-    expect(handler.queueItems.single.extras?['requestedQuality'], 'flac');
-    expect(player.playing, isFalse);
-  });
+      expect(player.initialPositions.last, const Duration(seconds: 42));
+      expect(handler.queueItems.single.extras?['requestedQuality'], 'flac');
+      expect(player.playing, isFalse);
+    },
+  );
 
   test('newer pause wins while quality URL is resolving', () async {
     final player = _QualityAudioPlayer();
@@ -315,38 +332,43 @@ void main() {
     expect(player.playing, isTrue);
   });
 
-  for (final selection in <({
-    String name,
-    int initialIndex,
-    int targetIndex,
-    Future<void> Function(LxAudioHandler) run,
-  })>[
-    (
-      name: 'queue item',
-      initialIndex: 0,
-      targetIndex: 1,
-      run: (handler) => handler.skipToQueueItem(1),
-    ),
-    (
-      name: 'next',
-      initialIndex: 0,
-      targetIndex: 1,
-      run: (handler) => handler.skipToNext(),
-    ),
-    (
-      name: 'previous',
-      initialIndex: 1,
-      targetIndex: 0,
-      run: (handler) => handler.skipToPrevious(),
-    ),
-  ]) {
+  for (final selection
+      in <
+        ({
+          String name,
+          int initialIndex,
+          int targetIndex,
+          Future<void> Function(LxAudioHandler) run,
+        })
+      >[
+        (
+          name: 'queue item',
+          initialIndex: 0,
+          targetIndex: 1,
+          run: (handler) => handler.skipToQueueItem(1),
+        ),
+        (
+          name: 'next',
+          initialIndex: 0,
+          targetIndex: 1,
+          run: (handler) => handler.skipToNext(),
+        ),
+        (
+          name: 'previous',
+          initialIndex: 1,
+          targetIndex: 0,
+          run: (handler) => handler.skipToPrevious(),
+        ),
+      ]) {
     test('newer pause owns ${selection.name} URL resolution', () async {
       final player = _QualityAudioPlayer();
       final handler = LxAudioHandler(player: player);
       addTearDown(player.dispose);
       final items = [_item('A'), _item('B')];
-      items[selection.targetIndex] =
-          const MediaItem(id: 'target', title: 'target');
+      items[selection.targetIndex] = const MediaItem(
+        id: 'target',
+        title: 'target',
+      );
       await handler.setPlaylist(items, initialIndex: selection.initialIndex);
       await pumpEventQueue();
       final resolveGate = _Gate();
@@ -375,10 +397,10 @@ void main() {
       final player = _QualityAudioPlayer();
       final handler = LxAudioHandler(player: player);
       addTearDown(player.dispose);
-      await handler.setPlaylist(
-        [_item('A'), _item('B')],
-        initialIndex: selection.initialIndex,
-      );
+      await handler.setPlaylist([
+        _item('A'),
+        _item('B'),
+      ], initialIndex: selection.initialIndex);
       final installGate = player.gateNextSourceInstall();
       final playCalls = player.playCalls;
 
@@ -451,120 +473,128 @@ void main() {
     expect(player.playing, isFalse);
   });
 
-  test('newer queue selection cancels explicit false selection during halt',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A'), _item('B'), _item('C')]);
-    final pauseGate = player.gateNextPause();
+  test(
+    'newer queue selection cancels explicit false selection during halt',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A'), _item('B'), _item('C')]);
+      final pauseGate = player.gateNextPause();
 
-    final staleSelection = handler.skipToQueueItem(1, playAfterLoad: false);
-    await pauseGate.started.future;
-    final newerSelection = handler.skipToQueueItem(2);
-    pauseGate.release.complete();
-    await newerSelection;
-    await staleSelection;
+      final staleSelection = handler.skipToQueueItem(1, playAfterLoad: false);
+      await pauseGate.started.future;
+      final newerSelection = handler.skipToQueueItem(2);
+      pauseGate.release.complete();
+      await newerSelection;
+      await staleSelection;
 
-    expect(handler.currentQueueIndex, 2);
-    expect(handler.mediaItem.value?.id, 'C');
-    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'C');
-    expect(player.playing, isTrue);
-  });
+      expect(handler.currentQueueIndex, 2);
+      expect(handler.mediaItem.value?.id, 'C');
+      expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'C');
+      expect(player.playing, isTrue);
+    },
+  );
 
-  test('newer pause during quality halt preserves quality and reloads paused',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A'), _item('B')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    final sourceLoads = player.sourceLoadCalls;
-    final pauseGate = player.gateNextPause();
+  test(
+    'newer pause during quality halt preserves quality and reloads paused',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A'), _item('B')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      final sourceLoads = player.sourceLoadCalls;
+      final pauseGate = player.gateNextPause();
 
-    final reload = handler.applyPreferredQuality('flac');
-    await pauseGate.started.future;
-    await handler.pause();
-    pauseGate.release.complete();
-    await reload;
+      final reload = handler.applyPreferredQuality('flac');
+      await pauseGate.started.future;
+      await handler.pause();
+      pauseGate.release.complete();
+      await reload;
 
-    expect(handler.preferredQuality, 'flac');
-    expect(handler.queueItems[1].extras?['requestedQuality'], 'flac');
-    expect(handler.queueItems[1].extras?['url'], isNull);
-    expect(player.sourceLoadCalls, sourceLoads + 1);
-    expect(player.initialPositions.last, const Duration(seconds: 42));
-    expect(player.playing, isFalse);
-  });
+      expect(handler.preferredQuality, 'flac');
+      expect(handler.queueItems[1].extras?['requestedQuality'], 'flac');
+      expect(handler.queueItems[1].extras?['url'], isNull);
+      expect(player.sourceLoadCalls, sourceLoads + 1);
+      expect(player.initialPositions.last, const Duration(seconds: 42));
+      expect(player.playing, isFalse);
+    },
+  );
 
-  test('newer play during quality halt preserves quality and reloads playing',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A'), _item('B')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    final sourceLoads = player.sourceLoadCalls;
-    final pauseGate = player.gateNextPause();
+  test(
+    'newer play during quality halt preserves quality and reloads playing',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A'), _item('B')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      final sourceLoads = player.sourceLoadCalls;
+      final pauseGate = player.gateNextPause();
 
-    final reload = handler.applyPreferredQuality('flac');
-    await pauseGate.started.future;
-    await handler.play();
-    pauseGate.release.complete();
-    await reload;
+      final reload = handler.applyPreferredQuality('flac');
+      await pauseGate.started.future;
+      await handler.play();
+      pauseGate.release.complete();
+      await reload;
 
-    expect(handler.preferredQuality, 'flac');
-    expect(handler.queueItems[1].extras?['requestedQuality'], 'flac');
-    expect(handler.queueItems[1].extras?['url'], isNull);
-    expect(player.sourceLoadCalls, sourceLoads + 1);
-    expect(player.initialPositions.last, const Duration(seconds: 42));
-    expect(player.playing, isTrue);
-  });
+      expect(handler.preferredQuality, 'flac');
+      expect(handler.queueItems[1].extras?['requestedQuality'], 'flac');
+      expect(handler.queueItems[1].extras?['url'], isNull);
+      expect(player.sourceLoadCalls, sourceLoads + 1);
+      expect(player.initialPositions.last, const Duration(seconds: 42));
+      expect(player.playing, isTrue);
+    },
+  );
 
-  test('same-item selection during quality halt owns source and position',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    final pauseGate = player.gateNextPause();
+  test(
+    'same-item selection during quality halt owns source and position',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      final pauseGate = player.gateNextPause();
 
-    final reload = handler.applyPreferredQuality('flac');
-    await pauseGate.started.future;
-    final selection = handler.skipToQueueItem(
-      0,
-      initialPosition: const Duration(seconds: 7),
-    );
-    final sourceLoads = player.sourceLoadCalls;
-    pauseGate.release.complete();
-    await selection;
-    await reload;
+      final reload = handler.applyPreferredQuality('flac');
+      await pauseGate.started.future;
+      final selection = handler.skipToQueueItem(
+        0,
+        initialPosition: const Duration(seconds: 7),
+      );
+      final sourceLoads = player.sourceLoadCalls;
+      pauseGate.release.complete();
+      await selection;
+      await reload;
 
-    expect(handler.preferredQuality, 'flac');
-    expect(handler.queueItems.single.extras?['requestedQuality'], 'flac');
-    expect(player.sourceLoadCalls, sourceLoads + 1);
-    expect(player.position, const Duration(seconds: 7));
-    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'A');
-    expect(player.playing, isTrue);
-  });
+      expect(handler.preferredQuality, 'flac');
+      expect(handler.queueItems.single.extras?['requestedQuality'], 'flac');
+      expect(player.sourceLoadCalls, sourceLoads + 1);
+      expect(player.position, const Duration(seconds: 7));
+      expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'A');
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('stop during quality halt prevents stale source installation', () async {
     final player = _QualityAudioPlayer();
@@ -677,153 +707,13 @@ void main() {
     expect(player.playing, isTrue);
   });
 
-  test('complete resumable cycle during resolution starts after install',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id-320k.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    final resolveGate = _Gate();
-    handler.urlResolver = (id, [extras]) async {
-      resolveGate.started.complete();
-      await resolveGate.release.future;
-      return 'file:///tmp/$id-flac.mp3';
-    };
-
-    final reload = handler.applyPreferredQuality('flac');
-    await resolveGate.started.future;
-    await handler.beginAudioInterruption();
-    await handler.endAudioInterruption(mayResume: true);
-    resolveGate.release.complete();
-    await reload;
-    await pumpEventQueue();
-
-    expect(player.playing, isTrue);
-  });
-
-  test('non-resumable end during quality resolution prevents later start',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id-320k.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    final resolveGate = _Gate();
-    handler.urlResolver = (id, [extras]) async {
-      resolveGate.started.complete();
-      await resolveGate.release.future;
-      return 'file:///tmp/$id-flac.mp3';
-    };
-
-    final reload = handler.applyPreferredQuality('flac');
-    await resolveGate.started.future;
-    await handler.beginAudioInterruption();
-    await handler.endAudioInterruption(mayResume: false);
-    resolveGate.release.complete();
-    await reload;
-
-    expect(player.playing, isFalse);
-  });
-
-  test('interruption during quality installation defers reload start',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    final installGate = player.gateNextSourceInstall();
-
-    final reload = handler.applyPreferredQuality('flac');
-    await installGate.started.future;
-    await handler.beginAudioInterruption();
-    installGate.release.complete();
-    await reload;
-
-    expect(player.playing, isFalse);
-    await handler.endAudioInterruption(mayResume: true);
-    expect(player.playing, isTrue);
-  });
-
-  test('complete resumable cycle during installation starts afterward',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    final installGate = player.gateNextSourceInstall();
-
-    final reload = handler.applyPreferredQuality('flac');
-    await installGate.started.future;
-    final begin = handler.beginAudioInterruption();
-    final end = handler.endAudioInterruption(mayResume: true);
-    installGate.release.complete();
-    await begin;
-    await end;
-    await reload;
-    await pumpEventQueue();
-
-    expect(player.playing, isTrue);
-  });
-
-  test('non-resumable end during quality installation prevents later start',
-      () async {
-    final player = _QualityAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async =>
-        'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
-    await handler.setPlaylist([_item('A')]);
-    player.setEngineState(
-      position: const Duration(seconds: 42),
-      duration: const Duration(minutes: 3),
-      playing: true,
-    );
-    final installGate = player.gateNextSourceInstall();
-
-    final reload = handler.applyPreferredQuality('flac');
-    await installGate.started.future;
-    await handler.beginAudioInterruption();
-    await handler.endAudioInterruption(mayResume: false);
-    installGate.release.complete();
-    await reload;
-
-    expect(player.playing, isFalse);
-  });
-
-  for (final releaseQualityFirst in [true, false]) {
-    test(
-        'overlapping quality and scrub owners wait when ${releaseQualityFirst ? 'quality' : 'scrub'} releases first',
-        () async {
+  test(
+    'complete resumable cycle during resolution starts after install',
+    () async {
       final player = _QualityAudioPlayer();
       final handler = LxAudioHandler(player: player);
       addTearDown(player.dispose);
-      handler.urlResolver = (id, [extras]) async =>
-          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id-320k.mp3';
       await handler.setPlaylist([_item('A')]);
       player.setEngineState(
         position: const Duration(seconds: 42),
@@ -839,50 +729,198 @@ void main() {
 
       final reload = handler.applyPreferredQuality('flac');
       await resolveGate.started.future;
-      final scrubSourceGeneration = handler.sourceGeneration;
-      final scrubUserIntentGeneration = handler.userIntentGeneration;
-      final scrubOwner = await handler.pauseForScrub(
-        sourceGeneration: scrubSourceGeneration,
-        userIntentGeneration: scrubUserIntentGeneration,
-        stillOwnsScrub: () => true,
-      );
-      expect(scrubOwner, isNotNull);
-
-      if (releaseQualityFirst) {
-        resolveGate.release.complete();
-        await reload;
-        expect(player.playing, isFalse);
-        await handler.releaseAfterScrub(
-          scrubOwner!,
-          resumeAfter: true,
-          sourceGeneration: scrubSourceGeneration,
-          userIntentGeneration: scrubUserIntentGeneration,
-        );
-      } else {
-        await handler.releaseAfterScrub(
-          scrubOwner!,
-          resumeAfter: true,
-          sourceGeneration: scrubSourceGeneration,
-          userIntentGeneration: scrubUserIntentGeneration,
-        );
-        expect(player.playing, isFalse);
-        resolveGate.release.complete();
-        await reload;
-      }
+      await handler.beginAudioInterruption();
+      await handler.endAudioInterruption(mayResume: true);
+      resolveGate.release.complete();
+      await reload;
+      await pumpEventQueue();
 
       expect(player.playing, isTrue);
-    });
+    },
+  );
+
+  test(
+    'non-resumable end during quality resolution prevents later start',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id-320k.mp3';
+      await handler.setPlaylist([_item('A')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      final resolveGate = _Gate();
+      handler.urlResolver = (id, [extras]) async {
+        resolveGate.started.complete();
+        await resolveGate.release.future;
+        return 'file:///tmp/$id-flac.mp3';
+      };
+
+      final reload = handler.applyPreferredQuality('flac');
+      await resolveGate.started.future;
+      await handler.beginAudioInterruption();
+      await handler.endAudioInterruption(mayResume: false);
+      resolveGate.release.complete();
+      await reload;
+
+      expect(player.playing, isFalse);
+    },
+  );
+
+  test(
+    'interruption during quality installation defers reload start',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      final installGate = player.gateNextSourceInstall();
+
+      final reload = handler.applyPreferredQuality('flac');
+      await installGate.started.future;
+      await handler.beginAudioInterruption();
+      installGate.release.complete();
+      await reload;
+
+      expect(player.playing, isFalse);
+      await handler.endAudioInterruption(mayResume: true);
+      expect(player.playing, isTrue);
+    },
+  );
+
+  test(
+    'complete resumable cycle during installation starts afterward',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      final installGate = player.gateNextSourceInstall();
+
+      final reload = handler.applyPreferredQuality('flac');
+      await installGate.started.future;
+      final begin = handler.beginAudioInterruption();
+      final end = handler.endAudioInterruption(mayResume: true);
+      installGate.release.complete();
+      await begin;
+      await end;
+      await reload;
+      await pumpEventQueue();
+
+      expect(player.playing, isTrue);
+    },
+  );
+
+  test(
+    'non-resumable end during quality installation prevents later start',
+    () async {
+      final player = _QualityAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async =>
+          'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+      await handler.setPlaylist([_item('A')]);
+      player.setEngineState(
+        position: const Duration(seconds: 42),
+        duration: const Duration(minutes: 3),
+        playing: true,
+      );
+      final installGate = player.gateNextSourceInstall();
+
+      final reload = handler.applyPreferredQuality('flac');
+      await installGate.started.future;
+      await handler.beginAudioInterruption();
+      await handler.endAudioInterruption(mayResume: false);
+      installGate.release.complete();
+      await reload;
+
+      expect(player.playing, isFalse);
+    },
+  );
+
+  for (final releaseQualityFirst in [true, false]) {
+    test(
+      'overlapping quality and scrub owners wait when ${releaseQualityFirst ? 'quality' : 'scrub'} releases first',
+      () async {
+        final player = _QualityAudioPlayer();
+        final handler = LxAudioHandler(player: player);
+        addTearDown(player.dispose);
+        handler.urlResolver = (id, [extras]) async =>
+            'file:///tmp/$id-${extras?['requestedQuality']}.mp3';
+        await handler.setPlaylist([_item('A')]);
+        player.setEngineState(
+          position: const Duration(seconds: 42),
+          duration: const Duration(minutes: 3),
+          playing: true,
+        );
+        final resolveGate = _Gate();
+        handler.urlResolver = (id, [extras]) async {
+          resolveGate.started.complete();
+          await resolveGate.release.future;
+          return 'file:///tmp/$id-flac.mp3';
+        };
+
+        final reload = handler.applyPreferredQuality('flac');
+        await resolveGate.started.future;
+        final scrubSourceGeneration = handler.sourceGeneration;
+        final scrubUserIntentGeneration = handler.userIntentGeneration;
+        final scrubOwner = await handler.pauseForScrub(
+          sourceGeneration: scrubSourceGeneration,
+          userIntentGeneration: scrubUserIntentGeneration,
+          stillOwnsScrub: () => true,
+        );
+        expect(scrubOwner, isNotNull);
+
+        if (releaseQualityFirst) {
+          resolveGate.release.complete();
+          await reload;
+          expect(player.playing, isFalse);
+          await handler.releaseAfterScrub(
+            scrubOwner!,
+            resumeAfter: true,
+            sourceGeneration: scrubSourceGeneration,
+            userIntentGeneration: scrubUserIntentGeneration,
+          );
+        } else {
+          await handler.releaseAfterScrub(
+            scrubOwner!,
+            resumeAfter: true,
+            sourceGeneration: scrubSourceGeneration,
+            userIntentGeneration: scrubUserIntentGeneration,
+          );
+          expect(player.playing, isFalse);
+          resolveGate.release.complete();
+          await reload;
+        }
+
+        expect(player.playing, isTrue);
+      },
+    );
   }
 }
 
 MediaItem _item(String id) => MediaItem(
-      id: id,
-      title: id,
-      extras: {
-        'url': 'file:///tmp/$id-320k.mp3',
-        'requestedQuality': '320k',
-      },
-    );
+  id: id,
+  title: id,
+  extras: {'url': 'file:///tmp/$id-320k.mp3', 'requestedQuality': '320k'},
+);
 
 class _QualityAudioPlayer extends AudioPlayer {
   AudioSource? loadedSource;

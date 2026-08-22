@@ -116,6 +116,7 @@ class LocalMusicScanner {
   Future<List<LocalTrack>> scanDirectory(
     String directoryPath, {
     bool Function(String path)? shouldSkip,
+    void Function(String path)? onDiscoveredPath,
     void Function(int scanned, int total)? onProgress,
   }) async {
     final directory = Directory(directoryPath);
@@ -127,7 +128,11 @@ class LocalMusicScanner {
     for (var index = 0; index < files.length; index++) {
       final file = files[index] as File;
       final path = file.path;
-      if (shouldSkip?.call(path) ?? false) continue;
+      onDiscoveredPath?.call(path);
+      if (shouldSkip?.call(path) ?? false) {
+        onProgress?.call(index + 1, files.length);
+        continue;
+      }
       final track = await _readTrack(file);
       if (track != null) tracks.add(track);
       onProgress?.call(index + 1, files.length);

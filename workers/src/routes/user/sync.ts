@@ -80,15 +80,29 @@ export async function handleSyncStateSet(request: Request, env: Env): Promise<Re
     return jsonResponse({ error: 'revision_conflict', currentRevision }, 409);
   }
 
-  // Write settings + sources to KV, bump revision in D1
-  await env.CACHE.put(`sync:settings:${userId}`, JSON.stringify(cleanSettings));
-  await env.CACHE.put(`sync:sources:${userId}`, JSON.stringify(cleanSources));
+  // Stage KV first. Only the request that wins the D1 CAS promotes staged KV
+  // to live keys, so failed 409 writers cannot overwrite the winning state.
+  const pendingId = crypto.randomUUID();
+  const pendingSettingsKey = `sync:pending:settings:${userId}:${pendingId}`;
+  const pendingSourcesKey = `sync:pending:sources:${userId}:${pendingId}`;
+  await env.CACHE.put(pendingSettingsKey, JSON.stringify(cleanSettings), { expirationTtl: 3600 });
+  await env.CACHE.put(pendingSourcesKey, JSON.stringify(cleanSources), { expirationTtl: 3600 });
   const bumped = await env.DB.prepare(
     `UPDATE user_sync_state SET revision = revision + 1, updated_at = datetime('now') WHERE user_id = ? AND revision = ?`,
   ).bind(userId, baseRevision).run();
   if ((bumped.meta?.changes ?? 0) !== 1) {
+    await Promise.allSettled([
+      env.CACHE.delete(pendingSettingsKey),
+      env.CACHE.delete(pendingSourcesKey),
+    ]);
     return jsonResponse({ error: 'revision_conflict', currentRevision: await getSyncRevision(env, userId) }, 409);
   }
+  await env.CACHE.put(`sync:settings:${userId}`, JSON.stringify(cleanSettings));
+  await env.CACHE.put(`sync:sources:${userId}`, JSON.stringify(cleanSources));
+  await Promise.allSettled([
+    env.CACHE.delete(pendingSettingsKey),
+    env.CACHE.delete(pendingSourcesKey),
+  ]);
   return jsonResponse({ ok: true, revision: baseRevision + 1 });
 }
 

@@ -87,6 +87,7 @@ AudioProcessingState audioProcessingState(ProcessingState state) =>
 bool shouldReuseCachedPlayUrl({
   required String? cachedUrl,
   required String? cachedRequestedQuality,
+  required String? cachedActualQuality,
   required String currentRequestedQuality,
 }) {
   if (cachedUrl == null || cachedUrl.isEmpty) return false;
@@ -95,9 +96,25 @@ bool shouldReuseCachedPlayUrl({
   final isLocal = cachedUrl.startsWith('/') || uri?.scheme == 'file';
   // 非本地 URL（远程签名直链）一律不缓存复用，需重新解析。
   if (!isLocal) return false;
+  if (cachedActualQuality != null &&
+      cachedActualQuality.isNotEmpty &&
+      _qualityRank(cachedActualQuality) >
+          _qualityRank(currentRequestedQuality)) {
+    return false;
+  }
   // 本地文件（含缓存文件与本地音乐）无需解析，直接复用，不受音质影响。
   return true;
 }
+
+int _qualityRank(String? quality) => switch (quality) {
+  'hires' => 0,
+  'flac24bit' => 1,
+  'flac' => 2,
+  '320k' => 3,
+  '192k' => 4,
+  '128k' => 5,
+  _ => 99,
+};
 
 /// 与设置页 AudioQualityOption 对齐的音质 token（避免 audio_handler 依赖 settings）。
 enum AudioQualityToken { low, high, lossless, lossless24, hires }
@@ -2359,9 +2376,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         final itemId = item.id;
         final existing = item.extras?['url']?.toString() ?? '';
         final existingQ = item.extras?['requestedQuality']?.toString();
+        final existingActualQ = item.extras?['actualQuality']?.toString();
         if (shouldReuseCachedPlayUrl(
           cachedUrl: existing,
           cachedRequestedQuality: existingQ,
+          cachedActualQuality: existingActualQ,
           currentRequestedQuality: preferredQuality,
         )) {
           continue;
@@ -2655,9 +2674,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       );
       final cachedUrl = item.extras?['url']?.toString();
       final cachedQ = item.extras?['requestedQuality']?.toString();
+      final cachedActualQ = item.extras?['actualQuality']?.toString();
       final canReuse = shouldReuseCachedPlayUrl(
         cachedUrl: cachedUrl,
         cachedRequestedQuality: cachedQ,
+        cachedActualQuality: cachedActualQ,
         currentRequestedQuality: preferredQuality,
       );
       final localPath = _localPathFor(item);

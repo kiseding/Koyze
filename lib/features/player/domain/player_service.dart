@@ -266,6 +266,8 @@ class PlayerService {
         return;
       }
       final currentId = handler.mediaItem.value?.id;
+      if (currentId == song.identityKey) return;
+      final generation = beginQueueReplacement();
       items.removeWhere(
         (queueItem) =>
             _mediaIdentity(queueItem) == song.identityKey ||
@@ -277,7 +279,7 @@ class PlayerService {
       final insertIndex = (currentIndex + 1).clamp(0, items.length);
       items.insert(insertIndex, item);
       await handler.updateQueue(items);
-      final generation = _queueGeneration;
+      if (!ownsQueueReplacement(generation)) return;
       unawaited(
         _warmArtForQueue([song], preferIndex: 0, queueGeneration: generation),
       );
