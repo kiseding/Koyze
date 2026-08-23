@@ -1,6 +1,7 @@
 import 'package:koyze/core/network/music_source_service.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 
+import 'local_music_debug_log.dart';
 import 'local_music_scanner.dart';
 
 /// 刮削结果：本地文件路径 → 在线歌曲身份。
@@ -91,7 +92,17 @@ class LocalMusicScraper {
     final queries = track.hasEmbeddedTags
         ? [LocalFilenameQuery(title: track.title, artist: track.artist)]
         : filenameQueries(track.fileName);
-    if (queries.isEmpty) return null;
+    LocalMusicDebugLog.info(
+      'scrape.track.start',
+      '${LocalMusicDebugLog.track(track)} queries=${_querySummary(queries)}',
+    );
+    if (queries.isEmpty) {
+      LocalMusicDebugLog.warning(
+        'scrape.track.skip',
+        'emptyQueries file=${LocalMusicDebugLog.quote(track.fileName)}',
+      );
+      return null;
+    }
     try {
       final platformResults = await Future.wait(
         MusicSourceService.fallbackPlatforms.map((platform) async {
@@ -102,23 +113,70 @@ class LocalMusicScraper {
               query.title,
             ].where((value) => value.trim().isNotEmpty).join(' ');
             if (keyword.isEmpty) continue;
-            results.addAll(
-              await _musicSourceService.builtInSources
-                  .search(platform, keyword, page: 1, limit: 10)
-                  .timeout(const Duration(seconds: 10))
-                  .catchError((_) => <MusicItem>[]),
+            LocalMusicDebugLog.info(
+              'scrape.search.start',
+              'platform=$platform keyword=${LocalMusicDebugLog.quote(keyword)}',
             );
+            try {
+              final found = await _musicSourceService.builtInSources
+                  .search(platform, keyword, page: 1, limit: 10)
+                  .timeout(const Duration(seconds: 10));
+              results.addAll(found);
+              LocalMusicDebugLog.info(
+                'scrape.search.result',
+                'platform=$platform keyword=${LocalMusicDebugLog.quote(keyword)} count=${found.length} sample=${_songsSummary(found)}',
+              );
+            } catch (error, stackTrace) {
+              LocalMusicDebugLog.warning(
+                'scrape.search.error',
+                'platform=$platform keyword=${LocalMusicDebugLog.quote(keyword)} error=$error',
+                stackTrace: stackTrace,
+              );
+            }
           }
+          LocalMusicDebugLog.info(
+            'scrape.platform.finish',
+            'platform=$platform results=${results.length}',
+          );
           return results;
         }),
       );
-      final matches = [
-        for (final results in platformResults)
-          if (bestMatchForQueries(track, queries, results) case final match?)
-            match,
-      ];
+      final matches = <ScrapeIdentity>[];
+      for (var index = 0; index < platformResults.length; index++) {
+        final platform = MusicSourceService.fallbackPlatforms[index];
+        final results = platformResults[index];
+        final diagnostics = LocalMusicDebugLog.enabled ? <String>[] : null;
+        final platformMatch = bestMatchForQueries(
+          track,
+          queries,
+          results,
+          onDebug: diagnostics == null
+              ? null
+              : (line) {
+                  if (diagnostics.length < 24) diagnostics.add(line);
+                },
+        );
+        if (platformMatch == null) {
+          LocalMusicDebugLog.info(
+            'scrape.match.none',
+            "platform=$platform results=${results.length} diagnostics=${diagnostics?.join(' || ') ?? '-'}",
+          );
+        } else {
+          LocalMusicDebugLog.info(
+            'scrape.match.hit',
+            "platform=$platform ${LocalMusicDebugLog.identity(platformMatch.toJson())} diagnostics=${diagnostics?.join(' || ') ?? '-'}",
+          );
+          matches.add(platformMatch);
+        }
+      }
       final match = matches.isEmpty ? null : matches.first;
-      if (match == null) return null;
+      if (match == null) {
+        LocalMusicDebugLog.warning(
+          'scrape.track.no_match',
+          LocalMusicDebugLog.track(track),
+        );
+        return null;
+      }
 
       // 搜索结果中的封面可能是缩略图。内置音源再走一次平台封面接口，
       // 例如酷我使用 500x500 图床；不支持高清接口时保留搜索结果。
@@ -135,29 +193,74 @@ class LocalMusicScraper {
       var enriched = match;
       if (matchedSong != null &&
           const {'kw', 'tx', 'wy'}.contains(matchedSong.platform)) {
-        final highResolution = await _musicSourceService.builtInSources
-            .getArtwork(matchedSong.platform, matchedSong);
-        if (highResolution != null && highResolution.isNotEmpty) {
-          enriched = enriched.copyWith(artwork: highResolution);
+        LocalMusicDebugLog.info(
+          'scrape.artwork.api.start',
+          'platform=${matchedSong.platform} song=${_songSummary(matchedSong)}',
+        );
+        try {
+          final highResolution = await _musicSourceService.builtInSources
+              .getArtwork(matchedSong.platform, matchedSong);
+          LocalMusicDebugLog.info(
+            'scrape.artwork.api.result',
+            'platform=${matchedSong.platform} artwork=${LocalMusicDebugLog.present(highResolution)}',
+          );
+          if (highResolution != null && highResolution.isNotEmpty) {
+            enriched = enriched.copyWith(artwork: highResolution);
+          }
+        } catch (error, stackTrace) {
+          LocalMusicDebugLog.warning(
+            'scrape.artwork.api.error',
+            'platform=${matchedSong.platform} error=$error',
+            stackTrace: stackTrace,
+          );
         }
+      } else {
+        LocalMusicDebugLog.info(
+          'scrape.artwork.api.skip',
+          matchedSong == null
+              ? 'matchedSongMissing platform=${match.platform}'
+              : 'unsupported platform=${matchedSong.platform}',
+        );
       }
       enriched = enriched.copyWith(
         artwork: highResolutionArtworkUrl(enriched.platform, enriched.artwork),
       );
-      final lyrics = await _musicSourceService.getLyric(
-        MusicItem(
-          id: enriched.songmid,
-          name: enriched.name,
-          singer: enriched.singer,
-          album: enriched.album,
-          source: enriched.platform,
-          platform: enriched.platform,
-          songmid: enriched.songmid,
-          hash: enriched.hash,
-        ),
+      LocalMusicDebugLog.info(
+        'scrape.identity.enriched',
+        LocalMusicDebugLog.identity(enriched.toJson()),
       );
-      return enriched.copyWith(lyrics: lyrics);
-    } catch (error) {
+      try {
+        final lyrics = await _musicSourceService.getLyric(
+          MusicItem(
+            id: enriched.songmid,
+            name: enriched.name,
+            singer: enriched.singer,
+            album: enriched.album,
+            source: enriched.platform,
+            platform: enriched.platform,
+            songmid: enriched.songmid,
+            hash: enriched.hash,
+          ),
+        );
+        LocalMusicDebugLog.info(
+          'scrape.lyric.result',
+          'platform=${enriched.platform} songmid=${LocalMusicDebugLog.quote(enriched.songmid)} lyrics=${LocalMusicDebugLog.present(lyrics)}',
+        );
+        return enriched.copyWith(lyrics: lyrics);
+      } catch (error, stackTrace) {
+        LocalMusicDebugLog.warning(
+          'scrape.lyric.error',
+          'platform=${enriched.platform} songmid=${LocalMusicDebugLog.quote(enriched.songmid)} error=$error',
+          stackTrace: stackTrace,
+        );
+        return enriched;
+      }
+    } catch (error, stackTrace) {
+      LocalMusicDebugLog.error(
+        'scrape.track.error',
+        '${LocalMusicDebugLog.track(track)} error=$error',
+        stackTrace: stackTrace,
+      );
       return null;
     }
   }
@@ -173,8 +276,9 @@ class LocalMusicScraper {
   static ScrapeIdentity? bestMatchForQueries(
     LocalTrack track,
     List<LocalFilenameQuery> queries,
-    List<MusicItem> results,
-  ) {
+    List<MusicItem> results, {
+    void Function(String message)? onDebug,
+  }) {
     final candidates = <({MusicItem song, int score})>[];
     for (final song in results) {
       for (final query in queries) {
@@ -185,17 +289,26 @@ class LocalMusicScraper {
         final sameRecordingTitle =
             _titleWithoutVersion(normalizedSongTitle) ==
             _titleWithoutVersion(normalizedTitle);
-        if (!exactTitle && !sameRecordingTitle) continue;
+        final summary =
+            'query=${LocalMusicDebugLog.quote('${query.artist} - ${query.title}')} candidate=${_songSummary(song)}';
+        if (!exactTitle && !sameRecordingTitle) {
+          onDebug?.call('reject.title $summary');
+          continue;
+        }
         // Keep exact recording titles ahead of a base-title fallback, while
         // allowing filenames such as "阿刁（live）" to match "阿刁".
         var score = exactTitle ? 6 : 4;
         if (track.duration > Duration.zero && song.duration > Duration.zero) {
           final diff = (song.duration.inSeconds - track.duration.inSeconds)
               .abs();
-          if (diff > _durationToleranceSeconds) continue;
+          if (diff > _durationToleranceSeconds) {
+            onDebug?.call('reject.duration diff=${diff}s $summary');
+            continue;
+          }
           score += diff == 0 ? 3 : 2;
         } else if (query.artist.isEmpty) {
           // 纯歌名且没有时长时可能重名，不自动写入刮削身份。
+          onDebug?.call('reject.ambiguous_no_artist_or_duration $summary');
           continue;
         }
         if (normalizedArtist.isNotEmpty) {
@@ -205,6 +318,10 @@ class LocalMusicScraper {
           } else if (normalizedSongArtist.contains(normalizedArtist) ||
               normalizedArtist.contains(normalizedSongArtist)) {
             score += 2;
+          } else {
+            onDebug?.call(
+              'artist.mismatch acceptedByTitle score=$score $summary',
+            );
           }
         }
         final normalizedAlbum = _normalize(track.album);
@@ -213,10 +330,15 @@ class LocalMusicScraper {
           score++;
         }
         if (!track.hasEmbeddedTags && score < _minimumFilenameMatchScore) {
+          onDebug?.call('reject.low_filename_score score=$score $summary');
           continue;
         }
         final songmid = song.songmid ?? song.hash;
-        if (songmid == null || songmid.isEmpty) continue;
+        if (songmid == null || songmid.isEmpty) {
+          onDebug?.call('reject.missing_identity $summary');
+          continue;
+        }
+        onDebug?.call('candidate.accept score=$score $summary');
         candidates.add((song: song, score: score));
       }
     }
@@ -234,6 +356,31 @@ class LocalMusicScraper {
       lyricsUrl: song.lyricsUrl,
       lyrics: null,
     );
+  }
+
+  static String _querySummary(List<LocalFilenameQuery> queries) {
+    if (queries.isEmpty) return '[]';
+    return queries
+        .map(
+          (query) =>
+              '${LocalMusicDebugLog.quote(query.artist)} + ${LocalMusicDebugLog.quote(query.title)}',
+        )
+        .join(' | ');
+  }
+
+  static String _songsSummary(List<MusicItem> songs) {
+    if (songs.isEmpty) return '[]';
+    return songs.take(3).map(_songSummary).join(' | ');
+  }
+
+  static String _songSummary(MusicItem song) {
+    return 'name=${LocalMusicDebugLog.quote(song.name)} '
+        'singer=${LocalMusicDebugLog.quote(song.singer)} '
+        'album=${LocalMusicDebugLog.quote(song.album)} '
+        'duration=${song.duration.inSeconds}s '
+        'platform=${song.platform} '
+        'songmid=${LocalMusicDebugLog.quote(song.songmid)} '
+        'hash=${LocalMusicDebugLog.quote(song.hash)}';
   }
 
   static String _normalize(String value) => value

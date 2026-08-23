@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 
+import 'local_music_debug_log.dart';
+
 /// 支持的音频扩展名（小写，不含点）。
 const Set<String> kLocalAudioExtensions = {
   'mp3',
@@ -105,7 +107,12 @@ class LocalMusicScanner {
           results.add(entity);
         }
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
+      LocalMusicDebugLog.warning(
+        'scan.walk_failed',
+        'directory=${LocalMusicDebugLog.quote(directory.path)} error=$error',
+        stackTrace: stackTrace,
+      );
       // 目录不可读或已被删除：跳过该分支，保留已收集的文件。
     }
     return results;
@@ -120,23 +127,54 @@ class LocalMusicScanner {
     void Function(int scanned, int total)? onProgress,
   }) async {
     final directory = Directory(directoryPath);
+    LocalMusicDebugLog.info(
+      'scan.start',
+      'directory=${LocalMusicDebugLog.quote(directoryPath)}',
+    );
     if (!await directory.exists()) {
+      LocalMusicDebugLog.warning(
+        'scan.missing_directory',
+        'directory=${LocalMusicDebugLog.quote(directoryPath)}',
+      );
       throw StateError('目录不存在: $directoryPath');
     }
     final files = await _walk(directory);
+    LocalMusicDebugLog.info(
+      'scan.discovered',
+      'directory=${LocalMusicDebugLog.quote(directoryPath)} files=${files.length}',
+    );
     final tracks = <LocalTrack>[];
     for (var index = 0; index < files.length; index++) {
       final file = files[index] as File;
       final path = file.path;
       onDiscoveredPath?.call(path);
       if (shouldSkip?.call(path) ?? false) {
+        LocalMusicDebugLog.info(
+          'scan.skip_unchanged',
+          'index=${index + 1}/${files.length} path=${LocalMusicDebugLog.quote(path)}',
+        );
         onProgress?.call(index + 1, files.length);
         continue;
       }
       final track = await _readTrack(file);
-      if (track != null) tracks.add(track);
+      if (track != null) {
+        tracks.add(track);
+        LocalMusicDebugLog.info(
+          'scan.parsed',
+          'index=${index + 1}/${files.length} ${LocalMusicDebugLog.track(track)}',
+        );
+      } else {
+        LocalMusicDebugLog.warning(
+          'scan.drop_file',
+          'index=${index + 1}/${files.length} path=${LocalMusicDebugLog.quote(path)}',
+        );
+      }
       onProgress?.call(index + 1, files.length);
     }
+    LocalMusicDebugLog.info(
+      'scan.finish',
+      'directory=${LocalMusicDebugLog.quote(directoryPath)} parsed=${tracks.length} files=${files.length}',
+    );
     return tracks;
   }
 
@@ -172,12 +210,17 @@ class LocalMusicScanner {
         hasEmbeddedArtwork: artwork != null && artwork.isNotEmpty,
         embeddedArtwork: artwork,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      LocalMusicDebugLog.warning(
+        'scan.metadata_failed',
+        'file=${LocalMusicDebugLog.quote(fileName)} error=$error',
+        stackTrace: stackTrace,
+      );
       // 某些 Windows 编码器和 iOS 文件类型无法读取 tag，但文件本身仍
       // 可以播放。保留文件并用文件名作为低置信度刮削输入，不要整首丢掉。
       try {
         final stat = await file.stat();
-        return LocalTrack(
+        final track = LocalTrack(
           path: file.path,
           fileName: fileName,
           extension: extension,
@@ -190,7 +233,17 @@ class LocalMusicScanner {
           bitrate: null,
           hasEmbeddedTags: false,
         );
-      } catch (_) {
+        LocalMusicDebugLog.warning(
+          'scan.filename_fallback',
+          LocalMusicDebugLog.track(track),
+        );
+        return track;
+      } catch (fallbackError, fallbackStackTrace) {
+        LocalMusicDebugLog.error(
+          'scan.file_stat_failed',
+          'file=${LocalMusicDebugLog.quote(fileName)} error=$fallbackError',
+          stackTrace: fallbackStackTrace,
+        );
         // 文件在扫描过程中被删除或无权访问。
         return null;
       }
@@ -200,7 +253,11 @@ class LocalMusicScanner {
   dynamic _readMetadataWithArtworkFallback(File file) {
     try {
       return readMetadata(file, getImage: true);
-    } catch (_) {
+    } catch (error) {
+      LocalMusicDebugLog.warning(
+        'scan.artwork_metadata_failed',
+        'file=${LocalMusicDebugLog.quote(file.uri.pathSegments.last)} error=$error; retryWithoutArtwork=true',
+      );
       // A broken embedded picture must not hide otherwise valid text tags.
       return readMetadata(file);
     }

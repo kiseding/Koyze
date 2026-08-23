@@ -13,6 +13,7 @@ import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
 import 'package:koyze/features/local_music/domain/local_metadata_writer.dart';
 import 'package:koyze/features/local_music/domain/local_music_scraper.dart';
 import 'package:koyze/features/local_music/domain/android_directory_access.dart';
+import 'package:koyze/features/local_music/domain/local_music_debug_log.dart';
 import 'package:koyze/features/local_music/domain/security_scoped_directory.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
@@ -372,6 +373,10 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       _total = 0;
       _status = '正在扫描 $directoryPath …';
     });
+    LocalMusicDebugLog.info(
+      'ui.scan.start',
+      'directory=${LocalMusicDebugLog.quote(directoryPath)}',
+    );
     try {
       await library.addDirectory(
         directoryPath,
@@ -384,6 +389,10 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           });
         },
       );
+      LocalMusicDebugLog.info(
+        'ui.scan.metadata.finish',
+        'directory=${LocalMusicDebugLog.quote(directoryPath)} files=${library.fileCount}',
+      );
       if (!mounted) return;
       setState(() {
         _scanning = false;
@@ -392,7 +401,12 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         _status = '正在匹配在线歌曲（刮削）…';
       });
       await _scrapeAndSync(library);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      LocalMusicDebugLog.error(
+        'ui.scan.error',
+        'directory=${LocalMusicDebugLog.quote(directoryPath)} error=$error',
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         setState(() {
           _scanning = false;
@@ -414,6 +428,10 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       _scanning = true;
       _status = '正在重新扫描全部文件夹…';
     });
+    LocalMusicDebugLog.info(
+      'ui.rescan.start',
+      'directories=${library.directories.length} files=${library.fileCount}',
+    );
     try {
       await library.rescanAll(
         onProgress: (scanned, total) {
@@ -425,6 +443,10 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           });
         },
       );
+      LocalMusicDebugLog.info(
+        'ui.rescan.metadata.finish',
+        'files=${library.fileCount}',
+      );
       if (!mounted) return;
       setState(() {
         _scanning = false;
@@ -433,7 +455,12 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         _status = '正在匹配在线歌曲（刮削）…';
       });
       await _scrapeAndSync(library);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      LocalMusicDebugLog.error(
+        'ui.rescan.error',
+        'error=$error',
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         setState(() {
           _scanning = false;
@@ -447,11 +474,32 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
   Future<void> _scrapeAndSync(LocalMusicLibrary library) async {
     final scraper = ref.read(localMusicScraperProvider);
     final songs = library.songs;
+    LocalMusicDebugLog.info(
+      'ui.scrape_sync.start',
+      'songs=${songs.length} files=${library.fileCount}',
+    );
+    var matched = 0;
+    var unmatched = 0;
+    var artworkEmbedded = 0;
+    var artworkCached = 0;
+    var artworkMissing = 0;
     for (var index = 0; index < songs.length; index++) {
       final song = songs[index];
       final path = song.meta?['filePath']?.toString();
-      if (path == null) continue;
+      if (path == null) {
+        LocalMusicDebugLog.warning(
+          'ui.scrape.skip_missing_path',
+          'index=${index + 1}/${songs.length} name=${LocalMusicDebugLog.quote(song.name)} singer=${LocalMusicDebugLog.quote(song.singer)}',
+        );
+        continue;
+      }
       final entry = library.files[path];
+      if (entry == null) {
+        LocalMusicDebugLog.warning(
+          'ui.scrape.index_entry_missing',
+          'path=${LocalMusicDebugLog.quote(path)} song=${LocalMusicDebugLog.quote(song.name)}',
+        );
+      }
       final bitrate = entry?['bitrate'];
       final track = LocalTrack(
         path: path,
@@ -467,11 +515,24 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         hasEmbeddedTags: entry?['hasEmbeddedTags'] == true,
         hasEmbeddedArtwork: entry?['hasEmbeddedArtwork'] == true,
       );
+      LocalMusicDebugLog.info(
+        'ui.scrape.track',
+        'index=${index + 1}/${songs.length} ${LocalMusicDebugLog.track(track)}',
+      );
       final identity = await scraper.scrapeTrack(track);
       if (identity != null) {
+        matched++;
         final identityJson = identity.toJson();
+        LocalMusicDebugLog.info(
+          'ui.scrape.identity.raw',
+          'path=${LocalMusicDebugLog.quote(path)} ${LocalMusicDebugLog.identity(identityJson)}',
+        );
         // Never persist an unverified remote artwork URL for local music.
         identityJson.remove('artwork');
+        LocalMusicDebugLog.info(
+          'ui.scrape.artwork.remote_removed',
+          'path=${LocalMusicDebugLog.quote(path)} remoteArtwork=${LocalMusicDebugLog.present(identity.artwork)}',
+        );
         // Embedded artwork is authoritative. Keep the local file and never
         // replace it with a remote thumbnail from the scraper.
         final existingArtwork = song.artwork;
@@ -486,29 +547,80 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
             await File(embeddedArtworkPath).exists();
         final artwork = identity.artwork;
         if (hasEmbeddedArtwork) {
+          artworkEmbedded++;
           identityJson['artwork'] = embeddedArtworkPath;
+          LocalMusicDebugLog.info(
+            'ui.scrape.artwork.embedded_keep',
+            'path=${LocalMusicDebugLog.quote(path)} artwork=${LocalMusicDebugLog.quote(embeddedArtworkPath)}',
+          );
         } else if (artwork != null && artwork.isNotEmpty) {
           // Remote artwork must be downloaded successfully before it enters
           // the local identity; a failed CDN request must not leave a broken
           // HTTP URL that the local list cannot render.
-          for (final candidate in LocalMusicScraper.artworkCandidates(
+          final candidates = LocalMusicScraper.artworkCandidates(
             identity.platform,
             artwork,
-          )) {
+          );
+          LocalMusicDebugLog.info(
+            'ui.scrape.artwork.candidates',
+            'path=${LocalMusicDebugLog.quote(path)} count=${candidates.length}',
+          );
+          for (final candidate in candidates) {
             try {
+              LocalMusicDebugLog.info(
+                'ui.scrape.artwork.cache_try',
+                'path=${LocalMusicDebugLog.quote(path)} url=${LocalMusicDebugLog.quote(candidate)}',
+              );
               final localFile = await ArtworkDiskCache.instance.ensureLocalFile(
                 candidate,
               );
               if (localFile != null && await localFile.exists()) {
+                artworkCached++;
                 identityJson['artwork'] = localFile.path;
+                LocalMusicDebugLog.info(
+                  'ui.scrape.artwork.cache_hit',
+                  'path=${LocalMusicDebugLog.quote(path)} local=${LocalMusicDebugLog.quote(localFile.path)}',
+                );
                 break;
               }
-            } catch (_) {
+              LocalMusicDebugLog.warning(
+                'ui.scrape.artwork.cache_empty',
+                'path=${LocalMusicDebugLog.quote(path)} url=${LocalMusicDebugLog.quote(candidate)}',
+              );
+            } catch (error, stackTrace) {
+              LocalMusicDebugLog.warning(
+                'ui.scrape.artwork.cache_error',
+                'path=${LocalMusicDebugLog.quote(path)} url=${LocalMusicDebugLog.quote(candidate)} error=$error',
+                stackTrace: stackTrace,
+              );
               // Try the next CDN rendition.
             }
           }
+        } else {
+          LocalMusicDebugLog.info(
+            'ui.scrape.artwork.none',
+            'path=${LocalMusicDebugLog.quote(path)} reason=noRemoteArtworkAndNoEmbeddedArtwork',
+          );
         }
+        if (identityJson['artwork'] == null ||
+            identityJson['artwork']?.toString().isEmpty == true) {
+          artworkMissing++;
+          LocalMusicDebugLog.warning(
+            'ui.scrape.artwork.unresolved',
+            'path=${LocalMusicDebugLog.quote(path)}',
+          );
+        }
+        LocalMusicDebugLog.info(
+          'ui.scrape.identity.persist',
+          'path=${LocalMusicDebugLog.quote(path)} ${LocalMusicDebugLog.identity(identityJson)}',
+        );
         await library.applyScrapedIdentity(path, identityJson);
+      } else {
+        unmatched++;
+        LocalMusicDebugLog.warning(
+          'ui.scrape.identity.none',
+          'path=${LocalMusicDebugLog.quote(path)} ${LocalMusicDebugLog.track(track)}',
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -519,7 +631,16 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     }
 
     final playlistService = ref.read(playlistServiceProvider);
-    await playlistService.replaceLocalSongs(library.songs);
+    final syncedSongs = library.songs;
+    LocalMusicDebugLog.info(
+      'ui.playlist_sync.start',
+      'songs=${syncedSongs.length} matched=$matched unmatched=$unmatched artworkEmbedded=$artworkEmbedded artworkCached=$artworkCached artworkMissing=$artworkMissing',
+    );
+    await playlistService.replaceLocalSongs(syncedSongs);
+    LocalMusicDebugLog.info(
+      'ui.playlist_sync.finish',
+      'songs=${syncedSongs.length}',
+    );
     if (!mounted) return;
     setState(() {
       _scraping = false;
@@ -548,32 +669,58 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     });
     var attempted = 0;
     var written = 0;
+    LocalMusicDebugLog.info('ui.tag_write.start', 'songs=${songs.length}');
     try {
       for (var index = 0; index < songs.length; index++) {
         final song = songs[index];
         final path = song.meta?['filePath']?.toString();
-        if (path == null || path.isEmpty) continue;
+        if (path == null || path.isEmpty) {
+          LocalMusicDebugLog.warning(
+            'ui.tag_write.skip_missing_path',
+            'index=${index + 1}/${songs.length} name=${LocalMusicDebugLog.quote(song.name)}',
+          );
+          continue;
+        }
         final identity = library.scrapedIdentity(path);
-        if (identity == null) continue;
+        if (identity == null) {
+          LocalMusicDebugLog.info(
+            'ui.tag_write.skip_no_identity',
+            'path=${LocalMusicDebugLog.quote(path)}',
+          );
+          continue;
+        }
         final title = identity['name']?.toString();
         final artist = identity['singer']?.toString();
         if (title == null ||
             title.isEmpty ||
             artist == null ||
             artist.isEmpty) {
+          LocalMusicDebugLog.warning(
+            'ui.tag_write.skip_incomplete_identity',
+            'path=${LocalMusicDebugLog.quote(path)} ${LocalMusicDebugLog.identity(identity)}',
+          );
           continue;
         }
         attempted++;
         final artworkBytes = await _localArtworkBytes(
           identity['artwork']?.toString() ?? song.artwork,
         );
-        if (await writeScrapedMetadata(
+        LocalMusicDebugLog.info(
+          'ui.tag_write.attempt',
+          'path=${LocalMusicDebugLog.quote(path)} title=${LocalMusicDebugLog.quote(title)} artist=${LocalMusicDebugLog.quote(artist)} album=${LocalMusicDebugLog.quote(identity['album']?.toString() ?? song.album)} artworkBytes=${artworkBytes?.length ?? 0}',
+        );
+        final success = await writeScrapedMetadata(
           path,
           title: title,
           artist: artist,
           album: identity['album']?.toString() ?? song.album,
           artwork: artworkBytes,
-        )) {
+        );
+        LocalMusicDebugLog.info(
+          success ? 'ui.tag_write.success' : 'ui.tag_write.failed',
+          'path=${LocalMusicDebugLog.quote(path)}',
+        );
+        if (success) {
           written++;
         }
         if (!mounted) return;
@@ -586,13 +733,22 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       setState(() {
         _tagWriting = false;
       });
+      LocalMusicDebugLog.info(
+        'ui.tag_write.finish',
+        'attempted=$attempted written=$written',
+      );
       showAppNotification(
         attempted == 0 ? '没有可写回的刮削标签' : '标签写回完成：成功 $written / $attempted',
         type: written == attempted && attempted > 0
             ? AppNotificationType.success
             : AppNotificationType.info,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      LocalMusicDebugLog.error(
+        'ui.tag_write.error',
+        'attempted=$attempted written=$written error=$error',
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         setState(() {
           _tagWriting = false;
@@ -614,16 +770,44 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
   }
 
   Future<Uint8List?> _localArtworkBytes(String? artwork) async {
-    if (artwork == null || artwork.isEmpty) return null;
+    if (artwork == null || artwork.isEmpty) {
+      LocalMusicDebugLog.info(
+        'ui.tag_write.artwork_bytes.skip',
+        'artwork=empty',
+      );
+      return null;
+    }
     try {
       final uri = Uri.tryParse(artwork);
       final file = uri?.scheme == 'file'
           ? File(uri!.toFilePath())
           : (uri?.scheme.isNotEmpty == true ? null : File(artwork));
-      if (file == null || !await file.exists()) return null;
+      if (file == null) {
+        LocalMusicDebugLog.warning(
+          'ui.tag_write.artwork_bytes.skip',
+          'unsupportedUri=${LocalMusicDebugLog.quote(artwork)}',
+        );
+        return null;
+      }
+      if (!await file.exists()) {
+        LocalMusicDebugLog.warning(
+          'ui.tag_write.artwork_bytes.missing',
+          'path=${LocalMusicDebugLog.quote(file.path)}',
+        );
+        return null;
+      }
       final bytes = await file.readAsBytes();
+      LocalMusicDebugLog.info(
+        'ui.tag_write.artwork_bytes.read',
+        'path=${LocalMusicDebugLog.quote(file.path)} bytes=${bytes.length}',
+      );
       return bytes.isEmpty ? null : bytes;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      LocalMusicDebugLog.warning(
+        'ui.tag_write.artwork_bytes.error',
+        'artwork=${LocalMusicDebugLog.quote(artwork)} error=$error',
+        stackTrace: stackTrace,
+      );
       return null;
     }
   }

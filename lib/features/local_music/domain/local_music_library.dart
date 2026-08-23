@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 
+import 'local_music_debug_log.dart';
 import 'local_music_scanner.dart';
 import 'security_scoped_directory.dart';
 
@@ -14,9 +15,11 @@ import 'security_scoped_directory.dart';
 /// 与 PlaylistService 的 `local` 系统歌单解耦：这里保存扫描索引与
 /// 刮削身份（songmid/hash），歌曲本体写入 `local` 歌单。
 class LocalMusicLibrary {
+  // Keep the public named argument `storage` stable for tests and callers.
   LocalMusicLibrary({
     required StorageService storage,
     LocalMusicScanner? scanner,
+    // ignore: prefer_initializing_formals
   }) : _storage = storage,
        _scanner = scanner ?? LocalMusicScanner();
 
@@ -60,13 +63,22 @@ class LocalMusicLibrary {
 
   Future<void> init() async {
     if (_initialized) return;
+    LocalMusicDebugLog.info('library.init.start', 'loading local music index');
     _directories = _storage.getStringList(_dirsKey);
     _downloadDirectory = _storage.getString(_downloadDirKey);
     _loadIndex();
     _loadScrapedIdentity();
+    LocalMusicDebugLog.info(
+      'library.init.loaded',
+      'directories=${_directories.length} downloadDir=${LocalMusicDebugLog.quote(_downloadDirectory)} files=${_files.length} scraped=${_scrapedIdentity.length}',
+    );
     await SecurityScopedDirectory.restore();
     await _pruneMissingFiles();
     _initialized = true;
+    LocalMusicDebugLog.info(
+      'library.init.finish',
+      'files=${_files.length} scraped=${_scrapedIdentity.length}',
+    );
   }
 
   /// 设置下载目录为自动扫描目录（覆盖旧值并触发一次重扫）。
@@ -118,6 +130,10 @@ class LocalMusicLibrary {
       if (!await File(path).exists()) missing.add(path);
     }
     if (missing.isEmpty) return;
+    LocalMusicDebugLog.warning(
+      'library.prune_missing',
+      "count=${missing.length} sample=${missing.take(5).map(LocalMusicDebugLog.quote).join(' | ')}",
+    );
     for (final path in missing) {
       _files.remove(path);
       _scrapedIdentity.remove(path);
@@ -130,11 +146,21 @@ class LocalMusicLibrary {
     String directoryPath, {
     void Function(int scanned, int total)? onProgress,
   }) async {
+    LocalMusicDebugLog.info(
+      'library.add_directory.start',
+      'directory=${LocalMusicDebugLog.quote(directoryPath)} knownDirs=${_directories.length}',
+    );
     if (!_directories.contains(directoryPath)) {
       _directories = [..._directories, directoryPath];
       await _persistDirectories();
+      LocalMusicDebugLog.info(
+        'library.directory.persisted',
+        'directory=${LocalMusicDebugLog.quote(directoryPath)} dirs=${_directories.length}',
+      );
     }
     final discoveredPaths = <String>{};
+    var skippedUnchanged = 0;
+    var invalidatedChanged = 0;
     final tracks = await _scanner.scanDirectory(
       directoryPath,
       onDiscoveredPath: discoveredPaths.add,
@@ -148,15 +174,34 @@ class LocalMusicLibrary {
           );
           if (entry['size'] != stat.size || indexedModified != stat.modified) {
             _scrapedIdentity.remove(path);
+            invalidatedChanged++;
+            LocalMusicDebugLog.warning(
+              'library.file_changed',
+              'path=${LocalMusicDebugLog.quote(path)} oldSize=${entry['size']} newSize=${stat.size} oldModified=${LocalMusicDebugLog.quote(indexedModified)} newModified=${stat.modified.toIso8601String()}',
+            );
             return false;
           }
-        } catch (_) {
+        } catch (error) {
+          LocalMusicDebugLog.warning(
+            'library.file_stat_error',
+            'path=${LocalMusicDebugLog.quote(path)} error=$error',
+          );
           return false;
         }
         final identity = _scrapedIdentity[path];
+        final hasLyrics = identity?['lyrics']?.toString().isNotEmpty == true;
+        final hasArtwork = identity?['artwork']?.toString().isNotEmpty == true;
         // 歌词和封面分别刮削；不能因为已有歌词就跳过缺封面的文件。
-        return identity?['lyrics']?.toString().isNotEmpty == true &&
-            identity?['artwork']?.toString().isNotEmpty == true;
+        final shouldSkip = hasLyrics && hasArtwork;
+        if (shouldSkip) {
+          skippedUnchanged++;
+        } else {
+          LocalMusicDebugLog.info(
+            'library.rescrape_needed',
+            'path=${LocalMusicDebugLog.quote(path)} hasLyrics=$hasLyrics hasArtwork=$hasArtwork',
+          );
+        }
+        return shouldSkip;
       },
       onProgress: onProgress,
     );
@@ -165,6 +210,10 @@ class LocalMusicLibrary {
       final embedded = track.embeddedArtwork;
       if (embedded != null && embedded.isNotEmpty) {
         artworkPath = await _persistEmbeddedArtwork(track.path, embedded);
+        LocalMusicDebugLog.info(
+          'library.embedded_artwork.persisted',
+          'bytes=${embedded.length} path=${LocalMusicDebugLog.quote(artworkPath)} track=${LocalMusicDebugLog.quote(track.path)}',
+        );
       }
       _files[track.path] = {
         'path': track.path,
@@ -181,6 +230,10 @@ class LocalMusicLibrary {
         if (track.bitrate != null) 'bitrate': track.bitrate,
         if (artworkPath != null) 'artwork': artworkPath,
       };
+      LocalMusicDebugLog.info(
+        'library.index.upsert',
+        LocalMusicDebugLog.indexedFile(_files[track.path]!),
+      );
     }
     final prefix = directoryPath.endsWith(Platform.pathSeparator)
         ? directoryPath
@@ -190,11 +243,21 @@ class LocalMusicLibrary {
           (path) => path.startsWith(prefix) && !discoveredPaths.contains(path),
         )
         .toList(growable: false);
+    if (stalePaths.isNotEmpty) {
+      LocalMusicDebugLog.warning(
+        'library.stale_removed',
+        "count=${stalePaths.length} sample=${stalePaths.take(5).map(LocalMusicDebugLog.quote).join(' | ')}",
+      );
+    }
     for (final path in stalePaths) {
       _files.remove(path);
       _scrapedIdentity.remove(path);
     }
     await _persistIndex();
+    LocalMusicDebugLog.info(
+      'library.add_directory.finish',
+      'directory=${LocalMusicDebugLog.quote(directoryPath)} parsed=${tracks.length} discovered=${discoveredPaths.length} skipped=$skippedUnchanged invalidated=$invalidatedChanged stale=${stalePaths.length} files=${_files.length}',
+    );
     return tracks.length;
   }
 
@@ -205,8 +268,18 @@ class LocalMusicLibrary {
     final dir = await (_artworkDir ??= _createArtworkDir());
     final hash = sha1.convert(utf8.encode(trackPath)).toString();
     final file = File('${dir.path}/$hash.jpg');
-    if (await file.exists()) return file.path;
+    if (await file.exists()) {
+      LocalMusicDebugLog.info(
+        'library.embedded_artwork.cache_hit',
+        'track=${LocalMusicDebugLog.quote(trackPath)} path=${LocalMusicDebugLog.quote(file.path)}',
+      );
+      return file.path;
+    }
     await file.writeAsBytes(bytes, flush: true);
+    LocalMusicDebugLog.info(
+      'library.embedded_artwork.cache_write',
+      'track=${LocalMusicDebugLog.quote(trackPath)} path=${LocalMusicDebugLog.quote(file.path)} bytes=${bytes.length}',
+    );
     return file.path;
   }
 
@@ -221,6 +294,10 @@ class LocalMusicLibrary {
   Future<int> rescanAll({
     void Function(int scanned, int total)? onProgress,
   }) async {
+    LocalMusicDebugLog.info(
+      'library.rescan_all.start',
+      'directories=${_directories.length} downloadDir=${LocalMusicDebugLog.quote(_downloadDirectory)}',
+    );
     var added = 0;
     final downloadDir = _downloadDirectory;
     if (downloadDir != null && !_directories.contains(downloadDir)) {
@@ -229,14 +306,33 @@ class LocalMusicLibrary {
     for (final directoryPath in List.of(_directories)) {
       added += await addDirectory(directoryPath, onProgress: onProgress);
     }
+    LocalMusicDebugLog.info(
+      'library.rescan_all.finish',
+      'added=$added files=${_files.length} scraped=${_scrapedIdentity.length}',
+    );
     return added;
   }
 
   /// 仅重新扫描下载目录（下载完成后调用，增量更新）。
   Future<int> rescanDownloadDirectory() async {
     final downloadDir = _downloadDirectory;
-    if (downloadDir == null) return 0;
-    return addDirectory(downloadDir);
+    if (downloadDir == null) {
+      LocalMusicDebugLog.info(
+        'library.rescan_download.skip',
+        'downloadDir=null',
+      );
+      return 0;
+    }
+    LocalMusicDebugLog.info(
+      'library.rescan_download.start',
+      'directory=${LocalMusicDebugLog.quote(downloadDir)}',
+    );
+    final added = await addDirectory(downloadDir);
+    LocalMusicDebugLog.info(
+      'library.rescan_download.finish',
+      'added=$added files=${_files.length}',
+    );
+    return added;
   }
 
   /// 将已完成下载任务的元数据写入本地索引。
@@ -255,7 +351,13 @@ class LocalMusicLibrary {
     int? duration,
   }) async {
     final file = File(path);
-    if (!await file.exists()) return;
+    if (!await file.exists()) {
+      LocalMusicDebugLog.warning(
+        'library.download_upsert.missing_file',
+        'path=${LocalMusicDebugLog.quote(path)}',
+      );
+      return;
+    }
     final stat = await file.stat();
     final fileName = file.uri.pathSegments.last;
     final dot = fileName.lastIndexOf('.');
@@ -283,6 +385,10 @@ class LocalMusicLibrary {
       'album': album,
       if (artwork != null && artwork.isNotEmpty) 'artwork': artwork,
     };
+    LocalMusicDebugLog.info(
+      'library.download_upsert.persist',
+      'path=${LocalMusicDebugLog.quote(path)} file=${LocalMusicDebugLog.quote(fileName)} title=${LocalMusicDebugLog.quote(title)} artist=${LocalMusicDebugLog.quote(artist)} platform=$platform songmid=${LocalMusicDebugLog.quote(songmid)} hash=${LocalMusicDebugLog.quote(hash)} artwork=${LocalMusicDebugLog.present(artwork)}',
+    );
     await Future.wait([_persistIndex(), _persistScrapedIdentity()]);
   }
 
@@ -310,6 +416,10 @@ class LocalMusicLibrary {
     String path,
     Map<String, dynamic> identity,
   ) async {
+    LocalMusicDebugLog.info(
+      'library.scrape_identity.apply.start',
+      'path=${LocalMusicDebugLog.quote(path)} ${LocalMusicDebugLog.identity(identity)}',
+    );
     _scrapedIdentity[path] = Map<String, dynamic>.from(identity);
     final current = _files[path];
     if (current != null) {
@@ -324,10 +434,26 @@ class LocalMusicLibrary {
         if (album != null) 'album': album,
         if (artwork != null) 'artwork': artwork,
       };
+      LocalMusicDebugLog.info(
+        'library.scrape_identity.mirror_index',
+        'path=${LocalMusicDebugLog.quote(path)} title=${LocalMusicDebugLog.quote(title)} artist=${LocalMusicDebugLog.quote(artist)} album=${LocalMusicDebugLog.quote(album)} artwork=${LocalMusicDebugLog.present(artwork)}',
+      );
       await Future.wait([_persistIndex(), _persistScrapedIdentity()]);
+      LocalMusicDebugLog.info(
+        'library.scrape_identity.apply.finish',
+        'path=${LocalMusicDebugLog.quote(path)} mirrored=true scraped=${_scrapedIdentity.length}',
+      );
       return;
     }
+    LocalMusicDebugLog.warning(
+      'library.scrape_identity.no_index_entry',
+      'path=${LocalMusicDebugLog.quote(path)}',
+    );
     await _persistScrapedIdentity();
+    LocalMusicDebugLog.info(
+      'library.scrape_identity.apply.finish',
+      'path=${LocalMusicDebugLog.quote(path)} mirrored=false scraped=${_scrapedIdentity.length}',
+    );
   }
 
   String? _nonEmptyString(Object? value) {
@@ -339,16 +465,37 @@ class LocalMusicLibrary {
   /// 使下载歌曲立即可见封面（不必等刮削）。
   Future<void> applyDownloadArtwork(Map<String, String> pathToArtwork) async {
     var changed = false;
+    var applied = 0;
+    var skippedExisting = 0;
+    var missingIndex = 0;
     for (final entry in pathToArtwork.entries) {
       final current = _files[entry.key];
-      if (current == null) continue;
-      if (current['artwork']?.toString().isNotEmpty == true) continue;
+      if (current == null) {
+        missingIndex++;
+        continue;
+      }
+      if (current['artwork']?.toString().isNotEmpty == true) {
+        skippedExisting++;
+        continue;
+      }
       final identity = _scrapedIdentity[entry.key];
-      if (identity?['artwork']?.toString().isNotEmpty == true) continue;
+      if (identity?['artwork']?.toString().isNotEmpty == true) {
+        skippedExisting++;
+        continue;
+      }
       _files[entry.key] = {...current, 'artwork': entry.value};
+      LocalMusicDebugLog.info(
+        'library.download_artwork.apply',
+        'path=${LocalMusicDebugLog.quote(entry.key)} artwork=${LocalMusicDebugLog.quote(entry.value)}',
+      );
+      applied++;
       changed = true;
     }
     if (changed) await _persistIndex();
+    LocalMusicDebugLog.info(
+      'library.download_artwork.finish',
+      'input=${pathToArtwork.length} applied=$applied skippedExisting=$skippedExisting missingIndex=$missingIndex changed=$changed',
+    );
   }
 
   Future<void> _persistScrapedIdentity() async {
