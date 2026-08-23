@@ -52,6 +52,18 @@ void main() {
     expect(source, contains('_downloadSelectedFavorites'));
     expect(source, contains('_removeSelectedFavorites'));
     expect(source, contains('_toggleAllFavoriteSelection'));
+    expect(source, contains('currentPageSongs'));
+    expect(source, contains('_selectedFavoriteIds.clear();'));
+    expect(source, contains('_selectedFavoriteIds.removeAll(currentPageIds)'));
+    expect(
+      source,
+      contains('currentPageIds.every(_selectedFavoriteIds.contains)'),
+    );
+    final selectAllMethod = source.substring(
+      source.indexOf('void _toggleAllFavoriteSelection('),
+      source.indexOf('Future<List<MusicItem>> _selectedFavoriteSongs('),
+    );
+    expect(selectAllMethod, isNot(contains('getAllSongs')));
     expect(source, contains("tooltip: isAllFavoritesSelected ? '取消全选' : '全选'"));
     expect(source, contains('Icons.select_all'));
     expect(source, contains('Icons.deselect'));

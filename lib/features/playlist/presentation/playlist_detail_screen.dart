@@ -141,6 +141,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   void _setPage(int pageIndex, int itemCount) {
     setState(() {
       _pendingCenteredSongIndex = null;
+      _selectedFavoriteIds.clear();
       _pageIndex = PageRange(
         itemCount: itemCount,
         pageIndex: pageIndex,
@@ -195,10 +196,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final range = _pageRangeFor(playlist.songCount);
     final isFavorites = playlist.id == 'favorites';
     final isSelectionMode = isFavorites && _selectedFavoriteIds.isNotEmpty;
-    final isAllFavoritesSelected =
-        isSelectionMode &&
-        playlist.songCount > 0 &&
-        _selectedFavoriteIds.length >= playlist.songCount;
     final songsPage = !_isEditing && playlist.songCount > 0
         ? ref.watch(
             playlistSongsPageProvider(
@@ -209,6 +206,15 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             ),
           )
         : null;
+    final currentPageSongs =
+        songsPage?.valueOrNull?.songs ?? const <MusicItem>[];
+    final currentPageIds = currentPageSongs
+        .map((song) => song.identityKey)
+        .toSet();
+    final isAllFavoritesSelected =
+        isSelectionMode &&
+        currentPageIds.isNotEmpty &&
+        currentPageIds.every(_selectedFavoriteIds.contains);
 
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
@@ -273,10 +279,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             if (isSelectionMode) ...[
               FxIconButton(
                 tooltip: isAllFavoritesSelected ? '取消全选' : '全选',
-                onPressed: _selectionBusy
+                onPressed: _selectionBusy || currentPageSongs.isEmpty
                     ? null
                     : () => _toggleAllFavoriteSelection(
-                        playlist,
+                        currentPageSongs,
                         allSelected: isAllFavoritesSelected,
                       ),
                 icon: Icon(
@@ -784,32 +790,22 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     });
   }
 
-  Future<void> _toggleAllFavoriteSelection(
-    Playlist playlist, {
+  void _toggleAllFavoriteSelection(
+    List<MusicItem> currentPageSongs, {
     required bool allSelected,
-  }) async {
+  }) {
     if (_selectionBusy) return;
     if (allSelected) {
-      setState(_selectedFavoriteIds.clear);
+      final currentPageIds = currentPageSongs.map((song) => song.identityKey);
+      setState(() => _selectedFavoriteIds.removeAll(currentPageIds));
       return;
     }
 
-    setState(() => _selectionBusy = true);
-    try {
-      final songs = await ref
-          .read(playlistServiceProvider)
-          .getAllSongs(playlist.id);
-      if (!mounted) return;
-      setState(() {
-        _selectedFavoriteIds
-          ..clear()
-          ..addAll(songs.map((song) => song.identityKey));
-      });
-    } catch (error) {
-      _showMutationError('全选失败', error);
-    } finally {
-      if (mounted) setState(() => _selectionBusy = false);
-    }
+    setState(() {
+      _selectedFavoriteIds
+        ..clear()
+        ..addAll(currentPageSongs.map((song) => song.identityKey));
+    });
   }
 
   Future<List<MusicItem>> _selectedFavoriteSongs(Playlist playlist) async {
