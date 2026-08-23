@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:koyze/core/audio/audio_handler.dart';
@@ -422,6 +423,43 @@ void main() {
       );
 
       expect(await resolver.resolve(_item(), preferredQuality: '320k'), isNull);
+    });
+
+    test('cancel token aborts before cache acquisition', () async {
+      final token = CancelToken();
+      var cancelAwareCalls = 0;
+      var acquireCalls = 0;
+      final resolver = PlaybackUrlResolver<MusicItem>(
+        resolvePlayableUrl: (music, {required preferredQuality}) async =>
+            _playResult(),
+        resolvePlayableUrlWithCancel:
+            (music, {required preferredQuality, cancelToken}) async {
+          cancelAwareCalls++;
+          expect(cancelToken, same(token));
+          token.cancel('test timeout');
+          return _playResult();
+        },
+        acquireOrDownload: ({
+          required remoteUrl,
+          required platform,
+          required songId,
+          required quality,
+        }) async {
+          acquireCalls++;
+          return null;
+        },
+        songIdFor: (music) => music.songmid ?? music.id,
+      );
+
+      final result = await resolver.resolve(
+        _item(),
+        preferredQuality: '320k',
+        cancelToken: token,
+      );
+
+      expect(result, isNull);
+      expect(cancelAwareCalls, 1);
+      expect(acquireCalls, 0);
     });
 
     test('successful cache returns CachedPlayback with lease uri', () async {
@@ -1260,6 +1298,48 @@ void main() {
       expect(accepted, isFalse);
       expect(handler.queueItems[0].extras?['url'], isNull);
       expect(handler.queueItems[0].extras?['actualQuality'], isNull);
+    });
+
+    test('timed out foreground resolution rejects late acceptance', () async {
+      final player = _ReuseAudioPlayer();
+      final handler = LxAudioHandler(
+        player: player,
+        resolveTimeout: const Duration(milliseconds: 10),
+      );
+      addTearDown(player.dispose);
+      final resolverStarted = Completer<Map<String, dynamic>>();
+      final releaseResolver = Completer<void>();
+      final acceptedLate = Completer<bool>();
+      final lease = _FakeLease('/cache/timeout.mp3', 'timeout', (_) {});
+      handler.urlResolver = (id, [extras]) async {
+        final rawExtras = Map<String, dynamic>.from(extras!);
+        resolverStarted.complete(rawExtras);
+        await releaseResolver.future;
+        final resolution = CachedPlayback(lease.asLease(), {
+          'url': PlaybackCacheService.toPlayableUri(lease.path),
+          'actualQuality': 'flac',
+        });
+        acceptedLate.complete(
+          handler.acceptResolvedPlayback(
+            mediaId: id,
+            generation: rawExtras['_playbackGeneration'] as int,
+            resolution: resolution,
+          ),
+        );
+        return resolution.playableUrl;
+      };
+
+      await handler.setPlaylist([_unresolvedItem('timeout')]);
+      final rawExtras = await resolverStarted.future;
+      final token = rawExtras['_playbackResolutionCancelToken'];
+      expect(token, isA<CancelToken>());
+      expect((token as CancelToken).isCancelled, isTrue);
+      expect(player.sourceInstallCount, 0);
+
+      releaseResolver.complete();
+      expect(await acceptedLate.future, isFalse);
+      expect(lease.releaseCount, 1);
+      expect(handler.queueItems.single.extras?['url'], isNull);
     });
 
     test(

@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
@@ -242,6 +243,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer Function()? _replacementPlayerFactory;
   final PrepareForPlayback? _prepareForPlayback;
   final Duration _outputRouteRecoveryTimeout;
+  final Duration _resolveTimeout;
   final AudioInterruptionPolicy _interruptionPolicy = AudioInterruptionPolicy();
   // just_audio_windows 不支持 SilenceAudioSource；Windows 切歌跳过静音过渡
   final bool _useSilenceKeepalive;
@@ -332,7 +334,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   static const _lazyQueueHistory = 4;
 
   /// 单曲 URL 解析总超时：音源不可用时不会无限等待，超时视为解析失败。
-  static const _resolveTimeout = Duration(seconds: 25);
+  static const _defaultResolveTimeout = Duration(seconds: 25);
   static const _completionRecoveryDelay = Duration(seconds: 2);
   static const _maximumCompletionRecoveryAttempts = 3;
   static const _maximumConsecutiveFailedTracks = 5;
@@ -698,6 +700,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     AudioPlayer Function()? playerFactory,
     PrepareForPlayback? prepareForPlayback,
     Duration outputRouteRecoveryTimeout = const Duration(milliseconds: 1200),
+    Duration resolveTimeout = _defaultResolveTimeout,
     bool? useSilenceKeepalive,
   }) : assert(player == null || playerFactory == null),
        _replacementPlayerFactory = player == null
@@ -705,7 +708,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
            : null,
        _prepareForPlayback = prepareForPlayback,
        _useSilenceKeepalive = useSilenceKeepalive ?? !Platform.isWindows,
-       _outputRouteRecoveryTimeout = outputRouteRecoveryTimeout {
+       _outputRouteRecoveryTimeout = outputRouteRecoveryTimeout,
+       _resolveTimeout = resolveTimeout {
     _player = player ?? (playerFactory ?? _createDefaultPlayer)();
     _playerSubject = BehaviorSubject<AudioPlayer>.seeded(_player);
     _commands = _createCommandCoordinator(_player);
@@ -1379,6 +1383,18 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               generation: gen,
               occurrenceId: expectedOccurrence,
               itemId: expectedId,
+            );
+            return;
+          }
+          _userWantsPlay = false;
+          await _commands.setDesiredPlayingPreservingIntent(false);
+          if (!_isStale(gen) &&
+              _activeOccurrenceId == expectedOccurrence &&
+              _activeItemId == expectedId &&
+              mediaItem.value?.id == expectedId) {
+            _publishPlaybackState(
+              override: AudioProcessingState.completed,
+              playingOverride: false,
             );
           }
           return;
@@ -2605,6 +2621,38 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
   }
 
+  Future<String?> _resolveForegroundUrl({
+    required String mediaId,
+    required Map<String, dynamic> extras,
+    required int generation,
+    required int occurrenceId,
+  }) async {
+    final resolver = urlResolver;
+    if (resolver == null) return null;
+    final cancelToken = CancelToken();
+    extras['_playbackResolutionCancelToken'] = cancelToken;
+    final resolution = resolver(mediaId, extras).then<String?>((url) => url);
+    return resolution.timeout(
+      _resolveTimeout,
+      onTimeout: () {
+        if (!cancelToken.isCancelled) {
+          cancelToken.cancel('Playback URL resolution timed out');
+        }
+        final request = _foregroundResolutionRequest;
+        if (!_isStale(generation) &&
+            request != null &&
+            request.generation == generation &&
+            request.occurrenceId == occurrenceId &&
+            request.mediaId == mediaId) {
+          _foregroundResolutionRequest = null;
+          _cancelForegroundCacheWork();
+        }
+        debugPrint('[AudioHandler] URL resolution timed out id=$mediaId');
+        return null;
+      },
+    );
+  }
+
   Future<void> _loadQueueItemImpl(
     int index, {
     bool seamless = false,
@@ -2747,10 +2795,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             resolveExtras['requestedQuality'] = preferredQuality;
             resolveExtras['_playbackGeneration'] = gen;
             // 解析总超时：音源不可用时避免无限等待，直接进入失败分支。
-            url = await urlResolver!(
-              item.id,
-              resolveExtras,
-            ).timeout(_resolveTimeout);
+            url = await _resolveForegroundUrl(
+              mediaId: item.id,
+              extras: resolveExtras,
+              generation: gen,
+              occurrenceId: occurrenceId,
+            );
           }
         }
 
@@ -2808,10 +2858,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           resolveExtras.remove('remoteUrl');
           resolveExtras['requestedQuality'] = preferredQuality;
           resolveExtras['_playbackGeneration'] = gen;
-          url = await urlResolver!(
-            item.id,
-            resolveExtras,
-          ).timeout(_resolveTimeout);
+          url = await _resolveForegroundUrl(
+            mediaId: item.id,
+            extras: resolveExtras,
+            generation: gen,
+            occurrenceId: occurrenceId,
+          );
         }
 
         if (url == null || url.isEmpty) {

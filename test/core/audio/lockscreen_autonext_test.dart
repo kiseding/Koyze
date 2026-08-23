@@ -40,6 +40,27 @@ void main() {
     expect(player.sourceLoadCalls, greaterThan(loadsBeforeCompletion));
   });
 
+  test('lazy queue natural end does not stay buffering as playing', () async {
+    await handler.setPlaylist([item('A')]);
+    handler.configureLazyQueue(
+      loadMore: (_) async => const <MediaItem>[],
+      rebuildForShuffle: (current, shuffle, minimumItems) async =>
+          const <MediaItem>[],
+    );
+
+    player.emitCompleted();
+    await pumpEventQueue();
+
+    expect(handler.currentQueueIndex, 0);
+    expect(handler.mediaItem.value?.id, 'A');
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.completed,
+    );
+    expect(handler.playbackState.value.playing, isFalse);
+    expect(player.playing, isFalse);
+  });
+
   test(
     'completion from replaced source cannot advance newly installed item',
     () async {

@@ -24,6 +24,7 @@ import 'package:koyze/features/player/presentation/lock_screen_sync.dart';
 import 'package:koyze/features/lyric/presentation/lyric_provider.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -418,6 +419,15 @@ Future<void> _bootstrapUnsafe(
                 allowQualityFallback: false,
               );
             },
+            resolvePlayableUrlWithCancel:
+                (music, {required preferredQuality, cancelToken}) {
+                  return sourceService.resolvePlayableUrl(
+                    music,
+                    preferredQuality: preferredQuality,
+                    cancelToken: cancelToken,
+                    allowQualityFallback: false,
+                  );
+                },
             acquireOrDownload: playbackCache.acquireOrDownloadForResolution,
             acquireCustomOrDownload:
                 ({
@@ -523,27 +533,34 @@ Future<void> _bootstrapUnsafe(
               }
               final resolutionGeneration = rawExtras['_playbackGeneration'];
               final preloadRequestToken = rawExtras['_preloadRequestToken'];
+              final resolutionCancelToken =
+                  rawExtras['_playbackResolutionCancelToken'];
               final resolution = await playbackResolver.resolve(
                 musicItem,
                 preferredQuality: requested,
                 exclusive: resolutionGeneration is int,
+                cancelToken: resolutionCancelToken is CancelToken
+                    ? resolutionCancelToken
+                    : null,
               );
               if (resolution == null) {
                 debugPrint('[urlResolver] 源未返回可播地址(q=$requested)');
                 return null;
               }
               if (resolutionGeneration is int) {
-                lxHandler.acceptResolvedPlayback(
+                final accepted = lxHandler.acceptResolvedPlayback(
                   mediaId: mediaId,
                   generation: resolutionGeneration,
                   resolution: resolution,
                 );
+                if (!accepted) return null;
               } else if (preloadRequestToken is int) {
-                lxHandler.acceptPreloadedPlayback(
+                final accepted = lxHandler.acceptPreloadedPlayback(
                   mediaId: mediaId,
                   requestToken: preloadRequestToken,
                   resolution: resolution,
                 );
+                if (!accepted) return null;
               } else {
                 // Resolutions without handler authority retain no playback lease.
                 await resolution.leaseOrNull?.release();

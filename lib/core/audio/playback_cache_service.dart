@@ -208,6 +208,12 @@ class PlaybackUrlResolver<T> {
     required String preferredQuality,
   })
   resolvePlayableUrl;
+  final Future<PlayUrlResult?> Function(
+    T music, {
+    required String preferredQuality,
+    CancelToken? cancelToken,
+  })?
+  resolvePlayableUrlWithCancel;
   final PlaybackLeaseAcquirer acquireOrDownload;
   final PlaybackLeaseAcquirer? acquireCustomOrDownload;
   final PlaybackStreamValidator? validateStream;
@@ -221,6 +227,7 @@ class PlaybackUrlResolver<T> {
 
   PlaybackUrlResolver({
     required this.resolvePlayableUrl,
+    this.resolvePlayableUrlWithCancel,
     required this.acquireOrDownload,
     this.acquireCustomOrDownload,
     required this.songIdFor,
@@ -295,6 +302,7 @@ class PlaybackUrlResolver<T> {
     required String preferredQuality,
     int? generation,
     bool exclusive = false,
+    CancelToken? cancelToken,
   }) async {
     final gen = generation ?? beginGeneration(cancelPrevious: exclusive);
     if (!_generationKeys.containsKey(gen) && generation != null) {
@@ -304,16 +312,25 @@ class PlaybackUrlResolver<T> {
       _generationKeys[gen] = <String>{};
     }
 
+    bool cancelled() => cancelToken?.isCancelled ?? false;
+    if (cancelled()) return null;
+
     try {
       final songId = songIdFor(music);
       final attemptedUrls = <String>{};
       for (final candidateQuality in _qualityCandidates(preferredQuality)) {
-        if (!_generationKeys.containsKey(gen)) return null;
-        final result = await resolvePlayableUrl(
-          music,
-          preferredQuality: candidateQuality,
-        );
-        if (!_generationKeys.containsKey(gen)) return null;
+        if (!_generationKeys.containsKey(gen) || cancelled()) return null;
+        final result = resolvePlayableUrlWithCancel == null
+            ? await resolvePlayableUrl(
+                music,
+                preferredQuality: candidateQuality,
+              )
+            : await resolvePlayableUrlWithCancel!(
+                music,
+                preferredQuality: candidateQuality,
+                cancelToken: cancelToken,
+              );
+        if (!_generationKeys.containsKey(gen) || cancelled()) return null;
         if (result == null ||
             !isPlayableUrl(result.url) ||
             !attemptedUrls.add(result.url)) {
@@ -332,7 +349,7 @@ class PlaybackUrlResolver<T> {
           quality: qualityKey,
         );
         noteCacheKey(gen, key);
-        if (!_generationKeys.containsKey(gen)) {
+        if (!_generationKeys.containsKey(gen) || cancelled()) {
           cancelCacheKey?.call(key);
           return null;
         }
@@ -351,7 +368,7 @@ class PlaybackUrlResolver<T> {
         } on PlaybackCacheTerminalHttpException {
           continue;
         }
-        if (!_generationKeys.containsKey(gen)) {
+        if (!_generationKeys.containsKey(gen) || cancelled()) {
           if (lease != null) await lease.release();
           cancelCacheKey?.call(key);
           return null;
@@ -371,7 +388,7 @@ class PlaybackUrlResolver<T> {
               )) {
             continue;
           }
-          if (!_generationKeys.containsKey(gen)) return null;
+          if (!_generationKeys.containsKey(gen) || cancelled()) return null;
           final qualityExtras = <String, dynamic>{
             'remoteUrl': result.url,
             'actualQuality': result.actualQuality,
