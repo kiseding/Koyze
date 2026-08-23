@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:io' show Platform;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -1211,8 +1210,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       }
     }
 
-    if (oldPlaybackEvents != null)
+    if (oldPlaybackEvents != null) {
       await ignoreFailure(oldPlaybackEvents.cancel);
+    }
     if (oldDuration != null) {
       await ignoreFailure(oldDuration.cancel);
     }
@@ -2737,10 +2737,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         cachedActualQuality: cachedActualQ,
         currentRequestedQuality: preferredQuality,
       );
-      final localPath = _localPathFor(item);
-      final isLocalMedia = localPath != null;
+      final localUrl = _localPlaybackUrlFor(item);
+      final isLocalMedia = localUrl != null;
       String? currentUrl = isLocalMedia
-          ? Uri.file(localPath).toString()
+          ? localUrl
           : (canReuse ? cachedUrl : null);
 
       var sourceInstallAttempted = false;
@@ -2788,8 +2788,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         }
 
         if (url == null || url.isEmpty) {
-          if (localPath != null) {
-            url = Uri.file(localPath).toString();
+          if (localUrl != null) {
+            url = localUrl;
           }
         }
         if (url == null || url.isEmpty) {
@@ -3068,22 +3068,29 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  String? _localPathFor(MediaItem item) {
+  String? _localPlaybackUrlFor(MediaItem item) {
     final extras = item.extras;
     final isLocal =
         extras?['local'] == true ||
         extras?['source']?.toString() == 'local' ||
         extras?['platform']?.toString() == 'local';
     if (!isLocal) return null;
+    final contentUri = extras?['meta'] is Map
+        ? (extras?['meta'] as Map)['contentUri']?.toString()
+        : extras?['contentUri']?.toString();
+    if (contentUri != null && contentUri.startsWith('content://')) {
+      return contentUri;
+    }
     final rawPath = extras?['filePath']?.toString();
     if (rawPath != null && rawPath.isNotEmpty && File(rawPath).existsSync()) {
-      return rawPath;
+      return Uri.file(rawPath).toString();
     }
     final rawUrl = extras?['url']?.toString();
     final uri = rawUrl == null ? null : Uri.tryParse(rawUrl);
+    if (uri?.scheme == 'content') return rawUrl;
     if (uri?.scheme == 'file') {
       final path = uri!.toFilePath();
-      return File(path).existsSync() ? path : null;
+      return File(path).existsSync() ? rawUrl : null;
     }
     return null;
   }

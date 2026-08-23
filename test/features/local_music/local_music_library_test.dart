@@ -187,6 +187,42 @@ void main() {
       },
     );
 
+    test(
+      'keeps Android content URI entries and plays through content URI',
+      () async {
+        final storage = StorageService.forTesting(
+          await SharedPreferences.getInstance(),
+        );
+        const contentUri = 'content://media/external/audio/media/42';
+        await storage.setJsonList('local_music_index_v1', [
+          {
+            'path': contentUri,
+            'contentUri': contentUri,
+            'androidSource': 'mediaStore',
+            'fileName': 'android.mp3',
+            'extension': 'mp3',
+            'title': 'Android Song',
+            'artist': 'Android Artist',
+            'duration': 123,
+          },
+        ]);
+        await storage.setBool(
+          'local_music_android_mediastore_enabled_v1',
+          true,
+        );
+
+        final library = LocalMusicLibrary(storage: storage);
+        await library.init();
+
+        expect(library.hasConfiguredSources, isTrue);
+        expect(library.files.containsKey(contentUri), isTrue);
+        final song = library.songs.single;
+        expect(song.url, contentUri);
+        expect(song.meta?['contentUri'], contentUri);
+        expect(song.meta?['androidSource'], 'mediaStore');
+      },
+    );
+
     test('builds MusicItem with dual identity from scraped data', () async {
       final storage = StorageService.forTesting(
         await SharedPreferences.getInstance(),
@@ -398,7 +434,7 @@ void main() {
             name: '晴天',
             singer: '周杰伦',
             album: '叶惠美',
-            duration: Duration(seconds: 269),
+            duration: const Duration(seconds: 269),
             source: 'tx',
             platform: 'tx',
             songmid: '1',

@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 
+import 'android_directory_access.dart';
 import 'local_music_debug_log.dart';
 import 'local_music_scanner.dart';
 import 'security_scoped_directory.dart';
@@ -26,6 +27,8 @@ class LocalMusicLibrary {
   static const _indexKey = 'local_music_index_v1';
   static const _dirsKey = 'local_music_dirs_v1';
   static const _downloadDirKey = 'local_music_download_dir_v1';
+  static const _androidMediaStoreEnabledKey =
+      'local_music_android_mediastore_enabled_v1';
 
   final StorageService _storage;
   final LocalMusicScanner _scanner;
@@ -49,6 +52,12 @@ class LocalMusicLibrary {
 
   List<String> get directories => List.unmodifiable(_directories);
   String? get downloadDirectory => _downloadDirectory;
+  bool get androidMediaStoreEnabled =>
+      _storage.getBool(_androidMediaStoreEnabledKey) == true;
+  bool get hasConfiguredSources =>
+      _directories.isNotEmpty ||
+      _downloadDirectory != null ||
+      androidMediaStoreEnabled;
   int get fileCount => _files.length;
 
   Map<String, Map<String, dynamic>> get files => Map.unmodifiable(_files);
@@ -70,7 +79,7 @@ class LocalMusicLibrary {
     _loadScrapedIdentity();
     LocalMusicDebugLog.info(
       'library.init.loaded',
-      'directories=${_directories.length} downloadDir=${LocalMusicDebugLog.quote(_downloadDirectory)} files=${_files.length} scraped=${_scrapedIdentity.length}',
+      'directories=${_directories.length} downloadDir=${LocalMusicDebugLog.quote(_downloadDirectory)} mediaStore=$androidMediaStoreEnabled files=${_files.length} scraped=${_scrapedIdentity.length}',
     );
     await SecurityScopedDirectory.restore();
     await _pruneMissingFiles();
@@ -90,6 +99,202 @@ class LocalMusicLibrary {
         .toList(growable: false);
     await _persistDirectories();
     return addDirectory(directoryPath);
+  }
+
+  /// 启用并扫描 Android MediaStore。默认 Android 本地音乐入口优先走这里。
+  Future<int> enableAndroidMediaStore({
+    void Function(int scanned, int total)? onProgress,
+  }) async {
+    await _storage.setBool(_androidMediaStoreEnabledKey, true);
+    return rescanAndroidMediaStore(onProgress: onProgress);
+  }
+
+  Future<int> rescanAndroidMediaStore({
+    void Function(int scanned, int total)? onProgress,
+  }) async {
+    LocalMusicDebugLog.info(
+      'library.android_mediastore.start',
+      'enabled=$androidMediaStoreEnabled',
+    );
+    final rawTracks = await AndroidDirectoryAccess.scanMediaStore();
+    final tracks = rawTracks.map(_androidTrackFromMap).toList(growable: false);
+    LocalMusicDebugLog.info(
+      'library.android_mediastore.loaded',
+      'tracks=${tracks.length}',
+    );
+    return _upsertPlatformTracks(
+      source: 'mediaStore',
+      tracks: tracks,
+      onProgress: onProgress,
+      staleFilter: (entry) => entry['androidSource'] == 'mediaStore',
+    );
+  }
+
+  Future<int> addAndroidSafDirectory(
+    String directoryPath, {
+    void Function(int scanned, int total)? onProgress,
+  }) async {
+    LocalMusicDebugLog.info(
+      'library.android_saf.start',
+      'directory=${LocalMusicDebugLog.quote(directoryPath)}',
+    );
+    if (!_directories.contains(directoryPath)) {
+      _directories = [..._directories, directoryPath];
+      await _persistDirectories();
+    }
+    final rawTracks = await AndroidDirectoryAccess.scanSelectedDirectory();
+    final tracks = rawTracks
+        .map((entry) => _androidTrackFromMap(entry, safRoot: directoryPath))
+        .toList(growable: false);
+    LocalMusicDebugLog.info(
+      'library.android_saf.loaded',
+      'directory=${LocalMusicDebugLog.quote(directoryPath)} tracks=${tracks.length}',
+    );
+    return _upsertPlatformTracks(
+      source: 'saf',
+      tracks: tracks,
+      onProgress: onProgress,
+      staleFilter: (entry) =>
+          entry['androidSource'] == 'saf' && entry['safRoot'] == directoryPath,
+    );
+  }
+
+  LocalTrack _androidTrackFromMap(
+    Map<String, dynamic> entry, {
+    String? safRoot,
+  }) {
+    final fileName = entry['fileName']?.toString() ?? '';
+    final path = entry['path']?.toString().trim() ?? '';
+    final contentUri = entry['contentUri']?.toString();
+    final modifiedMillis = _asInt(entry['modifiedAtMillis']);
+    final durationMillis = _asInt(entry['durationMillis']);
+    final bitrate = _asNullableInt(entry['bitrate']);
+    return LocalTrack(
+      path: path.isNotEmpty ? path : contentUri ?? '',
+      fileName: fileName.isNotEmpty ? fileName : titleFromFileName(path),
+      extension: entry['extension']?.toString() ?? _extensionOf(fileName),
+      size: _asInt(entry['size']),
+      modifiedAt: modifiedMillis > 0
+          ? DateTime.fromMillisecondsSinceEpoch(modifiedMillis)
+          : DateTime.fromMillisecondsSinceEpoch(0),
+      title: _cleanAndroidText(entry['title']) ?? titleFromFileName(fileName),
+      artist: _cleanAndroidText(entry['artist']) ?? '未知歌手',
+      album: _cleanAndroidText(entry['album']) ?? '',
+      duration: Duration(milliseconds: durationMillis),
+      bitrate: bitrate,
+      hasEmbeddedTags:
+          _cleanAndroidText(entry['title']) != null &&
+          _cleanAndroidText(entry['artist']) != null,
+      hasEmbeddedArtwork: false,
+      contentUri: contentUri,
+      androidSource: entry['androidSource']?.toString(),
+      safRoot: safRoot ?? entry['safRoot']?.toString(),
+      mimeType: entry['mimeType']?.toString(),
+    );
+  }
+
+  Future<int> _upsertPlatformTracks({
+    required String source,
+    required List<LocalTrack> tracks,
+    required bool Function(Map<String, dynamic> entry) staleFilter,
+    void Function(int scanned, int total)? onProgress,
+  }) async {
+    final discoveredPaths = <String>{};
+    var invalidatedChanged = 0;
+    for (var index = 0; index < tracks.length; index++) {
+      final track = tracks[index];
+      if (track.path.isEmpty) continue;
+      discoveredPaths.add(track.path);
+      final previous = _files[track.path];
+      final previousModified = DateTime.tryParse(
+        previous?['modifiedAt']?.toString() ?? '',
+      );
+      if (previous != null &&
+          (previous['size'] != track.size ||
+              previousModified != track.modifiedAt)) {
+        _scrapedIdentity.remove(track.path);
+        invalidatedChanged++;
+        LocalMusicDebugLog.warning(
+          'library.platform_file_changed',
+          'source=$source path=${LocalMusicDebugLog.quote(track.path)} oldSize=${previous['size']} newSize=${track.size}',
+        );
+      }
+      _files[track.path] = {
+        'path': track.path,
+        'fileName': track.fileName,
+        'extension': track.extension,
+        'size': track.size,
+        'modifiedAt': track.modifiedAt.toIso8601String(),
+        'title': track.title,
+        'artist': track.artist,
+        'album': track.album,
+        'hasEmbeddedTags': track.hasEmbeddedTags,
+        'hasEmbeddedArtwork': track.hasEmbeddedArtwork,
+        'duration': track.duration.inSeconds,
+        if (track.bitrate != null) 'bitrate': track.bitrate,
+        if (track.contentUri != null && track.contentUri!.isNotEmpty)
+          'contentUri': track.contentUri,
+        if (track.androidSource != null && track.androidSource!.isNotEmpty)
+          'androidSource': track.androidSource,
+        if (track.safRoot != null && track.safRoot!.isNotEmpty)
+          'safRoot': track.safRoot,
+        if (track.mimeType != null && track.mimeType!.isNotEmpty)
+          'mimeType': track.mimeType,
+      };
+      LocalMusicDebugLog.info(
+        'library.platform_index.upsert',
+        'source=$source ${LocalMusicDebugLog.indexedFile(_files[track.path]!)}',
+      );
+      onProgress?.call(index + 1, tracks.length);
+    }
+    final stalePaths = _files.entries
+        .where(
+          (entry) =>
+              staleFilter(entry.value) && !discoveredPaths.contains(entry.key),
+        )
+        .map((entry) => entry.key)
+        .toList(growable: false);
+    if (stalePaths.isNotEmpty) {
+      LocalMusicDebugLog.warning(
+        'library.platform_stale_removed',
+        "source=$source count=${stalePaths.length} sample=${stalePaths.take(5).map(LocalMusicDebugLog.quote).join(' | ')}",
+      );
+    }
+    for (final path in stalePaths) {
+      _files.remove(path);
+      _scrapedIdentity.remove(path);
+    }
+    await Future.wait([_persistIndex(), _persistScrapedIdentity()]);
+    LocalMusicDebugLog.info(
+      'library.platform_scan.finish',
+      'source=$source tracks=${tracks.length} invalidated=$invalidatedChanged stale=${stalePaths.length} files=${_files.length}',
+    );
+    return tracks.length;
+  }
+
+  String? _cleanAndroidText(Object? value) {
+    final text = value?.toString().trim() ?? '';
+    if (text.isEmpty || text == '<unknown>') return null;
+    return text;
+  }
+
+  int _asInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  int? _asNullableInt(Object? value) {
+    if (value == null) return null;
+    final parsed = _asInt(value);
+    return parsed <= 0 ? null : parsed;
+  }
+
+  String _extensionOf(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    return dot >= 0 && dot < fileName.length - 1
+        ? fileName.substring(dot + 1).toLowerCase()
+        : '';
   }
 
   void _loadIndex() {
@@ -126,7 +331,19 @@ class LocalMusicLibrary {
   /// 启动时校验文件是否存在，移除失效条目。
   Future<void> _pruneMissingFiles() async {
     final missing = <String>[];
-    for (final path in _files.keys) {
+    for (final entry in _files.entries) {
+      final path = entry.key;
+      final value = entry.value;
+      final contentUri = value['contentUri']?.toString();
+      final androidSource = value['androidSource']?.toString();
+      // MediaStore/SAF entries may be content backed and are validated by their
+      // own rescans. Do not delete them just because dart:io cannot stat them.
+      if ((androidSource == 'mediaStore' || androidSource == 'saf') &&
+          contentUri != null &&
+          contentUri.isNotEmpty) {
+        continue;
+      }
+      if (Uri.tryParse(path)?.scheme == 'content') continue;
       if (!await File(path).exists()) missing.add(path);
     }
     if (missing.isEmpty) return;
@@ -290,21 +507,40 @@ class LocalMusicLibrary {
     return dir;
   }
 
+  bool _isAndroidSafDirectory(String directoryPath) {
+    if (directoryPath.startsWith('content://')) return true;
+    return _files.values.any(
+      (entry) =>
+          entry['androidSource'] == 'saf' &&
+          entry['safRoot']?.toString() == directoryPath,
+    );
+  }
+
   /// 重新扫描全部目录（用于显式刷新），含下载目录。
   Future<int> rescanAll({
     void Function(int scanned, int total)? onProgress,
   }) async {
     LocalMusicDebugLog.info(
       'library.rescan_all.start',
-      'directories=${_directories.length} downloadDir=${LocalMusicDebugLog.quote(_downloadDirectory)}',
+      'directories=${_directories.length} downloadDir=${LocalMusicDebugLog.quote(_downloadDirectory)} mediaStore=$androidMediaStoreEnabled',
     );
     var added = 0;
+    if (androidMediaStoreEnabled) {
+      added += await rescanAndroidMediaStore(onProgress: onProgress);
+    }
     final downloadDir = _downloadDirectory;
     if (downloadDir != null && !_directories.contains(downloadDir)) {
       added += await addDirectory(downloadDir, onProgress: onProgress);
     }
     for (final directoryPath in List.of(_directories)) {
-      added += await addDirectory(directoryPath, onProgress: onProgress);
+      if (_isAndroidSafDirectory(directoryPath)) {
+        added += await addAndroidSafDirectory(
+          directoryPath,
+          onProgress: onProgress,
+        );
+      } else {
+        added += await addDirectory(directoryPath, onProgress: onProgress);
+      }
     }
     LocalMusicDebugLog.info(
       'library.rescan_all.finish',
@@ -403,7 +639,11 @@ class LocalMusicLibrary {
         : '$directoryPath/';
     _files.removeWhere((path, _) => path.startsWith(prefix));
     _scrapedIdentity.removeWhere((path, _) => path.startsWith(prefix));
-    await Future.wait([_persistDirectories(), _persistIndex()]);
+    await Future.wait([
+      _persistDirectories(),
+      _persistIndex(),
+      _persistScrapedIdentity(),
+    ]);
   }
 
   /// 记录刮削到的在线身份（songmid/hash/artwork/lyricsUrl 等）。
@@ -510,6 +750,7 @@ class LocalMusicLibrary {
   /// 将索引中的本地文件转为 MusicItem（双身份：本地 filePath + 在线 songmid/hash）。
   MusicItem _toMusicItem(Map<String, dynamic> entry) {
     final path = entry['path']!.toString();
+    final contentUri = entry['contentUri']?.toString();
     final fileName = entry['fileName']?.toString() ?? '';
     final identity = _scrapedIdentity[path];
     final songmid =
@@ -541,14 +782,21 @@ class LocalMusicLibrary {
       source: 'local',
       platform: identity?['platform']?.toString() ?? 'local',
       artwork: artwork,
-      // Uri.file handles Windows drive letters and iOS paths correctly.
-      url: Uri.file(path).toString(),
+      // MediaStore/SAF entries prefer their content URI for Android scoped
+      // storage; plain file-backed tracks keep file:// URLs.
+      url: contentUri != null && contentUri.isNotEmpty
+          ? contentUri
+          : Uri.file(path).toString(),
       lyricsUrl: lyricsUrl,
       isPlayable: true,
       songmid: songmid,
       hash: hash,
       meta: {
         'filePath': path,
+        if (contentUri != null && contentUri.isNotEmpty)
+          'contentUri': contentUri,
+        if (entry['androidSource']?.toString().isNotEmpty == true)
+          'androidSource': entry['androidSource']?.toString(),
         'ext': entry['extension']?.toString() ?? '',
         'local': true,
         if (_localActualQuality(entry) != null)

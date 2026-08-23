@@ -6,11 +6,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Android 13+ 播放通知/媒体控制需要动态申请通知权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- 读取外部存储中的音频（本地音乐扫描） -->
+    <!-- 读取外部存储中的音频（本地音乐扫描）：Android 13+ 使用 READ_MEDIA_AUDIO，旧版使用 READ_EXTERNAL_STORAGE。 -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!-- 权限兜底：MediaStore 不可用时允许用户授予全部文件访问，再回退到 SAF 目录授权。 -->
+    <uses-permission
+        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
 
     <!-- 动态音源可能返回无法升级为 HTTPS 的签名媒体 URL；请求仍受公有地址、固定 IP 与响应预算限制。 -->
     <application

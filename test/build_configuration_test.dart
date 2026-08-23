@@ -84,7 +84,7 @@ void main() {
     expect(workflow, contains('Koyze-Apple-ID-Sideload-IPA'));
     expect(
       workflow,
-      contains("rm -rf build/ios/ipa-sideload/Payload/Runner.app/PlugIns"),
+      contains('rm -rf build/ios/ipa-sideload/Payload/Runner.app/PlugIns'),
     );
     expect(workflow, isNot(contains('Koyze-unsigned.ipa')));
     expect(workflow, isNot(contains('Koyze-unsigned-IPA')));
@@ -206,6 +206,11 @@ void main() {
     expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
     expect(manifest, contains('READ_MEDIA_AUDIO'));
     expect(manifest, contains('READ_EXTERNAL_STORAGE'));
+    expect(manifest, contains('MANAGE_EXTERNAL_STORAGE'));
+    expect(activity, contains('scanMediaStore'));
+    expect(activity, contains('scanSelectedDirectory'));
+    expect(activity, contains('isExternalStorageManager'));
+    expect(activity, contains('ACTION_OPEN_DOCUMENT_TREE'));
     expect(manifest, contains('android:foregroundServiceType="mediaPlayback"'));
     expect(manifest, contains('android:stopWithTask="false"'));
     expect(manifest, contains('android:allowBackup="false"'));

@@ -48,6 +48,10 @@ class LocalTrack {
     this.hasEmbeddedTags = true,
     this.hasEmbeddedArtwork = false,
     this.embeddedArtwork,
+    this.contentUri,
+    this.androidSource,
+    this.safRoot,
+    this.mimeType,
   });
 
   final String path;
@@ -63,6 +67,10 @@ class LocalTrack {
   final bool hasEmbeddedTags;
   final bool hasEmbeddedArtwork;
   final Uint8List? embeddedArtwork;
+  final String? contentUri;
+  final String? androidSource;
+  final String? safRoot;
+  final String? mimeType;
 
   LocalTrack copyWith({String? title, String? artist, String? album}) {
     return LocalTrack(
@@ -79,6 +87,10 @@ class LocalTrack {
       hasEmbeddedTags: hasEmbeddedTags,
       hasEmbeddedArtwork: hasEmbeddedArtwork,
       embeddedArtwork: embeddedArtwork,
+      contentUri: contentUri,
+      androidSource: androidSource,
+      safRoot: safRoot,
+      mimeType: mimeType,
     );
   }
 }

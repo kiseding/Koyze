@@ -49,6 +49,8 @@ final class LocalMusicDebugLog {
         'bitrate=${track.bitrate ?? '-'} '
         'embeddedTags=${track.hasEmbeddedTags} '
         'embeddedArtwork=${track.hasEmbeddedArtwork} '
+        'androidSource=${quote(track.androidSource)} '
+        'contentUri=${present(track.contentUri)} '
         'path=${quote(track.path)}';
   }
 
@@ -60,6 +62,8 @@ final class LocalMusicDebugLog {
         'duration=${entry['duration'] ?? 0}s '
         'embeddedTags=${entry['hasEmbeddedTags'] == true} '
         'embeddedArtwork=${entry['hasEmbeddedArtwork'] == true} '
+        'androidSource=${quote(entry['androidSource'])} '
+        'contentUri=${present(entry['contentUri'])} '
         'path=${quote(entry['path'])}';
   }
 

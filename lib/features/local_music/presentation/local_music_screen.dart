@@ -40,6 +40,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     final libraryAsync = ref.watch(localMusicLibraryProvider);
     final dirs = libraryAsync.value?.directories ?? const <String>[];
     final downloadDir = libraryAsync.value?.downloadDirectory;
+    final mediaStoreEnabled =
+        libraryAsync.value?.androidMediaStoreEnabled ?? false;
     final songCount = libraryAsync.value?.fileCount ?? 0;
 
     return Container(
@@ -77,7 +79,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         ),
         body: Column(
           children: [
-            _buildHeader(context, dirs, downloadDir),
+            _buildHeader(context, dirs, downloadDir, mediaStoreEnabled),
             if (_scanning || _scraping || _tagWriting) _buildProgress(context),
             Expanded(
               child: Center(
@@ -103,6 +105,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     BuildContext context,
     List<String> directories,
     String? downloadDirectory,
+    bool mediaStoreEnabled,
   ) {
     final accent = AppColors.accentOf(context);
     return Padding(
@@ -143,9 +146,11 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        directories.isEmpty && downloadDirectory == null
-                            ? '添加文件夹后自动扫描和匹配'
-                            : '已配置 ${directories.length} 个扫描位置',
+                        mediaStoreEnabled ||
+                                directories.isNotEmpty ||
+                                downloadDirectory != null
+                            ? 'MediaStore 优先，已配置 ${directories.length} 个目录'
+                            : '添加后默认通过 Android MediaStore 扫描和匹配',
                         style: TextStyle(
                           color: AppColors.mutedText(context),
                           fontSize: 12,
@@ -169,6 +174,27 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
               ],
             ),
           ),
+          if (mediaStoreEnabled)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(
+                children: [
+                  Icon(Icons.album_rounded, size: 16, color: accent),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Android MediaStore · 默认优先扫描',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.mutedText(context),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (downloadDirectory != null)
             Padding(
               padding: const EdgeInsets.only(top: 10),
@@ -239,7 +265,9 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                 ],
               ),
             ),
-          if (directories.isNotEmpty || downloadDirectory != null)
+          if (mediaStoreEnabled ||
+              directories.isNotEmpty ||
+              downloadDirectory != null)
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Container(
@@ -326,29 +354,13 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
   }
 
   Future<void> _pickDirectory() async {
-    // Android 13+ 读外部音频需 READ_MEDIA_AUDIO；≤12 为 READ_EXTERNAL_STORAGE。
-    // 权限被拒时仍允许尝试（SAF 目录选择可能已授权），但提示可能扫描不到。
     if (Platform.isAndroid) {
-      final status = await Permission.audio.request();
-      if (status == PermissionStatus.permanentlyDenied) {
-        if (mounted) {
-          _showError('存储权限被永久拒绝', StateError('请在系统设置中允许'));
-        }
-        return;
-      }
+      await _scanAndroidPreferred();
+      return;
     }
     if (Platform.isIOS) {
       try {
         final path = await SecurityScopedDirectory.select();
-        if (path != null && mounted) await _scan(path);
-      } catch (error) {
-        if (mounted) _showError('选择音乐文件夹失败', error);
-      }
-      return;
-    }
-    if (Platform.isAndroid) {
-      try {
-        final path = await AndroidDirectoryAccess.select();
         if (path != null && mounted) await _scan(path);
       } catch (error) {
         if (mounted) _showError('选择音乐文件夹失败', error);
@@ -362,6 +374,159 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     } catch (error) {
       if (mounted) _showError('选择文件夹失败', error);
     }
+  }
+
+  Future<void> _scanAndroidPreferred() async {
+    final library = await ref.read(localMusicLibraryProvider.future);
+    if (!mounted) return;
+    setState(() {
+      _scanning = true;
+      _scraping = false;
+      _scanned = 0;
+      _total = 0;
+      _status = '正在通过 Android MediaStore 扫描本地音乐…';
+    });
+    LocalMusicDebugLog.info('ui.android_access.start', 'priority=MediaStore');
+    Object? lastError;
+    try {
+      final audioGranted = await _requestAndroidAudioAccess();
+      if (audioGranted) {
+        try {
+          final before = library.fileCount;
+          final scanned = await library.enableAndroidMediaStore(
+            onProgress: (scanned, total) {
+              if (!mounted) return;
+              setState(() {
+                _scanned = scanned;
+                _total = total;
+                _status = 'MediaStore 正在导入 $_scanned / $_total';
+              });
+            },
+          );
+          LocalMusicDebugLog.info(
+            'ui.android_mediastore.finish',
+            'scanned=$scanned before=$before files=${library.fileCount}',
+          );
+          if (scanned > 0 || library.fileCount > before) {
+            await _finishAndroidScan(library);
+            return;
+          }
+          lastError = StateError('MediaStore 未返回音频');
+        } catch (error, stackTrace) {
+          lastError = error;
+          LocalMusicDebugLog.warning(
+            'ui.android_mediastore.error',
+            'error=$error',
+            stackTrace: stackTrace,
+          );
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _status = 'MediaStore 不可用，正在尝试全部文件访问权限…';
+      });
+      final allFilesGranted = await _requestAndroidAllFilesAccess();
+      if (allFilesGranted) {
+        final root = await AndroidDirectoryAccess.externalStorageRoot();
+        if (root != null && root.isNotEmpty) {
+          LocalMusicDebugLog.info(
+            'ui.android_manage_external.start',
+            'root=${LocalMusicDebugLog.quote(root)}',
+          );
+          await library.addDirectory(
+            root,
+            onProgress: (scanned, total) {
+              if (!mounted) return;
+              setState(() {
+                _scanned = scanned;
+                _total = total;
+                _status = '全部文件访问正在扫描 $_scanned / $_total';
+              });
+            },
+          );
+          await _finishAndroidScan(library);
+          return;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _status = '全部文件访问不可用，正在打开 SAF 目录授权…';
+      });
+      final path = await AndroidDirectoryAccess.select();
+      if (path != null && path.isNotEmpty) {
+        await library.addAndroidSafDirectory(
+          path,
+          onProgress: (scanned, total) {
+            if (!mounted) return;
+            setState(() {
+              _scanned = scanned;
+              _total = total;
+              _status = 'SAF 正在导入 $_scanned / $_total';
+            });
+          },
+        );
+        await _finishAndroidScan(library);
+        return;
+      }
+      throw lastError ?? StateError('未获得可用的 Android 本地音乐访问权限');
+    } catch (error, stackTrace) {
+      LocalMusicDebugLog.error(
+        'ui.android_access.error',
+        'error=$error',
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        setState(() {
+          _scanning = false;
+          _scraping = false;
+        });
+        _showError('Android 本地音乐授权失败', error);
+      }
+    }
+  }
+
+  Future<void> _finishAndroidScan(LocalMusicLibrary library) async {
+    if (!mounted) return;
+    setState(() {
+      _scanning = false;
+      _scraping = true;
+      _scanned = 0;
+      _status = '正在匹配在线歌曲（刮削）…';
+    });
+    await _scrapeAndSync(library);
+  }
+
+  Future<bool> _requestAndroidAudioAccess() async {
+    final audio = await Permission.audio.request();
+    if (audio.isGranted || audio.isLimited) {
+      LocalMusicDebugLog.info('ui.permission.audio', 'status=$audio');
+      return true;
+    }
+    final storage = await Permission.storage.request();
+    final granted = storage.isGranted || storage.isLimited;
+    LocalMusicDebugLog.warning(
+      'ui.permission.audio_denied',
+      'audio=$audio storage=$storage granted=$granted',
+    );
+    return granted;
+  }
+
+  Future<bool> _requestAndroidAllFilesAccess() async {
+    if (await AndroidDirectoryAccess.isExternalStorageManager()) {
+      LocalMusicDebugLog.info('ui.permission.manage_external', 'already=true');
+      return true;
+    }
+    final status = await Permission.manageExternalStorage.request();
+    final nativeGranted =
+        await AndroidDirectoryAccess.isExternalStorageManager();
+    final granted = status.isGranted || nativeGranted;
+    LocalMusicDebugLog.warning(
+      'ui.permission.manage_external',
+      'status=$status native=$nativeGranted granted=$granted',
+    );
+    return granted;
   }
 
   Future<void> _scan(String directoryPath) async {
@@ -420,17 +585,17 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
   Future<void> _rescan() async {
     final library = await ref.read(localMusicLibraryProvider.future);
     if (!mounted) return;
-    if (library.directories.isEmpty) {
-      if (mounted) _showError('还没有扫描文件夹', StateError('empty'));
+    if (!library.hasConfiguredSources) {
+      if (mounted) _showError('还没有配置本地音乐来源', StateError('empty'));
       return;
     }
     setState(() {
       _scanning = true;
-      _status = '正在重新扫描全部文件夹…';
+      _status = '正在重新扫描本地音乐来源…';
     });
     LocalMusicDebugLog.info(
       'ui.rescan.start',
-      'directories=${library.directories.length} files=${library.fileCount}',
+      'directories=${library.directories.length} mediaStore=${library.androidMediaStoreEnabled} files=${library.fileCount}',
     );
     try {
       await library.rescanAll(
@@ -763,6 +928,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     try {
       await Permission.audio.request();
       await Permission.storage.request();
+      await Permission.manageExternalStorage.request();
     } catch (_) {
       // SAF tree grants may still allow writing even when broad storage
       // permissions are unavailable on newer Android versions.

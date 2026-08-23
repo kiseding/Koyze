@@ -306,6 +306,7 @@ final class BackupRestoreCoordinator {
     'leaderboard_layout_order_version',
     'local_music_dirs_v1',
     'local_music_download_dir_v1',
+    'local_music_android_mediastore_enabled_v1',
     'custom_sources',
   };
 
