@@ -149,8 +149,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                         mediaStoreEnabled ||
                                 directories.isNotEmpty ||
                                 downloadDirectory != null
-                            ? 'MediaStore 优先，已配置 ${directories.length} 个目录'
-                            : '添加后默认通过 Android MediaStore 扫描和匹配',
+                            ? 'MediaStore 可重扫，已配置 ${directories.length} 个目录'
+                            : '添加会打开系统文件夹选择器并授权访问',
                         style: TextStyle(
                           color: AppColors.mutedText(context),
                           fontSize: 12,
@@ -355,7 +355,23 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
 
   Future<void> _pickDirectory() async {
     if (Platform.isAndroid) {
-      await _scanAndroidPreferred();
+      try {
+        LocalMusicDebugLog.info(
+          'ui.android_saf_picker.start',
+          'source=add_button',
+        );
+        final path = await AndroidDirectoryAccess.select();
+        if (path != null && path.isNotEmpty && mounted) {
+          await _scanAndroidSafDirectory(path);
+        }
+      } catch (error, stackTrace) {
+        LocalMusicDebugLog.error(
+          'ui.android_saf_picker.error',
+          'error=$error',
+          stackTrace: stackTrace,
+        );
+        if (mounted) _showError('选择音乐文件夹失败', error);
+      }
       return;
     }
     if (Platform.isIOS) {
@@ -373,6 +389,49 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       await _scan(path);
     } catch (error) {
       if (mounted) _showError('选择文件夹失败', error);
+    }
+  }
+
+  Future<void> _scanAndroidSafDirectory(String directoryPath) async {
+    final library = await ref.read(localMusicLibraryProvider.future);
+    if (!mounted) return;
+    setState(() {
+      _scanning = true;
+      _scraping = false;
+      _scanned = 0;
+      _total = 0;
+      _status = 'SAF 正在导入音乐文件夹…';
+    });
+    LocalMusicDebugLog.info(
+      'ui.android_saf.start',
+      'directory=${LocalMusicDebugLog.quote(directoryPath)}',
+    );
+    try {
+      await library.addAndroidSafDirectory(
+        directoryPath,
+        onProgress: (scanned, total) {
+          if (!mounted) return;
+          setState(() {
+            _scanned = scanned;
+            _total = total;
+            _status = 'SAF 正在导入 $_scanned / $_total';
+          });
+        },
+      );
+      await _finishAndroidScan(library);
+    } catch (error, stackTrace) {
+      LocalMusicDebugLog.error(
+        'ui.android_saf.error',
+        'directory=${LocalMusicDebugLog.quote(directoryPath)} error=$error',
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        setState(() {
+          _scanning = false;
+          _scraping = false;
+        });
+        _showError('扫描 Android 音乐文件夹失败', error);
+      }
     }
   }
 
@@ -456,18 +515,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       });
       final path = await AndroidDirectoryAccess.select();
       if (path != null && path.isNotEmpty) {
-        await library.addAndroidSafDirectory(
-          path,
-          onProgress: (scanned, total) {
-            if (!mounted) return;
-            setState(() {
-              _scanned = scanned;
-              _total = total;
-              _status = 'SAF 正在导入 $_scanned / $_total';
-            });
-          },
-        );
-        await _finishAndroidScan(library);
+        await _scanAndroidSafDirectory(path);
         return;
       }
       throw lastError ?? StateError('未获得可用的 Android 本地音乐访问权限');
@@ -586,6 +634,10 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     final library = await ref.read(localMusicLibraryProvider.future);
     if (!mounted) return;
     if (!library.hasConfiguredSources) {
+      if (Platform.isAndroid) {
+        await _scanAndroidPreferred();
+        return;
+      }
       if (mounted) _showError('还没有配置本地音乐来源', StateError('empty'));
       return;
     }
@@ -679,6 +731,10 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         bitrate: bitrate is int ? bitrate : null,
         hasEmbeddedTags: entry?['hasEmbeddedTags'] == true,
         hasEmbeddedArtwork: entry?['hasEmbeddedArtwork'] == true,
+        contentUri: entry?['contentUri']?.toString(),
+        androidSource: entry?['androidSource']?.toString(),
+        safRoot: entry?['safRoot']?.toString(),
+        mimeType: entry?['mimeType']?.toString(),
       );
       LocalMusicDebugLog.info(
         'ui.scrape.track',

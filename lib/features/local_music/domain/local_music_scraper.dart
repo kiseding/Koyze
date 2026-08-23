@@ -89,9 +89,7 @@ class LocalMusicScraper {
   final MusicSourceService _musicSourceService;
 
   Future<ScrapeIdentity?> scrapeTrack(LocalTrack track) async {
-    final queries = track.hasEmbeddedTags
-        ? [LocalFilenameQuery(title: track.title, artist: track.artist)]
-        : filenameQueries(track.fileName);
+    final queries = queriesForTrack(track);
     LocalMusicDebugLog.info(
       'scrape.track.start',
       '${LocalMusicDebugLog.track(track)} queries=${_querySummary(queries)}',
@@ -265,6 +263,34 @@ class LocalMusicScraper {
     }
   }
 
+  /// 生成刮削搜索候选：可靠内嵌标签优先；Android/MediaStore 的
+  /// “未知歌手”等默认标签不可靠时，回到 v1.2 的文件名多候选解析。
+  static List<LocalFilenameQuery> queriesForTrack(LocalTrack track) {
+    final filenameQueries = LocalMusicScraper.filenameQueries(track.fileName);
+    final title = track.title.trim();
+    final artist = track.artist.trim();
+    final hasReliableArtist = !_isGenericArtist(artist);
+    final hasReliableTitle = title.isNotEmpty && !_isGenericTitle(title);
+    final titleLooksCompound = _splitFilenameParts(title).length >= 2;
+
+    final queries = <LocalFilenameQuery>[];
+    if (track.hasEmbeddedTags && hasReliableTitle && hasReliableArtist) {
+      queries.add(LocalFilenameQuery(title: title, artist: artist));
+    }
+    queries.addAll(filenameQueries);
+    if (track.hasEmbeddedTags &&
+        hasReliableTitle &&
+        (hasReliableArtist || !titleLooksCompound)) {
+      queries.add(
+        LocalFilenameQuery(
+          title: title,
+          artist: hasReliableArtist ? artist : '',
+        ),
+      );
+    }
+    return _dedupeQueries(queries);
+  }
+
   /// 纯函数：从搜索结果中挑选完全匹配（标题一致 + 时长容差）。
   /// 单独公开以便测试。
   static ScrapeIdentity? bestMatch(LocalTrack track, List<MusicItem> results) {
@@ -313,15 +339,11 @@ class LocalMusicScraper {
         }
         if (normalizedArtist.isNotEmpty) {
           final normalizedSongArtist = _normalize(song.singer);
-          if (normalizedSongArtist == normalizedArtist) {
-            score += 4;
-          } else if (normalizedSongArtist.contains(normalizedArtist) ||
-              normalizedArtist.contains(normalizedSongArtist)) {
-            score += 2;
+          if (_artistMatches(normalizedArtist, normalizedSongArtist)) {
+            score += normalizedSongArtist == normalizedArtist ? 4 : 2;
           } else {
-            onDebug?.call(
-              'artist.mismatch acceptedByTitle score=$score $summary',
-            );
+            onDebug?.call('reject.artist $summary');
+            continue;
           }
         }
         final normalizedAlbum = _normalize(track.album);
@@ -386,6 +408,7 @@ class LocalMusicScraper {
   static String _normalize(String value) => value
       .toLowerCase()
       .replaceAll(RegExp(r'[\u2010-\u2015]'), '-')
+      .replaceAll(RegExp(r'[，,。．.！!？?、]+$'), '')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 
@@ -403,44 +426,109 @@ class LocalMusicScraper {
       )
       .trim();
 
-  /// 解析常见文件名格式，并保留两个方向供在线结果评分：
-  /// `歌手 - 歌名` 与 `歌名 - 歌手` 无法仅靠分隔符可靠区分。
+  /// 解析常见文件名格式，并保留多个方向供在线结果评分：
+  /// - `歌手 - 歌名` / `歌名 - 歌手`
+  /// - `01 - 歌名 - 歌手` / `01. 歌手 - 歌名`
+  /// - 无可靠分隔符时退化为纯歌名，不强猜歌手。
   static List<LocalFilenameQuery> filenameQueries(String fileName) {
     final stem = _cleanFilename(fileName);
     if (stem.isEmpty) return const [];
-    final parts = stem
-        .split(RegExp(r'\s*[-–—]\s*'))
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
-    if (parts.length >= 3 && RegExp(r'^\d{1,3}$').hasMatch(parts.first)) {
-      parts.removeAt(0);
-    }
+    final parts = _splitFilenameParts(stem);
+    final queries = <LocalFilenameQuery>[];
     if (parts.length == 2) {
       final first = parts[0];
       final second = parts[1];
-      return [
-        LocalFilenameQuery(title: second, artist: first),
-        LocalFilenameQuery(title: first, artist: second),
-      ];
+      queries
+        ..add(LocalFilenameQuery(title: second, artist: first))
+        ..add(LocalFilenameQuery(title: first, artist: second));
+    } else if (parts.length > 2) {
+      final first = parts.first;
+      final last = parts.last;
+      final middle = parts.sublist(1).join(' - ');
+      final withoutLast = parts.take(parts.length - 1).join(' - ');
+      queries
+        ..add(LocalFilenameQuery(title: middle, artist: first))
+        ..add(LocalFilenameQuery(title: last, artist: withoutLast))
+        ..add(LocalFilenameQuery(title: last, artist: first))
+        ..add(LocalFilenameQuery(title: first, artist: last));
+    } else {
+      queries.add(LocalFilenameQuery(title: stem));
     }
-    return [LocalFilenameQuery(title: stem)];
+    return _dedupeQueries(queries);
   }
 
   static String _cleanFilename(String fileName) {
     final dot = fileName.lastIndexOf('.');
     var stem = (dot > 0 ? fileName.substring(0, dot) : fileName).trim();
-    stem = stem.replaceFirst(RegExp(r'^\s*\d{1,3}\s*[-._]\s*'), '');
+    stem = stem.replaceFirst(RegExp(r'^\s*\d{1,3}\s*[-._、]\s*'), '');
     stem = stem.replaceAll(RegExp(r'\s*\[(?:[^\]]+)\]\s*$'), '');
     stem = stem.replaceAll(RegExp(r'\s*\((?:[^\)]+)\)\s*$'), '');
+    stem = stem.replaceAll(RegExp(r'\s*（(?:[^）]+)）\s*$'), '');
     stem = stem.replaceAll(
       RegExp(
-        r'\s*[-_]\s*(?:\d{3,4}k|\d{2,3}kbps|flac|mp3|aac)\s*$',
+        r'\s*[-_ ]\s*(?:\d{3,4}k|\d{2,3}kbps|flac|mp3|aac|wav|lossless|hi-?res)\s*$',
         caseSensitive: false,
       ),
       '',
     );
     return stem.trim();
+  }
+
+  static List<String> _splitFilenameParts(String value) {
+    final cleaned = _cleanFilename(value);
+    if (cleaned.isEmpty) return const [];
+    final parts = cleaned
+        .split(RegExp(r'\s*(?:-|–|—|－|~|～|_|＿|\||｜)\s*'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.length >= 3 && RegExp(r'^\d{1,3}$').hasMatch(parts.first)) {
+      return parts.sublist(1);
+    }
+    return parts;
+  }
+
+  static List<LocalFilenameQuery> _dedupeQueries(
+    Iterable<LocalFilenameQuery> queries,
+  ) {
+    final seen = <String>{};
+    final result = <LocalFilenameQuery>[];
+    for (final query in queries) {
+      final title = query.title.trim();
+      final artist = query.artist.trim();
+      if (title.isEmpty) continue;
+      final key = '${_normalize(artist)}\u0000${_normalize(title)}';
+      if (seen.add(key)) {
+        result.add(LocalFilenameQuery(title: title, artist: artist));
+      }
+    }
+    return result;
+  }
+
+  static bool _isGenericTitle(String value) {
+    final normalized = _normalize(value);
+    return normalized.isEmpty ||
+        normalized == '<unknown>' ||
+        normalized == 'unknown title' ||
+        normalized == '未知歌曲' ||
+        normalized == '未知歌名';
+  }
+
+  static bool _isGenericArtist(String value) {
+    final normalized = _normalize(value);
+    return normalized.isEmpty ||
+        normalized == '<unknown>' ||
+        normalized == 'unknown' ||
+        normalized == 'unknown artist' ||
+        normalized == '未知歌手' ||
+        normalized == '未知艺术家';
+  }
+
+  static bool _artistMatches(String expected, String actual) {
+    if (expected.isEmpty || actual.isEmpty) return false;
+    return actual == expected ||
+        actual.contains(expected) ||
+        expected.contains(actual);
   }
 
   /// 将搜索接口常见的缩略图 URL 升级为适合播放器展示的大图 URL。

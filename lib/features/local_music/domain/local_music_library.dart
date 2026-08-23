@@ -169,6 +169,9 @@ class LocalMusicLibrary {
     final modifiedMillis = _asInt(entry['modifiedAtMillis']);
     final durationMillis = _asInt(entry['durationMillis']);
     final bitrate = _asNullableInt(entry['bitrate']);
+    final title =
+        _cleanAndroidText(entry['title']) ?? titleFromFileName(fileName);
+    final artist = _cleanAndroidArtist(entry['artist']);
     return LocalTrack(
       path: path.isNotEmpty ? path : contentUri ?? '',
       fileName: fileName.isNotEmpty ? fileName : titleFromFileName(path),
@@ -177,14 +180,13 @@ class LocalMusicLibrary {
       modifiedAt: modifiedMillis > 0
           ? DateTime.fromMillisecondsSinceEpoch(modifiedMillis)
           : DateTime.fromMillisecondsSinceEpoch(0),
-      title: _cleanAndroidText(entry['title']) ?? titleFromFileName(fileName),
-      artist: _cleanAndroidText(entry['artist']) ?? '未知歌手',
+      title: title,
+      artist: artist ?? '未知歌手',
       album: _cleanAndroidText(entry['album']) ?? '',
       duration: Duration(milliseconds: durationMillis),
       bitrate: bitrate,
       hasEmbeddedTags:
-          _cleanAndroidText(entry['title']) != null &&
-          _cleanAndroidText(entry['artist']) != null,
+          _cleanAndroidText(entry['title']) != null && artist != null,
       hasEmbeddedArtwork: false,
       contentUri: contentUri,
       androidSource: entry['androidSource']?.toString(),
@@ -275,6 +277,19 @@ class LocalMusicLibrary {
   String? _cleanAndroidText(Object? value) {
     final text = value?.toString().trim() ?? '';
     if (text.isEmpty || text == '<unknown>') return null;
+    return text;
+  }
+
+  String? _cleanAndroidArtist(Object? value) {
+    final text = _cleanAndroidText(value);
+    if (text == null) return null;
+    final normalized = text.toLowerCase();
+    if (normalized == 'unknown' ||
+        normalized == 'unknown artist' ||
+        text == '未知歌手' ||
+        text == '未知艺术家') {
+      return null;
+    }
     return text;
   }
 

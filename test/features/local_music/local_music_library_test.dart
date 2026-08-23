@@ -412,6 +412,27 @@ void main() {
       ]);
     });
 
+    test('scrape queries ignore generic Android MediaStore tags', () {
+      final track = LocalTrack(
+        path: '/music/周杰伦-晴天.wav',
+        fileName: '周杰伦-晴天.wav',
+        extension: 'wav',
+        size: 1,
+        modifiedAt: DateTime(2026),
+        title: '周杰伦-晴天',
+        artist: '未知歌手',
+        album: 'Koyze',
+        duration: const Duration(seconds: 269),
+        hasEmbeddedTags: true,
+        androidSource: 'mediaStore',
+      );
+
+      expect(LocalMusicScraper.queriesForTrack(track), const [
+        LocalFilenameQuery(title: '晴天', artist: '周杰伦'),
+        LocalFilenameQuery(title: '周杰伦', artist: '晴天'),
+      ]);
+    });
+
     test('filename matching accepts exact title, artist and duration', () {
       final track = LocalTrack(
         path: '/music/晴天 - 周杰伦.mp3',
@@ -444,6 +465,50 @@ void main() {
 
       expect(match?.name, '晴天');
       expect(match?.singer, '周杰伦');
+    });
+
+    test('filename matching rejects exact-duration known artist mismatch', () {
+      final track = LocalTrack(
+        path: '/music/周深-小美满.wav',
+        fileName: '周深-小美满.wav',
+        extension: 'wav',
+        size: 1,
+        modifiedAt: DateTime(2026),
+        title: '周深-小美满',
+        artist: '未知歌手',
+        album: '',
+        duration: const Duration(seconds: 214),
+        hasEmbeddedTags: false,
+      );
+      final match = LocalMusicScraper.bestMatchForQueries(
+        track,
+        LocalMusicScraper.filenameQueries(track.fileName),
+        [
+          MusicItem(
+            id: 'wrong',
+            name: '小美满.',
+            singer: '棠若',
+            album: '小美满 (治愈版)',
+            duration: const Duration(seconds: 214),
+            source: 'tx',
+            platform: 'tx',
+            songmid: 'wrong',
+          ),
+          MusicItem(
+            id: 'right',
+            name: '小美满',
+            singer: '周深',
+            album: '小美满',
+            duration: const Duration(seconds: 214),
+            source: 'tx',
+            platform: 'tx',
+            songmid: 'right',
+          ),
+        ],
+      );
+
+      expect(match?.songmid, 'right');
+      expect(match?.singer, '周深');
     });
 
     test('filename matching rejects a title-only result without duration', () {
