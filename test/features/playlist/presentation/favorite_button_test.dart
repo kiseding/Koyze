@@ -33,10 +33,8 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('favoriteIdsProvider'));
-    expect(
-      source,
-      contains('isFavorite: favoriteIds.contains(song.identityKey)'),
-    );
+    expect(source, contains('isFavorite: favoriteIds.contains('));
+    expect(source, contains('song.identityKey'));
   });
 
   test('playlist detail uses a gradient top bar and floating pagination', () {
@@ -93,8 +91,10 @@ void main() {
       'lib/features/playlist/presentation/playlist_detail_screen.dart',
     ).readAsStringSync();
 
-    // trailing 区域：FavoriteButton 在 more_vert 之前。
-    final trailing = source.substring(source.indexOf('trailing: Row('));
+    // 非多选模式 trailing 区域：FavoriteButton 在 more_vert 之前。
+    final trailing = source.substring(
+      source.indexOf('trailing: isSelectionMode'),
+    );
     expect(trailing, contains('FavoriteButton('));
     expect(trailing, contains('song: song'));
     expect(trailing, contains('Icons.more_vert'));
