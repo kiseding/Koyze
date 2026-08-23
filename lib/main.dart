@@ -8,6 +8,7 @@ import 'package:koyze/core/audio/audio_handler.dart';
 import 'package:koyze/core/audio/audio_runtime.dart';
 import 'package:koyze/core/audio/playback_cache_service.dart';
 import 'package:koyze/core/logging/app_log.dart';
+import 'package:koyze/core/network/music_source_service.dart';
 import 'package:koyze/core/storage/cache_maintenance_service.dart';
 import 'package:koyze/core/storage/portable_mode.dart';
 import 'package:koyze/core/widgets/artwork_disk_cache.dart';
@@ -416,6 +417,7 @@ Future<void> _bootstrapUnsafe(
               return sourceService.resolvePlayableUrl(
                 music,
                 preferredQuality: preferredQuality,
+                allowCrossPlatformFallback: false,
                 allowQualityFallback: false,
               );
             },
@@ -425,6 +427,32 @@ Future<void> _bootstrapUnsafe(
                     music,
                     preferredQuality: preferredQuality,
                     cancelToken: cancelToken,
+                    allowCrossPlatformFallback: false,
+                    allowQualityFallback: false,
+                  );
+                },
+            fallbackPlatforms: MusicSourceService.fallbackPlatforms,
+            resolveFallbackPlayableUrl:
+                (music, {required platform, required preferredQuality}) {
+                  return sourceService.resolvePlayableUrl(
+                    music.copyWith(source: platform, platform: platform),
+                    preferredQuality: preferredQuality,
+                    allowCrossPlatformFallback: false,
+                    allowQualityFallback: false,
+                  );
+                },
+            resolveFallbackPlayableUrlWithCancel:
+                (
+                  music, {
+                  required platform,
+                  required preferredQuality,
+                  cancelToken,
+                }) {
+                  return sourceService.resolvePlayableUrl(
+                    music.copyWith(source: platform, platform: platform),
+                    preferredQuality: preferredQuality,
+                    cancelToken: cancelToken,
+                    allowCrossPlatformFallback: false,
                     allowQualityFallback: false,
                   );
                 },
@@ -457,6 +485,9 @@ Future<void> _bootstrapUnsafe(
               if (music.hash?.isNotEmpty == true) return music.hash!;
               return music.id;
             },
+            platformFor: (music) => music.platform.isNotEmpty
+                ? music.platform
+                : music.source,
           );
           lxHandler.attachPlaybackCache(
             classifyExisting: playbackCache.classifyExisting,

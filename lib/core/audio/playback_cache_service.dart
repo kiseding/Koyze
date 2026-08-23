@@ -201,25 +201,46 @@ typedef PlaybackStreamValidator =
       required String quality,
     });
 
+typedef PlaybackUrlLoader<T> =
+    Future<PlayUrlResult?> Function(
+      T music, {
+      required String preferredQuality,
+    });
+typedef PlaybackCancelableUrlLoader<T> =
+    Future<PlayUrlResult?> Function(
+      T music, {
+      required String preferredQuality,
+      CancelToken? cancelToken,
+    });
+typedef PlaybackPlatformUrlLoader<T> =
+    Future<PlayUrlResult?> Function(
+      T music, {
+      required String platform,
+      required String preferredQuality,
+    });
+typedef PlaybackCancelablePlatformUrlLoader<T> =
+    Future<PlayUrlResult?> Function(
+      T music, {
+      required String platform,
+      required String preferredQuality,
+      CancelToken? cancelToken,
+    });
+
 /// Resolves quality once, then cache-or-stream with generation-safe cancel.
 class PlaybackUrlResolver<T> {
-  final Future<PlayUrlResult?> Function(
-    T music, {
-    required String preferredQuality,
-  })
-  resolvePlayableUrl;
-  final Future<PlayUrlResult?> Function(
-    T music, {
-    required String preferredQuality,
-    CancelToken? cancelToken,
-  })?
-  resolvePlayableUrlWithCancel;
+  final PlaybackUrlLoader<T> resolvePlayableUrl;
+  final PlaybackCancelableUrlLoader<T>? resolvePlayableUrlWithCancel;
+  final List<String> fallbackPlatforms;
+  final PlaybackPlatformUrlLoader<T>? resolveFallbackPlayableUrl;
+  final PlaybackCancelablePlatformUrlLoader<T>?
+  resolveFallbackPlayableUrlWithCancel;
   final PlaybackLeaseAcquirer acquireOrDownload;
   final PlaybackLeaseAcquirer? acquireCustomOrDownload;
   final PlaybackStreamValidator? validateStream;
   final PlaybackStreamValidator? validateCustomStream;
   final void Function(String key)? cancelCacheKey;
   final String Function(T music) songIdFor;
+  final String Function(T music)? platformFor;
   final bool Function(String? url) isPlayableUrl;
 
   int _generation = 0;
@@ -228,9 +249,13 @@ class PlaybackUrlResolver<T> {
   PlaybackUrlResolver({
     required this.resolvePlayableUrl,
     this.resolvePlayableUrlWithCancel,
+    this.fallbackPlatforms = const [],
+    this.resolveFallbackPlayableUrl,
+    this.resolveFallbackPlayableUrlWithCancel,
     required this.acquireOrDownload,
     this.acquireCustomOrDownload,
     required this.songIdFor,
+    this.platformFor,
     this.validateStream,
     this.validateCustomStream,
     this.cancelCacheKey,
@@ -316,108 +341,231 @@ class PlaybackUrlResolver<T> {
     if (cancelled()) return null;
 
     try {
-      final songId = songIdFor(music);
       final attemptedUrls = <String>{};
-      for (final candidateQuality in _qualityCandidates(preferredQuality)) {
-        if (!_generationKeys.containsKey(gen) || cancelled()) return null;
-        final result = resolvePlayableUrlWithCancel == null
-            ? await resolvePlayableUrl(
-                music,
-                preferredQuality: candidateQuality,
-              )
-            : await resolvePlayableUrlWithCancel!(
-                music,
-                preferredQuality: candidateQuality,
-                cancelToken: cancelToken,
-              );
-        if (!_generationKeys.containsKey(gen) || cancelled()) return null;
-        if (result == null ||
-            !isPlayableUrl(result.url) ||
-            !attemptedUrls.add(result.url)) {
-          continue;
-        }
+      final attemptedPlatforms = <String>{};
+      final sourcePlatform = platformFor?.call(music);
+      if (sourcePlatform != null && sourcePlatform.isNotEmpty) {
+        attemptedPlatforms.add(sourcePlatform);
+      }
+      final primary = await _resolveAcrossQualities(
+        music,
+        preferredQuality: preferredQuality,
+        generation: gen,
+        cancelToken: cancelToken,
+        attemptedUrls: attemptedUrls,
+        attemptedPlatforms: attemptedPlatforms,
+        cancelled: cancelled,
+        loader: resolvePlayableUrl,
+        cancelableLoader: resolvePlayableUrlWithCancel,
+      );
+      if (primary != null) return primary;
 
-        final qualityKey = result.actualQuality.isNotEmpty
-            ? result.actualQuality
-            : candidateQuality;
-        final resolvedSongId = result.songId.isNotEmpty
-            ? result.songId
-            : songId;
-        final key = PlaybackCacheService.cacheKey(
-          platform: result.platform,
-          songId: resolvedSongId,
-          quality: qualityKey,
+      final fallbackLoader = resolveFallbackPlayableUrl;
+      final cancelableFallbackLoader = resolveFallbackPlayableUrlWithCancel;
+      if (fallbackPlatforms.isEmpty ||
+          fallbackLoader == null && cancelableFallbackLoader == null) {
+        return null;
+      }
+      for (final platform in fallbackPlatforms) {
+        if (attemptedPlatforms.contains(platform)) continue;
+        final fallback = await _resolvePlatformAcrossQualities(
+          music,
+          platform: platform,
+          preferredQuality: preferredQuality,
+          generation: gen,
+          cancelToken: cancelToken,
+          attemptedUrls: attemptedUrls,
+          attemptedPlatforms: attemptedPlatforms,
+          cancelled: cancelled,
+          loader: fallbackLoader,
+          cancelableLoader: cancelableFallbackLoader,
         );
-        noteCacheKey(gen, key);
-        if (!_generationKeys.containsKey(gen) || cancelled()) {
-          cancelCacheKey?.call(key);
-          return null;
-        }
-
-        PlaybackCacheLease? lease;
-        try {
-          final acquire = result.fromCustomSource
-              ? acquireCustomOrDownload ?? acquireOrDownload
-              : acquireOrDownload;
-          lease = await acquire(
-            remoteUrl: result.url,
-            platform: result.platform,
-            songId: resolvedSongId,
-            quality: qualityKey,
-          );
-        } on PlaybackCacheTerminalHttpException {
-          continue;
-        }
-        if (!_generationKeys.containsKey(gen) || cancelled()) {
-          if (lease != null) await lease.release();
-          cancelCacheKey?.call(key);
-          return null;
-        }
-        // A failed download may be an expired signature, denied range request,
-        // or non-media response. Never hand the same unverified URL to AVPlayer.
-        if (lease == null) {
-          final validator = result.fromCustomSource
-              ? validateCustomStream ?? validateStream
-              : validateStream;
-          if (!_mayStream(qualityKey) ||
-              validator == null ||
-              !await validator(
-                remoteUrl: result.url,
-                platform: result.platform,
-                quality: qualityKey,
-              )) {
-            continue;
-          }
-          if (!_generationKeys.containsKey(gen) || cancelled()) return null;
-          final qualityExtras = <String, dynamic>{
-            'remoteUrl': result.url,
-            'actualQuality': result.actualQuality,
-            'requestedQuality': preferredQuality,
-            'platform': result.platform,
-            'cacheKey': key,
-            'songId': resolvedSongId,
-            'url': result.url,
-            'urlValidUntil': result.validUntil?.millisecondsSinceEpoch,
-          };
-          return StreamingPlayback(result.url, qualityExtras);
-        }
-
-        final qualityExtras = <String, dynamic>{
-          'remoteUrl': result.url,
-          'actualQuality': result.actualQuality,
-          'requestedQuality': preferredQuality,
-          'platform': result.platform,
-          'cacheKey': key,
-          'songId': resolvedSongId,
-          'url': lease.playableUri,
-          'urlValidUntil': result.validUntil?.millisecondsSinceEpoch,
-        };
-        return CachedPlayback(lease, qualityExtras);
+        if (fallback != null) return fallback;
       }
       return null;
     } finally {
       _generationKeys.remove(gen);
     }
+  }
+
+  Future<PlaybackResolution?> _resolveAcrossQualities(
+    T music, {
+    required String preferredQuality,
+    required int generation,
+    required CancelToken? cancelToken,
+    required Set<String> attemptedUrls,
+    required Set<String> attemptedPlatforms,
+    required bool Function() cancelled,
+    required PlaybackUrlLoader<T> loader,
+    required PlaybackCancelableUrlLoader<T>? cancelableLoader,
+  }) async {
+    final songId = songIdFor(music);
+    for (final candidateQuality in _qualityCandidates(preferredQuality)) {
+      if (!_generationKeys.containsKey(generation) || cancelled()) return null;
+      final result = cancelableLoader == null
+          ? await loader(music, preferredQuality: candidateQuality)
+          : await cancelableLoader(
+              music,
+              preferredQuality: candidateQuality,
+              cancelToken: cancelToken,
+            );
+      if (!_generationKeys.containsKey(generation) || cancelled()) return null;
+      if (result != null && result.platform.isNotEmpty) {
+        attemptedPlatforms.add(result.platform);
+      }
+      if (result == null ||
+          !isPlayableUrl(result.url) ||
+          !attemptedUrls.add(result.url)) {
+        continue;
+      }
+
+      final resolution = await _resolveCandidate(
+        result,
+        requestedQuality: preferredQuality,
+        candidateQuality: candidateQuality,
+        fallbackSongId: songId,
+        generation: generation,
+        cancelled: cancelled,
+      );
+      if (resolution != null) return resolution;
+    }
+    return null;
+  }
+
+  Future<PlaybackResolution?> _resolvePlatformAcrossQualities(
+    T music, {
+    required String platform,
+    required String preferredQuality,
+    required int generation,
+    required CancelToken? cancelToken,
+    required Set<String> attemptedUrls,
+    required Set<String> attemptedPlatforms,
+    required bool Function() cancelled,
+    required PlaybackPlatformUrlLoader<T>? loader,
+    required PlaybackCancelablePlatformUrlLoader<T>? cancelableLoader,
+  }) async {
+    final songId = songIdFor(music);
+    for (final candidateQuality in _qualityCandidates(preferredQuality)) {
+      if (!_generationKeys.containsKey(generation) || cancelled()) return null;
+      final result = cancelableLoader == null
+          ? await loader!(
+              music,
+              platform: platform,
+              preferredQuality: candidateQuality,
+            )
+          : await cancelableLoader(
+              music,
+              platform: platform,
+              preferredQuality: candidateQuality,
+              cancelToken: cancelToken,
+            );
+      if (!_generationKeys.containsKey(generation) || cancelled()) return null;
+      if (result != null && result.platform.isNotEmpty) {
+        attemptedPlatforms.add(result.platform);
+      }
+      if (result == null ||
+          !isPlayableUrl(result.url) ||
+          !attemptedUrls.add(result.url)) {
+        continue;
+      }
+
+      final resolution = await _resolveCandidate(
+        result,
+        requestedQuality: preferredQuality,
+        candidateQuality: candidateQuality,
+        fallbackSongId: songId,
+        generation: generation,
+        cancelled: cancelled,
+      );
+      if (resolution != null) return resolution;
+    }
+    return null;
+  }
+
+  Future<PlaybackResolution?> _resolveCandidate(
+    PlayUrlResult result, {
+    required String requestedQuality,
+    required String candidateQuality,
+    required String fallbackSongId,
+    required int generation,
+    required bool Function() cancelled,
+  }) async {
+    final qualityKey = result.actualQuality.isNotEmpty
+        ? result.actualQuality
+        : candidateQuality;
+    final resolvedSongId = result.songId.isNotEmpty
+        ? result.songId
+        : fallbackSongId;
+    final key = PlaybackCacheService.cacheKey(
+      platform: result.platform,
+      songId: resolvedSongId,
+      quality: qualityKey,
+    );
+    noteCacheKey(generation, key);
+    if (!_generationKeys.containsKey(generation) || cancelled()) {
+      cancelCacheKey?.call(key);
+      return null;
+    }
+
+    PlaybackCacheLease? lease;
+    try {
+      final acquire = result.fromCustomSource
+          ? acquireCustomOrDownload ?? acquireOrDownload
+          : acquireOrDownload;
+      lease = await acquire(
+        remoteUrl: result.url,
+        platform: result.platform,
+        songId: resolvedSongId,
+        quality: qualityKey,
+      );
+    } on PlaybackCacheTerminalHttpException {
+      return null;
+    }
+    if (!_generationKeys.containsKey(generation) || cancelled()) {
+      if (lease != null) await lease.release();
+      cancelCacheKey?.call(key);
+      return null;
+    }
+    // A failed download may be an expired signature, denied range request,
+    // or non-media response. Never hand the same unverified URL to AVPlayer.
+    if (lease == null) {
+      final validator = result.fromCustomSource
+          ? validateCustomStream ?? validateStream
+          : validateStream;
+      if (!_mayStream(qualityKey) ||
+          validator == null ||
+          !await validator(
+            remoteUrl: result.url,
+            platform: result.platform,
+            quality: qualityKey,
+          )) {
+        return null;
+      }
+      if (!_generationKeys.containsKey(generation) || cancelled()) return null;
+      final qualityExtras = <String, dynamic>{
+        'remoteUrl': result.url,
+        'actualQuality': result.actualQuality,
+        'requestedQuality': requestedQuality,
+        'platform': result.platform,
+        'cacheKey': key,
+        'songId': resolvedSongId,
+        'url': result.url,
+        'urlValidUntil': result.validUntil?.millisecondsSinceEpoch,
+      };
+      return StreamingPlayback(result.url, qualityExtras);
+    }
+
+    final qualityExtras = <String, dynamic>{
+      'remoteUrl': result.url,
+      'actualQuality': result.actualQuality,
+      'requestedQuality': requestedQuality,
+      'platform': result.platform,
+      'cacheKey': key,
+      'songId': resolvedSongId,
+      'url': lease.playableUri,
+      'urlValidUntil': result.validUntil?.millisecondsSinceEpoch,
+    };
+    return CachedPlayback(lease, qualityExtras);
   }
 }
 

@@ -140,6 +140,110 @@ void main() {
       expect(result?.qualityExtras['actualQuality'], '128k');
     });
 
+    test('same-platform lower quality wins before platform fallback', () async {
+      final primaryQualities = <String>[];
+      final fallbackCalls = <String>[];
+      final resolver = PlaybackUrlResolver<MusicItem>(
+        resolvePlayableUrl: (music, {required preferredQuality}) async {
+          primaryQualities.add(preferredQuality);
+          return _playResult(
+            url: 'https://cdn.example/tx-$preferredQuality.mp3',
+            quality: preferredQuality,
+            platform: 'tx',
+          );
+        },
+        fallbackPlatforms: const ['kw', 'wy'],
+        resolveFallbackPlayableUrl:
+            (music, {required platform, required preferredQuality}) async {
+          fallbackCalls.add('$platform:$preferredQuality');
+          return _playResult(
+            url: 'https://cdn.example/$platform-$preferredQuality.mp3',
+            quality: preferredQuality,
+            platform: platform,
+          );
+        },
+        acquireOrDownload: ({
+          required remoteUrl,
+          required platform,
+          required songId,
+          required quality,
+        }) async {
+          if (quality == '320k') {
+            throw const PlaybackCacheTerminalHttpException(404);
+          }
+          return _FakeLease(
+            '/tmp/$platform-$quality.mp3',
+            'key-$platform-$quality',
+            (_) {},
+          ).asLease();
+        },
+        songIdFor: (music) => music.songmid ?? music.id,
+      );
+
+      final result = await resolver.resolve(_item(), preferredQuality: '320k');
+
+      expect(primaryQualities, ['320k', '128k']);
+      expect(fallbackCalls, isEmpty);
+      expect(result, isA<CachedPlayback>());
+      expect(result!.playableUrl, 'file:///tmp/tx-128k.mp3');
+    });
+
+    test(
+      'platform fallback starts only after all same-platform qualities fail',
+      () async {
+        final calls = <String>[];
+        final resolver = PlaybackUrlResolver<MusicItem>(
+          resolvePlayableUrl: (music, {required preferredQuality}) async {
+            calls.add('primary:$preferredQuality');
+            return _playResult(
+              url: 'https://cdn.example/tx-$preferredQuality.mp3',
+              quality: preferredQuality,
+              platform: 'tx',
+            );
+          },
+          fallbackPlatforms: const ['tx', 'kw', 'wy'],
+          resolveFallbackPlayableUrl:
+              (music, {required platform, required preferredQuality}) async {
+            calls.add('$platform:$preferredQuality');
+            return _playResult(
+              url: 'https://cdn.example/$platform-$preferredQuality.mp3',
+              quality: preferredQuality,
+              platform: platform,
+            );
+          },
+          acquireOrDownload: ({
+            required remoteUrl,
+            required platform,
+            required songId,
+            required quality,
+          }) async {
+            if (platform == 'wy' && quality == '320k') {
+              return _FakeLease(
+                '/tmp/$platform-$quality.mp3',
+                'key-$platform-$quality',
+                (_) {},
+              ).asLease();
+            }
+            throw const PlaybackCacheTerminalHttpException(404);
+          },
+          songIdFor: (music) => music.songmid ?? music.id,
+          platformFor: (music) => music.platform,
+        );
+
+        final result = await resolver.resolve(_item(), preferredQuality: '320k');
+
+        expect(calls, [
+          'primary:320k',
+          'primary:128k',
+          'kw:320k',
+          'kw:128k',
+          'wy:320k',
+        ]);
+        expect(result, isA<CachedPlayback>());
+        expect(result!.playableUrl, 'file:///tmp/wy-320k.mp3');
+      },
+    );
+
     test('validated HTTP media can stream when cache transport is blocked',
         () async {
       final resolver = PlaybackUrlResolver<MusicItem>(
