@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
+import '../../../core/widgets/auto_text_input.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../playlist/presentation/playlist_picker.dart';
@@ -47,20 +48,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // 首页弹窗按 autofocusDelay 延迟到滑入 2/3 时聚焦。
     final delay = widget.autofocusDelay;
     if (delay == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _canAutofocus) _searchFocus.requestFocus();
-      });
+      requestTextInput(context, _searchFocus, canRequest: () => _canAutofocus);
     } else {
       _autofocusTimer = Timer(delay, () {
         if (!mounted || !_canAutofocus) return;
-        _searchFocus.requestFocus();
-        // 部分平台在 ModalBottomSheet 完成转场的同一帧会清掉焦点，
-        // 再确认一次，避免键盘弹出后立即消失。
-        Future<void>.delayed(const Duration(milliseconds: 180), () {
-          if (mounted && _canAutofocus && !_searchFocus.hasFocus) {
-            _searchFocus.requestFocus();
-          }
-        });
+        requestTextInput(
+          context,
+          _searchFocus,
+          canRequest: () => _canAutofocus,
+        );
       });
     }
     // 只在「是否有文字」变化时 setState（清除按钮显隐）。

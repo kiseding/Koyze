@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/auto_text_input.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 import '../../cloud/domain/cloud_api_client.dart';
 import 'cloud_sync_provider.dart';
@@ -19,6 +20,9 @@ class SyncScreen extends ConsumerStatefulWidget {
 class _SyncScreenState extends ConsumerState<SyncScreen> {
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _userFocus = FocusNode();
+  final _passFocus = FocusNode();
+  bool _authKeyboardRequested = false;
   bool _isLoginMode = true;
   bool _busy = false;
   String? _message;
@@ -27,6 +31,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   void dispose() {
     _userCtrl.dispose();
     _passCtrl.dispose();
+    _userFocus.dispose();
+    _passFocus.dispose();
     super.dispose();
   }
 
@@ -35,6 +41,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(cloudSessionProvider);
+    if (!session.loggedIn && !_authKeyboardRequested) {
+      _authKeyboardRequested = true;
+      requestTextInput(context, _userFocus);
+    }
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -51,7 +61,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         children: [
           _card(
             child: ListTile(
-              leading: Icon(Icons.dns_outlined, color: AppColors.amber),
+              leading: const Icon(Icons.dns_outlined, color: AppColors.amber),
               title: Text(
                 'Workers 服务器',
                 style: TextStyle(color: AppColors.onScaffold(context)),
@@ -193,7 +203,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Widget _buildAuth() {
     return _card(
       child: Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -217,6 +227,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: _userCtrl,
+              focusNode: _userFocus,
+              autofocus: true,
+              textInputAction: TextInputAction.next,
+              onSubmitted: (_) => _passFocus.requestFocus(),
               enableInteractiveSelection: true,
               contextMenuBuilder: (context, state) =>
                   AdaptiveTextSelectionToolbar.editableText(
@@ -231,6 +245,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: _passCtrl,
+              focusNode: _passFocus,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) {
+                if (!_busy) _submitAuth();
+              },
               obscureText: true,
               enableInteractiveSelection: true,
               contextMenuBuilder: (context, state) =>
@@ -328,8 +347,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Widget _buildLogout() {
     return _card(
       child: ListTile(
-        leading: Icon(Icons.logout, color: AppColors.error),
-        title: Text('退出登录', style: TextStyle(color: AppColors.error)),
+        leading: const Icon(Icons.logout, color: AppColors.error),
+        title: const Text('退出登录', style: TextStyle(color: AppColors.error)),
         subtitle: Text(
           '退出后保留收藏、歌单、评分、播放历史、下载与缓存，仅清除登录状态',
           style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
@@ -348,7 +367,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Widget _buildAdminSection() {
     return _card(
       child: ListTile(
-        leading: Icon(Icons.admin_panel_settings, color: AppColors.amber),
+        leading: const Icon(Icons.admin_panel_settings, color: AppColors.amber),
         title: Text(
           '用户管理（管理员）',
           style: TextStyle(color: AppColors.onScaffold(context)),
@@ -370,42 +389,62 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final ctrl = TextEditingController(
       text: ref.read(cloudSessionProvider).baseUrl ?? '',
     );
-    final url = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.dialogBg(context),
-        title: Text(
-          'Workers 地址',
-          style: TextStyle(color: AppColors.onScaffold(context)),
-        ),
-        content: SingleChildScrollView(
-          child: TextField(
-            controller: ctrl,
-            enableInteractiveSelection: true,
-            contextMenuBuilder: (context, state) =>
-                AdaptiveTextSelectionToolbar.editableText(
-                  editableTextState: state,
+    final urlFocus = FocusNode();
+    var keyboardRequested = false;
+    final url =
+        await showDialog<String>(
+          context: context,
+          builder: (ctx) {
+            if (!keyboardRequested) {
+              keyboardRequested = true;
+              requestTextInput(ctx, urlFocus);
+            }
+            return AlertDialog(
+              backgroundColor: AppColors.dialogBg(context),
+              title: Text(
+                'Workers 地址',
+                style: TextStyle(color: AppColors.onScaffold(context)),
+              ),
+              content: SingleChildScrollView(
+                child: TextField(
+                  controller: ctrl,
+                  focusNode: urlFocus,
+                  autofocus: true,
+                  keyboardType: TextInputType.url,
+                  textInputAction: TextInputAction.done,
+                  autocorrect: false,
+                  enableInteractiveSelection: true,
+                  contextMenuBuilder: (context, state) =>
+                      AdaptiveTextSelectionToolbar.editableText(
+                        editableTextState: state,
+                      ),
+                  style: TextStyle(color: AppColors.onScaffold(context)),
+                  decoration: InputDecoration(
+                    hintText: 'https://lx-music-api.xxx.workers.dev',
+                    hintStyle: TextStyle(color: AppColors.mutedText(context)),
+                  ),
+                  onSubmitted: (_) => Navigator.pop(ctx, ctrl.text.trim()),
                 ),
-            style: TextStyle(color: AppColors.onScaffold(context)),
-            keyboardType: TextInputType.url,
-            decoration: InputDecoration(
-              hintText: 'https://lx-music-api.xxx.workers.dev',
-              hintStyle: TextStyle(color: AppColors.mutedText(context)),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('保存', style: TextStyle(color: AppColors.amber)),
-          ),
-        ],
-      ),
-    ).whenComplete(ctrl.dispose);
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('取消'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                  child: const Text(
+                    '保存',
+                    style: TextStyle(color: AppColors.amber),
+                  ),
+                ),
+              ],
+            );
+          },
+        ).whenComplete(() {
+          ctrl.dispose();
+          urlFocus.dispose();
+        });
     if (url != null) {
       try {
         await ref.read(cloudSessionProvider.notifier).setBaseUrl(url);
@@ -476,7 +515,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               child: Column(
                 children: [
                   Padding(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     child: Text(
                       '用户列表',
                       style: TextStyle(
@@ -532,7 +571,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     ),
                   ),
                   Padding(
-                    padding: EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(12),
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
@@ -543,64 +582,92 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                       onPressed: () async {
                         final u = TextEditingController();
                         final p = TextEditingController();
+                        final userFocus = FocusNode();
+                        final passFocus = FocusNode();
+                        var keyboardRequested = false;
                         final credentials =
                             await showDialog<List<String>>(
                               context: ctx,
-                              builder: (d) => AlertDialog(
-                                backgroundColor: AppColors.dialogBg(context),
-                                title: Text(
-                                  '新建用户',
-                                  style: TextStyle(
-                                    color: AppColors.onScaffold(context),
-                                  ),
-                                ),
-                                content: SingleChildScrollView(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      TextField(
-                                        controller: u,
-                                        style: TextStyle(
-                                          color: AppColors.onScaffold(context),
-                                        ),
-                                        decoration: InputDecoration(
-                                          labelText: '用户名',
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      TextField(
-                                        controller: p,
-                                        obscureText: true,
-                                        style: TextStyle(
-                                          color: AppColors.onScaffold(context),
-                                        ),
-                                        decoration: InputDecoration(
-                                          labelText: '密码',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(d),
-                                    child: const Text('取消'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(d, [
-                                      u.text.trim(),
-                                      p.text,
-                                    ]),
-                                    child: const Text(
-                                      '创建',
-                                      style: TextStyle(color: AppColors.amber),
+                              builder: (d) {
+                                if (!keyboardRequested) {
+                                  keyboardRequested = true;
+                                  requestTextInput(d, userFocus);
+                                }
+                                return AlertDialog(
+                                  backgroundColor: AppColors.dialogBg(context),
+                                  title: Text(
+                                    '新建用户',
+                                    style: TextStyle(
+                                      color: AppColors.onScaffold(context),
                                     ),
                                   ),
-                                ],
-                              ),
+                                  content: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        TextField(
+                                          controller: u,
+                                          focusNode: userFocus,
+                                          autofocus: true,
+                                          textInputAction: TextInputAction.next,
+                                          onSubmitted: (_) =>
+                                              passFocus.requestFocus(),
+                                          style: TextStyle(
+                                            color: AppColors.onScaffold(
+                                              context,
+                                            ),
+                                          ),
+                                          decoration: const InputDecoration(
+                                            labelText: '用户名',
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        TextField(
+                                          controller: p,
+                                          focusNode: passFocus,
+                                          textInputAction: TextInputAction.done,
+                                          onSubmitted: (_) => Navigator.pop(d, [
+                                            u.text.trim(),
+                                            p.text,
+                                          ]),
+                                          obscureText: true,
+                                          style: TextStyle(
+                                            color: AppColors.onScaffold(
+                                              context,
+                                            ),
+                                          ),
+                                          decoration: const InputDecoration(
+                                            labelText: '密码',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(d),
+                                      child: const Text('取消'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(d, [
+                                        u.text.trim(),
+                                        p.text,
+                                      ]),
+                                      child: const Text(
+                                        '创建',
+                                        style: TextStyle(
+                                          color: AppColors.amber,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ).whenComplete(() {
                               u.dispose();
                               p.dispose();
+                              userFocus.dispose();
+                              passFocus.dispose();
                             });
                         if (credentials != null) {
                           try {

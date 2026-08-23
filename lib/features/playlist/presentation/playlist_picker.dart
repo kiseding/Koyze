@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
+import '../../../core/widgets/auto_text_input.dart';
 import '../../player/domain/music_item.dart';
 import 'playlist_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
@@ -34,11 +35,13 @@ class _PlaylistPickerContent extends ConsumerStatefulWidget {
 class _PlaylistPickerContentState
     extends ConsumerState<_PlaylistPickerContent> {
   final _newPlaylistController = TextEditingController();
+  final _newPlaylistFocus = FocusNode();
   bool _showCreateField = false;
 
   @override
   void dispose() {
     _newPlaylistController.dispose();
+    _newPlaylistFocus.dispose();
     super.dispose();
   }
 
@@ -76,13 +79,13 @@ class _PlaylistPickerContentState
     final userPlaylists = playlists.where((p) => p.id != 'recent').toList();
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -100,8 +103,13 @@ class _PlaylistPickerContentState
                     Icons.add,
                     color: Theme.of(context).colorScheme.primary,
                   ),
-                  onPressed: () =>
-                      setState(() => _showCreateField = !_showCreateField),
+                  onPressed: () {
+                    final shouldShow = !_showCreateField;
+                    setState(() => _showCreateField = shouldShow);
+                    if (shouldShow) {
+                      requestTextInput(context, _newPlaylistFocus);
+                    }
+                  },
                 ),
               ],
             ),
@@ -112,12 +120,18 @@ class _PlaylistPickerContentState
             alignment: Alignment.topCenter,
             child: _showCreateField
                 ? Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
                           child: TextField(
                             controller: _newPlaylistController,
+                            focusNode: _newPlaylistFocus,
+                            autofocus: true,
+                            textInputAction: TextInputAction.done,
                             style: TextStyle(
                               color: AppColors.onScaffold(context),
                             ),
@@ -133,7 +147,7 @@ class _PlaylistPickerContentState
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              contentPadding: EdgeInsets.symmetric(
+                              contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                                 vertical: 10,
                               ),

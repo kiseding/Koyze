@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/auto_text_input.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 
 const startupCloudLoginPromptSeenKey = 'startup_cloud_login_prompt_seen';
@@ -70,15 +71,27 @@ class _StartupCloudLoginPageState
   final _serverCtrl = TextEditingController();
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _serverFocus = FocusNode();
+  final _userFocus = FocusNode();
+  final _passFocus = FocusNode();
   bool _register = false;
   bool _busy = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    requestTextInput(context, _serverFocus);
+  }
 
   @override
   void dispose() {
     _serverCtrl.dispose();
     _userCtrl.dispose();
     _passCtrl.dispose();
+    _serverFocus.dispose();
+    _userFocus.dispose();
+    _passFocus.dispose();
     super.dispose();
   }
 
@@ -127,7 +140,7 @@ class _StartupCloudLoginPageState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.cloud_sync_rounded,
                     color: AppColors.amber,
                     size: 56,
@@ -155,7 +168,12 @@ class _StartupCloudLoginPageState
                   const SizedBox(height: 30),
                   TextField(
                     controller: _serverCtrl,
+                    focusNode: _serverFocus,
+                    autofocus: true,
                     keyboardType: TextInputType.url,
+                    textInputAction: TextInputAction.next,
+                    autocorrect: false,
+                    onSubmitted: (_) => _userFocus.requestFocus(),
                     enableInteractiveSelection: true,
                     contextMenuBuilder: (context, state) =>
                         AdaptiveTextSelectionToolbar.editableText(
@@ -170,6 +188,9 @@ class _StartupCloudLoginPageState
                   const SizedBox(height: 12),
                   TextField(
                     controller: _userCtrl,
+                    focusNode: _userFocus,
+                    textInputAction: TextInputAction.next,
+                    onSubmitted: (_) => _passFocus.requestFocus(),
                     enableInteractiveSelection: true,
                     contextMenuBuilder: (context, state) =>
                         AdaptiveTextSelectionToolbar.editableText(
@@ -181,6 +202,11 @@ class _StartupCloudLoginPageState
                   const SizedBox(height: 12),
                   TextField(
                     controller: _passCtrl,
+                    focusNode: _passFocus,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) {
+                      if (!_busy) _submit();
+                    },
                     obscureText: true,
                     enableInteractiveSelection: true,
                     contextMenuBuilder: (context, state) =>
@@ -195,7 +221,10 @@ class _StartupCloudLoginPageState
                     Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.error, fontSize: 12),
+                      style: const TextStyle(
+                        color: AppColors.error,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 22),

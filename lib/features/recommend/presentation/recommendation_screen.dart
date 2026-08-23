@@ -33,6 +33,8 @@ class RecommendationScreen extends ConsumerWidget {
       body: SafeArea(
         top: false,
         child: recommendationsAsync.when(
+          skipLoadingOnReload: true,
+          skipLoadingOnRefresh: true,
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => _buildError(context, ref, error),
           data: (recommendations) => recommendations.isEmpty
@@ -88,7 +90,7 @@ class RecommendationScreen extends ConsumerWidget {
                             ),
                             trailing: FxIconButton(
                               tooltip: '播放 ${rec.song.name}',
-                              icon: Icon(
+                              icon: const Icon(
                                 Icons.play_circle_outline,
                                 size: 24,
                                 color: kRecommendColor,
@@ -148,7 +150,7 @@ class RecommendationScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   '根据你喜欢的音乐推荐',
                   style: TextStyle(
                     color: Colors.white,
@@ -177,7 +179,7 @@ class RecommendationScreen extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.auto_awesome, size: 56, color: kRecommendColor),
+          const Icon(Icons.auto_awesome, size: 56, color: kRecommendColor),
           const SizedBox(height: 12),
           Text(
             '还没有推荐',

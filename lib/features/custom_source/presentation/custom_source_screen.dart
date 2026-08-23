@@ -8,6 +8,7 @@ import 'dart:io';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
+import '../../../core/widgets/auto_text_input.dart';
 import '../domain/custom_source.dart';
 import '../domain/custom_source_service.dart';
 import '../domain/source_script_validation.dart';
@@ -104,7 +105,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
               ),
             )
           : ListView.builder(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               itemCount: sources.length,
               itemBuilder: (context, index) {
                 final source = sources[index];
@@ -120,8 +121,8 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     CustomSource source,
   ) {
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.card(context),
         borderRadius: BorderRadius.circular(12),
@@ -217,22 +218,22 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               TextButton.icon(
-                icon: Icon(Icons.terminal, size: 16),
+                icon: const Icon(Icons.terminal, size: 16),
                 label: const Text('日志'),
                 onPressed: () => _showLogDialog(context, ref, source),
               ),
               TextButton.icon(
-                icon: Icon(Icons.edit, size: 16),
+                icon: const Icon(Icons.edit, size: 16),
                 label: const Text('编辑'),
                 onPressed: () => _showEditDialog(context, ref, source),
               ),
               TextButton.icon(
-                icon: Icon(Icons.share, size: 16),
+                icon: const Icon(Icons.share, size: 16),
                 label: const Text('导出'),
                 onPressed: () => _showExportDialog(context, ref, source),
               ),
               TextButton.icon(
-                icon: Icon(Icons.delete, size: 16, color: Colors.red),
+                icon: const Icon(Icons.delete, size: 16, color: Colors.red),
                 label: const Text('删除', style: TextStyle(color: Colors.red)),
                 onPressed: () => _showDeleteDialog(context, ref, source),
               ),
@@ -283,67 +284,87 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     final descController = TextEditingController();
     final authorController = TextEditingController();
     final scriptController = TextEditingController();
+    final nameFocus = FocusNode();
+    var keyboardRequested = false;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.dialogBg(context),
-        title: Text(
-          '添加自定义源',
-          style: TextStyle(color: AppColors.onScaffold(context)),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildTextField(context, nameController, '源名称'),
-              const SizedBox(height: 8),
-              _buildTextField(context, descController, '描述'),
-              const SizedBox(height: 8),
-              _buildTextField(context, authorController, '作者'),
-              const SizedBox(height: 8),
-              _buildTextField(context, scriptController, '脚本', maxLines: 10),
-            ],
+      builder: (dialogContext) {
+        if (!keyboardRequested) {
+          keyboardRequested = true;
+          requestTextInput(dialogContext, nameFocus);
+        }
+        return AlertDialog(
+          backgroundColor: AppColors.dialogBg(dialogContext),
+          title: Text(
+            '添加自定义源',
+            style: TextStyle(color: AppColors.onScaffold(dialogContext)),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              '取消',
-              style: TextStyle(color: AppColors.mutedText(context)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildTextField(
+                  dialogContext,
+                  nameController,
+                  '源名称',
+                  focusNode: nameFocus,
+                  autofocus: true,
+                ),
+                const SizedBox(height: 8),
+                _buildTextField(dialogContext, descController, '描述'),
+                const SizedBox(height: 8),
+                _buildTextField(dialogContext, authorController, '作者'),
+                const SizedBox(height: 8),
+                _buildTextField(
+                  dialogContext,
+                  scriptController,
+                  '脚本',
+                  maxLines: 10,
+                ),
+              ],
             ),
           ),
-          TextButton(
-            onPressed: () {
-              if (nameController.text.isNotEmpty &&
-                  scriptController.text.isNotEmpty) {
-                final source = CustomSource(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  name: nameController.text,
-                  description: descController.text,
-                  version: '1.0.0',
-                  author: authorController.text,
-                  script: scriptController.text,
-                  createdAt: DateTime.now(),
-                  updatedAt: DateTime.now(),
-                );
-                ref.read(customSourcesProvider.notifier).addSource(source);
-                Navigator.pop(context);
-              }
-            },
-            child: Text(
-              '添加',
-              style: TextStyle(color: AppColors.accentOf(context)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                '取消',
+                style: TextStyle(color: AppColors.mutedText(dialogContext)),
+              ),
             ),
-          ),
-        ],
-      ),
+            TextButton(
+              onPressed: () {
+                if (nameController.text.isNotEmpty &&
+                    scriptController.text.isNotEmpty) {
+                  final source = CustomSource(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    name: nameController.text,
+                    description: descController.text,
+                    version: '1.0.0',
+                    author: authorController.text,
+                    script: scriptController.text,
+                    createdAt: DateTime.now(),
+                    updatedAt: DateTime.now(),
+                  );
+                  ref.read(customSourcesProvider.notifier).addSource(source);
+                  Navigator.pop(dialogContext);
+                }
+              },
+              child: Text(
+                '添加',
+                style: TextStyle(color: AppColors.accentOf(dialogContext)),
+              ),
+            ),
+          ],
+        );
+      },
     ).whenComplete(() {
       nameController.dispose();
       descController.dispose();
       authorController.dispose();
       scriptController.dispose();
+      nameFocus.dispose();
     });
   }
 
@@ -356,101 +377,258 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     final descController = TextEditingController(text: source.description);
     final authorController = TextEditingController(text: source.author);
     final scriptController = TextEditingController(text: source.script);
+    final nameFocus = FocusNode();
+    var keyboardRequested = false;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.dialogBg(context),
-        title: Text(
-          '编辑自定义源',
-          style: TextStyle(color: AppColors.onScaffold(context)),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildTextField(context, nameController, '源名称'),
-              const SizedBox(height: 8),
-              _buildTextField(context, descController, '描述'),
-              const SizedBox(height: 8),
-              _buildTextField(context, authorController, '作者'),
-              const SizedBox(height: 8),
-              _buildTextField(context, scriptController, '脚本', maxLines: 10),
-            ],
+      builder: (dialogContext) {
+        if (!keyboardRequested) {
+          keyboardRequested = true;
+          requestTextInput(dialogContext, nameFocus);
+        }
+        return AlertDialog(
+          backgroundColor: AppColors.dialogBg(dialogContext),
+          title: Text(
+            '编辑自定义源',
+            style: TextStyle(color: AppColors.onScaffold(dialogContext)),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              '取消',
-              style: TextStyle(color: AppColors.mutedText(context)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildTextField(
+                  dialogContext,
+                  nameController,
+                  '源名称',
+                  focusNode: nameFocus,
+                  autofocus: true,
+                ),
+                const SizedBox(height: 8),
+                _buildTextField(dialogContext, descController, '描述'),
+                const SizedBox(height: 8),
+                _buildTextField(dialogContext, authorController, '作者'),
+                const SizedBox(height: 8),
+                _buildTextField(
+                  dialogContext,
+                  scriptController,
+                  '脚本',
+                  maxLines: 10,
+                ),
+              ],
             ),
           ),
-          TextButton(
-            onPressed: () {
-              final updated = source.copyWith(
-                name: nameController.text,
-                description: descController.text,
-                author: authorController.text,
-                script: scriptController.text,
-              );
-              ref.read(customSourcesProvider.notifier).updateSource(updated);
-              Navigator.pop(context);
-            },
-            child: Text(
-              '保存',
-              style: TextStyle(color: AppColors.accentOf(context)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                '取消',
+                style: TextStyle(color: AppColors.mutedText(dialogContext)),
+              ),
             ),
-          ),
-        ],
-      ),
+            TextButton(
+              onPressed: () {
+                final updated = source.copyWith(
+                  name: nameController.text,
+                  description: descController.text,
+                  author: authorController.text,
+                  script: scriptController.text,
+                );
+                ref.read(customSourcesProvider.notifier).updateSource(updated);
+                Navigator.pop(dialogContext);
+              },
+              child: Text(
+                '保存',
+                style: TextStyle(color: AppColors.accentOf(dialogContext)),
+              ),
+            ),
+          ],
+        );
+      },
     ).whenComplete(() {
       nameController.dispose();
       descController.dispose();
       authorController.dispose();
       scriptController.dispose();
+      nameFocus.dispose();
     });
   }
 
   void _showUrlImportDialog(BuildContext context, WidgetRef ref) {
     final pageContext = context;
     final controller = TextEditingController();
+    final inputFocus = FocusNode();
+    var keyboardRequested = false;
     bool isLoading = false;
 
     showDialog(
       context: pageContext,
       barrierDismissible: true,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setState) {
-          Future<void> importUrl(String url) async {
-            if (url.isEmpty || !url.startsWith('https://')) {
-              showAppNotification(
-                '请输入有效的 HTTPS 链接',
-                type: AppNotificationType.error,
+      builder: (dialogContext) {
+        if (!keyboardRequested) {
+          keyboardRequested = true;
+          requestTextInput(dialogContext, inputFocus);
+        }
+        return StatefulBuilder(
+          builder: (dialogContext, setState) {
+            Future<void> importUrl(String url) async {
+              if (url.isEmpty || !url.startsWith('https://')) {
+                showAppNotification(
+                  '请输入有效的 HTTPS 链接',
+                  type: AppNotificationType.error,
+                );
+                return;
+              }
+
+              setState(() => isLoading = true);
+              final success = await ref.read(importCustomSourceFromUrlProvider)(
+                url,
               );
-              return;
+              if (!dialogContext.mounted || !pageContext.mounted) return;
+              setState(() => isLoading = false);
+              Navigator.pop(dialogContext);
+              showAppNotification(
+                success ? '导入成功' : '导入失败，请检查链接或脚本格式',
+                type: success
+                    ? AppNotificationType.success
+                    : AppNotificationType.error,
+              );
             }
 
-            setState(() => isLoading = true);
-            final success = await ref.read(importCustomSourceFromUrlProvider)(
-              url,
+            return AlertDialog(
+              backgroundColor: AppColors.dialogBg(dialogContext),
+              title: Text(
+                '通过链接导入',
+                style: TextStyle(color: AppColors.onScaffold(dialogContext)),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '请输入脚本文件的直接下载链接',
+                    style: TextStyle(
+                      color: AppColors.mutedText(dialogContext),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    focusNode: inputFocus,
+                    autofocus: true,
+                    keyboardType: TextInputType.url,
+                    textInputAction: TextInputAction.done,
+                    autocorrect: false,
+                    style: TextStyle(
+                      color: AppColors.onScaffold(dialogContext),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'https://...',
+                      hintStyle: TextStyle(
+                        color: AppColors.mutedText(dialogContext),
+                      ),
+                      filled: true,
+                      fillColor: AppColors.fill2(dialogContext),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                  ),
+                  if (isLoading) ...[
+                    const SizedBox(height: 16),
+                    Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.accentOf(dialogContext),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: Text(
+                    '取消',
+                    style: TextStyle(color: AppColors.mutedText(dialogContext)),
+                  ),
+                ),
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final content = await Clipboard.getData(
+                            Clipboard.kTextPlain,
+                          );
+                          if (!dialogContext.mounted) return;
+                          final url = content?.text?.trim() ?? '';
+                          if (url.isEmpty) {
+                            showAppNotification(
+                              '剪切板中没有链接',
+                              type: AppNotificationType.error,
+                            );
+                            return;
+                          }
+                          controller.text = url;
+                          await importUrl(url);
+                        },
+                  child: Text(
+                    '剪切板',
+                    style: TextStyle(color: AppColors.accentOf(dialogContext)),
+                  ),
+                ),
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () => importUrl(controller.text.trim()),
+                  child: Text(
+                    '导入',
+                    style: TextStyle(color: AppColors.accentOf(dialogContext)),
+                  ),
+                ),
+              ],
             );
-            if (!dialogContext.mounted || !pageContext.mounted) return;
-            setState(() => isLoading = false);
-            Navigator.pop(dialogContext);
-            showAppNotification(
-              success ? '导入成功' : '导入失败，请检查链接或脚本格式',
-              type: success
-                  ? AppNotificationType.success
-                  : AppNotificationType.error,
-            );
-          }
+          },
+        );
+      },
+    ).whenComplete(() {
+      controller.dispose();
+      inputFocus.dispose();
+    });
+  }
 
-          return AlertDialog(
+  void _showImportDialog(BuildContext context, WidgetRef ref) {
+    final pageContext = context;
+    final controller = TextEditingController();
+    final inputFocus = FocusNode();
+    var keyboardRequested = false;
+    bool isLoading = false;
+
+    showDialog(
+      context: pageContext,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        if (!keyboardRequested) {
+          keyboardRequested = true;
+          requestTextInput(dialogContext, inputFocus);
+        }
+        return StatefulBuilder(
+          builder: (dialogContext, setState) => AlertDialog(
             backgroundColor: AppColors.dialogBg(dialogContext),
             title: Text(
-              '通过链接导入',
+              '导入自定义源',
               style: TextStyle(color: AppColors.onScaffold(dialogContext)),
             ),
             content: Column(
@@ -458,19 +636,26 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '请输入脚本文件的直接下载链接',
+                  '支持 LX Music 格式脚本',
                   style: TextStyle(
                     color: AppColors.mutedText(dialogContext),
                     fontSize: 12,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 TextField(
                   controller: controller,
-                  style: TextStyle(color: AppColors.onScaffold(dialogContext)),
+                  focusNode: inputFocus,
                   autofocus: true,
+                  textInputAction: TextInputAction.done,
+                  autocorrect: false,
+                  style: TextStyle(
+                    color: AppColors.onScaffold(dialogContext),
+                    fontFamily: 'monospace',
+                  ),
+                  maxLines: 10,
                   decoration: InputDecoration(
-                    hintText: 'https://...',
+                    hintText: '粘贴 LX Music 脚本或 JSON 配置...',
                     hintStyle: TextStyle(
                       color: AppColors.mutedText(dialogContext),
                     ),
@@ -479,10 +664,6 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
                     ),
                   ),
                 ),
@@ -515,151 +696,45 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 onPressed: isLoading
                     ? null
                     : () async {
-                        final content = await Clipboard.getData(
-                          Clipboard.kTextPlain,
-                        );
-                        if (!dialogContext.mounted) return;
-                        final url = content?.text?.trim() ?? '';
-                        if (url.isEmpty) {
-                          showAppNotification(
-                            '剪切板中没有链接',
-                            type: AppNotificationType.error,
-                          );
+                        final text = controller.text.trim();
+                        setState(() => isLoading = true);
+                        bool success = false;
+
+                        if (isValidSourceScript(text)) {
+                          success = await ref
+                              .read(customSourcesProvider.notifier)
+                              .importLxMusicScript(text);
+                        } else {
+                          success = await ref
+                              .read(customSourcesProvider.notifier)
+                              .importSource(text);
+                        }
+
+                        if (!dialogContext.mounted || !pageContext.mounted) {
                           return;
                         }
-                        controller.text = url;
-                        await importUrl(url);
+                        setState(() => isLoading = false);
+                        Navigator.pop(dialogContext);
+                        showAppNotification(
+                          success ? '导入成功' : '导入失败，请检查脚本格式',
+                          type: success
+                              ? AppNotificationType.success
+                              : AppNotificationType.error,
+                        );
                       },
-                child: Text(
-                  '剪切板',
-                  style: TextStyle(color: AppColors.accentOf(dialogContext)),
-                ),
-              ),
-              TextButton(
-                onPressed: isLoading
-                    ? null
-                    : () => importUrl(controller.text.trim()),
                 child: Text(
                   '导入',
                   style: TextStyle(color: AppColors.accentOf(dialogContext)),
                 ),
               ),
             ],
-          );
-        },
-      ),
-    ).whenComplete(controller.dispose);
-  }
-
-  void _showImportDialog(BuildContext context, WidgetRef ref) {
-    final pageContext = context;
-    final controller = TextEditingController();
-    bool isLoading = false;
-
-    showDialog(
-      context: pageContext,
-      barrierDismissible: true,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setState) => AlertDialog(
-          backgroundColor: AppColors.dialogBg(dialogContext),
-          title: Text(
-            '导入自定义源',
-            style: TextStyle(color: AppColors.onScaffold(dialogContext)),
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '支持 LX Music 格式脚本',
-                style: TextStyle(
-                  color: AppColors.mutedText(dialogContext),
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: controller,
-                style: TextStyle(
-                  color: AppColors.onScaffold(dialogContext),
-                  fontFamily: 'monospace',
-                ),
-                maxLines: 10,
-                decoration: InputDecoration(
-                  hintText: '粘贴 LX Music 脚本或 JSON 配置...',
-                  hintStyle: TextStyle(
-                    color: AppColors.mutedText(dialogContext),
-                  ),
-                  filled: true,
-                  fillColor: AppColors.fill2(dialogContext),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-              if (isLoading) ...[
-                const SizedBox(height: 16),
-                Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.accentOf(dialogContext),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: isLoading ? null : () => Navigator.pop(dialogContext),
-              child: Text(
-                '取消',
-                style: TextStyle(color: AppColors.mutedText(dialogContext)),
-              ),
-            ),
-            TextButton(
-              onPressed: isLoading
-                  ? null
-                  : () async {
-                      final text = controller.text.trim();
-                      setState(() => isLoading = true);
-                      bool success = false;
-
-                      if (isValidSourceScript(text)) {
-                        success = await ref
-                            .read(customSourcesProvider.notifier)
-                            .importLxMusicScript(text);
-                      } else {
-                        success = await ref
-                            .read(customSourcesProvider.notifier)
-                            .importSource(text);
-                      }
-
-                      if (!dialogContext.mounted || !pageContext.mounted) {
-                        return;
-                      }
-                      setState(() => isLoading = false);
-                      Navigator.pop(dialogContext);
-                      showAppNotification(
-                        success ? '导入成功' : '导入失败，请检查脚本格式',
-                        type: success
-                            ? AppNotificationType.success
-                            : AppNotificationType.error,
-                      );
-                    },
-              child: Text(
-                '导入',
-                style: TextStyle(color: AppColors.accentOf(dialogContext)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ).whenComplete(controller.dispose);
+        );
+      },
+    ).whenComplete(() {
+      controller.dispose();
+      inputFocus.dispose();
+    });
   }
 
   void _showExportDialog(
@@ -756,9 +831,13 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     TextEditingController controller,
     String label, {
     int maxLines = 1,
+    FocusNode? focusNode,
+    bool autofocus = false,
   }) {
     return TextField(
       controller: controller,
+      focusNode: focusNode,
+      autofocus: autofocus,
       style: TextStyle(color: AppColors.onScaffold(context)),
       maxLines: maxLines,
       decoration: InputDecoration(
@@ -867,7 +946,7 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
       content: Container(
         width: double.maxFinite,
         height: 400,
-        padding: EdgeInsets.all(8),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: AppColors.fill(context),
           borderRadius: BorderRadius.circular(8),
@@ -891,10 +970,13 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
                   if (type == 'event') color = AppColors.accentOf(context);
 
                   return Padding(
-                    padding: EdgeInsets.only(bottom: 4),
+                    padding: const EdgeInsets.only(bottom: 4),
                     child: RichText(
                       text: TextSpan(
-                        style: TextStyle(fontFamily: 'monospace', fontSize: 12),
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
                         children: [
                           TextSpan(
                             text: '[${_formatTime(log['timestamp'])}] ',
@@ -927,7 +1009,7 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
             TextButton.icon(
               onPressed: _logs.isEmpty ? null : _copyLogs,
               icon: const Icon(Icons.copy, size: 16),
-              label: Text('复制日志'),
+              label: const Text('复制日志'),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.accentOf(context),
               ),

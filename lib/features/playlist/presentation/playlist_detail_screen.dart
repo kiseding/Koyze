@@ -5,6 +5,7 @@ import '../../../core/pagination/page_range.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
+import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/page_navigation_bar.dart';
 import '../domain/playlist.dart';
@@ -279,9 +280,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 offset: const Offset(0, 8),
-                popUpAnimationStyle: AnimationStyle(
-                  duration: const Duration(milliseconds: 280),
-                  reverseDuration: const Duration(milliseconds: 150),
+                popUpAnimationStyle: const AnimationStyle(
+                  duration: Duration(milliseconds: 280),
+                  reverseDuration: Duration(milliseconds: 150),
                   curve: Curves.easeOutCubic,
                   reverseCurve: Curves.easeInCubic,
                 ),
@@ -695,70 +696,88 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final descController = TextEditingController(
       text: playlist.description ?? '',
     );
+    final nameFocus = FocusNode();
+    final descFocus = FocusNode();
+    var keyboardRequested = false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.dialogBg(context),
-        title: Text(
-          '编辑歌单',
-          style: TextStyle(color: AppColors.onScaffold(context)),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              style: TextStyle(color: AppColors.onScaffold(context)),
-              decoration: InputDecoration(
-                hintText: '歌单名称',
-                hintStyle: TextStyle(color: AppColors.mutedText(context)),
+      builder: (ctx) {
+        if (!keyboardRequested) {
+          keyboardRequested = true;
+          requestTextInput(ctx, nameFocus);
+        }
+        return AlertDialog(
+          backgroundColor: AppColors.dialogBg(ctx),
+          title: Text(
+            '编辑歌单',
+            style: TextStyle(color: AppColors.onScaffold(ctx)),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                focusNode: nameFocus,
+                autofocus: true,
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) => descFocus.requestFocus(),
+                style: TextStyle(color: AppColors.onScaffold(ctx)),
+                decoration: InputDecoration(
+                  hintText: '歌单名称',
+                  hintStyle: TextStyle(color: AppColors.mutedText(ctx)),
+                ),
+              ),
+              TextField(
+                controller: descController,
+                focusNode: descFocus,
+                textInputAction: TextInputAction.done,
+                style: TextStyle(color: AppColors.onScaffold(ctx)),
+                decoration: InputDecoration(
+                  hintText: '描述',
+                  hintStyle: TextStyle(color: AppColors.mutedText(ctx)),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                '取消',
+                style: TextStyle(color: AppColors.mutedText(ctx)),
               ),
             ),
-            TextField(
-              controller: descController,
-              style: TextStyle(color: AppColors.onScaffold(context)),
-              decoration: InputDecoration(
-                hintText: '描述',
-                hintStyle: TextStyle(color: AppColors.mutedText(context)),
+            TextButton(
+              onPressed: () async {
+                try {
+                  await ref
+                      .read(playlistServiceProvider)
+                      .updatePlaylist(
+                        id: playlist.id,
+                        name: nameController.text,
+                        description: descController.text,
+                      );
+                } catch (error) {
+                  if (mounted) _showMutationError('保存失败', error);
+                  return;
+                }
+                if (!ctx.mounted) return;
+                Navigator.pop(ctx);
+              },
+              child: Text(
+                '保存',
+                style: TextStyle(color: AppColors.accentOf(ctx)),
               ),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              '取消',
-              style: TextStyle(color: AppColors.mutedText(context)),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              try {
-                await ref
-                    .read(playlistServiceProvider)
-                    .updatePlaylist(
-                      id: playlist.id,
-                      name: nameController.text,
-                      description: descController.text,
-                    );
-              } catch (error) {
-                if (mounted) _showMutationError('保存失败', error);
-                return;
-              }
-              if (!ctx.mounted) return;
-              Navigator.pop(ctx);
-            },
-            child: Text(
-              '保存',
-              style: TextStyle(color: AppColors.accentOf(context)),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     ).whenComplete(() {
       nameController.dispose();
       descController.dispose();
+      nameFocus.dispose();
+      descFocus.dispose();
     });
   }
 
