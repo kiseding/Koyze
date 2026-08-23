@@ -14,9 +14,19 @@ void main() {
     final handler = File(
       'lib/core/audio/audio_handler.dart',
     ).readAsStringSync();
-    expect(handler, contains('ProgressiveAudioSource('));
+    final sourceFactory = handler.substring(
+      handler.indexOf('AudioSource _progressiveSource'),
+      handler.indexOf('AudioProcessingState audioProcessingState'),
+    );
+
+    expect(
+      audioSourceFor('file:///tmp/song.flac'),
+      isA<ProgressiveAudioSource>(),
+    );
     expect(handler, contains('preferPreciseDurationAndTiming: true'));
     expect(handler, contains('DarwinAssetOptions'));
+    expect(sourceFactory, contains('ProgressiveAudioSource('));
+    expect(sourceFactory, isNot(contains('AudioSource.file(')));
   });
 
   test('seek path has no settle polling or timing compensation', () {

@@ -49,6 +49,19 @@ const _preciseDarwinOptions = ProgressiveAudioSourceOptions(
   darwinAssetOptions: DarwinAssetOptions(preferPreciseDurationAndTiming: true),
 );
 
+AudioSource _progressiveSource(
+  Uri uri, {
+  MediaItem? tag,
+  Map<String, String>? headers,
+}) {
+  return ProgressiveAudioSource(
+    uri,
+    headers: headers,
+    tag: tag,
+    options: _preciseDarwinOptions,
+  );
+}
+
 AudioSource audioSourceFor(
   String url, {
   MediaItem? tag,
@@ -60,19 +73,14 @@ AudioSource audioSourceFor(
   }
   final uri = playableUri(url);
   if (uri.scheme == 'file') {
-    return AudioSource.file(uri.toFilePath(), tag: tag);
+    return _progressiveSource(uri, tag: tag);
   }
   // ProgressiveAudioSource 覆盖本地 file / 普通 http 媒体；m3u8/mpd 仍走 uri 工厂
   final path = uri.path.toLowerCase();
   if (path.endsWith('.m3u8') || path.endsWith('.mpd')) {
     return AudioSource.uri(uri, headers: headers, tag: tag);
   }
-  return ProgressiveAudioSource(
-    uri,
-    headers: headers,
-    tag: tag,
-    options: _preciseDarwinOptions,
-  );
+  return _progressiveSource(uri, headers: headers, tag: tag);
 }
 
 AudioProcessingState audioProcessingState(ProcessingState state) =>
