@@ -68,7 +68,12 @@ void main() {
       expect(full, contains('DraggableScrollableSheet'));
       expect(full, contains('dragScrollController: scrollController'));
       expect(full, contains('controller: _queueScrollController'));
+      expect(full, contains('initialChildSize: sheetSize'));
+      expect(full, contains('maxChildSize: sheetSize'));
       expect(full, contains('snap: true'));
+      expect(full, contains('const extraHeight = 50.0'));
+      expect(full, contains('const maxSheetSize = 0.78'));
+      expect(full, isNot(contains('snapSizes:')));
       expect(full, isNot(contains('_handleQueueScrollNotification')));
       expect(full, contains('backgroundColor: Colors.transparent'));
       expect(full, contains('Material('));

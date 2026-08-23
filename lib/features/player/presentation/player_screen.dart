@@ -29,9 +29,11 @@ double _playbackQueueSheetInitialSize(BuildContext context, int itemCount) {
   if (screenHeight <= 0) return 0.58;
   const headerHeight = 94.0;
   const tileHeight = 56.0;
+  const extraHeight = 50.0;
+  const maxSheetSize = 0.78;
   final visibleRows = itemCount <= 0 ? 1 : itemCount.clamp(1, 8);
-  final targetHeight = headerHeight + visibleRows * tileHeight;
-  return (targetHeight / screenHeight).clamp(0.28, 0.72).toDouble();
+  final targetHeight = headerHeight + visibleRows * tileHeight + extraHeight;
+  return (targetHeight / screenHeight).clamp(0.28, maxSheetSize).toDouble();
 }
 
 String _formatPlayerDuration(Duration d) {
@@ -1245,14 +1247,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final itemCount = playerService.currentLazyPlaylistSongCount > 0
             ? playerService.currentLazyPlaylistSongCount
             : queue.length;
-        final initialSize = _playbackQueueSheetInitialSize(context, itemCount);
+        final sheetSize = _playbackQueueSheetInitialSize(context, itemCount);
         return DraggableScrollableSheet(
           expand: false,
-          initialChildSize: initialSize,
+          initialChildSize: sheetSize,
           minChildSize: 0.18,
-          maxChildSize: 0.92,
+          maxChildSize: sheetSize,
           snap: true,
-          snapSizes: [initialSize, 0.92],
           builder: (context, scrollController) => Material(
             color: AppColors.dialogBg(context),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
