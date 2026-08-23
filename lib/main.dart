@@ -333,10 +333,13 @@ Future<void> _bootstrapUnsafe(
                     duration: task.duration,
                   );
                 }
-                await container
-                    .read(playlistServiceProvider)
-                    .replaceLocalSongs(library.songs);
               }
+              // Always refresh the visible local playlist from the local index.
+              // Plain scanned folders can receive scrape/tag fixes without the
+              // download directory path being configured.
+              await container
+                  .read(playlistServiceProvider)
+                  .replaceLocalSongs(library.songs);
               final completion = downloadService.tasksStream.listen((
                 tasks,
               ) async {
@@ -485,9 +488,8 @@ Future<void> _bootstrapUnsafe(
               if (music.hash?.isNotEmpty == true) return music.hash!;
               return music.id;
             },
-            platformFor: (music) => music.platform.isNotEmpty
-                ? music.platform
-                : music.source,
+            platformFor: (music) =>
+                music.platform.isNotEmpty ? music.platform : music.source,
           );
           lxHandler.attachPlaybackCache(
             classifyExisting: playbackCache.classifyExisting,

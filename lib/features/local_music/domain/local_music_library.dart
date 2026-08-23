@@ -301,19 +301,38 @@ class LocalMusicLibrary {
   }
 
   /// 记录刮削到的在线身份（songmid/hash/artwork/lyricsUrl 等）。
+  ///
+  /// The side-table identity is enough for [songs], but Android 16 can keep the
+  /// raw file index at filename/未知歌手 when platform metadata reads are stale or
+  /// file tag writes are deferred. Mirror verified scrape labels into the index
+  /// as well so every local list has the same visible metadata immediately.
   Future<void> applyScrapedIdentity(
     String path,
     Map<String, dynamic> identity,
   ) async {
     _scrapedIdentity[path] = Map<String, dynamic>.from(identity);
-    final artwork = identity['artwork']?.toString();
     final current = _files[path];
-    if (current != null && artwork != null && artwork.isNotEmpty) {
-      _files[path] = {...current, 'artwork': artwork};
+    if (current != null) {
+      final title = _nonEmptyString(identity['name']);
+      final artist = _nonEmptyString(identity['singer']);
+      final album = _nonEmptyString(identity['album']);
+      final artwork = _nonEmptyString(identity['artwork']);
+      _files[path] = {
+        ...current,
+        if (title != null) 'title': title,
+        if (artist != null) 'artist': artist,
+        if (album != null) 'album': album,
+        if (artwork != null) 'artwork': artwork,
+      };
       await Future.wait([_persistIndex(), _persistScrapedIdentity()]);
       return;
     }
     await _persistScrapedIdentity();
+  }
+
+  String? _nonEmptyString(Object? value) {
+    final text = value?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
   }
 
   /// 下载完成后补充在线封面：为没有内嵌封面/刮削封面的条目写入在线 artwork，
