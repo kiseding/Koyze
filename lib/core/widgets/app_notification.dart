@@ -224,6 +224,12 @@ class _AppNotificationBanner extends StatelessWidget {
       AppNotificationType.error => '错误',
     };
 
+    final backgroundColor = Color.alphaBlend(
+      accent.withValues(alpha: dark ? 0.10 : 0.06),
+      baseColor.withValues(alpha: dark ? 0.86 : 0.92),
+    );
+    final borderRadius = BorderRadius.circular(20);
+
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -233,11 +239,8 @@ class _AppNotificationBanner extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(20, 10, 20, 0),
         constraints: const BoxConstraints(maxWidth: 420),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: Color.alphaBlend(
-            accent.withValues(alpha: dark ? 0.10 : 0.06),
-            baseColor.withValues(alpha: dark ? 0.86 : 0.92),
-          ),
+          borderRadius: borderRadius,
+          color: backgroundColor,
           boxShadow: [
             BoxShadow(
               color: shadowColor,
@@ -246,49 +249,64 @@ class _AppNotificationBanner extends StatelessWidget {
             ),
           ],
         ),
-        padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ExcludeSemantics(
-              child: Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 15, color: accent),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: ExcludeSemantics(
-                child: Text(
-                  notification.message,
-                  maxLines: 4,
-                  overflow: TextOverflow.fade,
-                  style: TextStyle(
-                    color: AppColors.onScaffold(context),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    height: 1.25,
-                    decoration: TextDecoration.none,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: borderRadius,
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ExcludeSemantics(
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, size: 15, color: accent),
                   ),
                 ),
-              ),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: ExcludeSemantics(
+                    child: Text(
+                      notification.message,
+                      maxLines: 4,
+                      overflow: TextOverflow.fade,
+                      style: TextStyle(
+                        color: AppColors.onScaffold(context),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        height: 1.25,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '关闭通知',
+                  onPressed: onDismiss,
+                  constraints: const BoxConstraints(
+                    minWidth: 48,
+                    minHeight: 48,
+                  ),
+                  style: IconButton.styleFrom(
+                    hoverColor: Colors.transparent,
+                    focusColor: Colors.transparent,
+                    highlightColor: Colors.transparent,
+                  ).copyWith(splashFactory: NoSplash.splashFactory),
+                  icon: Icon(
+                    Icons.close,
+                    size: 20,
+                    color: AppColors.mutedText(context),
+                  ),
+                ),
+              ],
             ),
-            IconButton(
-              tooltip: '关闭通知',
-              onPressed: onDismiss,
-              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-              icon: Icon(
-                Icons.close,
-                size: 20,
-                color: AppColors.mutedText(context),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
