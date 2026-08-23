@@ -1241,6 +1241,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _showMoreMenu(BuildContext context, MusicItem music) {
+    final pageContext = context;
     showKoyzeSheet(
       context: context,
       backgroundColor: AppColors.dialogBg(context),
@@ -1337,7 +1338,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               onTap: () {
                 Navigator.pop(context);
-                showPlaylistPicker(context: context, ref: ref, song: music);
+                showPlaylistPicker(context: pageContext, ref: ref, song: music);
               },
             ),
             ListTile(

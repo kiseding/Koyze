@@ -40,6 +40,8 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
     duration: const Duration(milliseconds: 520),
   );
 
+  bool _pending = false;
+
   /// q 弹缩放：1.0 → 1.45 → 0.85 → 1.0。
   late final Animation<double> _scale = TweenSequence<double>([
     TweenSequenceItem(
@@ -72,12 +74,16 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
   }
 
   Future<void> _toggle() async {
+    if (_pending) return;
+    setState(() => _pending = true);
     if (!reduceMotion(context)) unawaited(_controller.forward(from: 0));
     try {
       await ref.read(toggleFavoriteProvider)(widget.song);
     } catch (error) {
       if (!mounted) return;
       showAppNotification('收藏失败: $error', type: AppNotificationType.error);
+    } finally {
+      if (mounted) setState(() => _pending = false);
     }
   }
 
@@ -96,7 +102,7 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
       tooltip: isFavorite ? '取消收藏' : '收藏',
       padding: const EdgeInsets.all(8),
       iconSize: widget.iconSize,
-      onPressed: _toggle,
+      onPressed: _pending ? null : _toggle,
       icon: ScaleTransition(
         scale: _scale,
         child: Icon(

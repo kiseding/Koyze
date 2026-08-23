@@ -16,6 +16,7 @@ Future<T?> showKoyzeSheet<T>({
     barrierColor: Colors.black.withValues(alpha: 0.4),
     isScrollControlled: isScrollControlled,
     enableDrag: enableDrag,
+    requestFocus: false,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),

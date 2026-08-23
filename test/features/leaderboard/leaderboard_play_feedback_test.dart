@@ -14,5 +14,11 @@ void main() {
 
     expect(button, contains('return CardPlayButton('));
     expect(button, contains('onPressed: onPressed'));
+
+    expect(source, contains('leaderboardId: category.id'));
+    expect(
+      source,
+      isNot(contains('service.nowPlayingLeaderboardId = category.id')),
+    );
   });
 }

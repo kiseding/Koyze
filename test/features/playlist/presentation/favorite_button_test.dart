@@ -16,6 +16,15 @@ void main() {
     expect(source, contains('isSongFavoriteProvider'));
     // 长列表可从外部传入收藏状态，避免每个可见行创建异步查询。
     expect(source, contains('this.isFavorite'));
+    expect(source, contains('bool _pending = false'));
+    expect(source, contains('if (_pending) return'));
+    expect(source, contains('onPressed: _pending ? null : _toggle'));
+  });
+
+  test('shared bottom sheet does not request focus by default', () {
+    final source = File('lib/core/widgets/koyze_sheet.dart').readAsStringSync();
+
+    expect(source, contains('requestFocus: false'));
   });
 
   test('playlist detail rows pass the shared favorite id set', () {

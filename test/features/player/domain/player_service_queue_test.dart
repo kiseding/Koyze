@@ -37,6 +37,29 @@ void main() {
     expect(source, contains('currentQueueIndex'));
   });
 
+  test(
+    'leaderboard queue keeps now-playing marker after replacement',
+    () async {
+      audioHandler = handler;
+      final service = PlayerService();
+      final song = MusicItem(
+        id: 'rank-1',
+        name: 'Rank 1',
+        singer: '',
+        source: 'test',
+      );
+
+      await service.setQueue([song], leaderboardId: 'daily-rank');
+
+      expect(service.nowPlayingLeaderboardId, 'daily-rank');
+      expect(handler.mediaItem.value?.id, song.identityKey);
+
+      await service.playPlaylist([song], autoplay: false);
+
+      expect(service.nowPlayingLeaderboardId, isNull);
+    },
+  );
+
   test('newer playlist invalidates an in-flight paged playlist load', () async {
     audioHandler = handler;
     final service = PlayerService();

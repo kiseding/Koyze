@@ -38,11 +38,13 @@ class PlayerService {
     List<MusicItem> songs, {
     int startIndex = 0,
     String? manualPlayName,
+    String? leaderboardId,
   }) async {
     await playPlaylist(
       songs,
       index: startIndex,
       manualPlayName: manualPlayName,
+      leaderboardId: leaderboardId,
     );
   }
 
@@ -55,6 +57,7 @@ class PlayerService {
     bool autoplay = true,
     bool userInitiated = true,
     String? manualPlayName,
+    String? leaderboardId,
     int? queueGeneration,
   }) async {
     final generation = queueGeneration ?? beginQueueReplacement();
@@ -64,7 +67,7 @@ class PlayerService {
     }
     currentLazyPlaylistId = null;
     currentLazyPlaylistSongCount = 0;
-    nowPlayingLeaderboardId = null;
+    nowPlayingLeaderboardId = leaderboardId;
     final items = songs.map(_convertToMediaItemSync).toList();
     if (audioHandler is LxAudioHandler) {
       final handler = audioHandler as LxAudioHandler;
@@ -76,6 +79,7 @@ class PlayerService {
         userInitiated: userInitiated,
       );
       if (!ownsQueueReplacement(generation)) return;
+      nowPlayingLeaderboardId = leaderboardId;
       unawaited(
         _warmArtForQueue(
           songs,

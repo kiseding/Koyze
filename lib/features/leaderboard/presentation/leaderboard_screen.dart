@@ -464,12 +464,12 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       );
       if (songs.isEmpty) return;
       final service = ref.read(playerServiceProvider);
-      service.nowPlayingLeaderboardId = category.id;
       unawaited(
         service.setQueue(
           songs,
           startIndex: 0,
           manualPlayName: songs.first.name,
+          leaderboardId: category.id,
         ),
       );
     } catch (error) {
