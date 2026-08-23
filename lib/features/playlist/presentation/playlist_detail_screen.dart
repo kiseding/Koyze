@@ -450,14 +450,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         value: 'favorite_all',
                         child: Text('收藏所有', style: TextStyle(color: on)),
                       ),
-                    if (playlist.id == 'favorites' && playlist.songCount > 0)
-                      const PopupMenuItem(
-                        value: 'clear_favorites',
-                        child: Text(
-                          '一键取消收藏',
-                          style: TextStyle(color: AppColors.error),
-                        ),
-                      ),
                     if (playlist.id != 'recent')
                       PopupMenuItem(
                         value: 'edit',
@@ -485,6 +477,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       PopupMenuItem(
                         value: 'delete',
                         child: Text('删除歌单', style: TextStyle(color: on)),
+                      ),
+                    if (playlist.id == 'favorites' && playlist.songCount > 0)
+                      const PopupMenuItem(
+                        value: 'clear_favorites',
+                        child: Text(
+                          '清空收藏',
+                          style: TextStyle(color: AppColors.error),
+                        ),
                       ),
                   ];
                 },
@@ -993,11 +993,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
         title: Text(
-          '取消全部收藏？',
+          '清空收藏？',
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
         content: Text(
-          '将从收藏列表移除 ${playlist.songCount} 首歌曲，此操作不会删除歌单中的原歌曲。',
+          '将从收藏列表移除 ${playlist.songCount} 首歌曲，此操作不可撤销，但不会删除本地或歌单中的原歌曲。',
           style: TextStyle(color: AppColors.secondaryText(context)),
         ),
         actions: [
@@ -1010,10 +1010,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              '全部取消收藏',
-              style: TextStyle(color: AppColors.error),
-            ),
+            child: const Text('确认清空', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),

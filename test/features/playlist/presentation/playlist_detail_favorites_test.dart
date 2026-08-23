@@ -34,8 +34,18 @@ void main() {
         'lib/features/playlist/presentation/playlist_detail_screen.dart',
       ).readAsStringSync();
       expect(source, contains("case 'clear_favorites':"));
-      expect(source, contains('一键取消收藏'));
-      expect(source, contains('全部取消收藏'));
+      expect(source, contains('清空收藏'));
+      expect(source, contains('确认清空'));
+      expect(source, contains('清空收藏？'));
+      expect(source, isNot(contains('一键取消收藏')));
+      final itemBuilder = source.substring(
+        source.indexOf('itemBuilder: (context) {'),
+        source.indexOf('body: playlist.songCount == 0'),
+      );
+      expect(
+        itemBuilder.indexOf("value: 'clear_favorites'"),
+        greaterThan(itemBuilder.indexOf("value: 'sort_duration'")),
+      );
       expect(source, isNot(contains("case 'add_all_to_favorites':")));
       expect(source, isNot(contains('全部添加到收藏列表')));
     },
