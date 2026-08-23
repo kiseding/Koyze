@@ -294,14 +294,164 @@ iOS 真机打包仍需要在 Xcode 中配置签名、Bundle ID、证书和描述
 
 ## 云同步服务
 
-应用侧云同步客户端面向一个自建 Workers 服务：
+仓库内置了 Cloudflare Workers 后端工程，目录为 `workers/`。它只负责账号认证、云歌单 / 收藏、设置、自定义源和同步事件，不代理搜索、歌词或播放地址。
 
-1. 在「设置 → 云端账号 / 歌单」里配置 Workers 服务地址。
-2. 注册或登录账号。
-3. 登录后应用会同步收藏、歌单、设置和自定义音源。
-4. 网络恢复或 App 回到前台时，会自动尝试继续同步。
+应用侧接入方式：
 
-仓库当前未包含 Workers 服务端工程。如果要启用云同步，需要自行部署兼容应用接口的服务端，并在应用内填写服务地址。
+1. 部署 Workers API。
+2. 在 App 的「设置 → 云端账号 / 歌单」里填写服务地址，例如 `https://koyze-api.<account>.workers.dev`。
+3. 注册或登录账号。
+4. 登录后应用会同步收藏、普通歌单、设置和自定义音源。
+5. 网络恢复或 App 回到前台时，会自动尝试继续同步。
+
+### Workers 架构绑定
+
+`workers/wrangler.toml` 中需要以下 Cloudflare 资源绑定：
+
+| 绑定 | 类型 | 说明 |
+| --- | --- | --- |
+| `DB` | D1 Database | 用户、歌单、设置、同步状态和同步事件；数据库名默认 `koyze-api` |
+| `CACHE` | KV Namespace | schema ready 缓存、管理员初始化锁、JWT 旧密钥迁移等轻量状态 |
+| `RATE_LIMITER` | Durable Object | `RateLimiterDO`，用于登录、注册、导入等接口的 IP / 账号双维限流 |
+
+`wrangler.toml` 默认使用占位符：
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "koyze-api"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiterDO"
+```
+
+### Workers 环境变量 / Secrets
+
+#### 本地 wrangler 部署必需 Secret
+
+| Secret | 是否必需 | 说明 |
+| --- | --- | --- |
+| `ADMIN_USERNAME` | 必需 | 首个管理员账号用户名；服务首次登录 / 注册 / 校验时会尝试初始化管理员 |
+| `ADMIN_PASSWORD` | 必需 | 首个管理员账号密码；注册和改密要求 6–128 位 |
+
+本地写入方式：
+
+```bash
+cd workers
+npx wrangler secret put ADMIN_USERNAME
+npx wrangler secret put ADMIN_PASSWORD
+```
+
+#### 可选 Secret
+
+| Secret | 是否必需 | 说明 |
+| --- | --- | --- |
+| `TINYAPI_KEY` | 可选 | 网易云歌单导入可使用 TinyAPI；未设置时使用内置网易云导入逻辑 |
+| `PLAYER_PASSWORD` | 可选 / 兼容保留 | 代码中保留的旧播放器访问门禁字段；当前主流程不要求配置 |
+
+可选 Secret 设置方式相同：
+
+```bash
+npx wrangler secret put TINYAPI_KEY
+```
+
+#### GitHub Actions 自动部署必需 Secrets
+
+如果使用 `.github/workflows/deploy-workers.yml` 自动部署，需要在 GitHub 仓库设置以下 Secrets：
+
+| Secret | 说明 |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API Token，需要 Workers、D1、KV、Durable Objects 部署相关权限 |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
+| `D1_DATABASE_ID` | `npx wrangler d1 create koyze-api` 返回的 D1 数据库 ID |
+| `KV_NAMESPACE_ID` | `npx wrangler kv namespace create CACHE` 返回的 KV 命名空间 ID |
+| `ADMIN_USERNAME` | 管理员用户名，CI 部署后会写入 Workers Secret |
+| `ADMIN_PASSWORD` | 管理员密码，CI 部署后会写入 Workers Secret |
+
+CI 会用 `D1_DATABASE_ID` 和 `KV_NAMESPACE_ID` 替换 `wrangler.toml` 中的占位符，然后执行迁移、dry-run、正式部署、写入管理员 Secret，并做 `/api/health`、管理员登录和 Token 校验冒烟。
+
+### 首次本地部署
+
+```bash
+cd workers
+npm install
+
+# 1) 创建云资源，记录返回的 ID
+npx wrangler d1 create koyze-api
+npx wrangler kv namespace create CACHE
+
+# 2) 把 D1 / KV ID 填入 workers/wrangler.toml
+#    database_id = "<D1_DATABASE_ID>"
+#    id = "<KV_NAMESPACE_ID>"
+
+# 3) 执行 D1 迁移
+npx wrangler d1 migrations apply koyze-api --remote
+
+# 4) 写入管理员 Secret
+npx wrangler secret put ADMIN_USERNAME
+npx wrangler secret put ADMIN_PASSWORD
+
+# 5) 校验并部署
+npm run deploy
+```
+
+本地调试：
+
+```bash
+cd workers
+npm run dev
+```
+
+常用校验：
+
+```bash
+cd workers
+npm run typecheck
+npm test
+npm run validate
+```
+
+### 数据库迁移
+
+Workers schema 通过 `workers/migrations/` 管理。生产部署前执行：
+
+```bash
+cd workers
+npx wrangler d1 migrations apply koyze-api --remote
+```
+
+本地调试库执行：
+
+```bash
+cd workers
+npx wrangler d1 migrations apply koyze-api --local
+```
+
+未完成迁移时，除 `/api/ping` 和 `/api/version` 外的 `/api/*` 会返回 503，并提示服务尚未完成数据库迁移。
+
+### Workers API 范围
+
+后端主要接口包括：
+
+| 路径 | 说明 |
+| --- | --- |
+| `POST /api/user/register` | 注册账号 |
+| `POST /api/user/login` | 登录并返回 7 天 JWT |
+| `GET/POST /api/user/auth/verify` | 校验 Token |
+| `POST /api/user/password` | 修改密码并使旧 Token 失效 |
+| `GET/POST /api/user/list` | 拉取 / 提交收藏和歌单快照 |
+| `POST /api/user/love/add` / `POST /api/user/love/remove` | 收藏增量同步 |
+| `POST /api/music/playlist/import` | 导入 QQ / 酷我 / 网易云歌单并重匹配 |
+| `GET /api/sync/pull` / `POST /api/sync/push` | 同步事件拉取 / 推送 |
+| `GET /api/health` / `GET /api/version` / `GET /api/ping` | 健康检查和版本信息 |
+
 
 ## 数据与隐私
 
