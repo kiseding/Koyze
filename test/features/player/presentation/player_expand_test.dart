@@ -57,6 +57,19 @@ void main() {
     expect(lyric, contains('activeColor: accent'));
   });
 
+  test(
+    'playback queue uses clamping physics so sheet drag can close at top',
+    () {
+      final full = File(
+        'lib/features/player/presentation/player_screen.dart',
+      ).readAsStringSync();
+
+      expect(full, contains('showKoyzeSheet'));
+      expect(full, contains('controller: _queueScrollController'));
+      expect(full, contains('physics: const ClampingScrollPhysics()'));
+    },
+  );
+
   test('search sheet closes via default bottom-sheet animation', () {
     final sheet = File('lib/core/widgets/search_sheet.dart').readAsStringSync();
 

@@ -27,10 +27,13 @@ void main() {
     expect(more, isNot(contains('showModalBottomSheet')));
   });
 
-  test('playlist detail more menu does not host bulk favorites action', () {
+  test('playlist detail more menu exposes clear favorites action only there', () {
     final source = File(
       'lib/features/playlist/presentation/playlist_detail_screen.dart',
     ).readAsStringSync();
+    expect(source, contains("case 'clear_favorites':"));
+    expect(source, contains('一键取消收藏'));
+    expect(source, contains('全部取消收藏'));
     expect(source, isNot(contains("case 'add_all_to_favorites':")));
     expect(source, isNot(contains('全部添加到收藏列表')));
   });

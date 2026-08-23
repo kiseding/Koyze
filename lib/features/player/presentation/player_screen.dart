@@ -1531,6 +1531,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
           Positioned.fill(
             child: ListView.builder(
               controller: _queueScrollController,
+              physics: const ClampingScrollPhysics(),
               itemCount: queueItems.length,
               itemExtent: _queueTileHeight,
               padding: EdgeInsets.only(
@@ -1802,6 +1803,8 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                 children: [
                   Positioned.fill(
                     child: ListView.builder(
+                      controller: _queueScrollController,
+                      physics: const ClampingScrollPhysics(),
                       itemCount: queue.length,
                       itemExtent: _queueTileHeight,
                       padding: EdgeInsets.only(

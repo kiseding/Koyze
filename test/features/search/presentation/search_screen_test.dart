@@ -18,6 +18,14 @@ void main() {
     expect(source, isNot(contains('searchState.isLoading}')));
   });
 
+  test('search results use clamping scroll physics', () {
+    final source = File(
+      'lib/features/search/presentation/search_screen.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('physics: const ClampingScrollPhysics()'));
+  });
+
   testWidgets('search screen renders history and hot list', (tester) async {
     await tester.pumpWidget(
       ProviderScope(

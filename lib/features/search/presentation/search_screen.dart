@@ -469,6 +469,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return ListView.builder(
       key: ValueKey('results-${searchState.generation}'),
       controller: _scrollController,
+      physics: const ClampingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       itemCount: results.length + (searchState.hasMore ? 1 : 0) + leadingCount,
       itemBuilder: (context, index) {

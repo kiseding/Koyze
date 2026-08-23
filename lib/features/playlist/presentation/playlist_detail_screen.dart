@@ -303,6 +303,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             type: AppNotificationType.success,
                           );
                         }
+                      case 'clear_favorites':
+                        await _showClearFavoritesDialog(context, ref, playlist);
                       case 'edit':
                         _showEditDialog(context, ref, playlist);
                       case 'sort_name':
@@ -374,6 +376,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       PopupMenuItem(
                         value: 'favorite_all',
                         child: Text('收藏所有', style: TextStyle(color: on)),
+                      ),
+                    if (playlist.id == 'favorites' && playlist.songCount > 0)
+                      const PopupMenuItem(
+                        value: 'clear_favorites',
+                        child: Text(
+                          '一键取消收藏',
+                          style: TextStyle(color: AppColors.error),
+                        ),
                       ),
                     if (playlist.id != 'recent')
                       PopupMenuItem(
@@ -783,6 +793,68 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       nameFocus.dispose();
       descFocus.dispose();
     });
+  }
+
+  Future<void> _showClearFavoritesDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Playlist playlist,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.dialogBg(context),
+        title: Text(
+          '取消全部收藏？',
+          style: TextStyle(color: AppColors.onScaffold(context)),
+        ),
+        content: Text(
+          '将从收藏列表移除 ${playlist.songCount} 首歌曲，此操作不会删除歌单中的原歌曲。',
+          style: TextStyle(color: AppColors.secondaryText(context)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              '取消',
+              style: TextStyle(color: AppColors.mutedText(context)),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              '全部取消收藏',
+              style: TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final playlistService = ref.read(playlistServiceProvider);
+      final songs = await playlistService.getAllSongs('favorites');
+      final removed = await playlistService.removeSongsFromPlaylist(
+        'favorites',
+        songs.map((song) => song.identityKey),
+      );
+      if (!mounted) return;
+      setState(() {
+        _pageIndex = 0;
+        _pendingCenteredSongIndex = null;
+        _syncReorderedSongs(
+          playlist.copyWith(songs: const <MusicItem>[]),
+          force: true,
+        );
+      });
+      showAppNotification(
+        removed > 0 ? '已取消收藏 $removed 首歌曲' : '收藏列表已为空',
+        type: AppNotificationType.success,
+      );
+    } catch (error) {
+      _showMutationError('取消收藏失败', error);
+    }
   }
 
   void _showDeleteDialog(
