@@ -1397,12 +1397,16 @@ class _PlaybackQueueSheet extends ConsumerStatefulWidget {
 
 class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
   static const double _queueTileHeight = 56.0;
+  static const double _topPullToCloseThreshold = 72.0;
+  static const ScrollPhysics _queueScrollPhysics =
+      AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics());
 
   late int _pageIndex;
   final ScrollController _queueScrollController = ScrollController();
   int? _focusedPageForScroll;
   PlaylistSongPage? _displayedPage;
   int? _displayedPageIndex;
+  double _topOverscrollDistance = 0;
 
   @override
   void initState() {
@@ -1418,6 +1422,33 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
   void dispose() {
     _queueScrollController.dispose();
     super.dispose();
+  }
+
+  bool _handleQueueScrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    final metrics = notification.metrics;
+    final atTop = metrics.pixels <= metrics.minScrollExtent;
+    if (notification is OverscrollNotification && atTop) {
+      final overscroll = notification.overscroll;
+      if (overscroll < 0) {
+        _topOverscrollDistance += -overscroll;
+        if (_topOverscrollDistance >= _topPullToCloseThreshold) {
+          _topOverscrollDistance = 0;
+          Navigator.maybePop(context);
+        }
+      }
+    } else if (notification is ScrollEndNotification ||
+        notification is UserScrollNotification && !atTop) {
+      _topOverscrollDistance = 0;
+    }
+    return false;
+  }
+
+  Widget _wrapQueueScrollable(Widget child) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleQueueScrollNotification,
+      child: child,
+    );
   }
 
   int _lazyCurrentIndex() {
@@ -1530,70 +1561,72 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
       child: Stack(
         children: [
           Positioned.fill(
-            child: ListView.builder(
-              controller: _queueScrollController,
-              physics: const ClampingScrollPhysics(),
-              itemCount: queueItems.length,
-              itemExtent: _queueTileHeight,
-              padding: EdgeInsets.only(
-                bottom: range.pageCount > 1
-                    ? PageNavigationBar.listBottomPadding
-                    : 0,
-              ),
-              itemBuilder: (context, index) {
-                final item = queueItems[index];
-                final globalIndex = pageStart + index;
-                final isPlaying = globalIndex == currentIndex;
-                return ListTile(
-                  dense: true,
-                  minTileHeight: _queueTileHeight,
-                  leading: isPlaying
-                      ? Icon(
-                          Icons.play_arrow,
-                          color: AppColors.accentOf(context),
-                        )
-                      : Text(
-                          '${globalIndex + 1}',
-                          style: TextStyle(
-                            color: AppColors.mutedText(context),
-                            fontSize: 14,
+            child: _wrapQueueScrollable(
+              ListView.builder(
+                controller: _queueScrollController,
+                physics: _queueScrollPhysics,
+                itemCount: queueItems.length,
+                itemExtent: _queueTileHeight,
+                padding: EdgeInsets.only(
+                  bottom: range.pageCount > 1
+                      ? PageNavigationBar.listBottomPadding
+                      : 0,
+                ),
+                itemBuilder: (context, index) {
+                  final item = queueItems[index];
+                  final globalIndex = pageStart + index;
+                  final isPlaying = globalIndex == currentIndex;
+                  return ListTile(
+                    dense: true,
+                    minTileHeight: _queueTileHeight,
+                    leading: isPlaying
+                        ? Icon(
+                            Icons.play_arrow,
+                            color: AppColors.accentOf(context),
+                          )
+                        : Text(
+                            '${globalIndex + 1}',
+                            style: TextStyle(
+                              color: AppColors.mutedText(context),
+                              fontSize: 14,
+                            ),
                           ),
-                        ),
-                  title: Text(
-                    item.name,
-                    style: TextStyle(
-                      color: isPlaying
-                          ? AppColors.accentOf(context)
-                          : AppColors.onScaffold(context),
-                      fontSize: 14,
-                      fontWeight: isPlaying
-                          ? FontWeight.w600
-                          : FontWeight.normal,
+                    title: Text(
+                      item.name,
+                      style: TextStyle(
+                        color: isPlaying
+                            ? AppColors.accentOf(context)
+                            : AppColors.onScaffold(context),
+                        fontSize: 14,
+                        fontWeight: isPlaying
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    item.singer,
-                    style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
+                    subtitle: Text(
+                      item.singer,
+                      style: TextStyle(
+                        color: AppColors.mutedText(context),
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: FavoriteButton(
-                    song: item,
-                    isFavorite: favoriteIds.contains(item.identityKey),
-                  ),
-                  onTap: loading
-                      ? null
-                      : () async {
-                          await _playAt(globalIndex);
-                          if (context.mounted) Navigator.pop(context);
-                        },
-                );
-              },
+                    trailing: FavoriteButton(
+                      song: item,
+                      isFavorite: favoriteIds.contains(item.identityKey),
+                    ),
+                    onTap: loading
+                        ? null
+                        : () async {
+                            await _playAt(globalIndex);
+                            if (context.mounted) Navigator.pop(context);
+                          },
+                  );
+                },
+              ),
             ),
           ),
           if (loading)
@@ -1803,64 +1836,66 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: ListView.builder(
-                      controller: _queueScrollController,
-                      physics: const ClampingScrollPhysics(),
-                      itemCount: queue.length,
-                      itemExtent: _queueTileHeight,
-                      padding: EdgeInsets.only(
-                        bottom: range.pageCount > 1
-                            ? PageNavigationBar.listBottomPadding
-                            : 0,
-                      ),
-                      itemBuilder: (context, index) {
-                        final item = queue[index];
-                        final queueIndex = range.start + index;
-                        final isPlaying = queueIndex == currentIndex;
-                        return ListTile(
-                          dense: true,
-                          minTileHeight: _queueTileHeight,
-                          leading: isPlaying
-                              ? Icon(
-                                  Icons.play_arrow,
-                                  color: AppColors.accentOf(context),
-                                )
-                              : Text(
-                                  '${queueIndex + 1}',
-                                  style: TextStyle(
-                                    color: AppColors.mutedText(context),
-                                    fontSize: 14,
+                    child: _wrapQueueScrollable(
+                      ListView.builder(
+                        controller: _queueScrollController,
+                        physics: _queueScrollPhysics,
+                        itemCount: queue.length,
+                        itemExtent: _queueTileHeight,
+                        padding: EdgeInsets.only(
+                          bottom: range.pageCount > 1
+                              ? PageNavigationBar.listBottomPadding
+                              : 0,
+                        ),
+                        itemBuilder: (context, index) {
+                          final item = queue[index];
+                          final queueIndex = range.start + index;
+                          final isPlaying = queueIndex == currentIndex;
+                          return ListTile(
+                            dense: true,
+                            minTileHeight: _queueTileHeight,
+                            leading: isPlaying
+                                ? Icon(
+                                    Icons.play_arrow,
+                                    color: AppColors.accentOf(context),
+                                  )
+                                : Text(
+                                    '${queueIndex + 1}',
+                                    style: TextStyle(
+                                      color: AppColors.mutedText(context),
+                                      fontSize: 14,
+                                    ),
                                   ),
-                                ),
-                          title: Text(
-                            item.title,
-                            style: TextStyle(
-                              color: isPlaying
-                                  ? AppColors.accentOf(context)
-                                  : AppColors.onScaffold(context),
-                              fontSize: 14,
-                              fontWeight: isPlaying
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
+                            title: Text(
+                              item.title,
+                              style: TextStyle(
+                                color: isPlaying
+                                    ? AppColors.accentOf(context)
+                                    : AppColors.onScaffold(context),
+                                fontSize: 14,
+                                fontWeight: isPlaying
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            item.artist ?? '',
-                            style: TextStyle(
-                              color: AppColors.mutedText(context),
-                              fontSize: 12,
+                            subtitle: Text(
+                              item.artist ?? '',
+                              style: TextStyle(
+                                color: AppColors.mutedText(context),
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onTap: () async {
-                            await _playAt(queueIndex);
-                            if (context.mounted) Navigator.pop(context);
-                          },
-                        );
-                      },
+                            onTap: () async {
+                              await _playAt(queueIndex);
+                              if (context.mounted) Navigator.pop(context);
+                            },
+                          );
+                        },
+                      ),
                     ),
                   ),
                   if (hasMultiplePages)

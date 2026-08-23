@@ -66,7 +66,9 @@ void main() {
 
       expect(full, contains('showKoyzeSheet'));
       expect(full, contains('controller: _queueScrollController'));
-      expect(full, contains('physics: const ClampingScrollPhysics()'));
+      expect(full, contains('physics: _queueScrollPhysics'));
+      expect(full, contains('AlwaysScrollableScrollPhysics'));
+      expect(full, contains('_handleQueueScrollNotification'));
       expect(full, contains('final pageContext = context'));
       expect(full, contains('showPlaylistPicker(context: pageContext'));
     },
