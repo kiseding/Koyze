@@ -107,7 +107,12 @@ class _PlaylistPickerContentState
                     final shouldShow = !_showCreateField;
                     setState(() => _showCreateField = shouldShow);
                     if (shouldShow) {
-                      requestTextInput(context, _newPlaylistFocus);
+                      requestTextInput(
+                        context,
+                        _newPlaylistFocus,
+                        initialDelay: const Duration(milliseconds: 220),
+                        retryDelay: const Duration(milliseconds: 180),
+                      );
                     }
                   },
                 ),
@@ -130,7 +135,6 @@ class _PlaylistPickerContentState
                           child: TextField(
                             controller: _newPlaylistController,
                             focusNode: _newPlaylistFocus,
-                            autofocus: true,
                             textInputAction: TextInputAction.done,
                             style: TextStyle(
                               color: AppColors.onScaffold(context),

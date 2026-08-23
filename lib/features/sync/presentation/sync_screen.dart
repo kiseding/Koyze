@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/auto_text_input.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 import '../../cloud/domain/cloud_api_client.dart';
 import 'cloud_sync_provider.dart';
@@ -22,7 +21,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   final _passCtrl = TextEditingController();
   final _userFocus = FocusNode();
   final _passFocus = FocusNode();
-  bool _authKeyboardRequested = false;
   bool _isLoginMode = true;
   bool _busy = false;
   String? _message;
@@ -41,11 +39,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(cloudSessionProvider);
-    if (!session.loggedIn && !_authKeyboardRequested) {
-      _authKeyboardRequested = true;
-      requestTextInput(context, _userFocus);
-    }
-
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -228,7 +221,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             TextField(
               controller: _userCtrl,
               focusNode: _userFocus,
-              autofocus: true,
               textInputAction: TextInputAction.next,
               onSubmitted: (_) => _passFocus.requestFocus(),
               enableInteractiveSelection: true,
@@ -390,15 +382,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       text: ref.read(cloudSessionProvider).baseUrl ?? '',
     );
     final urlFocus = FocusNode();
-    var keyboardRequested = false;
     final url =
         await showDialog<String>(
           context: context,
           builder: (ctx) {
-            if (!keyboardRequested) {
-              keyboardRequested = true;
-              requestTextInput(ctx, urlFocus);
-            }
             return AlertDialog(
               backgroundColor: AppColors.dialogBg(context),
               title: Text(
@@ -409,7 +396,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 child: TextField(
                   controller: ctrl,
                   focusNode: urlFocus,
-                  autofocus: true,
                   keyboardType: TextInputType.url,
                   textInputAction: TextInputAction.done,
                   autocorrect: false,
@@ -584,15 +570,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         final p = TextEditingController();
                         final userFocus = FocusNode();
                         final passFocus = FocusNode();
-                        var keyboardRequested = false;
                         final credentials =
                             await showDialog<List<String>>(
                               context: ctx,
                               builder: (d) {
-                                if (!keyboardRequested) {
-                                  keyboardRequested = true;
-                                  requestTextInput(d, userFocus);
-                                }
                                 return AlertDialog(
                                   backgroundColor: AppColors.dialogBg(context),
                                   title: Text(
@@ -608,7 +589,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                         TextField(
                                           controller: u,
                                           focusNode: userFocus,
-                                          autofocus: true,
                                           textInputAction: TextInputAction.next,
                                           onSubmitted: (_) =>
                                               passFocus.requestFocus(),

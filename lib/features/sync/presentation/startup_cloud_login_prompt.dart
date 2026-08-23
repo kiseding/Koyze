@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/auto_text_input.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 
 const startupCloudLoginPromptSeenKey = 'startup_cloud_login_prompt_seen';
@@ -77,12 +76,6 @@ class _StartupCloudLoginPageState
   bool _register = false;
   bool _busy = false;
   String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    requestTextInput(context, _serverFocus);
-  }
 
   @override
   void dispose() {
@@ -169,7 +162,6 @@ class _StartupCloudLoginPageState
                   TextField(
                     controller: _serverCtrl,
                     focusNode: _serverFocus,
-                    autofocus: true,
                     keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.next,
                     autocorrect: false,

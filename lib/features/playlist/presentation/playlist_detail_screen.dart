@@ -705,7 +705,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       builder: (ctx) {
         if (!keyboardRequested) {
           keyboardRequested = true;
-          requestTextInput(ctx, nameFocus);
+          requestTextInput(
+            ctx,
+            nameFocus,
+            initialDelay: const Duration(milliseconds: 280),
+            retryDelay: const Duration(milliseconds: 220),
+          );
         }
         return AlertDialog(
           backgroundColor: AppColors.dialogBg(ctx),
@@ -719,7 +724,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               TextField(
                 controller: nameController,
                 focusNode: nameFocus,
-                autofocus: true,
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => descFocus.requestFocus(),
                 style: TextStyle(color: AppColors.onScaffold(ctx)),

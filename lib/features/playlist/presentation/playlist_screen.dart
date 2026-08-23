@@ -887,7 +887,12 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       builder: (dialogContext) {
         if (!keyboardRequested) {
           keyboardRequested = true;
-          requestTextInput(dialogContext, nameFocus);
+          requestTextInput(
+            dialogContext,
+            nameFocus,
+            initialDelay: const Duration(milliseconds: 280),
+            retryDelay: const Duration(milliseconds: 220),
+          );
         }
         return AlertDialog(
           backgroundColor: AppColors.dialogBg(dialogContext),
@@ -904,7 +909,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               TextField(
                 controller: nameController,
                 focusNode: nameFocus,
-                autofocus: true,
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => descFocus.requestFocus(),
                 style: TextStyle(color: AppColors.onScaffold(dialogContext)),
@@ -1000,7 +1004,12 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       builder: (ctx) {
         if (!keyboardRequested) {
           keyboardRequested = true;
-          requestTextInput(ctx, nameFocus);
+          requestTextInput(
+            ctx,
+            nameFocus,
+            initialDelay: const Duration(milliseconds: 280),
+            retryDelay: const Duration(milliseconds: 220),
+          );
         }
         return AlertDialog(
           backgroundColor: AppColors.dialogBg(ctx),
@@ -1017,7 +1026,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               TextField(
                 controller: nameController,
                 focusNode: nameFocus,
-                autofocus: true,
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => descFocus.requestFocus(),
                 style: TextStyle(color: AppColors.onScaffold(ctx)),
@@ -1197,7 +1205,12 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       builder: (ctx) {
         if (!keyboardRequested) {
           keyboardRequested = true;
-          requestTextInput(ctx, inputFocus);
+          requestTextInput(
+            ctx,
+            inputFocus,
+            initialDelay: const Duration(milliseconds: 280),
+            retryDelay: const Duration(milliseconds: 220),
+          );
         }
         return StatefulBuilder(
           builder: (ctx, setLocal) {
@@ -1320,7 +1333,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                             TextField(
                               controller: inputCtrl,
                               focusNode: inputFocus,
-                              autofocus: true,
                               keyboardType: TextInputType.url,
                               textInputAction: TextInputAction.done,
                               autocorrect: false,
