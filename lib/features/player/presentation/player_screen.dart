@@ -24,6 +24,16 @@ import '../../lyric/presentation/lyric_provider.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
 
+double _playbackQueueSheetInitialSize(BuildContext context, int itemCount) {
+  final screenHeight = MediaQuery.sizeOf(context).height;
+  if (screenHeight <= 0) return 0.58;
+  const headerHeight = 94.0;
+  const tileHeight = 56.0;
+  final visibleRows = itemCount <= 0 ? 1 : itemCount.clamp(1, 8);
+  final targetHeight = headerHeight + visibleRows * tileHeight;
+  return (targetHeight / screenHeight).clamp(0.28, 0.72).toDouble();
+}
+
 String _formatPlayerDuration(Duration d) {
   final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
   final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -1230,13 +1240,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     showKoyzeSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.dialogBg(context),
-      builder: (context) => _PlaybackQueueSheet(
-        queue: queue,
-        currentIndex: currentIndex,
-        playerService: playerService,
-        lazyPlaylistId: playerService.currentLazyPlaylistId,
-      ),
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final itemCount = playerService.currentLazyPlaylistSongCount > 0
+            ? playerService.currentLazyPlaylistSongCount
+            : queue.length;
+        final initialSize = _playbackQueueSheetInitialSize(context, itemCount);
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: initialSize,
+          minChildSize: 0.18,
+          maxChildSize: 0.92,
+          snap: true,
+          snapSizes: [initialSize, 0.92],
+          builder: (context, scrollController) => Material(
+            color: AppColors.dialogBg(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            clipBehavior: Clip.antiAlias,
+            child: _PlaybackQueueSheet(
+              queue: queue,
+              currentIndex: currentIndex,
+              playerService: playerService,
+              lazyPlaylistId: playerService.currentLazyPlaylistId,
+              dragScrollController: scrollController,
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1380,12 +1410,14 @@ class _PlaybackQueueSheet extends ConsumerStatefulWidget {
     required this.queue,
     required this.currentIndex,
     required this.playerService,
+    required this.dragScrollController,
     this.lazyPlaylistId,
   });
 
   final List<MediaItem> queue;
   final int currentIndex;
   final PlayerService playerService;
+  final ScrollController dragScrollController;
 
   /// 惰性分页歌单 ID；非空时展示完整歌单的分页列表。
   final String? lazyPlaylistId;
@@ -1397,16 +1429,12 @@ class _PlaybackQueueSheet extends ConsumerStatefulWidget {
 
 class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
   static const double _queueTileHeight = 56.0;
-  static const double _topPullToCloseThreshold = 72.0;
-  static const ScrollPhysics _queueScrollPhysics =
-      AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics());
 
   late int _pageIndex;
-  final ScrollController _queueScrollController = ScrollController();
+  ScrollController get _queueScrollController => widget.dragScrollController;
   int? _focusedPageForScroll;
   PlaylistSongPage? _displayedPage;
   int? _displayedPageIndex;
-  double _topOverscrollDistance = 0;
 
   @override
   void initState() {
@@ -1420,36 +1448,10 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
 
   @override
   void dispose() {
-    _queueScrollController.dispose();
     super.dispose();
   }
 
-  bool _handleQueueScrollNotification(ScrollNotification notification) {
-    if (notification.depth != 0) return false;
-    final metrics = notification.metrics;
-    final atTop = metrics.pixels <= metrics.minScrollExtent;
-    if (notification is OverscrollNotification && atTop) {
-      final overscroll = notification.overscroll;
-      if (overscroll < 0) {
-        _topOverscrollDistance += -overscroll;
-        if (_topOverscrollDistance >= _topPullToCloseThreshold) {
-          _topOverscrollDistance = 0;
-          Navigator.maybePop(context);
-        }
-      }
-    } else if (notification is ScrollEndNotification ||
-        notification is UserScrollNotification && !atTop) {
-      _topOverscrollDistance = 0;
-    }
-    return false;
-  }
-
-  Widget _wrapQueueScrollable(Widget child) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: _handleQueueScrollNotification,
-      child: child,
-    );
-  }
+  Widget _wrapQueueScrollable(Widget child) => child;
 
   int _lazyCurrentIndex() {
     final current = widget.playerService.mediaItem?.extras;
@@ -1541,7 +1543,6 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
     required int pageStart,
     required PageRange range,
     required int currentIndex,
-    required double screenHeight,
     required bool loading,
   }) {
     final queueItems = page.songs;
@@ -1553,18 +1554,13 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
       currentIndex,
       pageStart,
     );
-    final contentHeight = (queueItems.length * _queueTileHeight)
-        .clamp(0.0, screenHeight * 2 / 3)
-        .toDouble();
-    return SizedBox(
-      height: contentHeight,
+    return Expanded(
       child: Stack(
         children: [
           Positioned.fill(
             child: _wrapQueueScrollable(
               ListView.builder(
                 controller: _queueScrollController,
-                physics: _queueScrollPhysics,
                 itemCount: queueItems.length,
                 itemExtent: _queueTileHeight,
                 padding: EdgeInsets.only(
@@ -1661,7 +1657,6 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
     final currentIndex = playlistId != null
         ? _lazyCurrentIndex()
         : widget.currentIndex;
-    final screenHeight = MediaQuery.of(context).size.height;
 
     if (playlistId != null) {
       final lazySongCount = widget.playerService.currentLazyPlaylistSongCount;
@@ -1681,7 +1676,6 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
       return SafeArea(
         bottom: false,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               width: 32,
@@ -1719,9 +1713,8 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
               loading: () {
                 final page = _displayedPage;
                 if (page == null) {
-                  return SizedBox(
-                    height: screenHeight * 2 / 3,
-                    child: const Center(child: CircularProgressIndicator()),
+                  return const Expanded(
+                    child: Center(child: CircularProgressIndicator()),
                   );
                 }
                 final displayedIndex = _displayedPageIndex ?? range.pageIndex;
@@ -1731,19 +1724,27 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                   pageStart: displayedIndex * PageRange.defaultPageSize,
                   range: range,
                   currentIndex: currentIndex,
-                  screenHeight: screenHeight,
                   loading: true,
                 );
               },
-              error: (error, stackTrace) => _buildShortQueue(
-                context,
-                currentIndex,
-                screenHeight,
-                fallbackReason: error.toString(),
+              error: (error, stackTrace) => Expanded(
+                child: Center(
+                  child: Text(
+                    '完整列表加载失败，显示当前队列',
+                    style: TextStyle(color: AppColors.mutedText(context)),
+                  ),
+                ),
               ),
               data: (page) {
                 if (page.songs.isEmpty) {
-                  return _buildShortQueue(context, currentIndex, screenHeight);
+                  return Expanded(
+                    child: Center(
+                      child: Text(
+                        '播放列表为空',
+                        style: TextStyle(color: AppColors.mutedText(context)),
+                      ),
+                    ),
+                  );
                 }
                 _displayedPage = page;
                 _displayedPageIndex = range.pageIndex;
@@ -1753,7 +1754,6 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                   pageStart: range.start,
                   range: range,
                   currentIndex: currentIndex,
-                  screenHeight: screenHeight,
                   loading: false,
                 );
               },
@@ -1763,13 +1763,12 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
       );
     }
 
-    return _buildShortQueue(context, currentIndex, screenHeight);
+    return _buildShortQueue(context, currentIndex);
   }
 
   Widget _buildShortQueue(
     BuildContext context,
-    int currentIndex,
-    double screenHeight, {
+    int currentIndex, {
     String? fallbackReason,
   }) {
     final range = PageRange(
@@ -1779,14 +1778,10 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
     final queue = pageSlice(widget.queue, range);
     _scrollToCurrentIfNeeded(range.pageIndex, currentIndex, range.start);
     final hasMultiplePages = range.pageCount > 1;
-    final contentHeight = (queue.length * _queueTileHeight)
-        .clamp(0.0, screenHeight * 2 / 3)
-        .toDouble();
 
     return SafeArea(
       bottom: false,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 32,
@@ -1831,15 +1826,13 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
               ),
             )
           else
-            SizedBox(
-              height: contentHeight,
+            Expanded(
               child: Stack(
                 children: [
                   Positioned.fill(
                     child: _wrapQueueScrollable(
                       ListView.builder(
                         controller: _queueScrollController,
-                        physics: _queueScrollPhysics,
                         itemCount: queue.length,
                         itemExtent: _queueTileHeight,
                         padding: EdgeInsets.only(

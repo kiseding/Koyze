@@ -58,17 +58,27 @@ void main() {
   });
 
   test(
-    'playback queue uses clamping physics so sheet drag can close at top',
+    'playback queue uses draggable sheet so sheet drag tracks the finger',
     () {
       final full = File(
         'lib/features/player/presentation/player_screen.dart',
       ).readAsStringSync();
 
       expect(full, contains('showKoyzeSheet'));
+      expect(full, contains('DraggableScrollableSheet'));
+      expect(full, contains('dragScrollController: scrollController'));
       expect(full, contains('controller: _queueScrollController'));
-      expect(full, contains('physics: _queueScrollPhysics'));
-      expect(full, contains('AlwaysScrollableScrollPhysics'));
-      expect(full, contains('_handleQueueScrollNotification'));
+      expect(full, contains('snap: true'));
+      expect(full, isNot(contains('_handleQueueScrollNotification')));
+      expect(full, contains('backgroundColor: Colors.transparent'));
+      expect(full, contains('Material('));
+      expect(full, contains('color: AppColors.dialogBg(context)'));
+      expect(
+        full,
+        contains(
+          'borderRadius: const BorderRadius.vertical(top: Radius.circular(20))',
+        ),
+      );
       expect(full, contains('final pageContext = context'));
       expect(full, contains('showPlaylistPicker(context: pageContext'));
     },

@@ -27,56 +27,95 @@ void main() {
     expect(more, isNot(contains('showModalBottomSheet')));
   });
 
-  test('playlist detail more menu exposes clear favorites action only there', () {
+  test(
+    'playlist detail more menu exposes clear favorites action only there',
+    () {
+      final source = File(
+        'lib/features/playlist/presentation/playlist_detail_screen.dart',
+      ).readAsStringSync();
+      expect(source, contains("case 'clear_favorites':"));
+      expect(source, contains('一键取消收藏'));
+      expect(source, contains('全部取消收藏'));
+      expect(source, isNot(contains("case 'add_all_to_favorites':")));
+      expect(source, isNot(contains('全部添加到收藏列表')));
+    },
+  );
+
+  test('favorites detail supports long-press multi-select batch actions', () {
     final source = File(
       'lib/features/playlist/presentation/playlist_detail_screen.dart',
     ).readAsStringSync();
-    expect(source, contains("case 'clear_favorites':"));
-    expect(source, contains('一键取消收藏'));
-    expect(source, contains('全部取消收藏'));
-    expect(source, isNot(contains("case 'add_all_to_favorites':")));
-    expect(source, isNot(contains('全部添加到收藏列表')));
-  });
 
-  testWidgets('replaceAll removal shows missing playlist without stale actions',
-      (tester) async {
-    final now = DateTime.utc(2026);
-    final selected = Playlist(
-      id: 'selected',
-      name: 'Selected',
-      createdAt: now,
-      updatedAt: now,
+    expect(source, contains('onLongPress: isFavorites'));
+    expect(source, contains('_toggleFavoriteSelection(song)'));
+    expect(source, contains('已选 \${_selectedFavoriteIds.length} 首'));
+    expect(source, contains('_downloadSelectedFavorites'));
+    expect(source, contains('_removeSelectedFavorites'));
+    expect(
+      source,
+      contains('removeSongsFromPlaylist(playlist.id, selectedIds)'),
     );
-    final repository = _MemoryRepository(PlaylistSnapshot(
-      schemaVersion: 1,
-      playlists: [
-        Playlist(
-            id: 'favorites', name: 'Favorites', createdAt: now, updatedAt: now),
-        Playlist(id: 'recent', name: 'Recent', createdAt: now, updatedAt: now),
-        selected,
-      ],
-    ));
-    final container = ProviderContainer(overrides: [
-      playlistRepositoryProvider.overrideWithValue(repository),
-    ]);
-    addTearDown(container.dispose);
-    final service = container.read(playlistServiceProvider);
-    await service.init();
-
-    await tester.pumpWidget(UncontrolledProviderScope(
-      container: container,
-      child: MaterialApp(home: PlaylistDetailScreen(playlistId: selected.id)),
-    ));
-    expect(find.textContaining('Selected'), findsOneWidget);
-
-    await service.replaceAll(service.playlists
-        .where((playlist) => playlist.id != selected.id)
-        .toList());
-    await tester.pump();
-
-    expect(find.text('歌单不存在'), findsOneWidget);
-    expect(find.byIcon(Icons.more_vert), findsNothing);
+    expect(source, contains('ref.read(downloadSongProvider)'));
   });
+
+  testWidgets(
+    'replaceAll removal shows missing playlist without stale actions',
+    (tester) async {
+      final now = DateTime.utc(2026);
+      final selected = Playlist(
+        id: 'selected',
+        name: 'Selected',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final repository = _MemoryRepository(
+        PlaylistSnapshot(
+          schemaVersion: 1,
+          playlists: [
+            Playlist(
+              id: 'favorites',
+              name: 'Favorites',
+              createdAt: now,
+              updatedAt: now,
+            ),
+            Playlist(
+              id: 'recent',
+              name: 'Recent',
+              createdAt: now,
+              updatedAt: now,
+            ),
+            selected,
+          ],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [playlistRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final service = container.read(playlistServiceProvider);
+      await service.init();
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: PlaylistDetailScreen(playlistId: selected.id),
+          ),
+        ),
+      );
+      expect(find.textContaining('Selected'), findsOneWidget);
+
+      await service.replaceAll(
+        service.playlists
+            .where((playlist) => playlist.id != selected.id)
+            .toList(),
+      );
+      await tester.pump();
+
+      expect(find.text('歌单不存在'), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+    },
+  );
 }
 
 final class _MemoryRepository implements PlaylistRepository {

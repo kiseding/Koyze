@@ -11,6 +11,7 @@ import '../../../core/widgets/page_navigation_bar.dart';
 import '../domain/playlist.dart';
 import 'playlist_occurrence.dart';
 import 'playlist_provider.dart';
+import '../../download/presentation/download_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
@@ -40,6 +41,16 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   bool _initialFocusStarted = false;
   int? _pendingCenteredSongIndex;
   int _pageIndex = 0;
+  final Set<String> _selectedFavoriteIds = {};
+  bool _selectionBusy = false;
+
+  @override
+  void didUpdateWidget(covariant PlaylistDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.playlistId != widget.playlistId) {
+      _selectedFavoriteIds.clear();
+    }
+  }
 
   @override
   void dispose() {
@@ -182,6 +193,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     }
     _prepareInitialFocus(playlist, playerService);
     final range = _pageRangeFor(playlist.songCount);
+    final isFavorites = playlist.id == 'favorites';
+    final isSelectionMode = isFavorites && _selectedFavoriteIds.isNotEmpty;
     final songsPage = !_isEditing && playlist.songCount > 0
         ? ref.watch(
             playlistSongsPageProvider(
@@ -208,14 +221,28 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             background: Theme.of(context).scaffoldBackgroundColor,
           ),
           leading: FxIconButton(
-            tooltip: _isEditing ? '取消编辑' : '返回',
+            tooltip: isSelectionMode
+                ? '退出多选'
+                : _isEditing
+                ? '取消编辑'
+                : '返回',
             icon: AnimatedIconSwitch(
-              icon: _isEditing ? Icons.close : Icons.arrow_back,
-              keyValue: _isEditing ? Icons.close : Icons.arrow_back,
+              icon: isSelectionMode
+                  ? Icons.close
+                  : _isEditing
+                  ? Icons.close
+                  : Icons.arrow_back,
+              keyValue: isSelectionMode
+                  ? Icons.close
+                  : _isEditing
+                  ? Icons.close
+                  : Icons.arrow_back,
               color: AppColors.onScaffold(context),
             ),
             onPressed: () {
-              if (_isEditing) {
+              if (isSelectionMode) {
+                setState(_selectedFavoriteIds.clear);
+              } else if (_isEditing) {
                 setState(() {
                   _isEditing = false;
                   _syncReorderedSongs(playlist, force: true);
@@ -226,7 +253,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             },
           ),
           title: Text(
-            _isEditing ? '编辑歌单' : '${playlist.name}（${playlist.songCount}首）',
+            isSelectionMode
+                ? '已选 ${_selectedFavoriteIds.length} 首'
+                : _isEditing
+                ? '编辑歌单'
+                : '${playlist.name}（${playlist.songCount}首）',
             style: TextStyle(
               color: AppColors.onScaffold(context),
               fontSize: 18,
@@ -235,7 +266,26 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             overflow: TextOverflow.ellipsis,
           ),
           actions: [
-            if (!_isEditing && playlist.songCount > 0)
+            if (isSelectionMode) ...[
+              FxIconButton(
+                tooltip: '下载已选歌曲',
+                onPressed: _selectionBusy
+                    ? null
+                    : () => _downloadSelectedFavorites(playlist),
+                icon: Icon(
+                  Icons.download_outlined,
+                  color: AppColors.accentOf(context),
+                ),
+              ),
+              FxIconButton(
+                tooltip: '取消收藏已选歌曲',
+                onPressed: _selectionBusy
+                    ? null
+                    : () => _removeSelectedFavorites(playlist),
+                icon: const Icon(Icons.favorite_border),
+                color: AppColors.error,
+              ),
+            ] else if (!_isEditing && playlist.songCount > 0)
               FxIconButton(
                 tooltip: '播放全部',
                 onPressed: () => _playSong(playerService, playlist, 0),
@@ -245,7 +295,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   size: 28,
                 ),
               ),
-            if (_isEditing)
+            if (!isSelectionMode && _isEditing)
               TextButton(
                 onPressed: () async {
                   try {
@@ -267,7 +317,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   style: TextStyle(color: AppColors.accentOf(context)),
                 ),
               )
-            else
+            else if (!isSelectionMode)
               PopupMenuButton<String>(
                 icon: Icon(
                   Icons.more_vert,
@@ -435,6 +485,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   page.songs,
                   range,
                   focusId,
+                  isFavorites: isFavorites,
+                  isSelectionMode: isSelectionMode,
                 ),
                 loading: () => _buildPageLoading(range),
                 error: (error, _) => Center(child: Text('加载歌曲失败: $error')),
@@ -509,8 +561,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     Playlist playlist,
     List<MusicItem> songs,
     PageRange range,
-    String? focusId,
-  ) {
+    String? focusId, {
+    required bool isFavorites,
+    required bool isSelectionMode,
+  }) {
     _centerInitialSong(range);
     // 页面级一次性读取收藏集合，行内直接查 Set，避免滚动时每行创建异步查询。
     final favoriteIds =
@@ -538,40 +592,59 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               final song = songs[index];
               final songIndex = range.start + index;
               final focused = focusId != null && song.id == focusId;
+              final selected = _selectedFavoriteIds.contains(song.identityKey);
               return Container(
-                color: focused
+                color: selected
+                    ? AppColors.accentOf(context).withAlpha(34)
+                    : focused
                     ? AppColors.accentOf(context).withAlpha(28)
                     : null,
                 child: ListTile(
-                  onTap: () => _playSong(playerService, playlist, songIndex),
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: song.artwork != null && song.artwork!.isNotEmpty
-                          ? ArtworkImage(
-                              song.artwork!,
-                              fit: BoxFit.cover,
-                              cacheWidth: 96,
-                              errorBuilder: (_, __, ___) => Icon(
-                                Icons.music_note,
-                                color: AppColors.mutedText(context),
-                              ),
-                            )
-                          : Icon(
-                              Icons.music_note,
-                              color: AppColors.mutedText(context),
-                            ),
-                    ),
-                  ),
+                  selected: selected,
+                  selectedTileColor: AppColors.accentOf(context).withAlpha(34),
+                  onLongPress: isFavorites
+                      ? () => _toggleFavoriteSelection(song)
+                      : null,
+                  onTap: isSelectionMode
+                      ? () => _toggleFavoriteSelection(song)
+                      : () => _playSong(playerService, playlist, songIndex),
+                  leading: isSelectionMode
+                      ? Checkbox(
+                          value: selected,
+                          activeColor: AppColors.accentOf(context),
+                          onChanged: (_) => _toggleFavoriteSelection(song),
+                        )
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child:
+                                song.artwork != null && song.artwork!.isNotEmpty
+                                ? ArtworkImage(
+                                    song.artwork!,
+                                    fit: BoxFit.cover,
+                                    cacheWidth: 96,
+                                    errorBuilder: (_, __, ___) => Icon(
+                                      Icons.music_note,
+                                      color: AppColors.mutedText(context),
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.music_note,
+                                    color: AppColors.mutedText(context),
+                                  ),
+                          ),
+                        ),
                   title: Text(
                     song.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: AppColors.onScaffold(context),
-                      fontWeight: focused ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: focused || selected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                     ),
                   ),
                   subtitle: Text(
@@ -583,70 +656,79 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       fontSize: 12,
                     ),
                   ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 收藏按钮与更多按钮分开，留出呼吸感避免误触。
-                      FavoriteButton(
-                        song: song,
-                        isFavorite: favoriteIds.contains(song.identityKey),
-                      ),
-                      FxIconButton(
-                        tooltip: '更多操作',
-                        icon: Icon(
-                          Icons.more_vert,
-                          color: AppColors.mutedText(context),
-                          size: 20,
-                        ),
-                        onPressed: () {
-                          showKoyzeSheet(
-                            context: context,
-                            backgroundColor: AppColors.dialogBg(context),
-                            builder: (ctx) => SafeArea(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ListTile(
-                                    leading: const Icon(Icons.play_arrow),
-                                    title: const Text('播放'),
-                                    onTap: () {
-                                      Navigator.pop(ctx);
-                                      _playSong(
-                                        playerService,
-                                        playlist,
-                                        songIndex,
-                                      );
-                                    },
-                                  ),
-                                  ListTile(
-                                    leading: const Icon(Icons.delete_outline),
-                                    title: const Text('从歌单移除'),
-                                    onTap: () async {
-                                      try {
-                                        await ref
-                                            .read(playlistServiceProvider)
-                                            .removeSongOccurrence(
-                                              playlist.id,
-                                              songIndex,
-                                            );
-                                      } catch (error) {
-                                        if (mounted) {
-                                          _showMutationError('移除失败', error);
-                                        }
-                                        return;
-                                      }
-                                      if (!ctx.mounted) return;
-                                      Navigator.pop(ctx);
-                                    },
-                                  ),
-                                ],
+                  trailing: isSelectionMode
+                      ? null
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // 收藏按钮与更多按钮分开，留出呼吸感避免误触。
+                            FavoriteButton(
+                              song: song,
+                              isFavorite: favoriteIds.contains(
+                                song.identityKey,
                               ),
                             ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                            FxIconButton(
+                              tooltip: '更多操作',
+                              icon: Icon(
+                                Icons.more_vert,
+                                color: AppColors.mutedText(context),
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                showKoyzeSheet(
+                                  context: context,
+                                  backgroundColor: AppColors.dialogBg(context),
+                                  builder: (ctx) => SafeArea(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        ListTile(
+                                          leading: const Icon(Icons.play_arrow),
+                                          title: const Text('播放'),
+                                          onTap: () {
+                                            Navigator.pop(ctx);
+                                            _playSong(
+                                              playerService,
+                                              playlist,
+                                              songIndex,
+                                            );
+                                          },
+                                        ),
+                                        ListTile(
+                                          leading: const Icon(
+                                            Icons.delete_outline,
+                                          ),
+                                          title: const Text('从歌单移除'),
+                                          onTap: () async {
+                                            try {
+                                              await ref
+                                                  .read(playlistServiceProvider)
+                                                  .removeSongOccurrence(
+                                                    playlist.id,
+                                                    songIndex,
+                                                  );
+                                            } catch (error) {
+                                              if (mounted) {
+                                                _showMutationError(
+                                                  '移除失败',
+                                                  error,
+                                                );
+                                              }
+                                              return;
+                                            }
+                                            if (!ctx.mounted) return;
+                                            Navigator.pop(ctx);
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                 ),
               );
             },
@@ -675,6 +757,71 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         ),
       ],
     );
+  }
+
+  void _toggleFavoriteSelection(MusicItem song) {
+    setState(() {
+      if (!_selectedFavoriteIds.add(song.identityKey)) {
+        _selectedFavoriteIds.remove(song.identityKey);
+      }
+    });
+  }
+
+  Future<List<MusicItem>> _selectedFavoriteSongs(Playlist playlist) async {
+    final selectedIds = Set<String>.from(_selectedFavoriteIds);
+    if (selectedIds.isEmpty) return const [];
+    final songs = await ref
+        .read(playlistServiceProvider)
+        .getAllSongs(playlist.id);
+    return songs
+        .where((song) => selectedIds.contains(song.identityKey))
+        .toList(growable: false);
+  }
+
+  Future<void> _downloadSelectedFavorites(Playlist playlist) async {
+    if (_selectedFavoriteIds.isEmpty || _selectionBusy) return;
+    setState(() => _selectionBusy = true);
+    try {
+      final songs = await _selectedFavoriteSongs(playlist);
+      final download = ref.read(downloadSongProvider);
+      for (final song in songs) {
+        await download(song);
+      }
+      if (!mounted) return;
+      showAppNotification(
+        songs.isEmpty ? '没有可下载的已选歌曲' : '已添加 ${songs.length} 首到下载队列',
+        type: songs.isEmpty
+            ? AppNotificationType.info
+            : AppNotificationType.success,
+      );
+    } catch (error) {
+      _showMutationError('添加下载失败', error);
+    } finally {
+      if (mounted) setState(() => _selectionBusy = false);
+    }
+  }
+
+  Future<void> _removeSelectedFavorites(Playlist playlist) async {
+    if (_selectedFavoriteIds.isEmpty || _selectionBusy) return;
+    final selectedIds = _selectedFavoriteIds.toList(growable: false);
+    setState(() => _selectionBusy = true);
+    try {
+      final removed = await ref
+          .read(playlistServiceProvider)
+          .removeSongsFromPlaylist(playlist.id, selectedIds);
+      if (!mounted) return;
+      setState(() => _selectedFavoriteIds.removeAll(selectedIds));
+      showAppNotification(
+        removed > 0 ? '已取消收藏 $removed 首歌曲' : '没有可取消收藏的已选歌曲',
+        type: removed > 0
+            ? AppNotificationType.success
+            : AppNotificationType.info,
+      );
+    } catch (error) {
+      _showMutationError('取消收藏失败', error);
+    } finally {
+      if (mounted) setState(() => _selectionBusy = false);
+    }
   }
 
   Future<void> _playSong(
