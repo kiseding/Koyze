@@ -51,6 +51,10 @@ void main() {
     expect(source, contains('已选 \${_selectedFavoriteIds.length} 首'));
     expect(source, contains('_downloadSelectedFavorites'));
     expect(source, contains('_removeSelectedFavorites'));
+    expect(source, contains('_toggleAllFavoriteSelection'));
+    expect(source, contains("tooltip: isAllFavoritesSelected ? '取消全选' : '全选'"));
+    expect(source, contains('Icons.select_all'));
+    expect(source, contains('Icons.deselect'));
     expect(
       source,
       contains('removeSongsFromPlaylist(playlist.id, selectedIds)'),

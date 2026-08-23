@@ -195,6 +195,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final range = _pageRangeFor(playlist.songCount);
     final isFavorites = playlist.id == 'favorites';
     final isSelectionMode = isFavorites && _selectedFavoriteIds.isNotEmpty;
+    final isAllFavoritesSelected =
+        isSelectionMode &&
+        playlist.songCount > 0 &&
+        _selectedFavoriteIds.length >= playlist.songCount;
     final songsPage = !_isEditing && playlist.songCount > 0
         ? ref.watch(
             playlistSongsPageProvider(
@@ -267,6 +271,19 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ),
           actions: [
             if (isSelectionMode) ...[
+              FxIconButton(
+                tooltip: isAllFavoritesSelected ? '取消全选' : '全选',
+                onPressed: _selectionBusy
+                    ? null
+                    : () => _toggleAllFavoriteSelection(
+                        playlist,
+                        allSelected: isAllFavoritesSelected,
+                      ),
+                icon: Icon(
+                  isAllFavoritesSelected ? Icons.deselect : Icons.select_all,
+                  color: AppColors.accentOf(context),
+                ),
+              ),
               FxIconButton(
                 tooltip: '下载已选歌曲',
                 onPressed: _selectionBusy
@@ -765,6 +782,34 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         _selectedFavoriteIds.remove(song.identityKey);
       }
     });
+  }
+
+  Future<void> _toggleAllFavoriteSelection(
+    Playlist playlist, {
+    required bool allSelected,
+  }) async {
+    if (_selectionBusy) return;
+    if (allSelected) {
+      setState(_selectedFavoriteIds.clear);
+      return;
+    }
+
+    setState(() => _selectionBusy = true);
+    try {
+      final songs = await ref
+          .read(playlistServiceProvider)
+          .getAllSongs(playlist.id);
+      if (!mounted) return;
+      setState(() {
+        _selectedFavoriteIds
+          ..clear()
+          ..addAll(songs.map((song) => song.identityKey));
+      });
+    } catch (error) {
+      _showMutationError('全选失败', error);
+    } finally {
+      if (mounted) setState(() => _selectionBusy = false);
+    }
   }
 
   Future<List<MusicItem>> _selectedFavoriteSongs(Playlist playlist) async {
