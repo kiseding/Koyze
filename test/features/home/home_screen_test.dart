@@ -13,6 +13,7 @@ void main() {
     expect(source, isNot(contains('免费的音乐查找助手')));
     expect(source, contains('随机播放收藏'));
     expect(source, contains('playPagedPlaylist'));
+    expect(source, contains('captureExpandRect: true'));
     expect(source, contains('setShuffleMode(true)'));
     expect(source, contains('LayoutBuilder'));
     // 自定义源与云端同步已从快捷网格移除；主题用调色板图标区分睡眠定时。
@@ -43,7 +44,7 @@ void main() {
     expect(search, contains('autofocusDelay'));
     expect(search, contains('Timer(delay'));
     // 弹窗可下拉关闭，无需返回按钮。
-    expect(search, isNot(contains("Icons.arrow_back")));
+    expect(search, isNot(contains('Icons.arrow_back')));
     // 左右滑入动效。
     expect(search, contains('Offset(-40 * (1 - t), 0)'));
     expect(search, contains('Offset(40 * (1 - t), 0)'));
@@ -66,7 +67,7 @@ void main() {
 
     expect(source, contains('class LeaderboardScreen'));
     expect(source, isNot(contains('TabBar')));
-    expect(source, contains("Icons.play_arrow_rounded"));
+    expect(source, contains('Icons.play_arrow_rounded'));
     expect(source, contains('/leaderboard/detail'));
   });
 
@@ -75,7 +76,7 @@ void main() {
       'lib/features/home/presentation/main_scaffold.dart',
     ).readAsStringSync();
 
-    expect(source, contains("Icons.leaderboard_outlined"));
+    expect(source, contains('Icons.leaderboard_outlined'));
     expect(source, contains("'榜单'"));
     expect(source, contains('BoxConstraints(minHeight: 48)'));
     expect(source, contains('(textScale - 1) * 20'));

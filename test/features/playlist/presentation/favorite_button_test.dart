@@ -33,8 +33,9 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('favoriteIdsProvider'));
-    expect(source, contains('isFavorite: favoriteIds.contains('));
-    expect(source, contains('song.identityKey'));
+    expect(source, contains('isFavorite:'));
+    expect(source, contains('isFavorites ||'));
+    expect(source, contains('favoriteIds.contains(song.identityKey)'));
   });
 
   test('playlist detail uses a gradient top bar and floating pagination', () {

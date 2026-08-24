@@ -590,171 +590,185 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }) {
     _centerInitialSong(range);
     // 页面级一次性读取收藏集合，行内直接查 Set，避免滚动时每行创建异步查询。
-    final favoriteIds =
-        ref.watch(favoriteIdsProvider).valueOrNull ?? const <String>{};
+    final favoriteIds = isFavorites
+        ? const <String>{}
+        : ref.watch(favoriteIdsProvider).valueOrNull ?? const <String>{};
     // 列表全屏可滚动到栏内部；顶部/底部预留栏空间，滚动时才进入渐变区。
     final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Stack(
       children: [
         Positioned.fill(
-          child: ListView.builder(
-            controller: _scrollController,
-            itemExtent: 72,
-            itemCount: songs.length,
-            padding: EdgeInsets.only(
-              top: topInset,
-              // 页码栏是悬浮控件，列表继续延伸到屏幕底部。
-              bottom:
-                  bottomInset +
-                  (range.pageCount > 1
-                      ? PageNavigationBar.listBottomPadding
-                      : 0),
-            ),
-            itemBuilder: (context, index) {
-              final song = songs[index];
-              final songIndex = range.start + index;
-              final focused = focusId != null && song.id == focusId;
-              final selected = _selectedFavoriteIds.contains(song.identityKey);
-              return Container(
-                color: selected
-                    ? AppColors.accentOf(context).withAlpha(34)
-                    : focused
-                    ? AppColors.accentOf(context).withAlpha(28)
-                    : null,
-                child: ListTile(
-                  selected: selected,
-                  selectedTileColor: AppColors.accentOf(context).withAlpha(34),
-                  onLongPress: isFavorites
-                      ? () => _toggleFavoriteSelection(song)
+          child: RepaintBoundary(
+            child: ListView.builder(
+              controller: _scrollController,
+              itemExtent: 72,
+              itemCount: songs.length,
+              padding: EdgeInsets.only(
+                top: topInset,
+                // 页码栏是悬浮控件，列表继续延伸到屏幕底部。
+                bottom:
+                    bottomInset +
+                    (range.pageCount > 1
+                        ? PageNavigationBar.listBottomPadding
+                        : 0),
+              ),
+              itemBuilder: (context, index) {
+                final song = songs[index];
+                final songIndex = range.start + index;
+                final focused = focusId != null && song.id == focusId;
+                final selected = _selectedFavoriteIds.contains(
+                  song.identityKey,
+                );
+                return Container(
+                  color: selected
+                      ? AppColors.accentOf(context).withAlpha(34)
+                      : focused
+                      ? AppColors.accentOf(context).withAlpha(28)
                       : null,
-                  onTap: isSelectionMode
-                      ? () => _toggleFavoriteSelection(song)
-                      : () => _playSong(playerService, playlist, songIndex),
-                  leading: isSelectionMode
-                      ? Checkbox(
-                          value: selected,
-                          activeColor: AppColors.accentOf(context),
-                          onChanged: (_) => _toggleFavoriteSelection(song),
-                        )
-                      : ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: SizedBox(
-                            width: 48,
-                            height: 48,
-                            child:
-                                song.artwork != null && song.artwork!.isNotEmpty
-                                ? ArtworkImage(
-                                    song.artwork!,
-                                    fit: BoxFit.cover,
-                                    cacheWidth: 96,
-                                    errorBuilder: (_, __, ___) => Icon(
+                  child: ListTile(
+                    selected: selected,
+                    selectedTileColor: AppColors.accentOf(
+                      context,
+                    ).withAlpha(34),
+                    onLongPress: isFavorites
+                        ? () => _toggleFavoriteSelection(song)
+                        : null,
+                    onTap: isSelectionMode
+                        ? () => _toggleFavoriteSelection(song)
+                        : () => _playSong(playerService, playlist, songIndex),
+                    leading: isSelectionMode
+                        ? Checkbox(
+                            value: selected,
+                            activeColor: AppColors.accentOf(context),
+                            onChanged: (_) => _toggleFavoriteSelection(song),
+                          )
+                        : ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              width: 48,
+                              height: 48,
+                              child:
+                                  song.artwork != null &&
+                                      song.artwork!.isNotEmpty
+                                  ? ArtworkImage(
+                                      song.artwork!,
+                                      fit: BoxFit.cover,
+                                      cacheWidth: 96,
+                                      errorBuilder: (_, __, ___) => Icon(
+                                        Icons.music_note,
+                                        color: AppColors.mutedText(context),
+                                      ),
+                                    )
+                                  : Icon(
                                       Icons.music_note,
                                       color: AppColors.mutedText(context),
                                     ),
-                                  )
-                                : Icon(
-                                    Icons.music_note,
-                                    color: AppColors.mutedText(context),
-                                  ),
+                            ),
                           ),
-                        ),
-                  title: Text(
-                    song.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.onScaffold(context),
-                      fontWeight: focused || selected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                    title: Text(
+                      song.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.onScaffold(context),
+                        fontWeight: focused || selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  subtitle: Text(
-                    song.singer,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
+                    subtitle: Text(
+                      song.singer,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.mutedText(context),
+                        fontSize: 12,
+                      ),
                     ),
-                  ),
-                  trailing: isSelectionMode
-                      ? null
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // 收藏按钮与更多按钮分开，留出呼吸感避免误触。
-                            FavoriteButton(
-                              song: song,
-                              isFavorite: favoriteIds.contains(
-                                song.identityKey,
+                    trailing: isSelectionMode
+                        ? null
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // 收藏按钮与更多按钮分开，留出呼吸感避免误触。
+                              FavoriteButton(
+                                song: song,
+                                isFavorite:
+                                    isFavorites ||
+                                    favoriteIds.contains(song.identityKey),
                               ),
-                            ),
-                            FxIconButton(
-                              tooltip: '更多操作',
-                              icon: Icon(
-                                Icons.more_vert,
-                                color: AppColors.mutedText(context),
-                                size: 20,
-                              ),
-                              onPressed: () {
-                                showKoyzeSheet(
-                                  context: context,
-                                  backgroundColor: AppColors.dialogBg(context),
-                                  builder: (ctx) => SafeArea(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        ListTile(
-                                          leading: const Icon(Icons.play_arrow),
-                                          title: const Text('播放'),
-                                          onTap: () {
-                                            Navigator.pop(ctx);
-                                            _playSong(
-                                              playerService,
-                                              playlist,
-                                              songIndex,
-                                            );
-                                          },
-                                        ),
-                                        ListTile(
-                                          leading: const Icon(
-                                            Icons.delete_outline,
-                                          ),
-                                          title: const Text('从歌单移除'),
-                                          onTap: () async {
-                                            try {
-                                              await ref
-                                                  .read(playlistServiceProvider)
-                                                  .removeSongOccurrence(
-                                                    playlist.id,
-                                                    songIndex,
-                                                  );
-                                            } catch (error) {
-                                              if (mounted) {
-                                                _showMutationError(
-                                                  '移除失败',
-                                                  error,
-                                                );
-                                              }
-                                              return;
-                                            }
-                                            if (!ctx.mounted) return;
-                                            Navigator.pop(ctx);
-                                          },
-                                        ),
-                                      ],
+                              FxIconButton(
+                                tooltip: '更多操作',
+                                icon: Icon(
+                                  Icons.more_vert,
+                                  color: AppColors.mutedText(context),
+                                  size: 20,
+                                ),
+                                onPressed: () {
+                                  showKoyzeSheet(
+                                    context: context,
+                                    backgroundColor: AppColors.dialogBg(
+                                      context,
                                     ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                ),
-              );
-            },
+                                    builder: (ctx) => SafeArea(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          ListTile(
+                                            leading: const Icon(
+                                              Icons.play_arrow,
+                                            ),
+                                            title: const Text('播放'),
+                                            onTap: () {
+                                              Navigator.pop(ctx);
+                                              _playSong(
+                                                playerService,
+                                                playlist,
+                                                songIndex,
+                                              );
+                                            },
+                                          ),
+                                          ListTile(
+                                            leading: const Icon(
+                                              Icons.delete_outline,
+                                            ),
+                                            title: const Text('从歌单移除'),
+                                            onTap: () async {
+                                              try {
+                                                await ref
+                                                    .read(
+                                                      playlistServiceProvider,
+                                                    )
+                                                    .removeSongOccurrence(
+                                                      playlist.id,
+                                                      songIndex,
+                                                    );
+                                              } catch (error) {
+                                                if (mounted) {
+                                                  _showMutationError(
+                                                    '移除失败',
+                                                    error,
+                                                  );
+                                                }
+                                                return;
+                                              }
+                                              if (!ctx.mounted) return;
+                                              Navigator.pop(ctx);
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
         // 底栏悬浮在列表之上（栏高度不变），列表可滚动到栏内部。

@@ -167,6 +167,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return HoverFloat(
       child: Pressable(
         borderRadius: BorderRadius.circular(18),
+        captureExpandRect: true,
         onTap: () => context.pushNamed(
           'playlistDetail',
           pathParameters: {'playlistId': 'favorites'},
@@ -197,14 +198,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   color: onAccent.withAlpha(36),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(Icons.favorite, color: onAccent, size: 30),
+                child: const Icon(Icons.favorite, color: onAccent, size: 30),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       '收藏列表',
                       style: TextStyle(
                         color: onAccent,
@@ -238,7 +239,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     color: onAccent.withAlpha(40),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.shuffle, color: onAccent, size: 26),
+                  child: const Icon(Icons.shuffle, color: onAccent, size: 26),
                 ),
               ),
             ],

@@ -246,18 +246,19 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
 
   @override
   Widget build(BuildContext context) {
+    final overlayBox =
+        Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
+    final sourceTopLeft =
+        overlayBox?.globalToLocal(widget.sourceGlobalRect.topLeft) ??
+        widget.sourceGlobalRect.topLeft;
+    final sourceRect = sourceTopLeft & widget.sourceGlobalRect.size;
+    final targetRect = Offset.zero & MediaQuery.sizeOf(context);
+    final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
+
     return AnimatedBuilder(
       animation: widget.animation,
-      child: widget.child,
+      child: RepaintBoundary(child: widget.child),
       builder: (context, child) {
-        final overlayBox =
-            Navigator.of(context).overlay?.context.findRenderObject()
-                as RenderBox?;
-        final sourceTopLeft =
-            overlayBox?.globalToLocal(widget.sourceGlobalRect.topLeft) ??
-            widget.sourceGlobalRect.topLeft;
-        final sourceRect = sourceTopLeft & widget.sourceGlobalRect.size;
-        final targetRect = Offset.zero & MediaQuery.sizeOf(context);
         final t = widget.animation.value;
         final rectT = MotionCurve.easeOut.transform(t);
         final surfaceT = (t / 0.22).clamp(0.0, 1.0);
@@ -278,9 +279,7 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                   children: [
                     Opacity(
                       opacity: surfaceT,
-                      child: ColoredBox(
-                        color: Theme.of(context).scaffoldBackgroundColor,
-                      ),
+                      child: ColoredBox(color: backgroundColor),
                     ),
                     if (widget.sourceSnapshot != null)
                       Opacity(
