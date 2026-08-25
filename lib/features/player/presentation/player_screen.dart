@@ -853,25 +853,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeInCubic,
                   layoutBuilder: (currentChild, previousChildren) {
-                    return Stack(
-                      fit: StackFit.expand,
-                      alignment: Alignment.center,
-                      children: <Widget>[
-                        ...previousChildren,
-                        if (currentChild != null) currentChild,
-                      ],
+                    return ColoredBox(
+                      color: AppColors.cardAlt(context),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        alignment: Alignment.center,
+                        children: <Widget>[
+                          ...previousChildren,
+                          if (currentChild != null) currentChild,
+                        ],
+                      ),
                     );
                   },
                   transitionBuilder: (child, animation) {
-                    final scale = Tween<double>(begin: 0.92, end: 1.0).animate(
+                    final offset =
+                        Tween<Offset>(
+                          begin: const Offset(0.08, 0),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                            reverseCurve: Curves.easeInCubic,
+                          ),
+                        );
+                    final scale = Tween<double>(begin: 0.985, end: 1.0).animate(
                       CurvedAnimation(
                         parent: animation,
                         curve: Curves.easeOutCubic,
+                        reverseCurve: Curves.easeInCubic,
                       ),
                     );
-                    return FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(scale: scale, child: child),
+                    return ClipRect(
+                      child: SlideTransition(
+                        position: offset,
+                        child: ScaleTransition(scale: scale, child: child),
+                      ),
                     );
                   },
                   child: KeyedSubtree(
@@ -918,47 +935,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
+              layoutBuilder: (currentChild, previousChildren) {
+                return Stack(
+                  alignment: Alignment.centerLeft,
+                  children: <Widget>[
+                    ...previousChildren,
+                    if (currentChild != null) currentChild,
+                  ],
+                );
+              },
               transitionBuilder: (child, animation) {
-                final offset =
-                    Tween<Offset>(
-                      begin: const Offset(0.04, 0),
-                      end: Offset.zero,
-                    ).animate(
-                      CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOutCubic,
-                      ),
-                    );
+                final curved = CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                  reverseCurve: Curves.easeInCubic,
+                );
+                final offset = Tween<Offset>(
+                  begin: const Offset(0, 0.16),
+                  end: Offset.zero,
+                ).animate(curved);
                 return FadeTransition(
-                  opacity: animation,
+                  opacity: curved,
                   child: SlideTransition(position: offset, child: child),
                 );
               },
-              child: Column(
+              child: SizedBox(
                 key: ValueKey<String>(music.identityKey),
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    music.name,
-                    style: TextStyle(
-                      color: AppColors.onScaffold(context),
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                width: double.infinity,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      music.name,
+                      style: TextStyle(
+                        color: AppColors.onScaffold(context),
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    music.singer,
-                    style: TextStyle(
-                      color: AppColors.secondaryText(context),
-                      fontSize: 15,
+                    const SizedBox(height: 6),
+                    Text(
+                      music.singer,
+                      style: TextStyle(
+                        color: AppColors.secondaryText(context),
+                        fontSize: 15,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
