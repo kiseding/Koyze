@@ -449,9 +449,9 @@ class _FullPlayerArtworkSwitcherState extends State<_FullPlayerArtworkSwitcher>
   }
 }
 
-const kFullPlayerArtworkSwitchDuration = Duration(milliseconds: 520);
-const kFullPlayerTrackSwitchDuration = Duration(milliseconds: 620);
-const kFullPlayerTrackSwitchReverseDuration = Duration(milliseconds: 420);
+const kFullPlayerArtworkSwitchDuration = Duration(milliseconds: 780);
+const kFullPlayerTrackSwitchDuration = Duration(milliseconds: 820);
+const kFullPlayerTrackSwitchReverseDuration = Duration(milliseconds: 620);
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});

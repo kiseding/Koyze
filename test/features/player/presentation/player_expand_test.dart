@@ -47,6 +47,8 @@ void main() {
       'lib/features/player/presentation/player_screen.dart',
     ).readAsStringSync();
     expect(player, contains('kFullPlayerTrackSwitchDuration'));
+    expect(player, contains('Duration(milliseconds: 820)'));
+    expect(player, contains('Duration(milliseconds: 780)'));
     expect(player, contains('Duration(milliseconds: 620)'));
     expect(player, contains('_FullPlayerArtworkSwitcher'));
     expect(player, contains('precacheImage'));
