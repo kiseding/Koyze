@@ -14,10 +14,16 @@ class MotionDuration {
   /// Container Transform / Shared Axis 等页面过渡。
   static const Duration container = Duration(milliseconds: 400);
 
-  /// 大型页面转场（播放器展开、全屏页面）。
+  /// 大型页面转场（普通全屏页面）。
   static const Duration page = Duration(milliseconds: 480);
 
-  /// 任何动画都不应超过的上限。
+  /// iOS 风格播放器展开/收起。比普通页面慢，给封面、背景和内容 stagger 留足时间。
+  static const Duration player = Duration(milliseconds: 720);
+
+  /// iOS 风格播放器关闭。略快于打开，但仍保持 spring-like 连贯感。
+  static const Duration playerReverse = Duration(milliseconds: 560);
+
+  /// 任何普通动画都不应超过的上限；播放器转场有单独 token。
   static const Duration max = Duration(milliseconds: 600);
 }
 
@@ -46,6 +52,9 @@ class MotionCurve {
 
   /// 强调感（收藏 q 弹等少量点缀）。
   static const Curve emphasize = Curves.easeOutBack;
+
+  /// iOS-like 的慢速减速曲线：接近原生 spring 的“有惯性但不弹”的观感。
+  static const Curve iosSpring = Cubic(0.20, 0.00, 0.00, 1.00);
 }
 
 class MotionDistance {

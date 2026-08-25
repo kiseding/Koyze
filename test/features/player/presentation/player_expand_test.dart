@@ -13,6 +13,8 @@ void main() {
     expect(full, contains('OverflowBox'));
     expect(full, contains('ClipRRect'));
     expect(full, contains('playerRouteProgress'));
+    expect(full, contains('MotionCurve.iosSpring'));
+    expect(full, contains('MotionDuration.playerReverse'));
     // 各区块独立节奏（stagger）。
     expect(full, contains('_StaggeredFade'));
     expect(full, contains('delay: 0.2')); // 歌名
@@ -47,9 +49,9 @@ void main() {
       'lib/features/player/presentation/player_screen.dart',
     ).readAsStringSync();
     expect(player, contains('kFullPlayerTrackSwitchDuration'));
-    expect(player, contains('Duration(milliseconds: 820)'));
-    expect(player, contains('Duration(milliseconds: 780)'));
-    expect(player, contains('Duration(milliseconds: 620)'));
+    expect(player, contains('Duration(milliseconds: 880)'));
+    expect(player, contains('Duration(milliseconds: 860)'));
+    expect(player, contains('MotionDuration.playerReverse'));
     expect(player, contains('_FullPlayerArtworkSwitcher'));
     expect(player, contains('precacheImage'));
     expect(player, contains('kFullPlayerArtworkSwitchDuration'));

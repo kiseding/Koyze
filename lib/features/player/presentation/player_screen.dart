@@ -263,7 +263,7 @@ class _PlayerProgress extends ConsumerWidget {
                                   context,
                                   const Duration(milliseconds: 150),
                                 ),
-                                curve: Curves.easeOutCubic,
+                                curve: MotionCurve.iosSpring,
                                 child: Container(
                                   width: 18,
                                   height: 18,
@@ -421,7 +421,7 @@ class _FullPlayerArtworkSwitcherState extends State<_FullPlayerArtworkSwitcher>
     if (reduced) return _current;
     final curved = CurvedAnimation(
       parent: _controller,
-      curve: Curves.easeOutCubic,
+      curve: MotionCurve.iosSpring,
     );
     return ColoredBox(
       color: AppColors.cardAlt(context),
@@ -449,9 +449,9 @@ class _FullPlayerArtworkSwitcherState extends State<_FullPlayerArtworkSwitcher>
   }
 }
 
-const kFullPlayerArtworkSwitchDuration = Duration(milliseconds: 780);
-const kFullPlayerTrackSwitchDuration = Duration(milliseconds: 820);
-const kFullPlayerTrackSwitchReverseDuration = Duration(milliseconds: 620);
+const kFullPlayerArtworkSwitchDuration = Duration(milliseconds: 860);
+const kFullPlayerTrackSwitchDuration = Duration(milliseconds: 880);
+const kFullPlayerTrackSwitchReverseDuration = MotionDuration.playerReverse;
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
@@ -566,9 +566,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           miniHeight,
         );
         final fullRect = Offset.zero & Size(screenW, screenH);
-        final morphT = Curves.easeOutCubic.transform(progress);
+        final morphT = MotionCurve.iosSpring.transform(progress);
         final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
-        final contentOpacity = ((progress - 0.08) / 0.72).clamp(0.0, 1.0);
+        final contentOpacity = MotionCurve.iosSpring.transform(
+          ((progress - 0.12) / 0.78).clamp(0.0, 1.0),
+        );
 
         return Stack(
           fit: StackFit.expand,
@@ -639,8 +641,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           AnimatedContainer(
             duration: _draggingDown
                 ? Duration.zero
-                : motionDuration(context, const Duration(milliseconds: 220)),
-            curve: Curves.easeOutCubic,
+                : motionDuration(context, MotionDuration.playerReverse),
+            curve: MotionCurve.iosSpring,
             transform: Matrix4.translationValues(0, _dragOffset, 0),
             child: Material(
               color: Theme.of(context).scaffoldBackgroundColor,
@@ -855,7 +857,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     _pageController.animateToPage(
                       0,
                       duration: const Duration(milliseconds: 360),
-                      curve: Curves.easeOutCubic,
+                      curve: MotionCurve.iosSpring,
                     );
                   }
                 } else {
@@ -872,7 +874,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     context,
                     const Duration(milliseconds: 320),
                   ),
-                  curve: Curves.easeOutCubic,
+                  curve: MotionCurve.iosSpring,
                   child: Icon(
                     Icons.keyboard_arrow_down,
                     color: AppColors.secondaryText(context),
@@ -1010,7 +1012,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               transitionBuilder: (child, animation) {
                 final curved = CurvedAnimation(
                   parent: animation,
-                  curve: Curves.easeOutCubic,
+                  curve: MotionCurve.iosSpring,
                   reverseCurve: Curves.easeInCubic,
                 );
                 final offset = Tween<Offset>(
@@ -1096,7 +1098,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _pageController.animateToPage(
         1,
         duration: const Duration(milliseconds: 360),
-        curve: Curves.easeOutCubic,
+        curve: MotionCurve.iosSpring,
       );
     }
   }
@@ -1638,7 +1640,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
             _queueScrollController.animateTo(
               target,
               duration: kFullPlayerTrackSwitchReverseDuration,
-              curve: Curves.easeOutCubic,
+              curve: MotionCurve.iosSpring,
             );
           }
         });
@@ -1655,7 +1657,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
         _queueScrollController.animateTo(
           target,
           duration: kFullPlayerTrackSwitchReverseDuration,
-          curve: Curves.easeOutCubic,
+          curve: MotionCurve.iosSpring,
         );
       }
     });

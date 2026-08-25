@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/logging/app_log.dart';
 import '../core/card_expand.dart';
 import '../core/player_route_progress.dart';
+import '../core/motion/motion_tokens.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/home/presentation/main_scaffold.dart';
 import '../features/player/presentation/player_screen.dart';
@@ -172,16 +173,16 @@ final appRouter = GoRouter(
         opaque: false,
         barrierDismissible: true,
         barrierColor: Colors.transparent,
-        transitionDuration: const Duration(milliseconds: 420),
-        reverseTransitionDuration: const Duration(milliseconds: 360),
+        transitionDuration: MotionDuration.player,
+        reverseTransitionDuration: MotionDuration.playerReverse,
         child: const EdgeSwipeDismiss(child: PlayerScreen()),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           // 全屏播放器内部自带"从迷你栏生长"的矩形变形（读取 playerRouteProgress），
           // 这里只同步进度并保持不透明，不再叠加页面级动画。
           final curved = CurvedAnimation(
             parent: animation,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
+            curve: MotionCurve.iosSpring,
+            reverseCurve: MotionCurve.easeInOut,
           );
           return _PlayerRouteProgressBridge(animation: curved, child: child);
         },
