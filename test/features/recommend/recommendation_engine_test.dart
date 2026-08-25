@@ -118,4 +118,28 @@ void main() {
     final b = engine.predict(candidate: samePlatformOnly, profile: profile);
     expect(a, greaterThan(b));
   });
+
+  test('limits one artist when multiple artists have candidates', () {
+    final engine = const RecommendationEngine();
+    final candidates = [
+      for (var i = 0; i < 12; i++) _song('jay-$i', 'Jay $i', '周杰伦', 'Album'),
+      for (var i = 0; i < 6; i++) _song('lin-$i', 'Lin $i', '林宥嘉', 'Album'),
+      for (var i = 0; i < 6; i++) _song('a-mei-$i', 'A Mei $i', '张惠妹', 'Album'),
+    ];
+
+    final recs = engine.recommend(
+      favorites: favorites,
+      candidates: candidates,
+      random: Random(1),
+    );
+
+    final counts = <String, int>{};
+    for (final rec in recs) {
+      counts[rec.song.singer] = (counts[rec.song.singer] ?? 0) + 1;
+    }
+    expect(counts['周杰伦'], lessThanOrEqualTo(3));
+    expect(counts['林宥嘉'], lessThanOrEqualTo(3));
+    expect(counts['张惠妹'], lessThanOrEqualTo(3));
+    expect(recs, isNotEmpty);
+  });
 }

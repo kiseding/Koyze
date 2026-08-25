@@ -17,6 +17,7 @@ class RecommendationEngine {
 
   static const int defaultTopN = 30;
   static const int favoriteSampleSize = 100;
+  static const int maxRecommendationsPerArtist = 3;
 
   /// 用户画像：从收藏歌曲统计各特征的出现权重（归一化到 0~1）。
   FavoriteProfile buildProfile(List<MusicItem> favorites) {
@@ -102,12 +103,16 @@ class RecommendationEngine {
         )
         .toSet();
     final scored = <RecommendedSong>[];
+    final candidateKeys = <String>{};
     for (final candidate in candidates) {
       // 已收藏（同 id）或与收藏歌曲同名同歌手（不同平台的同一首歌）都跳过
       if (favoriteIds.contains(candidate.identityKey)) continue;
       final key =
           '${candidate.name.trim().toLowerCase()}|${candidate.singer.trim().toLowerCase()}';
       if (favoriteKeys.contains(key)) continue;
+      // Search across multiple platforms can return the same song more than
+      // once; keep one candidate so duplicates do not consume diversity slots.
+      if (!candidateKeys.add(key)) continue;
       final score = predict(
         candidate: candidate,
         profile: profile,
@@ -124,9 +129,31 @@ class RecommendationEngine {
     }
     // 所有候选均已被收藏时不推荐任何已收藏歌曲，返回空列表。
     scored.sort((a, b) => b.score.compareTo(a.score));
-    // 候选不足 30 首时返回已有结果，不足时展示实际数量；全部候选均已
-    // 收藏时返回空列表，绝不返回已收藏歌曲。
-    return scored.take(defaultTopN).toList(growable: false);
+    final artistCount = scored
+        .map((item) => item.song.singer.trim().toLowerCase())
+        .where((artist) => artist.isNotEmpty)
+        .toSet()
+        .length;
+    if (artistCount <= 1) {
+      return scored.take(defaultTopN).toList(growable: false);
+    }
+
+    // Greedy score order with a small per-artist quota prevents the strongest
+    // artist in the profile from occupying the whole recommendation page.
+    final selected = <RecommendedSong>[];
+    final artistUsage = <String, int>{};
+    for (final item in scored) {
+      final artist = item.song.singer.trim().toLowerCase();
+      if (artist.isNotEmpty &&
+          (artistUsage[artist] ?? 0) >= maxRecommendationsPerArtist) {
+        continue;
+      }
+      selected.add(item);
+      if (artist.isNotEmpty)
+        artistUsage[artist] = (artistUsage[artist] ?? 0) + 1;
+      if (selected.length == defaultTopN) break;
+    }
+    return selected;
   }
 
   List<String> _reasons(
