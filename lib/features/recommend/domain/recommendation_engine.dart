@@ -141,19 +141,48 @@ class RecommendationEngine {
     // Greedy score order with a small per-artist quota prevents the strongest
     // artist in the profile from occupying the whole recommendation page.
     final selected = <RecommendedSong>[];
+    final selectedIds = <String>{};
     final artistUsage = <String, int>{};
     for (final item in scored) {
-      final artist = item.song.singer.trim().toLowerCase();
-      if (artist.isNotEmpty &&
-          (artistUsage[artist] ?? 0) >= maxRecommendationsPerArtist) {
+      final artist = _artistKey(item.song);
+      if ((artistUsage[artist] ?? 0) >= maxRecommendationsPerArtist) {
         continue;
       }
       selected.add(item);
-      if (artist.isNotEmpty)
-        artistUsage[artist] = (artistUsage[artist] ?? 0) + 1;
+      selectedIds.add(item.song.identityKey);
+      artistUsage[artist] = (artistUsage[artist] ?? 0) + 1;
       if (selected.length == defaultTopN) break;
     }
+
+    // 歌手数量不足时，3 首配额无法填满 30 首；从剩余候选中按当前
+    // 入选最少的歌手优先补齐，兼顾数量和分布。
+    while (selected.length < defaultTopN) {
+      final remaining = scored
+          .where((item) => !selectedIds.contains(item.song.identityKey))
+          .toList(growable: false);
+      if (remaining.isEmpty) break;
+      final minimumUsage = remaining
+          .map((item) => artistUsage[_artistKey(item.song)] ?? 0)
+          .reduce((a, b) => a < b ? a : b);
+      RecommendedSong? next;
+      for (final item in remaining) {
+        if ((artistUsage[_artistKey(item.song)] ?? 0) == minimumUsage) {
+          next = item;
+          break;
+        }
+      }
+      if (next == null) break;
+      final artist = _artistKey(next.song);
+      selected.add(next);
+      selectedIds.add(next.song.identityKey);
+      artistUsage[artist] = (artistUsage[artist] ?? 0) + 1;
+    }
     return selected;
+  }
+
+  String _artistKey(MusicItem song) {
+    final artist = song.singer.trim().toLowerCase();
+    return artist.isEmpty ? '__unknown__:${song.identityKey}' : artist;
   }
 
   List<String> _reasons(

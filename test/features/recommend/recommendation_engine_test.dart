@@ -137,9 +137,37 @@ void main() {
     for (final rec in recs) {
       counts[rec.song.singer] = (counts[rec.song.singer] ?? 0) + 1;
     }
-    expect(counts['周杰伦'], lessThanOrEqualTo(3));
-    expect(counts['林宥嘉'], lessThanOrEqualTo(3));
-    expect(counts['张惠妹'], lessThanOrEqualTo(3));
-    expect(recs, isNotEmpty);
+    expect(recs, hasLength(candidates.length));
+    expect(counts['周杰伦'], 12);
+    expect(counts['林宥嘉'], 6);
+    expect(counts['张惠妹'], 6);
+  });
+
+  test('fills 30 results while balancing artists with enough candidates', () {
+    final engine = const RecommendationEngine();
+    final candidates = [
+      for (var artist = 0; artist < 6; artist++)
+        for (var song = 0; song < 8; song++)
+          _song(
+            'artist-$artist-$song',
+            'Song $artist-$song',
+            artist == 0 ? '周杰伦' : '歌手 $artist',
+            'Album',
+          ),
+    ];
+
+    final recs = engine.recommend(
+      favorites: favorites,
+      candidates: candidates,
+      random: Random(1),
+    );
+
+    expect(recs, hasLength(30));
+    final counts = <String, int>{};
+    for (final rec in recs) {
+      counts[rec.song.singer] = (counts[rec.song.singer] ?? 0) + 1;
+    }
+    final values = counts.values.toList();
+    expect(values.reduce(max) - values.reduce(min), lessThanOrEqualTo(1));
   });
 }
