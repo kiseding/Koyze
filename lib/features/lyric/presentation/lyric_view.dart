@@ -434,7 +434,13 @@ class _PositionedKtvLyricLine extends ConsumerWidget {
 }
 
 /// KTV 流式：已唱完的字全亮，当前字按进度裁剪填充，未唱暗色。
-class _KtvLyricLine extends StatelessWidget {
+///
+/// 平滑策略：
+/// - 已唱/未唱字的 Widget 实例按活跃下标缓存复用，同一实例让框架跳过
+///   无谓的重建与重排；
+/// - 当前字的填充用 [TweenAnimationBuilder] 在两次位置更新之间插值，
+///   把 ~10Hz 的步进渲染成逐帧连续扫过。
+class _KtvLyricLine extends StatefulWidget {
   final LyricLine line;
   final int lineIndex;
   final Lyrics lyrics;
@@ -456,27 +462,175 @@ class _KtvLyricLine extends StatelessWidget {
   });
 
   @override
+  State<_KtvLyricLine> createState() => _KtvLyricLineState();
+}
+
+class _KtvLyricLineState extends State<_KtvLyricLine> {
+  /// 位置更新间隔的估计值：插值时长略大于典型 tick 周期，
+  /// 让当前字始终"追"向最新目标而不会停滞。
+  static const Duration _fillChaseDuration = Duration(milliseconds: 120);
+
+  int _prefixCount = -1;
+  late List<Widget> _prefixChildren;
+  int _suffixStart = -1;
+  late List<Widget> _suffixChildren;
+  int _activeIndex = -1;
+  double _lastFill = 0;
+
+  TextStyle get _textStyle => TextStyle(
+    fontSize: widget.fontSize,
+    fontWeight: widget.fontWeight,
+    height: 1.15,
+  );
+
+  void _resetCaches() {
+    _prefixCount = -1;
+    _suffixStart = -1;
+    _activeIndex = -1;
+    _lastFill = 0;
+  }
+
+  @override
+  void didUpdateWidget(covariant _KtvLyricLine oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.line != widget.line ||
+        oldWidget.lyrics != widget.lyrics ||
+        oldWidget.fontSize != widget.fontSize ||
+        oldWidget.fontWeight != widget.fontWeight ||
+        oldWidget.activeColor != widget.activeColor ||
+        oldWidget.dimColor != widget.dimColor) {
+      _resetCaches();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final words = line.words!;
-    final activeWord = lyrics.getCurrentWordIndex(position, lineIndex);
+    final words = widget.line.words!;
+    final lyrics = widget.lyrics;
+    final position = widget.position;
+    var active = lyrics.getCurrentWordIndex(position, widget.lineIndex);
+
+    // 行首前 / 行尾后：整行统一暗色或亮色，无需动画。
+    if (active < 0 || active >= words.length) {
+      final fill = active >= words.length ? 1.0 : 0.0;
+      _resetCaches();
+      return Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          for (var i = 0; i < words.length; i++)
+            _KtvWord(
+              text: words[i].text,
+              fill: fill,
+              activeColor: widget.activeColor,
+              dimColor: widget.dimColor,
+              fontSize: widget.fontSize,
+              fontWeight: widget.fontWeight,
+            ),
+        ],
+      );
+    }
+
+    final textStyle = _textStyle;
+    if (_prefixCount != active) {
+      _prefixChildren = [
+        for (var i = 0; i < active; i++)
+          _KtvWord(
+            text: words[i].text,
+            fill: 1.0,
+            activeColor: widget.activeColor,
+            dimColor: widget.dimColor,
+            fontSize: widget.fontSize,
+            fontWeight: widget.fontWeight,
+          ),
+      ];
+      _prefixCount = active;
+    }
+    final suffixStart = active + 1;
+    if (_suffixStart != suffixStart) {
+      _suffixChildren = [
+        for (var i = suffixStart; i < words.length; i++)
+          _KtvWord(
+            text: words[i].text,
+            fill: 0.0,
+            activeColor: widget.activeColor,
+            dimColor: widget.dimColor,
+            fontSize: widget.fontSize,
+            fontWeight: widget.fontWeight,
+          ),
+      ];
+      _suffixStart = suffixStart;
+    }
+
+    if (_activeIndex != active) {
+      _activeIndex = active;
+      _lastFill = 0;
+    }
+    final rawFill = lyrics.getWordFillProgress(
+      position,
+      widget.lineIndex,
+      active,
+    );
+    final targetFill = rawFill.clamp(0.0, 1.0);
 
     return Wrap(
       alignment: WrapAlignment.center,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        for (var i = 0; i < words.length; i++)
-          _KtvWord(
-            text: words[i].text,
-            fill: i < activeWord
-                ? 1.0
-                : i == activeWord
-                ? lyrics.getWordFillProgress(position, lineIndex, i)
-                : 0.0,
-            activeColor: activeColor,
-            dimColor: dimColor,
-            fontSize: fontSize,
-            fontWeight: fontWeight,
-          ),
+        ..._prefixChildren,
+        TweenAnimationBuilder<double>(
+          key: ValueKey(active),
+          tween: Tween<double>(begin: _lastFill, end: targetFill),
+          duration: _fillChaseDuration,
+          curve: Curves.linear,
+          builder: (context, fill, child) =>
+              _PartialKtvWord(
+                key: ValueKey('partial-$active'),
+                text: words[active].text,
+                fill: fill,
+                activeColor: widget.activeColor,
+                dimColor: widget.dimColor,
+                style: textStyle,
+              ),
+        ),
+        ..._suffixChildren,
+      ],
+    );
+  }
+}
+
+/// 部分填充的当前字：底层暗色、上层主题色按比例横向裁剪。
+class _PartialKtvWord extends StatelessWidget {
+  final String text;
+  final double fill;
+  final Color activeColor;
+  final Color dimColor;
+  final TextStyle style;
+
+  const _PartialKtvWord({
+    super.key,
+    required this.text,
+    required this.fill,
+    required this.activeColor,
+    required this.dimColor,
+    required this.style,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (fill <= 0) {
+      return Text(text, style: style.copyWith(color: dimColor));
+    }
+    if (fill >= 1) {
+      return Text(text, style: style.copyWith(color: activeColor));
+    }
+    return Stack(
+      children: [
+        Text(text, style: style.copyWith(color: dimColor)),
+        ClipRect(
+          clipper: _FractionClipper(fill),
+          child: Text(text, style: style.copyWith(color: activeColor)),
+        ),
       ],
     );
   }
