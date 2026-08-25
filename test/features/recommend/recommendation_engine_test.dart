@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/recommend/domain/recommendation_engine.dart';
+import 'package:koyze/features/recommend/presentation/recommendation_provider.dart';
 
 MusicItem _song(
   String id,
@@ -23,6 +24,26 @@ MusicItem _song(
 }
 
 void main() {
+  test(
+    'recommendation search platforms fall back when favorite platform is unavailable',
+    () {
+      expect(
+        recommendationSearchPlatforms(
+          dominantPlatform: 'x',
+          availablePlatforms: const ['kw', 'tx', 'wy'],
+        ),
+        ['kw', 'tx', 'wy'],
+      );
+      expect(
+        recommendationSearchPlatforms(
+          dominantPlatform: 'tx',
+          availablePlatforms: const ['kw', 'tx', 'wy'],
+        ),
+        ['tx', 'kw', 'wy'],
+      );
+    },
+  );
+
   final favorites = List.generate(
     100,
     (index) => _song('f$index', '收藏歌曲 $index', '周杰伦', '收藏专辑 ${index % 5}'),

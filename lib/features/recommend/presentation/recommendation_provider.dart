@@ -28,6 +28,28 @@ String? _dominantPlatform(List<MusicItem> favorites) {
   return best;
 }
 
+List<String> recommendationSearchPlatforms({
+  required String? dominantPlatform,
+  required List<String> availablePlatforms,
+}) {
+  const preferredFallback = ['kw', 'tx', 'wy'];
+  final result = <String>[];
+  void add(String? platform) {
+    if (platform == null || platform.isEmpty) return;
+    if (!availablePlatforms.contains(platform)) return;
+    if (!result.contains(platform)) result.add(platform);
+  }
+
+  add(dominantPlatform);
+  for (final platform in preferredFallback) {
+    add(platform);
+  }
+  for (final platform in availablePlatforms) {
+    add(platform);
+  }
+  return result;
+}
+
 /// 推荐结果缓存时长：期间点击播放、收藏变动都不会触发重建，
 /// 只有缓存过期后才重新计算一次。
 const Duration kRecommendationCacheTtl = Duration(hours: 12);
@@ -150,29 +172,33 @@ Future<List<RecommendedSong>> computeRecommendations(Ref ref) async {
       (a, b) => profile.artistWeights[b]!.compareTo(profile.artistWeights[a]!),
     );
   if (artists.isNotEmpty) {
-    final platformId = _dominantPlatform(favorites);
-    if (platformId != null) {
+    final sourceManager = ref.read(builtInSourcesProvider);
+    final platformIds = recommendationSearchPlatforms(
+      dominantPlatform: _dominantPlatform(favorites),
+      availablePlatforms: sourceManager.allIds,
+    );
+    if (platformIds.isNotEmpty) {
       // artistWeights 的键是小写歌手名，映射回原始大小写用于搜索。
       final original = <String, String>{};
       for (final song in favorites) {
         final artist = song.singer.trim();
         if (artist.isNotEmpty) original[artist.toLowerCase()] = artist;
       }
-      final sourceManager = ref.read(builtInSourcesProvider);
       final queries = artists
-          .take(3)
+          .take(6)
           .map((a) => original[a] ?? a)
           .toList(growable: false);
       await Future.wait([
         for (final query in queries)
-          sourceManager
-              .search(platformId, query, limit: 40)
-              .then((songs) {
-                for (final song in songs) {
-                  candidates[song.identityKey] = song;
-                }
-              })
-              .catchError((_) {}),
+          for (final platformId in platformIds)
+            sourceManager
+                .search(platformId, query, limit: 40)
+                .then((songs) {
+                  for (final song in songs) {
+                    candidates[song.identityKey] = song;
+                  }
+                })
+                .catchError((_) {}),
       ]);
     }
   }
