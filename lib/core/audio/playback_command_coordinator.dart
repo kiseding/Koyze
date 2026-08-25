@@ -3,11 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
-typedef PlaybackMutationError = void Function(
-  String operation,
-  Object error,
-  StackTrace stackTrace,
-);
+typedef PlaybackMutationError =
+    void Function(String operation, Object error, StackTrace stackTrace);
 typedef PrepareForPlayback = Future<void> Function();
 
 const minimumResolvedAudioDuration = Duration(seconds: 15);
@@ -18,7 +15,8 @@ final class ResolvedAudioTooShortException implements Exception {
   final Duration duration;
 
   @override
-  String toString() => 'Resolved audio is only ${duration.inMilliseconds}ms; '
+  String toString() =>
+      'Resolved audio is only ${duration.inMilliseconds}ms; '
       'minimum is ${minimumResolvedAudioDuration.inSeconds}s';
 }
 
@@ -101,10 +99,10 @@ class PlaybackCommandCoordinator {
     PlaybackMutationError? onError,
     PrepareForPlayback? prepareForPlayback,
     Duration sourceLoadTimeout = const Duration(seconds: 20),
-  })  : _onStateChanged = onStateChanged,
-        _onError = onError,
-        _prepareForPlayback = prepareForPlayback,
-        _sourceLoadTimeout = sourceLoadTimeout;
+  }) : _onStateChanged = onStateChanged,
+       _onError = onError,
+       _prepareForPlayback = prepareForPlayback,
+       _sourceLoadTimeout = sourceLoadTimeout;
 
   int get sourceToken => _sourceToken;
   int? get desiredSourceToken => _desiredSource?.token;
@@ -123,10 +121,7 @@ class PlaybackCommandCoordinator {
   bool get effectivePlaying => _effectivePlaying;
   Future<void> get settled => _tail;
 
-  int requestSource({
-    required int occurrenceId,
-    required Duration position,
-  }) {
+  int requestSource({required int occurrenceId, required Duration position}) {
     if (_shutdown) return -1;
     final token = ++_sourceToken;
     _desiredSource = _DesiredSource(
@@ -211,12 +206,14 @@ class PlaybackCommandCoordinator {
           final prepareForPlayback = _prepareForPlayback;
           if (prepareForPlayback != null) await prepareForPlayback();
           final lifecycle = _player.play();
-          unawaited(lifecycle.then(
-            (_) => _onPlayLifecycleComplete(playToken),
-            onError: (Object error, StackTrace stackTrace) {
-              _onPlayLifecycleError(playToken, error, stackTrace);
-            },
-          ));
+          unawaited(
+            lifecycle.then(
+              (_) => _onPlayLifecycleComplete(playToken),
+              onError: (Object error, StackTrace stackTrace) {
+                _onPlayLifecycleError(playToken, error, stackTrace);
+              },
+            ),
+          );
         } catch (error, stackTrace) {
           _onPlayLifecycleError(playToken, error, stackTrace);
           return false;
@@ -226,10 +223,7 @@ class PlaybackCommandCoordinator {
       return true;
     }();
     final tracked = next.whenComplete(() => _pendingReconciliations--);
-    _tail = tracked.then<void>(
-      (_) {},
-      onError: (Object _, StackTrace __) {},
-    );
+    _tail = tracked.then<void>((_) {}, onError: (Object _, StackTrace __) {});
     return tracked;
   }
 
@@ -287,6 +281,29 @@ class PlaybackCommandCoordinator {
     );
     _preservingPauseOwners.add(owner);
     await _markDirty(awaitApplication: true);
+    return owner;
+  }
+
+  /// Pauses audible output right away without waiting behind in-flight source
+  /// mutations (e.g. a slow setAudioSource), so manual track switches silence
+  /// the previous track immediately — including lock-screen initiated skips.
+  Future<PreservingPauseOwner> pausePreservingIntentImmediately() async {
+    if (_shutdown) return PreservingPauseOwner._(_intentRevision, null);
+    final owner = PreservingPauseOwner._(
+      _intentRevision,
+      _desiredSource?.token,
+    );
+    _preservingPauseOwners.add(owner);
+    try {
+      final playToken = _activePlayCommandToken;
+      if (playToken != null) {
+        _playEndReasons[playToken] = _PlayEndReason.preservingPause;
+      }
+      await _player.pause();
+    } catch (error, stackTrace) {
+      _onError?.call('immediatePause', error, stackTrace);
+    }
+    unawaited(_markDirty(awaitApplication: true));
     return owner;
   }
 
@@ -441,9 +458,7 @@ class PlaybackCommandCoordinator {
     return _markDirty();
   }
 
-  Future<void> _markDirty({
-    bool awaitApplication = false,
-  }) {
+  Future<void> _markDirty({bool awaitApplication = false}) {
     final revision = ++_revision;
     final previous = _tail;
     final queuedBehindMutation = _pendingReconciliations > 0;
@@ -564,7 +579,8 @@ class PlaybackCommandCoordinator {
         _notifyIfCurrent(commandRevision);
       }
 
-      final sourceReady = desiredSource != null &&
+      final sourceReady =
+          desiredSource != null &&
           (_installedSourceToken == desiredSource.token ||
               _temporarySourceToken == desiredSource.token);
       if (!_effectivePlaying) {
@@ -602,12 +618,14 @@ class PlaybackCommandCoordinator {
           if (prepareForPlayback != null) await prepareForPlayback();
           final lifecycle = _player.play();
           _notifyIfCurrent(commandRevision);
-          unawaited(lifecycle.then(
-            (_) => _onPlayLifecycleComplete(playToken),
-            onError: (Object error, StackTrace stackTrace) {
-              _onPlayLifecycleError(playToken, error, stackTrace);
-            },
-          ));
+          unawaited(
+            lifecycle.then(
+              (_) => _onPlayLifecycleComplete(playToken),
+              onError: (Object error, StackTrace stackTrace) {
+                _onPlayLifecycleError(playToken, error, stackTrace);
+              },
+            ),
+          );
         } catch (error, stackTrace) {
           _onPlayLifecycleError(playToken, error, stackTrace);
         }
@@ -628,7 +646,8 @@ class PlaybackCommandCoordinator {
 
   void _onPlayLifecycleComplete(int token) {
     final ownsLifecycle = _ownsPlayLifecycle(token);
-    final reason = _playEndReasons.remove(token) ??
+    final reason =
+        _playEndReasons.remove(token) ??
         (_player.processingState == ProcessingState.completed
             ? _PlayEndReason.completed
             : _PlayEndReason.unknown);
@@ -644,11 +663,7 @@ class PlaybackCommandCoordinator {
     _markDirty();
   }
 
-  void _onPlayLifecycleError(
-    int token,
-    Object error,
-    StackTrace stackTrace,
-  ) {
+  void _onPlayLifecycleError(int token, Object error, StackTrace stackTrace) {
     final ownsLifecycle = _ownsPlayLifecycle(token);
     _playEndReasons.remove(token);
     if (!ownsLifecycle) {

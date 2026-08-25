@@ -53,43 +53,42 @@ void main() {
     expect(coordinator.installedSourceIsAuthoritative, isFalse);
   });
 
-  test('temporary source superseded during install is not authoritative',
-      () async {
-    final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
-    addTearDown(player.dispose);
-    final first = coordinator.requestSource(
-      occurrenceId: 1,
-      position: Duration.zero,
-    );
-    await coordinator.commitSource(
-      first,
-      AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
-    );
-    expect(coordinator.installedSourceIsAuthoritative, isTrue);
+  test(
+    'temporary source superseded during install is not authoritative',
+    () async {
+      final player = _SerializedAudioPlayer();
+      final coordinator = PlaybackCommandCoordinator(player);
+      addTearDown(player.dispose);
+      final first = coordinator.requestSource(
+        occurrenceId: 1,
+        position: Duration.zero,
+      );
+      await coordinator.commitSource(
+        first,
+        AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
+      );
+      expect(coordinator.installedSourceIsAuthoritative, isTrue);
 
-    final request = coordinator.requestSource(
-      occurrenceId: 2,
-      position: Duration.zero,
-    );
-    await coordinator.recordExplicitPlayIntent();
-    final sourceGate = player.gateNextMutation();
+      final request = coordinator.requestSource(
+        occurrenceId: 2,
+        position: Duration.zero,
+      );
+      await coordinator.recordExplicitPlayIntent();
+      final sourceGate = player.gateNextMutation();
 
-    final install = coordinator.installTemporarySource(
-      request,
-      SilenceAudioSource(duration: const Duration(days: 1)),
-    );
-    await sourceGate.started.future;
-    coordinator.requestSource(
-      occurrenceId: 3,
-      position: Duration.zero,
-    );
-    sourceGate.release.complete();
+      final install = coordinator.installTemporarySource(
+        request,
+        SilenceAudioSource(duration: const Duration(days: 1)),
+      );
+      await sourceGate.started.future;
+      coordinator.requestSource(occurrenceId: 3, position: Duration.zero);
+      sourceGate.release.complete();
 
-    expect(await install, isFalse);
-    expect(coordinator.installedSourceIsAuthoritative, isFalse);
-    expect(coordinator.installedSourceToken, isNull);
-  });
+      expect(await install, isFalse);
+      expect(coordinator.installedSourceIsAuthoritative, isFalse);
+      expect(coordinator.installedSourceToken, isNull);
+    },
+  );
 
   test('temporary play failure does not retry the same intent', () async {
     final player = _LifecycleAudioPlayer();
@@ -122,53 +121,57 @@ void main() {
     expect(player.playing, isFalse);
   });
 
-  test('discardTemporarySource pauses orphan silence for failed token',
-      () async {
-    final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
-    addTearDown(player.dispose);
-    final request = coordinator.requestSource(
-      occurrenceId: 2,
-      position: Duration.zero,
-    );
-    await coordinator.recordExplicitPlayIntent();
-    await coordinator.installTemporarySource(
-      request,
-      SilenceAudioSource(duration: const Duration(days: 1)),
-    );
-    expect(player.playing, isTrue);
+  test(
+    'discardTemporarySource pauses orphan silence for failed token',
+    () async {
+      final player = _SerializedAudioPlayer();
+      final coordinator = PlaybackCommandCoordinator(player);
+      addTearDown(player.dispose);
+      final request = coordinator.requestSource(
+        occurrenceId: 2,
+        position: Duration.zero,
+      );
+      await coordinator.recordExplicitPlayIntent();
+      await coordinator.installTemporarySource(
+        request,
+        SilenceAudioSource(duration: const Duration(days: 1)),
+      );
+      expect(player.playing, isTrue);
 
-    await coordinator.discardTemporarySource(request);
-    expect(player.playing, isFalse);
-    expect(coordinator.installedSourceIsAuthoritative, isFalse);
-  });
+      await coordinator.discardTemporarySource(request);
+      expect(player.playing, isFalse);
+      expect(coordinator.installedSourceIsAuthoritative, isFalse);
+    },
+  );
 
-  test('stopAndWait drains a queued source install before native stop',
-      () async {
-    final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
-    addTearDown(player.dispose);
-    final sourceGate = player.gateNextMutation();
-    final request = coordinator.requestSource(
-      occurrenceId: 1,
-      position: Duration.zero,
-    );
-    final install = coordinator.commitSource(
-      request,
-      AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
-    );
-    await sourceGate.started.future;
+  test(
+    'stopAndWait drains a queued source install before native stop',
+    () async {
+      final player = _SerializedAudioPlayer();
+      final coordinator = PlaybackCommandCoordinator(player);
+      addTearDown(player.dispose);
+      final sourceGate = player.gateNextMutation();
+      final request = coordinator.requestSource(
+        occurrenceId: 1,
+        position: Duration.zero,
+      );
+      final install = coordinator.commitSource(
+        request,
+        AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
+      );
+      await sourceGate.started.future;
 
-    var stopped = false;
-    final stopping = coordinator.stopAndWait().then((_) => stopped = true);
-    await pumpEventQueue();
+      var stopped = false;
+      final stopping = coordinator.stopAndWait().then((_) => stopped = true);
+      await pumpEventQueue();
 
-    expect(stopped, isFalse);
-    expect(player.calls, ['source']);
-    sourceGate.release.complete();
-    await Future.wait([install, stopping]);
-    expect(player.calls, ['source', 'stop']);
-  });
+      expect(stopped, isFalse);
+      expect(player.calls, ['source']);
+      sourceGate.release.complete();
+      await Future.wait([install, stopping]);
+      expect(player.calls, ['source', 'stop']);
+    },
+  );
 
   test('stopAndWait drains a queued pause before native stop', () async {
     final player = _SerializedAudioPlayer();
@@ -244,60 +247,61 @@ void main() {
     expect(player.calls, ['source', 'stop']);
   });
 
-  test('queued source and failed stop attempt execute stop exactly once',
-      () async {
-    final failure = StateError('stop');
-    final player = _SerializedAudioPlayer()..stopError = failure;
-    final coordinator = PlaybackCommandCoordinator(player);
-    addTearDown(player.dispose);
-    final sourceGate = player.gateNextMutation();
-    final request = coordinator.requestSource(
-      occurrenceId: 1,
-      position: Duration.zero,
-    );
-    final install = coordinator.commitSource(
-      request,
-      AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
-    );
-    await sourceGate.started.future;
-    final stopping = coordinator.stopAndWait();
-    coordinator.requestSource(
-      occurrenceId: 2,
-      position: Duration.zero,
-    );
-    await coordinator.recordExplicitPlayIntent();
+  test(
+    'queued source and failed stop attempt execute stop exactly once',
+    () async {
+      final failure = StateError('stop');
+      final player = _SerializedAudioPlayer()..stopError = failure;
+      final coordinator = PlaybackCommandCoordinator(player);
+      addTearDown(player.dispose);
+      final sourceGate = player.gateNextMutation();
+      final request = coordinator.requestSource(
+        occurrenceId: 1,
+        position: Duration.zero,
+      );
+      final install = coordinator.commitSource(
+        request,
+        AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
+      );
+      await sourceGate.started.future;
+      final stopping = coordinator.stopAndWait();
+      coordinator.requestSource(occurrenceId: 2, position: Duration.zero);
+      await coordinator.recordExplicitPlayIntent();
 
-    sourceGate.release.complete();
-    await install;
-    await expectLater(stopping, throwsA(same(failure)));
-    await coordinator.setShuffleModeEnabled(true);
+      sourceGate.release.complete();
+      await install;
+      await expectLater(stopping, throwsA(same(failure)));
+      await coordinator.setShuffleModeEnabled(true);
 
-    expect(player.calls, ['source', 'stop']);
-  });
+      expect(player.calls, ['source', 'stop']);
+    },
+  );
 
-  test('queued pause and failed stop attempt execute stop exactly once',
-      () async {
-    final failure = StateError('stop');
-    final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
-    addTearDown(player.dispose);
-    await _install(coordinator);
-    await coordinator.recordExplicitPlayIntent();
-    final pauseGate = player.gateNextMutation();
-    final pause = coordinator.recordExplicitPauseIntent();
-    await pauseGate.started.future;
-    player.stopError = failure;
-    final stopping = coordinator.stopAndWait();
-    await coordinator.recordExplicitPlayIntent();
+  test(
+    'queued pause and failed stop attempt execute stop exactly once',
+    () async {
+      final failure = StateError('stop');
+      final player = _SerializedAudioPlayer();
+      final coordinator = PlaybackCommandCoordinator(player);
+      addTearDown(player.dispose);
+      await _install(coordinator);
+      await coordinator.recordExplicitPlayIntent();
+      final pauseGate = player.gateNextMutation();
+      final pause = coordinator.recordExplicitPauseIntent();
+      await pauseGate.started.future;
+      player.stopError = failure;
+      final stopping = coordinator.stopAndWait();
+      await coordinator.recordExplicitPlayIntent();
 
-    pauseGate.release.complete();
-    await pause;
-    await expectLater(stopping, throwsA(same(failure)));
-    await coordinator.seek(const Duration(seconds: 1));
+      pauseGate.release.complete();
+      await pause;
+      await expectLater(stopping, throwsA(same(failure)));
+      await coordinator.seek(const Duration(seconds: 1));
 
-    expect(player.calls.where((call) => call == 'stop'), hasLength(1));
-    expect(player.calls.sublist(player.calls.length - 2), ['pause', 'stop']);
-  });
+      expect(player.calls.where((call) => call == 'stop'), hasLength(1));
+      expect(player.calls.sublist(player.calls.length - 2), ['pause', 'stop']);
+    },
+  );
 
   test('loop and shuffle apply in coordinator order without overlap', () async {
     final player = _SerializedAudioPlayer();
@@ -317,33 +321,35 @@ void main() {
     expect(player.maxConcurrentMutations, 1);
   });
 
-  test('stale same-source play lifecycle completion has no pause side effect',
-      () async {
-    final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
-    addTearDown(player.dispose);
-    final request = coordinator.requestSource(
-      occurrenceId: 1,
-      position: Duration.zero,
-    );
-    await coordinator.commitSource(
-      request,
-      AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
-    );
-    final oldPlay = player.gateNextPlayLifecycle();
+  test(
+    'stale same-source play lifecycle completion has no pause side effect',
+    () async {
+      final player = _SerializedAudioPlayer();
+      final coordinator = PlaybackCommandCoordinator(player);
+      addTearDown(player.dispose);
+      final request = coordinator.requestSource(
+        occurrenceId: 1,
+        position: Duration.zero,
+      );
+      await coordinator.commitSource(
+        request,
+        AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
+      );
+      final oldPlay = player.gateNextPlayLifecycle();
 
-    await coordinator.recordExplicitPlayIntent();
-    await oldPlay.started.future;
-    await coordinator.recordExplicitPauseIntent();
-    await coordinator.recordExplicitPlayIntent();
-    final pauses = player.pauseCalls;
+      await coordinator.recordExplicitPlayIntent();
+      await oldPlay.started.future;
+      await coordinator.recordExplicitPauseIntent();
+      await coordinator.recordExplicitPlayIntent();
+      final pauses = player.pauseCalls;
 
-    oldPlay.release.complete();
-    await pumpEventQueue();
+      oldPlay.release.complete();
+      await pumpEventQueue();
 
-    expect(player.pauseCalls, pauses);
-    expect(player.playing, isTrue);
-  });
+      expect(player.pauseCalls, pauses);
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('preserving pause stays paused until preserving resume', () async {
     final player = _LifecycleAudioPlayer();
@@ -364,6 +370,39 @@ void main() {
 
     expect(player.playing, isTrue);
     expect(player.playCalls, 2);
+  });
+
+  test('immediate preserving pause silences playback without waiting for a '
+      'slow in-flight source install', () async {
+    final player = _SerializedAudioPlayer();
+    final coordinator = PlaybackCommandCoordinator(player);
+    addTearDown(player.dispose);
+    await _install(coordinator);
+    await coordinator.recordExplicitPlayIntent();
+    expect(player.playing, isTrue);
+
+    // A slow source install is in flight (gated) when the user skips.
+    final sourceGate = player.gateNextMutation();
+    final install = () async {
+      final token = coordinator.requestSource(
+        occurrenceId: 1,
+        position: Duration.zero,
+      );
+      await coordinator.commitSource(
+        token,
+        AudioSource.uri(Uri.parse('file:///tmp/B.mp3')),
+      );
+    }();
+    await sourceGate.started.future;
+
+    // Must not wait behind the gated setAudioSource before pausing.
+    await coordinator.pausePreservingIntentImmediately();
+    expect(player.pauseCalls, 1);
+
+    sourceGate.release.complete();
+    await install;
+    await pumpEventQueue();
+    expect(player.playing, isFalse);
   });
 
   test('preserving desired state cannot clear non-resumable denial', () async {
@@ -387,24 +426,51 @@ void main() {
     expect(player.playing, isTrue);
   });
 
-  test('desired playing intent ignores temporary interruption blocking',
-      () async {
-    final player = _LifecycleAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
-    addTearDown(player.dispose);
-    await _install(coordinator);
-    await coordinator.recordExplicitPlayIntent();
+  test(
+    'desired playing intent ignores temporary interruption blocking',
+    () async {
+      final player = _LifecycleAudioPlayer();
+      final coordinator = PlaybackCommandCoordinator(player);
+      addTearDown(player.dispose);
+      await _install(coordinator);
+      await coordinator.recordExplicitPlayIntent();
 
-    await coordinator.beginInterruption();
+      await coordinator.beginInterruption();
 
-    expect(coordinator.desiredPlayingIntent, isTrue);
-    expect(coordinator.effectivePlaying, isFalse);
-  });
+      expect(coordinator.desiredPlayingIntent, isTrue);
+      expect(coordinator.effectivePlaying, isFalse);
+    },
+  );
 
   for (final releaseFirst in ['first', 'second']) {
     test(
-        'overlapping preserving owners block until $releaseFirst releases last',
-        () async {
+      'overlapping preserving owners block until $releaseFirst releases last',
+      () async {
+        final player = _LifecycleAudioPlayer();
+        final coordinator = PlaybackCommandCoordinator(player);
+        addTearDown(player.dispose);
+        await _install(coordinator);
+        await coordinator.recordExplicitPlayIntent();
+        final first = await coordinator.pausePreservingIntent();
+        final second = await coordinator.pausePreservingIntent();
+
+        await coordinator.recordExplicitPlayIntent();
+        await coordinator.releasePreservingIntent(
+          releaseFirst == 'first' ? first : second,
+        );
+        expect(player.playing, isFalse);
+
+        await coordinator.releasePreservingIntent(
+          releaseFirst == 'first' ? second : first,
+        );
+        expect(player.playing, isTrue);
+      },
+    );
+  }
+
+  test(
+    'explicit pause remains denied after preserving owner release',
+    () async {
       final player = _LifecycleAudioPlayer();
       final coordinator = PlaybackCommandCoordinator(player);
       addTearDown(player.dispose);
@@ -413,35 +479,13 @@ void main() {
       final first = await coordinator.pausePreservingIntent();
       final second = await coordinator.pausePreservingIntent();
 
-      await coordinator.recordExplicitPlayIntent();
-      await coordinator.releasePreservingIntent(
-        releaseFirst == 'first' ? first : second,
-      );
+      await coordinator.recordExplicitPauseIntent();
+      await coordinator.releasePreservingIntent(first);
+      await coordinator.releasePreservingIntent(second);
+
       expect(player.playing, isFalse);
-
-      await coordinator.releasePreservingIntent(
-        releaseFirst == 'first' ? second : first,
-      );
-      expect(player.playing, isTrue);
-    });
-  }
-
-  test('explicit pause remains denied after preserving owner release',
-      () async {
-    final player = _LifecycleAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
-    addTearDown(player.dispose);
-    await _install(coordinator);
-    await coordinator.recordExplicitPlayIntent();
-    final first = await coordinator.pausePreservingIntent();
-    final second = await coordinator.pausePreservingIntent();
-
-    await coordinator.recordExplicitPauseIntent();
-    await coordinator.releasePreservingIntent(first);
-    await coordinator.releasePreservingIntent(second);
-
-    expect(player.playing, isFalse);
-  });
+    },
+  );
 
   test('stop remains denied after preserving owner release', () async {
     final player = _LifecycleAudioPlayer();
@@ -511,60 +555,58 @@ void main() {
     expect(errors, isEmpty);
   });
 
-  test('superseded source play error is inert before replacement commit',
-      () async {
-    final player = _LifecycleAudioPlayer();
-    final errors = <String>[];
-    var publications = 0;
-    final coordinator = PlaybackCommandCoordinator(
-      player,
-      onError: (operation, _, __) => errors.add(operation),
-      onStateChanged: () => publications++,
-    );
-    addTearDown(player.dispose);
-    await _install(coordinator);
-    await coordinator.recordExplicitPlayIntent();
-    coordinator.requestSource(
-      occurrenceId: 2,
-      position: Duration.zero,
-    );
-    await coordinator.settled;
-    final calls = player.calls.toList();
-    final publicationsBeforeError = publications;
+  test(
+    'superseded source play error is inert before replacement commit',
+    () async {
+      final player = _LifecycleAudioPlayer();
+      final errors = <String>[];
+      var publications = 0;
+      final coordinator = PlaybackCommandCoordinator(
+        player,
+        onError: (operation, _, __) => errors.add(operation),
+        onStateChanged: () => publications++,
+      );
+      addTearDown(player.dispose);
+      await _install(coordinator);
+      await coordinator.recordExplicitPlayIntent();
+      coordinator.requestSource(occurrenceId: 2, position: Duration.zero);
+      await coordinator.settled;
+      final calls = player.calls.toList();
+      final publicationsBeforeError = publications;
 
-    player.failCurrentPlay();
-    await pumpEventQueue();
+      player.failCurrentPlay();
+      await pumpEventQueue();
 
-    expect(errors, isEmpty);
-    expect(publications, publicationsBeforeError);
-    expect(player.calls, calls);
-  });
+      expect(errors, isEmpty);
+      expect(publications, publicationsBeforeError);
+      expect(player.calls, calls);
+    },
+  );
 
-  test('superseded source play completion is inert before replacement commit',
-      () async {
-    final player = _LifecycleAudioPlayer();
-    var publications = 0;
-    final coordinator = PlaybackCommandCoordinator(
-      player,
-      onStateChanged: () => publications++,
-    );
-    addTearDown(player.dispose);
-    await _install(coordinator);
-    await coordinator.recordExplicitPlayIntent();
-    coordinator.requestSource(
-      occurrenceId: 2,
-      position: Duration.zero,
-    );
-    await coordinator.settled;
-    final calls = player.calls.toList();
-    final publicationsBeforeCompletion = publications;
+  test(
+    'superseded source play completion is inert before replacement commit',
+    () async {
+      final player = _LifecycleAudioPlayer();
+      var publications = 0;
+      final coordinator = PlaybackCommandCoordinator(
+        player,
+        onStateChanged: () => publications++,
+      );
+      addTearDown(player.dispose);
+      await _install(coordinator);
+      await coordinator.recordExplicitPlayIntent();
+      coordinator.requestSource(occurrenceId: 2, position: Duration.zero);
+      await coordinator.settled;
+      final calls = player.calls.toList();
+      final publicationsBeforeCompletion = publications;
 
-    player.completeCurrentPlay();
-    await pumpEventQueue();
+      player.completeCurrentPlay();
+      await pumpEventQueue();
 
-    expect(publications, publicationsBeforeCompletion);
-    expect(player.calls, calls);
-  });
+      expect(publications, publicationsBeforeCompletion);
+      expect(player.calls, calls);
+    },
+  );
 
   test('current source play error still reports once', () async {
     final player = _LifecycleAudioPlayer();
@@ -584,33 +626,35 @@ void main() {
     expect(coordinator.installedSourceToken, isNull);
   });
 
-  test('explicit play retries after audio session activation failure',
-      () async {
-    final player = _LifecycleAudioPlayer();
-    var activationAttempts = 0;
-    final coordinator = PlaybackCommandCoordinator(
-      player,
-      prepareForPlayback: () async {
-        activationAttempts++;
-        if (activationAttempts == 1) {
-          throw StateError('route unavailable');
-        }
-      },
-    );
-    addTearDown(player.dispose);
-    await _install(coordinator);
+  test(
+    'explicit play retries after audio session activation failure',
+    () async {
+      final player = _LifecycleAudioPlayer();
+      var activationAttempts = 0;
+      final coordinator = PlaybackCommandCoordinator(
+        player,
+        prepareForPlayback: () async {
+          activationAttempts++;
+          if (activationAttempts == 1) {
+            throw StateError('route unavailable');
+          }
+        },
+      );
+      addTearDown(player.dispose);
+      await _install(coordinator);
 
-    await coordinator.recordExplicitPlayIntent();
-    await pumpEventQueue();
-    expect(player.playing, isFalse);
+      await coordinator.recordExplicitPlayIntent();
+      await pumpEventQueue();
+      expect(player.playing, isFalse);
 
-    await coordinator.recordExplicitPlayIntent();
-    await pumpEventQueue();
+      await coordinator.recordExplicitPlayIntent();
+      await pumpEventQueue();
 
-    expect(activationAttempts, 2);
-    expect(player.playing, isTrue);
-    expect(player.calls.where((call) => call == 'source').length, 2);
-  });
+      expect(activationAttempts, 2);
+      expect(player.playing, isTrue);
+      expect(player.calls.where((call) => call == 'source').length, 2);
+    },
+  );
 
   test('becoming noisy pauses without reinstalling the source', () async {
     final player = _LifecycleAudioPlayer();
@@ -690,8 +734,10 @@ void main() {
     );
 
     expect(result, isA<SourceCommitFailed>());
-    expect((result as SourceCommitFailed).error,
-        isA<ResolvedAudioTooShortException>());
+    expect(
+      (result as SourceCommitFailed).error,
+      isA<ResolvedAudioTooShortException>(),
+    );
     expect(coordinator.installedSourceToken, isNull);
     expect(player.calls, ['source', 'stop']);
   });
@@ -717,58 +763,61 @@ void main() {
   });
 
   test(
-      'authoritative source commit rejects a native load error after assignment',
-      () async {
-    final player = _LifecycleAudioPlayer()
-      ..sourceInstallError = StateError('late source error')
-      ..sourceInstallErrorAfterSet = true;
-    final coordinator = PlaybackCommandCoordinator(player);
-    addTearDown(player.dispose);
-    final request = coordinator.requestSource(
-      occurrenceId: 1,
-      position: Duration.zero,
-    );
+    'authoritative source commit rejects a native load error after assignment',
+    () async {
+      final player = _LifecycleAudioPlayer()
+        ..sourceInstallError = StateError('late source error')
+        ..sourceInstallErrorAfterSet = true;
+      final coordinator = PlaybackCommandCoordinator(player);
+      addTearDown(player.dispose);
+      final request = coordinator.requestSource(
+        occurrenceId: 1,
+        position: Duration.zero,
+      );
 
-    final result = await coordinator.commitSource(
-      request,
-      AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
-    );
+      final result = await coordinator.commitSource(
+        request,
+        AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
+      );
 
-    expect(result, isA<SourceCommitFailed>());
-    expect(coordinator.installedSourceToken, isNull);
-  });
+      expect(result, isA<SourceCommitFailed>());
+      expect(coordinator.installedSourceToken, isNull);
+    },
+  );
 
-  test('source load timeout fails the commit and lets a newer source install',
-      () async {
-    final player = _LifecycleAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(
-      player,
-      sourceLoadTimeout: const Duration(milliseconds: 20),
-    );
-    addTearDown(player.dispose);
-    player.hangNextSourceInstall = true;
-    final first = coordinator.requestSource(
-      occurrenceId: 1,
-      position: Duration.zero,
-    );
+  test(
+    'source load timeout fails the commit and lets a newer source install',
+    () async {
+      final player = _LifecycleAudioPlayer();
+      final coordinator = PlaybackCommandCoordinator(
+        player,
+        sourceLoadTimeout: const Duration(milliseconds: 20),
+      );
+      addTearDown(player.dispose);
+      player.hangNextSourceInstall = true;
+      final first = coordinator.requestSource(
+        occurrenceId: 1,
+        position: Duration.zero,
+      );
 
-    final failed = await coordinator.commitSource(
-      first,
-      AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
-    );
-    final second = coordinator.requestSource(
-      occurrenceId: 2,
-      position: Duration.zero,
-    );
-    final installed = await coordinator.commitSource(
-      second,
-      AudioSource.uri(Uri.parse('file:///tmp/B.mp3')),
-    );
+      final failed = await coordinator.commitSource(
+        first,
+        AudioSource.uri(Uri.parse('file:///tmp/A.mp3')),
+      );
+      final second = coordinator.requestSource(
+        occurrenceId: 2,
+        position: Duration.zero,
+      );
+      final installed = await coordinator.commitSource(
+        second,
+        AudioSource.uri(Uri.parse('file:///tmp/B.mp3')),
+      );
 
-    expect(failed, isA<SourceCommitFailed>());
-    expect(installed, isA<SourceCommitInstalled>());
-    expect(coordinator.installedSourceToken, second);
-  });
+      expect(failed, isA<SourceCommitFailed>());
+      expect(installed, isA<SourceCommitInstalled>());
+      expect(coordinator.installedSourceToken, second);
+    },
+  );
 
   test('failed seek is consumed before a later interruption pause', () async {
     final errors = <String>[];
@@ -873,16 +922,16 @@ class _SerializedAudioPlayer extends AudioPlayer {
 
   @override
   Future<void> pause() => _mutate('pause', () {
-        pauseCalls++;
-        _playing = false;
-      });
+    pauseCalls++;
+    _playing = false;
+  });
 
   @override
   Future<void> stop() => _mutate('stop', () {
-        final error = stopError;
-        if (error != null) throw error;
-        _playing = false;
-      });
+    final error = stopError;
+    if (error != null) throw error;
+    _playing = false;
+  });
 
   @override
   Future<void> setLoopMode(LoopMode mode) =>

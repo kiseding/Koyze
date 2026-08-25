@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../leaderboard/presentation/leaderboard_provider.dart';
@@ -26,19 +28,81 @@ String? _dominantPlatform(List<MusicItem> favorites) {
   return best;
 }
 
+/// 推荐结果缓存时长：期间点击播放、收藏变动都不会触发重建，
+/// 只有缓存过期后才重新计算一次。
+const Duration kRecommendationCacheTtl = Duration(hours: 12);
+
 /// 猜你喜欢推荐结果。
 ///
 /// 复用内置推荐算法 [RecommendationEngine] 完成排除已收藏、画像评分与
-/// Top-N 排序；联网搜索仅为算法补充“未收藏候选”——只用收藏画像中权重
-/// 最高的歌手、在收藏最常用的音源上搜索，避免全库检索。搜索失败时自动
-/// 降级为本地候选，不影响结果。仅当收藏/播放历史变化（revision 变更）
-/// 时才重建，不会反复联网。
-final recommendationProvider = FutureProvider<List<RecommendedSong>>((
-  ref,
-) async {
-  ref.watch(playlistRevisionProvider);
-  ref.watch(playHistoryRevisionProvider).value;
+/// Top-N 排序；联网搜索仅为算法补充“未收藏候选”。结果带 12 小时 TTL，
+/// 播放行为不再触发刷新（避免点一首歌整页重建）。
+final recommendationProvider =
+    StateNotifierProvider<
+      RecommendationNotifier,
+      AsyncValue<List<RecommendedSong>>
+    >((ref) {
+      return RecommendationNotifier(loader: () => computeRecommendations(ref));
+    });
 
+class RecommendationNotifier
+    extends StateNotifier<AsyncValue<List<RecommendedSong>>> {
+  RecommendationNotifier({
+    required Future<List<RecommendedSong>> Function() loader,
+  }) : _loader = loader,
+       super(const AsyncValue.loading()) {
+    _ensureData();
+  }
+
+  final Future<List<RecommendedSong>> Function() _loader;
+  Timer? _refreshTimer;
+  DateTime? _loadedAt;
+  bool _inFlight = false;
+
+  bool get _expired =>
+      _loadedAt == null ||
+      DateTime.now().difference(_loadedAt!) >= kRecommendationCacheTtl;
+
+  Future<void> _ensureData({bool force = false}) async {
+    if (_inFlight) return;
+    if (!force && !_expired) return;
+    _inFlight = true;
+    try {
+      final result = await _loader();
+      _loadedAt = DateTime.now();
+      if (mounted) state = AsyncValue.data(result);
+      _scheduleNextRefresh();
+    } catch (error, stackTrace) {
+      if (mounted) state = AsyncValue.error(error, stackTrace);
+    } finally {
+      _inFlight = false;
+    }
+  }
+
+  void _scheduleNextRefresh() {
+    _refreshTimer?.cancel();
+    final age = _loadedAt == null
+        ? Duration.zero
+        : DateTime.now().difference(_loadedAt!);
+    final remaining = kRecommendationCacheTtl - age;
+    _refreshTimer = Timer(
+      remaining <= Duration.zero ? const Duration(seconds: 1) : remaining,
+      () => _ensureData(force: true),
+    );
+  }
+
+  /// 错误页手动重试：强制绕过 TTL 重新计算。
+  Future<void> retry() => _ensureData(force: true);
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+}
+
+/// 计算推荐结果。不 watch 任何 revision，避免播放/收藏变化导致重建。
+Future<List<RecommendedSong>> computeRecommendations(Ref ref) async {
   final playlistService = ref.read(playlistServiceProvider);
   final history = ref.read(playHistoryStoreProvider);
 
@@ -73,8 +137,7 @@ final recommendationProvider = FutureProvider<List<RecommendedSong>>((
   final profile = engine.buildProfile(favorites);
   final artists = profile.artistWeights.keys.toList()
     ..sort(
-      (a, b) =>
-          profile.artistWeights[b]!.compareTo(profile.artistWeights[a]!),
+      (a, b) => profile.artistWeights[b]!.compareTo(profile.artistWeights[a]!),
     );
   if (artists.isNotEmpty) {
     final platformId = _dominantPlatform(favorites);
@@ -86,15 +149,20 @@ final recommendationProvider = FutureProvider<List<RecommendedSong>>((
         if (artist.isNotEmpty) original[artist.toLowerCase()] = artist;
       }
       final sourceManager = ref.read(builtInSourcesProvider);
-      final queries =
-          artists.take(3).map((a) => original[a] ?? a).toList(growable: false);
+      final queries = artists
+          .take(3)
+          .map((a) => original[a] ?? a)
+          .toList(growable: false);
       await Future.wait([
         for (final query in queries)
-          sourceManager.search(platformId, query, limit: 40).then((songs) {
-            for (final song in songs) {
-              candidates[song.identityKey] = song;
-            }
-          }).catchError((_) {}),
+          sourceManager
+              .search(platformId, query, limit: 40)
+              .then((songs) {
+                for (final song in songs) {
+                  candidates[song.identityKey] = song;
+                }
+              })
+              .catchError((_) {}),
       ]);
     }
   }
@@ -104,4 +172,4 @@ final recommendationProvider = FutureProvider<List<RecommendedSong>>((
     candidates: candidates.values.toList(),
     playCounts: artistPlays,
   );
-});
+}

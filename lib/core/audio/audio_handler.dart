@@ -2239,7 +2239,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<_PlaybackHalt> _haltCurrentPlayback() async {
     _bumpGeneration();
     _cancelForegroundCacheWork();
-    final owner = await _commands.pausePreservingIntent();
+    // Pause immediately instead of waiting behind an in-flight (potentially
+    // slow) source install so the previous track goes silent right away.
+    final owner = await _commands.pausePreservingIntentImmediately();
     _publishPlaybackState(
       override: AudioProcessingState.buffering,
       playingOverride: true,

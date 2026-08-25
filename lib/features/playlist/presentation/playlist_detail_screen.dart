@@ -230,37 +230,56 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           flexibleSpace: GradientAppBarBackground(
             background: Theme.of(context).scaffoldBackgroundColor,
           ),
-          leading: FxIconButton(
-            tooltip: isSelectionMode
-                ? '退出多选'
-                : _isEditing
-                ? '取消编辑'
-                : '返回',
-            icon: AnimatedIconSwitch(
-              icon: isSelectionMode
-                  ? Icons.close
-                  : _isEditing
-                  ? Icons.close
-                  : Icons.arrow_back,
-              keyValue: isSelectionMode
-                  ? Icons.close
-                  : _isEditing
-                  ? Icons.close
-                  : Icons.arrow_back,
-              color: AppColors.onScaffold(context),
-            ),
-            onPressed: () {
-              if (isSelectionMode) {
-                setState(_selectedFavoriteIds.clear);
-              } else if (_isEditing) {
-                setState(() {
-                  _isEditing = false;
-                  _syncReorderedSongs(playlist, force: true);
-                });
-              } else {
-                Navigator.pop(context);
-              }
-            },
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FxIconButton(
+                tooltip: isSelectionMode
+                    ? '退出多选'
+                    : _isEditing
+                    ? '取消编辑'
+                    : '返回',
+                icon: AnimatedIconSwitch(
+                  icon: isSelectionMode
+                      ? Icons.close
+                      : _isEditing
+                      ? Icons.close
+                      : Icons.arrow_back,
+                  keyValue: isSelectionMode
+                      ? Icons.close
+                      : _isEditing
+                      ? Icons.close
+                      : Icons.arrow_back,
+                  color: AppColors.onScaffold(context),
+                ),
+                onPressed: () {
+                  if (isSelectionMode) {
+                    setState(_selectedFavoriteIds.clear);
+                  } else if (_isEditing) {
+                    setState(() {
+                      _isEditing = false;
+                      _syncReorderedSongs(playlist, force: true);
+                    });
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+              if (isSelectionMode)
+                FxIconButton(
+                  tooltip: isAllFavoritesSelected ? '取消全选' : '全选',
+                  onPressed: _selectionBusy || currentPageSongs.isEmpty
+                      ? null
+                      : () => _toggleAllFavoriteSelection(
+                          currentPageSongs,
+                          allSelected: isAllFavoritesSelected,
+                        ),
+                  icon: Icon(
+                    isAllFavoritesSelected ? Icons.deselect : Icons.select_all,
+                    color: AppColors.accentOf(context),
+                  ),
+                ),
+            ],
           ),
           title: Text(
             isSelectionMode
@@ -277,19 +296,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ),
           actions: [
             if (isSelectionMode) ...[
-              FxIconButton(
-                tooltip: isAllFavoritesSelected ? '取消全选' : '全选',
-                onPressed: _selectionBusy || currentPageSongs.isEmpty
-                    ? null
-                    : () => _toggleAllFavoriteSelection(
-                        currentPageSongs,
-                        allSelected: isAllFavoritesSelected,
-                      ),
-                icon: Icon(
-                  isAllFavoritesSelected ? Icons.deselect : Icons.select_all,
-                  color: AppColors.accentOf(context),
-                ),
-              ),
               FxIconButton(
                 tooltip: '下载已选歌曲',
                 onPressed: _selectionBusy

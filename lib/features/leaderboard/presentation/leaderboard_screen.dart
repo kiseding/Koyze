@@ -756,19 +756,25 @@ class _LeaderboardSongRow extends ConsumerWidget {
               children: [
                 SizedBox(
                   width: 32,
-                  child: Text(
-                    '${index + 1}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: index < 3
-                          ? AppColors.accentOf(context)
-                          : AppColors.mutedText(context),
-                      fontSize: 14,
-                      fontWeight: index < 3
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
-                  ),
+                  child: isPlaying
+                      ? Icon(
+                          Icons.play_arrow,
+                          size: 22,
+                          color: AppColors.accentOf(context),
+                        )
+                      : Text(
+                          '${index + 1}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: index < 3
+                                ? AppColors.accentOf(context)
+                                : AppColors.mutedText(context),
+                            fontSize: 14,
+                            fontWeight: index < 3
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Container(

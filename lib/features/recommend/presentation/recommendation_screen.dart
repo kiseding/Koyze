@@ -56,16 +56,34 @@ class RecommendationScreen extends ConsumerWidget {
                             ),
                             leading: SizedBox(
                               width: 28,
-                              child: Text(
-                                '${index + 1}',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  color: index < 3
-                                      ? kRecommendColor
-                                      : AppColors.mutedText(context),
-                                ),
+                              child: Consumer(
+                                builder: (context, ref, _) {
+                                  final isPlaying = ref.watch(
+                                    currentMusicProvider.select(
+                                      (current) =>
+                                          current?.identityKey ==
+                                          rec.song.identityKey,
+                                    ),
+                                  );
+                                  if (isPlaying) {
+                                    return Icon(
+                                      Icons.play_arrow,
+                                      size: 22,
+                                      color: AppColors.accentOf(context),
+                                    );
+                                  }
+                                  return Text(
+                                    '${index + 1}',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                      color: index < 3
+                                          ? kRecommendColor
+                                          : AppColors.mutedText(context),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                             title: Text(
@@ -213,7 +231,7 @@ class RecommendationScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           FilledButton.tonal(
-            onPressed: () => ref.invalidate(recommendationProvider),
+            onPressed: () => ref.read(recommendationProvider.notifier).retry(),
             child: const Text('重试'),
           ),
         ],

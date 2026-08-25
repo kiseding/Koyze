@@ -232,17 +232,17 @@ class _SongListRow extends ConsumerWidget {
             children: [
               SizedBox(
                 width: 28,
-                child: Text(
-                  '${index + 1}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: isPlaying
-                        ? accent
-                        : AppColors.secondaryText(context),
-                    fontSize: 13,
-                    fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
+                child: isPlaying
+                    ? Icon(Icons.play_arrow, size: 22, color: accent)
+                    : Text(
+                        '${index + 1}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.secondaryText(context),
+                          fontSize: 13,
+                          fontWeight: FontWeight.normal,
+                        ),
+                      ),
               ),
               const SizedBox(width: 10),
               ClipRRect(
