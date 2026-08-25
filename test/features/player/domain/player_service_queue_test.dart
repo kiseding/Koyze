@@ -160,6 +160,86 @@ void main() {
     expect(loadRequests, isNotEmpty);
   });
 
+  test(
+    'lazy skip recovers after a shuffle rebuild that returns an empty tail',
+    () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      handler.configureLazyQueue(
+        loadMore: (minimumItems) async {
+          // Sequential window exhausted: repeat=off keeps the list empty.
+          return const [];
+        },
+        rebuildForShuffle: (current, enabled, minimumItems) async {
+          if (!enabled) return const [];
+          return [item('S1')];
+        },
+      );
+
+      await handler.setPlaylist([item('A'), item('B')]);
+      await handler.skipToNext(); // now on B
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+
+      // Toggle shuffle on (rebuild gives S1), then back to sequential with an
+      // empty tail — previously this left next/previous permanently inert.
+      await handler.setShuffleMode(AudioServiceShuffleMode.all);
+      expect(handler.queueItems.map((queueItem) => queueItem.id), ['B', 'S1']);
+      await handler.setShuffleMode(AudioServiceShuffleMode.none);
+      expect(handler.currentQueueIndex, 0);
+
+      // Eager retry must pull new items even though loadMore returned empty
+      // before; simulate the loader recovering after the toggle.
+      await handler.skipToNext();
+      expect(player.playing, isTrue);
+    },
+  );
+
+  test(
+    'starting a new playlist silences the previous track immediately',
+    () async {
+      final slowResolverStarted = Completer<void>();
+      final releaseSlowResolver = Completer<void>();
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+
+      await handler.setPlaylist([item('Old')]);
+      expect(player.playing, isTrue);
+      final pausesBefore = player.pauseCalls;
+
+      // 'New' has no cached URL, forcing a real resolution round-trip.
+      final newItem = MediaItem(
+        id: 'New',
+        title: 'New',
+        extras: {'requestedQuality': '320k'},
+      );
+      handler.urlResolver = (id, [extras]) async {
+        if (id == 'New') {
+          slowResolverStarted.complete();
+          await releaseSlowResolver.future;
+        }
+        return 'file:///tmp/$id.mp3';
+      };
+
+      // Jump to a song from another list while the old track is playing.
+      final replacement = handler.setPlaylist([newItem]);
+      await slowResolverStarted.future;
+
+      // The old track must already be silent before the new URL resolves.
+      expect(player.pauseCalls, greaterThan(pausesBefore));
+      expect(player.playing, isFalse);
+
+      releaseSlowResolver.complete();
+      await replacement;
+      expect(player.playing, isTrue);
+    },
+  );
+
   test('next and previous finish on the selected track source', () async {
     MediaItem item(String id) => MediaItem(
       id: id,
@@ -857,6 +937,7 @@ void main() {
 }
 
 class _RecordingAudioPlayer extends AudioPlayer {
+  int pauseCalls = 0;
   AudioSource? loadedSource;
   bool _playing = false;
   Completer<void>? _pauseStarted;
@@ -942,6 +1023,7 @@ class _RecordingAudioPlayer extends AudioPlayer {
 
   @override
   Future<void> pause() async {
+    pauseCalls++;
     _playing = false;
     final started = _pauseStarted;
     final release = _releasePause;

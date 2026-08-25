@@ -2062,6 +2062,49 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await _skipToNextInternal(seamless: seamless, provenance: provenance);
   }
 
+  /// Resolves the next/previous queue index, retrying once with an eager lazy
+  /// refill when the current window cannot produce a target. Without the retry
+  /// a shuffle→sequential rebuild that returns an empty tail (or an exhausted
+  /// window with repeat=off) leaves prev/next permanently inert.
+  Future<int> _resolveSkipTarget({required bool forward}) async {
+    final playback = playbackState.value;
+    final shuffle =
+        !_usesLazyQueue &&
+        (_player.shuffleModeEnabled ||
+            playback.shuffleMode == AudioServiceShuffleMode.all);
+    int compute() {
+      if (forward) {
+        return nextQueueIndex(
+          currentIndex: _currentIndex,
+          queueLength: _queue.length,
+          shuffle: shuffle,
+          loop:
+              shuffle ||
+              playback.repeatMode == AudioServiceRepeatMode.all ||
+              playback.repeatMode == AudioServiceRepeatMode.one,
+        );
+      }
+      return previousQueueIndex(
+        currentIndex: _currentIndex,
+        queueLength: _queue.length,
+        shuffle: shuffle,
+        loop:
+            shuffle ||
+            playback.repeatMode == AudioServiceRepeatMode.all ||
+            playback.repeatMode == AudioServiceRepeatMode.one,
+      );
+    }
+
+    var target = compute();
+    if (target >= 0 || !_usesLazyQueue) return target;
+    // The lazy window has no adjacent item yet (or returned nothing after a
+    // mode rebuild). Force one more eager pull beyond the normal lookahead and
+    // recompute before giving up.
+    await _ensureLazyQueueAhead(1);
+    target = compute();
+    return target;
+  }
+
   Future<void> _skipToNextInternal({
     bool seamless = false,
     PlaybackStartProvenance? provenance,
@@ -2071,22 +2114,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await _ensureLazyQueueAhead(1);
     if (_queue.isEmpty) return;
 
-    final shuffle =
-        !_usesLazyQueue &&
-        (_player.shuffleModeEnabled ||
-            playbackState.value.shuffleMode == AudioServiceShuffleMode.all);
-    final loop =
-        shuffle ||
-        playbackState.value.repeatMode == AudioServiceRepeatMode.all ||
-        playbackState.value.repeatMode == AudioServiceRepeatMode.one;
-    final nextIndex =
-        targetIndex ??
-        nextQueueIndex(
-          currentIndex: _currentIndex,
-          queueLength: _queue.length,
-          shuffle: shuffle,
-          loop: loop,
-        );
+    final nextIndex = targetIndex ?? await _resolveSkipTarget(forward: true);
     if (nextIndex < 0) return;
     if (nextIndex >= _queue.length) return;
     final nextOccurrence = _occurrenceIdAt(nextIndex);
@@ -2166,20 +2194,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }) async {
     if (_queue.isEmpty) return;
 
-    final shuffle =
-        !_usesLazyQueue &&
-        (_player.shuffleModeEnabled ||
-            playbackState.value.shuffleMode == AudioServiceShuffleMode.all);
-    final loop =
-        shuffle ||
-        playbackState.value.repeatMode == AudioServiceRepeatMode.all ||
-        playbackState.value.repeatMode == AudioServiceRepeatMode.one;
-    final prevIndex = previousQueueIndex(
-      currentIndex: _currentIndex,
-      queueLength: _queue.length,
-      shuffle: shuffle,
-      loop: loop,
-    );
+    final prevIndex = await _resolveSkipTarget(forward: false);
     if (prevIndex < 0) return;
     final previousOccurrence = _occurrenceIdAt(prevIndex);
     final previousItem = _queue[prevIndex];
@@ -3181,12 +3196,40 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       unawaited(_commands.clearPreservingPauseOwners());
     }
 
+    // Silence a currently audible track right away (including tracks started
+    // from another list) instead of letting it play until the new URL
+    // resolves. Fresh starts have nothing to silence and must not record an
+    // extra pause.
+    final wasPlaying = _player.playing;
+    final halt = (_commands.installedSourceIsAuthoritative || wasPlaying)
+        ? await _commands.pausePreservingIntentImmediately()
+        : null;
+
+    final targetId = items[safeIndex].id;
     // 始终走 skipToQueueItem，统一解析/缓存/预加载
     await _loadQueueItem(
       safeIndex,
       preserveUserIntent: true,
       provenance: provenance,
+      preservingPauseOwner: halt,
     );
+
+    // If the jump failed to install the chosen song (bad URL, resolver error,
+    // …) and this playlist is still the authoritative choice, restore the
+    // previously audible playback instead of leaving dead silence.
+    if (halt != null &&
+        !_disposed &&
+        (_installedMediaId != targetId ||
+            !_commands.installedSourceIsAuthoritative) &&
+        mediaItem.value?.id == targetId) {
+      try {
+        await _commands.reconcilePlayingIntent();
+      } catch (_) {}
+      try {
+        await _player.play();
+      } catch (_) {}
+      _publishPlaybackState();
+    }
   }
 
   @override
