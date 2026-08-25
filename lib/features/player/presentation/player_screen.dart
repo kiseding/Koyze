@@ -331,6 +331,125 @@ class _PlayerProgress extends ConsumerWidget {
   }
 }
 
+class _FullPlayerArtworkSwitcher extends StatefulWidget {
+  const _FullPlayerArtworkSwitcher({
+    required this.artwork,
+    required this.songId,
+    required this.fallback,
+  });
+
+  final String? artwork;
+  final String? songId;
+  final Widget Function() fallback;
+
+  @override
+  State<_FullPlayerArtworkSwitcher> createState() =>
+      _FullPlayerArtworkSwitcherState();
+}
+
+class _FullPlayerArtworkSwitcherState extends State<_FullPlayerArtworkSwitcher>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: kFullPlayerArtworkSwitchDuration,
+    value: 1,
+  );
+  late Widget _current = _artworkWidget(widget.artwork);
+  Widget? _previous;
+  String? _currentKey;
+  String? _pendingKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentKey = _keyFor(widget.songId, widget.artwork);
+  }
+
+  @override
+  void didUpdateWidget(covariant _FullPlayerArtworkSwitcher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextKey = _keyFor(widget.songId, widget.artwork);
+    if (nextKey == _currentKey || nextKey == _pendingKey) return;
+    _prepareAndSwitch(nextKey, widget.artwork);
+  }
+
+  Future<void> _prepareAndSwitch(String nextKey, String? artwork) async {
+    _pendingKey = nextKey;
+    if (artwork != null && artwork.isNotEmpty) {
+      final provider = ArtworkNetworkImage(artwork);
+      try {
+        await precacheImage(provider, context);
+      } catch (_) {
+        // Fall back to the default artwork, but keep the old cover visible until
+        // the fallback transition starts. This avoids a blank flash on load fail.
+      }
+    }
+    if (!mounted || _pendingKey != nextKey) return;
+    setState(() {
+      _previous = _current;
+      _current = _artworkWidget(artwork);
+      _currentKey = nextKey;
+      _pendingKey = null;
+      _controller.value = 0;
+    });
+    await _controller.forward();
+    if (!mounted || _currentKey != nextKey) return;
+    setState(() => _previous = null);
+  }
+
+  String _keyFor(String? songId, String? artwork) =>
+      songId ?? artwork ?? 'empty';
+
+  Widget _artworkWidget(String? artwork) {
+    if (artwork == null || artwork.isEmpty) return widget.fallback();
+    return ArtworkImage(
+      artwork,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => widget.fallback(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = reduceMotion(context);
+    if (reduced) return _current;
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    return ColoredBox(
+      color: AppColors.cardAlt(context),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_previous != null)
+            FadeTransition(
+              opacity: ReverseAnimation(curved),
+              child: Transform.scale(scale: 1.015, child: _previous),
+            ),
+          SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 0.045),
+              end: Offset.zero,
+            ).animate(curved),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 1.025, end: 1).animate(curved),
+              child: _current,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+const kFullPlayerArtworkSwitchDuration = Duration(milliseconds: 520);
 const kFullPlayerTrackSwitchDuration = Duration(milliseconds: 620);
 const kFullPlayerTrackSwitchReverseDuration = Duration(milliseconds: 420);
 
@@ -841,66 +960,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(22),
-                child: AnimatedSwitcher(
-                  duration: motionDuration(
-                    context,
-                    kFullPlayerTrackSwitchDuration,
-                  ),
-                  reverseDuration: motionDuration(
-                    context,
-                    kFullPlayerTrackSwitchReverseDuration,
-                  ),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  layoutBuilder: (currentChild, previousChildren) {
-                    return ColoredBox(
-                      color: AppColors.cardAlt(context),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        alignment: Alignment.center,
-                        children: <Widget>[
-                          ...previousChildren,
-                          if (currentChild != null) currentChild,
-                        ],
-                      ),
-                    );
-                  },
-                  transitionBuilder: (child, animation) {
-                    final offset =
-                        Tween<Offset>(
-                          begin: const Offset(0.08, 0),
-                          end: Offset.zero,
-                        ).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutCubic,
-                            reverseCurve: Curves.easeInCubic,
-                          ),
-                        );
-                    final scale = Tween<double>(begin: 0.985, end: 1.0).animate(
-                      CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOutCubic,
-                        reverseCurve: Curves.easeInCubic,
-                      ),
-                    );
-                    return ClipRect(
-                      child: SlideTransition(
-                        position: offset,
-                        child: ScaleTransition(scale: scale, child: child),
-                      ),
-                    );
-                  },
-                  child: KeyedSubtree(
-                    key: ValueKey<String>(songId ?? artwork ?? 'empty'),
-                    child: artwork != null && artwork.isNotEmpty
-                        ? ArtworkImage(
-                            artwork,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _defaultArtwork(),
-                          )
-                        : _defaultArtwork(),
-                  ),
+                child: _FullPlayerArtworkSwitcher(
+                  artwork: artwork,
+                  songId: songId,
+                  fallback: _defaultArtwork,
                 ),
               ),
             ),

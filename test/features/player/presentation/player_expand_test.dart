@@ -48,14 +48,11 @@ void main() {
     ).readAsStringSync();
     expect(player, contains('kFullPlayerTrackSwitchDuration'));
     expect(player, contains('Duration(milliseconds: 620)'));
-    expect(player, contains('AnimatedSwitcher'));
+    expect(player, contains('_FullPlayerArtworkSwitcher'));
+    expect(player, contains('precacheImage'));
+    expect(player, contains('kFullPlayerArtworkSwitchDuration'));
     expect(player, contains('ColoredBox'));
-    expect(
-      player,
-      isNot(
-        contains('FadeTransition(\n                      opacity: animation'),
-      ),
-    );
+    expect(player, isNot(contains('begin: const Offset(0.08, 0)')));
     expect(player, contains('alignment: Alignment.centerLeft'));
     expect(player, contains('width: double.infinity'));
     // 主壳联动：底栏挤出、Tab 上移、迷你栏扩张。
