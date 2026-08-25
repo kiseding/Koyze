@@ -195,6 +195,20 @@ class LocalMusicLibrary {
     );
   }
 
+  Future<void> upsertAndroidImportedAudio(Map<String, dynamic> entry) async {
+    final track = _androidTrackFromMap({
+      ...entry,
+      'androidSource': entry['androidSource']?.toString().isNotEmpty == true
+          ? entry['androidSource']
+          : 'externalIntent',
+    });
+    await _upsertPlatformTracks(
+      source: 'externalIntent',
+      tracks: [track],
+      staleFilter: (value) => false,
+    );
+  }
+
   Future<int> _upsertPlatformTracks({
     required String source,
     required List<LocalTrack> tracks,

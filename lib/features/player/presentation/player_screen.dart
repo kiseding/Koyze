@@ -16,6 +16,7 @@ import '../domain/player_service.dart';
 import 'player_provider.dart';
 import 'scrub_session.dart';
 import '../../playlist/presentation/playlist_provider.dart';
+import '../../sync/presentation/sync_phase1_provider.dart';
 import '../../playlist/presentation/playlist_picker.dart';
 import '../../playlist/data/playlist_repository.dart';
 import '../../download/presentation/download_provider.dart';
@@ -1353,6 +1354,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   if (!mounted) return;
                   showAppNotification(
                     '收藏失败: $error',
+                    type: AppNotificationType.error,
+                  );
+                }
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.thumb_down_alt_outlined,
+                color: AppColors.onScaffold(context),
+              ),
+              title: Text(
+                '不喜欢并跳过',
+                style: TextStyle(color: AppColors.onScaffold(context)),
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                try {
+                  await ref
+                      .read(ratingServiceProvider)
+                      .set(music.identityKey, PlayerService.dislikedRating);
+                  await ref.read(playerServiceProvider).next();
+                  if (!mounted) return;
+                  showAppNotification(
+                    '已标记不喜欢，后续播放会自动跳过',
+                    type: AppNotificationType.success,
+                  );
+                } catch (error) {
+                  if (!mounted) return;
+                  showAppNotification(
+                    '标记不喜欢失败: $error',
                     type: AppNotificationType.error,
                   );
                 }

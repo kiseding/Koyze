@@ -6,6 +6,8 @@ import android.database.Cursor
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
@@ -14,6 +16,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URLDecoder
 
 class MainActivity : AudioServiceActivity() {
     private val channelName = "koyze/android_file_access"
@@ -21,6 +24,7 @@ class MainActivity : AudioServiceActivity() {
     private val treeUriKey = "tree_uri"
     private val mediaStoreBitrateColumn = "bitrate"
     private var pendingPicker: MethodChannel.Result? = null
+    private var pendingImportedAudio: Map<String, Any?>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -34,6 +38,15 @@ class MainActivity : AudioServiceActivity() {
                         Environment.getExternalStorageDirectory().absolutePath,
                     )
                     "isExternalStorageManager" -> result.success(hasAllFilesAccess())
+                    "isIgnoringBatteryOptimizations" -> result.success(isIgnoringBatteryOptimizations())
+                    "openBatteryOptimizationSettings" -> {
+                        openBatteryOptimizationSettings()
+                        result.success(null)
+                    }
+                    "pendingImportedAudio" -> {
+                        result.success(pendingImportedAudio)
+                        pendingImportedAudio = null
+                    }
                     "writeFileBytes" -> {
                         val path = call.argument<String>("path")
                         val bytes = call.argument<ByteArray>("bytes")
@@ -73,9 +86,86 @@ class MainActivity : AudioServiceActivity() {
         }.start()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        captureImportedAudio(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        captureImportedAudio(intent)
+    }
+
+    private fun captureImportedAudio(intent: Intent?) {
+        if (intent == null) return
+        val uri = intent.data ?: return
+        val action = intent.action ?: return
+        if (action != Intent.ACTION_VIEW && action != Intent.ACTION_SEND) return
+        val mimeType = intent.type.orEmpty()
+        val name = displayNameForUri(uri) ?: uri.lastPathSegment?.let { URLDecoder.decode(it, "UTF-8") } ?: "audio"
+        if (!isAudioDocument(name, mimeType.takeIf { it.isNotBlank() })) return
+        pendingImportedAudio = mapOf(
+            "path" to uri.toString(),
+            "contentUri" to uri.toString(),
+            "fileName" to name,
+            "extension" to extensionOf(name),
+            "size" to sizeForUri(uri),
+            "modifiedAtMillis" to System.currentTimeMillis(),
+            "title" to titleFromFileName(name),
+            "artist" to "未知歌手",
+            "album" to "",
+            "durationMillis" to 0L,
+            "mimeType" to mimeType,
+            "androidSource" to "externalIntent",
+        )
+    }
+
+    private fun displayNameForUri(uri: Uri): String? {
+        contentResolver.query(
+            uri,
+            arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) return cursor.getString(0)
+        }
+        return null
+    }
+
+    private fun sizeForUri(uri: Uri): Long {
+        contentResolver.query(
+            uri,
+            arrayOf(android.provider.OpenableColumns.SIZE),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            if (cursor.moveToFirst() && !cursor.isNull(0)) return cursor.getLong(0)
+        }
+        return 0L
+    }
+
     private fun hasAllFilesAccess(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.R ||
             Environment.isExternalStorageManager()
+    }
+
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        return powerManager.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    private fun openBatteryOptimizationSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        if (intent.resolveActivity(packageManager) != null) {
+            startActivity(intent)
+        } else {
+            startActivity(Intent(Settings.ACTION_SETTINGS))
+        }
     }
 
     private fun selectDirectory(result: MethodChannel.Result) {

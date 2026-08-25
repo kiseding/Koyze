@@ -3169,6 +3169,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           ? _commands.recordExplicitPlayIntent()
           : _commands.setDesiredPlayingPreservingIntent(false),
     );
+    final hadPreviousTrack = _activeItemId != null && mediaItem.value != null;
+    final restoreEnginePlayingOnFailure = !hadPreviousTrack && _player.playing;
     _bumpGeneration();
     _lazyQueueEpoch++;
     _queue
@@ -3205,7 +3207,6 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         ? await _commands.pausePreservingIntentImmediately()
         : null;
 
-    final targetId = items[safeIndex].id;
     // 始终走 skipToQueueItem，统一解析/缓存/预加载
     await _loadQueueItem(
       safeIndex,
@@ -3214,14 +3215,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       preservingPauseOwner: halt,
     );
 
-    // If the jump failed to install the chosen song (bad URL, resolver error,
-    // …) and this playlist is still the authoritative choice, restore the
-    // previously audible playback instead of leaving dead silence.
-    if (halt != null &&
+    if (restoreEnginePlayingOnFailure &&
         !_disposed &&
-        (_installedMediaId != targetId ||
+        (_installedMediaId != items[safeIndex].id ||
             !_commands.installedSourceIsAuthoritative) &&
-        mediaItem.value?.id == targetId) {
+        mediaItem.value?.id == items[safeIndex].id) {
       try {
         await _commands.reconcilePlayingIntent();
       } catch (_) {}

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../core/motion/motion_tokens.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/artwork_image.dart';
 import '../../../../core/widgets/pressable.dart';
+import '../../../../router/app_router.dart';
 import '../../../../core/widgets/play_pulse_button.dart';
 import '../player_provider.dart';
 import '../scrub_session.dart';
@@ -446,7 +446,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                         enabled: currentMusic != null,
                         child: InkWell(
                           onTap: currentMusic != null
-                              ? () => context.push('/player')
+                              ? () => pushPlayerRoute(context, hasSong: true)
                               : null,
                           borderRadius: BorderRadius.circular(10),
                           child: Row(

@@ -14,6 +14,7 @@ import 'package:koyze/core/storage/portable_mode.dart';
 import 'package:koyze/core/widgets/artwork_disk_cache.dart';
 import 'package:koyze/features/custom_source/presentation/custom_source_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
+import 'package:koyze/features/local_music/domain/android_directory_access.dart';
 import 'package:koyze/features/search/presentation/search_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import 'package:koyze/features/download/domain/download_task.dart';
@@ -333,6 +334,15 @@ Future<void> _bootstrapUnsafe(
                     duration: task.duration,
                   );
                 }
+              }
+              final importedAudio =
+                  await AndroidDirectoryAccess.pendingImportedAudio();
+              if (importedAudio != null) {
+                await library.upsertAndroidImportedAudio(importedAudio);
+                AppLog.instance.record(
+                  'local_music.external_import',
+                  'file=${importedAudio['fileName']} uri=${importedAudio['contentUri']}',
+                );
               }
               // Always refresh the visible local playlist from the local index.
               // Plain scanned folders can receive scrape/tag fixes without the

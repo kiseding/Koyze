@@ -210,7 +210,15 @@ void main() {
     expect(activity, contains('scanMediaStore'));
     expect(activity, contains('scanSelectedDirectory'));
     expect(activity, contains('isExternalStorageManager'));
+    expect(activity, contains('isIgnoringBatteryOptimizations'));
+    expect(activity, contains('openBatteryOptimizationSettings'));
+    expect(activity, contains('pendingImportedAudio'));
+    expect(activity, contains('ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS'));
     expect(activity, contains('ACTION_OPEN_DOCUMENT_TREE'));
+    expect(activity, contains('Intent.ACTION_VIEW'));
+    expect(manifest, contains('android.intent.action.VIEW'));
+    expect(manifest, contains('android:mimeType="audio/*"'));
+    expect(manifest, contains('android:scheme="content"'));
     expect(manifest, contains('android:foregroundServiceType="mediaPlayback"'));
     expect(manifest, contains('android:stopWithTask="false"'));
     expect(manifest, contains('android:allowBackup="false"'));

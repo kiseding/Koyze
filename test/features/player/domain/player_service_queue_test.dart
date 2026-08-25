@@ -100,6 +100,30 @@ void main() {
     expect(service.currentLazyPlaylistId, isNull);
   });
 
+  test('player service filters disliked songs before queue install', () async {
+    audioHandler = handler;
+    final disliked = MusicItem(
+      id: 'bad',
+      name: 'bad',
+      singer: '',
+      source: 'test',
+    );
+    final liked = MusicItem(
+      id: 'good',
+      name: 'good',
+      singer: '',
+      source: 'test',
+    );
+    final service = PlayerService(
+      isDisliked: (song) async => song.identityKey == disliked.identityKey,
+    );
+
+    await service.playPlaylist([disliked, liked], autoplay: false);
+
+    expect(handler.queueItems.map((item) => item.id), [liked.identityKey]);
+    expect(handler.mediaItem.value?.id, liked.identityKey);
+  });
+
   test(
     'setPlaylist empty clears every authoritative current item field',
     () async {

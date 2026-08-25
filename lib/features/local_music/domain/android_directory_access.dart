@@ -31,6 +31,27 @@ class AndroidDirectoryAccess {
         false;
   }
 
+  static Future<bool> isIgnoringBatteryOptimizations() async {
+    if (!Platform.isAndroid) return true;
+    return await _channel.invokeMethod<bool>(
+          'isIgnoringBatteryOptimizations',
+        ) ??
+        false;
+  }
+
+  static Future<void> openBatteryOptimizationSettings() async {
+    if (!Platform.isAndroid) return;
+    await _channel.invokeMethod<void>('openBatteryOptimizationSettings');
+  }
+
+  static Future<Map<String, dynamic>?> pendingImportedAudio() async {
+    if (!Platform.isAndroid) return null;
+    final raw = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'pendingImportedAudio',
+    );
+    return raw == null ? null : Map<String, dynamic>.from(raw);
+  }
+
   static Future<List<Map<String, dynamic>>> _invokeTrackList(
     String method,
   ) async {

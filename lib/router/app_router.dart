@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:go_router/go_router.dart';
 import '../core/logging/app_log.dart';
 import '../core/card_expand.dart';
@@ -24,15 +26,51 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<SwipeBranchContainerState> _swipeBranchKey =
     GlobalKey<SwipeBranchContainerState>();
 
+bool _playerRoutePushInFlight = false;
+Timer? _playerRoutePushTimeout;
+
+bool _isCurrentRoute(String path) =>
+    appRouter.routerDelegate.currentConfiguration.uri.path == path;
+
+Future<void> pushPlayerRoute(
+  BuildContext context, {
+  required bool hasSong,
+}) async {
+  if (!hasSong || _isCurrentRoute('/player') || _playerRoutePushInFlight) {
+    return;
+  }
+  _playerRoutePushInFlight = true;
+  _playerRoutePushTimeout?.cancel();
+  _playerRoutePushTimeout = Timer(const Duration(seconds: 2), () {
+    _playerRoutePushInFlight = false;
+  });
+  try {
+    await context.push('/player');
+  } finally {
+    _playerRoutePushTimeout?.cancel();
+    _playerRoutePushTimeout = null;
+    _playerRoutePushInFlight = false;
+  }
+}
+
 /// 处理小组件 / 深链打开播放器的请求。
 /// 支持 `koyze://nowplaying` 等意图，统一路由到全屏播放器。
 void routeWidgetLaunch(Uri? uri) {
   if (uri == null) return;
   final host = uri.host.toLowerCase();
-  if (host == 'nowplaying') {
-    if (appRouter.routerDelegate.currentConfiguration.uri.path != '/player') {
-      appRouter.push('/player');
-    }
+  if (host == 'nowplaying' &&
+      !_isCurrentRoute('/player') &&
+      !_playerRoutePushInFlight) {
+    _playerRoutePushInFlight = true;
+    _playerRoutePushTimeout?.cancel();
+    _playerRoutePushTimeout = Timer(const Duration(seconds: 2), () {
+      _playerRoutePushInFlight = false;
+    });
+    appRouter.push('/player').whenComplete(() {
+      _playerRoutePushTimeout?.cancel();
+      _playerRoutePushTimeout = null;
+      _playerRoutePushInFlight = false;
+    });
   }
 }
 

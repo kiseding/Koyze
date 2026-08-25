@@ -58,6 +58,7 @@ class RecommendationNotifier
   Timer? _refreshTimer;
   DateTime? _loadedAt;
   bool _inFlight = false;
+  int _generation = 0;
 
   bool get _expired =>
       _loadedAt == null ||
@@ -67,15 +68,19 @@ class RecommendationNotifier
     if (_inFlight) return;
     if (!force && !_expired) return;
     _inFlight = true;
+    final generation = ++_generation;
     try {
       final result = await _loader();
+      if (!mounted || generation != _generation) return;
       _loadedAt = DateTime.now();
-      if (mounted) state = AsyncValue.data(result);
+      state = AsyncValue.data(result);
       _scheduleNextRefresh();
     } catch (error, stackTrace) {
-      if (mounted) state = AsyncValue.error(error, stackTrace);
+      if (mounted && generation == _generation) {
+        state = AsyncValue.error(error, stackTrace);
+      }
     } finally {
-      _inFlight = false;
+      if (generation == _generation) _inFlight = false;
     }
   }
 
@@ -92,10 +97,15 @@ class RecommendationNotifier
   }
 
   /// 错误页手动重试：强制绕过 TTL 重新计算。
-  Future<void> retry() => _ensureData(force: true);
+  Future<void> retry() {
+    _refreshTimer?.cancel();
+    _inFlight = false;
+    return _ensureData(force: true);
+  }
 
   @override
   void dispose() {
+    _generation++;
     _refreshTimer?.cancel();
     super.dispose();
   }

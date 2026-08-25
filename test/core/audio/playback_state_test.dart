@@ -967,7 +967,7 @@ void main() {
     expect(handler.playbackState.value.playing, isFalse);
   });
 
-  test('authoritative source install failure reports and falls back once',
+  test('authoritative source install failure reports and falls forward once',
       () async {
     final player = _PlaybackStateAudioPlayer()
       ..sourceInstallProcessingState = ProcessingState.ready;
@@ -1003,6 +1003,40 @@ void main() {
     expect(player.playing, isTrue);
     expect(errors, hasLength(1));
     await navigation;
+  });
+
+  test('new playlist failure does not resume the previous audible song',
+      () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    final errors = <String>[];
+    handler.onError = errors.add;
+    await handler.setPlaylist(const [
+      MediaItem(
+        id: 'A',
+        title: 'A',
+        extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+      ),
+    ]);
+    expect(handler.mediaItem.value?.id, 'A');
+    expect(player.playing, isTrue);
+    player.failNextSourceInstall = true;
+
+    await handler.setPlaylist(const [
+      MediaItem(
+        id: 'B',
+        title: 'B',
+        extras: {'url': 'file:///tmp/B.mp3', 'requestedQuality': '320k'},
+      ),
+    ]);
+
+    expect(handler.mediaItem.value?.id, 'B');
+    expect(handler.currentQueueIndex, 0);
+    expect(player.playing, isFalse);
+    expect(handler.playbackState.value.playing, isFalse);
+    expect(errors.single, contains('播放歌曲 "B" 失败'));
   });
 
   test('stale source install failure is silent and cannot fall back', () async {

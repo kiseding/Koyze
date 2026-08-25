@@ -10,10 +10,16 @@ import '../../../core/widgets/artwork_disk_cache.dart';
 import 'lazy_playlist_order.dart';
 
 class PlayerService {
-  PlayerService({ArtworkDiskCache? artworkCache})
-    : _artworkCache = artworkCache ?? ArtworkDiskCache.instance;
+  PlayerService({
+    ArtworkDiskCache? artworkCache,
+    Future<bool> Function(MusicItem song)? isDisliked,
+  }) : _artworkCache = artworkCache ?? ArtworkDiskCache.instance,
+       _isDisliked = isDisliked;
+
+  static const int dislikedRating = 0;
 
   final ArtworkDiskCache _artworkCache;
+  final Future<bool> Function(MusicItem song)? _isDisliked;
   int _queueGeneration = 0;
 
   int beginQueueReplacement() => ++_queueGeneration;
@@ -65,16 +71,20 @@ class PlayerService {
     if (manualPlayName != null) {
       _notifyManualPlay(manualPlayName);
     }
+    final playableSongs = await _withoutDisliked(songs);
+    if (!ownsQueueReplacement(generation)) return;
+    if (playableSongs.isEmpty) return;
+    final safeIndex = index.clamp(0, playableSongs.length - 1);
     currentLazyPlaylistId = null;
     currentLazyPlaylistSongCount = 0;
     nowPlayingLeaderboardId = leaderboardId;
-    final items = songs.map(_convertToMediaItemSync).toList();
+    final items = playableSongs.map(_convertToMediaItemSync).toList();
     if (audioHandler is LxAudioHandler) {
       final handler = audioHandler as LxAudioHandler;
       handler.clearLazyQueue();
       await handler.setPlaylist(
         items,
-        initialIndex: index,
+        initialIndex: safeIndex,
         playWhenReady: autoplay,
         userInitiated: userInitiated,
       );
@@ -82,8 +92,8 @@ class PlayerService {
       nowPlayingLeaderboardId = leaderboardId;
       unawaited(
         _warmArtForQueue(
-          songs,
-          preferIndex: index,
+          playableSongs,
+          preferIndex: safeIndex,
           queueGeneration: generation,
         ),
       );
@@ -119,9 +129,12 @@ class PlayerService {
       loadPage: loadPage,
     );
 
-    List<MediaItem> mediaItems(List<LazyPlaylistEntry> entries) => [
+    Future<List<MediaItem>> mediaItems(
+      List<LazyPlaylistEntry> entries,
+    ) async => [
       for (final entry in entries)
-        _convertToMediaItemSync(entry.song, lazyPlaylistIndex: entry.index),
+        if (!await _isSongDisliked(entry.song))
+          _convertToMediaItemSync(entry.song, lazyPlaylistIndex: entry.index),
     ];
 
     final initialEntries = await window.takeEntries(9);
@@ -163,8 +176,10 @@ class PlayerService {
       },
     );
     if (!ownsQueueReplacement(generation)) return;
+    final initialItems = await mediaItems(initialEntries);
+    if (!ownsQueueReplacement(generation) || initialItems.isEmpty) return;
     await handler.setPlaylist(
-      mediaItems(initialEntries),
+      initialItems,
       playWhenReady: autoplay,
       userInitiated: userInitiated,
     );
@@ -176,6 +191,36 @@ class PlayerService {
         queueGeneration: generation,
       ),
     );
+  }
+
+  Future<bool> _isSongDisliked(MusicItem song) async {
+    final isDisliked = _isDisliked;
+    if (isDisliked == null) return false;
+    try {
+      return await isDisliked(song);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<MusicItem>> _withoutDisliked(List<MusicItem> songs) async {
+    if (_isDisliked == null || songs.isEmpty) return songs;
+    final result = <MusicItem>[];
+    for (final song in songs) {
+      if (!await _isSongDisliked(song)) result.add(song);
+    }
+    return result;
+  }
+
+  Future<void> dislikeAndSkipCurrent(
+    Future<void> Function(MusicItem song) markDisliked,
+  ) async {
+    final item = mediaItem;
+    final extras = item?.extras;
+    if (item == null || extras == null) return;
+    final song = MusicItem.fromJson(extras);
+    await markDisliked(song);
+    await audioHandler.skipToNext();
   }
 
   Future<void> togglePlay() async {

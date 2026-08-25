@@ -9,6 +9,7 @@ import '../../../core/audio/audio_handler.dart';
 import '../../../core/audio/playback_command_coordinator.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../playlist/presentation/playlist_provider.dart';
+import '../../sync/presentation/sync_phase1_provider.dart';
 import '../domain/music_item.dart';
 import '../domain/playback_session.dart';
 import '../domain/playback_session_store.dart';
@@ -16,7 +17,12 @@ import '../domain/player_service.dart';
 import 'fire_and_forget_observer.dart';
 
 final playerServiceProvider = Provider<PlayerService>((ref) {
-  return PlayerService();
+  return PlayerService(
+    isDisliked: (song) async {
+      final ratings = await ref.read(ratingServiceProvider).store.load();
+      return ratings[song.identityKey] == PlayerService.dislikedRating;
+    },
+  );
 });
 
 final playbackSessionStoreProvider = Provider<PlaybackSessionStore>((ref) {
