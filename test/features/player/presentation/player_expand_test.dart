@@ -43,6 +43,12 @@ void main() {
     expect(router, contains('playerRouteProgress'));
     expect(router, isNot(contains('ScaleTransition')));
     expect(router, isNot(contains('FadeTransition')));
+    final player = File(
+      'lib/features/player/presentation/player_screen.dart',
+    ).readAsStringSync();
+    expect(player, contains('kFullPlayerTrackSwitchDuration'));
+    expect(player, contains('Duration(milliseconds: 620)'));
+    expect(player, contains('AnimatedSwitcher'));
     // 主壳联动：底栏挤出、Tab 上移、迷你栏扩张。
     expect(scaffold, contains('playerRouteProgress'));
     expect(scaffold, contains('navPush'));

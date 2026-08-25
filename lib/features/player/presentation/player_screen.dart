@@ -56,7 +56,7 @@ class _CurrentLyricLineState extends ConsumerState<_CurrentLyricLine>
   /// 避免歌词预览（黄行）在切换动画中与歌名重叠。
   late final AnimationController _fade = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 420),
+    duration: kFullPlayerTrackSwitchDuration,
   );
   bool _started = false;
 
@@ -330,6 +330,9 @@ class _PlayerProgress extends ConsumerWidget {
     );
   }
 }
+
+const kFullPlayerTrackSwitchDuration = Duration(milliseconds: 620);
+const kFullPlayerTrackSwitchReverseDuration = Duration(milliseconds: 420);
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
@@ -841,11 +844,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 child: AnimatedSwitcher(
                   duration: motionDuration(
                     context,
-                    const Duration(milliseconds: 420),
+                    kFullPlayerTrackSwitchDuration,
                   ),
                   reverseDuration: motionDuration(
                     context,
-                    const Duration(milliseconds: 280),
+                    kFullPlayerTrackSwitchReverseDuration,
                   ),
                   switchInCurve: Curves.easeOutCubic,
                   switchOutCurve: Curves.easeInCubic,
@@ -907,30 +910,56 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       child: Row(
         children: [
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  music.name,
-                  style: TextStyle(
-                    color: AppColors.onScaffold(context),
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+            child: AnimatedSwitcher(
+              duration: motionDuration(context, kFullPlayerTrackSwitchDuration),
+              reverseDuration: motionDuration(
+                context,
+                kFullPlayerTrackSwitchReverseDuration,
+              ),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                final offset =
+                    Tween<Offset>(
+                      begin: const Offset(0.04, 0),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      ),
+                    );
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(position: offset, child: child),
+                );
+              },
+              child: Column(
+                key: ValueKey<String>(music.identityKey),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    music.name,
+                    style: TextStyle(
+                      color: AppColors.onScaffold(context),
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  music.singer,
-                  style: TextStyle(
-                    color: AppColors.secondaryText(context),
-                    fontSize: 15,
+                  const SizedBox(height: 6),
+                  Text(
+                    music.singer,
+                    style: TextStyle(
+                      color: AppColors.secondaryText(context),
+                      fontSize: 15,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           Pressable(
@@ -1517,7 +1546,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
           } else {
             _queueScrollController.animateTo(
               target,
-              duration: const Duration(milliseconds: 280),
+              duration: kFullPlayerTrackSwitchReverseDuration,
               curve: Curves.easeOutCubic,
             );
           }
@@ -1534,7 +1563,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
       } else {
         _queueScrollController.animateTo(
           target,
-          duration: const Duration(milliseconds: 280),
+          duration: kFullPlayerTrackSwitchReverseDuration,
           curve: Curves.easeOutCubic,
         );
       }

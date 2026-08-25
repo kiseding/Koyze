@@ -294,7 +294,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '注入tag',
+                            '注入tag（实验性）',
                             style: TextStyle(
                               color: AppColors.onScaffold(context),
                               fontSize: 16,
