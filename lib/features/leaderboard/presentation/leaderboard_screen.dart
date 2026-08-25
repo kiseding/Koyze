@@ -171,13 +171,13 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     List<LeaderboardLayoutItem> visible,
     Map<String, LeaderboardCategory> categoryByKey,
   ) {
-    return ListView(
+    return ListView.builder(
       // 顶部预留悬浮标题栏（约 72px）高度，滚动时内容可进入栏渐变区。
       padding: const EdgeInsets.fromLTRB(12, 72, 12, 16),
-      children: [
-        for (var index = 0; index < visible.length; index++)
+      cacheExtent: 520,
+      itemCount: visible.length,
+      itemBuilder: (context, index) =>
           _buildListItem(context, visible, index, categoryByKey),
-      ],
     );
   }
 
@@ -386,6 +386,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                   child: cover != null && cover.isNotEmpty
                       ? ArtworkImage(
                           cover,
+                          cacheWidth: 112,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
                             platform: platform,
@@ -693,6 +694,7 @@ class LeaderboardDetailScreenById extends ConsumerWidget {
               );
             }
             return ListView.builder(
+              cacheExtent: 420,
               padding: EdgeInsets.only(
                 top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
                 left: 16,
@@ -742,91 +744,96 @@ class _LeaderboardSongRow extends ConsumerWidget {
         (current) => current?.identityKey == song.identityKey,
       ),
     );
-    return Container(
-      margin: EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 32,
-                child: Text(
-                  '${index + 1}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: index < 3
-                        ? AppColors.accentOf(context)
-                        : AppColors.mutedText(context),
-                    fontSize: 14,
-                    fontWeight: index < 3 ? FontWeight.bold : FontWeight.normal,
+    return RepaintBoundary(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 32,
+                  child: Text(
+                    '${index + 1}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: index < 3
+                          ? AppColors.accentOf(context)
+                          : AppColors.mutedText(context),
+                      fontSize: 14,
+                      fontWeight: index < 3
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.cardBorder(context)),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: song.artwork != null && song.artwork!.isNotEmpty
-                      ? ArtworkImage(
-                          song.artwork!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Icon(
+                const SizedBox(width: 12),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.cardBorder(context)),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: song.artwork != null && song.artwork!.isNotEmpty
+                        ? ArtworkImage(
+                            song.artwork!,
+                            cacheWidth: 96,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.music_note,
+                              color: AppColors.mutedText(context),
+                              size: 20,
+                            ),
+                          )
+                        : Icon(
                             Icons.music_note,
                             color: AppColors.mutedText(context),
                             size: 20,
                           ),
-                        )
-                      : Icon(
-                          Icons.music_note,
-                          color: AppColors.mutedText(context),
-                          size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.name,
+                        style: TextStyle(
+                          color: isPlaying
+                              ? AppColors.accentOf(context)
+                              : AppColors.onScaffold(context),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
                         ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.name,
-                      style: TextStyle(
-                        color: isPlaying
-                            ? AppColors.accentOf(context)
-                            : AppColors.onScaffold(context),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      song.singer,
-                      style: TextStyle(
-                        color: AppColors.mutedText(context),
-                        fontSize: 12,
+                      const SizedBox(height: 2),
+                      Text(
+                        song.singer,
+                        style: TextStyle(
+                          color: AppColors.mutedText(context),
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              FavoriteButton(
-                song: song,
-                isFavorite: favoriteIds.contains(song.identityKey),
-              ),
-            ],
+                FavoriteButton(
+                  song: song,
+                  isFavorite: favoriteIds.contains(song.identityKey),
+                ),
+              ],
+            ),
           ),
         ),
       ),
