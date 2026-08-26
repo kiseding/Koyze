@@ -167,25 +167,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/player',
       parentNavigatorKey: rootNavigatorKey,
-      // opaque:false 让下拉关闭时透出打开前的界面
-      pageBuilder: (context, state) => CustomTransitionPage<void>(
+      // 透明但不使用系统 route snapshot，避免打开/关闭时快照层闪成半透明浅色幕。
+      pageBuilder: (context, state) => _PlayerTransitionPage(
         key: state.pageKey,
-        opaque: false,
-        barrierDismissible: true,
-        barrierColor: Colors.transparent,
-        transitionDuration: MotionDuration.player,
-        reverseTransitionDuration: MotionDuration.playerReverse,
         child: const EdgeSwipeDismiss(child: PlayerScreen()),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          // 全屏播放器内部自带"从迷你栏生长"的矩形变形（读取 playerRouteProgress），
-          // 这里只同步进度并保持不透明，不再叠加页面级动画。
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: MotionCurve.iosSpring,
-            reverseCurve: MotionCurve.easeInOut,
-          );
-          return _PlayerRouteProgressBridge(animation: curved, child: child);
-        },
       ),
     ),
     GoRoute(
@@ -283,6 +268,81 @@ final appRouter = GoRouter(
     ),
   ],
 );
+
+/// 全屏播放器专用透明路由。Flutter 的默认 route snapshotting 在透明路由 +
+/// 深/浅色主题快速切换首尾帧时可能短暂合成一层浅色快照，表现成全屏半透明白闪。
+/// 播放器本身已有基于 [playerRouteProgress] 的元素 morph，所以这里强制实时绘制。
+class _PlayerTransitionPage extends Page<void> {
+  const _PlayerTransitionPage({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Route<void> createRoute(BuildContext context) =>
+      _PlayerTransitionRoute(page: this);
+}
+
+class _PlayerTransitionRoute extends PageRoute<void> {
+  _PlayerTransitionRoute({required _PlayerTransitionPage page})
+    : super(settings: page);
+
+  _PlayerTransitionPage get _page => settings as _PlayerTransitionPage;
+
+  @override
+  bool get opaque => false;
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  Color? get barrierColor => Colors.transparent;
+
+  @override
+  String? get barrierLabel => null;
+
+  @override
+  bool get maintainState => true;
+
+  @override
+  bool get fullscreenDialog => false;
+
+  @override
+  bool get allowSnapshotting => false;
+
+  @override
+  Duration get transitionDuration => MotionDuration.player;
+
+  @override
+  Duration get reverseTransitionDuration => MotionDuration.playerReverse;
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) {
+    return Semantics(
+      scopesRoute: true,
+      explicitChildNodes: true,
+      child: _page.child,
+    );
+  }
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: MotionCurve.iosSpring,
+      reverseCurve: MotionCurve.easeInOut,
+    );
+    return _PlayerRouteProgressBridge(animation: curved, child: child);
+  }
+}
 
 /// 把全屏播放器路由过渡进度同步给主壳（底栏挤出 / Tab 上移 / 迷你栏扩张）。
 class _PlayerRouteProgressBridge extends StatefulWidget {

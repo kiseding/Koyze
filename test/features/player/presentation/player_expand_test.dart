@@ -140,4 +140,22 @@ void main() {
     expect(sheet, contains('Navigator.pop(context)'));
     expect(sheet, isNot(contains('_closing')));
   });
+
+  test('player route disables route snapshotting to avoid white flash', () {
+    final router = File('lib/router/app_router.dart').readAsStringSync();
+
+    expect(router, contains('class _PlayerTransitionPage extends Page<void>'));
+    expect(
+      router,
+      contains('class _PlayerTransitionRoute extends PageRoute<void>'),
+    );
+    expect(router, contains('bool get allowSnapshotting => false'));
+    expect(router, contains('bool get opaque => false'));
+    expect(router, contains('barrierColor => Colors.transparent'));
+    expect(
+      router,
+      contains('pageBuilder: (context, state) => _PlayerTransitionPage'),
+    );
+    expect(router, isNot(contains('CustomTransitionPage<void>')));
+  });
 }
