@@ -238,6 +238,40 @@ void main() {
       isEmpty,
     );
   });
+
+  testWidgets(
+      'card reveal keeps background and content opacity synced to the rect',
+      (tester) async {
+    final page = expandablePage(
+      const ValueKey('detail'),
+      const ColoredBox(key: ValueKey('content'), color: Colors.black),
+      expandRect: const Rect.fromLTWH(20, 20, 120, 80),
+    );
+
+    // 收拢中途（t=0.4）：背景与内容必须与矩形进度同源，不得出现
+    // 全屏内容或独立淡出的半透明背景（各自不同步）。
+    for (final t in [0.4, 0.7, 0.9]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => page.transitionsBuilder(
+              context,
+              AlwaysStoppedAnimation<double>(t),
+              const AlwaysStoppedAnimation(0),
+              page.child,
+            ),
+          ),
+        ),
+      );
+      final synced = tester
+          .widgetList<Opacity>(find.byType(Opacity))
+          .where((w) => w.opacity > 0 && w.opacity < 1)
+          .map((w) => w.opacity)
+          .toSet();
+      // 所有处于过渡中的透明度都必须取相同的矩形进度。
+      expect(synced.length, lessThanOrEqualTo(1));
+    }
+  });
 }
 
 class _PopObserver extends NavigatorObserver {

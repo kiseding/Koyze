@@ -340,11 +340,9 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
 
   @override
   Widget build(BuildContext context) {
-    final overlayBox =
-        Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
-    final sourceTopLeft =
-        overlayBox?.globalToLocal(widget.sourceGlobalRect.topLeft) ??
-        widget.sourceGlobalRect.topLeft;
+    // 卡片矩形直接使用记录时的屏幕坐标：路由页面与 Navigator 同坐标系，
+    // 收拢终点即源卡片原位，避免坐标换算引入偏移。
+    final sourceTopLeft = widget.sourceGlobalRect.topLeft;
     final sourceRect = sourceTopLeft & widget.sourceGlobalRect.size;
     final targetRect = Offset.zero & MediaQuery.sizeOf(context);
     final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
@@ -359,9 +357,13 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
             ? 1 - cardDismissProgress.value
             : widget.animation.value;
         final rectT = MotionCurve.easeOut.transform(t);
-        final surfaceT = (t / 0.22).clamp(0.0, 1.0);
-        final contentT = ((t - 0.18) / 0.82).clamp(0.0, 1.0);
-        final snapshotT = (1 - ((t - 0.16) / 0.34)).clamp(0.0, 1.0);
+        // 背景与内容必须和矩形收拢**同源同步**：透明度直接取矩形进度，
+        // 收拢时背景随矩形一起缩小渐隐、内容一起淡出，不会出现
+        // "与卡片缩小程度不一致的半透明背景/全屏内容"。
+        final surfaceT = rectT;
+        final contentT = rectT;
+        // 快照与内容互补：展开初期盖住未长成的本体，收拢后期重现成卡片。
+        final snapshotT = 1 - rectT;
         final currentRect = Rect.lerp(sourceRect, targetRect, rectT)!;
         final radius = 18.0 * (1 - rectT);
 
