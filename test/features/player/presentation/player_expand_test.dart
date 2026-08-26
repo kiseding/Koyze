@@ -157,4 +157,17 @@ void main() {
     );
     expect(router, isNot(contains('CustomTransitionPage<void>')));
   });
+  test(
+    'main scaffold keeps underlying chrome visible during early player morph',
+    () {
+      final source = File(
+        'lib/features/home/presentation/main_scaffold.dart',
+      ).readAsStringSync();
+
+      expect(source, contains('visibleProgress'));
+      expect(source, contains('progress <= 0.92'));
+      expect(source, contains('final chromeOpacity'));
+      expect(source, contains('1 - visibleProgress'));
+    },
+  );
 }

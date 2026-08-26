@@ -57,19 +57,30 @@ class MainScaffold extends StatelessWidget {
         builder: (context, progress, _) {
           // 全屏播放器展开时：底栏向下挤出屏幕、Tab 内容向上挤出屏幕、
           // 迷你栏向上扩张渐隐，营造"从迷你栏展开"的联动感。
+          // 透明播放器路由只在前景 currentRect 内绘制。若底层主壳在
+          // 前 90% 转场中先上移/消失，未覆盖区域会露出 Navigator/Scaffold
+          // 底色，视觉上就是不分深浅色都会闪一下的全屏浅色幕。
+          // 所以底层 chrome 保持到播放器几乎全屏后，再在最后 8% 快速退场。
+          final visibleProgress = progress <= 0.92
+              ? 0.0
+              : ((progress - 0.92) / 0.08).clamp(0.0, 1.0);
           final eased = reduceMotion(context)
-              ? (progress == 0 ? 0.0 : 1.0)
-              : Curves.easeOutCubic.transform(progress);
+              ? (visibleProgress == 0 ? 0.0 : 1.0)
+              : Curves.easeOutCubic.transform(visibleProgress);
+          final chromeOpacity = 1 - visibleProgress;
           final navPush = miniBottom + miniHeight;
           final tabPush = chromeBottom * 0.6;
           return Stack(
             children: [
               Positioned.fill(
-                child: Transform.translate(
-                  offset: Offset(0, -tabPush * eased),
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: chromeBottom),
-                    child: navigationShell,
+                child: Opacity(
+                  opacity: chromeOpacity,
+                  child: Transform.translate(
+                    offset: Offset(0, -tabPush * eased),
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: chromeBottom),
+                      child: navigationShell,
+                    ),
                   ),
                 ),
               ),
@@ -81,7 +92,7 @@ class MainScaffold extends StatelessWidget {
                   alignment: Alignment.bottomCenter,
                   scale: 1 + 0.035 * eased,
                   child: Opacity(
-                    opacity: (1 - progress / 0.42).clamp(0.0, 1.0),
+                    opacity: chromeOpacity,
                     child: const MiniPlayer(floating: true, alwaysShow: true),
                   ),
                 ),
@@ -90,19 +101,22 @@ class MainScaffold extends StatelessWidget {
                 left: 0,
                 right: 0,
                 bottom: bottomClearance,
-                child: Transform.translate(
-                  offset: Offset(0, navPush * eased),
-                  child: _BottomNav(
-                    height: navHeight,
-                    bottomSpacing: bottomSpacing,
-                    selectedIndex: selectedIndex,
-                    onTap: (i) {
-                      if (onBranchTap != null) {
-                        onBranchTap!(i);
-                      } else {
-                        navigationShell.goBranch(i);
-                      }
-                    },
+                child: Opacity(
+                  opacity: chromeOpacity,
+                  child: Transform.translate(
+                    offset: Offset(0, navPush * eased),
+                    child: _BottomNav(
+                      height: navHeight,
+                      bottomSpacing: bottomSpacing,
+                      selectedIndex: selectedIndex,
+                      onTap: (i) {
+                        if (onBranchTap != null) {
+                          onBranchTap!(i);
+                        } else {
+                          navigationShell.goBranch(i);
+                        }
+                      },
+                    ),
                   ),
                 ),
               ),
