@@ -60,6 +60,8 @@ final cloudSyncProvider =
       ref.read(syncPhase1ServiceProvider).onApplyingRemote =
           notifier.onApplyingRemote;
       ref.read(syncPhase1ServiceProvider).onProgress = notifier.onProgress;
+      ref.read(syncPhase1ServiceProvider).onLocalEventRecorded =
+          notifier.localEventRecorded;
       ref.listen(themeModeProvider, (_, next) {
         notifier.settingChanged('theme_mode', next.index.toString());
       });
@@ -151,6 +153,7 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
   Timer? _retry;
   Future<void>? _running;
   bool _dirty = false;
+  bool _uploadOnlyDirty = false;
   bool _foreground = true;
   bool _applyingRemote = false;
   int _retryIndex = 0;
@@ -234,7 +237,16 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
   }
 
   void localChanged() {
+    _markLocalChanged(uploadOnly: false);
+  }
+
+  void localEventRecorded(Object _) {
+    _markLocalChanged(uploadOnly: true);
+  }
+
+  void _markLocalChanged({required bool uploadOnly}) {
     if (!_loggedIn() || _applyingRemote) return;
+    _uploadOnlyDirty = _dirty ? (_uploadOnlyDirty && uploadOnly) : uploadOnly;
     _dirty = true;
     _localGeneration++;
     _debounce?.cancel();
@@ -291,13 +303,17 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
     if (!_loggedIn() || !_foreground) return;
     _debounce?.cancel();
     final localGeneration = _localGeneration;
-    AppLog.instance.record('cloud.sync', '开始事件同步');
+    final uploadOnly = _uploadOnlyDirty;
+    _uploadOnlyDirty = false;
+    AppLog.instance.record('cloud.sync', uploadOnly ? '开始增量事件上传' : '开始事件同步');
     state = CloudSyncState(
       phase: CloudSyncPhase.syncing,
       conflictId: _conflictGeneration,
     );
     try {
-      final report = await _phase1.sync();
+      final report = uploadOnly
+          ? await _phase1.pushLocalEventsOnly()
+          : await _phase1.sync();
       _dirty = _localGeneration != localGeneration;
       _debounce?.cancel();
       _retryIndex = 0;

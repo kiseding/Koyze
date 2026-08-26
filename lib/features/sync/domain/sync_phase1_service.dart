@@ -120,6 +120,7 @@ final class SyncPhase1Service {
   CustomSourceService? _sources;
   void Function(bool applying)? onApplyingRemote;
   void Function(String message)? onProgress;
+  void Function(SyncEvent event)? onLocalEventRecorded;
 
   void attachPlaylists(PlaylistService service) {
     _playlists = service;
@@ -152,6 +153,7 @@ final class SyncPhase1Service {
       createdAt: DateTime.now().toUtc(),
     );
     await outbox.append(event);
+    onLocalEventRecorded?.call(event);
     return event;
   }
 
@@ -176,6 +178,18 @@ final class SyncPhase1Service {
   }
 
   Future<int> pendingCount() async => (await outbox.load()).length;
+
+  Future<SyncReport?> pushLocalEventsOnly() async {
+    if (!api.isLoggedIn) return null;
+    final account = await identity.load();
+    final uploaded = await push();
+    return SyncReport.fromEvents(
+      deviceId: account.deviceId,
+      uploaded: uploaded,
+      downloaded: const [],
+      completedAt: DateTime.now().toUtc(),
+    );
+  }
 
   Future<List<SyncEvent>> push() async {
     final account = await identity.load();

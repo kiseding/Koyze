@@ -154,7 +154,7 @@ void main() {
 
     expect(playlistRevisions, 1);
     expect(favoriteRevisions, 1);
-    expect(syncRevisions, 1);
+    expect(syncRevisions, 0);
     expect(pageRevisions, 0);
     expect(recentRevisions, 0);
   });

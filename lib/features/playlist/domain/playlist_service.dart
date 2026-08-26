@@ -722,7 +722,6 @@ class PlaylistService {
       if (notifySync) _syncRevisionController.add(_revision);
     } else if (scope == PlaylistMutationScope.favorites) {
       _favoritesRevisionController.add(_revision);
-      if (notifySync) _syncRevisionController.add(_revision);
     } else if (scope == PlaylistMutationScope.recent) {
       _recentRevisionController.add(_revision);
     } else if (scope == PlaylistMutationScope.local) {
