@@ -176,7 +176,11 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
       ..stop()
       ..duration = duration;
     _settleAnimation = Tween<double>(begin: _drag, end: target).animate(
-      CurvedAnimation(parent: _settleController, curve: MotionCurve.easeOut),
+      CurvedAnimation(
+        parent: _settleController,
+        // 归位/回弹带 spring 手感，与全屏播放器动效同一曲线族。
+        curve: MotionCurve.iosSpring,
+      ),
     );
     onStart?.call();
     _settleController.forward(from: 0);

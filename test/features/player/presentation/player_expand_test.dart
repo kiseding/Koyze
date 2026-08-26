@@ -15,7 +15,10 @@ void main() {
     expect(full, contains('_fullArtworkRect('));
     expect(full, contains('_RouteArtworkMorphOverlay'));
     expect(full, contains('_RoutePlayButtonMorphOverlay'));
-    expect(full, contains('final playButtonMorphRect = Rect.lerp'));
+    expect(full, contains('final playButtonMorphRect = _currentPage == 1'));
+    expect(full, contains('lyricTargetRect.center'));
+    expect(full, contains('lyricTargetRect.width * morphT'));
+    expect(full, contains('Rect.lerp('));
     expect(full, contains('_miniPlayButtonRect(miniRect)'));
     expect(full, contains('_fullControlsPlayButtonRect('));
     expect(full, contains('_fullLyricPlayButtonRect('));
@@ -56,7 +59,7 @@ void main() {
     expect(full, contains('??\n            _fullArtworkRect('));
     // 拖拽关闭必须从当前位置继续收拢（回弹/收拢都走同一跟手动画），
     // 不能先放大回去再关，也不能让 Navigator 反向动画回写进度。
-    expect(full, contains('animateTo(0.0).then((_) {'));
+    expect(full, contains('.animateTo(0.0, curve: Curves.easeInCubic)'));
     expect(full, contains('playerRouteDismissLocked = true;'));
     expect(full, contains('playerRouteProgress.value =\n                    (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0)'));
     expect(full, isNot(contains('Matrix4.translationValues(0, _dragOffset, 0)')));

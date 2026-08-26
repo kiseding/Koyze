@@ -827,32 +827,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               screenW: screenW,
               screenH: screenH,
             );
-        // 播放键 morph 起点：普通页从迷你栏按钮起飞；歌词页的按钮不是
-        // 打开动画的入口，关闭时应从原位置（按钮自身）原地归位，而不是
-        // 从迷你栏位置飞回（否则看起来"从下往上归位"）。
-        final playButtonMorphStart = _currentPage == 1
-            ? lyricTargetRect
-            : miniPlayButtonRect;
-        final playButtonMorphTarget = _currentPage == 1
-            ? lyricTargetRect
-            : controlsTargetRect;
-        final playButtonMorphRect = Rect.lerp(
-          playButtonMorphStart,
-          playButtonMorphTarget,
-          morphT,
-        )!;
+        // 播放键 morph：
+        // - 普通页：打开时从迷你栏按钮起飞到控件栏按钮，关闭时反向飞回；
+        // - 歌词页：按钮不是打开动画的入口，关闭时在**原位置**原地
+        //   收缩归位（尺寸随 morphT 缩小到 0），不跨屏飞行。
+        final playButtonMorphRect = _currentPage == 1
+            ? Rect.fromCenter(
+                center: lyricTargetRect.center,
+                width: lyricTargetRect.width * morphT,
+                height: lyricTargetRect.height * morphT,
+              )
+            : Rect.lerp(
+                miniPlayButtonRect,
+                controlsTargetRect,
+                morphT,
+              )!;
         // 内容淡入必须极早完成（sheet 还很小时），否则整块 morph 底
         // 会长时间以"半透明白色层+鬼影内容"盖在屏幕上（打开/关闭各闪一次）。
         // 各区块自身的 _StaggeredFade / artworkReveal 负责后续 reveal 节奏。
         final contentOpacity = MotionCurve.iosSpring.transform(
           ((progress - 0.03) / 0.17).clamp(0.0, 1.0),
         );
+        // 正文封面只在整个 morph 接近完成时显现，让"飞行封面"始终是
+        // 唯一的封面：打开时淡入（morphT>0.74），关闭时同样跟手淡出让位。
         final artworkReveal = MotionCurve.iosSpring.transform(
-          ((progress - 0.74) / 0.22).clamp(0.0, 1.0),
+          ((morphT - 0.74) / 0.22).clamp(0.0, 1.0),
         );
         // sheet 背景与圆角都跟手：透明度随拖动渐隐透出下层（打开时快速
         // 转实，避免旧全屏白幕），圆角用线性进度让拖动/收拢时变化自然。
-        final sheetAlpha = ((progress - 0.12) / 0.5).clamp(0.0, 1.0);
+        final sheetAlpha = ((progress - 0.06) / 0.55).clamp(0.0, 1.0);
         final sheetRadius = 16 * (1 - progress);
 
         return Stack(
@@ -954,25 +957,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               }
             },
             onVerticalDragEnd: (d) {
-              
               final shouldClose =
                   _dragOffset > dismissThreshold ||
                   (d.primaryVelocity ?? 0) > 900;
               final current = playerRouteProgress.value;
               if (shouldClose) {
                 // 从当前位置继续收拢到底（不再放大回去），到位后再 pop。
+                // 收拢带下坠感（easeIn），落点由迷你栏无缝接管。
                 _draggingDown = true;
-                _dragController.duration = const Duration(milliseconds: 230);
+                _dragController.duration = const Duration(milliseconds: 240);
                 _dragController.value = current;
-                _dragController.animateTo(0.0).then((_) {
+                _dragController
+                    .animateTo(0.0, curve: Curves.easeInCubic)
+                    .then((_) {
                   _completeDragDismiss();
                 });
               } else {
-                // 回弹全屏：同样跟手，从当前位置流畅弹回。
+                // 回弹全屏：从当前位置带弹簧感弹回（与打开动效同曲线）。
                 _draggingDown = false;
-                _dragController.duration = const Duration(milliseconds: 200);
+                _dragController.duration = const Duration(milliseconds: 260);
                 _dragController.value = current;
-                _dragController.animateTo(1.0).then((_) {
+                _dragController
+                    .animateTo(1.0, curve: MotionCurve.iosSpring)
+                    .then((_) {
                   if (mounted && !_draggingDown) {
                     setState(() => _dragOffset = 0);
                   }
@@ -983,8 +990,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               if (_draggingDown && _dragController.isAnimating) return;
               _draggingDown = false;
               final current = playerRouteProgress.value;
+              _dragController.duration = const Duration(milliseconds: 260);
               _dragController.value = current;
-              _dragController.animateTo(1.0).then((_) {
+              _dragController
+                  .animateTo(1.0, curve: MotionCurve.iosSpring)
+                  .then((_) {
                 if (mounted && !_draggingDown) {
                   setState(() => _dragOffset = 0);
                 }
