@@ -787,9 +787,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               : fullControlsPlayButtonRect,
           morphT,
         )!;
-        final shellOpacity = MotionCurve.easeInOut.transform(
-          ((progress - 0.06) / 0.24).clamp(0.0, 1.0),
-        );
         final contentOpacity = MotionCurve.iosSpring.transform(
           ((progress - 0.18) / 0.74).clamp(0.0, 1.0),
         );
@@ -800,15 +797,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         return Stack(
           fit: StackFit.expand,
           children: [
-            if (shellOpacity > 0)
+            if (progress > 0)
               Positioned.fromRect(
                 rect: currentRect,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16 * (1 - morphT)),
                   child: ColoredBox(
-                    color: Theme.of(context).scaffoldBackgroundColor.withAlpha(
-                      (255 * shellOpacity).round(),
-                    ),
+                    // 背景必须是随 currentRect 裁剪的实体色，不能透明淡入；
+                    // 否则浅色主题下打开/关闭会出现全屏半透明白色闪幕。
+                    color: Theme.of(context).scaffoldBackgroundColor,
                     child: OverflowBox(
                       alignment: Alignment.topLeft,
                       minWidth: screenW,
@@ -888,7 +885,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             curve: MotionCurve.iosSpring,
             transform: Matrix4.translationValues(0, _dragOffset, 0),
             child: Material(
-              color: Theme.of(context).scaffoldBackgroundColor,
+              // 路由转场期间背景由外层 morph rect 统一绘制，避免 Material
+              // 背景被 contentOpacity 淡入时形成半透明全屏白幕。
+              color: Colors.transparent,
               elevation: 8,
               shadowColor: Colors.black54,
               child: SafeArea(
