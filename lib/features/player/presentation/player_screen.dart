@@ -827,21 +827,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               screenW: screenW,
               screenH: screenH,
             );
-        // 播放键 morph：
-        // - 普通页：打开时从迷你栏按钮起飞到控件栏按钮，关闭时反向飞回；
-        // - 歌词页：按钮不是打开动画的入口，关闭时在**原位置**原地
-        //   收缩归位（尺寸随 morphT 缩小到 0），不跨屏飞行。
-        final playButtonMorphRect = _currentPage == 1
-            ? Rect.fromCenter(
-                center: lyricTargetRect.center,
-                width: lyricTargetRect.width * morphT,
-                height: lyricTargetRect.height * morphT,
-              )
-            : Rect.lerp(
-                miniPlayButtonRect,
-                controlsTargetRect,
-                morphT,
-              )!;
+        // 播放键 morph：打开时从迷你栏按钮起飞到当前页按钮位（控件栏/歌词页），
+        // 关闭/拖动时反向**跟手归位**回迷你栏按钮——按钮随滑动进度实时
+        // 缩小并移向迷你栏，松手后从当前位置继续，直到被迷你栏接管。
+        final playButtonTarget = _currentPage == 1
+            ? lyricTargetRect
+            : controlsTargetRect;
+        final playButtonMorphRect = Rect.lerp(
+          playButtonTarget,
+          miniPlayButtonRect,
+          1 - morphT,
+        )!;
         // 内容淡入必须极早完成（sheet 还很小时），否则整块 morph 底
         // 会长时间以"半透明白色层+鬼影内容"盖在屏幕上（打开/关闭各闪一次）。
         // 各区块自身的 _StaggeredFade / artworkReveal 负责后续 reveal 节奏。

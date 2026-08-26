@@ -131,8 +131,12 @@ class EdgeSwipeDismiss extends StatefulWidget {
 class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     with SingleTickerProviderStateMixin {
   double _drag = 0;
+  // 形态进度（0..1，1 = 完全收拢成卡片）：与位移_独立，
+  // 松手收拢时页面一边滑回原位一边持续收拢成卡片，绝不先放大再退出。
+  double _morph = 0;
   late final AnimationController _settleController;
-  Animation<double>? _settleAnimation;
+  Animation<double>? _dragAnimation;
+  Animation<double>? _morphAnimation;
   bool _locked = false;
 
   @override
@@ -140,11 +144,15 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     super.initState();
     _settleController = AnimationController(vsync: this)
       ..addListener(() {
-        final animation = _settleAnimation;
-        if (animation != null && mounted) {
-          setState(() => _drag = animation.value);
-          _syncProgress();
+        final drag = _dragAnimation;
+        if (drag != null && mounted) {
+          setState(() => _drag = drag.value);
         }
+        final morph = _morphAnimation;
+        if (morph != null) {
+          _morph = morph.value;
+        }
+        _syncProgress();
       });
   }
 
@@ -158,16 +166,15 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     super.dispose();
   }
 
-  // 只有本人（本次路由）持有锁；避免并行路由互相干扰。
+  // 把当前形态进度发布给卡片过渡层（跟手驱动矩形 morph）。
   void _syncProgress() {
-    final width = MediaQuery.sizeOf(context).width;
-    cardDismissProgress.value =
-        width == 0 ? 0.0 : (_drag / width).clamp(0.0, 1.0);
+    cardDismissProgress.value = _morph;
   }
 
-  void _settleTo(
-    double target,
-    Duration duration, {
+  void _settleTo({
+    required double targetDrag,
+    required double targetMorph,
+    required Duration duration,
     VoidCallback? onStart,
     required VoidCallback onComplete,
   }) {
@@ -175,13 +182,16 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     _settleController
       ..stop()
       ..duration = duration;
-    _settleAnimation = Tween<double>(begin: _drag, end: target).animate(
-      CurvedAnimation(
-        parent: _settleController,
-        // 归位/回弹带 spring 手感，与全屏播放器动效同一曲线族。
-        curve: MotionCurve.iosSpring,
-      ),
+    final curved = CurvedAnimation(
+      parent: _settleController,
+      // 归位/收拢带 spring 手感，与全屏播放器动效同一曲线族。
+      curve: MotionCurve.iosSpring,
     );
+    _dragAnimation = Tween<double>(begin: _drag, end: targetDrag).animate(curved);
+    _morphAnimation = Tween<double>(
+      begin: _morph,
+      end: targetMorph,
+    ).animate(curved);
     onStart?.call();
     _settleController.forward(from: 0);
     void settleListener(AnimationStatus status) {
@@ -197,7 +207,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final ios = Theme.of(context).platform == TargetPlatform.iOS;
-    final progress = width == 0 ? 0.0 : (_drag / width).clamp(0.0, 1.0);
+    final progress = _morph;
     final scale = ios ? 1 - 0.5 * progress : 1.0;
     // 圆角所有平台都跟手：拖动时页面边缘实时圆角化（0 → 48）。
     final radius = 48.0 * progress;
@@ -241,28 +251,31 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
             onHorizontalDragStart: (_) => _settleController.stop(),
             onHorizontalDragUpdate: (details) {
               if (details.delta.dx <= 0 && _drag <= 0) return;
+              final max = MediaQuery.sizeOf(context).width;
               setState(() {
-                _drag = (_drag + details.delta.dx).clamp(0.0, width);
+                _drag = (_drag + details.delta.dx).clamp(0.0, max);
+                _morph = _drag / max;
               });
               _syncProgress();
             },
             onHorizontalDragEnd: (details) {
               final velocity = details.primaryVelocity ?? 0;
               if (_drag > width * 0.22 || velocity > 700) {
-                // 先让页面从拖动位置流畅"归位"（滑回原位、卡片恢复全屏），
-                // 归位完成后再 pop，由路由反向动画播放正常的收拢关闭动效。
+                // 从当前位置继续：页面一边滑回原位（不放大），一边持续
+                // 收拢成卡片，在源卡片位置成型后 pop（路由反向被锁，无回弹）。
                 _settleTo(
-                  0,
-                  MotionDuration.normal,
+                  targetDrag: 0,
+                  targetMorph: 1,
+                  duration: MotionDuration.normal,
                   onComplete: () {
-                    cardDismissLocked = _locked = false;
                     Navigator.of(context).maybePop();
                   },
                 );
               } else {
                 _settleTo(
-                  0,
-                  MotionDuration.micro,
+                  targetDrag: 0,
+                  targetMorph: 0,
+                  duration: MotionDuration.micro,
                   onComplete: () {
                     cardDismissLocked = _locked = false;
                   },
@@ -271,8 +284,9 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
             },
             onHorizontalDragCancel: () {
               _settleTo(
-                0,
-                MotionDuration.micro,
+                targetDrag: 0,
+                targetMorph: 0,
+                duration: MotionDuration.micro,
                 onComplete: () {
                   cardDismissLocked = _locked = false;
                 },
