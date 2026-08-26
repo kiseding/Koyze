@@ -869,15 +869,20 @@ void main() {
       final revisions = <int>[];
       final pageRevisions = <int>[];
       final recentRevisions = <int>[];
+      final favoriteRevisions = <int>[];
       final subscription = service.revisions.listen(revisions.add);
       final pageSubscription = service.pageRevisions.listen(pageRevisions.add);
       final recentSubscription = service.recentRevisions.listen(
         recentRevisions.add,
       );
+      final favoriteSubscription = service.favoritesRevisions.listen(
+        favoriteRevisions.add,
+      );
       addTearDown(() async {
         await subscription.cancel();
         await pageSubscription.cancel();
         await recentSubscription.cancel();
+        await favoriteSubscription.cancel();
         await service.dispose();
       });
 
@@ -885,11 +890,13 @@ void main() {
       expect(revisions, [1]);
       expect(recentRevisions, [1]);
       expect(pageRevisions, isEmpty);
+      expect(favoriteRevisions, isEmpty);
 
       await service.addSongToPlaylist('favorites', song('favorite'));
       expect(revisions, [1, 2]);
-      expect(recentRevisions, [1, 2]);
-      expect(pageRevisions, [2]);
+      expect(recentRevisions, [1]);
+      expect(pageRevisions, isEmpty);
+      expect(favoriteRevisions, [2]);
     },
   );
 
