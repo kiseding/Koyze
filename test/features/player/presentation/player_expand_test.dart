@@ -22,6 +22,13 @@ void main() {
     expect(full, contains('_currentPage == 1'));
     expect(full, contains('fullLyricPlayButtonRect'));
     expect(full, contains('fullControlsPlayButtonRect'));
+    expect(full, contains('final shellOpacity ='));
+    expect(
+      full,
+      contains('color: Theme.of(context).scaffoldBackgroundColor.withAlpha'),
+    );
+    expect(full, contains('(255 * shellOpacity).round()'));
+    expect(full, contains('if (shellOpacity > 0)'));
     expect(full, contains('if (_currentPage == 0)'));
     expect(full, contains('artworkReveal'));
     expect(full, contains('OverflowBox'));

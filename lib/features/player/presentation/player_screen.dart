@@ -787,6 +787,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               : fullControlsPlayButtonRect,
           morphT,
         )!;
+        final shellOpacity = MotionCurve.easeInOut.transform(
+          ((progress - 0.06) / 0.24).clamp(0.0, 1.0),
+        );
         final contentOpacity = MotionCurve.iosSpring.transform(
           ((progress - 0.18) / 0.74).clamp(0.0, 1.0),
         );
@@ -797,38 +800,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         return Stack(
           fit: StackFit.expand,
           children: [
-            Positioned.fromRect(
-              rect: currentRect,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16 * (1 - morphT)),
-                child: ColoredBox(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  child: OverflowBox(
-                    alignment: Alignment.topLeft,
-                    minWidth: screenW,
-                    maxWidth: screenW,
-                    minHeight: screenH,
-                    maxHeight: screenH,
-                    child: Opacity(
-                      opacity: contentOpacity,
-                      child: _buildPlayerBody(
-                        context,
-                        currentMusic,
-                        playerService,
-                        isPlaying,
-                        playMode,
-                        duration,
-                        screenH,
-                        screenW,
-                        dismissThreshold,
-                        revealT,
-                        artworkReveal,
+            if (shellOpacity > 0)
+              Positioned.fromRect(
+                rect: currentRect,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16 * (1 - morphT)),
+                  child: ColoredBox(
+                    color: Theme.of(context).scaffoldBackgroundColor.withAlpha(
+                      (255 * shellOpacity).round(),
+                    ),
+                    child: OverflowBox(
+                      alignment: Alignment.topLeft,
+                      minWidth: screenW,
+                      maxWidth: screenW,
+                      minHeight: screenH,
+                      maxHeight: screenH,
+                      child: Opacity(
+                        opacity: contentOpacity,
+                        child: _buildPlayerBody(
+                          context,
+                          currentMusic,
+                          playerService,
+                          isPlaying,
+                          playMode,
+                          duration,
+                          screenH,
+                          screenW,
+                          dismissThreshold,
+                          revealT,
+                          artworkReveal,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
             if (_currentPage == 0)
               _RouteArtworkMorphOverlay(
                 rect: artworkMorphRect,
