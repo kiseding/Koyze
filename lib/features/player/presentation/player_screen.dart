@@ -813,25 +813,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           morphT,
         )!;
         final miniPlayButtonRect = _miniPlayButtonRect(miniRect);
-        final fullControlsPlayButtonRect =
-            _controlsPlayRect ??
-            _fullControlsPlayButtonRect(
-              context,
-              screenW: screenW,
-              screenH: screenH,
-            );
-        final fullLyricPlayButtonRect =
+        final lyricTargetRect =
             _lyricPlayRect ??
             _fullLyricPlayButtonRect(
               context,
               screenW: screenW,
               screenH: screenH,
             );
+        final controlsTargetRect =
+            _controlsPlayRect ??
+            _fullControlsPlayButtonRect(
+              context,
+              screenW: screenW,
+              screenH: screenH,
+            );
+        // 播放键 morph 起点：普通页从迷你栏按钮起飞；歌词页的按钮不是
+        // 打开动画的入口，关闭时应从原位置（按钮自身）原地归位，而不是
+        // 从迷你栏位置飞回（否则看起来"从下往上归位"）。
+        final playButtonMorphStart = _currentPage == 1
+            ? lyricTargetRect
+            : miniPlayButtonRect;
+        final playButtonMorphTarget = _currentPage == 1
+            ? lyricTargetRect
+            : controlsTargetRect;
         final playButtonMorphRect = Rect.lerp(
-          miniPlayButtonRect,
-          _currentPage == 1
-              ? fullLyricPlayButtonRect
-              : fullControlsPlayButtonRect,
+          playButtonMorphStart,
+          playButtonMorphTarget,
           morphT,
         )!;
         // 内容淡入必须极早完成（sheet 还很小时），否则整块 morph 底
@@ -843,6 +850,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final artworkReveal = MotionCurve.iosSpring.transform(
           ((progress - 0.74) / 0.22).clamp(0.0, 1.0),
         );
+        // sheet 背景与圆角都跟手：透明度随拖动渐隐透出下层（打开时快速
+        // 转实，避免旧全屏白幕），圆角用线性进度让拖动/收拢时变化自然。
+        final sheetAlpha = ((progress - 0.12) / 0.5).clamp(0.0, 1.0);
+        final sheetRadius = 16 * (1 - progress);
 
         return Stack(
           fit: StackFit.expand,
@@ -851,11 +862,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               Positioned.fromRect(
                 rect: currentRect,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16 * (1 - morphT)),
+                  borderRadius: BorderRadius.circular(sheetRadius),
                   child: ColoredBox(
-                    // 背景必须是随 currentRect 裁剪的实体色，不能透明淡入；
-                    // 否则浅色主题下打开/关闭会出现全屏半透明白色闪幕。
-                    color: Theme.of(context).scaffoldBackgroundColor,
+                    color: Theme.of(context).scaffoldBackgroundColor.withValues(
+                      alpha: sheetAlpha,
+                    ),
                     child: OverflowBox(
                       alignment: Alignment.topLeft,
                       minWidth: screenW,

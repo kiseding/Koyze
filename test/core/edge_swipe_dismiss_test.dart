@@ -121,12 +121,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
 
-    // 新行为：超过阈值后从拖动位置继续收拢成卡片（不再放大回去），
-    // 因此松手瞬间位置继续向右（向收拢终点）移动，而不是归位回弹。
+    // 松手过阈值后页面从拖动位置"归位"（滑回原位），随后才 pop 播放
+    // 收拢关闭动效；归位过程中位置应小于拖动位置且逐渐回到 0。
     final settling = tester.getTopLeft(content).dx;
-    expect(settling, greaterThan(dragged));
-    await tester.pump(const Duration(milliseconds: 500));
-    await tester.pump(const Duration(milliseconds: 500));
+    expect(settling, greaterThan(0));
+    expect(settling, lessThan(dragged));
+    await tester.pumpAndSettle();
     expect(observer.popCount, 1);
   });
 

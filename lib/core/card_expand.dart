@@ -195,7 +195,8 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     final ios = Theme.of(context).platform == TargetPlatform.iOS;
     final progress = width == 0 ? 0.0 : (_drag / width).clamp(0.0, 1.0);
     final scale = ios ? 1 - 0.5 * progress : 1.0;
-    final radius = ios ? 48.0 * progress : 0.0;
+    // 圆角所有平台都跟手：拖动时页面边缘实时圆角化（0 → 48）。
+    final radius = 48.0 * progress;
     final surface = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
@@ -244,12 +245,15 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
             onHorizontalDragEnd: (details) {
               final velocity = details.primaryVelocity ?? 0;
               if (_drag > width * 0.22 || velocity > 700) {
-                // 从当前位置继续收拢成卡片（不再放大回去），到位后再 pop。
-                // 动画期间路由反向动画被锁，pop 后也不会弹回全屏。
+                // 先让页面从拖动位置流畅"归位"（滑回原位、卡片恢复全屏），
+                // 归位完成后再 pop，由路由反向动画播放正常的收拢关闭动效。
                 _settleTo(
-                  width,
+                  0,
                   MotionDuration.normal,
-                  onComplete: () => Navigator.of(context).maybePop(),
+                  onComplete: () {
+                    cardDismissLocked = _locked = false;
+                    Navigator.of(context).maybePop();
+                  },
                 );
               } else {
                 _settleTo(
