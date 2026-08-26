@@ -490,6 +490,55 @@ Rect _fullArtworkRect(
   );
 }
 
+Rect _miniPlayButtonRect(Rect miniRect) {
+  const miniButton = 36.0;
+  const rightControlsWidth = 128.0;
+  final centerX = miniRect.right - 6 - rightControlsWidth / 2;
+  final centerY = miniRect.top + 20 + 42 / 2;
+  return Rect.fromCenter(
+    center: Offset(centerX, centerY),
+    width: miniButton,
+    height: miniButton,
+  );
+}
+
+Rect _fullControlsPlayButtonRect(
+  BuildContext context, {
+  required double screenW,
+  required double screenH,
+}) {
+  final media = MediaQuery.of(context);
+  final safeTop = media.padding.top;
+  final safeBottom = media.padding.bottom;
+  const infoHeight = 128.0;
+  const controlsTopPadding = 16.0;
+  const controlsButton = 64.0;
+  const controlsBottomContent = 30.0;
+  final artwork = _fullArtworkRect(context, screenW: screenW, screenH: screenH);
+  final centerY =
+      artwork.bottom + infoHeight + controlsTopPadding + controlsButton / 2;
+  return Rect.fromCenter(
+    center: Offset(screenW / 2, centerY.clamp(safeTop, screenH - safeBottom)),
+    width: controlsButton,
+    height: controlsButton,
+  ).translate(0, -controlsBottomContent / 2);
+}
+
+Rect _fullLyricPlayButtonRect(
+  BuildContext context, {
+  required double screenW,
+  required double screenH,
+}) {
+  final safeBottom = MediaQuery.of(context).padding.bottom;
+  const button = 64.0;
+  const horizontalPaddingRight = 20.0;
+  const rowBottomPadding = 16.0;
+  const closeButtonHeight = 40.0;
+  final right = screenW - horizontalPaddingRight;
+  final bottom = screenH - safeBottom - closeButtonHeight - rowBottomPadding;
+  return Rect.fromLTWH(right - button, bottom - button, button, button);
+}
+
 class _RouteArtworkMorphOverlay extends StatelessWidget {
   const _RouteArtworkMorphOverlay({
     required this.rect,
@@ -536,6 +585,53 @@ class _RouteArtworkMorphOverlay extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(radius),
             child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoutePlayButtonMorphOverlay extends StatelessWidget {
+  const _RoutePlayButtonMorphOverlay({
+    required this.rect,
+    required this.progress,
+    required this.isPlaying,
+  });
+
+  final Rect rect;
+  final double progress;
+  final bool isPlaying;
+
+  @override
+  Widget build(BuildContext context) {
+    if (progress <= 0 || progress >= 0.995) return const SizedBox.shrink();
+    final morphT = MotionCurve.iosSpring.transform(progress);
+    final iconSize = lerpDouble(22, 34, morphT)!;
+    final shadowT = ((progress - 0.18) / 0.82).clamp(0.0, 1.0);
+    return IgnorePointer(
+      child: Positioned.fromRect(
+        rect: rect,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accentOf(
+                  context,
+                ).withAlpha((72 * shadowT).round()),
+                blurRadius: 22 * shadowT,
+                spreadRadius: 2 * shadowT,
+              ),
+            ],
+          ),
+          child: PlayPulseButton(
+            isPlaying: isPlaying,
+            onPressed: null,
+            enabled: false,
+            size: rect.width,
+            iconSize: iconSize,
+            mini: rect.width <= 42,
           ),
         ),
       ),
@@ -673,6 +769,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           fullArtworkRect,
           morphT,
         )!;
+        final miniPlayButtonRect = _miniPlayButtonRect(miniRect);
+        final fullControlsPlayButtonRect = _fullControlsPlayButtonRect(
+          context,
+          screenW: screenW,
+          screenH: screenH,
+        );
+        final fullLyricPlayButtonRect = _fullLyricPlayButtonRect(
+          context,
+          screenW: screenW,
+          screenH: screenH,
+        );
+        final playButtonMorphRect = Rect.lerp(
+          miniPlayButtonRect,
+          _currentPage == 1
+              ? fullLyricPlayButtonRect
+              : fullControlsPlayButtonRect,
+          morphT,
+        )!;
         final contentOpacity = MotionCurve.iosSpring.transform(
           ((progress - 0.18) / 0.74).clamp(0.0, 1.0),
         );
@@ -715,12 +829,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ),
             ),
-            _RouteArtworkMorphOverlay(
-              rect: artworkMorphRect,
-              progress: progress,
-              artwork: currentMusic.artwork,
-              fallback: _defaultArtwork,
-            ),
+            if (_currentPage == 0)
+              _RouteArtworkMorphOverlay(
+                rect: artworkMorphRect,
+                progress: progress,
+                artwork: currentMusic.artwork,
+                fallback: _defaultArtwork,
+              )
+            else
+              _RoutePlayButtonMorphOverlay(
+                rect: playButtonMorphRect,
+                progress: progress,
+                isPlaying: isPlaying,
+              ),
           ],
         );
       },

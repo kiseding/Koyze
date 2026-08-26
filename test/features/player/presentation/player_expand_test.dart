@@ -14,6 +14,15 @@ void main() {
     expect(full, contains('_miniArtworkRect(miniRect)'));
     expect(full, contains('_fullArtworkRect('));
     expect(full, contains('_RouteArtworkMorphOverlay'));
+    expect(full, contains('_RoutePlayButtonMorphOverlay'));
+    expect(full, contains('final playButtonMorphRect = Rect.lerp'));
+    expect(full, contains('_miniPlayButtonRect(miniRect)'));
+    expect(full, contains('_fullControlsPlayButtonRect('));
+    expect(full, contains('_fullLyricPlayButtonRect('));
+    expect(full, contains('_currentPage == 1'));
+    expect(full, contains('fullLyricPlayButtonRect'));
+    expect(full, contains('fullControlsPlayButtonRect'));
+    expect(full, contains('if (_currentPage == 0)'));
     expect(full, contains('artworkReveal'));
     expect(full, contains('OverflowBox'));
     expect(full, contains('ClipRRect'));
