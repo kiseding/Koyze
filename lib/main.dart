@@ -506,6 +506,7 @@ Future<void> _bootstrapUnsafe(
             acquireExisting: playbackCache.acquireExisting,
             cancelCacheKey: playbackCache.cancelKey,
             cancelAllTrackedCacheWork: playbackResolver.cancelAllTracked,
+            discardCacheKey: playbackCache.invalidate,
           );
 
           // 设置 URL 解析器：音质一次解析 → 租约缓存或已校验流式 HTTPS

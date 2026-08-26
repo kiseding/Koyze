@@ -376,6 +376,37 @@ void main() {
     expect(downloadCount, 2);
   });
 
+  test('invalidate deletes a corrupt entry and re-downloads fresh', () async {
+    final path1 = await cache.getOrDownload(
+      remoteUrl: 'https://cdn.example.com/bad.mp3',
+      platform: 'tx',
+      songId: 'bad',
+      quality: '320k',
+    );
+    expect(path1, isNotNull);
+    expect(File(path1!).existsSync(), isTrue);
+    expect(downloadCount, 1);
+
+    final key = PlaybackCacheService.cacheKey(
+      platform: 'tx',
+      songId: 'bad',
+      quality: '320k',
+    );
+    await cache.invalidate(key);
+
+    expect(File(path1).existsSync(), isFalse);
+
+    final path2 = await cache.getOrDownload(
+      remoteUrl: 'https://cdn.example.com/bad.mp3',
+      platform: 'tx',
+      songId: 'bad',
+      quality: '320k',
+    );
+    expect(path2, isNotNull);
+    expect(File(path2!).existsSync(), isTrue);
+    expect(downloadCount, 2);
+  });
+
   test('toPlayableUri prefixes file path', () {
     expect(
       PlaybackCacheService.toPlayableUri('/tmp/x.mp3'),

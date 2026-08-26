@@ -897,6 +897,29 @@ class PlaybackCacheService {
     );
   }
 
+  /// Discards a corrupt cached entry for [key]: invalidates any in-flight
+  /// download, deletes the stable file, and removes the index record so the
+  /// next resolution re-downloads a fresh copy.
+  Future<void> invalidate(String key) {
+    if (_disposed) return Future<void>.value();
+    return _withKeyTransaction(key, () async {
+      final operation = _inflight[key];
+      if (operation != null && !operation.token.isCancelled) {
+        operation.token.cancel('bad cache discarded');
+      }
+      if (operation != null &&
+          (_generations[key] ?? 0) <= operation.generation) {
+        _generations[key] = operation.generation + 1;
+      }
+      if (identical(_inflight[key], operation)) _inflight.remove(key);
+      final entry = _index.remove(key);
+      if (entry != null) {
+        await _deleteOwnedStablePath(entry.key, entry.path);
+      }
+      await _saveIndex();
+    });
+  }
+
   Future<PlaybackCacheLease?> acquireOrDownload({
     required String remoteUrl,
     required String platform,

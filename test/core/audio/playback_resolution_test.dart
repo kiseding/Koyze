@@ -1183,6 +1183,98 @@ void main() {
     );
 
     test(
+      'corrupt cached source install discards cache and retries once',
+        () async {
+      final player = _FailNInstallPlayer(1, StateError('AVPlayer -11800'));
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      final lease = _FakeLease('/cache/bad.mp3', 'bad', (_) {});
+      final discarded = <String>[];
+      var resolveCalls = 0;
+      handler.attachPlaybackCache(
+        acquireExisting: (path) async => lease.asLease(),
+        discardCacheKey: (key) async => discarded.add(key),
+      );
+      handler.urlResolver = (id, [extras]) async {
+        resolveCalls++;
+        expect(extras?['cacheKey'], isNull);
+        return 'https://cdn.example/recovered.mp3';
+      };
+
+      await handler.setPlaylist([
+        MediaItem(
+          id: 'bad',
+          title: 'bad',
+          extras: {
+            'url': PlaybackCacheService.toPlayableUri(lease.path),
+            'cacheKey': 'deadbeef',
+            'requestedQuality': '320k',
+          },
+        ),
+      ]);
+
+      expect(discarded, ['deadbeef']);
+      expect(resolveCalls, 1);
+      expect(player.sourceInstallCount, 2);
+      expect(player.lastInstalledUri, 'https://cdn.example/recovered.mp3');
+      expect(lease.releaseCount, 1);
+      expect(handler.mediaItem.value?.id, 'bad');
+      expect(
+        handler.mediaItem.value?.extras?['url'],
+        'https://cdn.example/recovered.mp3',
+      );
+      },
+    );
+
+    test(
+      'corrupt cached source install retries only once before advancing',
+        () async {
+      final player = _FailNInstallPlayer(2, StateError('AVPlayer -11800'));
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      final lease = _FakeLease('/cache/bad.mp3', 'bad', (_) {});
+      final discarded = <String>[];
+      var resolveCalls = 0;
+      handler.attachPlaybackCache(
+        acquireExisting: (path) async => lease.asLease(),
+        discardCacheKey: (key) async => discarded.add(key),
+      );
+      handler.urlResolver = (id, [extras]) async {
+        resolveCalls++;
+        return 'https://cdn.example/$id.mp3';
+      };
+
+      await handler.setPlaylist([
+        MediaItem(
+          id: 'bad',
+          title: 'bad',
+          extras: {
+            'url': PlaybackCacheService.toPlayableUri(lease.path),
+            'cacheKey': 'deadbeef',
+            'requestedQuality': '320k',
+          },
+        ),
+        const MediaItem(id: 'next', title: 'next'),
+      ]);
+
+      expect(discarded, ['deadbeef']);
+      expect(resolveCalls, 2);
+      // 4 installs: bad cache (fail), retried remote (fail), the seamless
+      // skip silence placeholder, then the next track source.
+      expect(player.installs, [
+        'file:///cache/bad.mp3',
+        'https://cdn.example/bad.mp3',
+        null,
+        'https://cdn.example/next.mp3',
+      ]);
+      expect(player.sourceInstallCount, 4);
+      expect(player.lastInstalledUri, 'https://cdn.example/next.mp3');
+      expect(handler.mediaItem.value?.id, 'next');
+      expect(handler.currentQueueIndex, 1);
+      },
+    );
+
+    test(
         'stopping a pending cached resolution releases it and replay reacquires',
         () async {
       final player = _GatedReuseAudioPlayer();
@@ -1911,6 +2003,41 @@ class _GatedReuseAudioPlayer extends _ReuseAudioPlayer {
     }
     final error = sourceInstallError;
     if (error != null) throw error;
+    return null;
+  }
+}
+
+/// Fails the first [failures] source installs, then delegates to the base
+/// player for the rest. Used to verify bad-cache install retry behavior.
+class _FailNInstallPlayer extends _ReuseAudioPlayer {
+  _FailNInstallPlayer(this.failures, this.error);
+
+  int failures;
+  final Object error;
+  final List<String?> installs = [];
+
+  @override
+  Future<Duration?> setAudioSource(
+    AudioSource source, {
+    bool preload = true,
+    int? initialIndex,
+    Duration? initialPosition,
+  }) async {
+    sourceInstallCount++;
+    installs.add(
+      source is ProgressiveAudioSource ? source.uri.toString() : null,
+    );
+    if (failures > 0) {
+      failures--;
+      throw error;
+    }
+    if (source is ProgressiveAudioSource) {
+      lastInstalledUri = source.uri.toString();
+      lastInstalledTag = source.tag as MediaItem?;
+    } else {
+      lastInstalledUri = null;
+      lastInstalledTag = null;
+    }
     return null;
   }
 }

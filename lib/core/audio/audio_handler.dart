@@ -278,6 +278,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   int _consecutiveAutomaticTrackFailures = 0;
   int? _lastCountedFailedOccurrenceId;
   int? _playRecoveryAttemptedOccurrenceId;
+  final Set<int> _badCacheRetriedOccurrenceIds = {};
   bool _automaticFailureSkippingHalted = false;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
   AudioServiceShuffleMode _shuffleMode = AudioServiceShuffleMode.none;
@@ -330,6 +331,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<PlaybackCacheLease?> Function(String path)? _acquireExistingCache;
   void Function(String key)? _cancelCacheKey;
   void Function()? _cancelAllTrackedCacheWork;
+  Future<void> Function(String key)? _discardCacheKey;
   String? _foregroundCacheKey;
   LazyQueueLoader? _lazyQueueLoader;
   LazyQueueShuffleRebuilder? _lazyQueueShuffleRebuilder;
@@ -373,11 +375,13 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     Future<PlaybackCacheLease?> Function(String path)? acquireExisting,
     void Function(String key)? cancelCacheKey,
     void Function()? cancelAllTrackedCacheWork,
+    Future<void> Function(String key)? discardCacheKey,
   }) {
     _classifyExistingCache = classifyExisting;
     _acquireExistingCache = acquireExisting;
     _cancelCacheKey = cancelCacheKey;
     _cancelAllTrackedCacheWork = cancelAllTrackedCacheWork;
+    _discardCacheKey = discardCacheKey;
   }
 
   /// Atomically accepts metadata and lease ownership for the current playback
@@ -654,6 +658,17 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  static final _stableCacheKey = RegExp(r'^([0-9a-f]{40})\.');
+
+  // 从缓存租约路径反推缓存 key（缓存稳定文件名为 <40hex>.<ext>）。
+  String? _cacheKeyFromLeasePath(String path) {
+    final name = path.contains('/')
+        ? path.substring(path.lastIndexOf('/') + 1)
+        : path;
+    final match = _stableCacheKey.firstMatch(name);
+    return match?.group(1);
+  }
+
   bool _leaseMatchesUrl(PlaybackCacheLease lease, String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.scheme != 'file') return false;
@@ -855,6 +870,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _lastCountedFailedOccurrenceId = null;
     _playRecoveryAttemptedOccurrenceId = null;
     _automaticFailureSkippingHalted = false;
+    _badCacheRetriedOccurrenceIds.clear();
   }
 
   void _recordSuccessfulPlayback() {
@@ -2519,6 +2535,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _acquireExistingCache = null;
     _cancelCacheKey = null;
     _cancelAllTrackedCacheWork = null;
+    _discardCacheKey = null;
     if (foregroundCacheKey != null && cancelCacheKey != null) {
       await cleanup(() => cancelCacheKey(foregroundCacheKey));
     }
@@ -3048,6 +3065,54 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         if (_disposed) Error.throwWithStackTrace(e, stackTrace);
         var transactionIndex = activeItemIndex();
         if (transactionIndex >= 0 && _currentIndex == transactionIndex) {
+          // 本地缓存文件装源失败（如 AVPlayer -11800）：丢弃坏缓存并重解一次，
+          // 而不是直接跳到下一首。仅对持有缓存租约的本地文件生效。
+          if (stagedLease != null &&
+              _discardCacheKey != null &&
+              _badCacheRetriedOccurrenceIds.add(occurrenceId)) {
+            final discardCacheKey = _discardCacheKey!;
+            final badKey = _foregroundCacheKey ??
+                item.extras?['cacheKey']?.toString() ??
+                _cacheKeyFromLeasePath(stagedLease.path);
+            if (badKey != null && badKey.isNotEmpty) {
+              try {
+                await discardCacheKey(badKey);
+              } catch (discardError) {
+                AppLog.instance.record(
+                  'audio.bad_cache',
+                  'failed to discard bad cache $badKey: $discardError',
+                  level: AppLogLevel.error,
+                );
+              }
+              final clearedExtras = Map<String, dynamic>.from(
+                _queue[transactionIndex].extras ?? {},
+              );
+              clearedExtras
+                ..remove('url')
+                ..remove('remoteUrl')
+                ..remove('cacheKey')
+                ..remove('actualQuality');
+              final clearedItem = _queue[transactionIndex].copyWith(
+                extras: clearedExtras,
+              );
+              _replaceQueueItem(transactionIndex, clearedItem);
+              queue.add(List.from(_queue));
+              mediaItem.add(clearedItem);
+              foregroundRequest.item = clearedItem;
+              if (preservingPauseOwner != null) {
+                await _commands.releasePreservingIntent(preservingPauseOwner);
+                preservingPauseOwner = null;
+              }
+              await _loadQueueItem(
+                transactionIndex,
+                preserveUserIntent: true,
+                recoverStaleInstall: false,
+                initialPosition: initialPosition,
+                provenance: startProvenance,
+              );
+              return;
+            }
+          }
           onError?.call('播放歌曲 "${item.title}" 失败: $e');
           if (_queue.length > 1) {
             transactionIndex = activeItemIndex();
