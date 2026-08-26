@@ -377,12 +377,14 @@ class _PlayerRouteProgressBridgeState
   }
 
   void _sync() {
+    if (playerRouteDismissLocked) return;
     playerRouteProgress.value = widget.animation.value;
   }
 
   @override
   void dispose() {
     widget.animation.removeListener(_sync);
+    playerRouteDismissLocked = false;
     playerRouteProgress.value = 0;
     super.dispose();
   }

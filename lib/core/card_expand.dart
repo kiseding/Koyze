@@ -52,6 +52,15 @@ ui.Image? consumeCardExpandSnapshot() {
   return snapshot;
 }
 
+/// 卡片拖拽关闭进度（0..1，1 = 完全收起成卡片）。
+/// EdgeSwipeDismiss 拖动时实时写入，_CardRevealTransition 据此让
+/// 矩形 morph 跟手收拢，松开后从当前位置继续播放关闭动效。
+final ValueNotifier<double> cardDismissProgress = ValueNotifier<double>(0);
+
+/// 拖拽/回弹动画接管期间，禁止路由动画继续参与过渡计算，
+/// 否则 Navigator 反向动画会把已收拢的卡片先弹回全屏再关闭。
+bool cardDismissLocked = false;
+
 /// 二级页统一转场：从卡片矩形展开（有矩形时），否则上滑 + 淡入。
 /// 页面级动画只允许出现在 PlayerScreen 内部，由 player_expand_test
 /// 文本守卫校验，因此这里不使用标准 Transition 封装组件。
@@ -80,14 +89,19 @@ CustomTransitionPage<Object?> expandablePage(
       late final Widget transition;
       if (!expanding) {
         transition = AnimatedBuilder(
-          animation: curved,
-          builder: (context, child) => Opacity(
-            opacity: curved.value,
-            child: Transform.translate(
-              offset: Offset(0, 24 * (1 - curved.value)),
-              child: child,
-            ),
-          ),
+          animation: Listenable.merge([curved, cardDismissProgress]),
+          builder: (context, child) {
+            final reveal = cardDismissLocked || cardDismissProgress.value > 0
+                ? 1 - cardDismissProgress.value
+                : curved.value;
+            return Opacity(
+              opacity: reveal,
+              child: Transform.translate(
+                offset: Offset(0, 24 * (1 - reveal)),
+                child: child,
+              ),
+            );
+          },
           child: child,
         );
       } else {
@@ -119,6 +133,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   double _drag = 0;
   late final AnimationController _settleController;
   Animation<double>? _settleAnimation;
+  bool _locked = false;
 
   @override
   void initState() {
@@ -128,17 +143,35 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
         final animation = _settleAnimation;
         if (animation != null && mounted) {
           setState(() => _drag = animation.value);
+          _syncProgress();
         }
       });
   }
 
   @override
   void dispose() {
+    if (_locked) {
+      cardDismissLocked = false;
+      cardDismissProgress.value = 0;
+    }
     _settleController.dispose();
     super.dispose();
   }
 
-  void _settleTo(double target, Duration duration, {VoidCallback? onStart}) {
+  // 只有本人（本次路由）持有锁；避免并行路由互相干扰。
+  void _syncProgress() {
+    final width = MediaQuery.sizeOf(context).width;
+    cardDismissProgress.value =
+        width == 0 ? 0.0 : (_drag / width).clamp(0.0, 1.0);
+  }
+
+  void _settleTo(
+    double target,
+    Duration duration, {
+    VoidCallback? onStart,
+    required VoidCallback onComplete,
+  }) {
+    cardDismissLocked = _locked = true;
     _settleController
       ..stop()
       ..duration = duration;
@@ -147,6 +180,13 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     );
     onStart?.call();
     _settleController.forward(from: 0);
+    void settleListener(AnimationStatus status) {
+      if (status != AnimationStatus.completed) return;
+      _settleController.removeStatusListener(settleListener);
+      onComplete();
+    }
+
+    _settleController.addStatusListener(settleListener);
   }
 
   @override
@@ -199,20 +239,37 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
               setState(() {
                 _drag = (_drag + details.delta.dx).clamp(0.0, width);
               });
+              _syncProgress();
             },
             onHorizontalDragEnd: (details) {
               final velocity = details.primaryVelocity ?? 0;
               if (_drag > width * 0.22 || velocity > 700) {
+                // 从当前位置继续收拢成卡片（不再放大回去），到位后再 pop。
+                // 动画期间路由反向动画被锁，pop 后也不会弹回全屏。
                 _settleTo(
-                  0,
+                  width,
                   MotionDuration.normal,
-                  onStart: () => Navigator.of(context).maybePop(),
+                  onComplete: () => Navigator.of(context).maybePop(),
                 );
               } else {
-                _settleTo(0, MotionDuration.micro);
+                _settleTo(
+                  0,
+                  MotionDuration.micro,
+                  onComplete: () {
+                    cardDismissLocked = _locked = false;
+                  },
+                );
               }
             },
-            onHorizontalDragCancel: () => _settleTo(0, MotionDuration.micro),
+            onHorizontalDragCancel: () {
+              _settleTo(
+                0,
+                MotionDuration.micro,
+                onComplete: () {
+                  cardDismissLocked = _locked = false;
+                },
+              );
+            },
           ),
         ),
       ],
@@ -240,6 +297,10 @@ class _CardRevealTransition extends StatefulWidget {
 class _CardRevealTransitionState extends State<_CardRevealTransition> {
   @override
   void dispose() {
+    if (cardDismissLocked) {
+      cardDismissLocked = false;
+      cardDismissProgress.value = 0;
+    }
     widget.sourceSnapshot?.dispose();
     super.dispose();
   }
@@ -256,10 +317,14 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
     final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
 
     return AnimatedBuilder(
-      animation: widget.animation,
+      animation: Listenable.merge([widget.animation, cardDismissProgress]),
       child: RepaintBoundary(child: widget.child),
       builder: (context, child) {
-        final t = widget.animation.value;
+        // 拖拽接管时用跟手的 dismiss 进度驱动矩形收拢，路由动画不参与，
+        // 松开后从当前位置继续播放关闭动效。
+        final t = cardDismissLocked || cardDismissProgress.value > 0
+            ? 1 - cardDismissProgress.value
+            : widget.animation.value;
         final rectT = MotionCurve.easeOut.transform(t);
         final surfaceT = (t / 0.22).clamp(0.0, 1.0);
         final contentT = ((t - 0.18) / 0.82).clamp(0.0, 1.0);

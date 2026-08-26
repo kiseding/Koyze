@@ -121,11 +121,57 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
 
+    // 新行为：超过阈值后从拖动位置继续收拢成卡片（不再放大回去），
+    // 因此松手瞬间位置继续向右（向收拢终点）移动，而不是归位回弹。
     final settling = tester.getTopLeft(content).dx;
-    expect(settling, greaterThan(0));
-    expect(settling, lessThan(dragged));
-    await tester.pumpAndSettle();
+    expect(settling, greaterThan(dragged));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
     expect(observer.popCount, 1);
+  });
+
+  testWidgets('under-threshold drag settles back without popping', (
+    tester,
+  ) async {
+    final observer = _PopObserver();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.iOS),
+        navigatorObservers: [observer],
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              PageRouteBuilder<void>(
+                transitionDuration: Duration.zero,
+                reverseTransitionDuration: const Duration(milliseconds: 280),
+                pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
+                  child: ColoredBox(
+                    key: ValueKey('content'),
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(const Offset(1, 200));
+    await gesture.moveBy(const Offset(60, 0));
+    await tester.pump();
+    final content = find.byKey(const ValueKey('content'));
+    final dragged = tester.getTopLeft(content).dx;
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    // 未过阈值：跟手回弹到 0，路由保持。
+    expect(tester.getTopLeft(content).dx, 0);
+    expect(tester.getTopLeft(content).dx, lessThan(dragged));
+    expect(observer.popCount, 0);
   });
 }
 

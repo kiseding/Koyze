@@ -455,7 +455,8 @@ const kFullPlayerTrackSwitchDuration = Duration(milliseconds: 880);
 const kFullPlayerTrackSwitchReverseDuration = MotionDuration.playerReverse;
 
 Rect _miniArtworkRect(Rect miniRect) {
-  return Rect.fromLTWH(miniRect.left + 12, miniRect.top + 20, 42, 42);
+  // 迷你栏实际布局：顶部 20px 进度条 + 内容 58px 内垂直居中 42px 封面。
+  return Rect.fromLTWH(miniRect.left + 12, miniRect.top + 25, 42, 42);
 }
 
 Rect _fullArtworkRect(
@@ -494,7 +495,7 @@ Rect _miniPlayButtonRect(Rect miniRect) {
   const miniButton = 36.0;
   const rightControlsWidth = 128.0;
   final centerX = miniRect.right - 6 - rightControlsWidth / 2;
-  final centerY = miniRect.top + 20 + 42 / 2;
+  final centerY = miniRect.top + 25 + 42 / 2;
   return Rect.fromCenter(
     center: Offset(centerX, centerY),
     width: miniButton,
@@ -627,8 +628,10 @@ class _RoutePlayButtonMorphOverlay extends StatelessWidget {
           ),
           child: PlayPulseButton(
             isPlaying: isPlaying,
-            onPressed: null,
-            enabled: false,
+            // 必须按"启用"视觉渲染（绿色），否则歌词页关闭时按钮
+            // 会从绿色变成灰色再变回绿色；IgnorePointer 已拦截交互。
+            onPressed: () {},
+            enabled: true,
             size: rect.width,
             iconSize: iconSize,
             mini: rect.width <= 42,
@@ -646,7 +649,8 @@ class PlayerScreen extends ConsumerStatefulWidget {
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
 }
 
-class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+class _PlayerScreenState extends ConsumerState<PlayerScreen>
+    with SingleTickerProviderStateMixin {
   late PageController _pageController;
   int _currentPage = 0;
   late bool _seeking;
@@ -656,6 +660,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   ScrubOperation? _dragOperation;
   double _dragOffset = 0;
   bool _draggingDown = false;
+
+  // morph 覆盖层必须与真实布局几何一致，否则展开/收起终点位置会跳变。
+  final GlobalKey _artworkKey = GlobalKey();
+  final GlobalKey _controlsPlayKey = GlobalKey();
+  final GlobalKey _lyricPlayKey = GlobalKey();
+  Rect? _artworkRect;
+  Rect? _controlsPlayRect;
+  Rect? _lyricPlayRect;
+
+  // 拖拽关闭：跟手写 playerRouteProgress，松手后回弹或继续收拢。
+  late final AnimationController _dragController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 240),
+  );
+
+  double _dragDistance = 0;
 
   @override
   void initState() {
@@ -667,6 +687,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       cancel: ref.read(cancelScrubProvider),
     );
     _seeking = false;
+    _dragController.addListener(() {
+      playerRouteProgress.value = _dragController.value;
+    });
+  }
+
+  void _recordMorphTargets() {
+    _artworkRect = _rectOf(_artworkKey);
+    _controlsPlayRect = _rectOf(_controlsPlayKey);
+    _lyricPlayRect = _rectOf(_lyricPlayKey);
+  }
+
+  Rect? _rectOf(GlobalKey key) {
+    final context = key.currentContext;
+    if (context == null || !context.mounted) return null;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize || !box.attached) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  void _completeDragDismiss() {
+    if (!_draggingDown || !mounted) return;
+    _draggingDown = false;
+    playerRouteDismissLocked = true;
+    Navigator.of(context).maybePop();
   }
 
   void _cancelActiveScrub() {
@@ -683,6 +727,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _dragOperation = null;
     _scrubSession.dispose();
     _pageController.dispose();
+    _dragController.dispose();
     super.dispose();
   }
 
@@ -725,14 +770,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final screenH = MediaQuery.of(context).size.height;
     final screenW = MediaQuery.of(context).size.width;
     final dismissThreshold = screenH * 0.4; // 超过 2/5 关闭
-    // 下拉时露出下层路由（打开前的界面）
-    final revealT = (_dragOffset / (screenH * 0.45)).clamp(0.0, 1.0);
+    _dragDistance = screenH * 0.42; // 拖动跟手 morph 的满程距离
 
     return ValueListenableBuilder<double>(
       valueListenable: playerRouteProgress,
       builder: (context, progress, _) {
-        // 固定页面布局，只让可见窗口在迷你栏和全屏之间变化。这样关闭时
-        // 内容不会被压扁，迷你栏也能在窗口收拢的最后阶段自然接管。
+        // 读取真实布局几何（上一帧已布局），morph 覆盖层终点与页面内容
+        // 严格一致，展开/收起全程无跳变；未布局（首帧）时回退估算值。
+        _recordMorphTargets();
         final media = MediaQuery.of(context);
         final bottomInset = media.padding.bottom > media.viewPadding.bottom
             ? media.padding.bottom
@@ -759,27 +804,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final morphT = MotionCurve.iosSpring.transform(progress);
         final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
         final miniArtworkRect = _miniArtworkRect(miniRect);
-        final fullArtworkRect = _fullArtworkRect(
-          context,
-          screenW: screenW,
-          screenH: screenH,
-        );
+        final fullArtworkRect =
+            _artworkRect ??
+            _fullArtworkRect(context, screenW: screenW, screenH: screenH);
         final artworkMorphRect = Rect.lerp(
           miniArtworkRect,
           fullArtworkRect,
           morphT,
         )!;
         final miniPlayButtonRect = _miniPlayButtonRect(miniRect);
-        final fullControlsPlayButtonRect = _fullControlsPlayButtonRect(
-          context,
-          screenW: screenW,
-          screenH: screenH,
-        );
-        final fullLyricPlayButtonRect = _fullLyricPlayButtonRect(
-          context,
-          screenW: screenW,
-          screenH: screenH,
-        );
+        final fullControlsPlayButtonRect =
+            _controlsPlayRect ??
+            _fullControlsPlayButtonRect(
+              context,
+              screenW: screenW,
+              screenH: screenH,
+            );
+        final fullLyricPlayButtonRect =
+            _lyricPlayRect ??
+            _fullLyricPlayButtonRect(
+              context,
+              screenW: screenW,
+              screenH: screenH,
+            );
         final playButtonMorphRect = Rect.lerp(
           miniPlayButtonRect,
           _currentPage == 1
@@ -827,7 +874,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           screenH,
                           screenW,
                           dismissThreshold,
-                          revealT,
                           artworkReveal,
                         ),
                       ),
@@ -865,65 +911,74 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     double screenH,
     double screenW,
     double dismissThreshold,
-    double revealT,
     double artworkReveal,
   ) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // 轻遮罩：仅拖拽时挂载（下拉时淡出透出上一页），
-          // 避免整屏半透明层在正常播放时白费 fill-rate。
-          if (_draggingDown || _dragOffset > 0)
-            IgnorePointer(
-              child: ColoredBox(
-                color: Colors.black.withValues(alpha: 0.28 * (1 - revealT)),
-              ),
-            ),
-          AnimatedContainer(
-            duration: _draggingDown
-                ? Duration.zero
-                : motionDuration(context, MotionDuration.playerReverse),
-            curve: MotionCurve.iosSpring,
-            transform: Matrix4.translationValues(0, _dragOffset, 0),
-            child: Material(
-              // 路由转场期间背景由外层 morph rect 统一绘制，避免 Material
-              // 背景被 contentOpacity 淡入时形成半透明全屏白幕。
-              color: Colors.transparent,
-              elevation: 8,
-              shadowColor: Colors.black54,
-              child: SafeArea(
-                child: GestureDetector(
-                  onVerticalDragStart: (_) {
-                    setState(() {
-                      _draggingDown = true;
-                      _dragOffset = 0;
-                    });
-                  },
-                  onVerticalDragUpdate: (d) {
-                    if (d.delta.dy > 0 || _dragOffset > 0) {
-                      setState(() {
-                        _dragOffset = (_dragOffset + d.delta.dy).clamp(
-                          0.0,
-                          screenH,
-                        );
-                      });
-                    }
-                  },
-                  onVerticalDragEnd: (d) {
-                    final shouldClose =
-                        _dragOffset > dismissThreshold ||
-                        (d.primaryVelocity ?? 0) > 900;
-                    if (shouldClose) {
-                      Navigator.of(context).maybePop();
-                    } else {
-                      setState(() {
-                        _draggingDown = false;
-                        _dragOffset = 0;
-                      });
-                    }
-                  },
+      body: Material(
+        // 路由转场期间背景由外层 morph rect 统一绘制，避免 Material
+        // 背景被 contentOpacity 淡入时形成半透明全屏白幕。
+        color: Colors.transparent,
+        elevation: 8,
+        shadowColor: Colors.black54,
+        child: SafeArea(
+          child: GestureDetector(
+            onVerticalDragStart: (_) {
+              _dragController.stop();
+              setState(() {
+                _draggingDown = true;
+                _dragOffset = 0;
+              });
+            },
+            onVerticalDragUpdate: (d) {
+              
+              if (d.delta.dy > 0 || _dragOffset > 0) {
+                setState(() {
+                  _dragOffset = (_dragOffset + d.delta.dy).clamp(0.0, screenH);
+                });
+                // 跟手 morph：所有元素（封面大小、按钮、透明度）随拖动
+                // 从全屏向迷你栏收拢，主壳迷你栏同步扩张接管。
+                playerRouteProgress.value =
+                    (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0);
+              }
+            },
+            onVerticalDragEnd: (d) {
+              
+              final shouldClose =
+                  _dragOffset > dismissThreshold ||
+                  (d.primaryVelocity ?? 0) > 900;
+              final current = playerRouteProgress.value;
+              if (shouldClose) {
+                // 从当前位置继续收拢到底（不再放大回去），到位后再 pop。
+                _draggingDown = true;
+                _dragController.duration = const Duration(milliseconds: 230);
+                _dragController.value = current;
+                _dragController.animateTo(0.0).then((_) {
+                  _completeDragDismiss();
+                });
+              } else {
+                // 回弹全屏：同样跟手，从当前位置流畅弹回。
+                _draggingDown = false;
+                _dragController.duration = const Duration(milliseconds: 200);
+                _dragController.value = current;
+                _dragController.animateTo(1.0).then((_) {
+                  if (mounted && !_draggingDown) {
+                    setState(() => _dragOffset = 0);
+                  }
+                });
+              }
+            },
+            onVerticalDragCancel: () {
+              if (_draggingDown && _dragController.isAnimating) return;
+              _draggingDown = false;
+              final current = playerRouteProgress.value;
+              _dragController.value = current;
+              _dragController.animateTo(1.0).then((_) {
+                if (mounted && !_draggingDown) {
+                  setState(() => _dragOffset = 0);
+                }
+              });
+            },
                   child: Column(
                     children: [
                       _StaggeredFade(
@@ -1001,11 +1056,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ],
                   ),
-                ),
-              ),
-            ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1213,6 +1265,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ],
                 ),
                 child: ClipRRect(
+                  key: _artworkKey,
                   borderRadius: BorderRadius.circular(22),
                   child: _FullPlayerArtworkSwitcher(
                     artwork: artwork,
@@ -1405,6 +1458,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
                 const SizedBox(width: 20),
                 PlayPulseButton(
+                  key: _lyricPlayKey,
                   isPlaying: isPlaying,
                   onPressed: playerService.togglePlay,
                   size: 64,
@@ -1536,6 +1590,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
           ),
           PlayPulseButton(
+            key: _controlsPlayKey,
             isPlaying: isPlaying,
             onPressed: playerService.togglePlay,
             size: 64,

@@ -46,6 +46,25 @@ void main() {
       contains('return Positioned.fromRect(\n      rect: rect,\n      child: IgnorePointer('),
     );
     expect(full, isNot(contains('return IgnorePointer(\n      child: Positioned.fromRect')));
+    // morph 覆盖层终点必须取真实布局几何（GlobalKey 实测），否则
+    // 展开/收起终点与页面封面/按钮错位 -> "卡一下再向上跳"。
+    expect(full, contains('_recordMorphTargets()'));
+    expect(full, contains('final GlobalKey _artworkKey = GlobalKey();'));
+    expect(full, contains('key: _artworkKey'));
+    expect(full, contains('key: _controlsPlayKey'));
+    expect(full, contains('key: _lyricPlayKey'));
+    expect(full, contains('??\n            _fullArtworkRect('));
+    // 拖拽关闭必须从当前位置继续收拢（回弹/收拢都走同一跟手动画），
+    // 不能先放大回去再关，也不能让 Navigator 反向动画回写进度。
+    expect(full, contains('animateTo(0.0).then((_) {'));
+    expect(full, contains('playerRouteDismissLocked = true;'));
+    expect(full, contains('playerRouteProgress.value =\n                    (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0)'));
+    expect(full, isNot(contains('Matrix4.translationValues(0, _dragOffset, 0)')));
+    expect(full, isNot(contains('0.28 * (1 - revealT)')));
+    // 歌词页关闭的播放按钮 morph 必须按启用视觉渲染（绿色），
+    // 否则关闭瞬间按钮从绿变灰再变绿。
+    expect(full, contains('onPressed: () {},'));
+    expect(full, contains('enabled: true,'));
     // 各区块独立节奏（stagger）。
     expect(full, contains('_StaggeredFade'));
     expect(full, contains('delay: 0.2')); // 歌名
