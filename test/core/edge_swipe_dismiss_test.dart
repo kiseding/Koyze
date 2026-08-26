@@ -4,15 +4,51 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:koyze/core/card_expand.dart';
 
+/// 把 EdgeSwipeDismiss 放进一个透明（无系统手势）的路由里，测试自绘手势。
+Widget _dismissHarness() {
+  return MaterialApp(
+    theme: ThemeData(platform: TargetPlatform.iOS),
+    home: Builder(
+      builder: (context) => TextButton(
+        onPressed: () => Navigator.of(context).push(
+          PageRouteBuilder<void>(
+            opaque: false,
+            pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
+              child: ColoredBox(
+                key: ValueKey('content'),
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ),
+        child: const Text('open'),
+      ),
+    ),
+  );
+}
+
 void main() {
-  testWidgets('iOS expandable route keeps the previous page visible', (
+  testWidgets('iOS plain page stays opaque so system back gesture works', (
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     final page = expandablePage(const ValueKey('detail'), const SizedBox());
     debugDefaultTargetPlatformOverride = null;
 
-    expect(page, isA<CustomTransitionPage<Object?>>());
+    expect(page.opaque, isTrue);
+  });
+
+  testWidgets('iOS card page stays transparent for the expand morph', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    final page = expandablePage(
+      const ValueKey('detail'),
+      const SizedBox(),
+      expandRect: const Rect.fromLTWH(20, 20, 120, 80),
+    );
+    debugDefaultTargetPlatformOverride = null;
+
     expect(page.opaque, isFalse);
     expect(page.child, isNot(isA<EdgeSwipeDismiss>()));
   });
@@ -50,14 +86,9 @@ void main() {
   testWidgets('iOS drag becomes a rounded half-size floating window', (
     tester,
   ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.iOS),
-        home: const EdgeSwipeDismiss(
-          child: ColoredBox(key: ValueKey('content'), color: Colors.black),
-        ),
-      ),
-    );
+    await tester.pumpWidget(_dismissHarness());
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
 
     final gesture = await tester.startGesture(const Offset(1, 200));
     await gesture.moveBy(const Offset(900, 0));
@@ -86,29 +117,29 @@ void main() {
     tester,
   ) async {
     final observer = _PopObserver();
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.iOS),
-        navigatorObservers: [observer],
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => Navigator.of(context).push(
-              PageRouteBuilder<void>(
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: const Duration(milliseconds: 280),
-                pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
-                  child: ColoredBox(
-                    key: ValueKey('content'),
-                    color: Colors.black,
-                  ),
+    final app = MaterialApp(
+      theme: ThemeData(platform: TargetPlatform.iOS),
+      navigatorObservers: [observer],
+      home: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.of(context).push(
+            PageRouteBuilder<void>(
+              opaque: false,
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: const Duration(milliseconds: 280),
+              pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
+                child: ColoredBox(
+                  key: ValueKey('content'),
+                  color: Colors.black,
                 ),
               ),
             ),
-            child: const Text('open'),
           ),
+          child: const Text('open'),
         ),
       ),
     );
+    await tester.pumpWidget(app);
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
@@ -121,8 +152,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
 
-    // 松手过阈值后页面从拖动位置"归位"（滑回原位），随后才 pop 播放
-    // 收拢关闭动效；归位过程中位置应小于拖动位置且逐渐回到 0。
+    // 松手过阈值后页面从拖动位置"归位"（滑回原位、收拢成卡片），
+    // 归位过程中位置应小于拖动位置且逐渐回到 0。
     final settling = tester.getTopLeft(content).dx;
     expect(settling, greaterThan(0));
     expect(settling, lessThan(dragged));
@@ -134,29 +165,29 @@ void main() {
     tester,
   ) async {
     final observer = _PopObserver();
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.iOS),
-        navigatorObservers: [observer],
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => Navigator.of(context).push(
-              PageRouteBuilder<void>(
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: const Duration(milliseconds: 280),
-                pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
-                  child: ColoredBox(
-                    key: ValueKey('content'),
-                    color: Colors.black,
-                  ),
+    final app = MaterialApp(
+      theme: ThemeData(platform: TargetPlatform.iOS),
+      navigatorObservers: [observer],
+      home: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => Navigator.of(context).push(
+            PageRouteBuilder<void>(
+              opaque: false,
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: const Duration(milliseconds: 280),
+              pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
+                child: ColoredBox(
+                  key: ValueKey('content'),
+                  color: Colors.black,
                 ),
               ),
             ),
-            child: const Text('open'),
           ),
+          child: const Text('open'),
         ),
       ),
     );
+    await tester.pumpWidget(app);
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
@@ -172,6 +203,41 @@ void main() {
     expect(tester.getTopLeft(content).dx, 0);
     expect(tester.getTopLeft(content).dx, lessThan(dragged));
     expect(observer.popCount, 0);
+  });
+
+  testWidgets('opaque route on iOS does not install a custom edge gesture', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.iOS),
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              PageRouteBuilder<void>(
+                opaque: true,
+                pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
+                  child: ColoredBox(color: Colors.black),
+                ),
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    // 系统手势可用时，自绘手势带（左缘窄条）必须完全退出，把左缘
+    // 右滑交给 iOS 系统手势（跟手、从当前位置继续）。
+    final edges = tester.widgetList<GestureDetector>(
+      find.byType(GestureDetector),
+    );
+    expect(
+      edges.where((e) => e.onHorizontalDragUpdate != null),
+      isEmpty,
+    );
   });
 }
 

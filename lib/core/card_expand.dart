@@ -73,8 +73,10 @@ CustomTransitionPage<Object?> expandablePage(
   final expanding = expandRect != null;
   return CustomTransitionPage<Object?>(
     key: pageKey,
-    // iOS 侧滑会把页面缩成悬浮窗口，需要持续绘制下层页面。
-    opaque: !expanding && defaultTargetPlatform != TargetPlatform.iOS,
+    // 普通页（无卡片展开）保持不透明：iOS 上因此能启用系统级
+    // "左缘右滑返回"手势（跟手 + 从当前位置继续，浮窗缩小也由系统提供）。
+    // 卡片展开页必须透明才能透视下层做矩形 morph，走自绘左缘手势。
+    opaque: !expanding,
     barrierDismissible: expanding,
     barrierColor: Colors.transparent,
     transitionDuration: MotionDuration.container,
@@ -117,8 +119,10 @@ CustomTransitionPage<Object?> expandablePage(
   );
 }
 
-/// 从屏幕左缘右滑关闭当前页面。只在 24px 边缘接管手势，避免影响页面
+/// 从屏幕左缘右滑关闭当前页面。只在边缘窄条接管手势，避免影响页面
 /// 内的横向列表、播放器 PageView 和主 Tab 滑动。
+/// iOS 上若路由是不透明的（系统左缘返回手势可用），完全不接管——系统
+/// 手势本身跟手、从当前位置继续，且带浮窗缩小效果。
 class EdgeSwipeDismiss extends StatefulWidget {
   const EdgeSwipeDismiss({super.key, required this.child});
 
@@ -207,6 +211,10 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final ios = Theme.of(context).platform == TargetPlatform.iOS;
+    // 不透明路由（iOS 普通页）：系统左缘返回手势可用，自绘手势完全退出，
+    // 过渡则直接由系统手势驱动的 route 动画播放（跟手 + 从当前位置继续）。
+    final systemBackGesture =
+        ios && (ModalRoute.of(context)?.opaque ?? false);
     final progress = _morph;
     final scale = ios ? 1 - 0.5 * progress : 1.0;
     // 圆角所有平台都跟手：拖动时页面边缘实时圆角化（0 → 48）。
@@ -241,37 +249,51 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
       fit: StackFit.expand,
       children: [
         page,
-        Positioned(
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 24,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragStart: (_) => _settleController.stop(),
-            onHorizontalDragUpdate: (details) {
-              if (details.delta.dx <= 0 && _drag <= 0) return;
-              final max = MediaQuery.sizeOf(context).width;
-              setState(() {
-                _drag = (_drag + details.delta.dx).clamp(0.0, max);
-                _morph = _drag / max;
-              });
-              _syncProgress();
-            },
-            onHorizontalDragEnd: (details) {
-              final velocity = details.primaryVelocity ?? 0;
-              if (_drag > width * 0.22 || velocity > 700) {
-                // 从当前位置继续：页面一边滑回原位（不放大），一边持续
-                // 收拢成卡片，在源卡片位置成型后 pop（路由反向被锁，无回弹）。
-                _settleTo(
-                  targetDrag: 0,
-                  targetMorph: 1,
-                  duration: MotionDuration.normal,
-                  onComplete: () {
-                    Navigator.of(context).maybePop();
-                  },
-                );
-              } else {
+        if (!systemBackGesture)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            // iOS 系统手势区约 20pt，这里略微加宽（40）提高触发成功率；
+            // 卡片/播放器为透明路由，没有系统手势，窄条按平台取 32。
+            width: ios ? 40.0 : 32.0,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragStart: (_) => _settleController.stop(),
+              onHorizontalDragUpdate: (details) {
+                if (details.delta.dx <= 0 && _drag <= 0) return;
+                final max = MediaQuery.sizeOf(context).width;
+                setState(() {
+                  _drag = (_drag + details.delta.dx).clamp(0.0, max);
+                  _morph = _drag / max;
+                });
+                _syncProgress();
+              },
+              onHorizontalDragEnd: (details) {
+                final velocity = details.primaryVelocity ?? 0;
+                if (_drag > width * 0.22 || velocity > 700) {
+                  // 从当前位置继续：页面一边滑回原位（不放大），一边持续
+                  // 收拢成卡片，在源卡片位置成型后 pop（路由反向被锁，无回弹）。
+                  _settleTo(
+                    targetDrag: 0,
+                    targetMorph: 1,
+                    duration: MotionDuration.normal,
+                    onComplete: () {
+                      Navigator.of(context).maybePop();
+                    },
+                  );
+                } else {
+                  _settleTo(
+                    targetDrag: 0,
+                    targetMorph: 0,
+                    duration: MotionDuration.micro,
+                    onComplete: () {
+                      cardDismissLocked = _locked = false;
+                    },
+                  );
+                }
+              },
+              onHorizontalDragCancel: () {
                 _settleTo(
                   targetDrag: 0,
                   targetMorph: 0,
@@ -280,20 +302,9 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
                     cardDismissLocked = _locked = false;
                   },
                 );
-              }
-            },
-            onHorizontalDragCancel: () {
-              _settleTo(
-                targetDrag: 0,
-                targetMorph: 0,
-                duration: MotionDuration.micro,
-                onComplete: () {
-                  cardDismissLocked = _locked = false;
-                },
-              );
-            },
+              },
+            ),
           ),
-        ),
       ],
     );
   }
