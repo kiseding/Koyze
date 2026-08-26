@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:koyze/core/card_expand.dart';
 
 /// 把 EdgeSwipeDismiss 放进一个透明（无系统手势）的路由里，测试自绘手势。
