@@ -36,6 +36,8 @@ class PlaylistService {
       StreamController<int>.broadcast();
   final StreamController<int> _syncRevisionController =
       StreamController<int>.broadcast();
+  final StreamController<int> _favoritesRevisionController =
+      StreamController<int>.broadcast();
 
   Future<void> _tail = Future.value();
   Future<void>? _initFuture;
@@ -51,6 +53,7 @@ class PlaylistService {
   Stream<int> get pageRevisions => _pageRevisionController.stream;
   Stream<int> get recentRevisions => _recentRevisionController.stream;
   Stream<int> get syncRevisions => _syncRevisionController.stream;
+  Stream<int> get favoritesRevisions => _favoritesRevisionController.stream;
 
   Future<List<Playlist>> getAllPlaylists() => _hydrateAll(_playlists);
 
@@ -281,29 +284,40 @@ class PlaylistService {
     MusicItem song, {
     String? playlistItemId,
   }) async {
-    final added = await _mutate((current) {
-      final index = _indexOf(current, playlistId);
-      final existing = current[index];
-      if (existing.songs.any((item) => item.identityKey == song.identityKey)) {
-        return (next: current, result: false, changed: false);
-      }
-      final updated = existing.copyWith(
-        songs: List.unmodifiable(
-          playlistId == 'favorites'
-              ? [
-                  song.copyWith(playlistItemId: playlistItemId ?? _createId()),
-                  ...existing.songs,
-                ]
-              : [
-                  ...existing.songs,
-                  song.copyWith(playlistItemId: playlistItemId ?? _createId()),
-                ],
-        ),
-        updatedAt: _clock(),
-      );
-      final next = _replacePlaylistAt(current, index, updated);
-      return (next: next, result: true, changed: true);
-    });
+    final added = await _mutate(
+      (current) {
+        final index = _indexOf(current, playlistId);
+        final existing = current[index];
+        if (existing.songs.any(
+          (item) => item.identityKey == song.identityKey,
+        )) {
+          return (next: current, result: false, changed: false);
+        }
+        final updated = existing.copyWith(
+          songs: List.unmodifiable(
+            playlistId == 'favorites'
+                ? [
+                    song.copyWith(
+                      playlistItemId: playlistItemId ?? _createId(),
+                    ),
+                    ...existing.songs,
+                  ]
+                : [
+                    ...existing.songs,
+                    song.copyWith(
+                      playlistItemId: playlistItemId ?? _createId(),
+                    ),
+                  ],
+          ),
+          updatedAt: _clock(),
+        );
+        final next = _replacePlaylistAt(current, index, updated);
+        return (next: next, result: true, changed: true);
+      },
+      revisionScope: playlistId == 'favorites'
+          ? PlaylistMutationScope.favorites
+          : PlaylistMutationScope.all,
+    );
     if (added && playlistId != 'recent' && playlistId != 'local') {
       final stored = (await getAllSongs(playlistId))
           .cast<MusicItem?>()
@@ -355,40 +369,45 @@ class PlaylistService {
   ) async {
     final requestedIds = songIds.toSet();
     final removedSongDetails = <String, MusicItem>{};
-    final removed = await _mutate((current) {
-      final index = _indexOf(current, playlistId);
-      final existing = current[index];
-      if (existing.songs.isEmpty || requestedIds.isEmpty) {
-        return (next: current, result: 0, changed: false);
-      }
-      final rawIdCounts = <String, int>{};
-      for (final song in existing.songs) {
-        rawIdCounts.update(song.id, (count) => count + 1, ifAbsent: () => 1);
-      }
-      var removed = 0;
-      final kept = <MusicItem>[];
-      for (final song in existing.songs) {
-        final matchesItem = requestedIds.contains(song.playlistItemId);
-        final matchesCanonical = requestedIds.contains(song.identityKey);
-        final matchesUniqueLegacyId =
-            requestedIds.contains(song.id) && rawIdCounts[song.id] == 1;
-        if (matchesItem || matchesCanonical || matchesUniqueLegacyId) {
-          removed++;
-          removedSongDetails[song.identityKey] = song;
-        } else {
-          kept.add(song);
+    final removed = await _mutate(
+      (current) {
+        final index = _indexOf(current, playlistId);
+        final existing = current[index];
+        if (existing.songs.isEmpty || requestedIds.isEmpty) {
+          return (next: current, result: 0, changed: false);
         }
-      }
-      if (removed == 0) {
-        return (next: current, result: 0, changed: false);
-      }
-      final updated = existing.copyWith(
-        songs: List.unmodifiable(kept),
-        updatedAt: _clock(),
-      );
-      final next = _replacePlaylistAt(current, index, updated);
-      return (next: next, result: removed, changed: true);
-    });
+        final rawIdCounts = <String, int>{};
+        for (final song in existing.songs) {
+          rawIdCounts.update(song.id, (count) => count + 1, ifAbsent: () => 1);
+        }
+        var removed = 0;
+        final kept = <MusicItem>[];
+        for (final song in existing.songs) {
+          final matchesItem = requestedIds.contains(song.playlistItemId);
+          final matchesCanonical = requestedIds.contains(song.identityKey);
+          final matchesUniqueLegacyId =
+              requestedIds.contains(song.id) && rawIdCounts[song.id] == 1;
+          if (matchesItem || matchesCanonical || matchesUniqueLegacyId) {
+            removed++;
+            removedSongDetails[song.identityKey] = song;
+          } else {
+            kept.add(song);
+          }
+        }
+        if (removed == 0) {
+          return (next: current, result: 0, changed: false);
+        }
+        final updated = existing.copyWith(
+          songs: List.unmodifiable(kept),
+          updatedAt: _clock(),
+        );
+        final next = _replacePlaylistAt(current, index, updated);
+        return (next: next, result: removed, changed: true);
+      },
+      revisionScope: playlistId == 'favorites'
+          ? PlaylistMutationScope.favorites
+          : PlaylistMutationScope.all,
+    );
     if (removed > 0 && playlistId != 'recent' && playlistId != 'local') {
       for (final songId in requestedIds) {
         final song = removedSongDetails[songId];
@@ -624,6 +643,7 @@ class PlaylistService {
     _disposing = true;
     return _disposeFuture = _tail.then((_) {
       _revisionController.close();
+      _favoritesRevisionController.close();
       _pageRevisionController.close();
       _recentRevisionController.close();
       _syncRevisionController.close();
@@ -696,8 +716,12 @@ class PlaylistService {
   void _notifyRevisions(PlaylistMutationScope scope, {bool notifySync = true}) {
     _revisionController.add(++_revision);
     if (scope == PlaylistMutationScope.all) {
+      _favoritesRevisionController.add(_revision);
       _pageRevisionController.add(_revision);
       _recentRevisionController.add(_revision);
+      if (notifySync) _syncRevisionController.add(_revision);
+    } else if (scope == PlaylistMutationScope.favorites) {
+      _favoritesRevisionController.add(_revision);
       if (notifySync) _syncRevisionController.add(_revision);
     } else if (scope == PlaylistMutationScope.recent) {
       _recentRevisionController.add(_revision);
@@ -903,4 +927,4 @@ final class PlaylistSongMatch {
   final int index;
 }
 
-enum PlaylistMutationScope { all, recent, local }
+enum PlaylistMutationScope { all, favorites, recent, local }

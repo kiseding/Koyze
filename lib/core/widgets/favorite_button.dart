@@ -41,6 +41,7 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
   );
 
   bool _pending = false;
+  bool? _optimisticFavorite;
 
   /// q 弹缩放：1.0 → 1.45 → 0.85 → 1.0。
   late final Animation<double> _scale = TweenSequence<double>([
@@ -75,26 +76,44 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
 
   Future<void> _toggle() async {
     if (_pending) return;
-    setState(() => _pending = true);
+    final current = _currentFavorite;
+    setState(() {
+      _pending = true;
+      _optimisticFavorite = !current;
+    });
     if (!reduceMotion(context)) unawaited(_controller.forward(from: 0));
+    // Yield one frame so the heart animation/state paints before the potentially
+    // expensive playlist persistence work begins.
+    await Future<void>.delayed(Duration.zero);
     try {
       await ref.read(toggleFavoriteProvider)(widget.song);
     } catch (error) {
       if (!mounted) return;
+      setState(() => _optimisticFavorite = current);
       showAppNotification('收藏失败: $error', type: AppNotificationType.error);
     } finally {
-      if (mounted) setState(() => _pending = false);
+      if (mounted) {
+        setState(() {
+          _pending = false;
+          _optimisticFavorite = null;
+        });
+      }
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isFavorite =
-        widget.isFavorite ??
+  bool get _currentFavorite {
+    final optimistic = _optimisticFavorite;
+    if (optimistic != null) return optimistic;
+    return widget.isFavorite ??
         ref
             .watch(isSongFavoriteProvider(widget.song.identityKey))
             .valueOrNull ??
         false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isFavorite = _currentFavorite;
     final heartColor = isFavorite
         ? widget.activeColor
         : AppColors.mutedText(context);
