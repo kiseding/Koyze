@@ -568,9 +568,9 @@ class _RouteArtworkMorphOverlay extends StatelessWidget {
             errorBuilder: (_, __, ___) => fallback(),
           )
         : fallback();
-    return IgnorePointer(
-      child: Positioned.fromRect(
-        rect: rect,
+    return Positioned.fromRect(
+      rect: rect,
+      child: IgnorePointer(
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
@@ -609,9 +609,9 @@ class _RoutePlayButtonMorphOverlay extends StatelessWidget {
     final morphT = MotionCurve.iosSpring.transform(progress);
     final iconSize = lerpDouble(22, 34, morphT)!;
     final shadowT = ((progress - 0.18) / 0.82).clamp(0.0, 1.0);
-    return IgnorePointer(
-      child: Positioned.fromRect(
-        rect: rect,
+    return Positioned.fromRect(
+      rect: rect,
+      child: IgnorePointer(
         child: DecoratedBox(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
@@ -787,8 +787,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               : fullControlsPlayButtonRect,
           morphT,
         )!;
+        // 内容淡入必须极早完成（sheet 还很小时），否则整块 morph 底
+        // 会长时间以"半透明白色层+鬼影内容"盖在屏幕上（打开/关闭各闪一次）。
+        // 各区块自身的 _StaggeredFade / artworkReveal 负责后续 reveal 节奏。
         final contentOpacity = MotionCurve.iosSpring.transform(
-          ((progress - 0.18) / 0.74).clamp(0.0, 1.0),
+          ((progress - 0.03) / 0.17).clamp(0.0, 1.0),
         );
         final artworkReveal = MotionCurve.iosSpring.transform(
           ((progress - 0.74) / 0.22).clamp(0.0, 1.0),

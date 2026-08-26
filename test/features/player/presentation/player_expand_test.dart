@@ -35,6 +35,17 @@ void main() {
     expect(full, contains('playerRouteProgress'));
     expect(full, contains('MotionCurve.iosSpring'));
     expect(full, contains('MotionDuration.playerReverse'));
+    // 内容必须在 morph 底还很小时就完全不透明，否则整屏会长时间
+    // 呈"半透明全屏白色层"（内容鬼影盖在白色 sheet 上，进入/退出各闪一次）；
+    // 之后各区块的显隐节奏交给 _StaggeredFade / artworkReveal。
+    expect(full, contains('((progress - 0.03) / 0.17).clamp(0.0, 1.0)'));
+    // morph 覆盖层必须把 Positioned 直接挂在 Stack 下（IgnorePointer 在内侧），
+    // 否则 Debug 模式抛 ParentData 断言、Release 下覆盖层错位。
+    expect(
+      full,
+      contains('return Positioned.fromRect(\n      rect: rect,\n      child: IgnorePointer('),
+    );
+    expect(full, isNot(contains('return IgnorePointer(\n      child: Positioned.fromRect')));
     // 各区块独立节奏（stagger）。
     expect(full, contains('_StaggeredFade'));
     expect(full, contains('delay: 0.2')); // 歌名
