@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -453,6 +454,95 @@ const kFullPlayerArtworkSwitchDuration = Duration(milliseconds: 860);
 const kFullPlayerTrackSwitchDuration = Duration(milliseconds: 880);
 const kFullPlayerTrackSwitchReverseDuration = MotionDuration.playerReverse;
 
+Rect _miniArtworkRect(Rect miniRect) {
+  return Rect.fromLTWH(miniRect.left + 12, miniRect.top + 20, 42, 42);
+}
+
+Rect _fullArtworkRect(
+  BuildContext context, {
+  required double screenW,
+  required double screenH,
+}) {
+  final media = MediaQuery.of(context);
+  final safeTop = media.padding.top;
+  final safeBottom = media.padding.bottom;
+  const appBarHeight = 52.0;
+  const topGap = 12.0;
+  const infoHeight = 128.0;
+  const controlsHeight = 170.0;
+  final available =
+      screenH -
+      safeTop -
+      safeBottom -
+      appBarHeight -
+      topGap -
+      infoHeight -
+      controlsHeight;
+  final side = (screenW - 64).clamp(240.0, 420.0);
+  final box = side.clamp(0.0, available - 8);
+  final left = (screenW - box) / 2;
+  final top = safeTop + appBarHeight + topGap + ((available - box) / 2);
+  return Rect.fromLTWH(
+    left,
+    top.clamp(safeTop + appBarHeight, screenH),
+    box,
+    box,
+  );
+}
+
+class _RouteArtworkMorphOverlay extends StatelessWidget {
+  const _RouteArtworkMorphOverlay({
+    required this.rect,
+    required this.progress,
+    required this.artwork,
+    required this.fallback,
+  });
+
+  final Rect rect;
+  final double progress;
+  final String? artwork;
+  final Widget Function() fallback;
+
+  @override
+  Widget build(BuildContext context) {
+    if (progress <= 0 || progress >= 0.995) return const SizedBox.shrink();
+    final radius = lerpDouble(
+      10,
+      22,
+      MotionCurve.iosSpring.transform(progress),
+    )!;
+    final shadowT = ((progress - 0.2) / 0.8).clamp(0.0, 1.0);
+    final Widget child = artwork != null && artwork!.isNotEmpty
+        ? ArtworkImage(
+            artwork!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => fallback(),
+          )
+        : fallback();
+    return IgnorePointer(
+      child: Positioned.fromRect(
+        rect: rect,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha((42 * shadowT).round()),
+                blurRadius: 20 * shadowT,
+                offset: Offset(0, 10 * shadowT),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
 
@@ -551,14 +641,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final bottomInset = media.padding.bottom > media.viewPadding.bottom
             ? media.padding.bottom
             : media.viewPadding.bottom;
-        final bottomSpacing = bottomInset == 0 ? 6.0 : 0.0;
+        final bottomSpacing = bottomInset == 0 ? 2.0 : 0.0;
+        final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
         final navHeight =
-            37.0 + bottomInset + bottomSpacing + (bottomInset == 0 ? 3.0 : 0.0);
+            36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
         const miniHeight = 78.0;
-        const gap = 7.0;
+        const miniGap = 11.0;
+        final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
+        final miniBottom = bottomInset == 0
+            ? navHeight + 16 + bottomClearance + miniGap
+            : navHeight + miniGap;
         final miniLeft = 3.0;
         final miniWidth = screenW - 6.0;
-        final miniBottom = navHeight + gap;
         final miniRect = Rect.fromLTWH(
           miniLeft,
           screenH - miniBottom - miniHeight,
@@ -568,8 +662,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final fullRect = Offset.zero & Size(screenW, screenH);
         final morphT = MotionCurve.iosSpring.transform(progress);
         final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
+        final miniArtworkRect = _miniArtworkRect(miniRect);
+        final fullArtworkRect = _fullArtworkRect(
+          context,
+          screenW: screenW,
+          screenH: screenH,
+        );
+        final artworkMorphRect = Rect.lerp(
+          miniArtworkRect,
+          fullArtworkRect,
+          morphT,
+        )!;
         final contentOpacity = MotionCurve.iosSpring.transform(
-          ((progress - 0.12) / 0.78).clamp(0.0, 1.0),
+          ((progress - 0.18) / 0.74).clamp(0.0, 1.0),
+        );
+        final artworkReveal = MotionCurve.iosSpring.transform(
+          ((progress - 0.74) / 0.22).clamp(0.0, 1.0),
         );
 
         return Stack(
@@ -600,11 +708,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         screenW,
                         dismissThreshold,
                         revealT,
+                        artworkReveal,
                       ),
                     ),
                   ),
                 ),
               ),
+            ),
+            _RouteArtworkMorphOverlay(
+              rect: artworkMorphRect,
+              progress: progress,
+              artwork: currentMusic.artwork,
+              fallback: _defaultArtwork,
             ),
           ],
         );
@@ -624,6 +739,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     double screenW,
     double dismissThreshold,
     double revealT,
+    double artworkReveal,
   ) {
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -700,6 +816,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   child: _buildArtwork(
                                     currentMusic.artwork,
                                     songId: currentMusic.id,
+                                    routeReveal: artworkReveal,
                                   ),
                                 ),
                                 _StaggeredFade(
@@ -936,36 +1053,43 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  Widget _buildArtwork(String? artwork, {String? songId}) {
+  Widget _buildArtwork(
+    String? artwork, {
+    String? songId,
+    double routeReveal = 1,
+  }) {
     // 与歌名行同宽：左右 32，对齐歌名左侧到心形右侧区域
     return LayoutBuilder(
       builder: (context, constraints) {
         final side = (constraints.maxWidth - 64).clamp(240.0, 420.0);
         final box = side.clamp(0.0, constraints.maxHeight - 8);
-        return Center(
-          child: Pressable(
-            semanticLabel: '打开歌词',
-            onTap: _openLyricsPage,
-            child: Container(
-              width: box,
-              height: box,
-              margin: const EdgeInsets.symmetric(horizontal: 32),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(40),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+        return Opacity(
+          opacity: routeReveal,
+          child: Center(
+            child: Pressable(
+              semanticLabel: '打开歌词',
+              onTap: _openLyricsPage,
+              child: Container(
+                width: box,
+                height: box,
+                margin: const EdgeInsets.symmetric(horizontal: 32),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(22),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(40),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(22),
+                  child: _FullPlayerArtworkSwitcher(
+                    artwork: artwork,
+                    songId: songId,
+                    fallback: _defaultArtwork,
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(22),
-                child: _FullPlayerArtworkSwitcher(
-                  artwork: artwork,
-                  songId: songId,
-                  fallback: _defaultArtwork,
                 ),
               ),
             ),

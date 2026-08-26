@@ -8,8 +8,13 @@ void main() {
       'lib/features/player/presentation/player_screen.dart',
     ).readAsStringSync();
 
-    // 矩形窗口变形：页面不被非等比压缩。
+    // 窗口变形 + 封面矩形变形：页面不被非等比压缩，视觉焦点落在封面。
     expect(full, contains('Rect.lerp(miniRect, fullRect'));
+    expect(full, contains('final artworkMorphRect = Rect.lerp'));
+    expect(full, contains('_miniArtworkRect(miniRect)'));
+    expect(full, contains('_fullArtworkRect('));
+    expect(full, contains('_RouteArtworkMorphOverlay'));
+    expect(full, contains('artworkReveal'));
     expect(full, contains('OverflowBox'));
     expect(full, contains('ClipRRect'));
     expect(full, contains('playerRouteProgress'));
@@ -59,6 +64,14 @@ void main() {
     expect(player, isNot(contains('begin: const Offset(0.08, 0)')));
     expect(player, contains('alignment: Alignment.centerLeft'));
     expect(player, contains('width: double.infinity'));
+    expect(
+      player,
+      contains('final bottomSpacing = bottomInset == 0 ? 2.0 : 0.0'),
+    );
+    expect(
+      player,
+      contains('final bottomClearance = bottomInset == 0 ? 11.0 : 0.0'),
+    );
     // 主壳联动：底栏挤出、Tab 上移、迷你栏扩张。
     expect(scaffold, contains('playerRouteProgress'));
     expect(scaffold, contains('navPush'));
