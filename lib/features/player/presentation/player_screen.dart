@@ -545,20 +545,25 @@ class _RouteArtworkMorphOverlay extends StatelessWidget {
   const _RouteArtworkMorphOverlay({
     required this.rect,
     required this.progress,
+    required this.closing,
     required this.artwork,
     required this.fallback,
   });
 
   final Rect rect;
   final double progress;
+  final bool closing;
   final String? artwork;
   final Widget Function() fallback;
 
   @override
   Widget build(BuildContext context) {
-    // 只隐藏在任何形态都没有意义的端点；关闭/左缘手势全程可见，
-    // 让封面跟随进度完整归位（正文封面此时已让位）。
-    if (progress <= 0) return const SizedBox.shrink();
+    // 打开已完成且未进入关闭 → 让位正文封面；一旦关闭/手势驱动则
+    // 全程可见（封面跟随进度完整归位），否则歌词页切换时会出现
+    // 多余的"大封面快照"。
+    if (progress <= 0 || (progress >= 0.995 && !closing)) {
+      return const SizedBox.shrink();
+    }
     final radius = lerpDouble(
       10,
       22,
@@ -600,18 +605,22 @@ class _RoutePlayButtonMorphOverlay extends StatelessWidget {
   const _RoutePlayButtonMorphOverlay({
     required this.rect,
     required this.progress,
+    required this.closing,
     required this.isPlaying,
   });
 
   final Rect rect;
   final double progress;
+  final bool closing;
   final bool isPlaying;
 
   @override
   Widget build(BuildContext context) {
-    // 播放按钮同样全程可见：歌词页关闭时按钮必须先不动、等动效快
-    // 结束才开始飞回迷你栏（归位由 btnMorphT 延迟控制）。
-    if (progress <= 0) return const SizedBox.shrink();
+    // 打开已完成让位正文按钮；关闭全程可见：歌词页关闭时按钮必须先
+    // 不动、等动效快结束才开始飞回迷你栏（归位由 btnMorphT 延迟控制）。
+    if (progress <= 0 || (progress >= 0.995 && !closing)) {
+      return const SizedBox.shrink();
+    }
     final morphT = MotionCurve.iosSpring.transform(progress);
     final iconSize = lerpDouble(22, 34, morphT)!;
     final shadowT = ((progress - 0.18) / 0.82).clamp(0.0, 1.0);
@@ -851,10 +860,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // iOS 左缘右滑退出与卡片动效一致：矩形随手指水平位移 + 收缩
         // 向迷你栏；常规下滑/自动动画走 sheet 式底部收缩。
         final cardLikeDrag = edgeDragActive;
+        // 左缘右滑时：封面/按钮也要随卡片矩形一起跟手位移，
+        // 否则矩形在跟手、封面却原地缩放，看起来像"快进缩小"。
+        final closeT = 1 - progress;
+        final dragShift = cardLikeDrag
+            ? cardDismissOffset.value * (1 - closeT)
+            : 0.0;
         final Rect currentRect;
         if (cardLikeDrag) {
           final offX = cardDismissOffset.value;
-          final closeT = 1 - progress;
           final sizeW = screenW - (screenW - miniRect.width) * closeT;
           final sizeH = screenH - (screenH - miniRect.height) * closeT;
           final left = offX * (1 - closeT) + miniRect.left * closeT;
@@ -909,6 +923,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             _collapsing ||
             _settleController.isAnimating ||
             edgeDragActive;
+        // overlay（飞行封面/播放按钮）只在"打开已完成"时让位正文；
+        // 一旦进入关闭/手势驱动则全程可见（封面/按钮随进度完整归位）。
+        final closing = animating || playerRouteDismissLocked;
         final dragReveal = ((progress - 0.9) / 0.1).clamp(0.0, 1.0);
         final contentOpacity = animating
             ? dragReveal
@@ -965,15 +982,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             if (_currentPage == 0)
               _RouteArtworkMorphOverlay(
-                rect: artworkMorphRect,
+                rect: artworkMorphRect.shift(Offset(dragShift, 0)),
                 progress: progress,
+                closing: closing,
                 artwork: currentMusic.artwork,
                 fallback: _defaultArtwork,
               )
             else
               _RoutePlayButtonMorphOverlay(
-                rect: playButtonMorphRect,
+                rect: playButtonMorphRect.shift(Offset(dragShift, 0)),
                 progress: progress,
+                closing: closing,
                 isPlaying: isPlaying,
               ),
           ],
