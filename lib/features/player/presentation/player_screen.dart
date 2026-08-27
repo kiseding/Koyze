@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:motor/motor.dart' hide MotionCurve;
 import '../../../core/pagination/page_range.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
@@ -650,7 +651,7 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late PageController _pageController;
   int _currentPage = 0;
   late bool _seeking;
@@ -669,10 +670,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Rect? _controlsPlayRect;
   Rect? _lyricPlayRect;
 
-  // 拖拽关闭：跟手写 playerRouteProgress，松手后回弹或继续收拢。
-  late final AnimationController _dragController = AnimationController(
+  // 拖拽关闭：跟手写 playerRouteProgress，松手后由物理弹簧从当前位置
+  // 继续（回弹 snappy / 收拢 smooth），带速度保持，贴近 iOS 手感。
+  late final SingleMotionController _bounceMotion = SingleMotionController(
+    motion: CupertinoMotion.snappy(),
     vsync: this,
-    duration: const Duration(milliseconds: 240),
+    initialValue: 1,
+  );
+  late final SingleMotionController _collapseMotion = SingleMotionController(
+    motion: CupertinoMotion.smooth(),
+    vsync: this,
+    initialValue: 1,
   );
 
   double _dragDistance = 0;
@@ -687,9 +695,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       cancel: ref.read(cancelScrubProvider),
     );
     _seeking = false;
-    _dragController.addListener(() {
-      playerRouteProgress.value = _dragController.value;
-    });
+    _bounceMotion.addListener(_publishDragProgress);
+    _collapseMotion.addListener(_publishDragProgress);
+  }
+
+  void _publishDragProgress() {
+    // 弹簧可轻微超调（overshoot），UI 只接受 0..1。
+    playerRouteProgress.value = _bounceMotion.value.clamp(0.0, 1.0);
   }
 
   void _recordMorphTargets() {
@@ -727,7 +739,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _dragOperation = null;
     _scrubSession.dispose();
     _pageController.dispose();
-    _dragController.dispose();
+    _bounceMotion.dispose();
+    _collapseMotion.dispose();
     super.dispose();
   }
 
@@ -934,48 +947,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         child: SafeArea(
           child: GestureDetector(
             onVerticalDragStart: (_) {
-              _dragController.stop();
+              _bounceMotion.stop();
+              _collapseMotion.stop();
               setState(() {
                 _draggingDown = true;
                 _dragOffset = 0;
               });
             },
             onVerticalDragUpdate: (d) {
-              
               if (d.delta.dy > 0 || _dragOffset > 0) {
                 setState(() {
                   _dragOffset = (_dragOffset + d.delta.dy).clamp(0.0, screenH);
                 });
                 // 跟手 morph：所有元素（封面大小、按钮、透明度）随拖动
                 // 从全屏向迷你栏收拢，主壳迷你栏同步扩张接管。
-                playerRouteProgress.value =
-                    (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0);
+                final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0);
+                _bounceMotion.value = v;
+                _collapseMotion.value = v;
               }
             },
             onVerticalDragEnd: (d) {
               final shouldClose =
                   _dragOffset > dismissThreshold ||
                   (d.primaryVelocity ?? 0) > 900;
-              final current = playerRouteProgress.value;
               if (shouldClose) {
                 // 从当前位置继续收拢到底（不再放大回去），到位后再 pop。
-                // 收拢带下坠感（easeIn），落点由迷你栏无缝接管。
+                // 物理弹簧 smooth 落点，由迷你栏无缝接管。
                 _draggingDown = true;
-                _dragController.duration = const Duration(milliseconds: 240);
-                _dragController.value = current;
-                _dragController
-                    .animateTo(0.0, curve: Curves.easeInCubic)
-                    .then((_) {
+                _collapseMotion.animateTo(0.0).then((_) {
                   _completeDragDismiss();
                 });
               } else {
-                // 回弹全屏：从当前位置带弹簧感弹回（与打开动效同曲线）。
+                // 回弹全屏：snappy 弹簧从当前位置弹回，保留松手速度。
                 _draggingDown = false;
-                _dragController.duration = const Duration(milliseconds: 260);
-                _dragController.value = current;
-                _dragController
-                    .animateTo(1.0, curve: MotionCurve.iosSpring)
-                    .then((_) {
+                _bounceMotion.animateTo(1.0).then((_) {
                   if (mounted && !_draggingDown) {
                     setState(() => _dragOffset = 0);
                   }
@@ -983,14 +988,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               }
             },
             onVerticalDragCancel: () {
-              if (_draggingDown && _dragController.isAnimating) return;
+              if (_draggingDown && _collapseMotion.isAnimating) return;
               _draggingDown = false;
-              final current = playerRouteProgress.value;
-              _dragController.duration = const Duration(milliseconds: 260);
-              _dragController.value = current;
-              _dragController
-                  .animateTo(1.0, curve: MotionCurve.iosSpring)
-                  .then((_) {
+              _bounceMotion.animateTo(1.0).then((_) {
                 if (mounted && !_draggingDown) {
                   setState(() => _dragOffset = 0);
                 }

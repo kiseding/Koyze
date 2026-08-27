@@ -57,10 +57,14 @@ void main() {
     expect(full, contains('key: _lyricPlayKey'));
     expect(full, contains('??\n            _fullArtworkRect('));
     // 拖拽关闭必须从当前位置继续收拢（回弹/收拢都走同一跟手动画），
-    // 不能先放大回去再关，也不能让 Navigator 反向动画回写进度。
-    expect(full, contains('.animateTo(0.0, curve: Curves.easeInCubic)'));
+    // 不能先放大回去再关，也不能让 Navigator 反向动画回写进度；
+    // 回弹/收拢由 motor 物理弹簧驱动（snappy 回弹 / smooth 收拢）。
+    expect(full, contains('_collapseMotion.animateTo(0.0)'));
+    expect(full, contains('_bounceMotion.animateTo(1.0)'));
+    expect(full, contains('CupertinoMotion.snappy()'));
+    expect(full, contains('CupertinoMotion.smooth()'));
     expect(full, contains('playerRouteDismissLocked = true;'));
-    expect(full, contains('playerRouteProgress.value =\n                    (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0)'));
+    expect(full, contains('final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0)'));
     expect(full, isNot(contains('Matrix4.translationValues(0, _dragOffset, 0)')));
     expect(full, isNot(contains('0.28 * (1 - revealT)')));
     // 歌词页关闭的播放按钮 morph 必须按启用视觉渲染（绿色），
