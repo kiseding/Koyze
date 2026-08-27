@@ -296,12 +296,15 @@ void main() {
           .where((w) => w.opacity > 0 && w.opacity < 1)
           .map((w) => w.opacity)
           .toList();
-      // 背景与内容必须取相同矩形进度（成对出现）；快照与它们互补。
-      final grouped = synced.fold<Map<double, int>>({}, (m, o) {
-        m[o] = (m[o] ?? 0) + 1;
-        return m;
-      });
-      expect(grouped.values.any((count) => count >= 2), isTrue);
+      // 背景与内容必须取相同矩形进度（成对出现）；快照仅收尾浮现。
+      // 收缩早期保持实心（无过渡透明度），允许该帧没有过渡元素。
+      if (synced.isNotEmpty) {
+        final grouped = synced.fold<Map<double, int>>({}, (m, o) {
+          m[o] = (m[o] ?? 0) + 1;
+          return m;
+        });
+        expect(grouped.values.any((count) => count >= 2), isTrue);
+      }
     }
   });
 }

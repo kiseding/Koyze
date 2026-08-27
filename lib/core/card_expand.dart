@@ -417,9 +417,11 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
             : sourceRect.left * t;
         final top = sourceRect.top * t;
         final currentRect = Rect.fromLTWH(left, top, sizeW, sizeH);
-        // 背景与内容透明度与矩形收拢同源同步：不会出现"与卡片缩小
-        // 程度不一致的半透明背景/全屏内容"。
-        final reveal = 1 - t;
+        // 收缩过程必须保持实心（不透明），只在收尾的 18% 快速淡出让
+        // 下层的卡片本体显现——全程渐变透明会让卡片看起来有虚影。
+        final reveal = ((1 - t) / 0.18).clamp(0.0, 1.0);
+        // 快照只在收尾阶段浮现（与内容交接），平时不叠加。
+        final snapshotOpacity = ((t - 0.8) / 0.2).clamp(0.0, 1.0);
         final radius = 18.0 * (1 - t);
 
         return Stack(
@@ -436,11 +438,10 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                       opacity: reveal,
                       child: ColoredBox(color: backgroundColor),
                     ),
-                    // 快照与内容互补：展开初期盖住未长成的本体，
-                    // 收拢后期重现成源卡片（t → 1）。
+                    // 快照只在收尾浮现：展开起步盖住本体、收拢收尾交接。
                     if (widget.sourceSnapshot != null)
                       Opacity(
-                        opacity: t.clamp(0.0, 1.0),
+                        opacity: snapshotOpacity,
                         child: Align(
                           alignment: Alignment.topLeft,
                           child: Transform.scale(

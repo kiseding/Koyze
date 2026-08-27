@@ -814,11 +814,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           miniHeight,
         );
         final fullRect = Offset.zero & Size(screenW, screenH);
-        // 手指拖动期间必须线性跟手（不动任何 shape 曲线），
-        // 自动播放（打开/回弹/收拢）才用 iosSpring 整形。
-        final morphT = _draggingDown || _dragOffset > 0
-            ? progress
-            : MotionCurve.iosSpring.transform(progress);
+        // 进度恒线性消费：自动动画的曲线整形已在路由桥一端完成
+        // （_PlayerRouteProgressBridge），所有手动驱动天然线性跟手。
+        final morphT = progress;
         final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
         final miniArtworkRect = _miniArtworkRect(miniRect);
         final fullArtworkRect =
@@ -991,13 +989,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               }
             },
             onVerticalDragCancel: () {
-              if (_draggingDown && _collapseMotion.isAnimating) return;
-              _draggingDown = false;
-              _bounceMotion.animateTo(1.0).orCancel.then((_) {
-                if (mounted && !_draggingDown) {
-                  setState(() => _dragOffset = 0);
-                }
-              }).catchError((_) {});
+              // 手势被系统/其它手势抢占时不强行回弹或收拢：保持当前
+              // 进度不动，避免与播放器左缘返回手势互相打架导致卡住。
+              return;
             },
                   child: Column(
                     children: [

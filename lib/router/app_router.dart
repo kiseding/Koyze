@@ -389,7 +389,10 @@ class _PlayerRouteProgressBridgeState
 
   void _sync() {
     if (playerRouteDismissLocked) return;
-    playerRouteProgress.value = widget.animation.value;
+    // 曲线整形只在"路由自动动画"这一端做：拖动/左缘等手动驱动
+    // 直接写线性值，播放器一律线性消费，保证跟手无固定路径。
+    playerRouteProgress.value =
+        MotionCurve.iosSpring.transform(widget.animation.value);
   }
 
   @override
