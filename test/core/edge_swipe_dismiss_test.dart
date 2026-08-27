@@ -236,6 +236,53 @@ void main() {
   });
 
   testWidgets(
+      'inverted edge drag progresses gradually from full screen instead of jumping',
+      (tester) async {
+    final progress = ValueNotifier<double>(1);
+    addTearDown(progress.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.iOS),
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              PageRouteBuilder<void>(
+                opaque: false,
+                pageBuilder: (_, _, _) => EdgeSwipeDismiss(
+                  progress: progress,
+                  invertProgress: true,
+                  child: const ColoredBox(color: Colors.black),
+                ),
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    // 拖动刚过 slop（约 18px）时：progress 必须仍接近 1（全屏），
+    // 随手指线性下降，绝不瞬间跳到 0（迷你形态）。
+    final gesture = await tester.startGesture(const Offset(1, 200));
+    await gesture.moveBy(const Offset(40, 0));
+    await tester.pump();
+    final early = progress.value;
+    debugPrint('early after 40px drag progress=$early');
+    expect(early, greaterThan(0.8));
+    await gesture.moveBy(const Offset(400, 0));
+    await tester.pump();
+    final later = progress.value;
+    debugPrint('later after 440px drag progress=$later');
+    // 拖 55%（440/800）→ 收拢过半，进度应介于 0.3~0.6 之间。
+    expect(later, greaterThan(0.3));
+    expect(later, lessThan(0.6));
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
       'plain pop without drag collapses the card back to its source position',
       (tester) async {
     const source = Rect.fromLTWH(210, 300, 120, 80);

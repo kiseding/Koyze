@@ -177,8 +177,10 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => _PlayerTransitionPage(
         key: state.pageKey,
         child: EdgeSwipeDismiss(
-          // 左缘右滑直接驱动播放器 morph 进度，全屏界面整体跟手收拢。
+          // 左缘右滑直接驱动播放器 morph 进度，全屏界面整体跟手收拢；
+          // 播放器进度语义为 1=全屏，与拖动手势相反需取反。
           progress: playerRouteProgress,
+          invertProgress: true,
           onDismissCommit: _lockPlayerRouteDismiss,
           child: const PlayerScreen(),
         ),

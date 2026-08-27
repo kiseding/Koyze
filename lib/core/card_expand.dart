@@ -150,6 +150,7 @@ class EdgeSwipeDismiss extends StatefulWidget {
     required this.child,
     this.progress,
     this.onDismissCommit,
+    this.invertProgress = false,
   });
 
   final Widget child;
@@ -160,6 +161,11 @@ class EdgeSwipeDismiss extends StatefulWidget {
 
   /// 收拢完成后、关闭路由前的回调（宿主在此锁定反向动画接管）。
   final VoidCallback? onDismissCommit;
+
+  /// 目标进度语义是否反转：播放器路由进度是"1=全屏、0=收拢"，
+  /// 与拖动进度（0=起点、1=拖满）相反，必须取反才能让封面
+  /// 从全屏随手指逐渐变小，而不是按下瞬间跳到迷你形态。
+  final bool invertProgress;
 
   @override
   State<EdgeSwipeDismiss> createState() => _EdgeSwipeDismissState();
@@ -207,7 +213,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
 
   // 把当前形态进度发布给过渡层（跟手驱动矩形 morph）。
   void _syncProgress() {
-    _progress.value = _morph;
+    _progress.value = widget.invertProgress ? 1 - _morph : _morph;
     cardDismissOffset.value = _drag;
     edgeDragActive = _drag > 0 || _morph > 0;
   }

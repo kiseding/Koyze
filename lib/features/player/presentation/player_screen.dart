@@ -558,10 +558,9 @@ class _RouteArtworkMorphOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 打开已完成且未进入关闭 → 让位正文封面；一旦关闭/手势驱动则
-    // 全程可见（封面跟随进度完整归位），否则歌词页切换时会出现
-    // 多余的"大封面快照"。
-    if (progress <= 0 || (progress >= 0.995 && !closing)) {
+    // 打开完成（progress 满 1）让位正文封面；任何未满状态全程可见
+    // （封面跟随进度完整归位），切歌词页时正文封面已在位、无快照。
+    if (progress <= 0 || progress >= 1.0) {
       return const SizedBox.shrink();
     }
     final radius = lerpDouble(
@@ -616,9 +615,10 @@ class _RoutePlayButtonMorphOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 打开已完成让位正文按钮；关闭全程可见：歌词页关闭时按钮必须先
-    // 不动、等动效快结束才开始飞回迷你栏（归位由 btnMorphT 延迟控制）。
-    if (progress <= 0 || (progress >= 0.995 && !closing)) {
+    // 打开完成（progress 满 1）让位正文按钮；未满全程可见：
+    // 歌词页关闭时按钮必须先不动、等动效快结束才飞回迷你栏
+    // （延迟由 btnMorphT 控制）。
+    if (progress <= 0 || progress >= 1.0) {
       return const SizedBox.shrink();
     }
     final morphT = MotionCurve.iosSpring.transform(progress);
@@ -907,9 +907,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final playButtonTarget = _currentPage == 1
             ? lyricTargetRect
             : controlsTargetRect;
-        // 播放按钮不跟随整体进度隐没：保持原位置不动，直到动效快结束
-        // （progress < 0.2）才开始飞回迷你栏归位。
-        final btnMorphT = (progress / 0.2).clamp(0.0, 1.0);
+        // 播放按钮不跟随整体进度隐没：保持原位置不动，直到动效进入
+        // 最后 35%（progress < 0.35）才开始飞回迷你栏归位，确保肉眼
+        // 可见的归位过程。
+        final btnMorphT = (progress / 0.35).clamp(0.0, 1.0);
         final playButtonMorphRect = Rect.lerp(
           playButtonTarget,
           miniPlayButtonRect,
