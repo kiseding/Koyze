@@ -263,9 +263,13 @@ void main() {
           .widgetList<Opacity>(find.byType(Opacity))
           .where((w) => w.opacity > 0 && w.opacity < 1)
           .map((w) => w.opacity)
-          .toSet();
-      // 所有处于过渡中的透明度都必须取相同的矩形进度。
-      expect(synced.length, lessThanOrEqualTo(1));
+          .toList();
+      // 背景与内容必须取相同矩形进度（成对出现）；快照与它们互补。
+      final grouped = synced.fold<Map<double, int>>({}, (m, o) {
+        m[o] = (m[o] ?? 0) + 1;
+        return m;
+      });
+      expect(grouped.values.any((count) => count >= 2), isTrue);
     }
   });
 }

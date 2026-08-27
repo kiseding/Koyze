@@ -382,18 +382,23 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         // 拖拽接管时用跟手的 dismiss 进度驱动矩形收拢，路由动画不参与，
         // 松开后从当前位置继续播放关闭动效。
         final t = cardDismissLocked || cardDismissProgress.value > 0
-            ? 1 - cardDismissProgress.value
-            : widget.animation.value;
-        final rectT = MotionCurve.easeOut.transform(t);
-        // 背景与内容必须和矩形收拢**同源同步**：透明度直接取矩形进度，
-        // 收拢时背景随矩形一起缩小渐隐、内容一起淡出，不会出现
-        // "与卡片缩小程度不一致的半透明背景/全屏内容"。
-        final surfaceT = rectT;
-        final contentT = rectT;
-        // 快照与内容互补：展开初期盖住未长成的本体，收拢后期重现成卡片。
-        final snapshotT = 1 - rectT;
-        final currentRect = Rect.lerp(sourceRect, targetRect, rectT)!;
-        final radius = 18.0 * (1 - rectT);
+            ? cardDismissProgress.value
+            : 1 - widget.animation.value;
+        // 单个公式同时体现"跟手位移 + 收缩"：t=0 全屏原位，
+        // t=1 收拢到源卡片；中间阶段矩形中心随手指位移（t*width），
+        // 因此拖动时卡片既收缩又跟随手指，不会出现外层位移与内层
+        // 裁剪两条曲线打架的错位。
+        final width = MediaQuery.sizeOf(context).width;
+        final sizeW = targetRect.width - (targetRect.width - sourceRect.width) * t;
+        final sizeH = targetRect.height -
+            (targetRect.height - sourceRect.height) * t;
+        final left = t * width * (1 - t) + sourceRect.left * t;
+        final top = sourceRect.top * t;
+        final currentRect = Rect.fromLTWH(left, top, sizeW, sizeH);
+        // 背景与内容透明度与矩形收拢同源同步：不会出现"与卡片缩小
+        // 程度不一致的半透明背景/全屏内容"。
+        final reveal = 1 - t;
+        final radius = 18.0 * (1 - t);
 
         return Stack(
           fit: StackFit.expand,
@@ -406,12 +411,14 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                   fit: StackFit.expand,
                   children: [
                     Opacity(
-                      opacity: surfaceT,
+                      opacity: reveal,
                       child: ColoredBox(color: backgroundColor),
                     ),
+                    // 快照与内容互补：展开初期盖住未长成的本体，
+                    // 收拢后期重现成源卡片（t → 1）。
                     if (widget.sourceSnapshot != null)
                       Opacity(
-                        opacity: snapshotT,
+                        opacity: t.clamp(0.0, 1.0),
                         child: Align(
                           alignment: Alignment.topLeft,
                           child: Transform.scale(
@@ -437,11 +444,11 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                       minHeight: targetRect.height,
                       maxHeight: targetRect.height,
                       child: Opacity(
-                        opacity: contentT,
+                        opacity: reveal,
                         child: Transform.translate(
                           offset: Offset(
                             0,
-                            MotionDistance.standard * (1 - contentT),
+                            MotionDistance.standard * t,
                           ),
                           child: child,
                         ),
