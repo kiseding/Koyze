@@ -661,6 +661,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   ScrubOperation? _dragOperation;
   double _dragOffset = 0;
   bool _draggingDown = false;
+  // 收拢动画进行中：内容保持隐藏态，回弹时恢复。
+  bool _collapsing = false;
 
   // morph 覆盖层必须与真实布局几何一致，否则展开/收起终点位置会跳变。
   final GlobalKey _artworkKey = GlobalKey();
@@ -721,6 +723,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   void _completeDragDismiss() {
     if (!_draggingDown || !mounted) return;
     _draggingDown = false;
+    _collapsing = false;
     playerRouteDismissLocked = true;
     Navigator.of(context).maybePop();
   }
@@ -853,21 +856,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           miniPlayButtonRect,
           1 - morphT,
         )!;
-        // 内容淡入必须极早完成（sheet 还很小时），否则整块 morph 底
-        // 会长时间以"半透明白色层+鬼影内容"盖在屏幕上（打开/关闭各闪一次）。
-        // 各区块自身的 _StaggeredFade / artworkReveal 负责后续 reveal 节奏。
-        final contentOpacity = MotionCurve.iosSpring.transform(
-          ((progress - 0.03) / 0.17).clamp(0.0, 1.0),
-        );
-        // 正文封面只在整个 morph 接近完成时显现，让"飞行封面"始终是
-        // 唯一的封面：打开时淡入（morphT>0.74），关闭时同样跟手淡出让位。
-        final artworkReveal = MotionCurve.iosSpring.transform(
-          ((morphT - 0.74) / 0.22).clamp(0.0, 1.0),
-        );
-        // sheet 圆角跟手；背景保持纯色不透明（透明混合会透出内层
-        // Material 阴影，看起来灰蒙蒙），下层透出由矩形裁剪自身完成。
+// 下滑/收拢/回弹期间（拖动中或任一弹簧动画进行中）除"飞行封面"外
+        // 其它元素随进度线性渐隐/渐显：位移 0~10% 内切到全透明，
+        // 回弹时同样线性恢复——松手瞬间不会因公式切换而"卡一下"。
+        final animating =
+            _draggingDown ||
+            _collapsing ||
+            _bounceMotion.isAnimating ||
+            _collapseMotion.isAnimating;
+        final dragReveal = (progress / 0.9).clamp(0.0, 1.0);
+        final contentOpacity = animating
+            ? dragReveal
+            : MotionCurve.iosSpring.transform(
+                ((progress - 0.03) / 0.17).clamp(0.0, 1.0),
+              );
+        // 正文封面同样在 0~10% 内让位给飞行封面（避免双封面卡顿）。
+        final artworkReveal = animating
+            ? dragReveal
+            : MotionCurve.iosSpring.transform(
+                ((morphT - 0.74) / 0.22).clamp(0.0, 1.0),
+              );
+        // 背景动画期间也跟手透明（阴影已移除，不会发灰）；
+        // 非动画阶段保持纯色。
+        final sheetAlpha = animating ? dragReveal : 1.0;
+        // sheet 圆角跟手。
         final sheetRadius = 16 * (1 - progress);
-
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -877,7 +890,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(sheetRadius),
                   child: ColoredBox(
-                    color: Theme.of(context).scaffoldBackgroundColor,
+                    color: Theme.of(context).scaffoldBackgroundColor.withValues(
+                      alpha: sheetAlpha,
+                    ),
                     child: OverflowBox(
                       alignment: Alignment.topLeft,
                       minWidth: screenW,
@@ -952,6 +967,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               });
             },
             onVerticalDragUpdate: (d) {
+              // pop 后手势仍在（全程按住）时直接忽略，避免访问已销毁
+              // 的 controller 导致卡死。
+              if (!_draggingDown) return;
               if (d.delta.dy > 0 || _dragOffset > 0) {
                 // 只更新进度：ValueListenableBuilder 已负责重建，避免
                 // setState + 进度监听双重建把 UI 线程拖死。
@@ -971,16 +989,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 // 从当前位置继续收拢到底（不再放大回去），到位后再 pop。
                 // 物理弹簧 smooth 落点，由迷你栏无缝接管。
                 _draggingDown = true;
+                _collapsing = true;
                 _collapseMotion
                     .animateTo(0.0)
                     .orCancel
-                    .then((_) => _completeDragDismiss())
                     // 手势被打断（TickerCanceled）时保持现状，等待下一次
                     // 拖动/判断；绝不让 UI 卡在半个收拢状态。
-                    .catchError((_) {});
+                    .catchError((_) {})
+                    .then((_) => _completeDragDismiss());
               } else {
                 // 回弹全屏：snappy 弹簧从当前位置弹回，保留松手速度。
                 _draggingDown = false;
+                _collapsing = false;
                 _bounceMotion.animateTo(1.0).orCancel.then((_) {
                   if (mounted && !_draggingDown) {
                     setState(() => _dragOffset = 0);

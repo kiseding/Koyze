@@ -60,7 +60,7 @@ void main() {
     // 不能先放大回去再关，也不能让 Navigator 反向动画回写进度；
     // 回弹/收拢由 motor 物理弹簧驱动（snappy 回弹 / smooth 收拢）。
     expect(full, contains('_collapseMotion\n                    .animateTo(0.0)'));
-    expect(full, contains('.orCancel\n                    .then((_) => _completeDragDismiss())'));
+    expect(full, contains('.catchError((_) {})\n                    .then((_) => _completeDragDismiss())'));
     expect(full, contains('_bounceMotion.animateTo(1.0).orCancel.then((_) {'));
     expect(full, contains('CupertinoMotion.snappy()'));
     expect(full, contains('CupertinoMotion.smooth()'));
