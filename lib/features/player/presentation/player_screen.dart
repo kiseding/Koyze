@@ -862,9 +862,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final artworkReveal = MotionCurve.iosSpring.transform(
           ((morphT - 0.74) / 0.22).clamp(0.0, 1.0),
         );
-        // sheet 背景与圆角都跟手：透明度随拖动渐隐透出下层（打开时快速
-        // 转实，避免旧全屏白幕），圆角用线性进度让拖动/收拢时变化自然。
-        final sheetAlpha = ((progress - 0.06) / 0.55).clamp(0.0, 1.0);
+        // sheet 圆角跟手；背景保持纯色不透明（透明混合会透出内层
+        // Material 阴影，看起来灰蒙蒙），下层透出由矩形裁剪自身完成。
         final sheetRadius = 16 * (1 - progress);
 
         return Stack(
@@ -876,9 +875,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(sheetRadius),
                   child: ColoredBox(
-                    color: Theme.of(context).scaffoldBackgroundColor.withValues(
-                      alpha: sheetAlpha,
-                    ),
+                    color: Theme.of(context).scaffoldBackgroundColor,
                     child: OverflowBox(
                       alignment: Alignment.topLeft,
                       minWidth: screenW,
@@ -939,11 +936,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Material(
-        // 路由转场期间背景由外层 morph rect 统一绘制，避免 Material
-        // 背景被 contentOpacity 淡入时形成半透明全屏白幕。
+        // 背景由外层 morph rect 统一绘制为纯色；这里透明且无阴影，
+        // 避免半透明混合透出灰色阴影使界面看起来灰蒙蒙。
         color: Colors.transparent,
-        elevation: 8,
-        shadowColor: Colors.black54,
         child: SafeArea(
           child: GestureDetector(
             onVerticalDragStart: (_) {
