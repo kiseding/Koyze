@@ -59,8 +59,9 @@ void main() {
     // 拖拽关闭必须从当前位置继续收拢（回弹/收拢都走同一跟手动画），
     // 不能先放大回去再关，也不能让 Navigator 反向动画回写进度；
     // 回弹/收拢由 motor 物理弹簧驱动（snappy 回弹 / smooth 收拢）。
-    expect(full, contains('_collapseMotion.animateTo(0.0)'));
-    expect(full, contains('_bounceMotion.animateTo(1.0)'));
+    expect(full, contains('_collapseMotion\n                    .animateTo(0.0)'));
+    expect(full, contains('.orCancel\n                    .then((_) => _completeDragDismiss())'));
+    expect(full, contains('_bounceMotion.animateTo(1.0).orCancel.then((_) {'));
     expect(full, contains('CupertinoMotion.snappy()'));
     expect(full, contains('CupertinoMotion.smooth()'));
     expect(full, contains('playerRouteDismissLocked = true;'));

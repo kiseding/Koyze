@@ -406,12 +406,15 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         final sizeW = targetRect.width - (targetRect.width - sourceRect.width) * t;
         final sizeH = targetRect.height -
             (targetRect.height - sourceRect.height) * t;
-        // 跟手：拖动中（未锁）卡片左缘 = 手指水平位移，手停卡停；
-        // 松手动画（已锁）才线性归位到源卡片位置——无固定曲线路径。
+        // 跟手：拖动中卡片左缘 = 手指水平位移，手停卡停；
+        // 松手动画（已锁）线性归位到源卡片位置；
+        // 无拖动的正常关闭（返回按钮/系统手势）直接归位到源位置，
+        // 不能再往左缘飞。
         final fingerX = cardDismissOffset.value;
-        final left = cardDismissLocked
+        final dragging = cardDismissLocked || cardDismissProgress.value > 0;
+        final left = dragging
             ? fingerX * (1 - t) + sourceRect.left * t
-            : fingerX + sourceRect.left * 0;
+            : sourceRect.left * t;
         final top = sourceRect.top * t;
         final currentRect = Rect.fromLTWH(left, top, sizeW, sizeH);
         // 背景与内容透明度与矩形收拢同源同步：不会出现"与卡片缩小

@@ -236,6 +236,38 @@ void main() {
   });
 
   testWidgets(
+      'plain pop without drag collapses the card back to its source position',
+      (tester) async {
+    const source = Rect.fromLTWH(210, 300, 120, 80);
+    final page = expandablePage(
+      const ValueKey('detail'),
+      const ColoredBox(key: ValueKey('content'), color: Colors.black),
+      expandRect: source,
+    );
+
+    // 路由反向动画完成（t=1）：卡片必须回到源卡片原位，不能飞到左缘。
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => page.transitionsBuilder(
+            context,
+            const AlwaysStoppedAnimation(0),
+            const AlwaysStoppedAnimation(0),
+            page.child,
+          ),
+        ),
+      ),
+    );
+
+    final positioned = tester
+        .widgetList<Positioned>(find.byType(Positioned))
+        .where((w) => w.left != null && w.width != null && w.width! > 50)
+        .first;
+    expect(positioned.left, closeTo(source.left, 1));
+    expect(positioned.top, closeTo(source.top, 1));
+  });
+
+  testWidgets(
       'card reveal keeps background and content opacity synced to the rect',
       (tester) async {
     final page = expandablePage(

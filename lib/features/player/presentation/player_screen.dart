@@ -973,27 +973,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 // 从当前位置继续收拢到底（不再放大回去），到位后再 pop。
                 // 物理弹簧 smooth 落点，由迷你栏无缝接管。
                 _draggingDown = true;
-                _collapseMotion.animateTo(0.0).then((_) {
-                  _completeDragDismiss();
-                });
+                _collapseMotion
+                    .animateTo(0.0)
+                    .orCancel
+                    .then((_) => _completeDragDismiss())
+                    // 手势被打断（TickerCanceled）时保持现状，等待下一次
+                    // 拖动/判断；绝不让 UI 卡在半个收拢状态。
+                    .catchError((_) {});
               } else {
                 // 回弹全屏：snappy 弹簧从当前位置弹回，保留松手速度。
                 _draggingDown = false;
-                _bounceMotion.animateTo(1.0).then((_) {
+                _bounceMotion.animateTo(1.0).orCancel.then((_) {
                   if (mounted && !_draggingDown) {
                     setState(() => _dragOffset = 0);
                   }
-                });
+                }).catchError((_) {});
               }
             },
             onVerticalDragCancel: () {
               if (_draggingDown && _collapseMotion.isAnimating) return;
               _draggingDown = false;
-              _bounceMotion.animateTo(1.0).then((_) {
+              _bounceMotion.animateTo(1.0).orCancel.then((_) {
                 if (mounted && !_draggingDown) {
                   setState(() => _dragOffset = 0);
                 }
-              });
+              }).catchError((_) {});
             },
                   child: Column(
                     children: [
