@@ -814,7 +814,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           miniHeight,
         );
         final fullRect = Offset.zero & Size(screenW, screenH);
-        final morphT = MotionCurve.iosSpring.transform(progress);
+        // 手指拖动期间必须线性跟手（不动任何 shape 曲线），
+        // 自动播放（打开/回弹/收拢）才用 iosSpring 整形。
+        final morphT = _draggingDown || _dragOffset > 0
+            ? progress
+            : MotionCurve.iosSpring.transform(progress);
         final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
         final miniArtworkRect = _miniArtworkRect(miniRect);
         final fullArtworkRect =
@@ -951,9 +955,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             },
             onVerticalDragUpdate: (d) {
               if (d.delta.dy > 0 || _dragOffset > 0) {
-                setState(() {
-                  _dragOffset = (_dragOffset + d.delta.dy).clamp(0.0, screenH);
-                });
+                // 只更新进度：ValueListenableBuilder 已负责重建，避免
+                // setState + 进度监听双重建把 UI 线程拖死。
+                _dragOffset = (_dragOffset + d.delta.dy).clamp(0.0, screenH);
                 // 跟手 morph：所有元素（封面大小、按钮、透明度）随拖动
                 // 从全屏向迷你栏收拢，主壳迷你栏同步扩张接管。
                 final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0);

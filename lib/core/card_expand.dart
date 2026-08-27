@@ -31,7 +31,12 @@ Future<void> captureCardExpandOrigin(BuildContext context) async {
   final boundary = context.findRenderObject() as RenderRepaintBoundary?;
   if (boundary == null || !boundary.attached || !boundary.hasSize) return;
   try {
-    final snapshot = await boundary.toImage(pixelRatio: 1);
+    // 按设备像素密度截图（封顶 2x），否则收拢成卡片后快照被插值放大、
+    // 文字发虚。
+    final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1.0;
+    final snapshot = await boundary.toImage(
+      pixelRatio: dpr.clamp(1.0, 2.0),
+    );
     _cardExpandSnapshot?.dispose();
     _cardExpandSnapshot = snapshot;
   } catch (_) {
@@ -56,6 +61,10 @@ ui.Image? consumeCardExpandSnapshot() {
 /// EdgeSwipeDismiss 拖动时实时写入，_CardRevealTransition 据此让
 /// 矩形 morph 跟手收拢，松开后从当前位置继续播放关闭动效。
 final ValueNotifier<double> cardDismissProgress = ValueNotifier<double>(0);
+
+/// 卡片拖动手势的水平位移（0..屏宽）。拖动中卡片左缘跟随该值，
+/// 完全跟手；松手后由 _EdgeSwipeDismissState 的 settle 动画驱动归位。
+final ValueNotifier<double> cardDismissOffset = ValueNotifier<double>(0);
 
 /// 拖拽/回弹动画接管期间，禁止路由动画继续参与过渡计算，
 /// 否则 Navigator 反向动画会把已收拢的卡片先弹回全屏再关闭。
@@ -186,6 +195,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     if (_progress.value != 0) {
       _progress.value = 0;
     }
+    cardDismissOffset.value = 0;
     _settleController.dispose();
     super.dispose();
   }
@@ -193,6 +203,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   // 把当前形态进度发布给过渡层（跟手驱动矩形 morph）。
   void _syncProgress() {
     _progress.value = _morph;
+    cardDismissOffset.value = _drag;
   }
 
   void _settleTo({
@@ -376,7 +387,11 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
     final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
 
     return AnimatedBuilder(
-      animation: Listenable.merge([widget.animation, cardDismissProgress]),
+      animation: Listenable.merge([
+        widget.animation,
+        cardDismissProgress,
+        cardDismissOffset,
+      ]),
       child: RepaintBoundary(child: widget.child),
       builder: (context, child) {
         // 拖拽接管时用跟手的 dismiss 进度驱动矩形收拢，路由动画不参与，
@@ -388,11 +403,15 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         // t=1 收拢到源卡片；中间阶段矩形中心随手指位移（t*width），
         // 因此拖动时卡片既收缩又跟随手指，不会出现外层位移与内层
         // 裁剪两条曲线打架的错位。
-        final width = MediaQuery.sizeOf(context).width;
         final sizeW = targetRect.width - (targetRect.width - sourceRect.width) * t;
         final sizeH = targetRect.height -
             (targetRect.height - sourceRect.height) * t;
-        final left = t * width * (1 - t) + sourceRect.left * t;
+        // 跟手：拖动中（未锁）卡片左缘 = 手指水平位移，手停卡停；
+        // 松手动画（已锁）才线性归位到源卡片位置——无固定曲线路径。
+        final fingerX = cardDismissOffset.value;
+        final left = cardDismissLocked
+            ? fingerX * (1 - t) + sourceRect.left * t
+            : fingerX + sourceRect.left * 0;
         final top = sourceRect.top * t;
         final currentRect = Rect.fromLTWH(left, top, sizeW, sizeH);
         // 背景与内容透明度与矩形收拢同源同步：不会出现"与卡片缩小
@@ -432,6 +451,7 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                               child: RawImage(
                                 image: widget.sourceSnapshot,
                                 fit: BoxFit.fill,
+                                filterQuality: FilterQuality.high,
                               ),
                             ),
                           ),
