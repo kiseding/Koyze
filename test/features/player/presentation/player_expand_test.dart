@@ -58,12 +58,11 @@ void main() {
     expect(full, contains('??\n            _fullArtworkRect('));
     // 拖拽关闭必须从当前位置继续收拢（回弹/收拢都走同一跟手动画），
     // 不能先放大回去再关，也不能让 Navigator 反向动画回写进度；
-    // 回弹/收拢由 motor 物理弹簧驱动（snappy 回弹 / smooth 收拢）。
-    expect(full, contains('_collapseMotion\n                    .animateTo(0.0)'));
-    expect(full, contains('.catchError((_) {})\n                    .then((_) => _completeDragDismiss())'));
-    expect(full, contains('_bounceMotion.animateTo(1.0).orCancel.then((_) {'));
-    expect(full, contains('CupertinoMotion.snappy()'));
-    expect(full, contains('CupertinoMotion.smooth()'));
+    // 用确定性 controller 从当前位置 settle，避免弹簧 overshoot / cancel
+    // 后视觉停在半路（松手后没有动效/卡住）。
+    expect(full, contains('_settleRouteProgress('));
+    expect(full, contains('onComplete: _completeDragDismiss'));
+    expect(full, contains('_settleController.forward(from: 0).orCancel'));
     expect(full, contains('playerRouteDismissLocked = true;'));
     expect(full, contains('final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0)'));
     expect(full, isNot(contains('Matrix4.translationValues(0, _dragOffset, 0)')));

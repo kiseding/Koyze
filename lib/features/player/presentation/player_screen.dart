@@ -2,7 +2,6 @@ import 'dart:ui';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:motor/motor.dart' hide MotionCurve;
 import '../../../core/pagination/page_range.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
@@ -672,18 +671,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Rect? _controlsPlayRect;
   Rect? _lyricPlayRect;
 
-  // 拖拽关闭：跟手写 playerRouteProgress，松手后由物理弹簧从当前位置
-  // 继续（回弹 snappy / 收拢 smooth），带速度保持，贴近 iOS 手感。
-  late final SingleMotionController _bounceMotion = SingleMotionController(
-    motion: CupertinoMotion.snappy(),
+  // 拖拽关闭：手指阶段直接写 playerRouteProgress，松手后用确定性的
+  // 单个 controller 从当前位置继续。避免物理弹簧 overshoot / cancel 后
+  // 视觉被 clamp 住，看起来像松手后没有动效甚至卡死。
+  late final AnimationController _settleController = AnimationController(
     vsync: this,
-    initialValue: 1,
-  );
-  late final SingleMotionController _collapseMotion = SingleMotionController(
-    motion: CupertinoMotion.smooth(),
-    vsync: this,
-    initialValue: 1,
-  );
+  )..addListener(_publishSettledProgress);
+  double _settleFrom = 1;
+  double _settleTo = 1;
+  Curve _settleCurve = MotionCurve.easeOut;
+  VoidCallback? _settleComplete;
 
   double _dragDistance = 0;
 
@@ -697,13 +694,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       cancel: ref.read(cancelScrubProvider),
     );
     _seeking = false;
-    _bounceMotion.addListener(_publishDragProgress);
-    _collapseMotion.addListener(_publishDragProgress);
   }
 
-  void _publishDragProgress() {
-    // 弹簧可轻微超调（overshoot），UI 只接受 0..1。
-    playerRouteProgress.value = _bounceMotion.value.clamp(0.0, 1.0);
+  void _publishSettledProgress() {
+    final t = _settleCurve.transform(_settleController.value);
+    playerRouteProgress.value =
+        (_settleFrom + (_settleTo - _settleFrom) * t).clamp(0.0, 1.0);
+  }
+
+  void _settleRouteProgress({
+    required double target,
+    required Duration duration,
+    required Curve curve,
+    VoidCallback? onComplete,
+  }) {
+    _settleController.stop();
+    _settleFrom = playerRouteProgress.value.clamp(0.0, 1.0);
+    _settleTo = target.clamp(0.0, 1.0);
+    _settleCurve = curve;
+    _settleComplete = onComplete;
+    if ((_settleFrom - _settleTo).abs() < 0.001) {
+      playerRouteProgress.value = _settleTo;
+      _settleComplete?.call();
+      _settleComplete = null;
+      return;
+    }
+    _settleController.duration = duration;
+    _settleController.forward(from: 0).orCancel.then((_) {
+      playerRouteProgress.value = _settleTo;
+      final complete = _settleComplete;
+      _settleComplete = null;
+      complete?.call();
+    }).catchError((_) {
+      _settleComplete = null;
+    });
   }
 
   void _recordMorphTargets() {
@@ -742,8 +766,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     _dragOperation = null;
     _scrubSession.dispose();
     _pageController.dispose();
-    _bounceMotion.dispose();
-    _collapseMotion.dispose();
+    _settleController.dispose();
     super.dispose();
   }
 
@@ -856,14 +879,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           miniPlayButtonRect,
           1 - morphT,
         )!;
-// 下滑/收拢/回弹期间（拖动中或任一弹簧动画进行中）除"飞行封面"外
+        // 下滑/收拢/回弹期间（拖动中或 settle 动画进行中）除"飞行封面"外
         // 其它元素随进度线性渐隐/渐显：位移 0~10% 内切到全透明，
         // 回弹时同样线性恢复——松手瞬间不会因公式切换而"卡一下"。
-        final animating =
-            _draggingDown ||
-            _collapsing ||
-            _bounceMotion.isAnimating ||
-            _collapseMotion.isAnimating;
+        final animating = _draggingDown || _collapsing || _settleController.isAnimating;
         final dragReveal = (progress / 0.9).clamp(0.0, 1.0);
         final contentOpacity = animating
             ? dragReveal
@@ -959,8 +978,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         child: SafeArea(
           child: GestureDetector(
             onVerticalDragStart: (_) {
-              _bounceMotion.stop();
-              _collapseMotion.stop();
+              _settleController.stop();
               setState(() {
                 _draggingDown = true;
                 _dragOffset = 0;
@@ -977,8 +995,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 // 跟手 morph：所有元素（封面大小、按钮、透明度）随拖动
                 // 从全屏向迷你栏收拢，主壳迷你栏同步扩张接管。
                 final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0);
-                _bounceMotion.value = v;
-                _collapseMotion.value = v;
+                playerRouteProgress.value = v;
               }
             },
             onVerticalDragEnd: (d) {
@@ -987,49 +1004,58 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   (d.primaryVelocity ?? 0) > 900;
               if (shouldClose) {
                 // 从当前位置继续收拢到底（不再放大回去），到位后再 pop。
-                // 物理弹簧 smooth 落点，由迷你栏无缝接管。
                 _draggingDown = true;
                 _collapsing = true;
-                _collapseMotion
-                    .animateTo(0.0)
-                    .orCancel
-                    // 手势被打断（TickerCanceled）时保持现状，等待下一次
-                    // 拖动/判断；绝不让 UI 卡在半个收拢状态。
-                    .catchError((_) {})
-                    .then((_) => _completeDragDismiss());
+                _settleRouteProgress(
+                  target: 0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  onComplete: _completeDragDismiss,
+                );
               } else {
-                // 回弹全屏：snappy 弹簧从当前位置弹回，保留松手速度。
+                // 回弹全屏：确定性从当前位置恢复，不会出现松手后停住。
                 _draggingDown = false;
                 _collapsing = false;
-                _bounceMotion.animateTo(1.0).orCancel.then((_) {
-                  if (mounted && !_draggingDown) {
-                    setState(() => _dragOffset = 0);
-                  }
-                }).catchError((_) {});
+                _settleRouteProgress(
+                  target: 1,
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutCubic,
+                  onComplete: () {
+                    if (mounted && !_draggingDown) {
+                      setState(() => _dragOffset = 0);
+                    }
+                  },
+                );
               }
             },
             onVerticalDragCancel: () {
               // 手势被其它手势（左缘返回 / PageView 横向）抢占而失去时，
               // 绝不把界面留在半收拢状态：动画已在进行则继续，否则按
               // 当前位置自动收敛——过半继续收拢关闭，否则回弹全屏。
-              if (_collapseMotion.isAnimating || _bounceMotion.isAnimating) {
+              if (_settleController.isAnimating) {
                 return;
               }
               _draggingDown = false;
               if (playerRouteProgress.value <= 0.5) {
                 _collapsing = true;
-                _collapseMotion
-                    .animateTo(0.0)
-                    .orCancel
-                    .catchError((_) {})
-                    .then((_) => _completeDragDismiss());
+                _settleRouteProgress(
+                  target: 0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  onComplete: _completeDragDismiss,
+                );
               } else {
                 _collapsing = false;
-                _bounceMotion.animateTo(1.0).orCancel.then((_) {
-                  if (mounted && !_draggingDown) {
-                    setState(() => _dragOffset = 0);
-                  }
-                }).catchError((_) {});
+                _settleRouteProgress(
+                  target: 1,
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutCubic,
+                  onComplete: () {
+                    if (mounted && !_draggingDown) {
+                      setState(() => _dragOffset = 0);
+                    }
+                  },
+                );
               }
             },
                   child: Column(
