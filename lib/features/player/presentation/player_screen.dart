@@ -1009,9 +1009,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               }
             },
             onVerticalDragCancel: () {
-              // 手势被系统/其它手势抢占时不强行回弹或收拢：保持当前
-              // 进度不动，避免与播放器左缘返回手势互相打架导致卡住。
-              return;
+              // 手势被其它手势（左缘返回 / PageView 横向）抢占而失去时，
+              // 绝不把界面留在半收拢状态：动画已在进行则继续，否则按
+              // 当前位置自动收敛——过半继续收拢关闭，否则回弹全屏。
+              if (_collapseMotion.isAnimating || _bounceMotion.isAnimating) {
+                return;
+              }
+              _draggingDown = false;
+              if (playerRouteProgress.value <= 0.5) {
+                _collapsing = true;
+                _collapseMotion
+                    .animateTo(0.0)
+                    .orCancel
+                    .catchError((_) {})
+                    .then((_) => _completeDragDismiss());
+              } else {
+                _collapsing = false;
+                _bounceMotion.animateTo(1.0).orCancel.then((_) {
+                  if (mounted && !_draggingDown) {
+                    setState(() => _dragOffset = 0);
+                  }
+                }).catchError((_) {});
+              }
             },
                   child: Column(
                     children: [

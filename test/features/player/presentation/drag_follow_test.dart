@@ -109,6 +109,66 @@ void main() {
     expect(playerRouteProgress.value, 1.0);
   });
 
+  testWidgets('release after segmented drag plays the settle animation', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    playerRouteProgress.value = 1.0;
+    await tester.pumpWidget(harness());
+    await tester.pump();
+
+    // 连续多段移动（模拟真实手指轨迹），未过阈值松手 → 必须播放回弹动画
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(PlayerScreen)),
+    );
+    for (var i = 0; i < 8; i++) {
+      await gesture.moveBy(const Offset(0, 20));
+      await tester.pump(const Duration(milliseconds: 8));
+    }
+    await tester.pump();
+    final before = playerRouteProgress.value;
+    debugPrint('before release progress=$before');
+    await gesture.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    final mid = playerRouteProgress.value;
+    debugPrint('after release 16ms progress=$mid');
+    // 回弹动画必须正在向 1 播放（progress 比松手时更大）。
+    expect(mid, greaterThan(before));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(playerRouteProgress.value, closeTo(1.0, 0.01));
+  });
+
+  testWidgets('partial drag cancelled by another gesture settles back', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    playerRouteProgress.value = 1.0;
+    await tester.pumpWidget(harness());
+    await tester.pump();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(PlayerScreen)),
+    );
+    await gesture.moveBy(const Offset(0, 100));
+    await tester.pump();
+    await tester.pump();
+    expect(playerRouteProgress.value, greaterThan(0.5));
+    // 手势被抢占（PointerCancel）→ 必须自动回弹全屏，绝不卡半路。
+    await gesture.cancel();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(playerRouteProgress.value, closeTo(1.0, 0.01));
+  });
+
   testWidgets(
       'pull past threshold continues collapse from current position then pops',
       (tester) async {
