@@ -1596,16 +1596,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
           // 底部居中的低调关闭按钮：宽箭头、位置比播放键略低、不抢视觉。
+          // 有效触控范围加宽到约 2 倍（64×48，命中区由 Pressable 的
+          // GestureDetector 随 child 尺寸扩展）。
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Pressable(
               semanticLabel: '收起播放器',
               scale: 0.92,
               onTap: () => Navigator.pop(context),
-              child: Icon(
-                Icons.keyboard_arrow_down,
-                color: AppColors.mutedText(context),
-                size: 30,
+              child: SizedBox(
+                width: 64,
+                height: 48,
+                child: Center(
+                  child: Icon(
+                    Icons.keyboard_arrow_down,
+                    color: AppColors.mutedText(context),
+                    size: 30,
+                  ),
+                ),
               ),
             ),
           ),
