@@ -556,7 +556,9 @@ class _RouteArtworkMorphOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (progress <= 0 || progress >= 0.995) return const SizedBox.shrink();
+    // 只隐藏在任何形态都没有意义的端点；关闭/左缘手势全程可见，
+    // 让封面跟随进度完整归位（正文封面此时已让位）。
+    if (progress <= 0) return const SizedBox.shrink();
     final radius = lerpDouble(
       10,
       22,
@@ -607,7 +609,9 @@ class _RoutePlayButtonMorphOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (progress <= 0 || progress >= 0.995) return const SizedBox.shrink();
+    // 播放按钮同样全程可见：歌词页关闭时按钮必须先不动、等动效快
+    // 结束才开始飞回迷你栏（归位由 btnMorphT 延迟控制）。
+    if (progress <= 0) return const SizedBox.shrink();
     final morphT = MotionCurve.iosSpring.transform(progress);
     final iconSize = lerpDouble(22, 34, morphT)!;
     final shadowT = ((progress - 0.18) / 0.82).clamp(0.0, 1.0);
@@ -901,7 +905,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // 其它元素随进度线性渐隐：位移 0~10%（progress 1→0.9）内切到
         // 全透明，回弹时同样线性恢复——松手瞬间不会因公式切换而"卡一下"。
         final animating =
-            _draggingDown || _collapsing || _settleController.isAnimating;
+            _draggingDown ||
+            _collapsing ||
+            _settleController.isAnimating ||
+            edgeDragActive;
         final dragReveal = ((progress - 0.9) / 0.1).clamp(0.0, 1.0);
         final contentOpacity = animating
             ? dragReveal
@@ -997,6 +1004,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         child: SafeArea(
           child: GestureDetector(
             onVerticalDragStart: (_) {
+              // 已开始关闭（pop 进行中）后不再响应新手势，防止
+              // 动画结束前后乱抢事件导致卡死。
+              if (playerRouteDismissLocked) return;
               _settleController.stop();
               setState(() {
                 _draggingDown = true;
@@ -1051,9 +1061,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               // 手势被其它手势（左缘返回 / PageView 横向）抢占而失去时，
               // 绝不把界面留在半收拢状态：动画已在进行则继续，否则按
               // 当前位置自动收敛——过半继续收拢关闭，否则回弹全屏。
-              if (_settleController.isAnimating) {
-                return;
-              }
+              if (_settleController.isAnimating) return;
+              // 左缘返回手势在场：本次 cancel 是被它抢走，全权由其收敛。
+              if (edgeDragActive) return;
               _draggingDown = false;
               if (playerRouteProgress.value <= 0.5) {
                 _collapsing = true;
