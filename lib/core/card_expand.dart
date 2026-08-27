@@ -114,19 +114,39 @@ CustomTransitionPage<Object?> expandablePage(
           child: child,
         );
       }
-      return EdgeSwipeDismiss(child: transition);
+      return EdgeSwipeDismiss(
+        child: transition,
+        // 收拢成型后锁定路由反向动画，pop 后不会弹回全屏再收一遍。
+        onDismissCommit: () {
+          cardDismissLocked = true;
+        },
+      );
     },
   );
 }
 
 /// 从屏幕左缘右滑关闭当前页面。只在边缘窄条接管手势，避免影响页面
 /// 内的横向列表、播放器 PageView 和主 Tab 滑动。
-/// iOS 上若路由是不透明的（系统左缘返回手势可用），完全不接管——系统
-/// 手势本身跟手、从当前位置继续，且带浮窗缩小效果。
+/// - 不透明路由（iOS 普通页）：不接管，交系统左缘返回手势。
+/// - 透明路由（卡片展开页/播放器）：只发布 [progress]（跟手驱动
+///   内层 morph），不叠加外层 transform——否则内容缩放与外层矩形
+///   裁剪两条曲线打架，出现"与卡片同缩程度不一致的浮动层"。
 class EdgeSwipeDismiss extends StatefulWidget {
-  const EdgeSwipeDismiss({super.key, required this.child});
+  const EdgeSwipeDismiss({
+    super.key,
+    required this.child,
+    this.progress,
+    this.onDismissCommit,
+  });
 
   final Widget child;
+
+  /// 拖动进度发布目标（1 = 完全收拢）。卡片页默认全局卡片进度，
+  /// 播放器传入全屏播放器路由进度。
+  final ValueNotifier<double>? progress;
+
+  /// 收拢完成后、关闭路由前的回调（宿主在此锁定反向动画接管）。
+  final VoidCallback? onDismissCommit;
 
   @override
   State<EdgeSwipeDismiss> createState() => _EdgeSwipeDismissState();
@@ -138,10 +158,11 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   // 形态进度（0..1，1 = 完全收拢成卡片）：与位移_独立，
   // 松手收拢时页面一边滑回原位一边持续收拢成卡片，绝不先放大再退出。
   double _morph = 0;
+  late final ValueNotifier<double> _progress =
+      widget.progress ?? cardDismissProgress;
   late final AnimationController _settleController;
   Animation<double>? _dragAnimation;
   Animation<double>? _morphAnimation;
-  bool _locked = false;
 
   @override
   void initState() {
@@ -162,17 +183,16 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
 
   @override
   void dispose() {
-    if (_locked) {
-      cardDismissLocked = false;
-      cardDismissProgress.value = 0;
+    if (_progress.value != 0) {
+      _progress.value = 0;
     }
     _settleController.dispose();
     super.dispose();
   }
 
-  // 把当前形态进度发布给卡片过渡层（跟手驱动矩形 morph）。
+  // 把当前形态进度发布给过渡层（跟手驱动矩形 morph）。
   void _syncProgress() {
-    cardDismissProgress.value = _morph;
+    _progress.value = _morph;
   }
 
   void _settleTo({
@@ -182,7 +202,6 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     VoidCallback? onStart,
     required VoidCallback onComplete,
   }) {
-    cardDismissLocked = _locked = true;
     _settleController
       ..stop()
       ..duration = duration;
@@ -210,19 +229,24 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
+    final route = ModalRoute.of(context);
+    final opaqueRoute = route?.opaque ?? true;
     final ios = Theme.of(context).platform == TargetPlatform.iOS;
     // 不透明路由（iOS 普通页）：系统左缘返回手势可用，自绘手势完全退出，
     // 过渡则直接由系统手势驱动的 route 动画播放（跟手 + 从当前位置继续）。
-    final systemBackGesture =
-        ios && (ModalRoute.of(context)?.opaque ?? false);
+    final systemBackGesture = ios && opaqueRoute;
+    // 透明路由（卡片展开/播放器）必须只走内层矩形 morph 一套进度，
+    // 避免外层 translate/scale 与内层裁剪互相打架。
+    final morphOnly = !opaqueRoute;
+    final cardMorph = !opaqueRoute;
     final progress = _morph;
-    final scale = ios ? 1 - 0.5 * progress : 1.0;
-    // 圆角所有平台都跟手：拖动时页面边缘实时圆角化（0 → 48）。
-    final radius = 48.0 * progress;
+    final scale = morphOnly ? 1.0 : (ios ? 1 - 0.5 * progress : 1.0);
+    // 圆角只在非卡片形态叠加（卡片页圆角由内层 rect 计算）。
+    final radius = morphOnly ? 0.0 : 48.0 * progress;
     final surface = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(radius),
-        boxShadow: ios && progress > 0
+        boxShadow: ios && !morphOnly && progress > 0
             ? [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.24 * progress),
@@ -237,14 +261,16 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
         child: widget.child,
       ),
     );
-    final page = Transform.translate(
-      offset: Offset(_drag, 0),
-      child: Transform.scale(
-        alignment: Alignment.centerLeft,
-        scale: scale,
-        child: surface,
-      ),
-    );
+    final page = cardMorph
+        ? surface
+        : Transform.translate(
+            offset: Offset(_drag, 0),
+            child: Transform.scale(
+              alignment: Alignment.centerLeft,
+              scale: scale,
+              child: surface,
+            ),
+          );
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -271,38 +297,40 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
               },
               onHorizontalDragEnd: (details) {
                 final velocity = details.primaryVelocity ?? 0;
-                if (_drag > width * 0.22 || velocity > 700) {
-                  // 从当前位置继续：页面一边滑回原位（不放大），一边持续
-                  // 收拢成卡片，在源卡片位置成型后 pop（路由反向被锁，无回弹）。
-                  _settleTo(
-                    targetDrag: 0,
-                    targetMorph: 1,
-                    duration: MotionDuration.normal,
-                    onComplete: () {
-                      Navigator.of(context).maybePop();
-                    },
-                  );
-                } else {
-                  _settleTo(
-                    targetDrag: 0,
-                    targetMorph: 0,
-                    duration: MotionDuration.micro,
-                    onComplete: () {
-                      cardDismissLocked = _locked = false;
-                    },
-                  );
-                }
-              },
-              onHorizontalDragCancel: () {
+if (_drag > width * 0.22 || velocity > 700) {
+                // 从当前位置继续：页面一边滑回原位（不放大），一边持续
+                // 收拢成卡片，在源卡片位置成型后 pop（宿主此时锁定
+                // 反向动画接管，路由关闭不再回弹放大）。
+                _settleTo(
+                  targetDrag: 0,
+                  targetMorph: 1,
+                  duration: MotionDuration.normal,
+                  onComplete: () {
+                    widget.onDismissCommit?.call();
+                    Navigator.of(context).maybePop();
+                  },
+                );
+              } else {
                 _settleTo(
                   targetDrag: 0,
                   targetMorph: 0,
                   duration: MotionDuration.micro,
                   onComplete: () {
-                    cardDismissLocked = _locked = false;
+                    cardDismissLocked = false;
                   },
                 );
-              },
+              }
+            },
+            onHorizontalDragCancel: () {
+              _settleTo(
+                targetDrag: 0,
+                targetMorph: 0,
+                duration: MotionDuration.micro,
+                onComplete: () {
+                  cardDismissLocked = false;
+                },
+              );
+            },
             ),
           ),
       ],

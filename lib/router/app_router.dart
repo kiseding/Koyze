@@ -30,6 +30,12 @@ final GlobalKey<SwipeBranchContainerState> _swipeBranchKey =
 bool _playerRoutePushInFlight = false;
 Timer? _playerRoutePushTimeout;
 
+/// 左缘右滑收拢成型后锁定播放器路由反向动画：pop 后进度保持、
+/// 迷你栏无缝接管，避免先弹回全屏再播放关闭动效。
+void _lockPlayerRouteDismiss() {
+  playerRouteDismissLocked = true;
+}
+
 bool _isCurrentRoute(String path) =>
     appRouter.routerDelegate.currentConfiguration.uri.path == path;
 
@@ -170,7 +176,12 @@ final appRouter = GoRouter(
       // 透明但不使用系统 route snapshot，避免打开/关闭时快照层闪成半透明浅色幕。
       pageBuilder: (context, state) => _PlayerTransitionPage(
         key: state.pageKey,
-        child: const EdgeSwipeDismiss(child: PlayerScreen()),
+        child: EdgeSwipeDismiss(
+          // 左缘右滑直接驱动播放器 morph 进度，全屏界面整体跟手收拢。
+          progress: playerRouteProgress,
+          onDismissCommit: _lockPlayerRouteDismiss,
+          child: const PlayerScreen(),
+        ),
       ),
     ),
     GoRoute(

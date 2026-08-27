@@ -82,9 +82,9 @@ void main() {
     );
   });
 
-  testWidgets('iOS drag becomes a rounded half-size floating window', (
-    tester,
-  ) async {
+  testWidgets(
+      'transparent route drives only the inner morph progress (no outer float)',
+      (tester) async {
     await tester.pumpWidget(_dismissHarness());
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
@@ -92,23 +92,26 @@ void main() {
     final gesture = await tester.startGesture(const Offset(1, 200));
     await gesture.moveBy(const Offset(900, 0));
     await tester.pump();
+    await tester.pump();
 
+    // 透明路由只发布 morph 进度：没有外层浮窗缩放/位移叠加，
+    // 避免出现与卡片缩小程度不一致的浮动层。
+    expect(cardDismissProgress.value, greaterThan(0.9));
     final content = find.byKey(const ValueKey('content'));
-    final transform = tester.widgetList<Transform>(
+    final transforms = tester.widgetList<Transform>(
       find.ancestor(of: content, matching: find.byType(Transform)),
     );
     expect(
-      transform.any(
-        (widget) =>
-            widget.transform.storage[0] == 0.5 &&
-            widget.transform.storage[5] == 0.5,
+      transforms.any(
+        (w) =>
+            w.transform.storage[0] == 0.5 && w.transform.storage[5] == 0.5,
       ),
-      isTrue,
+      isFalse,
     );
     final clips = tester.widgetList<ClipRRect>(find.byType(ClipRRect));
     expect(
       clips.any((clip) => clip.borderRadius == BorderRadius.circular(48)),
-      isTrue,
+      isFalse,
     );
   });
 
@@ -145,17 +148,13 @@ void main() {
     final gesture = await tester.startGesture(const Offset(1, 200));
     await gesture.moveBy(const Offset(220, 0));
     await tester.pump();
-    final content = find.byKey(const ValueKey('content'));
-    final dragged = tester.getTopLeft(content).dx;
     await gesture.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
 
-    // 松手过阈值后页面从拖动位置"归位"（滑回原位、收拢成卡片），
-    // 归位过程中位置应小于拖动位置且逐渐回到 0。
-    final settling = tester.getTopLeft(content).dx;
-    expect(settling, greaterThan(0));
-    expect(settling, lessThan(dragged));
+    // 松手过阈值后从当前位置继续收拢成卡片（进度持续增长 → 1），
+    // 成型后 pop；内容位置由内层矩形 morph 决定（无外层位移）。
+    expect(cardDismissProgress.value, greaterThan(0.25));
     await tester.pumpAndSettle();
     expect(observer.popCount, 1);
   });
@@ -193,14 +192,11 @@ void main() {
     final gesture = await tester.startGesture(const Offset(1, 200));
     await gesture.moveBy(const Offset(60, 0));
     await tester.pump();
-    final content = find.byKey(const ValueKey('content'));
-    final dragged = tester.getTopLeft(content).dx;
     await gesture.up();
     await tester.pumpAndSettle();
 
-    // 未过阈值：跟手回弹到 0，路由保持。
-    expect(tester.getTopLeft(content).dx, 0);
-    expect(tester.getTopLeft(content).dx, lessThan(dragged));
+    // 未过阈值：进度跟手回弹到 0，路由保持。
+    expect(cardDismissProgress.value, 0.0);
     expect(observer.popCount, 0);
   });
 
