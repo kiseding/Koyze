@@ -16,7 +16,8 @@ void main() {
     expect(full, contains('_RouteArtworkMorphOverlay'));
     expect(full, contains('_RoutePlayButtonMorphOverlay'));
     expect(full, contains('final playButtonTarget = _currentPage == 1'));
-    expect(full, contains('miniPlayButtonRect,\n          1 - morphT'));
+    expect(full, contains('final btnMorphT = (progress / 0.2).clamp(0.0, 1.0)'));
+    expect(full, contains('miniPlayButtonRect,\n          1 - btnMorphT'));
     expect(full, contains('Rect.lerp('));
     expect(full, contains('_miniPlayButtonRect(miniRect)'));
     expect(full, contains('_fullControlsPlayButtonRect('));

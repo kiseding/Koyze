@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/card_expand.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
@@ -843,7 +844,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // 进度恒线性消费：自动动画的曲线整形已在路由桥一端完成
         // （_PlayerRouteProgressBridge），所有手动驱动天然线性跟手。
         final morphT = progress;
-        final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
+        // iOS 左缘右滑退出与卡片动效一致：矩形随手指水平位移 + 收缩
+        // 向迷你栏；常规下滑/自动动画走 sheet 式底部收缩。
+        final cardLikeDrag = edgeDragActive;
+        final Rect currentRect;
+        if (cardLikeDrag) {
+          final offX = cardDismissOffset.value;
+          final closeT = 1 - progress;
+          final sizeW = screenW - (screenW - miniRect.width) * closeT;
+          final sizeH = screenH - (screenH - miniRect.height) * closeT;
+          final left = offX * (1 - closeT) + miniRect.left * closeT;
+          final top = miniRect.top * closeT;
+          currentRect = Rect.fromLTWH(left, top, sizeW, sizeH);
+        } else {
+          currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
+        }
         final miniArtworkRect = _miniArtworkRect(miniRect);
         final fullArtworkRect =
             _artworkRect ??
@@ -874,16 +889,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final playButtonTarget = _currentPage == 1
             ? lyricTargetRect
             : controlsTargetRect;
+        // 播放按钮不跟随整体进度隐没：保持原位置不动，直到动效快结束
+        // （progress < 0.2）才开始飞回迷你栏归位。
+        final btnMorphT = (progress / 0.2).clamp(0.0, 1.0);
         final playButtonMorphRect = Rect.lerp(
           playButtonTarget,
           miniPlayButtonRect,
-          1 - morphT,
+          1 - btnMorphT,
         )!;
-        // 下滑/收拢/回弹期间（拖动中或 settle 动画进行中）除"飞行封面"外
-        // 其它元素随进度线性渐隐/渐显：位移 0~10% 内切到全透明，
-        // 回弹时同样线性恢复——松手瞬间不会因公式切换而"卡一下"。
-        final animating = _draggingDown || _collapsing || _settleController.isAnimating;
-        final dragReveal = (progress / 0.9).clamp(0.0, 1.0);
+// 下滑/收拢/回弹期间（拖动中或 settle 动画进行中）除"飞行封面"外
+        // 其它元素随进度线性渐隐：位移 0~10%（progress 1→0.9）内切到
+        // 全透明，回弹时同样线性恢复——松手瞬间不会因公式切换而"卡一下"。
+        final animating =
+            _draggingDown || _collapsing || _settleController.isAnimating;
+        final dragReveal = ((progress - 0.9) / 0.1).clamp(0.0, 1.0);
         final contentOpacity = animating
             ? dragReveal
             : MotionCurve.iosSpring.transform(

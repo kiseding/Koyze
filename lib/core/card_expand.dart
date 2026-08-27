@@ -66,6 +66,10 @@ final ValueNotifier<double> cardDismissProgress = ValueNotifier<double>(0);
 /// 完全跟手；松手后由 _EdgeSwipeDismissState 的 settle 动画驱动归位。
 final ValueNotifier<double> cardDismissOffset = ValueNotifier<double>(0);
 
+/// 边缘拖动手势是否激活（拖动中或归位动画中）。
+/// 全屏播放器等透明路由据此采用"卡片式"跟手 rect（随手指位移+收缩）。
+bool edgeDragActive = false;
+
 /// 拖拽/回弹动画接管期间，禁止路由动画继续参与过渡计算，
 /// 否则 Navigator 反向动画会把已收拢的卡片先弹回全屏再关闭。
 bool cardDismissLocked = false;
@@ -196,6 +200,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
       _progress.value = 0;
     }
     cardDismissOffset.value = 0;
+    edgeDragActive = false;
     _settleController.dispose();
     super.dispose();
   }
@@ -204,6 +209,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   void _syncProgress() {
     _progress.value = _morph;
     cardDismissOffset.value = _drag;
+    edgeDragActive = _drag > 0 || _morph > 0;
   }
 
   void _settleTo({
@@ -296,7 +302,10 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
             width: ios ? 40.0 : 32.0,
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
-              onHorizontalDragStart: (_) => _settleController.stop(),
+              onHorizontalDragStart: (_) {
+              _settleController.stop();
+              edgeDragActive = true;
+            },
               onHorizontalDragUpdate: (details) {
                 if (details.delta.dx <= 0 && _drag <= 0) return;
                 final max = MediaQuery.sizeOf(context).width;
@@ -417,12 +426,14 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
             : sourceRect.left * t;
         final top = sourceRect.top * t;
         final currentRect = Rect.fromLTWH(left, top, sizeW, sizeH);
-        // 收缩过程必须保持实心（不透明），只在收尾的 18% 快速淡出让
-        // 下层的卡片本体显现——全程渐变透明会让卡片看起来有虚影。
+        // 收尾的 18% 快速淡出让下层的卡片本体显现——全程这些元素保持
+        // 与矩形同步的透明度。
         final reveal = ((1 - t) / 0.18).clamp(0.0, 1.0);
         // 快照只在收尾阶段浮现（与内容交接），平时不叠加。
         final snapshotOpacity = ((t - 0.8) / 0.2).clamp(0.0, 1.0);
-        final radius = 18.0 * (1 - t);
+        // 背景/表面圆角全程保持与源卡片一致（18），
+        // 动效行进中矩形扩张/收缩不改变圆角。
+        const radius = 18.0;
 
         return Stack(
           fit: StackFit.expand,
