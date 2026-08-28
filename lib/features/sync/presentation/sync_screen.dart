@@ -200,24 +200,58 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // 账号图标 + 模式切换（分段控件更贴近系统设置风格）
             Row(
               children: [
-                ChoiceChip(
-                  label: const Text('登录'),
-                  selected: _isLoginMode,
-                  onSelected: (_) => setState(() => _isLoginMode = true),
-                  selectedColor: AppColors.amber,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.amber.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.account_circle_rounded,
+                    color: AppColors.amber,
+                    size: 26,
+                  ),
                 ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('注册'),
-                  selected: !_isLoginMode,
-                  onSelected: (_) => setState(() => _isLoginMode = false),
-                  selectedColor: AppColors.amber,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(
+                        value: true,
+                        label: Text('登录'),
+                        icon: Icon(Icons.login_rounded, size: 18),
+                      ),
+                      ButtonSegment(
+                        value: false,
+                        label: Text('注册'),
+                        icon: Icon(Icons.person_add_alt_1_rounded, size: 18),
+                      ),
+                    ],
+                    selected: {_isLoginMode},
+                    onSelectionChanged: (v) =>
+                        setState(() => _isLoginMode = v.first),
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStateProperty.resolveWith(
+                        (states) => states.contains(WidgetState.selected)
+                            ? AppColors.amber.withValues(alpha: 0.18)
+                            : null,
+                      ),
+                      foregroundColor: WidgetStateProperty.resolveWith(
+                        (states) =>
+                            states.contains(WidgetState.selected)
+                            ? AppColors.amber
+                            : AppColors.mutedText(context),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             TextField(
               controller: _userCtrl,
               focusNode: _userFocus,
@@ -231,6 +265,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               style: TextStyle(color: AppColors.onScaffold(context)),
               decoration: InputDecoration(
                 labelText: '用户名',
+                prefixIcon: Icon(
+                  Icons.person_outline_rounded,
+                  color: AppColors.mutedText(context),
+                  size: 20,
+                ),
                 labelStyle: TextStyle(color: AppColors.mutedText(context)),
               ),
             ),
@@ -251,17 +290,36 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               style: TextStyle(color: AppColors.onScaffold(context)),
               decoration: InputDecoration(
                 labelText: '密码',
+                prefixIcon: Icon(
+                  Icons.lock_outline_rounded,
+                  color: AppColors.mutedText(context),
+                  size: 20,
+                ),
                 labelStyle: TextStyle(color: AppColors.mutedText(context)),
               ),
             ),
             const SizedBox(height: 12),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(46),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               onPressed: _busy ? null : _submitAuth,
-              child: Text(_busy ? '请稍候…' : (_isLoginMode ? '登录' : '注册')),
+              icon: _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      _isLoginMode
+                          ? Icons.login_rounded
+                          : Icons.person_add_alt_1_rounded,
+                      size: 18,
+                    ),
+              label: Text(_busy ? '请稍候…' : (_isLoginMode ? '登录' : '注册')),
             ),
           ],
         ),
@@ -501,40 +559,93 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      '用户列表',
-                      style: TextStyle(
-                        color: AppColors.onScaffold(context),
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppColors.amber.withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.people_alt_rounded,
+                            color: AppColors.amber,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            '用户列表',
+                            style: TextStyle(
+                              color: AppColors.onScaffold(context),
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: '关闭',
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: AppColors.mutedText(context),
+                          ),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
                     ),
+                  ),
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: AppColors.cardBorder(context),
                   ),
                   Expanded(
                     child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
                       itemCount: users.length,
                       itemBuilder: (_, i) {
                         final u = users[i];
+                        final role = u['role']?.toString() ?? 'user';
                         return ListTile(
+                          leading: CircleAvatar(
+                            radius: 18,
+                            backgroundColor: role == 'admin'
+                                ? AppColors.amber.withValues(alpha: 0.2)
+                                : AppColors.fill(context),
+                            child: Icon(
+                              role == 'admin'
+                                  ? Icons.admin_panel_settings_rounded
+                                  : Icons.person_rounded,
+                              size: 20,
+                              color: role == 'admin'
+                                  ? AppColors.amber
+                                  : AppColors.mutedText(context),
+                            ),
+                          ),
                           title: Text(
-                            '${u['username']} (${u['role']})',
+                            '${u['username']}',
                             style: TextStyle(
                               color: AppColors.onScaffold(context),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           subtitle: Text(
-                            'id=${u['id']}',
+                            role == 'admin' ? '管理员 · id=${u['id']}' : '普通用户 · id=${u['id']}',
                             style: TextStyle(
                               color: AppColors.mutedText(context),
-                              fontSize: 11,
+                              fontSize: 12,
                             ),
                           ),
                           trailing: FxIconButton(
                             tooltip: '删除 ${u['username']}',
                             icon: const Icon(
-                              Icons.delete,
+                              Icons.delete_outline_rounded,
                               color: AppColors.error,
+                              size: 20,
                             ),
                             onPressed: () async {
                               try {

@@ -224,6 +224,8 @@ final appRouter = GoRouter(
         const LeaderboardSettingsScreen(),
         expandRect: consumeCardExpandRect(),
         expandSnapshot: consumeCardExpandSnapshot(),
+        // 页面内容为纯纵向列表，支持整页任意位置右滑返回。
+        fullWidthSwipe: true,
       ),
     ),
     GoRoute(

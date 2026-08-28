@@ -82,6 +82,7 @@ CustomTransitionPage<Object?> expandablePage(
   Widget child, {
   Rect? expandRect,
   ui.Image? expandSnapshot,
+  bool fullWidthSwipe = false,
 }) {
   final expanding = expandRect != null;
   return CustomTransitionPage<Object?>(
@@ -129,6 +130,7 @@ CustomTransitionPage<Object?> expandablePage(
       }
       return EdgeSwipeDismiss(
         child: transition,
+        fullWidthSwipe: fullWidthSwipe,
         // 收拢成型后锁定路由反向动画，pop 后不会弹回全屏再收一遍。
         onDismissCommit: () {
           cardDismissLocked = true;
@@ -151,6 +153,7 @@ class EdgeSwipeDismiss extends StatefulWidget {
     this.progress,
     this.onDismissCommit,
     this.invertProgress = false,
+    this.fullWidthSwipe = false,
   });
 
   final Widget child;
@@ -166,6 +169,10 @@ class EdgeSwipeDismiss extends StatefulWidget {
   /// 与拖动进度（0=起点、1=拖满）相反，必须取反才能让封面
   /// 从全屏随手指逐渐变小，而不是按下瞬间跳到迷你形态。
   final bool invertProgress;
+
+  /// 整页右滑返回（用于无横向滚动内容的页面，如榜单设置）。
+  /// 默认只接管左缘窄条，避免与页面内横向列表/PageView 冲突。
+  final bool fullWidthSwipe;
 
   @override
   State<EdgeSwipeDismiss> createState() => _EdgeSwipeDismissState();
@@ -304,8 +311,10 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
             top: 0,
             bottom: 0,
             // iOS 系统手势区约 20pt，这里略微加宽（40）提高触发成功率；
-            // 卡片/播放器为透明路由，没有系统手势，窄条按平台取 32。
-            width: ios ? 40.0 : 32.0,
+            // 卡片/播放器为透明路由，没有系统手势，窄条按平台取 32；
+            // 页面无横向滚动内容时可整页右滑返回。
+            right: widget.fullWidthSwipe ? 0 : null,
+            width: widget.fullWidthSwipe ? null : (ios ? 40.0 : 32.0),
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onHorizontalDragStart: (_) {

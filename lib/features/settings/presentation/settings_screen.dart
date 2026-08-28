@@ -443,62 +443,30 @@ class SettingsScreen extends ConsumerWidget {
     showSleepTimerSheet(context, ref);
   }
 
-  String _platformName(String id) {
-    switch (id) {
-      case 'tx':
-        return '腾讯 (QQ 音乐)';
-      case 'kw':
-        return '酷我';
-      case 'wy':
-        return '网易云';
-      case 'local':
-        return '本地';
-      case 'favorites':
-        return '收藏';
-      default:
-        return id;
-    }
-  }
+  String _platformName(String id) => platformDisplayName(id);
 
   void _showDefaultPlatformDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => Consumer(
-        builder: (context, ref, _) {
-          final current = ref.watch(defaultSearchPlatformProvider);
-          return AlertDialog(
-            backgroundColor: AppColors.dialogBg(context),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Text(
-              '默认搜索平台',
-              style: TextStyle(color: AppColors.onScaffold(context)),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: ['tx', 'kw', 'wy', 'local', 'favorites'].map((id) {
-                return ListTile(
-                  title: Text(
-                    _platformName(id),
-                    style: TextStyle(
-                      color: current == id
-                          ? AppColors.accentOf(context)
-                          : AppColors.onScaffold(context),
-                    ),
-                  ),
-                  trailing: current == id
-                      ? Icon(Icons.check, color: AppColors.accentOf(context))
-                      : null,
-                  onTap: () {
-                    ref
-                        .read(defaultSearchPlatformProvider.notifier)
-                        .setPlatform(id);
-                    ref.read(selectedSourceIdProvider.notifier).state = id;
-                    Navigator.pop(context);
-                  },
-                );
-              }).toList(),
+    // 与"音质选择"弹窗同一视觉语言：居中圆角卡片 + 图标块选项行。
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierDismissible: true,
+        barrierColor: Colors.black54,
+        transitionDuration: const Duration(milliseconds: 240),
+        reverseTransitionDuration: const Duration(milliseconds: 180),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const _PlatformPickerDialog(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutBack,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: Tween<double>(begin: 0, end: 1).animate(curved),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.86, end: 1).animate(curved),
+              child: child,
             ),
           );
         },
@@ -921,6 +889,206 @@ class _DeviceIdRow extends StatelessWidget {
   }
 }
 
+/// 默认搜索平台选择弹窗：与"音质选择"弹窗同款视觉语言
+/// （圆角 24 卡片 + 图标块 + 勾选胶囊 + easeOutBack 入场）。
+class _PlatformPickerDialog extends ConsumerWidget {
+  const _PlatformPickerDialog();
+
+  static const _options = <String, (IconData, String)>{
+    'tx': (Icons.music_note_rounded, '腾讯 · QQ 音乐'),
+    'kw': (Icons.headphones_rounded, '酷我'),
+    'wy': (Icons.cloud_rounded, '网易云'),
+    'local': (Icons.folder_rounded, '本地音乐'),
+    'favorites': (Icons.favorite_rounded, '收藏夹'),
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(defaultSearchPlatformProvider);
+    final accent = AppColors.accentOf(context);
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 340,
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          decoration: BoxDecoration(
+            color: AppColors.dialogBg(context),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppColors.cardBorder(context)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 32,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 8, 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '默认搜索平台',
+                        style: TextStyle(
+                          color: AppColors.onScaffold(context),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: AppColors.mutedText(context),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              for (final entry in _options.entries) ...[
+                _PlatformOptionTile(
+                  name: platformDisplayName(entry.key),
+                  icon: entry.value.$1,
+                  description: _platformDescription(entry.key),
+                  selected: current == entry.key,
+                  accent: accent,
+                  onTap: () {
+                    ref
+                        .read(defaultSearchPlatformProvider.notifier)
+                        .setPlatform(entry.key);
+                    ref.read(selectedSourceIdProvider.notifier).state =
+                        entry.key;
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _platformDescription(String id) {
+  switch (id) {
+    case 'tx':
+      return '覆盖最全，默认优先';
+    case 'kw':
+      return '酷我音乐源';
+    case 'wy':
+      return '网易云音乐源';
+    case 'local':
+      return '仅本地已扫描歌曲';
+    case 'favorites':
+      return '仅收藏夹内容';
+    default:
+      return '';
+  }
+}
+
+class _PlatformOptionTile extends StatelessWidget {
+  const _PlatformOptionTile({
+    required this.name,
+    required this.icon,
+    required this.description,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String name;
+  final IconData icon;
+  final String description;
+  final bool selected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: selected
+                    ? accent.withValues(alpha: 0.18)
+                    : AppColors.fill(context),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                icon,
+                color: selected ? accent : AppColors.mutedText(context),
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: TextStyle(
+                      color: selected
+                          ? accent
+                          : AppColors.onScaffold(context),
+                      fontSize: 14,
+                      fontWeight: selected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: AppColors.mutedText(context),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AnimatedScale(
+              scale: selected ? 1 : 0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutBack,
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  size: 16,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _QualityPickerDialog extends ConsumerWidget {
   const _QualityPickerDialog({required this.title, required this.isDownload});
 
@@ -1101,6 +1269,23 @@ class _QualityOptionTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+String platformDisplayName(String id) {
+  switch (id) {
+    case 'tx':
+      return '腾讯 (QQ 音乐)';
+    case 'kw':
+      return '酷我';
+    case 'wy':
+      return '网易云';
+    case 'local':
+      return '本地';
+    case 'favorites':
+      return '收藏';
+    default:
+      return id;
   }
 }
 
