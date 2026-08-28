@@ -857,26 +857,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // 进度恒线性消费：自动动画的曲线整形已在路由桥一端完成
         // （_PlayerRouteProgressBridge），所有手动驱动天然线性跟手。
         final morphT = progress;
-        // iOS 左缘右滑退出与卡片动效一致：矩形随手指水平位移 + 收缩
-        // 向迷你栏；常规下滑/自动动画走 sheet 式底部收缩。
-        final cardLikeDrag = edgeDragActive;
-        // 左缘右滑时：封面/按钮也要随卡片矩形一起跟手位移，
-        // 否则矩形在跟手、封面却原地缩放，看起来像"快进缩小"。
-        final closeT = 1 - progress;
-        final dragShift = cardLikeDrag
-            ? cardDismissOffset.value * (1 - closeT)
-            : 0.0;
-        final Rect currentRect;
-        if (cardLikeDrag) {
-          final offX = cardDismissOffset.value;
-          final sizeW = screenW - (screenW - miniRect.width) * closeT;
-          final sizeH = screenH - (screenH - miniRect.height) * closeT;
-          final left = offX * (1 - closeT) + miniRect.left * closeT;
-          final top = miniRect.top * closeT;
-          currentRect = Rect.fromLTWH(left, top, sizeW, sizeH);
-        } else {
-          currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
-        }
+        // 右滑与下滑共用同一 sheet 式路径（底部锚定、线性收向迷你栏），
+        // 保证"进出同路径"（Apple Design §7 空间一致性）。
+        final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
         final miniArtworkRect = _miniArtworkRect(miniRect);
         final fullArtworkRect =
             _artworkRect ??
@@ -983,7 +966,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             if (_currentPage == 0)
               _RouteArtworkMorphOverlay(
-                rect: artworkMorphRect.shift(Offset(dragShift, 0)),
+                rect: artworkMorphRect,
                 progress: progress,
                 closing: closing,
                 artwork: currentMusic.artwork,
@@ -991,7 +974,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               )
             else
               _RoutePlayButtonMorphOverlay(
-                rect: playButtonMorphRect.shift(Offset(dragShift, 0)),
+                rect: playButtonMorphRect,
                 progress: progress,
                 closing: closing,
                 isPlaying: isPlaying,
