@@ -166,10 +166,13 @@ final class SyncPhase1Service {
   }
 
   Future<void> recordSource(CustomSource source) async {
+    // 启用状态是本设备偏好，不上传到云端（避免 A 设备的启用状态
+    // 被同步到 B 设备导致"同时启用多个音源"）。
+    final definition = source.copyWith(isEnabled: false).toJson();
     await enqueue(
       eventType: 'custom_source.upsert',
       entityId: source.id,
-      payload: {'source': source.toJson()},
+      payload: {'source': definition},
     );
   }
 
@@ -426,9 +429,24 @@ final class SyncPhase1Service {
     }
     final sources = snapshot['sources'];
     if (sources is List) {
+      // 快照同步也只同步"源定义"：本地已存在的源保留本地启用状态，
+      // 新增源默认禁用（启用状态是设备本地偏好）。
+      final existingById = {
+        for (final s in _sources!.sources) s.id: s,
+      };
       await _sources!.replaceAllSources([
         for (final raw in sources)
-          if (raw is Map) CustomSource.fromJson(Map<String, dynamic>.from(raw)),
+          if (raw is Map)
+            () {
+              final remote = CustomSource.fromJson(
+                Map<String, dynamic>.from(raw),
+              );
+              final local = existingById[remote.id];
+              if (local != null) {
+                return remote.copyWith(isEnabled: local.isEnabled);
+              }
+              return remote.copyWith(isEnabled: false);
+            }(),
       ]);
     }
     final ratings = snapshot['ratings'];
@@ -657,10 +675,18 @@ final class SyncPhase1Service {
         final raw = data['source'];
         if (raw is Map) {
           final source = CustomSource.fromJson(Map<String, dynamic>.from(raw));
+          // 启用状态是设备本地偏好：同步只同步"源定义"。
+          // - 本地已有同 id 源：保留本地启用状态（避免远端 isEnabled
+          //   默认值把本地已禁用的源重新启用，也避免"三个源同时启用"）；
+          // - 本地没有该源：默认禁用，由用户显式启用。
           final merged = [
             for (final existing in _sources!.sources)
-              if (existing.id == source.id) source else existing,
-            if (!_sources!.sources.any((item) => item.id == source.id)) source,
+              if (existing.id == source.id)
+                source.copyWith(isEnabled: existing.isEnabled)
+              else
+                existing,
+            if (!_sources!.sources.any((item) => item.id == source.id))
+              source.copyWith(isEnabled: false),
           ];
           // Preserve the server timestamp exactly. updateSource() intentionally
           // stamps DateTime.now() for user edits and would cause devices to

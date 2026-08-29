@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,6 +10,11 @@ import 'package:koyze/features/sync/domain/sync_account.dart';
 import 'package:koyze/features/sync/domain/sync_event.dart';
 import 'package:koyze/features/sync/domain/sync_phase1_service.dart';
 import 'package:koyze/features/sync/domain/sync_state_machine.dart';
+import 'package:koyze/features/custom_source/domain/custom_source_service.dart';
+import 'package:koyze/features/playlist/data/playlist_repository.dart';
+import 'package:koyze/features/playlist/domain/playlist_service.dart';
+import 'package:koyze/features/sync/domain/rating_store.dart';
+import 'package:koyze/core/storage/storage_service.dart';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -48,6 +54,8 @@ void main() {
     expect(decoded.payload, event.payload);
     expect(decoded.createdAt, event.createdAt);
   });
+
+  syncSourceEnablementTests();
 
   test(
     'outbox append is idempotent and removes accepted events only',
@@ -170,4 +178,107 @@ final class _PushOnlyCloudApi extends CloudApiClient {
     pullCalls++;
     return const {'events': [], 'hasMore': false, 'cursor': 0};
   }
+}
+
+// 自定义源同步回归：启用状态是设备本地偏好，同步不改变它。
+void syncSourceEnablementTests() {
+  test(
+    'remote upsert keeps local enablement and new sources default disabled',
+    () async {
+      final prefs = await SharedPreferences.getInstance();
+      final sourcesService = CustomSourceService(
+        storageLoader: () async => StorageService.instance,
+      );
+      final phase1 = SyncPhase1Service(
+        api: CloudApiClient(
+          dio: Dio(),
+          preferences: () async => prefs,
+        ),
+        identity: SyncIdentityStore(preferences: () async => prefs),
+        cursor: SyncCursorStore(preferences: () async => prefs),
+        outbox: SyncOutboxRepository(preferences: () async => prefs),
+      )
+        ..attachSources(sourcesService)
+        ..attachPlaylists(
+          PlaylistService(
+            repository: _FakePlaylistRepository(),
+            syncRecorder:
+                ({required String eventType, required String entityId, Map<String, dynamic>? payload}) async {},
+          ),
+        )
+        ..attachRatings(RatingStore(preferences: () async => prefs))
+        ..attachSettingApplier((key, value) async {});
+
+      await sourcesService.init();
+      final now = DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true);
+      await sourcesService.importLxMusicScript(_sourceScript('A'));
+      await sourcesService.importLxMusicScript(_sourceScript('B'));
+      final localA = sourcesService.sources.firstWhere((s) => s.name == 'A');
+      final localB = sourcesService.sources.firstWhere((s) => s.name == 'B');
+      await sourcesService.toggleSource(localB.id);
+      expect(sourcesService.enabledSources.length, 1);
+
+      // 远端推送 A（isEnabled=true 的脏数据）与全新源 C。
+      final applied = await phase1.applyPulledEvents([
+        {
+          'eventId': 'evt_a',
+          'eventType': 'custom_source.upsert',
+          'entityId': localA.id,
+          'payload': {
+            'source': localA.copyWith(isEnabled: true).toJson(),
+          },
+          'createdAt': now.toIso8601String(),
+        },
+        {
+          'eventId': 'evt_c',
+          'eventType': 'custom_source.upsert',
+          'entityId': 'remote_c',
+          'payload': {'source': _remoteSourceJson('remote_c', 'C')},
+          'createdAt': now.toIso8601String(),
+        },
+      ]);
+      expect(applied, isTrue);
+
+      // A 保持启用、B 保持禁用、C 默认禁用 → 仍只有 1 个启用。
+      expect(sourcesService.sources.where((s) => s.isEnabled).length, 1);
+      expect(
+        sourcesService.sources.firstWhere((s) => s.id == localA.id).isEnabled,
+        isTrue,
+      );
+      expect(
+        sourcesService.sources.firstWhere((s) => s.id == localB.id).isEnabled,
+        isFalse,
+      );
+      expect(
+        sourcesService.sources.firstWhere((s) => s.id == 'remote_c').isEnabled,
+        isFalse,
+      );
+    },
+  );
+}
+
+String _sourceScript(String name) =>
+    '/*! @name $name */\nconst api = () => 1;';
+
+Map<String, dynamic> _remoteSourceJson(String id, String name) {
+  final now = DateTime.fromMillisecondsSinceEpoch(2000, isUtc: true);
+  return {
+    'id': id,
+    'name': name,
+    'description': '',
+    'version': '1.0.0',
+    'author': 'sync',
+    'script': _sourceScript(name),
+    'createdAt': now.toIso8601String(),
+    'updatedAt': now.toIso8601String(),
+  };
+}
+
+class _FakePlaylistRepository implements PlaylistRepository {
+  @override
+  Future<PlaylistSnapshot> load() async =>
+      PlaylistSnapshot(schemaVersion: 1, playlists: []);
+
+  @override
+  Future<void> save(PlaylistSnapshot snapshot) async {}
 }
