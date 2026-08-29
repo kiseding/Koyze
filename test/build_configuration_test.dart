@@ -179,10 +179,10 @@ void main() {
     expect(signingCheck, lessThan(analyze));
     expect(workflow, contains('--split-per-abi'));
     expect(workflow, contains('Koyze-\${version}-\${abi}.apk'));
-    expect(workflow, contains('build/android-release/Koyze-*.apk'));
+    expect(workflow, contains('for apk in build/android-release/*.apk'));
     expect(workflow, contains('Koyze-Android-APKs'));
     expect(workflow, contains('flutter build appbundle --release'));
-    expect(workflow, contains('build/android-release/Koyze-*.aab'));
+    expect(workflow, contains('for aab in build/android-release/*.aab'));
     expect(workflow, contains('Koyze-Android-AAB'));
     expect(workflow, contains('ANDROID_KEYSTORE_BASE64'));
     expect(workflow, isNot(contains('ANDROID_KEYSTORE_BASE64 !=')));

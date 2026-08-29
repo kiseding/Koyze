@@ -94,8 +94,12 @@ jobs:
 
       - name: Validate APKs
         run: |
-          test -s build/android-release/Koyze-*.apk
-          test -s build/android-release/Koyze-*.aab
+          for apk in build/android-release/*.apk; do
+            test -s "$apk"
+          done
+          for aab in build/android-release/*.aab; do
+            test -s "$aab"
+          done
 
       - name: Verify Android release signatures and alignment
         run: |
