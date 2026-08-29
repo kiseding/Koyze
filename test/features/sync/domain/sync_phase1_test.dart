@@ -269,6 +269,24 @@ void syncSourceEnablementTests() {
 
       // A 保持启用、B 保持禁用、C 默认禁用 → 仍只有 1 个启用。
       expect(sourcesService.sources.where((s) => s.isEnabled).length, 1);
+      // 云端推送与本地"同名不同 id"的源（C 复制品 D）也必须保留，
+      // 不能被 name|author 去重折叠掉。
+      await phase1.applyPulledEvents([
+        {
+          'eventId': 'evt_d',
+          'eventType': 'custom_source.upsert',
+          'entityId': 'remote_d',
+          'payload': {
+            'source': _remoteSourceJson('remote_d', 'C'),
+          },
+          'createdAt': now.toIso8601String(),
+        },
+      ]);
+      expect(
+        sourcesService.sources.any((s) => s.id == 'remote_d'),
+        isTrue,
+        reason: '同名不同 id 的云端音源被去重丢弃',
+      );
       expect(
         sourcesService.sources.firstWhere((s) => s.id == localA.id).isEnabled,
         isTrue,

@@ -221,8 +221,16 @@ class CustomSourceService {
   }
 
   Future<void> replaceAllSources(List<CustomSource> sources) async {
+    // 同步路径只按 id 去重（同名不同 id 的云端源必须保留，
+    // 不能按 name|author 折叠——否则从云端拉取的音源会被本地
+    // 同名源顶掉而不显示）。
+    final seenIds = <String>{};
+    final merged = [
+      for (final s in sources)
+        if (seenIds.add(s.id)) s,
+    ];
     await _mutate<void>(
-      (current) => _SourceMutation(_dedupeSources(sources), null),
+      (current) => _SourceMutation(merged, null),
     );
   }
 
