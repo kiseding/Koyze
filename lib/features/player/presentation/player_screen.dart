@@ -971,7 +971,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // 底色保持不透明避免双重透明叠加。
         final sheetAlpha = lyricCollapsing
             ? 1.0
-            : (animating ? dragReveal : 1.0);
+            : (closing ? dragReveal : 1.0);
         // sheet 圆角跟手（长条用迷你栏同款 16）。
         final sheetRadius = lyricCollapsing ? 16.0 : 16 * (1 - progress);
         // 透明度窗口：0~90% 实色，90~96% 渐隐至全透，96~100% 不渲染。
@@ -993,28 +993,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     color: Theme.of(context).scaffoldBackgroundColor.withValues(
                       alpha: sheetAlpha,
                     ),
-                    child: OverflowBox(
-                      alignment: Alignment.topLeft,
-                      minWidth: screenW,
-                      maxWidth: screenW,
-                      minHeight: screenH,
-                      maxHeight: screenH,
-                      child: Opacity(
-                        opacity: contentOpacity,
-                        child: _buildPlayerBody(
-                          context,
-                          currentMusic,
-                          playerService,
-                          isPlaying,
-                          playMode,
-                          duration,
-                          screenH,
-                          screenW,
-                          dismissThreshold,
-                          artworkReveal,
-                        ),
+                child: OverflowBox(
+                  alignment: Alignment.topLeft,
+                  minWidth: screenW,
+                  maxWidth: screenW,
+                  minHeight: screenH,
+                  maxHeight: screenH,
+                  child: Transform.scale(
+                    scale: lyricCollapsing ? currentRect.width / screenW : 1.0,
+                    alignment: Alignment.topLeft,
+                    child: Opacity(
+                      opacity: contentOpacity,
+                      child: _buildPlayerBody(
+                        context,
+                        currentMusic,
+                        playerService,
+                        isPlaying,
+                        playMode,
+                        duration,
+                        screenH,
+                        screenW,
+                        dismissThreshold,
+                        artworkReveal,
                       ),
                     ),
+                  ),
+                ),
                   ),
                 ),
               ),
