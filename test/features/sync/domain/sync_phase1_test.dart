@@ -17,6 +17,7 @@ import 'package:koyze/features/sync/domain/rating_store.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test(
