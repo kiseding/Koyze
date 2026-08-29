@@ -745,6 +745,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _recordMorphTargets() {
+    // 收拢/拖拽/回弹进行中冻结 morph 目标几何：此时 sheet 收缩会把
+    // body 底部内容（歌词页按钮/控件）推出屏幕下缘，实测坐标随之下移，
+    // overlay 若跟随就会"先跑到屏幕外、回弹再回来"。冻结在稳定态
+    // （全屏展开）记录的位置，overlay 始终指向按钮的真实原位。
+    final unstable = _draggingDown ||
+        _collapsing ||
+        _settleController.isAnimating ||
+        edgeDragActive;
+    if (unstable) return;
     _artworkRect = _rectOf(_artworkKey);
     _controlsPlayRect = _rectOf(_controlsPlayKey);
     _lyricPlayRect = _rectOf(_lyricPlayKey);
