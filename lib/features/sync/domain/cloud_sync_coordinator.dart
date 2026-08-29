@@ -149,12 +149,15 @@ final class CloudSyncCoordinator {
         ? {...cloudSettings, ...localSettings}
         : {...localSettings, ...cloudSettings};
 
-    // 音源合并：取并集，本地优先（同 id 用本地覆盖云端）
+    // 音源合并：取并集，本地优先（同 id 用本地覆盖云端）；
+    // 跨设备累积的"同名同作者"不同 id 副本只保留最新一条，
+    // 避免同一音源在云端越积越多（线上出现 5 个同名源）。
     final mergedSourceMap = {for (final s in cloudSources) s.id: s};
     for (final s in localSources) {
       mergedSourceMap[s.id] = s;
     }
-    final mergedSources = mergedSourceMap.values.toList();
+    var mergedSources = mergedSourceMap.values.toList();
+    mergedSources = _dedupeSameNameAuthor(mergedSources);
 
     // 应用合并结果到本地
     await _whileApplyingRemote(() async {
@@ -236,6 +239,21 @@ final class CloudSyncCoordinator {
       result[entry.key.toString()] = entry.value.toString();
     }
     return result;
+  }
+
+  /// 同名同作者的不同 id 副本只保留最新一条（跨设备去重）。
+  static List<CustomSource> _dedupeSameNameAuthor(
+    List<CustomSource> sources,
+  ) {
+    final byKey = <String, CustomSource>{};
+    for (final s in sources) {
+      final key = '${s.name}|${s.author}'.toLowerCase();
+      final existing = byKey[key];
+      if (existing == null || !s.updatedAt.isBefore(existing.updatedAt)) {
+        byKey[key] = s;
+      }
+    }
+    return byKey.values.toList();
   }
 
   List<CustomSource> _parseSources(dynamic raw) {
