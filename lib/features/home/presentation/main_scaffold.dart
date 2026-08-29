@@ -10,7 +10,7 @@ import '../../../core/widgets/pressable.dart';
 import '../../player/presentation/widgets/mini_player.dart';
 
 /// 主壳：底栏 + 迷你播放器；分支内容由 [SwipeBranchContainer] 提供。
-class MainScaffold extends StatelessWidget {
+class MainScaffold extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
   final ValueChanged<int>? onBranchTap;
 
@@ -21,7 +21,17 @@ class MainScaffold extends StatelessWidget {
   });
 
   @override
+  State<MainScaffold> createState() => _MainScaffoldState();
+}
+
+class _MainScaffoldState extends State<MainScaffold> {
+  // 上一帧 progress：判定方向——下滑/关闭（progress 下降）时 chrome
+  // 全程立即显示，迷你栏绝不"消失一下"；打开（上升）保留退场窗口。
+  double _prevProgress = 0;
+
+  @override
   Widget build(BuildContext context) {
+    final navigationShell = widget.navigationShell;
     final media = MediaQuery.of(context);
     // `padding` can exclude an overlaid system bar on edge-to-edge platforms.
     // Keep the existing iOS layout, while using the larger stable inset when
@@ -61,11 +71,13 @@ class MainScaffold extends StatelessWidget {
           // 前 90% 转场中先上移/消失，未覆盖区域会露出 Navigator/Scaffold
           // 底色，视觉上就是不分深浅色都会闪一下的全屏浅色幕。
           // 所以底层 chrome 保持到播放器几乎全屏后，再在最后 8% 快速退场。
-          // 0.97：关闭方向 progress 一旦跌破 0.97 立即恢复迷你栏/底栏，
-          // 避免 pop 前后迷你栏"消失一下"。
-          final visibleProgress = progress <= 0.97
+          // 方向感知：下滑/关闭（progress 下降）时 chrome 全程立即显示，
+          // 迷你栏绝不"消失一下"；打开（上升）保留最后 8% 退场窗口。
+          final descending = progress < _prevProgress;
+          _prevProgress = progress;
+          final visibleProgress = descending || progress <= 0.92
               ? 0.0
-              : ((progress - 0.97) / 0.03).clamp(0.0, 1.0);
+              : ((progress - 0.92) / 0.08).clamp(0.0, 1.0);
           final eased = reduceMotion(context)
               ? (visibleProgress == 0 ? 0.0 : 1.0)
               : Curves.easeOutCubic.transform(visibleProgress);
@@ -112,10 +124,10 @@ class MainScaffold extends StatelessWidget {
                       bottomSpacing: bottomSpacing,
                       selectedIndex: selectedIndex,
                       onTap: (i) {
-                        if (onBranchTap != null) {
-                          onBranchTap!(i);
+                        if (widget.onBranchTap != null) {
+                          widget.onBranchTap!(i);
                         } else {
-                          navigationShell.goBranch(i);
+                          widget.navigationShell.goBranch(i);
                         }
                       },
                     ),

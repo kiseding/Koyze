@@ -206,7 +206,8 @@ void main() {
       ).readAsStringSync();
 
       expect(source, contains('visibleProgress'));
-      expect(source, contains('progress <= 0.97'));
+      expect(source, contains('final descending = progress < _prevProgress'));
+      expect(source, contains('descending || progress <= 0.92'));
       expect(source, contains('final chromeOpacity'));
       expect(source, contains('1 - visibleProgress'));
     },
