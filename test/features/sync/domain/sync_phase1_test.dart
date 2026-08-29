@@ -10,6 +10,7 @@ import 'package:koyze/features/sync/domain/sync_account.dart';
 import 'package:koyze/features/sync/domain/sync_event.dart';
 import 'package:koyze/features/sync/domain/sync_phase1_service.dart';
 import 'package:koyze/features/sync/domain/sync_state_machine.dart';
+import 'package:koyze/features/custom_source/domain/custom_source.dart';
 import 'package:koyze/features/custom_source/domain/custom_source_service.dart';
 import 'package:koyze/features/playlist/data/playlist_repository.dart';
 import 'package:koyze/features/playlist/domain/playlist_service.dart';
@@ -212,8 +213,34 @@ void syncSourceEnablementTests() {
 
       await sourcesService.init();
       final now = DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true);
-      await sourcesService.importLxMusicScript(_sourceScript('A'));
-      await sourcesService.importLxMusicScript(_sourceScript('B'));
+      // 用 addSource 直接构造源，避免 importLxMusicScript 触发
+      // flutter_js runtime 初始化（CI 上慢/超时，与本测试目标无关）。
+      await sourcesService.addSource(
+        CustomSource(
+          id: 'src_a',
+          name: 'A',
+          description: '',
+          version: '1.0.0',
+          author: 'local',
+          script: _sourceScript('A'),
+          createdAt: now,
+          updatedAt: now,
+          isEnabled: true,
+        ),
+      );
+      await sourcesService.addSource(
+        CustomSource(
+          id: 'src_b',
+          name: 'B',
+          description: '',
+          version: '1.0.0',
+          author: 'local',
+          script: _sourceScript('B'),
+          createdAt: now,
+          updatedAt: now,
+          isEnabled: true,
+        ),
+      );
       final localA = sourcesService.sources.firstWhere((s) => s.name == 'A');
       final localB = sourcesService.sources.firstWhere((s) => s.name == 'B');
       await sourcesService.toggleSource(localB.id);
