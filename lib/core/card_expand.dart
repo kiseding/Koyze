@@ -441,14 +441,25 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
             : sourceRect.left * t;
         final top = sourceRect.top * t;
         final currentRect = Rect.fromLTWH(left, top, sizeW, sizeH);
-        // 收尾的 18% 快速淡出让下层的卡片本体显现——全程这些元素保持
-        // 与矩形同步的透明度。
-        final reveal = ((1 - t) / 0.18).clamp(0.0, 1.0);
-        // 快照只在收尾阶段浮现（与内容交接），平时不叠加。
-        final snapshotOpacity = ((t - 0.8) / 0.2).clamp(0.0, 1.0);
+        // 收拢/拖拽关闭方向（dragging）：内容保持不透明、不浮现快照，
+        // 收拢矩形只是裁剪窗口——route 移除瞬间真实页面同像素接管，
+        // 不会出现"快照 vs 实时渲染"的亮度跳变。
+        // 展开方向保留原逻辑：内容淡出让快照盖住未长成的本体。
+        final reveal = dragging
+            ? 1.0
+            : ((1 - t) / 0.18).clamp(0.0, 1.0);
+        final snapshotOpacity = dragging
+            ? 0.0
+            : ((t - 0.8) / 0.2).clamp(0.0, 1.0);
         // 背景/表面圆角全程保持与源卡片一致（18），
         // 动效行进中矩形扩张/收缩不改变圆角。
         const radius = 18.0;
+
+        // 收拢完成（t 接近 1）时提前交棒：过渡层退场，真实页面直接接管，
+        // 避免末帧残留图层造成的亮度/内容跳变。
+        if (dragging && t >= 0.99) {
+          return const SizedBox.shrink();
+        }
 
         return Stack(
           fit: StackFit.expand,
