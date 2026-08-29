@@ -9,6 +9,7 @@ void main() {
   test('always delegates validated requests to the pinned transport', () async {
     late ValidatedSourceRequest received;
     final pinned = SourcePinnedTransport(
+      useNativeExecutor: false,
       execute: (_, request, __) async {
         received = request;
         throw StateError('executed');

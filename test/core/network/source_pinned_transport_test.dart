@@ -20,6 +20,7 @@ void main() {
   test('pre-cancellation does not construct Dio', () async {
     var dioCreations = 0;
     final transport = SourcePinnedTransport(
+      useNativeExecutor: false,
       createDio: () {
         dioCreations++;
         return Dio();
@@ -43,6 +44,7 @@ void main() {
     var forceClosed = false;
     Uri? openedUri;
     final transport = SourcePinnedTransport(
+      useNativeExecutor: false,
       createDio: () => dio,
       closeDio: (_) => forceClosed = true,
       execute: (dio, sourceRequest, cancelToken) {

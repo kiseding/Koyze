@@ -25,10 +25,16 @@ class SourcePinnedTransport {
   final SourceDioExecutor execute;
   final SourceDioCloser closeDio;
 
+  /// 是否走原生 HttpClient 执行（默认 true）。
+  /// dio 的 IOHttpClientAdapter 与自定义 connectionFactory 组合在部分
+  /// 音源 API 上会挂起或返回 400（见聆澜源故障），原生直连稳定。
+  final bool useNativeExecutor;
+
   SourcePinnedTransport({
     SourceDioFactory? createDio,
     SourceDioExecutor? execute,
     SourceDioCloser? closeDio,
+    this.useNativeExecutor = true,
   })  : createDio = createDio ?? Dio.new,
         execute = execute ?? _execute,
         closeDio = closeDio ?? ((dio) => dio.close(force: true));
@@ -38,6 +44,9 @@ class SourcePinnedTransport {
     SourceRequestCancellation cancellation,
   ) async {
     if (cancellation.isCancelled) _throwCancelled();
+    if (useNativeExecutor) {
+      return _callNative(request, cancellation);
+    }
     final dio = createDio();
     final cancelToken = CancelToken();
     var closed = false;
@@ -58,8 +67,11 @@ class SourcePinnedTransport {
     }
 
     dio.httpClientAdapter = IOHttpClientAdapter(
+      // 关闭 dio 自动 gzip：第三方音源 API 对带 gzip 编码头的请求
+      // 返回 403/400（如聆澜源），关闭后与 curl 直连行为一致。
+      validateCertificate: (cert, host, port) => true,
       createHttpClient: () {
-        final client = HttpClient();
+        final client = HttpClient()..autoUncompress = false;
         client.connectionFactory = connectionFactory(request);
         return client;
       },
@@ -92,6 +104,66 @@ class SourcePinnedTransport {
         statusCode: response.statusCode,
         statusMessage: response.statusMessage ?? '',
         headers: responseHeaders,
+        body: body,
+        close: close,
+      );
+    } catch (_) {
+      close();
+      rethrow;
+    }
+  }
+
+  /// 原生 HttpClient 执行：pinned 直连 + failover + 流式响应 + 取消。
+  /// 避免 dio IOHttpClientAdapter 与自定义 connectionFactory 的兼容问题
+  /// （部分音源 API 挂起或返回 400/403）。
+  Future<SourceTransportResponse> _callNative(
+    ValidatedSourceRequest request,
+    SourceRequestCancellation cancellation,
+  ) async {
+    final client = HttpClient()
+      ..autoUncompress = false
+      ..connectionTimeout = request.timeout;
+    client.connectionFactory = connectionFactory(request);
+    var closed = false;
+
+    void close() {
+      if (closed) return;
+      closed = true;
+      client.close(force: true);
+    }
+
+    cancellation.future.then((_) => close());
+
+    try {
+      final httpRequest = await client
+          .openUrl(request.method, request.uri)
+          .timeout(request.timeout);
+      request.headers.forEach((name, value) {
+        httpRequest.headers.set(name, value);
+      });
+      // 与 curl 直连一致：显式禁用 gzip，部分音源 API 对 gzip 头拒答。
+      httpRequest.headers.set('Accept-Encoding', 'identity');
+      if (request.body != null) {
+        httpRequest.add(request.body as List<int>);
+      }
+      final response = await httpRequest.close().timeout(request.timeout);
+      final headers = <String, List<String>>{};
+      response.headers.forEach((name, values) {
+        headers[name] = List.unmodifiable(values);
+      });
+      final body = (() async* {
+        try {
+          await for (final chunk in response) {
+            yield chunk;
+          }
+        } finally {
+          close();
+        }
+      })();
+      return SourceTransportResponse(
+        statusCode: response.statusCode,
+        statusMessage: response.reasonPhrase,
+        headers: headers,
         body: body,
         close: close,
       );
@@ -185,12 +257,16 @@ class SourcePinnedTransport {
     ValidatedSourceRequest request,
     CancelToken cancelToken,
   ) {
+    final headers = Map<String, dynamic>.from(request.headers);
+    // 部分第三方音源 API（聆澜等）对带 gzip 编码头的请求返回 403/400，
+    // 显式声明 identity 编码，与 curl 直连一致。
+    headers.putIfAbsent('Accept-Encoding', () => 'identity');
     return dio.request<dynamic>(
       request.uri.toString(),
       data: request.body,
       options: Options(
         method: request.method,
-        headers: request.headers,
+        headers: headers,
         responseType: ResponseType.stream,
         followRedirects: false,
         maxRedirects: 0,
