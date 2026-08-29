@@ -28,7 +28,11 @@ void main() {
     expect(full, isNot(contains('final shellOpacity =')));
     expect(full, isNot(contains('scaffoldBackgroundColor.withAlpha')));
     expect(full, isNot(contains('(255 * shellOpacity).round()')));
-    expect(full, contains('if (progress > 0)'));
+    expect(full, contains('if (!hideLayer && (progress > 0 || closing))'));
+    // 歌词页关闭：整页压成长条落向迷你栏歌词行，0~98% 渐隐避免重影。
+    expect(full, contains('_miniLyricRowRect(miniRect)'));
+    expect(full, contains("(1 - closeT / 0.98).clamp(0.0, 1.0)"));
+    expect(full, contains('else if (!lyricCollapsing)'));
     expect(full, contains('color: Theme.of(context).scaffoldBackgroundColor'));
     expect(full, contains('color: Colors.transparent'));
     expect(full, contains('if (_currentPage == 0)'));

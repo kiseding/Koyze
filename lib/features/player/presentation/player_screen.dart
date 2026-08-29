@@ -504,6 +504,21 @@ Rect _miniPlayButtonRect(Rect miniRect) {
   );
 }
 
+/// 迷你栏"歌词行"区域：歌词页关闭动效末段整页压成这个长条落位。
+Rect _miniLyricRowRect(Rect miniRect) {
+  const progressHeight = 20.0;
+  const rowLeft = 12.0 + 42.0 + 10.0; // 内边距 + 封面 + 间距
+  const rowHeight = 34.0;
+  final width =
+      miniRect.width - rowLeft - 6.0 - 128.0 - 6.0; // 到右侧按钮区左缘
+  return Rect.fromLTWH(
+    miniRect.left + rowLeft,
+    miniRect.top + progressHeight + 4,
+    width.clamp(0.0, miniRect.width),
+    rowHeight,
+  );
+}
+
 Rect _fullControlsPlayButtonRect(
   BuildContext context, {
   required double screenW,
@@ -868,7 +883,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final morphT = progress;
         // 右滑与下滑共用同一 sheet 式路径（底部锚定、线性收向迷你栏），
         // 保证"进出同路径"（Apple Design §7 空间一致性）。
-        final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
+        // 歌词页关闭：整页压成迷你栏歌词行大小的长条落位。
+        final lyricCollapsing = _currentPage == 1 &&
+            (progress < 1 ||
+                playerRouteDismissLocked ||
+                _draggingDown ||
+                _collapsing ||
+                _settleController.isAnimating ||
+                edgeDragActive);
+        final closeT = 1 - progress;
+        final currentRect = lyricCollapsing
+            ? Rect.lerp(
+                fullRect,
+                _miniLyricRowRect(miniRect),
+                closeT,
+              )!
+            : Rect.lerp(miniRect, fullRect, morphT)!;
         final miniArtworkRect = _miniArtworkRect(miniRect);
         final fullArtworkRect =
             _artworkRect ??
@@ -933,16 +963,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               );
         // 背景动画期间也跟手透明（阴影已移除，不会发灰）；
         // 非动画阶段保持纯色。
-        final sheetAlpha = animating ? dragReveal : 1.0;
-        // sheet 圆角跟手。
-        final sheetRadius = 16 * (1 - progress);
+        // 歌词页关闭时长条的渐隐交给整层 layerFade（0~98% 线性至全透），
+        // 底色保持不透明避免双重透明叠加。
+        final sheetAlpha = lyricCollapsing
+            ? 1.0
+            : (animating ? dragReveal : 1.0);
+        // sheet 圆角跟手（长条用迷你栏同款 16）。
+        final sheetRadius = lyricCollapsing ? 16.0 : 16 * (1 - progress);
+        final layerFade = lyricCollapsing
+            ? (1 - closeT / 0.98).clamp(0.0, 1.0)
+            : 1.0;
+        final hideLayer = lyricCollapsing && closeT >= 0.98;
         return Stack(
           fit: StackFit.expand,
           children: [
-            if (progress > 0)
+            if (!hideLayer && (progress > 0 || closing))
               Positioned.fromRect(
                 rect: currentRect,
-                child: ClipRRect(
+                child: Opacity(
+                  opacity: layerFade,
+                  child: ClipRRect(
                   borderRadius: BorderRadius.circular(sheetRadius),
                   child: ColoredBox(
                     color: Theme.of(context).scaffoldBackgroundColor.withValues(
@@ -973,6 +1013,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
               ),
+            ),
             if (_currentPage == 0)
               _RouteArtworkMorphOverlay(
                 rect: artworkMorphRect,
@@ -981,7 +1022,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 artwork: currentMusic.artwork,
                 fallback: _defaultArtwork,
               )
-            else
+            else if (!lyricCollapsing)
               _RoutePlayButtonMorphOverlay(
                 rect: playButtonMorphRect,
                 progress: progress,
