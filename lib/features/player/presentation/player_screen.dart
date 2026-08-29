@@ -950,11 +950,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // 一旦进入关闭/手势驱动则全程可见（封面/按钮随进度完整归位）。
         final closing = animating || playerRouteDismissLocked;
         final dragReveal = ((progress - 0.9) / 0.1).clamp(0.0, 1.0);
-        final contentOpacity = animating
+        // 歌词页关闭：内容保持可见，随整页长条一起由 layerFade 统一渐隐
+        // （提前全透会让右滑只剩半透明背景飞入迷你栏）。
+        final contentOpacity = lyricCollapsing
+            ? 1.0
+            : (animating
             ? dragReveal
             : MotionCurve.iosSpring.transform(
                 ((progress - 0.03) / 0.17).clamp(0.0, 1.0),
-              );
+              ));
         // 正文封面同样在 0~10% 内让位给飞行封面（避免双封面卡顿）。
         final artworkReveal = animating
             ? dragReveal
@@ -970,10 +974,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             : (animating ? dragReveal : 1.0);
         // sheet 圆角跟手（长条用迷你栏同款 16）。
         final sheetRadius = lyricCollapsing ? 16.0 : 16 * (1 - progress);
+        // 透明度窗口：0~90% 实色，90~96% 渐隐至全透，96~100% 不渲染。
         final layerFade = lyricCollapsing
-            ? (1 - closeT / 0.98).clamp(0.0, 1.0)
+            ? ((0.96 - closeT) / 0.06).clamp(0.0, 1.0)
             : 1.0;
-        final hideLayer = lyricCollapsing && closeT >= 0.98;
+        final hideLayer = lyricCollapsing && closeT >= 0.96;
         return Stack(
           fit: StackFit.expand,
           children: [

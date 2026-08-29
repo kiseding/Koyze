@@ -31,7 +31,7 @@ void main() {
     expect(full, contains('if (!hideLayer && (progress > 0 || closing))'));
     // 歌词页关闭：整页压成长条落向迷你栏歌词行，0~98% 渐隐避免重影。
     expect(full, contains('_miniLyricRowRect(miniRect)'));
-    expect(full, contains("(1 - closeT / 0.98).clamp(0.0, 1.0)"));
+    expect(full, contains("((0.96 - closeT) / 0.06).clamp(0.0, 1.0)"));
     expect(full, contains('else if (!lyricCollapsing)'));
     expect(full, contains('color: Theme.of(context).scaffoldBackgroundColor'));
     expect(full, contains('color: Colors.transparent'));
@@ -206,7 +206,7 @@ void main() {
       ).readAsStringSync();
 
       expect(source, contains('visibleProgress'));
-      expect(source, contains('progress <= 0.92'));
+      expect(source, contains('progress <= 0.97'));
       expect(source, contains('final chromeOpacity'));
       expect(source, contains('1 - visibleProgress'));
     },

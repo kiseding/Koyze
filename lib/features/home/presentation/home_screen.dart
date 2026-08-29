@@ -205,19 +205,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '收藏列表',
-                      style: TextStyle(
-                        color: onAccent,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Text(
+                          '收藏列表',
+                          style: TextStyle(
+                            color: onAccent,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (favoriteCount > 0) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '($favoriteCount)',
+                            style: TextStyle(
+                              color: onAccent.withAlpha(210),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
                       favoriteCount == 0
                           ? '还没有收藏歌曲'
-                          : '共 $favoriteCount 首 · 点击查看，右侧随机播放',
+                          : '点击查看，右侧随机播放',
                       style: TextStyle(
                         color: onAccent.withAlpha(210),
                         fontSize: 13,

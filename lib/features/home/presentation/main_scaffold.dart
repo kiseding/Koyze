@@ -61,9 +61,11 @@ class MainScaffold extends StatelessWidget {
           // 前 90% 转场中先上移/消失，未覆盖区域会露出 Navigator/Scaffold
           // 底色，视觉上就是不分深浅色都会闪一下的全屏浅色幕。
           // 所以底层 chrome 保持到播放器几乎全屏后，再在最后 8% 快速退场。
-          final visibleProgress = progress <= 0.92
+          // 0.97：关闭方向 progress 一旦跌破 0.97 立即恢复迷你栏/底栏，
+          // 避免 pop 前后迷你栏"消失一下"。
+          final visibleProgress = progress <= 0.97
               ? 0.0
-              : ((progress - 0.92) / 0.08).clamp(0.0, 1.0);
+              : ((progress - 0.97) / 0.03).clamp(0.0, 1.0);
           final eased = reduceMotion(context)
               ? (visibleProgress == 0 ? 0.0 : 1.0)
               : Curves.easeOutCubic.transform(visibleProgress);
