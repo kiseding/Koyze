@@ -1,4 +1,7 @@
+@Tags(['live'])
+library;
 import 'package:flutter_test/flutter_test.dart';
+
 import 'package:koyze/core/network/music_source_service.dart';
 import 'package:koyze/core/music_source/platform/built_in_source_manager.dart';
 import 'package:koyze/core/music_source/platform/music_platform.dart';
