@@ -235,6 +235,46 @@ void main() {
     );
   });
 
+  testWidgets('full-width swipe overrides iOS system edge gesture', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.iOS),
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              PageRouteBuilder<void>(
+                opaque: true,
+                pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
+                  fullWidthSwipe: true,
+                  child: ColoredBox(color: Colors.black),
+                ),
+              ),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final dragDetectors = tester.widgetList<GestureDetector>(
+      find.byType(GestureDetector),
+    );
+    expect(
+      dragDetectors.where((detector) => detector.onHorizontalDragUpdate != null),
+      isNotEmpty,
+    );
+
+    final gesture = await tester.startGesture(const Offset(400, 300));
+    await gesture.moveBy(const Offset(240, 0));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('open'), findsOneWidget);
+  });
+
   testWidgets(
       'inverted edge drag progresses gradually from full screen instead of jumping',
       (tester) async {

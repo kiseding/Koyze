@@ -337,7 +337,8 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     final ios = Theme.of(context).platform == TargetPlatform.iOS;
     // 不透明路由（iOS 普通页）：系统左缘返回手势可用，自绘手势完全退出，
     // 过渡则直接由系统手势驱动的 route 动画播放（跟手 + 从当前位置继续）。
-    final systemBackGesture = ios && opaqueRoute;
+    // fullWidthSwipe 必须由自绘识别器接管；iOS 系统只支持左缘起手。
+    final systemBackGesture = ios && opaqueRoute && !widget.fullWidthSwipe;
     // 透明路由（卡片展开/播放器）必须只走内层矩形 morph 一套进度，
     // 避免外层 translate/scale 与内层裁剪互相打架。
     final morphOnly = !opaqueRoute;
