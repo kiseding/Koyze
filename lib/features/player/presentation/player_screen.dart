@@ -504,6 +504,22 @@ Rect _miniPlayButtonRect(Rect miniRect) {
   );
 }
 
+/// 迷你栏"歌词行"区域：歌词页退出动效整页对称收成这个长条落位
+/// （12 内边距 + 42 封面 + 10 间距起，到右侧 128 按钮区；歌词文本行
+/// 位于内容行下半部 ≈ miniTop+48，高 14）。
+Rect _miniLyricRowRect(Rect miniRect) {
+  const rowLeft = 12.0 + 42.0 + 10.0;
+  const rowTop = 48.0;
+  const rowHeight = 14.0;
+  final width = miniRect.width - rowLeft - 6.0 - 128.0;
+  return Rect.fromLTWH(
+    miniRect.left + rowLeft,
+    miniRect.top + rowTop,
+    width.clamp(0.0, miniRect.width),
+    rowHeight,
+  );
+}
+
 Rect _fullControlsPlayButtonRect(
   BuildContext context, {
   required double screenW,
@@ -884,6 +900,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           miniWidth,
           miniHeight,
         );
+        final fullRect = Offset.zero & Size(screenW, screenH);
         final lyricCollapsing = _currentPage == 1 &&
             (progress < 1 ||
                 playerRouteDismissLocked ||
@@ -897,20 +914,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final stripT = lyricCollapsing
             ? ((closeT - 0.9) / 0.09).clamp(0.0, 1.0)
             : 0.0;
-        // 整页等比缩放（上下对称）：目标比例 = 迷你栏高度/屏高，
-        // 背景与内容共用同一变换，缩放程度完全一致。
-        final pageScale = lerpDouble(miniRect.height / screenH, 1.0, progress)!;
-        // 收起焦点：封面页→迷你栏中心；歌词页→迷你栏歌词行中心。
-        // 卡片中心随进度从屏幕中心插值到焦点：progress=1 时变换恒等
-        // （页面仍在原位，切换分支零跳变），progress=0 时收敛到焦点。
-        final focal = lyricCollapsing
-            ? Offset(miniRect.center.dx, miniRect.top + 54)
-            : miniRect.center;
-        final cardCenter = Offset.lerp(
-          focal,
-          Offset(screenW / 2, screenH / 2),
-          progress,
-        )!;
+        // 对称收起（卡片式）：矩形从全屏线性收向目标——封面页→迷你栏，
+        // 歌词页→迷你栏歌词行同款长条；内容以矩形中心锚定并按宽度比
+        // 等比缩放，上下从两侧对称裁剪（焦点 = 矩形中心）。
+        final collapseTarget = lyricCollapsing
+            ? _miniLyricRowRect(miniRect)
+            : miniRect;
+        final currentRect = Rect.lerp(collapseTarget, fullRect, progress)!;
         final miniArtworkRect = _miniArtworkRect(miniRect);
         final fullArtworkRect =
             _artworkRect ??
@@ -992,13 +1002,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               );
         // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
         final hideLayer = lyricCollapsing && closeT >= 0.99;
-        // 单一矩阵表达 sheet 几何：整页等比缩放（上下对称），中心从
-        // 屏幕中心插值到焦点。封面页与歌词页共用同一 widget 结构与同一
-        // 变换，仅焦点不同，避免分支翻转销毁子树导致 PageView 回退。
-        final sheetMatrix = Matrix4.identity()
-          ..translate(cardCenter.dx, cardCenter.dy)
-          ..scale(pageScale)
-          ..translate(-screenW / 2, -screenH / 2);
+        // 单一渲染结构：Positioned.fromRect(currentRect) + 中心锚定 +
+        // 按宽度比等比缩放。封面页与歌词页共用（仅 currentRect 目标不同），
+        // 避免 lyricCollapsing 翻转时子树销毁重建导致 PageView 回退。
         final sheetContent = Opacity(
           opacity: contentOpacity,
           child: _buildPlayerBody(
@@ -1018,45 +1024,45 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           fit: StackFit.expand,
           children: [
             if (!hideLayer && (progress > 0 || closing))
-              Positioned.fill(
-                // 收拢锁定后 sheet 缩在迷你栏位置且不可见，必须放行点击，
+              Positioned.fromRect(
+                rect: currentRect,
+                // 收拢锁定后 sheet 缩在目标位置且不可见，必须放行点击，
                 // 否则迷你栏要等路由移除后才能交互。
                 child: IgnorePointer(
                   ignoring: progress <= 0 && !animating,
-                  child: Transform(
-                    transform: sheetMatrix,
-                    alignment: Alignment.topLeft,
-                    // 歌词页收拢时随进度浮现卡片阴影（与迷你栏同款）；
-                    // 封面页 sheet 路径无阴影。
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: lyricCollapsing
-                            ? [
-                                BoxShadow(
-                                  color: Colors.black.withValues(
-                                    alpha:
-                                        (AppColors.isDark(context)
-                                            ? 0.40
-                                            : 0.10) *
-                                        closeT,
-                                  ),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 2),
+                  // 歌词页收拢时随进度浮现卡片阴影（与迷你栏同款）；
+                  // 封面页路径无阴影。
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16 * (1 - progress)),
+                      boxShadow: lyricCollapsing
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(
+                                  alpha:
+                                      (AppColors.isDark(context)
+                                          ? 0.40
+                                          : 0.10) *
+                                      closeT,
                                 ),
-                              ]
-                            : const <BoxShadow>[],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16 * (1 - progress)),
-                        child: ColoredBox(
-                          color: sheetColor,
-                          child: OverflowBox(
-                            alignment: Alignment.topLeft,
-                            minWidth: screenW,
-                            maxWidth: screenW,
-                            minHeight: screenH,
-                            maxHeight: screenH,
+                                blurRadius: 12,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : const <BoxShadow>[],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16 * (1 - progress)),
+                      child: ColoredBox(
+                        color: sheetColor,
+                        child: OverflowBox(
+                          alignment: Alignment.center,
+                          minWidth: screenW,
+                          maxWidth: screenW,
+                          minHeight: screenH,
+                          maxHeight: screenH,
+                          child: Transform.scale(
+                            scale: currentRect.width / screenW,
                             child: sheetContent,
                           ),
                         ),
