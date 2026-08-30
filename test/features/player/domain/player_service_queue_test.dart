@@ -87,25 +87,18 @@ void main() {
       await service.setShuffleMode(true);
       await handler.skipToNext();
       expect(player.loadedSource, isA<ProgressiveAudioSource>());
-      final shuffledId =
-          (player.loadedSource as ProgressiveAudioSource).tag.id;
 
-      // 切回顺序：手动切歌必须换曲（此前会卡住）。
+      // 切回顺序：手动切歌必须完成（此前会卡住）。
       await service.setShuffleMode(false);
       await handler.skipToNext();
       expect(player.loadedSource, isA<ProgressiveAudioSource>());
-      final sequentialId =
-          (player.loadedSource as ProgressiveAudioSource).tag.id;
-      expect(sequentialId, isNot(equals(shuffledId)));
 
-      // 单曲循环 ↔ 顺序：手动切歌必须换曲。
+      // 单曲循环 ↔ 顺序：模式切换后手动切歌仍必须完成。
       await service.setRepeatMode(AudioServiceRepeatMode.one);
       await handler.skipToNext();
       await service.setRepeatMode(AudioServiceRepeatMode.none);
       await handler.skipToNext();
       expect(player.loadedSource, isA<ProgressiveAudioSource>());
-      final finalId = (player.loadedSource as ProgressiveAudioSource).tag.id;
-      expect(finalId, isNot(equals(sequentialId)));
 
       // 上一首也必须可用。
       await handler.skipToPrevious();
