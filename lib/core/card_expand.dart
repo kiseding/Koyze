@@ -562,6 +562,8 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         // 不能再往左缘飞。
         final fingerX = cardDismissOffset.value;
         final dragging = cardDismissLocked || cardDismissProgress.value > 0;
+        final dismissing =
+            dragging || widget.animation.status == AnimationStatus.reverse;
         final left = dragging
             ? fingerX * (1 - t) + sourceRect.left * t
             : sourceRect.left * t;
@@ -571,11 +573,13 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         // 收拢矩形只是裁剪窗口——route 移除瞬间真实页面同像素接管，
         // 不会出现"快照 vs 实时渲染"的亮度跳变。
         // 展开方向保留原逻辑：内容淡出让快照盖住未长成的本体。
-        final reveal = dragging
-            ? 1.0
+        // 关闭 80%~90% 完成交接：实时页面淡出、源卡片快照淡入；
+        // 90%~99% 全程由快照沿矩形路径飞回，最后 1% 直接砍层。
+        final reveal = dismissing
+            ? ((0.9 - t) / 0.1).clamp(0.0, 1.0)
             : ((1 - t) / 0.18).clamp(0.0, 1.0);
-        final snapshotOpacity = dragging
-            ? 0.0
+        final snapshotOpacity = dismissing
+            ? ((t - 0.8) / 0.1).clamp(0.0, 1.0)
             : ((t - 0.8) / 0.2).clamp(0.0, 1.0);
         // 背景/表面圆角全程保持与源卡片一致（18），
         // 动效行进中矩形扩张/收缩不改变圆角。
@@ -583,7 +587,7 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
 
         // 收拢完成（t 接近 1）时提前交棒：过渡层退场，真实页面直接接管，
         // 避免末帧残留图层造成的亮度/内容跳变。
-        if (dragging && t >= 0.99) {
+        if (dismissing && t >= 0.99) {
           return const SizedBox.shrink();
         }
 
@@ -601,7 +605,7 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                       opacity: reveal,
                       child: ColoredBox(color: backgroundColor),
                     ),
-                    // 快照只在收尾浮现：展开起步盖住本体、收拢收尾交接。
+                    // 快照在关闭 80%~90% 交接，之后 90%~99% 独立飞回源卡片。
                     if (widget.sourceSnapshot != null)
                       Opacity(
                         opacity: snapshotOpacity,
