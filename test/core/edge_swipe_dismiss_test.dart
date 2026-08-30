@@ -285,6 +285,38 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     expect(find.text('open'), findsOneWidget);
+    expect(cardDismissLocked, isFalse);
+  });
+
+  testWidgets('full-width transition uses card scale and rounded surface', (
+    tester,
+  ) async {
+    final page = expandablePage(
+      const ValueKey('full-width-card-motion'),
+      const ColoredBox(color: Colors.black),
+      fullWidthSwipe: true,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => page.transitionsBuilder(
+            context,
+            const AlwaysStoppedAnimation(0.5),
+            const AlwaysStoppedAnimation(0),
+            page.child,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(Transform), findsWidgets);
+    expect(
+      tester
+          .widgetList<ClipRRect>(find.byType(ClipRRect))
+          .any((clip) => clip.borderRadius != BorderRadius.zero),
+      isTrue,
+    );
   });
 
   testWidgets(

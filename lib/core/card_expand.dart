@@ -118,21 +118,35 @@ CustomTransitionPage<Object?> expandablePage(
             final dx = gestureDriven
                 ? cardDismissOffset.value
                 : width * (1 - curved.value);
+            final t = gestureDriven
+                ? cardDismissProgress.value.clamp(0.0, 1.0)
+                : (1 - curved.value).clamp(0.0, 1.0);
+            final scale = 1 - 0.10 * t;
+            final radius = 34.0 * t;
             return Transform.translate(
-              offset: Offset(dx, 0),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: 0.20 * (1 - dx / width).clamp(0.0, 1.0),
+              offset: Offset(dx, 12 * t),
+              child: Transform.scale(
+                scale: scale,
+                alignment: Alignment.center,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(radius),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: 0.24 * (1 - t),
+                        ),
+                        blurRadius: 28,
+                        spreadRadius: 2 * t,
+                        offset: const Offset(-8, 2),
                       ),
-                      blurRadius: 24,
-                      offset: const Offset(-8, 0),
-                    ),
-                  ],
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(radius),
+                    child: child,
+                  ),
                 ),
-                child: child,
               ),
             );
           },
@@ -322,6 +336,9 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     }
     cardDismissOffset.value = 0;
     edgeDragActive = false;
+    // fullWidthSwipe 不经过 _CardRevealTransition.dispose；必须在这里清锁，
+    // 否则一次手势退出后后续按钮/手势退出都会被当成已收拢而跳过动画。
+    if (widget.fullWidthSwipe) cardDismissLocked = false;
     _settleController.dispose();
     super.dispose();
   }
