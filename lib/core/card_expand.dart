@@ -85,7 +85,7 @@ CustomTransitionPage<Object?> expandablePage(
   bool fullWidthSwipe = false,
 }) {
   final expanding = expandRect != null;
-  return CustomTransitionPage<Object?>(
+  return _CardExpandPage(
     key: pageKey,
     // 普通页（无卡片展开）保持不透明：iOS 上因此能启用系统级
     // "左缘右滑返回"手势（跟手 + 从当前位置继续，浮窗缩小也由系统提供）。
@@ -138,6 +138,79 @@ CustomTransitionPage<Object?> expandablePage(
       );
     },
   );
+}
+
+class _CardExpandPage extends CustomTransitionPage<Object?> {
+  _CardExpandPage({
+    required super.key,
+    required super.child,
+    required super.transitionsBuilder,
+    required super.opaque,
+    required super.barrierDismissible,
+    super.barrierColor,
+    super.transitionDuration,
+    super.reverseTransitionDuration,
+  });
+
+  @override
+  Route<Object?> createRoute(BuildContext context) =>
+      _CardExpandRoute(page: this);
+}
+
+/// 卡片页路由：视觉收拢完成（cardDismissLocked）后再 pop 时，反向动画
+/// 清零——路由与屏障立即移除，源卡片无需等一段不可见的过渡时间才能点击。
+class _CardExpandRoute extends PageRoute<Object?> {
+  _CardExpandRoute({required _CardExpandPage page}) : super(settings: page);
+
+  _CardExpandPage get _page => settings as _CardExpandPage;
+
+  @override
+  bool get opaque => _page.opaque;
+
+  @override
+  bool get barrierDismissible => _page.barrierDismissible;
+
+  @override
+  Color? get barrierColor => _page.barrierColor;
+
+  @override
+  String? get barrierLabel => _page.barrierLabel;
+
+  @override
+  bool get maintainState => _page.maintainState;
+
+  @override
+  Duration get transitionDuration => _page.transitionDuration;
+
+  @override
+  Duration get reverseTransitionDuration => _page.reverseTransitionDuration;
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) => Semantics(
+    scopesRoute: true,
+    explicitChildNodes: true,
+    child: _page.child,
+  );
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => _page.transitionsBuilder(context, animation, secondaryAnimation, child);
+
+  @override
+  bool didPop(Object? result) {
+    if (cardDismissLocked) {
+      controller?.reverseDuration = Duration.zero;
+    }
+    return super.didPop(result);
+  }
 }
 
 /// 从屏幕左缘右滑关闭当前页面。只在边缘窄条接管手势，避免影响页面

@@ -330,6 +330,16 @@ class _PlayerTransitionRoute extends PageRoute<void> {
   @override
   Duration get reverseTransitionDuration => MotionDuration.playerReverse;
 
+  /// 拖拽/左缘手势已把界面收拢到位后再 pop：反向动画清零，路由与屏障
+  /// 立即移除，迷你栏无需等一段不可见的过渡时间才能点击。
+  @override
+  bool didPop(void result) {
+    if (playerRouteDismissLocked) {
+      controller?.reverseDuration = Duration.zero;
+    }
+    return super.didPop(result);
+  }
+
   @override
   Widget buildPage(
     BuildContext context,

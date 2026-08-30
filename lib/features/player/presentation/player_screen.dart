@@ -892,6 +892,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 _settleController.isAnimating ||
                 edgeDragActive);
         final closeT = 1 - progress;
+        // 歌词行收拢窗口：0~90% 保持原样，90~99% 渐变成迷你栏同款灰，
+        // 99% 后整层砍掉、由真实迷你栏接管。
+        final stripT = lyricCollapsing
+            ? ((closeT - 0.9) / 0.09).clamp(0.0, 1.0)
+            : 0.0;
         final currentRect = lyricCollapsing
             ? Rect.lerp(
                 fullRect,
@@ -950,10 +955,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // 一旦进入关闭/手势驱动则全程可见（封面/按钮随进度完整归位）。
         final closing = animating || playerRouteDismissLocked;
         final dragReveal = ((progress - 0.9) / 0.1).clamp(0.0, 1.0);
-        // 歌词页关闭：内容保持可见，随整页长条一起由 layerFade 统一渐隐
-        // （提前全透会让右滑只剩半透明背景飞入迷你栏）。
+        // 歌词页关闭：内容随长条一起在 90~99% 窗口内淡出，
+        // 交棒给真实迷你栏歌词行。
         final contentOpacity = lyricCollapsing
-            ? 1.0
+            ? 1.0 - stripT
             : (animating
             ? dragReveal
             : MotionCurve.iosSpring.transform(
@@ -967,40 +972,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               );
         // 背景动画期间也跟手透明（阴影已移除，不会发灰）；
         // 非动画阶段保持纯色。
-        // 歌词页关闭时长条的渐隐交给整层 layerFade（0~98% 线性至全透），
-        // 底色保持不透明避免双重透明叠加。
-        final sheetAlpha = lyricCollapsing
-            ? 1.0
-            : (closing ? dragReveal : 1.0);
+        // 歌词页关闭：底色不透出下层，而是 90~99% 渐变成迷你栏同款灰。
+        final sheetColor = lyricCollapsing
+            ? Color.lerp(
+                Theme.of(context).scaffoldBackgroundColor,
+                AppColors.miniBar(context),
+                stripT,
+              )!
+            : Theme.of(context).scaffoldBackgroundColor.withValues(
+                alpha: closing ? dragReveal : 1.0,
+              );
         // sheet 圆角跟手（长条用迷你栏同款 16）。
         final sheetRadius = lyricCollapsing ? 16.0 : 16 * (1 - progress);
-        // 透明度窗口：0~90% 实色，90~96% 渐隐至全透，96~100% 不渲染。
-        final layerFade = lyricCollapsing
-            ? ((0.96 - closeT) / 0.06).clamp(0.0, 1.0)
-            : 1.0;
-        final hideLayer = lyricCollapsing && closeT >= 0.96;
+        // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
+        final hideLayer = lyricCollapsing && closeT >= 0.99;
         return Stack(
           fit: StackFit.expand,
           children: [
             if (!hideLayer && (progress > 0 || closing))
               Positioned.fromRect(
                 rect: currentRect,
-                child: Opacity(
-                  opacity: layerFade,
+                // 收拢锁定后 sheet 停在迷你栏位置且不可见，必须放行点击，
+                // 否则迷你栏要等路由移除后才能交互。
+                child: IgnorePointer(
+                  ignoring: progress <= 0 && !animating,
                   child: ClipRRect(
                   borderRadius: BorderRadius.circular(sheetRadius),
                   child: ColoredBox(
-                    color: Theme.of(context).scaffoldBackgroundColor.withValues(
-                      alpha: sheetAlpha,
-                    ),
+                    color: sheetColor,
                 child: OverflowBox(
                   alignment: Alignment.topLeft,
                   minWidth: screenW,
                   maxWidth: screenW,
                   minHeight: screenH,
                   maxHeight: screenH,
-                  child: Transform.scale(
-                    scale: lyricCollapsing ? currentRect.width / screenW : 1.0,
+                  child: Transform(
+                    transform: lyricCollapsing
+                        ? (Matrix4.identity()
+                              ..translate(
+                                currentRect.center.dx,
+                                currentRect.center.dy,
+                              )
+                              ..scale(currentRect.width / screenW)
+                              ..translate(-screenW / 2, -screenH / 2))
+                        : Matrix4.identity(),
                     alignment: Alignment.topLeft,
                     child: Opacity(
                       opacity: contentOpacity,
