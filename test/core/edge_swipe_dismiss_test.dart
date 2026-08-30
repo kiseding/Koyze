@@ -52,6 +52,18 @@ void main() {
     expect(page.child, isNot(isA<EdgeSwipeDismiss>()));
   });
 
+  testWidgets('full-width page stays transparent for two-way fly', (
+    tester,
+  ) async {
+    final page = expandablePage(
+      const ValueKey('full-width-detail'),
+      const SizedBox(),
+      fullWidthSwipe: true,
+    );
+
+    expect(page.opaque, isFalse);
+  });
+
   testWidgets('edge swipe wraps the complete card transition', (tester) async {
     final page = expandablePage(
       const ValueKey('detail'),

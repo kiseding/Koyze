@@ -90,7 +90,8 @@ CustomTransitionPage<Object?> expandablePage(
     // 普通页（无卡片展开）保持不透明：iOS 上因此能启用系统级
     // "左缘右滑返回"手势（跟手 + 从当前位置继续，浮窗缩小也由系统提供）。
     // 卡片展开页必须透明才能透视下层做矩形 morph，走自绘左缘手势。
-    opaque: !expanding,
+    // 整页右滑页也必须透明，飞入/飞出时才能实时露出下层页面。
+    opaque: !expanding && !fullWidthSwipe,
     barrierDismissible: expanding,
     barrierColor: Colors.transparent,
     transitionDuration: MotionDuration.container,
@@ -103,7 +104,41 @@ CustomTransitionPage<Object?> expandablePage(
         reverseCurve: Curves.easeInCubic,
       );
       late final Widget transition;
-      if (!expanding) {
+      if (fullWidthSwipe) {
+        transition = AnimatedBuilder(
+          animation: Listenable.merge([
+            curved,
+            cardDismissOffset,
+            cardDismissProgress,
+          ]),
+          builder: (context, child) {
+            final width = MediaQuery.sizeOf(context).width;
+            final gestureDriven =
+                edgeDragActive || cardDismissLocked || cardDismissOffset.value > 0;
+            final dx = gestureDriven
+                ? cardDismissOffset.value
+                : width * (1 - curved.value);
+            return Transform.translate(
+              offset: Offset(dx, 0),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(
+                        alpha: 0.20 * (1 - dx / width).clamp(0.0, 1.0),
+                      ),
+                      blurRadius: 24,
+                      offset: const Offset(-8, 0),
+                    ),
+                  ],
+                ),
+                child: child,
+              ),
+            );
+          },
+          child: child,
+        );
+      } else if (!expanding) {
         transition = AnimatedBuilder(
           animation: Listenable.merge([curved, cardDismissProgress]),
           builder: (context, child) {
@@ -411,7 +446,7 @@ if (_drag > width * 0.22 || velocity > 700) {
                 // 收拢成卡片，在源卡片位置成型后 pop（宿主此时锁定
                 // 反向动画接管，路由关闭不再回弹放大）。
                 _settleTo(
-                  targetDrag: 0,
+                 targetDrag: widget.fullWidthSwipe ? width : 0,
                   targetMorph: 1,
                   duration: MotionDuration.normal,
                   onComplete: () {
