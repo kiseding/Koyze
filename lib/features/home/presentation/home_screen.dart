@@ -365,6 +365,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     showKoyzeSheet(
       context: context,
       backgroundColor: AppColors.dialogBg(context),
+      isScrollControlled: true,
       builder: (context) => Consumer(
         builder: (context, ref, _) {
           final settings = ref.watch(homeQuickSettingsProvider);
@@ -373,7 +374,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final order = settings.order;
           return ConstrainedBox(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * .78,
+              maxHeight: MediaQuery.sizeOf(context).height * 2 / 3,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -398,19 +399,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '拖动调整顺序，开关控制是否显示在首页',
-                      style: TextStyle(
-                        color: AppColors.mutedText(context),
-                        fontSize: 12,
-                      ),
-                    ),
                   ),
                 ),
                 Flexible(
