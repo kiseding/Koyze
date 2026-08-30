@@ -2127,7 +2127,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     int? targetIndex,
   }) async {
     if (_queue.isEmpty) return;
-    await _ensureLazyQueueAhead(1);
+    // 队列内已有相邻曲目时立即切换（跟手）；仅当窗口见底才等待
+    // eager refill——此前每次手动切歌都要先 await 一次 refill（含
+    // 逐首 dislike 查询），切完播放顺序后按切歌会明显发卡。
+    if (_currentIndex + 1 >= _queue.length) {
+      await _ensureLazyQueueAhead(1);
+    }
     if (_queue.isEmpty) return;
 
     final nextIndex = targetIndex ?? await _resolveSkipTarget(forward: true);

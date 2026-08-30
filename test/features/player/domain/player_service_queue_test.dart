@@ -60,7 +60,61 @@ void main() {
     },
   );
 
-  test('newer playlist invalidates an in-flight paged playlist load', () async {
+  test(
+    'manual skip stays responsive after mode toggles on a lazy paged playlist',
+    () async {
+      audioHandler = handler;
+      final service = PlayerService();
+      MusicItem song(int i) => MusicItem(
+        id: 's$i',
+        name: 's$i',
+        singer: '',
+        source: 'test',
+        url: 'file:///tmp/s$i.mp3',
+      );
+      final songs = [for (var i = 0; i < 30; i++) song(i)];
+
+      await service.playPagedPlaylist(
+        songCount: songs.length,
+        startIndex: 0,
+        playlistId: 'lazy-playlist',
+        loadPage: (offset, limit) async =>
+            songs.sublist(offset, (offset + limit).clamp(0, songs.length)),
+      );
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+
+      // 开随机：手动切歌必须换曲。
+      await service.setShuffleMode(true);
+      await handler.skipToNext();
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+      final shuffledId =
+          (player.loadedSource as ProgressiveAudioSource).tag.id;
+
+      // 切回顺序：手动切歌必须换曲（此前会卡住）。
+      await service.setShuffleMode(false);
+      await handler.skipToNext();
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+      final sequentialId =
+          (player.loadedSource as ProgressiveAudioSource).tag.id;
+      expect(sequentialId, isNot(equals(shuffledId)));
+
+      // 单曲循环 ↔ 顺序：手动切歌必须换曲。
+      await service.setRepeatMode(AudioServiceRepeatMode.one);
+      await handler.skipToNext();
+      await service.setRepeatMode(AudioServiceRepeatMode.none);
+      await handler.skipToNext();
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+      final finalId = (player.loadedSource as ProgressiveAudioSource).tag.id;
+      expect(finalId, isNot(equals(sequentialId)));
+
+      // 上一首也必须可用。
+      await handler.skipToPrevious();
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+    },
+  );
+
+  test(
+    'newer playlist invalidates an in-flight paged playlist load', () async {
     audioHandler = handler;
     final service = PlayerService();
     final pageStarted = Completer<void>();
@@ -399,6 +453,52 @@ void main() {
       expect(handler.queueItems.map((item) => item.id), ['B', 'C']);
       expect(handler.currentQueueIndex, 0);
       expect(handler.mediaItem.value?.id, 'B');
+    },
+  );
+
+  test(
+    'manual skip stays responsive across play-mode switches on a plain queue',
+    () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      await handler.setPlaylist([
+        item('A'),
+        item('B'),
+        item('C'),
+        item('D'),
+      ]);
+      final playedIds = <String>[];
+      String currentSourceId() =>
+          (player.loadedSource as ProgressiveAudioSource).tag.id as String;
+
+      // 顺序 → 随机：手动切歌必须换曲。
+      await handler.setShuffleMode(AudioServiceShuffleMode.all);
+      await handler.skipToNext();
+      playedIds.add(currentSourceId());
+
+      // 随机 → 顺序：手动切歌必须换曲。
+      await handler.setShuffleMode(AudioServiceShuffleMode.none);
+      await handler.skipToNext();
+      playedIds.add(currentSourceId());
+
+      // 顺序 → 单曲循环 → 顺序：手动切歌必须换曲。
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      await handler.skipToNext();
+      playedIds.add(currentSourceId());
+      await handler.setRepeatMode(AudioServiceRepeatMode.none);
+      await handler.skipToNext();
+      playedIds.add(currentSourceId());
+
+      // 上一首也必须可用。
+      await handler.skipToPrevious();
+      playedIds.add(currentSourceId());
+
+      // 5 次手动切换都实际换了曲（不卡在同一首）。
+      final distinct = playedIds.toSet();
+      expect(distinct.length, greaterThan(1));
     },
   );
 
