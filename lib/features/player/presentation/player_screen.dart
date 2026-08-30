@@ -996,6 +996,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               );
         // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
         final hideLayer = lyricCollapsing && closeT >= 0.99;
+        // 单一矩阵表达 sheet 几何：
+        // - 封面页（进出同路径）：translate(矩形左上) × scale(矩形宽高比)
+        //   等价于原 Positioned.fromRect + OverflowBox(topLeft)。
+        // - 歌词页收拢：页面中心从屏幕中心插值到迷你栏中心、等比缩小。
+        // 两条路径共用同一 widget 结构（仅矩阵/颜色/阴影的值随状态变化），
+        // 避免分支翻转时整棵子树销毁重建导致 PageView 回退到第 0 页。
+        final sheetMatrix = lyricCollapsing
+            ? (Matrix4.identity()
+                  ..translate(cardCenter.dx, cardCenter.dy)
+                  ..scale(pageScale)
+                  ..translate(-screenW / 2, -screenH / 2))
+            : (Matrix4.identity()
+                  ..translate(currentRect.left, currentRect.top)
+                  ..scale(currentRect.width / screenW, currentRect.height / screenH));
         final sheetContent = Opacity(
           opacity: contentOpacity,
           child: _buildPlayerBody(
@@ -1015,79 +1029,53 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           fit: StackFit.expand,
           children: [
             if (!hideLayer && (progress > 0 || closing))
-              if (lyricCollapsing)
-                Positioned.fill(
-                  // 收拢锁定后 sheet 缩在迷你栏位置且不可见，必须放行点击，
-                  // 否则迷你栏要等路由移除后才能交互。
-                  child: IgnorePointer(
-                    ignoring: progress <= 0 && !animating,
-                    child: Transform(
-                      // 整页等比缩小：页面中心从屏幕中心插值到迷你栏中心，
-                      // 背景（圆角/底色/阴影）与内容在同一变换下同步缩放。
-                      // progress=1 时为恒等变换，与未收拢分支无缝衔接。
-                      transform: Matrix4.identity()
-                        ..translate(cardCenter.dx, cardCenter.dy)
-                        ..scale(pageScale)
-                        ..translate(-screenW / 2, -screenH / 2),
-                      alignment: Alignment.topLeft,
-                      // 卡片阴影随进度浮现（与迷你栏同款），让缩小的
-                      // 页面从第一像素起就是一张可见的卡片。
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(
-                                alpha:
-                                    (AppColors.isDark(context) ? 0.40 : 0.10) *
-                                    closeT,
-                              ),
-                              blurRadius: 12,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: ColoredBox(
-                            color: sheetColor,
-                            child: OverflowBox(
-                              alignment: Alignment.topLeft,
-                              minWidth: screenW,
-                              maxWidth: screenW,
-                              minHeight: screenH,
-                              maxHeight: screenH,
-                              child: sheetContent,
-                            ),
+              Positioned.fill(
+                // 收拢锁定后 sheet 缩在迷你栏位置且不可见，必须放行点击，
+                // 否则迷你栏要等路由移除后才能交互。
+                child: IgnorePointer(
+                  ignoring: progress <= 0 && !animating,
+                  child: Transform(
+                    transform: sheetMatrix,
+                    alignment: Alignment.topLeft,
+                    // 歌词页收拢时随进度浮现卡片阴影（与迷你栏同款）；
+                    // 封面页 sheet 路径无阴影。
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: lyricCollapsing
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(
+                                    alpha:
+                                        (AppColors.isDark(context)
+                                            ? 0.40
+                                            : 0.10) *
+                                        closeT,
+                                  ),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : const <BoxShadow>[],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16 * (1 - progress)),
+                        child: ColoredBox(
+                          color: sheetColor,
+                          child: OverflowBox(
+                            alignment: Alignment.topLeft,
+                            minWidth: screenW,
+                            maxWidth: screenW,
+                            minHeight: screenH,
+                            maxHeight: screenH,
+                            child: sheetContent,
                           ),
                         ),
                       ),
                     ),
                   ),
-                )
-              else
-                Positioned.fromRect(
-                  rect: currentRect,
-                  // 收拢锁定后 sheet 停在迷你栏位置且不可见，必须放行点击，
-                  // 否则迷你栏要等路由移除后才能交互。
-                  child: IgnorePointer(
-                    ignoring: progress <= 0 && !animating,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16 * (1 - progress)),
-                      child: ColoredBox(
-                        color: sheetColor,
-                        child: OverflowBox(
-                          alignment: Alignment.topLeft,
-                          minWidth: screenW,
-                          maxWidth: screenW,
-                          minHeight: screenH,
-                          maxHeight: screenH,
-                          child: sheetContent,
-                        ),
-                      ),
-                    ),
-                  ),
                 ),
+              ),
             if (_currentPage == 0)
               _RouteArtworkMorphOverlay(
                 rect: artworkMorphRect,
