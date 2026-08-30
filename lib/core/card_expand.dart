@@ -16,9 +16,6 @@ import 'motion/motion_tokens.dart';
 Rect? _cardExpandRect;
 ui.Image? _cardExpandSnapshot;
 
-/// 当前参与卡片转场的源卡片。只隐藏这一张，避免源卡片与转场层重影。
-final ValueNotifier<bool> cardExpandSourceHidden = ValueNotifier<bool>(false);
-GlobalKey? cardExpandHiddenKey;
 
 /// 记录当前卡片的屏幕矩形（供展开转场使用）。
 void captureCardExpandRect(BuildContext context) {
@@ -32,9 +29,6 @@ void captureCardExpandRect(BuildContext context) {
 /// 本体先随边界长大，再交给目标页面内容。
 Future<void> captureCardExpandOrigin(BuildContext context) async {
   captureCardExpandRect(context);
-  cardExpandHiddenKey = context.widget.key is GlobalKey
-      ? context.widget.key as GlobalKey
-      : null;
   final boundary = context.findRenderObject() as RenderRepaintBoundary?;
   if (boundary == null || !boundary.attached || !boundary.hasSize) return;
   try {
@@ -44,7 +38,6 @@ Future<void> captureCardExpandOrigin(BuildContext context) async {
     final snapshot = await boundary.toImage(pixelRatio: dpr.clamp(1.0, 2.0));
     _cardExpandSnapshot?.dispose();
     _cardExpandSnapshot = snapshot;
-    cardExpandSourceHidden.value = true;
   } catch (_) {
     // GPU 快照偶发失败时仍使用几何转场，不能阻断导航。
   }
@@ -528,10 +521,6 @@ class _CardRevealTransition extends StatefulWidget {
 class _CardRevealTransitionState extends State<_CardRevealTransition> {
   @override
   void dispose() {
-    if (cardExpandHiddenKey != null) {
-      cardExpandSourceHidden.value = false;
-      cardExpandHiddenKey = null;
-    }
     if (cardDismissLocked) {
       cardDismissLocked = false;
       cardDismissProgress.value = 0;

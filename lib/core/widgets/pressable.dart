@@ -103,20 +103,6 @@ class _PressableState extends State<Pressable> {
         ? RepaintBoundary(key: _expandAnchorKey, child: interactiveChild)
         : interactiveChild;
 
-    final visibleChild = widget.captureExpandRect
-        ? ValueListenableBuilder<bool>(
-            valueListenable: cardExpandSourceHidden,
-            builder: (context, hidden, child) => Opacity(
-              opacity:
-                  hidden && identical(_expandAnchorKey, cardExpandHiddenKey)
-                  ? 0
-                  : 1,
-              child: child,
-            ),
-            child: anchoredChild,
-          )
-        : anchoredChild;
-
     return Semantics(
       label: widget.semanticLabel,
       button: true,
@@ -142,7 +128,7 @@ class _PressableState extends State<Pressable> {
             },
           ),
         },
-        child: ExcludeSemantics(child: visibleChild),
+        child: ExcludeSemantics(child: anchoredChild),
       ),
     );
   }
