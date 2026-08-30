@@ -16,6 +16,10 @@ import 'motion/motion_tokens.dart';
 Rect? _cardExpandRect;
 ui.Image? _cardExpandSnapshot;
 
+/// 当前参与卡片转场的源卡片。只隐藏这一张，避免源卡片与转场层重影。
+final ValueNotifier<bool> cardExpandSourceHidden = ValueNotifier<bool>(false);
+GlobalKey? cardExpandHiddenKey;
+
 /// 记录当前卡片的屏幕矩形（供展开转场使用）。
 void captureCardExpandRect(BuildContext context) {
   final box = context.findRenderObject() as RenderBox?;
@@ -28,17 +32,19 @@ void captureCardExpandRect(BuildContext context) {
 /// 本体先随边界长大，再交给目标页面内容。
 Future<void> captureCardExpandOrigin(BuildContext context) async {
   captureCardExpandRect(context);
+  cardExpandHiddenKey = context.widget.key is GlobalKey
+      ? context.widget.key as GlobalKey
+      : null;
   final boundary = context.findRenderObject() as RenderRepaintBoundary?;
   if (boundary == null || !boundary.attached || !boundary.hasSize) return;
   try {
     // 按设备像素密度截图（封顶 2x），否则收拢成卡片后快照被插值放大、
     // 文字发虚。
     final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1.0;
-    final snapshot = await boundary.toImage(
-      pixelRatio: dpr.clamp(1.0, 2.0),
-    );
+    final snapshot = await boundary.toImage(pixelRatio: dpr.clamp(1.0, 2.0));
     _cardExpandSnapshot?.dispose();
     _cardExpandSnapshot = snapshot;
+    cardExpandSourceHidden.value = true;
   } catch (_) {
     // GPU 快照偶发失败时仍使用几何转场，不能阻断导航。
   }
@@ -114,7 +120,9 @@ CustomTransitionPage<Object?> expandablePage(
           builder: (context, child) {
             final width = MediaQuery.sizeOf(context).width;
             final gestureDriven =
-                edgeDragActive || cardDismissLocked || cardDismissOffset.value > 0;
+                edgeDragActive ||
+                cardDismissLocked ||
+                cardDismissOffset.value > 0;
             final dx = gestureDriven
                 ? cardDismissOffset.value
                 : width * (1 - curved.value);
@@ -133,9 +141,7 @@ CustomTransitionPage<Object?> expandablePage(
                     borderRadius: BorderRadius.circular(radius),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(
-                          alpha: 0.24 * (1 - t),
-                        ),
+                        color: Colors.black.withValues(alpha: 0.24 * (1 - t)),
                         blurRadius: 28,
                         spreadRadius: 2 * t,
                         offset: const Offset(-8, 2),
@@ -365,7 +371,10 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
       // 归位/收拢带 spring 手感，与全屏播放器动效同一曲线族。
       curve: MotionCurve.iosSpring,
     );
-    _dragAnimation = Tween<double>(begin: _drag, end: targetDrag).animate(curved);
+    _dragAnimation = Tween<double>(
+      begin: _drag,
+      end: targetDrag,
+    ).animate(curved);
     _morphAnimation = Tween<double>(
       begin: _morph,
       end: targetMorph,
@@ -444,9 +453,9 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onHorizontalDragStart: (_) {
-              _settleController.stop();
-              edgeDragActive = true;
-            },
+                _settleController.stop();
+                edgeDragActive = true;
+              },
               onHorizontalDragUpdate: (details) {
                 if (details.delta.dx <= 0 && _drag <= 0) return;
                 final max = MediaQuery.sizeOf(context).width;
@@ -458,20 +467,31 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
               },
               onHorizontalDragEnd: (details) {
                 final velocity = details.primaryVelocity ?? 0;
-if (_drag > width * 0.22 || velocity > 700) {
-                // 从当前位置继续：页面一边滑回原位（不放大），一边持续
-                // 收拢成卡片，在源卡片位置成型后 pop（宿主此时锁定
-                // 反向动画接管，路由关闭不再回弹放大）。
-                _settleTo(
-                 targetDrag: widget.fullWidthSwipe ? width : 0,
-                  targetMorph: 1,
-                  duration: MotionDuration.normal,
-                  onComplete: () {
-                    widget.onDismissCommit?.call();
-                    Navigator.of(context).maybePop();
-                  },
-                );
-              } else {
+                if (_drag > width * 0.22 || velocity > 700) {
+                  // 从当前位置继续：页面一边滑回原位（不放大），一边持续
+                  // 收拢成卡片，在源卡片位置成型后 pop（宿主此时锁定
+                  // 反向动画接管，路由关闭不再回弹放大）。
+                  _settleTo(
+                    targetDrag: widget.fullWidthSwipe ? width : 0,
+                    targetMorph: 1,
+                    duration: MotionDuration.normal,
+                    onComplete: () {
+                      widget.onDismissCommit?.call();
+                      Navigator.of(context).maybePop();
+                    },
+                  );
+                } else {
+                  _settleTo(
+                    targetDrag: 0,
+                    targetMorph: 0,
+                    duration: MotionDuration.micro,
+                    onComplete: () {
+                      cardDismissLocked = false;
+                    },
+                  );
+                }
+              },
+              onHorizontalDragCancel: () {
                 _settleTo(
                   targetDrag: 0,
                   targetMorph: 0,
@@ -480,18 +500,7 @@ if (_drag > width * 0.22 || velocity > 700) {
                     cardDismissLocked = false;
                   },
                 );
-              }
-            },
-            onHorizontalDragCancel: () {
-              _settleTo(
-                targetDrag: 0,
-                targetMorph: 0,
-                duration: MotionDuration.micro,
-                onComplete: () {
-                  cardDismissLocked = false;
-                },
-              );
-            },
+              },
             ),
           ),
       ],
@@ -519,6 +528,10 @@ class _CardRevealTransition extends StatefulWidget {
 class _CardRevealTransitionState extends State<_CardRevealTransition> {
   @override
   void dispose() {
+    if (cardExpandHiddenKey != null) {
+      cardExpandSourceHidden.value = false;
+      cardExpandHiddenKey = null;
+    }
     if (cardDismissLocked) {
       cardDismissLocked = false;
       cardDismissProgress.value = 0;
@@ -553,9 +566,10 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         // t=1 收拢到源卡片；中间阶段矩形中心随手指位移（t*width），
         // 因此拖动时卡片既收缩又跟随手指，不会出现外层位移与内层
         // 裁剪两条曲线打架的错位。
-        final sizeW = targetRect.width - (targetRect.width - sourceRect.width) * t;
-        final sizeH = targetRect.height -
-            (targetRect.height - sourceRect.height) * t;
+        final sizeW =
+            targetRect.width - (targetRect.width - sourceRect.width) * t;
+        final sizeH =
+            targetRect.height - (targetRect.height - sourceRect.height) * t;
         // 跟手：拖动中卡片左缘 = 手指水平位移，手停卡停；
         // 松手动画（已锁）线性归位到源卡片位置；
         // 无拖动的正常关闭（返回按钮/系统手势）直接归位到源位置，
