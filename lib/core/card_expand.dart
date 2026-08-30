@@ -571,19 +571,19 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                           ),
                         ),
                       ),
+                    // 内容以矩形中心锚定并按宽度比等比缩放：收拢时
+                    // 上下从两侧对称裁剪（焦点 = 矩形中心），不再出现
+                    // "从底部往顶部收"的错位观感。
                     OverflowBox(
-                      alignment: Alignment.topLeft,
+                      alignment: Alignment.center,
                       minWidth: targetRect.width,
                       maxWidth: targetRect.width,
                       minHeight: targetRect.height,
                       maxHeight: targetRect.height,
                       child: Opacity(
                         opacity: reveal,
-                        child: Transform.translate(
-                          offset: Offset(
-                            0,
-                            MotionDistance.standard * t,
-                          ),
+                        child: Transform.scale(
+                          scale: sizeW / targetRect.width,
                           child: child,
                         ),
                       ),
