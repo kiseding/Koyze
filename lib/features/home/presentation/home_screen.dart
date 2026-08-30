@@ -418,7 +418,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     shrinkWrap: true,
                     buildDefaultDragHandles: false,
                     itemCount: order.length,
-                    onReorder: notifier.reorder,
+                    onReorderItem: notifier.reorder,
                     itemBuilder: (context, index) {
                       final feature = homeQuickFeatures.firstWhere(
                         (item) => item.id == order[index],

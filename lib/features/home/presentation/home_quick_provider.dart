@@ -296,9 +296,13 @@ class HomeQuickSettingsNotifier extends StateNotifier<HomeQuickSettings> {
     _persist();
   }
 
+  /// [ReorderableListView.onReorderItem]：newIndex 已按"移除旧项后"
+  /// 修正，直接使用（旧 onReorder 需手动 -1，双重修正会插错位置）。
   void reorder(int oldIndex, int newIndex) {
+    if (oldIndex == newIndex) return;
     final next = [...state.order];
-    if (oldIndex < newIndex) newIndex -= 1;
+    if (newIndex < 0 || newIndex > next.length) return;
+    if (oldIndex < 0 || oldIndex >= next.length) return;
     next.insert(newIndex, next.removeAt(oldIndex));
     state = HomeQuickSettings(order: next, enabled: state.enabled);
     _persist();
