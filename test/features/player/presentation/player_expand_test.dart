@@ -9,7 +9,7 @@ void main() {
     ).readAsStringSync();
 
     // 窗口变形 + 封面矩形变形：页面不被非等比压缩，视觉焦点落在封面。
-    expect(full, contains('Rect.lerp(miniRect, fullRect'));
+    expect(full, contains('final sheetMatrix = Matrix4.identity()'));
     expect(full, contains('final artworkMorphRect = Rect.lerp'));
     expect(full, contains('_miniArtworkRect(miniRect)'));
     expect(full, contains('_fullArtworkRect('));
@@ -33,7 +33,10 @@ void main() {
     // 迷你栏中心（progress=1 恒等，分支切换零跳变），
     // 0~90% 原样、90~99% 渐变成迷你栏同款灰、99% 后砍掉由真实迷你栏接管。
     expect(full, contains('final pageScale = lerpDouble('));
+    // 整页等比缩放（上下对称）：焦点插值——封面页→迷你栏中心、
+    // 歌词页→迷你栏歌词行中心（progress=1 恒等，分支切换零跳变）。
     expect(full, contains('final cardCenter = Offset.lerp('));
+    expect(full, contains('final focal = lyricCollapsing'));
     expect(full, contains('((closeT - 0.9) / 0.09).clamp(0.0, 1.0)'));
     expect(full, contains('AppColors.miniBar(context)'));
     expect(full, contains('closeT >= 0.99'));

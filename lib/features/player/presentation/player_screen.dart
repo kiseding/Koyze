@@ -884,13 +884,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           miniWidth,
           miniHeight,
         );
-        final fullRect = Offset.zero & Size(screenW, screenH);
-        // 进度恒线性消费：自动动画的曲线整形已在路由桥一端完成
-        // （_PlayerRouteProgressBridge），所有手动驱动天然线性跟手。
-        final morphT = progress;
-        // 右滑与下滑共用同一 sheet 式路径（底部锚定、线性收向迷你栏），
-        // 保证"进出同路径"（Apple Design §7 空间一致性）。
-        // 歌词页关闭：整页（背景+内容）等比缩小、收敛到迷你栏中心。
         final lyricCollapsing = _currentPage == 1 &&
             (progress < 1 ||
                 playerRouteDismissLocked ||
@@ -904,14 +897,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final stripT = lyricCollapsing
             ? ((closeT - 0.9) / 0.09).clamp(0.0, 1.0)
             : 0.0;
-        final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
-        // 歌词页整页等比缩小：目标比例 = 迷你栏高度/屏高，
+        // 整页等比缩放（上下对称）：目标比例 = 迷你栏高度/屏高，
         // 背景与内容共用同一变换，缩放程度完全一致。
         final pageScale = lerpDouble(miniRect.height / screenH, 1.0, progress)!;
-        // 卡片中心随进度从屏幕中心移向迷你栏中心：progress=1 时变换恒等
-        // （页面仍在原位，切换分支零跳变），progress=0 时收敛到迷你栏中心。
+        // 收起焦点：封面页→迷你栏中心；歌词页→迷你栏歌词行中心。
+        // 卡片中心随进度从屏幕中心插值到焦点：progress=1 时变换恒等
+        // （页面仍在原位，切换分支零跳变），progress=0 时收敛到焦点。
+        final focal = lyricCollapsing
+            ? Offset(miniRect.center.dx, miniRect.top + 54)
+            : miniRect.center;
         final cardCenter = Offset.lerp(
-          miniRect.center,
+          focal,
           Offset(screenW / 2, screenH / 2),
           progress,
         )!;
@@ -922,7 +918,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final artworkMorphRect = Rect.lerp(
           miniArtworkRect,
           fullArtworkRect,
-          morphT,
+          progress,
         )!;
         final miniPlayButtonRect = _miniPlayButtonRect(miniRect);
         final lyricTargetRect =
@@ -978,7 +974,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final artworkReveal = animating
             ? dragReveal
             : MotionCurve.iosSpring.transform(
-                ((morphT - 0.74) / 0.22).clamp(0.0, 1.0),
+                ((progress - 0.74) / 0.22).clamp(0.0, 1.0),
               );
         // 背景动画期间也跟手透明（阴影已移除，不会发灰）；
         // 非动画阶段保持纯色。
@@ -996,20 +992,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               );
         // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
         final hideLayer = lyricCollapsing && closeT >= 0.99;
-        // 单一矩阵表达 sheet 几何：
-        // - 封面页（进出同路径）：translate(矩形左上) × scale(矩形宽高比)
-        //   等价于原 Positioned.fromRect + OverflowBox(topLeft)。
-        // - 歌词页收拢：页面中心从屏幕中心插值到迷你栏中心、等比缩小。
-        // 两条路径共用同一 widget 结构（仅矩阵/颜色/阴影的值随状态变化），
-        // 避免分支翻转时整棵子树销毁重建导致 PageView 回退到第 0 页。
-        final sheetMatrix = lyricCollapsing
-            ? (Matrix4.identity()
-                  ..translate(cardCenter.dx, cardCenter.dy)
-                  ..scale(pageScale)
-                  ..translate(-screenW / 2, -screenH / 2))
-            : (Matrix4.identity()
-                  ..translate(currentRect.left, currentRect.top)
-                  ..scale(currentRect.width / screenW, currentRect.height / screenH));
+        // 单一矩阵表达 sheet 几何：整页等比缩放（上下对称），中心从
+        // 屏幕中心插值到焦点。封面页与歌词页共用同一 widget 结构与同一
+        // 变换，仅焦点不同，避免分支翻转销毁子树导致 PageView 回退。
+        final sheetMatrix = Matrix4.identity()
+          ..translate(cardCenter.dx, cardCenter.dy)
+          ..scale(pageScale)
+          ..translate(-screenW / 2, -screenH / 2);
         final sheetContent = Opacity(
           opacity: contentOpacity,
           child: _buildPlayerBody(
