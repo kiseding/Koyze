@@ -12,6 +12,10 @@ import '../../../core/widgets/sleep_timer_sheet.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
+import 'home_quick_provider.dart';
+import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/koyze_sheet.dart';
+import '../../../core/widgets/fx_switch.dart';
 
 /// 首页：搜索入口 + 快捷功能 + 随机播放收藏。
 /// 竖屏单列、大屏居中并自适应列数，底部导航由 MainScaffold 提供。
@@ -29,6 +33,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final playlists = ref.watch(playlistsProvider);
+    final quickSettings = ref.watch(homeQuickSettingsProvider);
+    final quickIds = [
+      for (final id in quickSettings.order)
+        if (quickSettings.enabled.contains(id)) id,
+    ];
     final favorites = playlists
         .where((playlist) => playlist.id == 'favorites')
         .firstOrNull;
@@ -68,7 +77,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         const SizedBox(height: 24),
                         _buildQuickSectionTitle(context, '快捷功能'),
                         const SizedBox(height: 12),
-                        _buildQuickGrid(context, ref, columns),
+                        _buildQuickGrid(context, ref, columns, quickIds),
                         const SizedBox(height: 20),
                       ],
                     ),
@@ -118,6 +127,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+        Pressable(
+          semanticLabel: '设置快捷功能',
+          onTap: () => _showQuickSettings(context),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.miniBar(context),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.tune,
+              color: AppColors.secondaryText(context),
+              size: 20,
+            ),
           ),
         ),
       ],
@@ -230,9 +255,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      favoriteCount == 0
-                          ? '还没有收藏歌曲'
-                          : '点击查看，右侧随机播放',
+                      favoriteCount == 0 ? '还没有收藏歌曲' : '点击查看，右侧随机播放',
                       style: TextStyle(
                         color: onAccent.withAlpha(210),
                         fontSize: 13,
@@ -307,52 +330,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildQuickGrid(BuildContext context, WidgetRef ref, int columns) {
-    final entries = <_QuickEntry>[
-      const _QuickEntry(
-        title: '猜你喜欢',
-        subtitle: '根据历史推荐',
-        icon: Icons.auto_awesome,
-        route: '/recommend',
-        color: Color(0xFFFF8F1F),
-      ),
-      const _QuickEntry(
-        title: '本地音乐',
-        subtitle: '设备上的歌曲',
-        icon: Icons.library_music,
-        route: 'localPlaylist',
-        color: Colors.purple,
-      ),
-      const _QuickEntry(
-        title: '下载管理',
-        subtitle: '任务与进度',
-        icon: Icons.download_rounded,
-        route: '/download',
-        color: Color(0xFF0A84FF),
-      ),
-      const _QuickEntry(
-        title: '听歌统计',
-        subtitle: '周月年排行',
-        icon: Icons.bar_chart_rounded,
-        route: '/stats',
-        color: Color(0xFF28A745),
-      ),
-      const _QuickEntry(
-        title: '睡眠定时',
-        subtitle: '定时停止播放',
-        icon: Icons.bedtime_outlined,
-        route: '',
-        color: Color(0xFF5B7DB1),
-        action: _QuickAction.sleepTimer,
-      ),
-      const _QuickEntry(
-        title: '切换主题',
-        subtitle: '深色 / 浅色',
-        icon: Icons.palette_outlined,
-        route: '',
-        color: Color(0xFF9E9E9E),
-        action: _QuickAction.themeToggle,
-      ),
+  Widget _buildQuickGrid(
+    BuildContext context,
+    WidgetRef ref,
+    int columns,
+    List<String> quickIds,
+  ) {
+    final entries = [
+      for (final id in quickIds)
+        homeQuickFeatures.firstWhere((entry) => entry.id == id),
     ];
 
     return LayoutBuilder(
@@ -374,31 +360,121 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       },
     );
   }
+
+  void _showQuickSettings(BuildContext context) {
+    showKoyzeSheet(
+      context: context,
+      backgroundColor: AppColors.dialogBg(context),
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          final settings = ref.watch(homeQuickSettingsProvider);
+          final enabled = settings.enabled;
+          final notifier = ref.read(homeQuickSettingsProvider.notifier);
+          final order = settings.order;
+          return ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * .78,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '快捷功能设置',
+                          style: TextStyle(
+                            color: AppColors.onScaffold(context),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      FxIconButton(
+                        tooltip: '关闭快捷功能设置',
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '拖动调整顺序，开关控制是否显示在首页',
+                      style: TextStyle(
+                        color: AppColors.mutedText(context),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ReorderableListView.builder(
+                    shrinkWrap: true,
+                    buildDefaultDragHandles: false,
+                    itemCount: order.length,
+                    onReorder: notifier.reorder,
+                    itemBuilder: (context, index) {
+                      final feature = homeQuickFeatures.firstWhere(
+                        (item) => item.id == order[index],
+                      );
+                      final active = enabled.contains(feature.id);
+                      return ListTile(
+                        key: ValueKey(feature.id),
+                        leading: Icon(feature.icon, color: feature.color),
+                        title: Text(
+                          feature.title,
+                          style: TextStyle(
+                            color: active
+                                ? AppColors.onScaffold(context)
+                                : AppColors.mutedText(context),
+                          ),
+                        ),
+                        subtitle: Text(
+                          feature.subtitle,
+                          style: TextStyle(
+                            color: AppColors.mutedText(context),
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            FxSwitch(
+                              value: active,
+                              onChanged: (value) =>
+                                  notifier.setEnabled(feature.id, value),
+                            ),
+                            ReorderableDragStartListener(
+                              index: index,
+                              child: Icon(
+                                Icons.drag_handle_rounded,
+                                color: AppColors.mutedText(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// 快捷功能特殊交互。
-enum _QuickAction { sleepTimer, themeToggle }
-
-class _QuickEntry {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final String route;
-  final Color color;
-  final _QuickAction? action;
-
-  const _QuickEntry({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.route,
-    required this.color,
-    this.action,
-  });
-}
-
 class _QuickEntryCard extends ConsumerWidget {
-  final _QuickEntry entry;
+  final HomeQuickFeature entry;
 
   const _QuickEntryCard({required this.entry});
 
@@ -416,15 +492,23 @@ class _QuickEntryCard extends ConsumerWidget {
       captureExpandRect: entry.action == null,
       onTap: () {
         switch (entry.action) {
-          case _QuickAction.sleepTimer:
+          case HomeQuickAction.sleepTimer:
             showSleepTimerSheet(context, ref);
-          case _QuickAction.themeToggle:
+          case HomeQuickAction.themeToggle:
             _toggleTheme(ref);
           case null:
-            if (entry.route == 'localPlaylist') {
+            if (entry.route == 'localPlaylist' ||
+                entry.route == 'favoritesPlaylist' ||
+                entry.route == 'recentPlaylist') {
               context.pushNamed(
                 'playlistDetail',
-                pathParameters: {'playlistId': 'local'},
+                pathParameters: {
+                  'playlistId': switch (entry.route) {
+                    'localPlaylist' => 'local',
+                    'favoritesPlaylist' => 'favorites',
+                    _ => 'recent',
+                  },
+                },
               );
             } else {
               context.push(entry.route);

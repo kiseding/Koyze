@@ -279,7 +279,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         const _BodyGap(12),
         const _BodyRecentCard(),
         const _BodyGap(24),
-        const _BodyHeader(title: '', trailing: true),
+        const _BodyHeader(title: '自定义歌单', trailing: true),
         const _BodyGap(12),
         for (final playlist in filteredPlaylists) _BodyPlaylistItem(playlist),
       ];

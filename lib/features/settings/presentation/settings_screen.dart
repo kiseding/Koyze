@@ -29,11 +29,46 @@ final settingsDeviceIdProvider = FutureProvider<String>((ref) async {
   return (await SyncIdentityStore().load()).deviceId;
 });
 
-class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({super.key});
+class SettingsScreen extends ConsumerStatefulWidget {
+  const SettingsScreen({super.key, this.initialAction});
+
+  final String? initialAction;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _handledInitialAction = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_handledInitialAction || widget.initialAction == null) return;
+    _handledInitialAction = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      switch (widget.initialAction) {
+        case 'audio-quality':
+          _showAudioQualityDialog(context, ref);
+        case 'download-quality':
+          _showDownloadQualityDialog(context, ref);
+        case 'default-search':
+          _showDefaultPlatformDialog(context, ref);
+        case 'backup':
+          _backupData(context, ref);
+        case 'restore':
+          _restoreData(context, ref);
+        case 'clear-cache':
+          _clearCache(context, ref);
+        case 'diagnostic-log':
+          showDiagnosticLogOverlay(context);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final audioQuality = ref.watch(audioQualityProvider);
 
@@ -1044,13 +1079,9 @@ class _PlatformOptionTile extends StatelessWidget {
                   Text(
                     name,
                     style: TextStyle(
-                      color: selected
-                          ? accent
-                          : AppColors.onScaffold(context),
+                      color: selected ? accent : AppColors.onScaffold(context),
                       fontSize: 14,
-                      fontWeight: selected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 2),

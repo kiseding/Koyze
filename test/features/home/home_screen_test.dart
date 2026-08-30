@@ -7,6 +7,9 @@ void main() {
     final source = File(
       'lib/features/home/presentation/home_screen.dart',
     ).readAsStringSync();
+    final quick = File(
+      'lib/features/home/presentation/home_quick_provider.dart',
+    ).readAsStringSync();
 
     expect(source, contains('showSearchSheet'));
     expect(source, contains('Enjoy Music'));
@@ -19,8 +22,20 @@ void main() {
     // 自定义源与云端同步已从快捷网格移除；主题用调色板图标区分睡眠定时。
     expect(source, isNot(contains("route: '/custom-source'")));
     expect(source, isNot(contains("route: '/sync'")));
-    expect(source, contains('Icons.palette_outlined'));
+    expect(quick, contains('Icons.palette_outlined'));
+    expect(source, contains('homeQuickSettingsProvider'));
+    expect(source, contains("semanticLabel: '设置快捷功能'"));
+    expect(source, contains('ReorderableListView.builder'));
+    expect(quick, contains('home_quick_features_v1'));
     expect(source, isNot(contains('Icons.dark_mode_outlined')));
+  });
+
+  test('playlist labels custom playlists below recent card', () {
+    final source = File(
+      'lib/features/playlist/presentation/playlist_screen.dart',
+    ).readAsStringSync();
+
+    expect(source, contains("_BodyHeader(title: '自定义歌单'"));
   });
 
   test('search sheet has draggable handle and delays keyboard focus', () {
