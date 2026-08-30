@@ -504,21 +504,6 @@ Rect _miniPlayButtonRect(Rect miniRect) {
   );
 }
 
-/// 迷你栏"歌词行"区域：歌词页关闭动效末段整页压成这个长条落位。
-Rect _miniLyricRowRect(Rect miniRect) {
-  const progressHeight = 20.0;
-  const rowLeft = 12.0 + 42.0 + 10.0; // 内边距 + 封面 + 间距
-  const rowHeight = 34.0;
-  final width =
-      miniRect.width - rowLeft - 6.0 - 128.0 - 6.0; // 到右侧按钮区左缘
-  return Rect.fromLTWH(
-    miniRect.left + rowLeft,
-    miniRect.top + progressHeight + 4,
-    width.clamp(0.0, miniRect.width),
-    rowHeight,
-  );
-}
-
 Rect _fullControlsPlayButtonRect(
   BuildContext context, {
   required double screenW,
@@ -883,7 +868,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final morphT = progress;
         // 右滑与下滑共用同一 sheet 式路径（底部锚定、线性收向迷你栏），
         // 保证"进出同路径"（Apple Design §7 空间一致性）。
-        // 歌词页关闭：整页压成迷你栏歌词行大小的长条落位。
+        // 歌词页关闭：整页（背景+内容）等比缩小、收敛到迷你栏中心。
         final lyricCollapsing = _currentPage == 1 &&
             (progress < 1 ||
                 playerRouteDismissLocked ||
@@ -892,18 +877,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 _settleController.isAnimating ||
                 edgeDragActive);
         final closeT = 1 - progress;
-        // 歌词行收拢窗口：0~90% 保持原样，90~99% 渐变成迷你栏同款灰，
+        // 收拢窗口：0~90% 保持原样，90~99% 渐变成迷你栏同款灰，
         // 99% 后整层砍掉、由真实迷你栏接管。
         final stripT = lyricCollapsing
             ? ((closeT - 0.9) / 0.09).clamp(0.0, 1.0)
             : 0.0;
-        final currentRect = lyricCollapsing
-            ? Rect.lerp(
-                fullRect,
-                _miniLyricRowRect(miniRect),
-                closeT,
-              )!
-            : Rect.lerp(miniRect, fullRect, morphT)!;
+        final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
+        // 歌词页整页等比缩小：目标比例 = 迷你栏高度/屏高，
+        // 背景与内容共用同一变换，缩放程度完全一致。
+        final pageScale = lerpDouble(miniRect.height / screenH, 1.0, progress)!;
         final miniArtworkRect = _miniArtworkRect(miniRect);
         final fullArtworkRect =
             _artworkRect ??
@@ -982,62 +964,82 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             : Theme.of(context).scaffoldBackgroundColor.withValues(
                 alpha: closing ? dragReveal : 1.0,
               );
-        // sheet 圆角跟手（长条用迷你栏同款 16）。
-        final sheetRadius = lyricCollapsing ? 16.0 : 16 * (1 - progress);
+        // sheet 圆角跟手（收向迷你栏时收敛到迷你栏同款 16）。
+        final sheetRadius = 16 * (1 - progress);
         // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
         final hideLayer = lyricCollapsing && closeT >= 0.99;
+        final sheetContent = Opacity(
+          opacity: contentOpacity,
+          child: _buildPlayerBody(
+            context,
+            currentMusic,
+            playerService,
+            isPlaying,
+            playMode,
+            duration,
+            screenH,
+            screenW,
+            dismissThreshold,
+            artworkReveal,
+          ),
+        );
         return Stack(
           fit: StackFit.expand,
           children: [
             if (!hideLayer && (progress > 0 || closing))
-              Positioned.fromRect(
-                rect: currentRect,
-                // 收拢锁定后 sheet 停在迷你栏位置且不可见，必须放行点击，
-                // 否则迷你栏要等路由移除后才能交互。
-                child: IgnorePointer(
-                  ignoring: progress <= 0 && !animating,
-                  child: ClipRRect(
-                  borderRadius: BorderRadius.circular(sheetRadius),
-                  child: ColoredBox(
-                    color: sheetColor,
-                child: OverflowBox(
-                  alignment: Alignment.topLeft,
-                  minWidth: screenW,
-                  maxWidth: screenW,
-                  minHeight: screenH,
-                  maxHeight: screenH,
-                  child: Transform(
-                    transform: lyricCollapsing
-                        ? (Matrix4.identity()
-                              ..translate(
-                                currentRect.center.dx,
-                                currentRect.center.dy,
-                              )
-                              ..scale(currentRect.width / screenW)
-                              ..translate(-screenW / 2, -screenH / 2))
-                        : Matrix4.identity(),
-                    alignment: Alignment.topLeft,
-                    child: Opacity(
-                      opacity: contentOpacity,
-                      child: _buildPlayerBody(
-                        context,
-                        currentMusic,
-                        playerService,
-                        isPlaying,
-                        playMode,
-                        duration,
-                        screenH,
-                        screenW,
-                        dismissThreshold,
-                        artworkReveal,
+              (lyricCollapsing
+                  ? Positioned.fill(
+                      // 收拢锁定后 sheet 缩在迷你栏位置且不可见，必须放行点击，
+                      // 否则迷你栏要等路由移除后才能交互。
+                      child: IgnorePointer(
+                        ignoring: progress <= 0 && !animating,
+                        child: Transform(
+                          // 整页等比缩小：页面中心映射到迷你栏中心，
+                          // 背景（圆角/底色）与内容在同一变换下同步缩放。
+                          transform: Matrix4.identity()
+                            ..translate(miniRect.center.dx, miniRect.center.dy)
+                            ..scale(pageScale)
+                            ..translate(-screenW / 2, -screenH / 2),
+                          alignment: Alignment.topLeft,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: ColoredBox(
+                              color: sheetColor,
+                              child: OverflowBox(
+                                alignment: Alignment.topLeft,
+                                minWidth: screenW,
+                                maxWidth: screenW,
+                                minHeight: screenH,
+                                maxHeight: screenH,
+                                child: sheetContent,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
-                  ),
-                ),
-              ),
-            ),
+                    )
+                  : Positioned.fromRect(
+                      rect: currentRect,
+                      // 收拢锁定后 sheet 停在迷你栏位置且不可见，必须放行点击，
+                      // 否则迷你栏要等路由移除后才能交互。
+                      child: IgnorePointer(
+                        ignoring: progress <= 0 && !animating,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(sheetRadius),
+                          child: ColoredBox(
+                            color: sheetColor,
+                            child: OverflowBox(
+                              alignment: Alignment.topLeft,
+                              minWidth: screenW,
+                              maxWidth: screenW,
+                              minHeight: screenH,
+                              maxHeight: screenH,
+                              child: sheetContent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )),
             if (_currentPage == 0)
               _RouteArtworkMorphOverlay(
                 rect: artworkMorphRect,

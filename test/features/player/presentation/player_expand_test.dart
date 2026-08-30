@@ -29,9 +29,10 @@ void main() {
     expect(full, isNot(contains('scaffoldBackgroundColor.withAlpha')));
     expect(full, isNot(contains('(255 * shellOpacity).round()')));
     expect(full, contains('if (!hideLayer && (progress > 0 || closing))'));
-    // 歌词页关闭：整页压成长条落向迷你栏歌词行，0~90% 原样、
-    // 90~99% 渐变成迷你栏同款灰、99% 后砍掉由真实迷你栏接管。
-    expect(full, contains('_miniLyricRowRect(miniRect)'));
+    // 歌词页关闭：整页（背景+内容）等比缩小收敛到迷你栏中心，
+    // 0~90% 原样、90~99% 渐变成迷你栏同款灰、99% 后砍掉由真实迷你栏接管。
+    expect(full, contains('final pageScale = lerpDouble('));
+    expect(full, contains('miniRect.center.dx'));
     expect(full, contains('((closeT - 0.9) / 0.09).clamp(0.0, 1.0)'));
     expect(full, contains('AppColors.miniBar(context)'));
     expect(full, contains('closeT >= 0.99'));
