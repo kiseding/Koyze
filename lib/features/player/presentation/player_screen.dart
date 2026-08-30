@@ -769,10 +769,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _completeDragDismiss() {
     if (!_draggingDown || !mounted) return;
+    _finishDismiss();
+  }
+
+  void _finishDismiss() {
+    if (!mounted) return;
     _draggingDown = false;
     _collapsing = false;
     playerRouteDismissLocked = true;
     Navigator.of(context).maybePop();
+  }
+
+  /// 点击收起：与下滑松手完全相同的 settle 路径（220ms easeOutCubic +
+  /// 锁定后瞬时 pop），保证按钮退出与手势退出观感一致。
+  void _dismissPlayer() {
+    if (playerRouteDismissLocked || !mounted) return;
+    _settleController.stop();
+    setState(() {
+      _draggingDown = false;
+      _collapsing = true;
+    });
+    _settleRouteProgress(
+      target: 0,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      onComplete: _finishDismiss,
+    );
   }
 
   void _cancelActiveScrub() {
@@ -883,7 +905,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ? ((closeT - 0.9) / 0.09).clamp(0.0, 1.0)
             : 0.0;
         final currentRect = Rect.lerp(miniRect, fullRect, morphT)!;
+        // 歌词页整页等比缩小：目标比例 = 迷你栏高度/屏高，
+        // 背景与内容共用同一变换，缩放程度完全一致。
         final pageScale = lerpDouble(miniRect.height / screenH, 1.0, progress)!;
+        // 卡片中心随进度从屏幕中心移向迷你栏中心：progress=1 时变换恒等
+        // （页面仍在原位，切换分支零跳变），progress=0 时收敛到迷你栏中心。
+        final cardCenter = Offset.lerp(
+          miniRect.center,
+          Offset(screenW / 2, screenH / 2),
+          progress,
+        )!;
         final miniArtworkRect = _miniArtworkRect(miniRect);
         final fullArtworkRect =
             _artworkRect ??
@@ -991,10 +1022,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   child: IgnorePointer(
                     ignoring: progress <= 0 && !animating,
                     child: Transform(
-                      // 整页等比缩小：页面中心映射到迷你栏中心，
+                      // 整页等比缩小：页面中心从屏幕中心插值到迷你栏中心，
                       // 背景（圆角/底色/阴影）与内容在同一变换下同步缩放。
+                      // progress=1 时为恒等变换，与未收拢分支无缝衔接。
                       transform: Matrix4.identity()
-                        ..translate(miniRect.center.dx, miniRect.center.dy)
+                        ..translate(cardCenter.dx, cardCenter.dy)
                         ..scale(pageScale)
                         ..translate(-screenW / 2, -screenH / 2),
                       alignment: Alignment.topLeft,
@@ -1305,7 +1337,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       child: Pressable(
         semanticLabel: '收起播放器',
         scale: 0.94,
-        onTap: () => Navigator.pop(context),
+        onTap: () => _dismissPlayer(),
         child: Text(
           '${platformLabel(platform)} · $qualityText',
           textAlign: TextAlign.center,
@@ -1362,7 +1394,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     );
                   }
                 } else {
-                  Navigator.pop(context);
+                  _dismissPlayer();
                 }
               },
               child: SizedBox(
@@ -1678,7 +1710,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             child: Pressable(
               semanticLabel: '收起播放器',
               scale: 0.92,
-              onTap: () => Navigator.pop(context),
+              onTap: () => _dismissPlayer(),
               child: SizedBox(
                 width: 64,
                 height: 48,

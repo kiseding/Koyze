@@ -10,13 +10,106 @@ final builtInSourcesProvider = Provider<BuiltInSourceManager>((ref) {
   return musicSourceService.builtInSources;
 });
 
-// 排行榜分类列表
-final leaderboardCategoriesProvider = FutureProvider<List<LeaderboardCategory>>(
-  (ref) async {
-    final builtIn = ref.watch(builtInSourcesProvider);
-    return builtIn.getAllLeaderboardCategories();
-  },
-);
+// 排行榜分类列表：磁盘缓存优先（冷启动直接渲染上次的榜单），
+// 后台拉取最新覆盖并落盘；失败且无缓存才进入错误态。
+final leaderboardCategoriesProvider =
+    StateNotifierProvider<
+      LeaderboardCategoriesNotifier,
+      AsyncValue<List<LeaderboardCategory>>
+    >((ref) {
+      return LeaderboardCategoriesNotifier(
+        ref,
+        () => StorageService.instance,
+      );
+    });
+
+class LeaderboardCategoriesNotifier
+    extends StateNotifier<AsyncValue<List<LeaderboardCategory>>> {
+  LeaderboardCategoriesNotifier(this._ref, [StorageLoader? storage])
+    : _storage = storage ?? (() => StorageService.instance),
+      super(const AsyncValue.loading()) {
+    _init();
+  }
+
+  static const _cacheKey = 'leaderboard_categories_cache_v1';
+
+  final Ref _ref;
+  final StorageLoader _storage;
+  bool _refreshing = false;
+
+  Future<void> _init() async {
+    final cached = await _loadCache();
+    if (!mounted) return;
+    if (cached.isNotEmpty) {
+      state = AsyncValue.data(cached);
+      _refresh();
+    } else {
+      await _refresh();
+    }
+  }
+
+  /// 拉取最新榜单：成功覆盖状态并落盘；失败时若已有缓存则静默保留。
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    _refreshing = true;
+    try {
+      final builtIn = _ref.read(builtInSourcesProvider);
+      final fresh = await builtIn.getAllLeaderboardCategories();
+      if (!mounted) return;
+      state = AsyncValue.data(fresh);
+      _persist(fresh);
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      if (state is! AsyncData) {
+        state = AsyncValue.error(error, stackTrace);
+      }
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  /// 手动刷新入口（重试按钮 / 刷新按钮经 invalidate 重建也可）。
+  Future<void> refresh() => _refresh();
+
+  Future<List<LeaderboardCategory>> _loadCache() async {
+    try {
+      final storage = await _storage();
+      final raw = storage.getJsonList(_cacheKey);
+      final list = <LeaderboardCategory>[];
+      for (final item in raw) {
+        final id = item['id']?.toString();
+        final name = item['name']?.toString();
+        if (id == null || id.isEmpty || name == null) continue;
+        list.add(
+          LeaderboardCategory(
+            id: id,
+            name: name,
+            platform: item['platform']?.toString(),
+            coverUrl: item['coverUrl']?.toString(),
+          ),
+        );
+      }
+      return list;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> _persist(List<LeaderboardCategory> categories) async {
+    try {
+      final storage = await _storage();
+      await storage.setJsonList(_cacheKey, [
+        for (final c in categories)
+          {
+            'id': c.id,
+            'name': c.name,
+            'platform': c.platform,
+            'coverUrl': c.coverUrl,
+          },
+      ]);
+    } catch (_) {}
+  }
+}
 
 /// 布局项：平台或具体榜单。
 /// - [platform] 为 `platform:<id>`

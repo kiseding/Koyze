@@ -325,7 +325,7 @@ class _PlayerTransitionRoute extends PageRoute<void> {
   bool get allowSnapshotting => false;
 
   @override
-  Duration get transitionDuration => MotionDuration.player;
+  Duration get transitionDuration => const Duration(milliseconds: 220);
 
   @override
   Duration get reverseTransitionDuration => MotionDuration.playerReverse;
@@ -362,8 +362,8 @@ class _PlayerTransitionRoute extends PageRoute<void> {
   ) {
     final curved = CurvedAnimation(
       parent: animation,
-      curve: MotionCurve.iosSpring,
-      reverseCurve: MotionCurve.easeInOut,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
     );
     return _PlayerRouteProgressBridge(animation: curved, child: child);
   }
@@ -403,10 +403,10 @@ class _PlayerRouteProgressBridgeState
 
   void _sync() {
     if (playerRouteDismissLocked) return;
-    // 曲线整形只在"路由自动动画"这一端做：拖动/左缘等手动驱动
-    // 直接写线性值，播放器一律线性消费，保证跟手无固定路径。
-    playerRouteProgress.value =
-        MotionCurve.iosSpring.transform(widget.animation.value);
+    // 曲线整形只在"路由自动动画"这一端做（CurvedAnimation 已套
+    // easeOutCubic，与手势 settle 同曲线同时长）；拖动/左缘等手动
+    // 驱动直接写值，播放器线性消费，保证跟手无固定路径。
+    playerRouteProgress.value = widget.animation.value;
   }
 
   @override
