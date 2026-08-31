@@ -16,6 +16,9 @@ import 'motion/motion_tokens.dart';
 Rect? _cardExpandRect;
 ui.Image? _cardExpandSnapshot;
 
+/// 当前参与转场的源卡片只在关闭后段隐藏，避免实时页面与源卡片快照重影。
+final ValueNotifier<bool> cardExpandSourceHidden = ValueNotifier<bool>(false);
+GlobalKey? cardExpandHiddenKey;
 
 /// 记录当前卡片的屏幕矩形（供展开转场使用）。
 void captureCardExpandRect(BuildContext context) {
@@ -29,6 +32,9 @@ void captureCardExpandRect(BuildContext context) {
 /// 本体先随边界长大，再交给目标页面内容。
 Future<void> captureCardExpandOrigin(BuildContext context) async {
   captureCardExpandRect(context);
+  cardExpandHiddenKey = context.widget.key is GlobalKey
+      ? context.widget.key as GlobalKey
+      : null;
   final boundary = context.findRenderObject() as RenderRepaintBoundary?;
   if (boundary == null || !boundary.attached || !boundary.hasSize) return;
   try {
@@ -521,6 +527,8 @@ class _CardRevealTransition extends StatefulWidget {
 class _CardRevealTransitionState extends State<_CardRevealTransition> {
   @override
   void dispose() {
+    cardExpandSourceHidden.value = false;
+    cardExpandHiddenKey = null;
     if (cardDismissLocked) {
       cardDismissLocked = false;
       cardDismissProgress.value = 0;
@@ -567,6 +575,11 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         final dragging = cardDismissLocked || cardDismissProgress.value > 0;
         final dismissing =
             dragging || widget.animation.status == AnimationStatus.reverse;
+        final hideSource =
+            widget.sourceSnapshot != null && dismissing && t >= 0.85;
+        if (cardExpandSourceHidden.value != hideSource) {
+          cardExpandSourceHidden.value = hideSource;
+        }
         final left = dragging
             ? fingerX * (1 - t) + sourceRect.left * t
             : sourceRect.left * t;
