@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -690,6 +691,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
 
   Future<void> _scrapeAndSync(LocalMusicLibrary library) async {
     final scraper = ref.read(localMusicScraperProvider);
+    final playlistService = ref.read(playlistServiceProvider);
+    final revision = ref.read(localMusicRevisionProvider.notifier);
     final songs = library.songs;
     LocalMusicDebugLog.info(
       'ui.scrape_sync.start',
@@ -700,7 +703,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     var artworkEmbedded = 0;
     var artworkCached = 0;
     var artworkMissing = 0;
-    for (var index = 0; index < songs.length; index++) {
+    Future<void> scrapeOne(int index) async {
       final song = songs[index];
       final path = song.meta?['filePath']?.toString();
       if (path == null) {
@@ -708,7 +711,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           'ui.scrape.skip_missing_path',
           'index=${index + 1}/${songs.length} name=${LocalMusicDebugLog.quote(song.name)} singer=${LocalMusicDebugLog.quote(song.singer)}',
         );
-        continue;
+        return;
       }
       final entry = library.files[path];
       if (entry == null) {
@@ -843,15 +846,26 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           'path=${LocalMusicDebugLog.quote(path)} ${LocalMusicDebugLog.track(track)}',
         );
       }
-      if (!mounted) return;
-      setState(() {
-        _scanned = index + 1;
-        _total = songs.length;
-        _status = '正在刮削 $_scanned / $_total';
-      });
+      if (mounted) {
+        setState(() {
+          _scanned++;
+          _total = songs.length;
+          _status = '正在刮削 $_scanned / $_total';
+        });
+      }
     }
 
-    final playlistService = ref.read(playlistServiceProvider);
+    var nextIndex = 0;
+    Future<void> worker() async {
+      while (true) {
+        final index = nextIndex++;
+        if (index >= songs.length) return;
+        await scrapeOne(index);
+      }
+    }
+
+    await Future.wait([worker(), worker(), worker()]);
+
     final syncedSongs = library.songs;
     LocalMusicDebugLog.info(
       'ui.playlist_sync.start',
@@ -862,15 +876,18 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       'ui.playlist_sync.finish',
       'songs=${syncedSongs.length}',
     );
-    if (!mounted) return;
-    setState(() {
-      _scraping = false;
-    });
-    ref.read(localMusicRevisionProvider.notifier).state++;
-    showAppNotification(
-      '本地音乐已更新（${songs.length} 首）',
-      type: AppNotificationType.info,
-    );
+    if (mounted) {
+      setState(() {
+        _scraping = false;
+      });
+      revision.state++;
+      showAppNotification(
+        '本地音乐已更新（${songs.length} 首）',
+        type: AppNotificationType.info,
+      );
+    } else {
+      revision.state++;
+    }
   }
 
   Future<void> _writeScrapedTags() async {

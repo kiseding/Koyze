@@ -267,16 +267,12 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
 
   void paused() {
     _foreground = false;
-    _debounce?.cancel();
-    _debounce = null;
-    _retry?.cancel();
-    _retry = null;
-    _periodic?.cancel();
-    _periodic = null;
+    // 保留 debounce、重试和周期任务：同步由应用根部托管，离开页面或进入
+    // 后台后仍可继续；系统若挂起进程，恢复时 resumed() 会再次补偿检查。
   }
 
   Future<void> checkRemote() async {
-    if (!_loggedIn() || !_foreground || _running != null) return;
+    if (!_loggedIn() || _running != null) return;
     _lastRemoteCheck = DateTime.now();
     try {
       await sync();
@@ -300,7 +296,7 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
   }
 
   Future<void> _run() async {
-    if (!_loggedIn() || !_foreground) return;
+    if (!_loggedIn()) return;
     _debounce?.cancel();
     final localGeneration = _localGeneration;
     final uploadOnly = _uploadOnlyDirty;
@@ -350,9 +346,7 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
     final delay = _retryDelays[_retryIndex.clamp(0, _retryDelays.length - 1)];
     if (_retryIndex < _retryDelays.length - 1) _retryIndex++;
     _retry?.cancel();
-    _retry = Timer(delay, () {
-      if (_foreground) unawaited(sync());
-    });
+    _retry = Timer(delay, () => unawaited(sync()));
     state = CloudSyncState(
       phase: CloudSyncPhase.retryScheduled,
       message: '同步失败，将在 ${delay.inSeconds} 秒后重试：$error',
