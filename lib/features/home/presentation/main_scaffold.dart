@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -451,6 +452,14 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = Theme.of(context).scaffoldBackgroundColor;
+    final isDark = AppColors.isDark(context);
+    final navBg = isDark
+        ? bg.withValues(alpha: 0.82)
+        : bg.withValues(alpha: 0.88);
+    final borderColor = isDark
+        ? const Color(0x1FFFFFFF)
+        : const Color(0x12000000);
+
     return SizedBox(
       height: height + 16,
       child: Stack(
@@ -460,7 +469,19 @@ class _BottomNav extends StatelessWidget {
             right: 0,
             bottom: 0,
             height: height,
-            child: ColoredBox(color: bg),
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: navBg,
+                    border: Border(
+                      top: BorderSide(color: borderColor, width: 0.5),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
           Positioned.fill(
             child: Padding(

@@ -23,6 +23,7 @@ void main() {
     expect(source, contains('bottom: bottomClearance'));
     expect(source, contains('height: height + 16'));
     expect(source, contains('height: height,'));
-    expect(source, contains('child: ColoredBox(color: bg)'));
+    expect(source, contains('BackdropFilter'));
+    expect(source, contains('ImageFilter.blur'));
   });
 }
