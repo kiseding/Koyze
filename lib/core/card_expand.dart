@@ -31,6 +31,8 @@ void captureCardExpandRect(BuildContext context) {
 /// 同时记录卡片几何和像素快照。快照只在转场前短暂保留，用于让源卡片
 /// 本体先随边界长大，再交给目标页面内容。
 Future<void> captureCardExpandOrigin(BuildContext context) async {
+  // 开启动画不隐藏源卡片；隐藏只由关闭阶段的 morph 进度控制。
+  cardExpandSourceHidden.value = false;
   captureCardExpandRect(context);
   cardExpandHiddenKey = context.widget.key is GlobalKey
       ? context.widget.key as GlobalKey
@@ -575,8 +577,13 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         final dragging = cardDismissLocked || cardDismissProgress.value > 0;
         final dismissing =
             dragging || widget.animation.status == AnimationStatus.reverse;
+        // 源卡片只在快照交接窗口隐藏；进入最后 1% 时先恢复源卡片，
+        // 再移除转场层，避免真实卡片接管后仍被全局状态隐藏。
         final hideSource =
-            widget.sourceSnapshot != null && dismissing && t >= 0.85;
+            widget.sourceSnapshot != null &&
+            dismissing &&
+            t >= 0.85 &&
+            t < 0.99;
         if (cardExpandSourceHidden.value != hideSource) {
           cardExpandSourceHidden.value = hideSource;
         }
