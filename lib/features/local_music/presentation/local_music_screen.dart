@@ -864,7 +864,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       }
     }
 
-    await Future.wait([worker(), worker(), worker()]);
+    await Future.wait([worker(), worker(), worker(), worker(), worker()]);
 
     final syncedSongs = library.songs;
     LocalMusicDebugLog.info(
