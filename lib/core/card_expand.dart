@@ -582,7 +582,7 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         final hideSource =
             widget.sourceSnapshot != null &&
             dismissing &&
-            t >= 0.85 &&
+            t >= 0.87 &&
             t < 0.99;
         if (cardExpandSourceHidden.value != hideSource) {
           cardExpandSourceHidden.value = hideSource;
