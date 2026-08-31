@@ -447,11 +447,13 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     dynamic playerService,
   ) {
     final songCount = favorites?.songCount ?? 0;
+    final accent = AppColors.accentOf(context);
+    // 主题的 onPrimary 在深色下是黑色（黄底黑字），但渐变卡片视觉上应统一为白字。
     const onAccent = Colors.white;
 
     return HoverFloat(
       child: Pressable(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         captureExpandRect: true,
         onTap: () {
           context.pushNamed(
@@ -460,38 +462,23 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           );
         },
         child: Container(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFFA243C), Color(0xFFFF375F)],
+              colors: [accent.withAlpha(220), accent.withAlpha(120)],
             ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFA243C).withValues(alpha: 0.35),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.25),
-              width: 0.8,
-            ),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
               Container(
-                width: 50,
-                height: 50,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: onAccent.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 0.5,
-                  ),
+                  color: onAccent.withAlpha(40),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.favorite_rounded,
@@ -509,17 +496,15 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                       style: TextStyle(
                         color: onAccent,
                         fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '$songCount 首歌曲',
                       style: TextStyle(
-                        color: onAccent.withValues(alpha: 0.85),
+                        color: onAccent.withAlpha(200),
                         fontSize: 13,
-                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ],
@@ -527,7 +512,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               ),
               CardPlayButton(
                 color: onAccent,
-                backgroundColor: onAccent.withValues(alpha: 0.25),
+                backgroundColor: onAccent.withAlpha(40),
                 onPressed: favorites != null && favorites.songCount > 0
                     ? () => _playPlaylist(playerService, favorites)
                     : null,
@@ -551,11 +536,13 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     dynamic playerService,
   ) {
     final songCount = local?.songCount ?? 0;
+    // 紫色渐变（与收藏 / 最近播放卡片结构一致）
+    const purple = Colors.purple;
     const onPurple = Colors.white;
 
     return HoverFloat(
       child: Pressable(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         captureExpandRect: true,
         onTap: () {
           context.pushNamed(
@@ -564,41 +551,26 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           );
         },
         child: Container(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF5856D6), Color(0xFF7B1FA2)],
+              colors: [purple.withAlpha(220), purple.withAlpha(120)],
             ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF5856D6).withValues(alpha: 0.35),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.25),
-              width: 0.8,
-            ),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
               Container(
-                width: 50,
-                height: 50,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: onPurple.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 0.5,
-                  ),
+                  color: onPurple.withAlpha(40),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
-                  Icons.library_music_rounded,
+                  Icons.library_music,
                   color: onPurple,
                   size: 28,
                 ),
@@ -613,17 +585,15 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                       style: TextStyle(
                         color: onPurple,
                         fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       songCount == 0 ? '选择文件夹扫描设备歌曲' : '$songCount 首歌曲',
                       style: TextStyle(
-                        color: onPurple.withValues(alpha: 0.85),
+                        color: onPurple.withAlpha(200),
                         fontSize: 13,
-                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ],
@@ -631,7 +601,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               ),
               CardPlayButton(
                 color: onPurple,
-                backgroundColor: onPurple.withValues(alpha: 0.25),
+                backgroundColor: onPurple.withAlpha(40),
                 onPressed: local != null && local.songCount > 0
                     ? () => _playPlaylist(playerService, local)
                     : null,
@@ -655,11 +625,13 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     dynamic playerService,
   ) {
     final songCount = recent?.songCount ?? 0;
-    const onBlue = Colors.white;
+    // 蓝色渐变（与收藏列表结构一致，仅替换为蓝色）
+    const blue = Colors.blue;
+    final onBlue = Colors.white;
 
     return HoverFloat(
       child: Pressable(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         captureExpandRect: true,
         onTap: () {
           context.pushNamed(
@@ -668,66 +640,45 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           );
         },
         child: Container(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF007AFF), Color(0xFF0A84FF)],
+              colors: [blue.withAlpha(220), blue.withAlpha(120)],
             ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF007AFF).withValues(alpha: 0.35),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.25),
-              width: 0.8,
-            ),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
               Container(
-                width: 50,
-                height: 50,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: onBlue.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 0.5,
-                  ),
+                  color: onBlue.withAlpha(40),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.history_rounded,
-                  color: onBlue,
-                  size: 28,
-                ),
+                child: Icon(Icons.history_rounded, color: onBlue, size: 28),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '最近播放',
                       style: TextStyle(
                         color: onBlue,
                         fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '$songCount 首歌曲',
                       style: TextStyle(
-                        color: onBlue.withValues(alpha: 0.85),
+                        color: onBlue.withAlpha(200),
                         fontSize: 13,
-                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ],
@@ -735,15 +686,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               ),
               CardPlayButton(
                 color: onBlue,
-                backgroundColor: onBlue.withValues(alpha: 0.25),
+                backgroundColor: onBlue.withAlpha(40),
                 onPressed: recent != null && recent.songCount > 0
                     ? () => _playPlaylist(playerService, recent)
                     : null,
-                icon: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: onBlue,
-                  size: 30,
-                ),
+                icon: Icon(Icons.play_arrow_rounded, color: onBlue, size: 30),
               ),
             ],
           ),
@@ -760,51 +707,37 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final recommendationsAsync = ref.watch(recommendationProvider);
     final recommendations = recommendationsAsync.valueOrNull ?? const [];
     final count = recommendations.length;
+    const orange = Color(0xFFFF8F1F);
     const onOrange = Colors.white;
 
     return HoverFloat(
       child: Pressable(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         captureExpandRect: true,
         onTap: () {
           context.push('/recommend');
         },
         child: Container(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFFFF9500), Color(0xFFFF5E3A)],
+              colors: [orange.withAlpha(235), orange.withAlpha(130)],
             ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFF9500).withValues(alpha: 0.35),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.25),
-              width: 0.8,
-            ),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
               Container(
-                width: 50,
-                height: 50,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: onOrange.withValues(alpha: 0.22),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 0.5,
-                  ),
+                  color: onOrange.withAlpha(40),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
-                  Icons.auto_awesome_rounded,
+                  Icons.auto_awesome,
                   color: onOrange,
                   size: 28,
                 ),
@@ -820,16 +753,14 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                         color: onOrange,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: -0.3,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       count > 0 ? '为你推荐 $count 首歌曲' : '收藏歌曲后为你推荐',
                       style: TextStyle(
-                        color: onOrange.withValues(alpha: 0.85),
+                        color: onOrange.withAlpha(200),
                         fontSize: 13,
-                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ],
@@ -837,7 +768,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               ),
               CardPlayButton(
                 color: onOrange,
-                backgroundColor: onOrange.withValues(alpha: 0.25),
+                backgroundColor: onOrange.withAlpha(40),
                 onPressed: recommendations.isEmpty
                     ? null
                     : () => playerService.playPlaylist(

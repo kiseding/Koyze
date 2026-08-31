@@ -75,9 +75,7 @@ void main() {
     // 后视觉停在半路（松手后没有动效/卡住）。
     expect(full, contains('_settleRouteProgress('));
     expect(full, contains('onComplete: _completeDragDismiss'));
-    expect(full, contains('_settleController'));
-    expect(full, contains('.forward(from: 0)'));
-    expect(full, contains('.orCancel'));
+    expect(full, contains('_settleController.forward(from: 0).orCancel'));
     expect(full, contains('playerRouteDismissLocked = true;'));
     expect(full, contains('final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0)'));
     expect(full, isNot(contains('Matrix4.translationValues(0, _dragOffset, 0)')));

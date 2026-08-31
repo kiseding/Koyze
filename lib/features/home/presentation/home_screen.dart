@@ -162,16 +162,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         decoration: BoxDecoration(
           color: AppColors.miniBar(context),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(
-                alpha: AppColors.isDark(context) ? 0.25 : 0.04,
-              ),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: Border.all(color: border.withValues(alpha: 0.6)),
         ),
         child: Row(
           children: [
@@ -200,7 +191,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return HoverFloat(
       child: Pressable(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         captureExpandRect: true,
         onTap: () => context.pushNamed(
           'playlistDetail',
@@ -212,42 +203,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                accent,
-                Color.lerp(accent, const Color(0xFF007AFF), 0.28)!,
-              ],
+              colors: [accent.withAlpha(230), accent.withAlpha(120)],
             ),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: accent.withValues(alpha: 0.35),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+                color: accent.withAlpha(50),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
               ),
             ],
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.25),
-              width: 0.8,
-            ),
           ),
           child: Row(
             children: [
               Container(
-                width: 54,
-                height: 54,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
-                  color: onAccent.withValues(alpha: 0.20),
+                  color: onAccent.withAlpha(36),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 0.5,
-                  ),
                 ),
-                child: const Icon(
-                  Icons.favorite_rounded,
-                  color: onAccent,
-                  size: 28,
-                ),
+                child: const Icon(Icons.favorite, color: onAccent, size: 30),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -263,40 +239,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             color: onAccent,
                             fontSize: 17,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: -0.3,
                           ),
                         ),
                         if (favoriteCount > 0) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: onAccent.withValues(alpha: 0.22),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '$favoriteCount',
-                              style: const TextStyle(
-                                color: onAccent,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                fontFeatures: [FontFeature.tabularFigures()],
-                              ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '($favoriteCount)',
+                            style: TextStyle(
+                              color: onAccent.withAlpha(210),
+                              fontSize: 13,
                             ),
                           ),
                         ],
                       ],
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 4),
                     Text(
                       favoriteCount == 0 ? '还没有收藏歌曲' : '点击查看，右侧随机播放',
                       style: TextStyle(
-                        color: onAccent.withValues(alpha: 0.85),
+                        color: onAccent.withAlpha(210),
                         fontSize: 13,
-                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
@@ -312,18 +274,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: onAccent.withValues(alpha: 0.22),
+                    color: onAccent.withAlpha(40),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.35),
-                      width: 0.8,
-                    ),
                   ),
-                  child: const Icon(
-                    Icons.shuffle_rounded,
-                    color: onAccent,
-                    size: 24,
-                  ),
+                  child: const Icon(Icons.shuffle, color: onAccent, size: 26),
                 ),
               ),
             ],
@@ -554,44 +508,25 @@ class _QuickEntryCard extends ConsumerWidget {
   }
 
   Widget _buildCardBody(BuildContext context, WidgetRef ref, Color color) {
-    final isDark = AppColors.isDark(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: AppColors.cardBorder(context), width: 0.8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.cardBorder(context)),
       ),
       child: Row(
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  color.withValues(alpha: isDark ? 0.28 : 0.18),
-                  color.withValues(alpha: isDark ? 0.12 : 0.08),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: color.withValues(alpha: isDark ? 0.35 : 0.22),
-                width: 0.6,
-              ),
+              color: color.withAlpha(40),
+              borderRadius: BorderRadius.circular(11),
             ),
-            child: Icon(entry.icon, color: color, size: 21),
+            child: Icon(entry.icon, color: color, size: 22),
           ),
-          const SizedBox(width: 11),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -603,7 +538,6 @@ class _QuickEntryCard extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: -0.2,
                     color: AppColors.onScaffold(context),
                   ),
                 ),
@@ -621,8 +555,8 @@ class _QuickEntryCard extends ConsumerWidget {
             ),
           ),
           Icon(
-            Icons.chevron_right_rounded,
-            color: AppColors.mutedText(context).withValues(alpha: 0.6),
+            Icons.chevron_right,
+            color: AppColors.mutedText(context),
             size: 18,
           ),
         ],

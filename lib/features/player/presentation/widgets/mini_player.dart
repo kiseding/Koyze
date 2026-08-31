@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/motion/motion_tokens.dart';
@@ -398,217 +397,188 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     final title = currentMusic?.name ?? '未在播放';
     final fallbackSubtitle = currentMusic?.singer ?? '无歌词';
 
-    final borderColor = isDark
-        ? const Color(0x24FFFFFF)
-        : const Color(0x18000000);
-
     return Material(
       color: Colors.transparent,
       child: Container(
         height: 78,
         decoration: BoxDecoration(
+          color: barBg,
           borderRadius: BorderRadius.circular(16),
           boxShadow: widget.floating
               ? [
                   BoxShadow(
                     color: isDark
-                        ? const Color(0x55000000)
-                        : const Color(0x14000000),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
+                        ? const Color(0x66000000)
+                        : const Color(0x1A000000),
+                    blurRadius: 12,
+                    offset: const Offset(0, 2),
                   ),
                 ]
               : null,
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-            child: Container(
-              decoration: BoxDecoration(
-                color: barBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: borderColor, width: 0.5),
-              ),
-              child: Column(
-                children: [
-                  _MiniProgress(
-                    duration: durationValue,
-                    seeking: _seeking,
-                    seekValue: _seekValue,
-                    canSeek: canSeek,
-                    showThumb: currentMusic != null,
-                    accent: accent,
-                    trackBg: trackBg,
-                    timeColor: timeColor,
-                    onDragStart: (v) => _beginSeek(v, isPlayingValue),
-                    onDragUpdate: _updateSeek,
-                    onSeekEnd: _finishSeek,
-                    onSeekCancel: _cancelSeek,
-                    onTapSeek: (v, t) => _tapSeek(v, t, isPlayingValue),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 6, 6),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Semantics(
-                              label: '打开正在播放',
-                              button: true,
-                              enabled: currentMusic != null,
-                              child: InkWell(
-                                onTap: currentMusic != null
-                                    ? () => pushPlayerRoute(
-                                        context,
-                                        hasSong: true,
-                                      )
-                                    : null,
-                                borderRadius: BorderRadius.circular(10),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 42,
-                                      height: 42,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(10),
-                                        color: surface,
-                                        border: Border.all(
-                                          color: isDark
-                                              ? const Color(0x1FFFFFFF)
-                                              : const Color(0x0F000000),
-                                          width: 0.5,
-                                        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            _MiniProgress(
+              duration: durationValue,
+              seeking: _seeking,
+              seekValue: _seekValue,
+              canSeek: canSeek,
+              showThumb: currentMusic != null,
+              accent: accent,
+              trackBg: trackBg,
+              timeColor: timeColor,
+              onDragStart: (v) => _beginSeek(v, isPlayingValue),
+              onDragUpdate: _updateSeek,
+              onSeekEnd: _finishSeek,
+              onSeekCancel: _cancelSeek,
+              onTapSeek: (v, t) => _tapSeek(v, t, isPlayingValue),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 6, 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Semantics(
+                        label: '打开正在播放',
+                        button: true,
+                        enabled: currentMusic != null,
+                        child: InkWell(
+                          onTap: currentMusic != null
+                              ? () => pushPlayerRoute(context, hasSong: true)
+                              : null,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  color: surface,
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: AnimatedSwitcher(
+                                  duration: motionDuration(
+                                    context,
+                                    MotionDuration.normal,
+                                  ),
+                                  switchInCurve: MotionCurve.easeOut,
+                                  switchOutCurve: MotionCurve.easeIn,
+                                  transitionBuilder: (child, animation) {
+                                    return FadeTransition(
+                                      opacity: animation,
+                                      child: ScaleTransition(
+                                        scale: Tween<double>(
+                                          begin: 0.94,
+                                          end: 1,
+                                        ).animate(animation),
+                                        child: child,
                                       ),
-                                      clipBehavior: Clip.antiAlias,
-                                      child: AnimatedSwitcher(
-                                        duration: motionDuration(
-                                          context,
-                                          MotionDuration.normal,
-                                        ),
-                                        switchInCurve: MotionCurve.easeOut,
-                                        switchOutCurve: MotionCurve.easeIn,
-                                        transitionBuilder: (child, animation) {
-                                          return FadeTransition(
-                                            opacity: animation,
-                                            child: ScaleTransition(
-                                              scale: Tween<double>(
-                                                begin: 0.94,
-                                                end: 1,
-                                              ).animate(animation),
-                                              child: child,
+                                    );
+                                  },
+                                  child: KeyedSubtree(
+                                    key: ValueKey(currentMusic?.id),
+                                    child:
+                                        currentMusic?.artwork != null &&
+                                            currentMusic!.artwork!.isNotEmpty
+                                        ? ArtworkImage(
+                                            currentMusic.artwork!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Icon(
+                                              Icons.music_note,
+                                              color: subColor,
+                                              size: 20,
                                             ),
-                                          );
-                                        },
-                                        child: KeyedSubtree(
-                                          key: ValueKey(currentMusic?.id),
-                                          child:
-                                              currentMusic?.artwork != null &&
-                                                  currentMusic!
-                                                      .artwork!
-                                                      .isNotEmpty
-                                              ? ArtworkImage(
-                                                  currentMusic.artwork!,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (_, __, ___) =>
-                                                      Icon(
-                                                        Icons.music_note,
-                                                        color: subColor,
-                                                        size: 20,
-                                                      ),
-                                                )
-                                              : Icon(
-                                                  Icons.music_note,
-                                                  color: subColor,
-                                                  size: 20,
-                                                ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            title,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: titleColor,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 2),
-                                          _MiniLyricText(
-                                            hasSong: currentMusic != null,
-                                            fallback: fallbackSubtitle,
+                                          )
+                                        : Icon(
+                                            Icons.music_note,
                                             color: subColor,
+                                            size: 20,
                                           ),
-                                        ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      title,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: titleColor,
                                       ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    _MiniLyricText(
+                                      hasSong: currentMusic != null,
+                                      fallback: fallbackSubtitle,
+                                      color: subColor,
                                     ),
                                   ],
                                 ),
                               ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 128,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Pressable(
+                            semanticLabel: '上一首',
+                            onTap: currentMusic == null
+                                ? null
+                                : () => playerService.previous(),
+                            child: Icon(
+                              Icons.skip_previous_rounded,
+                              size: 26,
+                              color: currentMusic == null
+                                  ? subColor
+                                  : titleColor,
                             ),
                           ),
-                          SizedBox(
-                            width: 128,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                Pressable(
-                                  semanticLabel: '上一首',
-                                  onTap: currentMusic == null
-                                      ? null
-                                      : () => playerService.previous(),
-                                  child: Icon(
-                                    Icons.skip_previous_rounded,
-                                    size: 26,
-                                    color: currentMusic == null
-                                        ? subColor
-                                        : titleColor,
-                                  ),
-                                ),
-                                PlayPulseButton(
-                                  isPlaying: isPlayingValue,
-                                  onPressed: currentMusic == null
-                                      ? null
-                                      : () => playerService.togglePlay(),
-                                  enabled: currentMusic != null,
-                                  size: 36,
-                                  iconSize: 22,
-                                  mini: true,
-                                ),
-                                Pressable(
-                                  semanticLabel: '下一首',
-                                  onTap: currentMusic == null
-                                      ? null
-                                      : () => playerService.next(),
-                                  child: Icon(
-                                    Icons.skip_next_rounded,
-                                    size: 26,
-                                    color: currentMusic == null
-                                        ? subColor
-                                        : titleColor,
-                                  ),
-                                ),
-                              ],
+                          PlayPulseButton(
+                            isPlaying: isPlayingValue,
+                            onPressed: currentMusic == null
+                                ? null
+                                : () => playerService.togglePlay(),
+                            enabled: currentMusic != null,
+                            size: 36,
+                            iconSize: 22,
+                            mini: true,
+                          ),
+                          Pressable(
+                            semanticLabel: '下一首',
+                            onTap: currentMusic == null
+                                ? null
+                                : () => playerService.next(),
+                            child: Icon(
+                              Icons.skip_next_rounded,
+                              size: 26,
+                              color: currentMusic == null
+                                  ? subColor
+                                  : titleColor,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
