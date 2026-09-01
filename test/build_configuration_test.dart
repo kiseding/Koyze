@@ -271,10 +271,15 @@ void main() {
     expect(build, contains('proguardFiles('));
     expect(build, contains('"proguard-rules.pro"'));
     expect(rules, contains('GeneratedPluginRegistrant'));
-    expect(rules, contains('io.flutter.embedding.engine.plugins.FlutterPlugin'));
+    expect(
+      rules,
+      contains('io.flutter.embedding.engine.plugins.FlutterPlugin'),
+    );
     expect(rules, contains('com.ryanheise.audioservice'));
     expect(rules, contains('io.abner.flutter_js'));
     expect(rules, contains('com.koyze.app'));
+    expect(rules, contains('com.google.android.play.core.splitinstall'));
+    expect(rules, contains('-dontwarn com.google.android.play.core.tasks.**'));
   });
 
   test('Android backup policy excludes all application data', () {

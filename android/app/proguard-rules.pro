@@ -39,6 +39,9 @@
 -dontwarn javax.annotation.**
 -dontwarn aQute.bnd.annotation.**
 -dontwarn com.google.errorprone.annotations.**
+-dontwarn com.google.android.play.core.splitcompat.**
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**
 
 -keep class **.R
 -keep class **.R$* {

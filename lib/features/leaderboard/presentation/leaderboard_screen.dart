@@ -137,6 +137,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                               context,
                               visible,
                               categoryByKey,
+                              contentWidth,
                             );
                           },
                         ),
@@ -165,40 +166,95 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 
-  /// 普通分组列表：平台分组标题 + 榜单行。
+  static const double _cardGap = 10;
+  static const double _cardMaxSize = 200;
+  static const int _minColumns = 2;
+
+  static int _columnsFor(double contentWidth) {
+    final available = max(0.0, contentWidth - 24);
+    var columns = _minColumns;
+    while (columns < 8) {
+      final size = (available - _cardGap * (columns - 1)) / columns;
+      if (size <= _cardMaxSize) return columns;
+      columns += 1;
+    }
+    return columns;
+  }
+
   Widget _buildLeaderboardList(
     BuildContext context,
     List<LeaderboardLayoutItem> visible,
     Map<String, LeaderboardCategory> categoryByKey,
+    double contentWidth,
   ) {
+    final columns = _columnsFor(contentWidth);
+    final rows = _packLeaderboardRows(visible, columns);
     return ListView.builder(
-      // 顶部预留悬浮标题栏（约 72px）高度，滚动时内容可进入栏渐变区。
       padding: const EdgeInsets.fromLTRB(12, 72, 12, 16),
       cacheExtent: 520,
-      itemCount: visible.length,
+      itemCount: rows.length,
       itemBuilder: (context, index) =>
-          _buildListItem(context, visible, index, categoryByKey),
+          _buildPackedItem(context, rows[index], categoryByKey, columns),
     );
   }
 
-  Widget _buildListItem(
-    BuildContext context,
+  List<_LeaderboardPackedItem> _packLeaderboardRows(
     List<LeaderboardLayoutItem> visible,
-    int index,
-    Map<String, LeaderboardCategory> categoryByKey,
+    int columns,
   ) {
-    final item = visible[index];
-    final isPlatform = item.isPlatform;
-    final isLastOfBlock =
-        index == visible.length - 1 || visible[index + 1].isPlatform;
+    final rows = <_LeaderboardPackedItem>[];
+    final pending = <LeaderboardLayoutItem>[];
+
+    void flushCards() {
+      for (var i = 0; i < pending.length; i += columns) {
+        final end = min(i + columns, pending.length);
+        rows.add(_LeaderboardPackedItem.cards(pending.sublist(i, end)));
+      }
+      pending.clear();
+    }
+
+    for (var i = 0; i < visible.length; i++) {
+      final item = visible[i];
+      if (item.isPlatform) {
+        flushCards();
+        final isLastOfBlock =
+            i == visible.length - 1 || visible[i + 1].isPlatform;
+        rows.add(_LeaderboardPackedItem.header(item, isLastOfBlock));
+      } else {
+        pending.add(item);
+      }
+    }
+    flushCards();
+    return rows;
+  }
+
+  Widget _buildPackedItem(
+    BuildContext context,
+    _LeaderboardPackedItem row,
+    Map<String, LeaderboardCategory> categoryByKey,
+    int columns,
+  ) {
+    if (row.header != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: _buildPlatformHeader(context, row.header!, row.isLastOfBlock),
+      );
+    }
+    final cards = row.cards;
     return Padding(
-      padding: EdgeInsets.only(
-        top: isPlatform ? 10 : 0,
-        bottom: isPlatform ? 0 : 8,
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          for (var i = 0; i < columns; i++) ...[
+            if (i > 0) const SizedBox(width: _cardGap),
+            Expanded(
+              child: i < cards.length
+                  ? _buildLeaderboardCard(context, categoryByKey[cards[i].key])
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ],
       ),
-      child: isPlatform
-          ? _buildPlatformHeader(context, item, isLastOfBlock)
-          : _buildLeaderboardRow(context, categoryByKey[item.key]),
     );
   }
 
@@ -349,23 +405,18 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     }
   }
 
-  Widget _buildLeaderboardRow(
+  Widget _buildLeaderboardCard(
     BuildContext context,
     LeaderboardCategory? category,
   ) {
     if (category == null) return const SizedBox.shrink();
     final cover = category.coverUrl;
     final platform = category.platform ?? 'other';
-    final color = _platformColor(context, platform);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder(context)),
-      ),
+    const radius = 18.0;
+    return AspectRatio(
+      aspectRatio: 1,
       child: Pressable(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(radius),
         captureExpandRect: true,
         onTap: () {
           context.push(
@@ -373,79 +424,65 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
             '&name=${Uri.encodeComponent(category.name)}',
           );
         },
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(radius),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              // 第一首歌封面
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: cover != null && cover.isNotEmpty
-                      ? ArtworkImage(
-                          cover,
-                          cacheWidth: 112,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
-                            platform: platform,
-                            name: category.name,
-                          ),
-                        )
-                      : _LeaderboardPlaceholder(
-                          platform: platform,
-                          name: category.name,
-                        ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      category.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.onScaffold(context),
+              cover != null && cover.isNotEmpty
+                  ? ArtworkImage(
+                      cover,
+                      cacheWidth: 400,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
+                        platform: platform,
+                        name: category.name,
                       ),
+                    )
+                  : _LeaderboardPlaceholder(
+                      platform: platform,
+                      name: category.name,
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: color.withAlpha(30),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            kLeaderboardPlatformNames[platform] ?? '其他',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: color,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x99000000),
+                      Color(0x14000000),
+                      Color(0xB3000000),
+                    ],
+                    stops: [0.0, 0.45, 1.0],
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              // 播放按钮：正在播放该榜单时点亮 + 音符旋转。
-              _LeaderboardPlayButton(
-                category: category,
-                color: color,
-                onPressed: () => _playLeaderboard(ref, category),
+              Positioned(
+                top: 10,
+                left: 10,
+                right: 44,
+                child: Text(
+                  category.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                    height: 1.2,
+                    shadows: [Shadow(color: Color(0x66000000), blurRadius: 8)],
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 8,
+                bottom: 8,
+                child: _LeaderboardPlayButton(
+                  category: category,
+                  color: Colors.white,
+                  onPressed: () => _playLeaderboard(ref, category),
+                ),
               ),
             ],
           ),
@@ -492,6 +529,19 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   }
 }
 
+class _LeaderboardPackedItem {
+  const _LeaderboardPackedItem.header(this.header, this.isLastOfBlock)
+    : cards = const [];
+
+  const _LeaderboardPackedItem.cards(this.cards)
+    : header = null,
+      isLastOfBlock = false;
+
+  final LeaderboardLayoutItem? header;
+  final bool isLastOfBlock;
+  final List<LeaderboardLayoutItem> cards;
+}
+
 /// 封面加载失败或无封面时的渐变占位。
 class _LeaderboardPlaceholder extends StatelessWidget {
   final String platform;
@@ -525,7 +575,7 @@ class _LeaderboardPlaceholder extends StatelessWidget {
         child: Icon(
           Icons.leaderboard,
           color: Colors.white.withAlpha(220),
-          size: 26,
+          size: 48,
         ),
       ),
     );
@@ -619,10 +669,12 @@ class _LeaderboardPlayButton extends ConsumerWidget {
       }),
     );
     return CardPlayButton(
-      size: 44,
+      size: 40,
       tooltip: isNowPlaying ? '正在播放 ${category.name}' : '播放 ${category.name}',
       color: color,
-      backgroundColor: isNowPlaying ? color.withAlpha(90) : color.withAlpha(40),
+      backgroundColor: isNowPlaying
+          ? Colors.white.withValues(alpha: 0.32)
+          : Colors.black.withValues(alpha: 0.38),
       onPressed: onPressed,
       icon: isNowPlaying
           ? _NowPlayingSpin(
