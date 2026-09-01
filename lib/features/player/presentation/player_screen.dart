@@ -728,8 +728,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _publishSettledProgress() {
     final t = _settleCurve.transform(_settleController.value);
-    playerRouteProgress.value =
-        (_settleFrom + (_settleTo - _settleFrom) * t).clamp(0.0, 1.0);
+    playerRouteProgress.value = (_settleFrom + (_settleTo - _settleFrom) * t)
+        .clamp(0.0, 1.0);
   }
 
   void _settleRouteProgress({
@@ -750,14 +750,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     _settleController.duration = duration;
-    _settleController.forward(from: 0).orCancel.then((_) {
-      playerRouteProgress.value = _settleTo;
-      final complete = _settleComplete;
-      _settleComplete = null;
-      complete?.call();
-    }).catchError((_) {
-      _settleComplete = null;
-    });
+    _settleController
+        .forward(from: 0)
+        .orCancel
+        .then((_) {
+          playerRouteProgress.value = _settleTo;
+          final complete = _settleComplete;
+          _settleComplete = null;
+          complete?.call();
+        })
+        .catchError((_) {
+          _settleComplete = null;
+        });
   }
 
   void _recordMorphTargets() {
@@ -765,7 +769,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // body 底部内容（歌词页按钮/控件）推出屏幕下缘，实测坐标随之下移，
     // overlay 若跟随就会"先跑到屏幕外、回弹再回来"。冻结在稳定态
     // （全屏展开）记录的位置，overlay 始终指向按钮的真实原位。
-    final unstable = _draggingDown ||
+    final unstable =
+        _draggingDown ||
         _collapsing ||
         _settleController.isAnimating ||
         edgeDragActive;
@@ -901,7 +906,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           miniHeight,
         );
         final fullRect = Offset.zero & Size(screenW, screenH);
-        final lyricCollapsing = _currentPage == 1 &&
+        final lyricCollapsing =
+            _currentPage == 1 &&
             (progress < 1 ||
                 playerRouteDismissLocked ||
                 _draggingDown ||
@@ -960,7 +966,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           miniPlayButtonRect,
           1 - btnMorphT,
         )!;
-// 下滑/收拢/回弹期间（拖动中或 settle 动画进行中）除"飞行封面"外
+        // 下滑/收拢/回弹期间（拖动中或 settle 动画进行中）除"飞行封面"外
         // 其它元素随进度线性渐隐：位移 0~10%（progress 1→0.9）内切到
         // 全透明，回弹时同样线性恢复——松手瞬间不会因公式切换而"卡一下"。
         final animating =
@@ -976,10 +982,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final contentOpacity = lyricCollapsing
             ? 1.0 - stripT
             : (animating
-            ? dragReveal
-            : MotionCurve.iosSpring.transform(
-                ((progress - 0.03) / 0.17).clamp(0.0, 1.0),
-              ));
+                  ? dragReveal
+                  : MotionCurve.iosSpring.transform(
+                      ((progress - 0.03) / 0.17).clamp(0.0, 1.0),
+                    ));
         // 正文封面同样在 0~10% 内让位给飞行封面（避免双封面卡顿）。
         final artworkReveal = animating
             ? dragReveal
@@ -1197,83 +1203,81 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 );
               }
             },
-                  child: Column(
+            child: Column(
+              children: [
+                _StaggeredFade(
+                  delay: 0.55,
+                  child: _buildAppBar(context, currentMusic),
+                ),
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    onPageChanged: (index) =>
+                        setState(() => _currentPage = index),
+                    // 不缓存相邻页：封面/歌词互斥，页面切换无动画干扰。
+                    allowImplicitScrolling: false,
                     children: [
-                      _StaggeredFade(
-                        delay: 0.55,
-                        child: _buildAppBar(context, currentMusic),
+                      Column(
+                        children: [
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: _buildArtwork(
+                              currentMusic.artwork,
+                              songId: currentMusic.id,
+                              routeReveal: artworkReveal,
+                            ),
+                          ),
+                          _StaggeredFade(
+                            delay: 0.2,
+                            child: _buildSongInfo(currentMusic),
+                          ),
+                          _StaggeredFade(
+                            delay: 0.3,
+                            child: const _CurrentLyricLine(),
+                          ),
+                          _StaggeredFade(
+                            delay: 0.45,
+                            child: _PlayerProgress(
+                              duration: duration,
+                              seeking: _seeking,
+                              seekValue: _seekValue,
+                              onDragStart: _beginSeek,
+                              onDragUpdate: _updateSeek,
+                              onSeekEnd: _finishSeek,
+                              onSeekCancel: _cancelSeek,
+                              onTapSeek: _tapSeek,
+                            ),
+                          ),
+                          _StaggeredFade(
+                            delay: 0.5,
+                            child: _buildControls(
+                              playerService,
+                              isPlaying,
+                              playMode,
+                            ),
+                          ),
+                          _buildSourceQualityBar(currentMusic),
+                          const SizedBox(height: 12),
+                        ],
                       ),
-                      Expanded(
-                        child: PageView(
-                          controller: _pageController,
-                          onPageChanged: (index) =>
-                              setState(() => _currentPage = index),
-                          // 不缓存相邻页：封面/歌词互斥，页面切换无动画干扰。
-                          allowImplicitScrolling: false,
-                          children: [
-                            Column(
-                              children: [
-                                const SizedBox(height: 12),
-                                Expanded(
-                                  child: _buildArtwork(
-                                    currentMusic.artwork,
-                                    songId: currentMusic.id,
-                                    routeReveal: artworkReveal,
-                                  ),
-                                ),
-                                _StaggeredFade(
-                                  delay: 0.2,
-                                  child: _buildSongInfo(currentMusic),
-                                ),
-                                _StaggeredFade(
-                                  delay: 0.3,
-                                  child: const _CurrentLyricLine(),
-                                ),
-                                _StaggeredFade(
-                                  delay: 0.45,
-                                  child: _PlayerProgress(
-                                    duration: duration,
-                                    seeking: _seeking,
-                                    seekValue: _seekValue,
-                                    onDragStart: _beginSeek,
-                                    onDragUpdate: _updateSeek,
-                                    onSeekEnd: _finishSeek,
-                                    onSeekCancel: _cancelSeek,
-                                    onTapSeek: _tapSeek,
-                                  ),
-                                ),
-                                _StaggeredFade(
-                                  delay: 0.5,
-                                  child: _buildControls(
-                                    playerService,
-                                    isPlaying,
-                                    playMode,
-                                  ),
-                                ),
-                                _buildSourceQualityBar(currentMusic),
-                                const SizedBox(height: 12),
-                              ],
+                      Column(
+                        children: [
+                          const Expanded(child: LyricView(isFullScreen: true)),
+                          _StaggeredFade(
+                            delay: 0.55,
+                            child: _buildLyricMiniBar(
+                              currentMusic,
+                              playerService,
+                              isPlaying,
                             ),
-                            Column(
-                              children: [
-                                const Expanded(
-                                  child: LyricView(isFullScreen: true),
-                                ),
-                                _StaggeredFade(
-                                  delay: 0.55,
-                                  child: _buildLyricMiniBar(
-                                    currentMusic,
-                                    playerService,
-                                    isPlaying,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

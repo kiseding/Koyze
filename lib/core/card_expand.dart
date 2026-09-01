@@ -101,8 +101,13 @@ CustomTransitionPage<Object?> expandablePage(
     opaque: !expanding && !fullWidthSwipe,
     barrierDismissible: expanding,
     barrierColor: Colors.transparent,
-    transitionDuration: MotionDuration.container,
-    reverseTransitionDuration: MotionDuration.normal,
+    // 卡片容器转场比普通页面快 100ms，打开/关闭使用同一组节奏。
+    transitionDuration: Duration(
+      milliseconds: MotionDuration.container.inMilliseconds - 100,
+    ),
+    reverseTransitionDuration: Duration(
+      milliseconds: MotionDuration.normal.inMilliseconds - 100,
+    ),
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       final curved = CurvedAnimation(

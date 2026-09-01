@@ -475,9 +475,10 @@ class _QuickEntryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final color = entry.color;
+    final isPageEntry = entry.action == null && entry.route.isNotEmpty;
     return Pressable(
       borderRadius: BorderRadius.circular(14),
-      captureExpandRect: entry.action == null,
+      captureExpandRect: isPageEntry,
       onTap: () {
         switch (entry.action) {
           case HomeQuickAction.sleepTimer:

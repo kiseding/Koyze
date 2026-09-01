@@ -19,7 +19,10 @@ void main() {
     expect(full, contains('_RouteArtworkMorphOverlay'));
     expect(full, contains('_RoutePlayButtonMorphOverlay'));
     expect(full, contains('final playButtonTarget = _currentPage == 1'));
-    expect(full, contains('final btnMorphT = (progress / 0.35).clamp(0.0, 1.0)'));
+    expect(
+      full,
+      contains('final btnMorphT = (progress / 0.35).clamp(0.0, 1.0)'),
+    );
     expect(full, contains('miniPlayButtonRect,\n          1 - btnMorphT'));
     expect(full, contains('Rect.lerp('));
     expect(full, contains('_miniPlayButtonRect(miniRect)'));
@@ -58,9 +61,16 @@ void main() {
     // 否则 Debug 模式抛 ParentData 断言、Release 下覆盖层错位。
     expect(
       full,
-      contains('return Positioned.fromRect(\n      rect: rect,\n      child: IgnorePointer('),
+      contains(
+        'return Positioned.fromRect(\n      rect: rect,\n      child: IgnorePointer(',
+      ),
     );
-    expect(full, isNot(contains('return IgnorePointer(\n      child: Positioned.fromRect')));
+    expect(
+      full,
+      isNot(
+        contains('return IgnorePointer(\n      child: Positioned.fromRect'),
+      ),
+    );
     // morph 覆盖层终点必须取真实布局几何（GlobalKey 实测），否则
     // 展开/收起终点与页面封面/按钮错位 -> "卡一下再向上跳"。
     expect(full, contains('_recordMorphTargets()'));
@@ -75,10 +85,18 @@ void main() {
     // 后视觉停在半路（松手后没有动效/卡住）。
     expect(full, contains('_settleRouteProgress('));
     expect(full, contains('onComplete: _completeDragDismiss'));
-    expect(full, contains('_settleController.forward(from: 0).orCancel'));
+    expect(full, contains('_settleController'));
+    expect(full, contains('.forward(from: 0)'));
+    expect(full, contains('.orCancel'));
     expect(full, contains('playerRouteDismissLocked = true;'));
-    expect(full, contains('final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0)'));
-    expect(full, isNot(contains('Matrix4.translationValues(0, _dragOffset, 0)')));
+    expect(
+      full,
+      contains('final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0)'),
+    );
+    expect(
+      full,
+      isNot(contains('Matrix4.translationValues(0, _dragOffset, 0)')),
+    );
     expect(full, isNot(contains('0.28 * (1 - revealT)')));
     // 歌词页关闭的播放按钮 morph 必须按启用视觉渲染（绿色），
     // 否则关闭瞬间按钮从绿变灰再变绿。

@@ -38,18 +38,27 @@ abstract final class AppColors {
   static const Color lightMiniBar = Color(0xF2FFFFFF);
   static const Color lightSurfaceVariant = Color(0xFFE5E5EA);
 
-  static bool isDark(BuildContext c) => Theme.of(c).brightness == Brightness.dark;
+  static bool isDark(BuildContext c) =>
+      Theme.of(c).brightness == Brightness.dark;
 
   static Color scaffold(BuildContext c) => isDark(c) ? bg : lightBg;
-  static Color onScaffold(BuildContext c) => isDark(c) ? textPrimary : lightText;
-  static Color secondaryText(BuildContext c) => isDark(c) ? textSecondary : lightTextSecondary;
-  static Color mutedText(BuildContext c) => isDark(c) ? textMuted : lightTextMuted;
+  static Color onScaffold(BuildContext c) =>
+      isDark(c) ? textPrimary : lightText;
+  static Color secondaryText(BuildContext c) =>
+      isDark(c) ? textSecondary : lightTextSecondary;
+  static Color mutedText(BuildContext c) =>
+      isDark(c) ? textMuted : lightTextMuted;
   static Color card(BuildContext c) => isDark(c) ? surfaceDark : lightSurface;
-  static Color cardAlt(BuildContext c) => isDark(c) ? surfaceVariant : lightSurfaceVariant;
+  static Color cardAlt(BuildContext c) =>
+      isDark(c) ? surfaceVariant : lightSurfaceVariant;
   static Color cardBorder(BuildContext c) => isDark(c) ? border : lightBorder;
-  static Color fill(BuildContext c) => isDark(c) ? surface : const Color(0x14787880);
-  static Color fill2(BuildContext c) => isDark(c) ? surface2 : const Color(0x29787880);
+  static Color fill(BuildContext c) =>
+      isDark(c) ? surface : const Color(0x14787880);
+  static Color fill2(BuildContext c) =>
+      isDark(c) ? surface2 : const Color(0x29787880);
   static Color accentOf(BuildContext c) => Theme.of(c).colorScheme.primary;
-  static Color miniBar(BuildContext c) => isDark(c) ? const Color(0xF21C1C1E) : lightMiniBar;
-  static Color dialogBg(BuildContext c) => isDark(c) ? surfaceDark : lightSurface;
+  static Color miniBar(BuildContext c) =>
+      isDark(c) ? const Color(0xF21C1C1E) : lightMiniBar;
+  static Color dialogBg(BuildContext c) =>
+      isDark(c) ? surfaceDark : lightSurface;
 }

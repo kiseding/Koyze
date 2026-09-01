@@ -583,15 +583,14 @@ class _KtvLyricLineState extends State<_KtvLyricLine> {
           tween: Tween<double>(begin: _lastFill, end: targetFill),
           duration: _fillChaseDuration,
           curve: Curves.linear,
-          builder: (context, fill, child) =>
-              _PartialKtvWord(
-                key: ValueKey('partial-$active'),
-                text: words[active].text,
-                fill: fill,
-                activeColor: widget.activeColor,
-                dimColor: widget.dimColor,
-                style: textStyle,
-              ),
+          builder: (context, fill, child) => _PartialKtvWord(
+            key: ValueKey('partial-$active'),
+            text: words[active].text,
+            fill: fill,
+            activeColor: widget.activeColor,
+            dimColor: widget.dimColor,
+            style: textStyle,
+          ),
         ),
         ..._suffixChildren,
       ],
