@@ -173,6 +173,36 @@ final appRouter = GoRouter(
       ),
     ),
     GoRoute(
+      path: '/quick/leaderboard',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const LeaderboardScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+      ),
+    ),
+    GoRoute(
+      path: '/quick/playlist',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const PlaylistScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+      ),
+    ),
+    GoRoute(
+      path: '/quick/settings',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        SettingsScreen(initialAction: state.uri.queryParameters['action']),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+      ),
+    ),
+    GoRoute(
       path: '/player',
       parentNavigatorKey: rootNavigatorKey,
       // 透明但不使用系统 route snapshot，避免打开/关闭时快照层闪成半透明浅色幕。

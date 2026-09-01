@@ -102,7 +102,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     title: '榜单',
     subtitle: '热门歌曲排行',
     icon: Icons.leaderboard_rounded,
-    route: '/leaderboard',
+    route: '/quick/leaderboard',
     color: Color(0xFF8E44AD),
   ),
   HomeQuickFeature(
@@ -118,7 +118,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     title: '歌单管理',
     subtitle: '整理自定义歌单',
     icon: Icons.library_music_rounded,
-    route: '/playlist',
+    route: '/quick/playlist',
     color: Color(0xFF7E57C2),
   ),
   HomeQuickFeature(
@@ -126,7 +126,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     title: '应用设置',
     subtitle: '音质、下载与外观',
     icon: Icons.settings_rounded,
-    route: '/settings',
+    route: '/quick/settings',
     color: Color(0xFF607D8B),
   ),
   HomeQuickFeature(
@@ -174,7 +174,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     title: '播放音质',
     subtitle: '选择默认播放音质',
     icon: Icons.high_quality_rounded,
-    route: '/settings?action=audio-quality',
+    route: '/quick/settings?action=audio-quality',
     color: Color(0xFF00897B),
   ),
   HomeQuickFeature(
@@ -182,7 +182,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     title: '下载音质',
     subtitle: '选择默认下载音质',
     icon: Icons.download_for_offline_rounded,
-    route: '/settings?action=download-quality',
+    route: '/quick/settings?action=download-quality',
     color: Color(0xFF1E88E5),
   ),
   HomeQuickFeature(
@@ -190,7 +190,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     title: '默认搜索平台',
     subtitle: '调整搜索默认来源',
     icon: Icons.travel_explore_rounded,
-    route: '/settings?action=default-search',
+    route: '/quick/settings?action=default-search',
     color: Color(0xFF5E35B1),
   ),
   HomeQuickFeature(
@@ -198,7 +198,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     title: '备份数据',
     subtitle: '导出歌单和设置',
     icon: Icons.save_alt_rounded,
-    route: '/settings?action=backup',
+    route: '/quick/settings?action=backup',
     color: Color(0xFF43A047),
   ),
   HomeQuickFeature(
@@ -206,7 +206,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     title: '恢复数据',
     subtitle: '从备份文件恢复',
     icon: Icons.restore_page_rounded,
-    route: '/settings?action=restore',
+    route: '/quick/settings?action=restore',
     color: Color(0xFFF4511E),
   ),
   HomeQuickFeature(
@@ -214,7 +214,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     title: '清除缓存',
     subtitle: '释放播放与封面缓存',
     icon: Icons.cleaning_services_rounded,
-    route: '/settings?action=clear-cache',
+    route: '/quick/settings?action=clear-cache',
     color: Color(0xFF6D4C41),
   ),
   HomeQuickFeature(
@@ -222,7 +222,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     title: '诊断日志',
     subtitle: '查看实时运行日志',
     icon: Icons.monitor_heart_rounded,
-    route: '/settings?action=diagnostic-log',
+    route: '/quick/settings?action=diagnostic-log',
     color: Color(0xFF546E7A),
   ),
 ];
