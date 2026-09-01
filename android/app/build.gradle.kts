@@ -66,9 +66,12 @@ android {
                 allowDebugReleaseSigning -> signingConfigs.getByName("debug")
                 else -> null
             }
-            // R8 breaks runtime class lookup used by Android/Flutter plugins.
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

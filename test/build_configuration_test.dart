@@ -252,8 +252,9 @@ void main() {
     expect(build, contains('JvmTarget.JVM_17'));
   });
 
-  test('Android release disables R8 for runtime plugin compatibility', () {
+  test('Android release enables R8 with Flutter plugin keep rules', () {
     final build = File('android/app/build.gradle.kts').readAsStringSync();
+    final rules = File('android/app/proguard-rules.pro').readAsStringSync();
 
     expect(build, contains('rootProject.file("key.properties")'));
     expect(
@@ -265,9 +266,15 @@ void main() {
       build,
       contains('allowDebugReleaseSigning -> signingConfigs.getByName("debug")'),
     );
-    expect(build, contains('isMinifyEnabled = false'));
-    expect(build, contains('isShrinkResources = false'));
-    expect(build, isNot(contains('proguardFiles(')));
+    expect(build, contains('isMinifyEnabled = true'));
+    expect(build, contains('isShrinkResources = true'));
+    expect(build, contains('proguardFiles('));
+    expect(build, contains('"proguard-rules.pro"'));
+    expect(rules, contains('GeneratedPluginRegistrant'));
+    expect(rules, contains('io.flutter.embedding.engine.plugins.FlutterPlugin'));
+    expect(rules, contains('com.ryanheise.audioservice'));
+    expect(rules, contains('io.abner.flutter_js'));
+    expect(rules, contains('com.koyze.app'));
   });
 
   test('Android backup policy excludes all application data', () {
