@@ -24,6 +24,21 @@
 -keep class io.flutter.plugins.flutter_plugin_android_lifecycle.** { *; }
 -keep class dev.fluttercommunity.plus.connectivity.** { *; }
 
+# AGP 9 R8 strips WorkDatabase_Impl's no-arg constructor, so WorkManager
+# crashes during InitializationProvider before Flutter can start.
+-keep class androidx.startup.** { *; }
+-keep class androidx.work.** { *; }
+-keep class androidx.work.impl.** { *; }
+-keep class androidx.work.impl.WorkDatabase { *; }
+-keep class androidx.work.impl.WorkDatabase_Impl {
+    <init>();
+    *;
+}
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep class * extends androidx.work.ListenableWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;
 }
