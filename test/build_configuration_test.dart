@@ -192,6 +192,36 @@ void main() {
     expect(workflow, contains('jarsigner -verify -certs'));
   });
 
+  test('Android Gradle prefers GCS Maven Central to avoid CI 429s', () {
+    final init = File('android/init.gradle').readAsStringSync();
+    final properties = File('android/gradle.properties').readAsStringSync();
+    final settings = File('android/settings.gradle.kts').readAsStringSync();
+    final workflow = File(
+      '.github/workflows/build-android.yml',
+    ).readAsStringSync();
+
+    const gcsMirror = 'maven-central.storage-download.googleapis.com/maven2';
+    expect(init, contains('beforeSettings'));
+    expect(init, contains(gcsMirror));
+    expect(init, isNot(contains('kotlin-dsl')));
+    expect(
+      properties,
+      contains('org.gradle.internal.repository.max.tentatives=10'),
+    );
+    expect(settings, contains(gcsMirror));
+    expect(
+      settings.indexOf(gcsMirror),
+      lessThan(settings.indexOf('mavenCentral()')),
+    );
+    expect(workflow, contains('android/init.gradle'));
+    expect(workflow, contains('.gradle/init.d'));
+    expect(workflow, contains('cache: gradle'));
+    final installInit = workflow.indexOf('.gradle/init.d');
+    final build = workflow.indexOf('flutter build apk --release');
+    expect(installInit, greaterThanOrEqualTo(0));
+    expect(installInit, lessThan(build));
+  });
+
   test('Android host declares background media playback support', () {
     final manifest = File(
       'android/app/src/main/AndroidManifest.xml',

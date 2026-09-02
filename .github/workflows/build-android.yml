@@ -48,6 +48,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
+
+      - name: Prefer GCS Maven Central for Gradle
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.gradle/init.d"
+          cp android/init.gradle "$HOME/.gradle/init.d/gcs-maven-central.gradle"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
