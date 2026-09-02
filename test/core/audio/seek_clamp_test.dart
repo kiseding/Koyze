@@ -23,10 +23,19 @@ void main() {
       audioSourceFor('file:///tmp/song.flac'),
       isA<ProgressiveAudioSource>(),
     );
+    expect(
+      audioSourceFor(
+        'file:///C:/music/a.mp3',
+        streamLocalFiles: true,
+      ),
+      // ignore: experimental_member_use
+      isA<StreamAudioSource>(),
+    );
     expect(handler, contains('preferPreciseDurationAndTiming: true'));
     expect(handler, contains('DarwinAssetOptions'));
     expect(sourceFactory, contains('ProgressiveAudioSource('));
     expect(sourceFactory, isNot(contains('AudioSource.file(')));
+    expect(handler, contains('streamLocalFiles: Platform.isWindows'));
   });
 
   test('seek path has no settle polling or timing compensation', () {

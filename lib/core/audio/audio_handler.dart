@@ -65,6 +65,7 @@ AudioSource audioSourceFor(
   String url, {
   MediaItem? tag,
   Map<String, String>? headers,
+  bool streamLocalFiles = false,
 }) {
   // 未解析曲目用超长静音，避免短 WAV 瞬间 completed 连跳多首
   if (url.isEmpty) {
@@ -72,6 +73,10 @@ AudioSource audioSourceFor(
   }
   final uri = playableUri(url);
   if (uri.scheme == 'file') {
+    // Windows WinRT 播不了任意 file://；改走 just_audio 本地代理 HTTP。
+    if (streamLocalFiles) {
+      return LocalFileStreamAudioSource(uri, tag: tag);
+    }
     return _progressiveSource(uri, tag: tag);
   }
   // ProgressiveAudioSource 覆盖本地 file / 普通 http 媒体；m3u8/mpd 仍走 uri 工厂
@@ -80,6 +85,87 @@ AudioSource audioSourceFor(
     return AudioSource.uri(uri, headers: headers, tag: tag);
   }
   return _progressiveSource(uri, headers: headers, tag: tag);
+}
+
+String _audioMimeForPath(String path) {
+  final dot = path.lastIndexOf('.');
+  final ext = dot < 0 ? '' : path.substring(dot + 1).toLowerCase();
+  return switch (ext) {
+    'mp3' => 'audio/mpeg',
+    'flac' => 'audio/flac',
+    'wav' => 'audio/wav',
+    'm4a' || 'aac' || 'mp4' => 'audio/mp4',
+    'ogg' || 'oga' => 'audio/ogg',
+    'opus' => 'audio/opus',
+    'wma' => 'audio/x-ms-wma',
+    'aiff' || 'aif' => 'audio/aiff',
+    _ => 'application/octet-stream',
+  };
+}
+
+/// Windows 本地文件：把磁盘字节通过 just_audio 的 StreamAudioSource 代理成
+/// `http://127.0.0.1`，绕开 WinRT `MediaSource.CreateFromUri(file://)` 失败。
+// ignore: experimental_member_use
+class LocalFileStreamAudioSource extends StreamAudioSource {
+  LocalFileStreamAudioSource(this.fileUri, {super.tag});
+
+  final Uri fileUri;
+
+  @override
+  // ignore: experimental_member_use
+  Future<StreamAudioResponse> request([int? start, int? end]) async {
+    final file = File.fromUri(fileUri);
+    final length = await file.length();
+    final startByte = start ?? 0;
+    final endByte = (end ?? length).clamp(0, length);
+    // ignore: experimental_member_use
+    return StreamAudioResponse(
+      sourceLength: length,
+      contentLength: endByte - startByte,
+      offset: startByte,
+      stream: file.openRead(startByte, endByte),
+      contentType: _audioMimeForPath(file.path),
+    );
+  }
+}
+
+String? _extraFilePath(Map<String, dynamic>? extras) {
+  final top = extras?['filePath']?.toString();
+  if (top != null && top.isNotEmpty) return top;
+  final meta = extras?['meta'];
+  if (meta is Map) {
+    final nested = meta['filePath']?.toString();
+    if (nested != null && nested.isNotEmpty) return nested;
+  }
+  return null;
+}
+
+/// 本地曲目的可播放 URL：优先真实文件路径，其次 content:// / file://。
+String? localPlaybackUrlFor(MediaItem item) {
+  final extras = item.extras;
+  final isLocal =
+      extras?['local'] == true ||
+      extras?['source']?.toString() == 'local' ||
+      extras?['platform']?.toString() == 'local';
+  if (!isLocal) return null;
+  final contentUri = extras?['meta'] is Map
+      ? (extras?['meta'] as Map)['contentUri']?.toString()
+      : extras?['contentUri']?.toString();
+  if (contentUri != null && contentUri.startsWith('content://')) {
+    return contentUri;
+  }
+  final rawPath = _extraFilePath(extras);
+  if (rawPath != null && rawPath.isNotEmpty && File(rawPath).existsSync()) {
+    return Uri.file(rawPath).toString();
+  }
+  final rawUrl = extras?['url']?.toString();
+  final uri = rawUrl == null ? null : Uri.tryParse(rawUrl);
+  if (uri?.scheme == 'content') return rawUrl;
+  if (uri?.scheme == 'file') {
+    final path = uri!.toFilePath();
+    return File(path).existsSync() ? rawUrl : null;
+  }
+  return null;
 }
 
 AudioProcessingState audioProcessingState(ProcessingState state) =>
@@ -3011,7 +3097,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             : null;
         final commitResult = await _commands.commitSource(
           commandToken,
-          audioSourceFor(url, tag: updatedItem, headers: requestHeaders),
+          audioSourceFor(
+            url,
+            tag: updatedItem,
+            headers: requestHeaders,
+            streamLocalFiles: Platform.isWindows,
+          ),
         );
         sourceTransitionFollows = true;
         if (commitResult is SourceCommitStale) {
@@ -3157,32 +3248,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  String? _localPlaybackUrlFor(MediaItem item) {
-    final extras = item.extras;
-    final isLocal =
-        extras?['local'] == true ||
-        extras?['source']?.toString() == 'local' ||
-        extras?['platform']?.toString() == 'local';
-    if (!isLocal) return null;
-    final contentUri = extras?['meta'] is Map
-        ? (extras?['meta'] as Map)['contentUri']?.toString()
-        : extras?['contentUri']?.toString();
-    if (contentUri != null && contentUri.startsWith('content://')) {
-      return contentUri;
-    }
-    final rawPath = extras?['filePath']?.toString();
-    if (rawPath != null && rawPath.isNotEmpty && File(rawPath).existsSync()) {
-      return Uri.file(rawPath).toString();
-    }
-    final rawUrl = extras?['url']?.toString();
-    final uri = rawUrl == null ? null : Uri.tryParse(rawUrl);
-    if (uri?.scheme == 'content') return rawUrl;
-    if (uri?.scheme == 'file') {
-      final path = uri!.toFilePath();
-      return File(path).existsSync() ? rawUrl : null;
-    }
-    return null;
-  }
+  String? _localPlaybackUrlFor(MediaItem item) => localPlaybackUrlFor(item);
 
   Future<void> _recoverAuthoritativeSource({
     required PlaybackStartProvenance provenance,

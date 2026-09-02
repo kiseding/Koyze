@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,6 +46,23 @@ void main() {
     );
     expect(playableUri('/tmp/a.mp3').toFilePath(), '/tmp/a.mp3');
     expect(playableUri('https://cdn.example/a.mp3').scheme, 'https');
+  });
+
+  test('localPlaybackUrlFor reads nested meta filePath', () {
+    final file = File('${Directory.systemTemp.path}/koyze_local_test.mp3')
+      ..writeAsBytesSync(const [1, 2, 3]);
+    addTearDown(() {
+      if (file.existsSync()) file.deleteSync();
+    });
+    final item = MediaItem(
+      id: 'local:x',
+      title: 'x',
+      extras: {
+        'source': 'local',
+        'meta': {'filePath': file.path, 'local': true},
+      },
+    );
+    expect(localPlaybackUrlFor(item), Uri.file(file.path).toString());
   });
 
   test('initial playback state publishes the empty logical queue index', () {
