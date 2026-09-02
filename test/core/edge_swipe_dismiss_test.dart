@@ -378,7 +378,8 @@ void main() {
   testWidgets(
       'card reveal scales destination content with the expanding source rect',
       (tester) async {
-    const source = Rect.fromLTWH(200, 240, 160, 72);
+    // 半宽矮卡：窗高比和宽比差很大，独立 scaleY 会压扁，等比跟宽则不会。
+    const source = Rect.fromLTWH(20, 400, 352, 80);
     final page = expandablePage(
       const ValueKey('detail'),
       const ColoredBox(key: ValueKey('content'), color: Colors.black),
@@ -410,20 +411,18 @@ void main() {
     expect(positioned.width, closeTo(expected.width, 1));
     expect(positioned.height, closeTo(expected.height, 1));
 
-    // 目的页按当前窗口宽高分别缩放，界面元素跟着卡片一起移动放大，
-    // 而不是钉在全屏坐标上只被窗口裁开。
+    // 目的页按当前窗宽等比缩放：宽度跟着走，高度不单独压扁。
     final content = find.byKey(const ValueKey('content'));
     final scales = tester.widgetList<Transform>(
       find.ancestor(of: content, matching: find.byType(Transform)),
     );
-    final expectedScaleX = expected.width / media.width;
-    final expectedScaleY = expected.height / media.height;
+    final expectedScale = expected.width / media.width;
     expect(
       scales.any((w) {
         final sx = w.transform.storage[0];
         final sy = w.transform.storage[5];
-        return (sx - expectedScaleX).abs() < 0.02 &&
-            (sy - expectedScaleY).abs() < 0.02;
+        return (sx - expectedScale).abs() < 0.02 &&
+            (sy - expectedScale).abs() < 0.02;
       }),
       isTrue,
     );
