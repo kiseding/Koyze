@@ -10,8 +10,8 @@ import 'motion/motion_tokens.dart';
 ///
 /// 点击卡片时先调用 [captureCardExpandRect] 记录卡片的屏幕矩形，
 /// 再 push 二级页；路由的 pageBuilder 通过 [consumeCardExpandRect]
-/// 一次性消费该矩形，transitionsBuilder 据此做「从卡片矩形缩放展开 +
-/// 圆角收敛」的过渡（与全屏播放器的矩形 morph 同机制）。
+/// 一次性消费该矩形，transitionsBuilder 据此做「窗口从卡片矩形 lerp
+/// 到全屏、裁开目的页」的过渡，而不是把整页按一个比例均匀放大。
 /// 其他入口进入（未记录矩形）时退化为默认的上滑淡入。
 Rect? _cardExpandRect;
 ui.Image? _cardExpandSnapshot;
@@ -116,7 +116,16 @@ CustomTransitionPage<Object?> expandablePage(
         reverseCurve: Curves.easeInCubic,
       );
       late final Widget transition;
-      if (fullWidthSwipe) {
+      if (expanding) {
+        // 有源卡片矩形时必须走矩形 morph。fullWidthSwipe 只影响返回手势
+        // 范围，不能改成整页中心缩放——快捷卡半宽时那种缩放就是均匀放大。
+        transition = _CardRevealTransition(
+          animation: curved,
+          sourceGlobalRect: expandRect,
+          sourceSnapshot: expandSnapshot,
+          child: child,
+        );
+      } else if (fullWidthSwipe) {
         transition = AnimatedBuilder(
           animation: Listenable.merge([
             curved,
@@ -164,7 +173,7 @@ CustomTransitionPage<Object?> expandablePage(
           },
           child: child,
         );
-      } else if (!expanding) {
+      } else {
         transition = AnimatedBuilder(
           animation: Listenable.merge([curved, cardDismissProgress]),
           builder: (context, child) {
@@ -179,13 +188,6 @@ CustomTransitionPage<Object?> expandablePage(
               ),
             );
           },
-          child: child,
-        );
-      } else {
-        transition = _CardRevealTransition(
-          animation: curved,
-          sourceGlobalRect: expandRect,
-          sourceSnapshot: expandSnapshot,
           child: child,
         );
       }
@@ -566,14 +568,9 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         final t = cardDismissLocked || cardDismissProgress.value > 0
             ? cardDismissProgress.value
             : 1 - widget.animation.value;
-        // 单个公式同时体现"跟手位移 + 收缩"：t=0 全屏原位，
-        // t=1 收拢到源卡片；中间阶段矩形中心随手指位移（t*width），
-        // 因此拖动时卡片既收缩又跟随手指，不会出现外层位移与内层
-        // 裁剪两条曲线打架的错位。
-        final sizeW =
-            targetRect.width - (targetRect.width - sourceRect.width) * t;
-        final sizeH =
-            targetRect.height - (targetRect.height - sourceRect.height) * t;
+        // 窗口从源卡片矩形 lerp 到全屏：四边各自长到屏幕边。
+        // 快捷卡半宽时若再按宽度比均匀 scale 目的页，观感就是整页放大。
+        var currentRect = Rect.lerp(sourceRect, targetRect, 1 - t)!;
         // 跟手：拖动中卡片左缘 = 手指水平位移，手停卡停；
         // 松手动画（已锁）线性归位到源卡片位置；
         // 无拖动的正常关闭（返回按钮/系统手势）直接归位到源位置，
@@ -592,11 +589,14 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         if (cardExpandSourceHidden.value != hideSource) {
           cardExpandSourceHidden.value = hideSource;
         }
-        final left = dragging
-            ? fingerX * (1 - t) + sourceRect.left * t
-            : sourceRect.left * t;
-        final top = sourceRect.top * t;
-        final currentRect = Rect.fromLTWH(left, top, sizeW, sizeH);
+        if (dragging) {
+          currentRect = Rect.fromLTWH(
+            fingerX * (1 - t) + sourceRect.left * t,
+            currentRect.top,
+            currentRect.width,
+            currentRect.height,
+          );
+        }
         // 收拢/拖拽关闭方向（dragging）：内容保持不透明、不浮现快照，
         // 收拢矩形只是裁剪窗口——route 移除瞬间真实页面同像素接管，
         // 不会出现"快照 vs 实时渲染"的亮度跳变。
@@ -633,43 +633,39 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                       opacity: reveal,
                       child: ColoredBox(color: backgroundColor),
                     ),
-                    // 快照在关闭 85%~95% 交接，之后 95%~99% 独立飞回源卡片。
+                    // 源卡片快照钉在原位、保持原尺寸，不随窗口拉长。
                     if (widget.sourceSnapshot != null)
-                      Opacity(
-                        opacity: snapshotOpacity,
-                        child: Align(
-                          alignment: Alignment.topLeft,
-                          child: Transform.scale(
-                            alignment: Alignment.topLeft,
-                            // 表面可沿两个方向扩展，但卡片内的文字和图标
-                            // 必须只按一个比例放大，避免被垂直拉长。
-                            scale: currentRect.width / sourceRect.width,
-                            child: SizedBox(
-                              width: sourceRect.width,
-                              height: sourceRect.height,
-                              child: RawImage(
-                                image: widget.sourceSnapshot,
-                                fit: BoxFit.fill,
-                                filterQuality: FilterQuality.high,
-                              ),
-                            ),
+                      Positioned(
+                        left: sourceRect.left - currentRect.left,
+                        top: sourceRect.top - currentRect.top,
+                        width: sourceRect.width,
+                        height: sourceRect.height,
+                        child: Opacity(
+                          opacity: snapshotOpacity,
+                          child: RawImage(
+                            image: widget.sourceSnapshot,
+                            fit: BoxFit.fill,
+                            filterQuality: FilterQuality.high,
                           ),
                         ),
                       ),
-                    // 内容以矩形中心锚定并按宽度比等比缩放：收拢时
-                    // 上下从两侧对称裁剪（焦点 = 矩形中心），不再出现
-                    // "从底部往顶部收"的错位观感。
-                    OverflowBox(
-                      alignment: Alignment.center,
-                      minWidth: targetRect.width,
-                      maxWidth: targetRect.width,
-                      minHeight: targetRect.height,
-                      maxHeight: targetRect.height,
-                      child: Opacity(
-                        opacity: reveal,
-                        child: Transform.scale(
-                          scale: sizeW / targetRect.width,
-                          child: child,
+                    // 目的页保持全屏几何、钉在屏幕坐标上，由矩形窗口裁开。
+                    // 半宽快捷卡因此是从卡片向外展开，而不是把整页均匀放大。
+                    Opacity(
+                      opacity: reveal,
+                      child: OverflowBox(
+                        alignment: Alignment.topLeft,
+                        minWidth: targetRect.width,
+                        maxWidth: targetRect.width,
+                        minHeight: targetRect.height,
+                        maxHeight: targetRect.height,
+                        child: Transform.translate(
+                          offset: Offset(-currentRect.left, -currentRect.top),
+                          child: SizedBox(
+                            width: targetRect.width,
+                            height: targetRect.height,
+                            child: child,
+                          ),
                         ),
                       ),
                     ),

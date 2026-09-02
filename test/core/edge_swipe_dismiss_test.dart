@@ -27,6 +27,15 @@ Widget _dismissHarness() {
 }
 
 void main() {
+  setUp(() {
+    cardDismissProgress.value = 0;
+    cardDismissOffset.value = 0;
+    cardDismissLocked = false;
+    edgeDragActive = false;
+    cardExpandSourceHidden.value = false;
+    cardExpandHiddenKey = null;
+  });
+
   testWidgets('iOS plain page stays opaque so system back gesture works', (
     tester,
   ) async {
@@ -364,6 +373,92 @@ void main() {
     expect(later, lessThan(0.6));
     await gesture.up();
     await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+      'card reveal clips the destination from the source card instead of scaling it',
+      (tester) async {
+    const source = Rect.fromLTWH(200, 240, 160, 72);
+    final page = expandablePage(
+      const ValueKey('detail'),
+      const ColoredBox(key: ValueKey('content'), color: Colors.black),
+      expandRect: source,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => page.transitionsBuilder(
+            context,
+            const AlwaysStoppedAnimation(0.5),
+            const AlwaysStoppedAnimation(0),
+            page.child,
+          ),
+        ),
+      ),
+    );
+
+    final media = tester.getSize(find.byType(MaterialApp));
+    final curvedT = Curves.easeOutCubic.transform(0.5);
+    final expected = Rect.lerp(source, Offset.zero & media, curvedT)!;
+    final positioned = tester
+        .widgetList<Positioned>(find.byType(Positioned))
+        .where((w) => w.width != null && w.width! > 50)
+        .first;
+    expect(positioned.left, closeTo(expected.left, 1));
+    expect(positioned.top, closeTo(expected.top, 1));
+    expect(positioned.width, closeTo(expected.width, 1));
+    expect(positioned.height, closeTo(expected.height, 1));
+
+    // 目的页必须保持全屏几何、由矩形窗口裁开，不能按宽度比均匀缩小。
+    // 快捷卡只有半屏宽时，那种 scale 就是「整页放大」而不是从卡片展开。
+    final content = find.byKey(const ValueKey('content'));
+    final scales = tester.widgetList<Transform>(
+      find.ancestor(of: content, matching: find.byType(Transform)),
+    );
+    expect(
+      scales.any((w) {
+        final sx = w.transform.storage[0];
+        final sy = w.transform.storage[5];
+        return (sx - sy).abs() < 0.01 && sx < 0.99;
+      }),
+      isFalse,
+    );
+  });
+
+  testWidgets(
+      'expandRect wins over fullWidthSwipe so shortcuts keep the card morph',
+      (tester) async {
+    const source = Rect.fromLTWH(20, 400, 120, 80);
+    final page = expandablePage(
+      const ValueKey('detail'),
+      const ColoredBox(key: ValueKey('content'), color: Colors.black),
+      expandRect: source,
+      fullWidthSwipe: true,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => page.transitionsBuilder(
+            context,
+            const AlwaysStoppedAnimation(0),
+            const AlwaysStoppedAnimation(0),
+            page.child,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(EdgeSwipeDismiss), findsOneWidget);
+    final positioned = tester
+        .widgetList<Positioned>(find.byType(Positioned))
+        .where((w) => w.left != null && w.width != null && w.width! > 50)
+        .first;
+    expect(positioned.left, closeTo(source.left, 1));
+    expect(positioned.top, closeTo(source.top, 1));
+    expect(positioned.width, closeTo(source.width, 1));
+    expect(positioned.height, closeTo(source.height, 1));
   });
 
   testWidgets(
