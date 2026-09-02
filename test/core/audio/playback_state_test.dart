@@ -900,12 +900,23 @@ void main() {
       MediaItem(id: 'C', title: 'C'),
     ]);
 
+    final published = <PlaybackState>[];
+    handler.playbackState.listen(published.add);
+    await pumpEventQueue();
+    published.clear();
+
     player.emitPlaybackError(StateError('native stream failed'));
     await pumpEventQueue();
 
     expect(handler.currentQueueIndex, 1);
     expect(handler.mediaItem.value?.id, 'B');
     expect(player.playing, isTrue);
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(
+      published.where((state) => !state.playing),
+      isEmpty,
+      reason: '锁屏在错误跳歌期间不能发布 playing=false，否则 iOS 会结束后台会话',
+    );
 
     await handler.skipToNext();
     expect(handler.currentQueueIndex, 2);

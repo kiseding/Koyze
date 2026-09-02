@@ -174,6 +174,18 @@ void main() {
     expect(handler.mediaItem.value?.id, 'A');
   });
 
+  test('playback errors keep the lock screen session alive while skipping', () {
+    final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
+    final handler = source.substring(
+      source.indexOf('void _handleAuthoritativePlaybackError('),
+      source.indexOf('int _publishPlaybackState('),
+    );
+    expect(handler, contains('playingOverride: true'));
+    expect(handler, contains('AudioProcessingState.buffering'));
+    expect(handler, isNot(contains('playingOverride: false')));
+    expect(handler, isNot(contains('AudioProcessingState.idle')));
+  });
+
   test('completion uses one native signal and no position threshold', () {
     final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
     expect(source, contains('state != ProcessingState.completed'));

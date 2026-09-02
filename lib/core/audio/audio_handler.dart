@@ -1510,9 +1510,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final recoveryPosition = _outputRouteRecoveryPosition ?? _player.position;
     _installedPlaybackGeneration = -1;
     _installedMediaId = null;
+    // 锁屏/控制中心在跳下一首之前绝不能看到 playing=false，
+    // 否则 iOS 会立刻结束后台音频会话，自动切歌停住。
     _publishPlaybackState(
-      override: AudioProcessingState.idle,
-      playingOverride: false,
+      override: AudioProcessingState.buffering,
+      playingOverride: true,
     );
     final retryCurrent =
         allowCurrentRetry &&
