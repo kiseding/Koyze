@@ -48,6 +48,11 @@ void main() {
     expect(full, contains('color: Colors.transparent'));
     expect(full, contains('if (_currentPage == 0)'));
     expect(full, contains('artworkReveal'));
+    expect(full, contains('progress >= 1.0 ? 1.0 : 0.0'));
+    expect(
+      full,
+      isNot(contains('((progress - 0.74) / 0.22).clamp(0.0, 1.0)')),
+    );
     expect(full, contains('OverflowBox'));
     expect(full, contains('ClipRRect'));
     expect(full, contains('playerRouteProgress'));
@@ -55,7 +60,7 @@ void main() {
     expect(full, contains('MotionDuration.playerReverse'));
     // 内容必须在 morph 底还很小时就完全不透明，否则整屏会长时间
     // 呈"半透明全屏白色层"（内容鬼影盖在白色 sheet 上，进入/退出各闪一次）；
-    // 之后各区块的显隐节奏交给 _StaggeredFade / artworkReveal。
+    // 之后各区块的显隐节奏交给 _StaggeredFade；封面全程隐藏、只留快照。
     expect(full, contains('((progress - 0.03) / 0.17).clamp(0.0, 1.0)'));
     // morph 覆盖层必须把 Positioned 直接挂在 Stack 下（IgnorePointer 在内侧），
     // 否则 Debug 模式抛 ParentData 断言、Release 下覆盖层错位。
@@ -120,6 +125,8 @@ void main() {
 
     expect(mini, isNot(contains('Hero(')));
     expect(mini, isNot(contains('tag: \'player-')));
+    expect(mini, contains('playerRouteProgress'));
+    expect(mini, contains('progress > 0 && progress < 1'));
   });
 
   test('player route drives shell squeeze and no page-level transforms', () {

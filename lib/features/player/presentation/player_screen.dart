@@ -986,12 +986,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   : MotionCurve.iosSpring.transform(
                       ((progress - 0.03) / 0.17).clamp(0.0, 1.0),
                     ));
-        // 正文封面同样在 0~10% 内让位给飞行封面（避免双封面卡顿）。
-        final artworkReveal = animating
-            ? dragReveal
-            : MotionCurve.iosSpring.transform(
-                ((progress - 0.74) / 0.22).clamp(0.0, 1.0),
-              );
+        // 动效全程隐藏正文封面，只留飞行快照封面；progress=1 再交棒，
+        // 避免全屏/迷你栏真封面与快照叠在一起。
+        final artworkReveal = progress >= 1.0 ? 1.0 : 0.0;
         // 背景动画期间也跟手透明（阴影已移除，不会发灰）；
         // 非动画阶段保持纯色。
         // 歌词页关闭：sheet 与主壳底色同色，若不变色则缩小的背景在

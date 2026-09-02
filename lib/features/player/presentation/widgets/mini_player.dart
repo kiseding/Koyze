@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/motion/motion_tokens.dart';
+import '../../../../core/player_route_progress.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/artwork_image.dart';
 import '../../../../core/widgets/pressable.dart';
@@ -459,44 +460,55 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                                   color: surface,
                                 ),
                                 clipBehavior: Clip.antiAlias,
-                                child: AnimatedSwitcher(
-                                  duration: motionDuration(
-                                    context,
-                                    MotionDuration.normal,
-                                  ),
-                                  switchInCurve: MotionCurve.easeOut,
-                                  switchOutCurve: MotionCurve.easeIn,
-                                  transitionBuilder: (child, animation) {
-                                    return FadeTransition(
-                                      opacity: animation,
-                                      child: ScaleTransition(
-                                        scale: Tween<double>(
-                                          begin: 0.94,
-                                          end: 1,
-                                        ).animate(animation),
-                                        child: child,
-                                      ),
+                                child: ValueListenableBuilder<double>(
+                                  valueListenable: playerRouteProgress,
+                                  builder: (context, progress, child) {
+                                    // 动效期间隐藏迷你栏真封面，只留飞行快照封面。
+                                    final hideCover = progress > 0 && progress < 1;
+                                    return Opacity(
+                                      opacity: hideCover ? 0 : 1,
+                                      child: child,
                                     );
                                   },
-                                  child: KeyedSubtree(
-                                    key: ValueKey(currentMusic?.id),
-                                    child:
-                                        currentMusic?.artwork != null &&
-                                            currentMusic!.artwork!.isNotEmpty
-                                        ? ArtworkImage(
-                                            currentMusic.artwork!,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Icon(
+                                  child: AnimatedSwitcher(
+                                    duration: motionDuration(
+                                      context,
+                                      MotionDuration.normal,
+                                    ),
+                                    switchInCurve: MotionCurve.easeOut,
+                                    switchOutCurve: MotionCurve.easeIn,
+                                    transitionBuilder: (child, animation) {
+                                      return FadeTransition(
+                                        opacity: animation,
+                                        child: ScaleTransition(
+                                          scale: Tween<double>(
+                                            begin: 0.94,
+                                            end: 1,
+                                          ).animate(animation),
+                                          child: child,
+                                        ),
+                                      );
+                                    },
+                                    child: KeyedSubtree(
+                                      key: ValueKey(currentMusic?.id),
+                                      child:
+                                          currentMusic?.artwork != null &&
+                                              currentMusic!.artwork!.isNotEmpty
+                                          ? ArtworkImage(
+                                              currentMusic.artwork!,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => Icon(
+                                                Icons.music_note,
+                                                color: subColor,
+                                                size: 20,
+                                              ),
+                                            )
+                                          : Icon(
                                               Icons.music_note,
                                               color: subColor,
                                               size: 20,
                                             ),
-                                          )
-                                        : Icon(
-                                            Icons.music_note,
-                                            color: subColor,
-                                            size: 20,
-                                          ),
+                                    ),
                                   ),
                                 ),
                               ),
