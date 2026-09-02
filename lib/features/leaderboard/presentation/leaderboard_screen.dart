@@ -460,7 +460,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
               Positioned(
                 top: 10,
                 left: 10,
-                right: 88,
+                right: 68,
                 child: Text(
                   category.name,
                   maxLines: 2,
@@ -669,7 +669,7 @@ class _LeaderboardPlayButton extends ConsumerWidget {
       }),
     );
     return CardPlayButton(
-      size: 80,
+      size: 60,
       tooltip: isNowPlaying ? '正在播放 ${category.name}' : '播放 ${category.name}',
       color: color,
       backgroundColor: isNowPlaying
@@ -678,9 +678,9 @@ class _LeaderboardPlayButton extends ConsumerWidget {
       onPressed: onPressed,
       icon: isNowPlaying
           ? _NowPlayingSpin(
-              child: Icon(Icons.music_note, color: color, size: 48),
+              child: Icon(Icons.music_note, color: color, size: 36),
             )
-          : Icon(Icons.play_arrow_rounded, color: color, size: 52),
+          : Icon(Icons.play_arrow_rounded, color: color, size: 40),
     );
   }
 }

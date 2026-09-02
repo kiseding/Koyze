@@ -13,8 +13,8 @@ void main() {
     );
 
     expect(button, contains('return CardPlayButton('));
-    expect(button, contains('size: 80'));
-    expect(button, contains('size: 52'));
+    expect(button, contains('size: 60'));
+    expect(button, contains('size: 40'));
     expect(button, contains('onPressed: onPressed'));
 
     expect(source, contains('leaderboardId: category.id'));
