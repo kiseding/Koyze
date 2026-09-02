@@ -11,7 +11,7 @@ import 'motion/motion_tokens.dart';
 /// 点击卡片时先调用 [captureCardExpandRect] 记录卡片的屏幕矩形，
 /// 再 push 二级页；路由的 pageBuilder 通过 [consumeCardExpandRect]
 /// 一次性消费该矩形，transitionsBuilder 据此做「窗口从卡片矩形 lerp
-/// 到全屏、裁开目的页」的过渡，而不是把整页按一个比例均匀放大。
+/// 到全屏，卡片界面元素跟着窗口一起移动、按轴向放大缩小」的过渡。
 /// 其他入口进入（未记录矩形）时退化为默认的上滑淡入。
 Rect? _cardExpandRect;
 ui.Image? _cardExpandSnapshot;
@@ -569,7 +569,8 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
             ? cardDismissProgress.value
             : 1 - widget.animation.value;
         // 窗口从源卡片矩形 lerp 到全屏：四边各自长到屏幕边。
-        // 快捷卡半宽时若再按宽度比均匀 scale 目的页，观感就是整页放大。
+        // 卡片界面元素跟着窗口一起移动，并按当前窗宽/窗高分别缩放，
+        // 而不是钉死原尺寸只做裁剪，也不是按一个比例均匀放大整页。
         var currentRect = Rect.lerp(sourceRect, targetRect, 1 - t)!;
         // 跟手：拖动中卡片左缘 = 手指水平位移，手停卡停；
         // 松手动画（已锁）线性归位到源卡片位置；
@@ -633,24 +634,26 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                       opacity: reveal,
                       child: ColoredBox(color: backgroundColor),
                     ),
-                    // 源卡片快照钉在原位、保持原尺寸，不随窗口拉长。
+                    // 源卡片快照铺满正在长大的窗口，界面元素跟着矩形一起缩放。
                     if (widget.sourceSnapshot != null)
-                      Positioned(
-                        left: sourceRect.left - currentRect.left,
-                        top: sourceRect.top - currentRect.top,
-                        width: sourceRect.width,
-                        height: sourceRect.height,
-                        child: Opacity(
-                          opacity: snapshotOpacity,
-                          child: RawImage(
-                            image: widget.sourceSnapshot,
-                            fit: BoxFit.fill,
-                            filterQuality: FilterQuality.high,
+                      Opacity(
+                        opacity: snapshotOpacity,
+                        child: Transform.scale(
+                          alignment: Alignment.topLeft,
+                          scaleX: currentRect.width / sourceRect.width,
+                          scaleY: currentRect.height / sourceRect.height,
+                          child: SizedBox(
+                            width: sourceRect.width,
+                            height: sourceRect.height,
+                            child: RawImage(
+                              image: widget.sourceSnapshot,
+                              fit: BoxFit.fill,
+                              filterQuality: FilterQuality.high,
+                            ),
                           ),
                         ),
                       ),
-                    // 目的页保持全屏几何、钉在屏幕坐标上，由矩形窗口裁开。
-                    // 半宽快捷卡因此是从卡片向外展开，而不是把整页均匀放大。
+                    // 目的页按窗口宽高分别缩放，元素跟着卡片一起移动放大。
                     Opacity(
                       opacity: reveal,
                       child: OverflowBox(
@@ -659,8 +662,10 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                         maxWidth: targetRect.width,
                         minHeight: targetRect.height,
                         maxHeight: targetRect.height,
-                        child: Transform.translate(
-                          offset: Offset(-currentRect.left, -currentRect.top),
+                        child: Transform.scale(
+                          alignment: Alignment.topLeft,
+                          scaleX: currentRect.width / targetRect.width,
+                          scaleY: currentRect.height / targetRect.height,
                           child: SizedBox(
                             width: targetRect.width,
                             height: targetRect.height,

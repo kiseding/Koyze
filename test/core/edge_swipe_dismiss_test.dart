@@ -376,7 +376,7 @@ void main() {
   });
 
   testWidgets(
-      'card reveal clips the destination from the source card instead of scaling it',
+      'card reveal scales destination content with the expanding source rect',
       (tester) async {
     const source = Rect.fromLTWH(200, 240, 160, 72);
     final page = expandablePage(
@@ -410,19 +410,22 @@ void main() {
     expect(positioned.width, closeTo(expected.width, 1));
     expect(positioned.height, closeTo(expected.height, 1));
 
-    // 目的页必须保持全屏几何、由矩形窗口裁开，不能按宽度比均匀缩小。
-    // 快捷卡只有半屏宽时，那种 scale 就是「整页放大」而不是从卡片展开。
+    // 目的页按当前窗口宽高分别缩放，界面元素跟着卡片一起移动放大，
+    // 而不是钉在全屏坐标上只被窗口裁开。
     final content = find.byKey(const ValueKey('content'));
     final scales = tester.widgetList<Transform>(
       find.ancestor(of: content, matching: find.byType(Transform)),
     );
+    final expectedScaleX = expected.width / media.width;
+    final expectedScaleY = expected.height / media.height;
     expect(
       scales.any((w) {
         final sx = w.transform.storage[0];
         final sy = w.transform.storage[5];
-        return (sx - sy).abs() < 0.01 && sx < 0.99;
+        return (sx - expectedScaleX).abs() < 0.02 &&
+            (sy - expectedScaleY).abs() < 0.02;
       }),
-      isFalse,
+      isTrue,
     );
   });
 
