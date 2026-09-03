@@ -345,11 +345,19 @@ void main() {
 
   test('launcher source icon is not shipped as a Flutter asset', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    final flutterSection = pubspec.split(RegExp(r'\nflutter:\n')).last;
+    // Windows CI checks out YAML as CRLF; the flutter: section split must
+    // not fall through to flutter_launcher_icons image_path.
+    final normalized = pubspec.replaceAll('\r\n', '\n');
+    for (final text in [normalized, normalized.replaceAll('\n', '\r\n')]) {
+      final flutterSection = text
+          .replaceAll('\r\n', '\n')
+          .split(RegExp(r'\nflutter:\n'))
+          .last;
 
-    expect(flutterSection, contains('uses-material-design: true'));
-    expect(flutterSection, isNot(contains('assets:')));
-    expect(flutterSection, isNot(contains('app_icon.png')));
+      expect(flutterSection, contains('uses-material-design: true'));
+      expect(flutterSection, isNot(contains('assets:')));
+      expect(flutterSection, isNot(contains('app_icon.png')));
+    }
   });
 
   test('launcher source icon stays a compact 1024 PNG', () {
