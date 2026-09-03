@@ -343,6 +343,32 @@ void main() {
     expect(modern, contains('<device-transfer>'));
   });
 
+  test('launcher source icon is not shipped as a Flutter asset', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final flutterSection = pubspec.split(RegExp(r'\nflutter:\n')).last;
+
+    expect(flutterSection, contains('uses-material-design: true'));
+    expect(flutterSection, isNot(contains('assets:')));
+    expect(flutterSection, isNot(contains('app_icon.png')));
+  });
+
+  test('launcher source icon stays a compact 1024 PNG', () {
+    final icon = File('assets/icon/app_icon.png');
+    final bytes = icon.readAsBytesSync();
+
+    expect(bytes[0], 0x89);
+    expect(bytes.sublist(1, 4), [0x50, 0x4e, 0x47]);
+    expect(
+      (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19],
+      1024,
+    );
+    expect(
+      (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23],
+      1024,
+    );
+    expect(bytes.length, lessThan(80 * 1024));
+  });
+
   test('Widget Extension inherits Flutter build name and number', () {
     final project = File(
       'ios/Runner.xcodeproj/project.pbxproj',
