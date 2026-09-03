@@ -209,6 +209,9 @@ void main() {
       init.indexOf(gcsMirror),
       lessThan(init.indexOf('gradlePluginPortal()')),
     );
+    expect(init, contains("setUrl('https://$gcsMirror/')"));
+    expect(init, isNot(contains('url = gcsMavenCentral')));
+    expect(init, isNot(contains('repo.url =')));
     expect(init, isNot(contains('kotlin-dsl')));
     expect(
       properties,

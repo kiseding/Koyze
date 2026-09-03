@@ -1,13 +1,11 @@
 System.setProperty('org.gradle.internal.repository.max.tentatives', '10')
 System.setProperty('org.gradle.internal.repository.initial.backoff', '500')
 
-def gcsMavenCentral = 'https://maven-central.storage-download.googleapis.com/maven2/'
-
 def rewriteMavenCentral(RepositoryHandler repos) {
     repos.withType(MavenArtifactRepository) { repo ->
         def current = repo.url.toString()
         if (current.contains('repo.maven.apache.org') || current.contains('repo1.maven.org')) {
-            repo.url = gcsMavenCentral
+            repo.setUrl('https://maven-central.storage-download.googleapis.com/maven2/')
         }
     }
 }
@@ -16,7 +14,7 @@ gradle.beforeSettings { settings ->
     settings.pluginManagement.repositories {
         maven {
             name = 'GCSMavenCentral'
-            url = gcsMavenCentral
+            setUrl('https://maven-central.storage-download.googleapis.com/maven2/')
         }
         google()
         mavenCentral()
