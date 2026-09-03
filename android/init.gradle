@@ -18,11 +18,15 @@ gradle.beforeSettings { settings ->
             name = 'GCSMavenCentral'
             url = gcsMavenCentral
         }
+        google()
+        mavenCentral()
+        gradlePluginPortal()
     }
 }
 
 gradle.settingsEvaluated { settings ->
     rewriteMavenCentral(settings.pluginManagement.repositories)
+    rewriteMavenCentral(settings.dependencyResolutionManagement.repositories)
 }
 
 gradle.beforeProject { project ->

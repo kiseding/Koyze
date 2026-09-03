@@ -203,6 +203,12 @@ void main() {
     const gcsMirror = 'maven-central.storage-download.googleapis.com/maven2';
     expect(init, contains('beforeSettings'));
     expect(init, contains(gcsMirror));
+    expect(init, contains('gradlePluginPortal()'));
+    expect(init, contains('google()'));
+    expect(
+      init.indexOf(gcsMirror),
+      lessThan(init.indexOf('gradlePluginPortal()')),
+    );
     expect(init, isNot(contains('kotlin-dsl')));
     expect(
       properties,
