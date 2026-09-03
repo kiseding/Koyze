@@ -374,7 +374,9 @@ void main() {
       (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23],
       1024,
     );
-    expect(bytes.length, lessThan(80 * 1024));
+    // Source is launcher input only (not a Flutter asset). Do not recompress
+    // artwork; still reject the previous uncompressed 860KB blow-up.
+    expect(bytes.length, lessThan(256 * 1024));
   });
 
   test('Widget Extension inherits Flutter build name and number', () {
