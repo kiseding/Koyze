@@ -634,12 +634,13 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                       opacity: reveal,
                       child: ColoredBox(color: backgroundColor),
                     ),
-                    // 源卡片快照按窗宽等比放大，界面元素跟着走但不被窗高压扁。
+                    // 源卡片快照按窗宽等比放大，相对窗口居中：
+                    // 收起时上下左右一起走，而不是顶对齐从下往上收。
                     if (widget.sourceSnapshot != null)
                       Opacity(
                         opacity: snapshotOpacity,
                         child: Transform.scale(
-                          alignment: Alignment.topLeft,
+                          alignment: Alignment.center,
                           scale: currentRect.width / sourceRect.width,
                           child: SizedBox(
                             width: sourceRect.width,
@@ -652,17 +653,18 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                           ),
                         ),
                       ),
-                    // 目的页按窗宽等比缩放：宽度跟着走，高度保持内容比例。
+                    // 目的页按窗宽等比缩放，相对窗口居中：
+                    // 宽度跟着走，高度保持比例；收起时对称裁切。
                     Opacity(
                       opacity: reveal,
                       child: OverflowBox(
-                        alignment: Alignment.topLeft,
+                        alignment: Alignment.center,
                         minWidth: targetRect.width,
                         maxWidth: targetRect.width,
                         minHeight: targetRect.height,
                         maxHeight: targetRect.height,
                         child: Transform.scale(
-                          alignment: Alignment.topLeft,
+                          alignment: Alignment.center,
                           scale: currentRect.width / targetRect.width,
                           child: SizedBox(
                             width: targetRect.width,

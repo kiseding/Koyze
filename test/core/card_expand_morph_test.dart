@@ -12,6 +12,8 @@ void main() {
     // 宽度跟着窗口走；高度用同一比例，不能按窗高单独缩放把卡片 UI 压扁。
     expect(source, contains('scale: currentRect.width / sourceRect.width'));
     expect(source, contains('scale: currentRect.width / targetRect.width'));
+    // 内容相对窗口居中：收起时上下一起裁，而不是顶对齐从下往上收。
+    expect(source, isNot(contains('alignment: Alignment.topLeft')));
     expect(
       source,
       isNot(contains('scaleY: currentRect.height / sourceRect.height')),
