@@ -45,13 +45,13 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        // 列表可滚动到栏内部（栏高度不变），顶栏渐变才有可见过渡。
+        // 列表可滚动到栏内部（栏高度不变），顶栏磨砂才可见。
         extendBodyBehindAppBar: true,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
-          // 顶栏背景在栏内部渐变：上 87% 微透，下 13% 渐变到 100% 透明。
+          // 顶栏整栏磨砂玻璃，无底部渐变透明。
           flexibleSpace: GradientAppBarBackground(
             background: Theme.of(context).scaffoldBackgroundColor,
           ),

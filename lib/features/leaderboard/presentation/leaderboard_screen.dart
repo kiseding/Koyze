@@ -142,16 +142,14 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                           },
                         ),
                       ),
-                      // 标题栏悬浮（栏高度不变），背景在栏内部渐变；
-                      // 列表可滚动到栏内部，产生可见过渡。
+                      // 标题栏悬浮（栏高度不变），整栏磨砂玻璃；
+                      // 列表可滚动到栏内部，磨砂才可见。
                       Positioned(
                         top: 0,
                         left: 0,
                         right: 0,
                         child: GradientAppBarBackground(
                           background: Theme.of(context).scaffoldBackgroundColor,
-                          // 榜单 tab 悬浮 header 渐变起始位置与其他顶栏不同。
-                          fadeStart: 0.8,
                           child: _buildHeader(context),
                         ),
                       ),
@@ -705,13 +703,13 @@ class LeaderboardDetailScreenById extends ConsumerWidget {
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        // 列表可滚动到栏内部（栏高度不变），顶栏渐变才有可见过渡。
+        // 列表可滚动到栏内部（栏高度不变），顶栏磨砂才可见。
         extendBodyBehindAppBar: true,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
-          // 顶栏背景在栏内部渐变：顶部实色 → 底部 100% 透明。
+          // 顶栏整栏磨砂玻璃，无底部渐变透明。
           flexibleSpace: GradientAppBarBackground(
             background: Theme.of(context).scaffoldBackgroundColor,
           ),

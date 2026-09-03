@@ -32,14 +32,14 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.scaffold(context),
-      // 列表可滚动到栏内部（栏高度不变），顶栏渐变才有可见过渡。
+      // 列表可滚动到栏内部（栏高度不变），顶栏磨砂才可见。
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         elevation: 0,
-        // 顶栏背景在栏内部渐变：顶部实色 → 底部 100% 透明。
+        // 顶栏整栏磨砂玻璃，无底部渐变透明。
         flexibleSpace: GradientAppBarBackground(
           background: Theme.of(context).scaffoldBackgroundColor,
         ),
