@@ -25,7 +25,7 @@ class GradientAppBarBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     final frost = ClipRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 36, sigmaY: 36),
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
         child: ColoredBox(
           color: background.withValues(alpha: _tintAlpha),
           child: child,
