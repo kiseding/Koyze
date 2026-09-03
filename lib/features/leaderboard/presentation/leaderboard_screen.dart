@@ -47,118 +47,116 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        // 底部安全区已由 MainScaffold（底栏+迷你栏）处理
-        body: SafeArea(
-          bottom: false,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final isWide = width >= 720;
-              final contentWidth = isWide ? min(width * 0.82, 900.0) : width;
+        // 底部安全区已由 MainScaffold（底栏+迷你栏）处理。
+        // 顶部不包 SafeArea：磨砂要铺到屏幕顶（含灵动岛/状态栏）。
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isWide = width >= 720;
+            final contentWidth = isWide ? min(width * 0.82, 900.0) : width;
 
-              return Center(
-                child: SizedBox(
-                  width: contentWidth,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: categoriesAsync.when(
-                          loading: () => const Center(
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.amber,
-                                ),
+            return Center(
+              child: SizedBox(
+                width: contentWidth,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: categoriesAsync.when(
+                        loading: () => const Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.amber,
                               ),
                             ),
                           ),
-                          error: (error, _) => Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.error_outline,
-                                  color: AppColors.error,
-                                  size: 48,
+                        ),
+                        error: (error, _) => Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                color: AppColors.error,
+                                size: 48,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                '加载失败: $error',
+                                style: TextStyle(
+                                  color: AppColors.secondaryText(context),
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  '加载失败: $error',
-                                  style: TextStyle(
-                                    color: AppColors.secondaryText(context),
-                                  ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () => ref.invalidate(
+                                  leaderboardCategoriesProvider,
                                 ),
-                                const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: () => ref.invalidate(
-                                    leaderboardCategoriesProvider,
-                                  ),
-                                  child: const Text('重试'),
-                                ),
-                              ],
-                            ),
+                                child: const Text('重试'),
+                              ),
+                            ],
                           ),
-                          data: (categories) {
-                            if (categories.isEmpty) {
-                              return Center(
-                                child: Text(
-                                  '暂无排行榜数据',
-                                  style: TextStyle(
-                                    color: AppColors.mutedText(context),
-                                  ),
+                        ),
+                        data: (categories) {
+                          if (categories.isEmpty) {
+                            return Center(
+                              child: Text(
+                                '暂无排行榜数据',
+                                style: TextStyle(
+                                  color: AppColors.mutedText(context),
                                 ),
-                              );
-                            }
-                            // 首次加载生成默认布局。
-                            ref
-                                .read(leaderboardLayoutProvider.notifier)
-                                .ensureDefaultLayout(categories);
-                            final layout = ref.watch(leaderboardLayoutProvider);
-                            final visible = <LeaderboardLayoutItem>[];
-                            for (final item in layout) {
-                              if (!item.hidden) visible.add(item);
-                            }
-
-                            if (visible.isEmpty) {
-                              return Center(
-                                child: Text(
-                                  '已隐藏全部榜单\n点击右上角设置恢复',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: AppColors.mutedText(context),
-                                  ),
-                                ),
-                              );
-                            }
-                            return _buildLeaderboardList(
-                              context,
-                              visible,
-                              categoryByKey,
-                              contentWidth,
+                              ),
                             );
-                          },
-                        ),
+                          }
+                          // 首次加载生成默认布局。
+                          ref
+                              .read(leaderboardLayoutProvider.notifier)
+                              .ensureDefaultLayout(categories);
+                          final layout = ref.watch(leaderboardLayoutProvider);
+                          final visible = <LeaderboardLayoutItem>[];
+                          for (final item in layout) {
+                            if (!item.hidden) visible.add(item);
+                          }
+
+                          if (visible.isEmpty) {
+                            return Center(
+                              child: Text(
+                                '已隐藏全部榜单\n点击右上角设置恢复',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.mutedText(context),
+                                ),
+                              ),
+                            );
+                          }
+                          return _buildLeaderboardList(
+                            context,
+                            visible,
+                            categoryByKey,
+                            contentWidth,
+                          );
+                        },
                       ),
-                      // 标题栏悬浮（栏高度不变），整栏磨砂玻璃；
-                      // 列表可滚动到栏内部，磨砂才可见。
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: GradientAppBarBackground(
-                          background: Theme.of(context).scaffoldBackgroundColor,
-                          child: _buildHeader(context),
-                        ),
+                    ),
+                    // 标题栏悬浮铺到屏幕顶（含状态栏/灵动岛），整栏磨砂玻璃；
+                    // 列表可滚动到栏内部，磨砂才可见。
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: GradientAppBarBackground(
+                        background: Theme.of(context).scaffoldBackgroundColor,
+                        child: _buildHeader(context),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -188,7 +186,12 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     final columns = _columnsFor(contentWidth);
     final rows = _packLeaderboardRows(visible, columns);
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 72, 12, 16),
+      padding: EdgeInsets.fromLTRB(
+        12,
+        MediaQuery.paddingOf(context).top + 72,
+        12,
+        16,
+      ),
       cacheExtent: 520,
       itemCount: rows.length,
       itemBuilder: (context, index) =>
@@ -258,7 +261,12 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      padding: EdgeInsets.fromLTRB(
+        12,
+        MediaQuery.paddingOf(context).top + 12,
+        12,
+        12,
+      ),
       child: Row(
         children: [
           Expanded(

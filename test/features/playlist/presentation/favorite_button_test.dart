@@ -93,11 +93,11 @@ void main() {
     expect(source, contains('GradientAppBarBackground('));
     expect(source, contains('child: _buildHeader(context)'));
     expect(source, contains('Positioned.fill('));
-    expect(
-      source,
-      contains('padding: const EdgeInsets.fromLTRB(12, 72, 12, 16)'),
-    );
     expect(source, isNot(contains('fadeStart:')));
+    // 磨砂必须铺到屏幕顶（含灵动岛/状态栏），不能被 SafeArea 裁在栏下。
+    expect(source, isNot(contains('body: SafeArea(')));
+    expect(source, contains('MediaQuery.paddingOf(context).top + 12'));
+    expect(source, contains('MediaQuery.paddingOf(context).top + 72'));
   });
 
   test('playlist detail rows embed favorite before overflow button', () {
