@@ -64,10 +64,8 @@ void main() {
       gradientSource.indexOf('class GradientAppBarBackground'),
       gradientSource.indexOf('class GradientBottomBarBackground'),
     );
-    expect(appBarClass, contains('BackdropFilter'));
-    expect(appBarClass, contains('ImageFilter.blur'));
-    expect(appBarClass, contains('sigmaX: 24'));
-    expect(appBarClass, contains('sigmaY: 24'));
+    expect(appBarClass, contains('GlassSurface('));
+    expect(appBarClass, contains('style: AppGlassStyle.bar'));
     expect(appBarClass, isNot(contains('LinearGradient')));
     expect(appBarClass, isNot(contains('fadeStart')));
 
