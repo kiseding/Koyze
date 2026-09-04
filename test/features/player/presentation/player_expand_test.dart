@@ -194,12 +194,13 @@ void main() {
       expect(full, isNot(contains('snapSizes:')));
       expect(full, isNot(contains('_handleQueueScrollNotification')));
       expect(full, contains('backgroundColor: Colors.transparent'));
+      expect(full, contains('GlassSurface('));
       expect(full, contains('Material('));
-      expect(full, contains('color: AppColors.dialogBg(context)'));
+      expect(full, contains('color: Colors.transparent'));
       expect(
         full,
         contains(
-          'borderRadius: const BorderRadius.vertical(top: Radius.circular(20))',
+          'borderRadius: const BorderRadius.vertical(',
         ),
       );
       expect(full, contains('final pageContext = context'));
