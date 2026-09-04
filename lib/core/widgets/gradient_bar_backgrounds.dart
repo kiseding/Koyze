@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_tokens.dart';
 
-/// 顶栏背景：iOS ultra-thin 磨砂，无底部渐变透明。
+/// 顶栏背景：iOS 导航栏式磨砂，越靠近列表越糊，底缘淡出。
 /// 配合 `AppBar.flexibleSpace` 或榜单 tab 悬浮 header 使用。
 /// 注意：`AppBar.flexibleSpace` 收到的约束是 loose 的，无 child 时必须撑满，
 /// 否则装饰会被压缩成 0×0 而完全不可见。
@@ -23,10 +23,9 @@ class GradientAppBarBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     final frost = GlassSurface(
       style: AppGlassStyle.bar,
+      fade: AppGlassFade.down,
       borderRadius: BorderRadius.zero,
-      border: Border(
-        bottom: AppGlass.hairline(context),
-      ),
+      border: const Border(),
       child: child ?? const SizedBox.expand(),
     );
     if (child != null) {
@@ -36,8 +35,7 @@ class GradientAppBarBackground extends StatelessWidget {
   }
 }
 
-/// 底栏背景：栏顶部 13% 透明度从 100% 渐变到 3%，下方 87% 从 3% 渐变到 0%。
-/// 包裹分页栏等底部控件使用。
+/// 底栏背景：iOS tab bar 式磨砂，越靠近列表越糊，顶缘淡出。
 class GradientBottomBarBackground extends StatelessWidget {
   const GradientBottomBarBackground({
     super.key,
@@ -46,30 +44,21 @@ class GradientBottomBarBackground extends StatelessWidget {
     this.minAlpha = 0.0,
   });
 
-  /// 栏顶部露出的背景色。
+  /// 保留参数以兼容现有调用；实际 tint 由 [AppGlassStyle.bar] 决定。
   final Color background;
 
-  /// 渐变最透处的透明度（0~1）。
+  /// 保留参数以兼容现有调用。
   final double minAlpha;
 
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            background.withValues(alpha: minAlpha),
-            background.withValues(alpha: 0.97),
-            background,
-          ],
-          // 顶部 13%：透明度 100%→3%，下方 87%：3%→0%。
-          stops: const [0.0, 0.13, 1.0],
-        ),
-      ),
+    return GlassSurface(
+      style: AppGlassStyle.bar,
+      fade: AppGlassFade.up,
+      borderRadius: BorderRadius.zero,
+      border: const Border(),
       child: child,
     );
   }

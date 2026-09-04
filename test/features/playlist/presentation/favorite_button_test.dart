@@ -66,7 +66,7 @@ void main() {
     );
     expect(appBarClass, contains('GlassSurface('));
     expect(appBarClass, contains('style: AppGlassStyle.bar'));
-    expect(appBarClass, isNot(contains('LinearGradient')));
+    expect(appBarClass, contains('fade: AppGlassFade.down'));
     expect(appBarClass, isNot(contains('fadeStart')));
 
     for (final path in [

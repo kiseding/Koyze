@@ -25,5 +25,6 @@ void main() {
     expect(source, contains('height: height,'));
     expect(source, contains('GlassSurface('));
     expect(source, contains('style: AppGlassStyle.bar'));
+    expect(source, contains('fade: AppGlassFade.up'));
   });
 }

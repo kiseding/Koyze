@@ -74,6 +74,10 @@ abstract final class AppGlass {
   }
 }
 
+/// iOS navigation chrome fades frost toward the scrolling content:
+/// top bars are stronger at the bottom edge, tab bars at the top edge.
+enum AppGlassFade { none, down, up }
+
 class GlassSurface extends StatelessWidget {
   const GlassSurface({
     super.key,
@@ -85,6 +89,7 @@ class GlassSurface extends StatelessWidget {
     this.style = AppGlassStyle.regular,
     this.blur,
     this.boxShadow,
+    this.fade = AppGlassFade.none,
   });
 
   final Widget child;
@@ -95,41 +100,132 @@ class GlassSurface extends StatelessWidget {
   final AppGlassStyle style;
   final double? blur;
   final List<BoxShadow>? boxShadow;
+  final AppGlassFade fade;
 
   @override
   Widget build(BuildContext context) {
     final radius = borderRadius ?? BorderRadius.circular(16);
     final sigma = blur ?? AppGlass.blurFor(style);
-    final filter = blur == null
-        ? AppGlass.filterFor(style)
-        : ImageFilter.compose(
-            outer: ImageFilter.blur(
-              sigmaX: sigma,
-              sigmaY: sigma,
-              tileMode: TileMode.clamp,
-            ),
-            inner: ColorFilter.matrix(AppGlass._saturationMatrix(AppGlass.saturate)),
-          );
+    final fill = color ?? AppGlass.fill(context, style: style);
+    final side = border ?? Border.fromBorderSide(AppGlass.hairline(context));
+    final content = padding == null
+        ? child
+        : Padding(padding: padding!, child: child);
     final glass = ClipRRect(
       borderRadius: radius,
-      child: BackdropFilter(
-        filter: filter,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: color ?? AppGlass.fill(context, style: style),
-            borderRadius: radius,
-            border: border ?? Border.fromBorderSide(AppGlass.hairline(context)),
-          ),
-          child: padding == null
-              ? child
-              : Padding(padding: padding!, child: child),
-        ),
-      ),
+      child: fade == AppGlassFade.none
+          ? BackdropFilter(
+              filter: _filter(sigma),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: fill,
+                  borderRadius: radius,
+                  border: side,
+                ),
+                child: content,
+              ),
+            )
+          : _FadingFrost(
+              sigma: sigma,
+              fade: fade,
+              fill: fill,
+              radius: radius,
+              border: side,
+              child: content,
+            ),
     );
     if (boxShadow == null || boxShadow!.isEmpty) return glass;
     return DecoratedBox(
       decoration: BoxDecoration(borderRadius: radius, boxShadow: boxShadow),
       child: glass,
+    );
+  }
+
+  static ImageFilter _filter(double sigma) => ImageFilter.compose(
+    outer: ImageFilter.blur(
+      sigmaX: sigma,
+      sigmaY: sigma,
+      tileMode: TileMode.clamp,
+    ),
+    inner: ColorFilter.matrix(AppGlass._saturationMatrix(AppGlass.saturate)),
+  );
+}
+
+class _FadingFrost extends StatelessWidget {
+  const _FadingFrost({
+    required this.sigma,
+    required this.fade,
+    required this.fill,
+    required this.radius,
+    required this.border,
+    required this.child,
+  });
+
+  final double sigma;
+  final AppGlassFade fade;
+  final Color fill;
+  final BorderRadius radius;
+  final Border border;
+  final Widget child;
+
+  static const _stops = <double>[0.0, 0.18, 0.42, 0.68, 1.0];
+  static const _strengths = <double>[1.0, 0.82, 0.52, 0.22, 0.0];
+
+  @override
+  Widget build(BuildContext context) {
+    final down = fade == AppGlassFade.down;
+    final alpha = fill.a;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < _stops.length - 1; i++)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Align(
+                alignment: down ? Alignment.topCenter : Alignment.bottomCenter,
+                child: FractionallySizedBox(
+                  heightFactor: _stops[i + 1],
+                  widthFactor: 1,
+                  alignment: down
+                      ? Alignment.topCenter
+                      : Alignment.bottomCenter,
+                  child: ClipRect(
+                    child: BackdropFilter(
+                      filter: GlassSurface._filter(sigma * _strengths[i]),
+                      child: const ColoredBox(color: Color(0x00000000)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: down
+                  ? [
+                      fill,
+                      fill.withValues(alpha: alpha * 0.82),
+                      fill.withValues(alpha: alpha * 0.42),
+                      fill.withValues(alpha: alpha * 0.12),
+                      fill.withValues(alpha: 0),
+                    ]
+                  : [
+                      fill.withValues(alpha: 0),
+                      fill.withValues(alpha: alpha * 0.12),
+                      fill.withValues(alpha: alpha * 0.42),
+                      fill.withValues(alpha: alpha * 0.82),
+                      fill,
+                    ],
+            ),
+            borderRadius: radius,
+            border: border,
+          ),
+          child: child,
+        ),
+      ],
     );
   }
 }
