@@ -950,6 +950,7 @@ class _PlatformPickerDialog extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: GlassSurface(
+              style: AppGlassStyle.regular,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
@@ -1140,6 +1141,7 @@ class _QualityPickerDialog extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: GlassSurface(
+              style: AppGlassStyle.regular,
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(

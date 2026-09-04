@@ -1,8 +1,8 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
-/// 顶栏背景：整栏磨砂玻璃，无底部渐变透明。
+import '../theme/app_tokens.dart';
+
+/// 顶栏背景：iOS ultra-thin 磨砂，无底部渐变透明。
 /// 配合 `AppBar.flexibleSpace` 或榜单 tab 悬浮 header 使用。
 /// 注意：`AppBar.flexibleSpace` 收到的约束是 loose 的，无 child 时必须撑满，
 /// 否则装饰会被压缩成 0×0 而完全不可见。
@@ -13,30 +13,25 @@ class GradientAppBarBackground extends StatelessWidget {
     this.child,
   });
 
-  /// 磨砂上叠的底色。
+  /// 保留参数以兼容现有调用；实际 tint 由 [AppGlassStyle.bar] 决定。
   final Color background;
 
   /// 可选子内容（如自定义标题栏），置于磨砂之上。
   final Widget? child;
 
-  static const double _tintAlpha = 0.62;
-
   @override
   Widget build(BuildContext context) {
-    final frost = ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: ColoredBox(
-          color: background.withValues(alpha: _tintAlpha),
-          child: child,
-        ),
+    final frost = GlassSurface(
+      style: AppGlassStyle.bar,
+      borderRadius: BorderRadius.zero,
+      border: Border(
+        bottom: AppGlass.hairline(context),
       ),
+      child: child ?? const SizedBox.expand(),
     );
     if (child != null) {
       return frost;
     }
-    // 无 child（如 AppBar.flexibleSpace）时撑满可用区域，
-    // 避免 loose 约束下被压缩成 0×0 导致磨砂不可见。
     return SizedBox.expand(child: frost);
   }
 }

@@ -45,6 +45,7 @@ Future<T?> showKoyzeSheet<T>({
       );
       if (!useGlass) return content;
       return GlassSurface(
+        style: AppGlassStyle.regular,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         color: backgroundColor,
         child: content,

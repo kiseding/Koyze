@@ -167,6 +167,7 @@ class _SearchSheetState extends State<_SearchSheet>
         child: SizedBox(
           height: widget.height,
           child: GlassSurface(
+            style: AppGlassStyle.regular,
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(20),
             ),

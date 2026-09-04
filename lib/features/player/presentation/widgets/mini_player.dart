@@ -390,7 +390,6 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
 
     final titleColor = AppColors.onScaffold(context);
     final subColor = AppColors.secondaryText(context);
-    final barBg = AppColors.miniBar(context);
     final surface = AppColors.fill2(context);
     final accent = AppColors.accentOf(context);
     final trackBg = isDark ? const Color(0x33FFFFFF) : const Color(0x33000000);
@@ -404,8 +403,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
       child: SizedBox(
         height: 78,
         child: GlassSurface(
+          style: AppGlassStyle.bar,
           borderRadius: BorderRadius.circular(16),
-          color: barBg,
           boxShadow: widget.floating
               ? [
                   BoxShadow(

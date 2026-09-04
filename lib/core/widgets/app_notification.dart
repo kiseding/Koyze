@@ -225,8 +225,8 @@ class _AppNotificationBanner extends StatelessWidget {
     };
 
     final tintedFill = Color.alphaBlend(
-      accent.withValues(alpha: dark ? 0.10 : 0.06),
-      AppGlass.fill(context),
+      accent.withValues(alpha: dark ? 0.18 : 0.10),
+      AppGlass.fill(context, style: AppGlassStyle.regular),
     );
     final borderRadius = BorderRadius.circular(20);
 
@@ -239,6 +239,7 @@ class _AppNotificationBanner extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(20, 10, 20, 0),
         constraints: const BoxConstraints(maxWidth: 420),
         child: GlassSurface(
+          style: AppGlassStyle.regular,
           borderRadius: borderRadius,
           color: tintedFill,
           boxShadow: [

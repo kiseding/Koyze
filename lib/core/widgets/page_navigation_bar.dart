@@ -44,8 +44,8 @@ class PageNavigationBar extends StatelessWidget {
         child: Align(
           alignment: Alignment.bottomCenter,
           child: GlassSurface(
+            style: AppGlassStyle.bar,
             borderRadius: BorderRadius.circular(29),
-            color: AppColors.miniBar(context),
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             boxShadow: [
               BoxShadow(

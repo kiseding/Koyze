@@ -1359,6 +1359,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             width: 36,
             height: 36,
             child: GlassSurface(
+              style: AppGlassStyle.chrome,
               borderRadius: BorderRadius.circular(18),
               child: Pressable(
                 tooltip: _currentPage == 0 ? '收起播放器' : '返回封面',
@@ -1912,6 +1913,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           maxChildSize: sheetSize,
           snap: true,
           builder: (context, scrollController) => GlassSurface(
+            style: AppGlassStyle.regular,
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(20),
             ),

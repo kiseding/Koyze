@@ -6,6 +6,7 @@ import '../../../core/animations/micro_animations.dart';
 import '../../../core/motion/motion_tokens.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../player/presentation/widgets/mini_player.dart';
 
@@ -450,7 +451,6 @@ class _BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = Theme.of(context).scaffoldBackgroundColor;
     return SizedBox(
       height: height + 16,
       child: Stack(
@@ -460,7 +460,12 @@ class _BottomNav extends StatelessWidget {
             right: 0,
             bottom: 0,
             height: height,
-            child: ColoredBox(color: bg),
+            child: GlassSurface(
+              style: AppGlassStyle.bar,
+              borderRadius: BorderRadius.zero,
+              border: Border(top: AppGlass.hairline(context)),
+              child: const SizedBox.expand(),
+            ),
           ),
           Positioned.fill(
             child: Padding(
