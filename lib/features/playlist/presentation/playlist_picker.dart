@@ -18,7 +18,6 @@ Future<void> showPlaylistPicker({
 }) {
   return showKoyzeSheet(
     context: context,
-    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     builder: (context) => _PlaylistPickerContent(song: song),
   );
 }

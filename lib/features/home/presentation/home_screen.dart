@@ -364,7 +364,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _showQuickSettings(BuildContext context) {
     showKoyzeSheet(
       context: context,
-      backgroundColor: AppColors.dialogBg(context),
       isScrollControlled: true,
       builder: (context) => Consumer(
         builder: (context, ref, _) {

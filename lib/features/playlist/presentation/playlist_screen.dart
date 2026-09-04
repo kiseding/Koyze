@@ -1109,7 +1109,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
   void _showSortMenu(BuildContext context) {
     showKoyzeSheet(
       context: context,
-      backgroundColor: AppColors.dialogBg(context),
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,

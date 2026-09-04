@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/motion/motion_tokens.dart';
 import '../../../../core/player_route_progress.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/widgets/artwork_image.dart';
 import '../../../../core/widgets/pressable.dart';
 import '../../../../router/app_router.dart';
@@ -400,11 +401,11 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
 
     return Material(
       color: Colors.transparent,
-      child: Container(
+      child: SizedBox(
         height: 78,
-        decoration: BoxDecoration(
-          color: barBg,
+        child: GlassSurface(
           borderRadius: BorderRadius.circular(16),
+          color: barBg,
           boxShadow: widget.floating
               ? [
                   BoxShadow(
@@ -416,9 +417,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                   ),
                 ]
               : null,
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
+          child: Column(
           children: [
             _MiniProgress(
               duration: durationValue,
@@ -591,6 +590,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

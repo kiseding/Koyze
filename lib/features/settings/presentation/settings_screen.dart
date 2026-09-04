@@ -10,6 +10,7 @@ import '../../../core/card_expand.dart';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/storage/storage_service.dart';
@@ -944,22 +945,20 @@ class _PlatformPickerDialog extends ConsumerWidget {
     return Center(
       child: Material(
         color: Colors.transparent,
-        child: Container(
+        child: SizedBox(
           width: 340,
-          margin: const EdgeInsets.symmetric(horizontal: 24),
-          decoration: BoxDecoration(
-            color: AppColors.dialogBg(context),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.cardBorder(context)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 32,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Column(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: GlassSurface(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 32,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+              child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
@@ -1005,6 +1004,8 @@ class _PlatformPickerDialog extends ConsumerWidget {
               ],
               const SizedBox(height: 12),
             ],
+              ),
+            ),
           ),
         ),
       ),
@@ -1134,22 +1135,20 @@ class _QualityPickerDialog extends ConsumerWidget {
     return Center(
       child: Material(
         color: Colors.transparent,
-        child: Container(
+        child: SizedBox(
           width: 340,
-          margin: const EdgeInsets.symmetric(horizontal: 24),
-          decoration: BoxDecoration(
-            color: AppColors.dialogBg(context),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppColors.cardBorder(context)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.35),
-                blurRadius: 32,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Column(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: GlassSurface(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 32,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+              child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
@@ -1203,6 +1202,8 @@ class _QualityPickerDialog extends ConsumerWidget {
               }),
               const SizedBox(height: 12),
             ],
+              ),
+            ),
           ),
         ),
       ),

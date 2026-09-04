@@ -19,11 +19,19 @@ import '../../../core/motion/list_entrance.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key, this.autofocusDelay, this.canAutofocus});
+  const SearchScreen({
+    super.key,
+    this.autofocusDelay,
+    this.canAutofocus,
+    this.embedded = false,
+  });
 
   /// 进入后延迟聚焦输入框并弹出输入法。
   /// 首页搜索弹窗在滑入 2/3 时聚焦；独立搜索页立即聚焦。
   final Duration? autofocusDelay;
+
+  /// 嵌在搜索弹窗内时不要再铺实色底，让外层磨砂透出来。
+  final bool embedded;
 
   /// Sheet dismissal can begin while the delayed focus retry is still pending.
   /// The caller can veto focus to avoid re-opening the iOS keyboard mid-close.
@@ -124,7 +132,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
 
     return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
+      color: widget.embedded
+          ? Colors.transparent
+          : Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         // 禁止随键盘改 body 高度，避免首焦布局抖动导致输入法秒关。
@@ -809,7 +819,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _showSongMenu(dynamic item, List playableItems) {
     showKoyzeSheet(
       context: context,
-      backgroundColor: AppColors.dialogBg(context),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,

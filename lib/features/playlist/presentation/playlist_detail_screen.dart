@@ -714,9 +714,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 onPressed: () {
                                   showKoyzeSheet(
                                     context: context,
-                                    backgroundColor: AppColors.dialogBg(
-                                      context,
-                                    ),
                                     builder: (ctx) => SafeArea(
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,

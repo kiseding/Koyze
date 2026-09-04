@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 import 'fx_icon_button.dart';
 
 class PageNavigationBar extends StatelessWidget {
@@ -42,24 +43,22 @@ class PageNavigationBar extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: bottomClearance),
         child: Align(
           alignment: Alignment.bottomCenter,
-          child: Container(
-            height: 58,
+          child: GlassSurface(
+            borderRadius: BorderRadius.circular(29),
+            color: AppColors.miniBar(context),
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.miniBar(context),
-              borderRadius: BorderRadius.circular(29),
-              border: Border.all(color: AppColors.cardBorder(context)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: AppColors.isDark(context) ? 0.28 : 0.12,
-                  ),
-                  blurRadius: 16,
-                  offset: const Offset(0, 5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(
+                  alpha: AppColors.isDark(context) ? 0.28 : 0.12,
                 ),
-              ],
-            ),
-            child: Row(
+                blurRadius: 16,
+                offset: const Offset(0, 5),
+              ),
+            ],
+            child: SizedBox(
+              height: 50,
+              child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _buildArrowButton(context, isPrevious: true),
@@ -68,6 +67,7 @@ class PageNavigationBar extends StatelessWidget {
                 const SizedBox(width: 2),
                 _buildArrowButton(context, isPrevious: false),
               ],
+              ),
             ),
           ),
         ),

@@ -6,6 +6,7 @@ import '../../../core/card_expand.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/favorite_button.dart';
@@ -1354,48 +1355,46 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
+          SizedBox(
             width: 36,
             height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.fill(context),
+            child: GlassSurface(
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.cardBorder(context)),
-            ),
-            child: Pressable(
-              tooltip: _currentPage == 0 ? '收起播放器' : '返回封面',
-              scale: 0.9,
-              onTap: () {
-                if (_currentPage == 1) {
-                  // 从歌词页返回封面页。
-                  if (reduceMotion(context)) {
-                    _pageController.jumpToPage(0);
+              child: Pressable(
+                tooltip: _currentPage == 0 ? '收起播放器' : '返回封面',
+                scale: 0.9,
+                onTap: () {
+                  if (_currentPage == 1) {
+                    // 从歌词页返回封面页。
+                    if (reduceMotion(context)) {
+                      _pageController.jumpToPage(0);
+                    } else {
+                      _pageController.animateToPage(
+                        0,
+                        duration: const Duration(milliseconds: 360),
+                        curve: MotionCurve.iosSpring,
+                      );
+                    }
                   } else {
-                    _pageController.animateToPage(
-                      0,
-                      duration: const Duration(milliseconds: 360),
-                      curve: MotionCurve.iosSpring,
-                    );
+                    _dismissPlayer();
                   }
-                } else {
-                  _dismissPlayer();
-                }
-              },
-              child: SizedBox(
-                width: 36,
-                height: 36,
-                child: AnimatedRotation(
-                  // 封面页朝下（收起）；歌词页顺时针旋转 90° 朝左（返回封面）。
-                  turns: _currentPage == 1 ? 0.25 : 0,
-                  duration: motionDuration(
-                    context,
-                    const Duration(milliseconds: 320),
-                  ),
-                  curve: MotionCurve.iosSpring,
-                  child: Icon(
-                    Icons.keyboard_arrow_down,
-                    color: AppColors.secondaryText(context),
-                    size: 20,
+                },
+                child: SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: AnimatedRotation(
+                    // 封面页朝下（收起）；歌词页顺时针旋转 90° 朝左（返回封面）。
+                    turns: _currentPage == 1 ? 0.25 : 0,
+                    duration: motionDuration(
+                      context,
+                      const Duration(milliseconds: 320),
+                    ),
+                    curve: MotionCurve.iosSpring,
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      color: AppColors.secondaryText(context),
+                      size: 20,
+                    ),
                   ),
                 ),
               ),
@@ -1912,16 +1911,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           minChildSize: 0.18,
           maxChildSize: sheetSize,
           snap: true,
-          builder: (context, scrollController) => Material(
-            color: AppColors.dialogBg(context),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            clipBehavior: Clip.antiAlias,
-            child: _PlaybackQueueSheet(
-              queue: queue,
-              currentIndex: currentIndex,
-              playerService: playerService,
-              lazyPlaylistId: playerService.currentLazyPlaylistId,
-              dragScrollController: scrollController,
+          builder: (context, scrollController) => GlassSurface(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(20),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: _PlaybackQueueSheet(
+                queue: queue,
+                currentIndex: currentIndex,
+                playerService: playerService,
+                lazyPlaylistId: playerService.currentLazyPlaylistId,
+                dragScrollController: scrollController,
+              ),
             ),
           ),
         );
@@ -1933,7 +1935,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final pageContext = context;
     showKoyzeSheet(
       context: context,
-      backgroundColor: AppColors.dialogBg(context),
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,

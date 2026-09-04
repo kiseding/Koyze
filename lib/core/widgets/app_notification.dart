@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 import '../motion/motion_tokens.dart';
 
 enum AppNotificationType { info, success, warning, error }
@@ -214,7 +215,6 @@ class _AppNotificationBanner extends StatelessWidget {
       AppNotificationType.error => Icons.error_outline_rounded,
     };
     final dark = AppColors.isDark(context);
-    final baseColor = dark ? const Color(0xFF1C1C1E) : Colors.white;
     final shadowColor = Colors.black.withValues(alpha: dark ? 0.42 : 0.16);
 
     final status = switch (notification.type) {
@@ -224,9 +224,9 @@ class _AppNotificationBanner extends StatelessWidget {
       AppNotificationType.error => '错误',
     };
 
-    final backgroundColor = Color.alphaBlend(
+    final tintedFill = Color.alphaBlend(
       accent.withValues(alpha: dark ? 0.10 : 0.06),
-      baseColor.withValues(alpha: dark ? 0.86 : 0.92),
+      AppGlass.fill(context),
     );
     final borderRadius = BorderRadius.circular(20);
 
@@ -238,9 +238,9 @@ class _AppNotificationBanner extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.fromLTRB(20, 10, 20, 0),
         constraints: const BoxConstraints(maxWidth: 420),
-        decoration: BoxDecoration(
+        child: GlassSurface(
           borderRadius: borderRadius,
-          color: backgroundColor,
+          color: tintedFill,
           boxShadow: [
             BoxShadow(
               color: shadowColor,
@@ -248,12 +248,9 @@ class _AppNotificationBanner extends StatelessWidget {
               offset: const Offset(0, 10),
             ),
           ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: borderRadius,
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
+          child: Material(
+            color: Colors.transparent,
+            child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -305,6 +302,7 @@ class _AppNotificationBanner extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
             ),
           ),
         ),

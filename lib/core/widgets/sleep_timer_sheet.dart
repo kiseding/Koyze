@@ -11,7 +11,6 @@ import '../../../core/widgets/koyze_sheet.dart';
 void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
   showKoyzeSheet(
     context: context,
-    backgroundColor: AppColors.dialogBg(context),
     builder: (context) => SafeArea(
       child: Consumer(
         builder: (context, ref, _) {

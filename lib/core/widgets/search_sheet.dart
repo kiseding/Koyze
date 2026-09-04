@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:koyze/features/search/presentation/search_screen.dart';
 
 import '../motion/motion_tokens.dart';
+import '../theme/app_tokens.dart';
 
 /// 弹出搜索弹窗。
 /// 弹窗从底部滑入，顶部对齐传入的 [topInset]（首页 Koyze 文字上方 3px）；
@@ -163,11 +164,12 @@ class _SearchSheetState extends State<_SearchSheet>
           Transform.translate(offset: Offset(0, _offset), child: child),
       child: NotificationListener<ScrollNotification>(
         onNotification: _onScrollNotification,
-        child: Container(
+        child: SizedBox(
           height: widget.height,
-          decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: GlassSurface(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(20),
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.18),
@@ -175,10 +177,8 @@ class _SearchSheetState extends State<_SearchSheet>
                 offset: const Offset(0, -4),
               ),
             ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
+            child: Column(
+              children: [
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onVerticalDragStart: (_) {
@@ -206,11 +206,13 @@ class _SearchSheetState extends State<_SearchSheet>
               ),
               Expanded(
                 child: SearchScreen(
+                  embedded: true,
                   autofocusDelay: _focusDelay(),
                   canAutofocus: () => !_dismissStarted,
                 ),
               ),
             ],
+            ),
           ),
         ),
       ),

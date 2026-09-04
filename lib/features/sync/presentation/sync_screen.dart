@@ -550,7 +550,6 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       if (!mounted) return;
       await showKoyzeSheet(
         context: context,
-        backgroundColor: AppColors.dialogBg(context),
         isScrollControlled: true,
         builder: (ctx) {
           return SafeArea(
