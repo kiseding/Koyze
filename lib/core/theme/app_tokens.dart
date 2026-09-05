@@ -168,8 +168,9 @@ class _FadingFrost extends StatelessWidget {
   final Border border;
   final Widget child;
 
-  static const _stops = <double>[0.0, 0.18, 0.42, 0.68, 1.0];
-  static const _strengths = <double>[1.0, 0.82, 0.52, 0.22, 0.0];
+  // Keep the toolbar body fully frosted; only the last ~28% fades into the list.
+  static const _stops = <double>[0.0, 0.72, 0.86, 1.0];
+  static const _strengths = <double>[1.0, 1.0, 0.55, 0.0];
 
   @override
   Widget build(BuildContext context) {
@@ -207,18 +208,19 @@ class _FadingFrost extends StatelessWidget {
               colors: down
                   ? [
                       fill,
-                      fill.withValues(alpha: alpha * 0.82),
-                      fill.withValues(alpha: alpha * 0.42),
-                      fill.withValues(alpha: alpha * 0.12),
+                      fill,
+                      fill.withValues(alpha: alpha * 0.55),
                       fill.withValues(alpha: 0),
                     ]
                   : [
                       fill.withValues(alpha: 0),
-                      fill.withValues(alpha: alpha * 0.12),
-                      fill.withValues(alpha: alpha * 0.42),
-                      fill.withValues(alpha: alpha * 0.82),
+                      fill.withValues(alpha: alpha * 0.55),
+                      fill,
                       fill,
                     ],
+              stops: down
+                  ? const [0.0, 0.72, 0.86, 1.0]
+                  : const [0.0, 0.14, 0.28, 1.0],
             ),
             borderRadius: radius,
             border: border,
