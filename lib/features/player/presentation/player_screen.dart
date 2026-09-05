@@ -973,11 +973,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // overlay（飞行封面/播放按钮）只在"打开已完成"时让位正文；
         // 一旦进入关闭/手势驱动则全程可见（封面/按钮随进度完整归位）。
         final closing = animating || playerRouteDismissLocked;
-        // 仅关闭时：前 1%（progress 1.00→0.99）除封面/歌词外全部淡到全透明。
+        // 仅关闭时：前 5%（progress 1.00→0.95）除封面/歌词外全部淡到全透明。
         // 打开（progress 上升）不做这个淡出。
         final dismissing = closing && progress < 1;
         final chromeFade = dismissing
-            ? ((progress - 0.99) / 0.01).clamp(0.0, 1.0)
+            ? ((progress - 0.95) / 0.05).clamp(0.0, 1.0)
             : 1.0;
         // 关闭时控件/磨砂/背景走 chromeFade；打开保持不透明。
         final contentOpacity = 1.0;

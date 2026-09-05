@@ -61,7 +61,7 @@ void main() {
     // 内容必须在 morph 底还很小时就完全不透明，否则整屏会长时间
     // 呈"半透明全屏白色层"（内容鬼影盖在白色 sheet 上，进入/退出各闪一次）；
     // 之后各区块的显隐节奏交给 _StaggeredFade；封面全程隐藏、只留快照。
-    expect(full, contains('((progress - 0.99) / 0.01).clamp(0.0, 1.0)'));
+    expect(full, contains('((progress - 0.95) / 0.05).clamp(0.0, 1.0)'));
     // morph 覆盖层必须把 Positioned 直接挂在 Stack 下（IgnorePointer 在内侧），
     // 否则 Debug 模式抛 ParentData 断言、Release 下覆盖层错位。
     expect(
