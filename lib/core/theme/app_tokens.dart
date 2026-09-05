@@ -168,37 +168,22 @@ class _FadingFrost extends StatelessWidget {
   final Border border;
   final Widget child;
 
-  // Keep the toolbar body fully frosted; only the last ~28% fades into the list.
-  static const _stops = <double>[0.0, 0.72, 0.86, 1.0];
-  static const _strengths = <double>[1.0, 1.0, 0.55, 0.0];
-
   @override
   Widget build(BuildContext context) {
     final down = fade == AppGlassFade.down;
     final alpha = fill.a;
     return Stack(
       children: [
-        for (var i = 0; i < _stops.length - 1; i++)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Align(
-                alignment: down ? Alignment.topCenter : Alignment.bottomCenter,
-                child: FractionallySizedBox(
-                  heightFactor: _stops[i + 1],
-                  widthFactor: 1,
-                  alignment: down
-                      ? Alignment.topCenter
-                      : Alignment.bottomCenter,
-                  child: ClipRect(
-                    child: BackdropFilter(
-                      filter: GlassSurface._filter(sigma * _strengths[i]),
-                      child: const ColoredBox(color: Color(0x00000000)),
-                    ),
-                  ),
-                ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: GlassSurface._filter(sigma),
+                child: const ColoredBox(color: Color(0x00000000)),
               ),
             ),
           ),
+        ),
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -207,7 +192,6 @@ class _FadingFrost extends StatelessWidget {
               colors: down
                   ? [
                       fill,
-                      fill,
                       fill.withValues(alpha: alpha * 0.55),
                       fill.withValues(alpha: 0),
                     ]
@@ -215,11 +199,7 @@ class _FadingFrost extends StatelessWidget {
                       fill.withValues(alpha: 0),
                       fill.withValues(alpha: alpha * 0.55),
                       fill,
-                      fill,
                     ],
-              stops: down
-                  ? const [0.0, 0.72, 0.86, 1.0]
-                  : const [0.0, 0.14, 0.28, 1.0],
             ),
             borderRadius: radius,
             border: border,
