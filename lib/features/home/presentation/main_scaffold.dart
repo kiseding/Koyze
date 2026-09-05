@@ -460,14 +460,11 @@ class _BottomNav extends StatelessWidget {
             right: 0,
             bottom: 0,
             height: height,
-            child: ColoredBox(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              child: GlassSurface(
-                style: AppGlassStyle.bar,
-                borderRadius: BorderRadius.zero,
-                border: const Border(),
-                child: const SizedBox.expand(),
-              ),
+            child: GlassSurface(
+              style: AppGlassStyle.bar,
+              borderRadius: BorderRadius.zero,
+              border: const Border(),
+              child: const SizedBox.expand(),
             ),
           ),
           Positioned.fill(

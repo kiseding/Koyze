@@ -36,9 +36,9 @@ abstract final class AppGlass {
   static Color fill(BuildContext context, {AppGlassStyle style = AppGlassStyle.regular}) {
     final isDark = AppColors.isDark(context);
     final alpha = switch (style) {
-      AppGlassStyle.bar => isDark ? 0.92 : 0.88,
-      AppGlassStyle.regular => isDark ? 0.86 : 0.90,
-      AppGlassStyle.chrome => isDark ? 0.72 : 0.78,
+      AppGlassStyle.bar => isDark ? 0.72 : 0.78,
+      AppGlassStyle.regular => isDark ? 0.70 : 0.82,
+      AppGlassStyle.chrome => isDark ? 0.55 : 0.62,
     };
     return (isDark ? const Color(0xFF1C1C1E) : Colors.white).withValues(
       alpha: alpha,
