@@ -1072,6 +1072,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               children: [
                                 _PlayerCoverBackdrop(
                                   artwork: currentMusic.artwork,
+                                  progress: progress,
                                 ),
                                 sheetContent,
                               ],
@@ -2619,17 +2620,23 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
 class _PlayerCoverBackdrop extends StatelessWidget {
   const _PlayerCoverBackdrop({
     required this.artwork,
+    required this.progress,
   });
 
   final String? artwork;
+  final double progress;
 
   @override
   Widget build(BuildContext context) {
     final dim = AppColors.isDark(context)
         ? const Color(0x8A000000)
         : const Color(0x73FFFFFF);
+    // 关闭动效最后 1%（progress 0~0.01）背景渐变到完全透明。
+    final backdropOpacity = (progress / 0.01).clamp(0.0, 1.0);
     return IgnorePointer(
-      child: Stack(
+      child: Opacity(
+        opacity: backdropOpacity,
+        child: Stack(
         fit: StackFit.expand,
         children: [
           ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
@@ -2656,6 +2663,7 @@ class _PlayerCoverBackdrop extends StatelessWidget {
             ),
           ColoredBox(color: dim),
         ],
+        ),
       ),
     );
   }
