@@ -23,7 +23,6 @@ class GradientAppBarBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     final frost = GlassSurface(
       style: AppGlassStyle.bar,
-      fade: AppGlassFade.down,
       borderRadius: BorderRadius.zero,
       border: const Border(),
       child: child ?? const SizedBox.expand(),
@@ -56,7 +55,6 @@ class GradientBottomBarBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassSurface(
       style: AppGlassStyle.bar,
-      fade: AppGlassFade.up,
       borderRadius: BorderRadius.zero,
       border: const Border(),
       child: child,

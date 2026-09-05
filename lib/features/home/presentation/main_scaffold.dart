@@ -462,7 +462,6 @@ class _BottomNav extends StatelessWidget {
             height: height,
             child: GlassSurface(
               style: AppGlassStyle.bar,
-              fade: AppGlassFade.up,
               borderRadius: BorderRadius.zero,
               border: const Border(),
               child: const SizedBox.expand(),

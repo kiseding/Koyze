@@ -978,15 +978,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // overlay（飞行封面/播放按钮）只在"打开已完成"时让位正文；
         // 一旦进入关闭/手势驱动则全程可见（封面/按钮随进度完整归位）。
         final closing = animating || playerRouteDismissLocked;
-        final dragReveal = ((progress - 0.9) / 0.1).clamp(0.0, 1.0);
+        // 关闭前 1%（progress 1.00→0.99）除封面/歌词外全部淡到全透明。
+        final chromeFade = ((progress - 0.99) / 0.01).clamp(0.0, 1.0);
         // 歌词页关闭：内容在 90~99% 窗口内淡出，交棒给真实迷你栏。
         final contentOpacity = lyricCollapsing
             ? 1.0 - stripT
-            : (animating
-                  ? dragReveal
-                  : MotionCurve.iosSpring.transform(
-                      ((progress - 0.03) / 0.17).clamp(0.0, 1.0),
-                    ));
+            : (animating ? chromeFade : 1.0);
         // 动效全程隐藏正文封面，只留飞行快照封面；progress=1 再交棒，
         // 避免全屏/迷你栏真封面与快照叠在一起。
         final artworkReveal = progress >= 1.0 ? 1.0 : 0.0;
@@ -1002,7 +999,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 closeT,
               )!
             : Theme.of(context).scaffoldBackgroundColor.withValues(
-                alpha: closing ? dragReveal : 1.0,
+                alpha: closing ? chromeFade : 1.0,
               );
         // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
         final hideLayer = lyricCollapsing && closeT >= 0.99;
@@ -1055,7 +1052,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             ]
                           : const <BoxShadow>[],
                     ),
-                    child: ClipRRect(
+                    child: Opacity(
+                      opacity: lyricCollapsing ? 1.0 : chromeFade,
+                      child: ClipRRect(
                       borderRadius: BorderRadius.circular(16 * (1 - progress)),
                       child: ColoredBox(
                         color: sheetColor,
@@ -1072,7 +1071,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               children: [
                                 _PlayerCoverBackdrop(
                                   artwork: currentMusic.artwork,
-                                  progress: progress,
                                 ),
                                 sheetContent,
                               ],
@@ -1080,6 +1078,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           ),
                         ),
                       ),
+                    ),
                     ),
                   ),
                 ),
@@ -2620,23 +2619,17 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
 class _PlayerCoverBackdrop extends StatelessWidget {
   const _PlayerCoverBackdrop({
     required this.artwork,
-    required this.progress,
   });
 
   final String? artwork;
-  final double progress;
 
   @override
   Widget build(BuildContext context) {
     final dim = AppColors.isDark(context)
         ? const Color(0x8A000000)
         : const Color(0x73FFFFFF);
-    // 关闭动效最后 1%（progress 0~0.01）背景渐变到完全透明。
-    final backdropOpacity = (progress / 0.01).clamp(0.0, 1.0);
     return IgnorePointer(
-      child: Opacity(
-        opacity: backdropOpacity,
-        child: Stack(
+      child: Stack(
         fit: StackFit.expand,
         children: [
           ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
@@ -2663,7 +2656,6 @@ class _PlayerCoverBackdrop extends StatelessWidget {
             ),
           ColoredBox(color: dim),
         ],
-        ),
       ),
     );
   }
