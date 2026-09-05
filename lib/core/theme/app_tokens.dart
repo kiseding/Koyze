@@ -56,7 +56,11 @@ abstract final class AppGlass {
   static ImageFilter filterFor(AppGlassStyle style) {
     final sigma = blurFor(style);
     return ImageFilter.compose(
-      outer: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.clamp),
+      outer: ImageFilter.blur(
+        sigmaX: sigma,
+        sigmaY: sigma,
+        tileMode: TileMode.mirror,
+      ),
       inner: ColorFilter.matrix(_saturationMatrix(saturate)),
     );
   }
@@ -146,7 +150,7 @@ class GlassSurface extends StatelessWidget {
     outer: ImageFilter.blur(
       sigmaX: sigma,
       sigmaY: sigma,
-      tileMode: TileMode.clamp,
+      tileMode: TileMode.mirror,
     ),
     inner: ColorFilter.matrix(AppGlass._saturationMatrix(AppGlass.saturate)),
   );
