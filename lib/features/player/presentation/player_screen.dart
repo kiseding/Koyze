@@ -1213,13 +1213,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               children: [
                 _StaggeredFade(
                   delay: 0.55,
-                  child: GlassSurface(
-                    style: AppGlassStyle.bar,
-                    fade: AppGlassFade.down,
-                    borderRadius: BorderRadius.zero,
-                    border: const Border(),
-                    child: _buildAppBar(context, currentMusic),
-                  ),
+                  child: _buildAppBar(context, currentMusic),
                 ),
                 Expanded(
                   child: PageView(
@@ -2640,15 +2634,25 @@ class _PlayerCoverBackdrop extends StatelessWidget {
         children: [
           ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
           if (artwork != null && artwork!.isNotEmpty)
-            ImageFiltered(
-              imageFilter: AppGlass.filterFor(AppGlassStyle.regular),
-              child: SizedBox.expand(
-                child: ArtworkImage(
-                  artwork!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
-              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final side = constraints.biggest.longestSide;
+                return OverflowBox(
+                  alignment: Alignment.center,
+                  minWidth: side,
+                  maxWidth: side,
+                  minHeight: side,
+                  maxHeight: side,
+                  child: ImageFiltered(
+                    imageFilter: AppGlass.filterFor(AppGlassStyle.regular),
+                    child: ArtworkImage(
+                      artwork!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
+                );
+              },
             ),
           ColoredBox(color: dim),
         ],

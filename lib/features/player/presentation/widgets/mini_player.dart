@@ -404,7 +404,6 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
         height: 78,
         child: GlassSurface(
           style: AppGlassStyle.bar,
-          fade: AppGlassFade.up,
           borderRadius: BorderRadius.circular(16),
           boxShadow: widget.floating
               ? [
