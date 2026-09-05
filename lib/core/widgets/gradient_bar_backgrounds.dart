@@ -21,11 +21,14 @@ class GradientAppBarBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final frost = GlassSurface(
-      style: AppGlassStyle.bar,
-      borderRadius: BorderRadius.zero,
-      border: const Border(),
-      child: child ?? const SizedBox.expand(),
+    final frost = ColoredBox(
+      color: background,
+      child: GlassSurface(
+        style: AppGlassStyle.bar,
+        borderRadius: BorderRadius.zero,
+        border: const Border(),
+        child: child ?? const SizedBox.expand(),
+      ),
     );
     if (child != null) {
       return frost;
