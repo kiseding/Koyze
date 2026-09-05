@@ -177,7 +177,6 @@ class _FadingFrost extends StatelessWidget {
     final down = fade == AppGlassFade.down;
     final alpha = fill.a;
     return Stack(
-      fit: StackFit.expand,
       children: [
         for (var i = 0; i < _stops.length - 1; i++)
           Positioned.fill(
