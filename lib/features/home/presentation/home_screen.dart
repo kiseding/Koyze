@@ -94,8 +94,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   right: 0,
                   child: FrostedTabHeader(
                     title: 'Koyze',
-                    subtitle: 'Enjoy Music',
                     titleKey: _brandKey,
+                    leadingIcon: Icons.home_rounded,
                     actions: [
                       FrostedHeaderButton(
                         icon: Icons.tune_rounded,

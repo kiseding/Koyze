@@ -150,7 +150,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                       right: 0,
                       child: FrostedTabHeader(
                         title: '榜单',
-                        subtitle: '发现各平台正在热播的音乐',
                         leadingIcon: Icons.leaderboard_rounded,
                         actions: [
                           FrostedHeaderButton(

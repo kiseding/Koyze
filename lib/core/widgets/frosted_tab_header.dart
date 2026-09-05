@@ -11,7 +11,6 @@ class FrostedTabHeader extends StatelessWidget {
   const FrostedTabHeader({
     super.key,
     required this.title,
-    this.subtitle,
     this.titleKey,
     this.leadingIcon,
     this.actions = const [],
@@ -19,7 +18,6 @@ class FrostedTabHeader extends StatelessWidget {
   });
 
   final String title;
-  final String? subtitle;
   final Key? titleKey;
   final IconData? leadingIcon;
   final List<Widget> actions;
@@ -66,49 +64,19 @@ class FrostedTabHeader extends StatelessWidget {
                     const SizedBox(width: 12),
                   ],
                   Expanded(
-                    child: subtitle == null
-                        ? Text(
-                            title,
-                            key: titleKey,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.6,
-                              height: 1.1,
-                              color: AppColors.onScaffold(context),
-                            ),
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                title,
-                                key: titleKey,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.4,
-                                  height: 1.1,
-                                  color: AppColors.onScaffold(context),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                subtitle!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.mutedText(context),
-                                ),
-                              ),
-                            ],
-                          ),
+                    child: Text(
+                      title,
+                      key: titleKey,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                        height: 1.1,
+                        color: AppColors.onScaffold(context),
+                      ),
+                    ),
                   ),
                   for (final action in actions) ...[
                     const SizedBox(width: 4),

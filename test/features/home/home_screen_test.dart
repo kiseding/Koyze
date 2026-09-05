@@ -12,7 +12,8 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('showSearchSheet'));
-    expect(source, contains('Enjoy Music'));
+    expect(source, contains("title: 'Koyze'"));
+    expect(source, contains('Icons.home_rounded'));
     expect(source, isNot(contains('免费的音乐查找助手')));
     expect(source, contains('随机播放收藏'));
     expect(source, contains('playPagedPlaylist'));
