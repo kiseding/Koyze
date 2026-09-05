@@ -1069,6 +1069,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                   color: sheetColor,
                                   child: _PlayerCoverBackdrop(
                                     artwork: currentMusic.artwork,
+                                    songId: currentMusic.id,
                                   ),
                                 ),
                               ),
@@ -2628,44 +2629,121 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
 
 /// 播放器展开动画中的交错淡入：progress 超过 [delay] 后开始淡入。
 /// 封面/歌名/歌词/进度/按钮各自延迟，形成"各元素有自己的动作"的层次感。
-class _PlayerCoverBackdrop extends StatelessWidget {
+class _PlayerCoverBackdrop extends StatefulWidget {
   const _PlayerCoverBackdrop({
     required this.artwork,
+    required this.songId,
   });
 
   final String? artwork;
+  final String? songId;
+
+  @override
+  State<_PlayerCoverBackdrop> createState() => _PlayerCoverBackdropState();
+}
+
+class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: kFullPlayerArtworkSwitchDuration,
+    value: 1,
+  );
+  late Widget _current = _cover(widget.artwork);
+  Widget? _previous;
+  String? _currentKey;
+  String? _pendingKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentKey = widget.songId ?? widget.artwork ?? 'empty';
+  }
+
+  @override
+  void didUpdateWidget(covariant _PlayerCoverBackdrop oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextKey = widget.songId ?? widget.artwork ?? 'empty';
+    if (nextKey == _currentKey || nextKey == _pendingKey) return;
+    _switchTo(nextKey, widget.artwork);
+  }
+
+  Future<void> _switchTo(String nextKey, String? artwork) async {
+    _pendingKey = nextKey;
+    if (artwork != null && artwork.isNotEmpty) {
+      try {
+        await precacheImage(ArtworkNetworkImage(artwork), context);
+      } catch (_) {}
+    }
+    if (!mounted || _pendingKey != nextKey) return;
+    setState(() {
+      _previous = _current;
+      _current = _cover(artwork);
+      _currentKey = nextKey;
+      _pendingKey = null;
+      _controller.value = 0;
+    });
+    await _controller.forward();
+    if (!mounted || _currentKey != nextKey) return;
+    setState(() => _previous = null);
+  }
+
+  Widget _cover(String? artwork) {
+    if (artwork == null || artwork.isEmpty) {
+      return const ColoredBox(color: Colors.transparent);
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final side = constraints.biggest.longestSide;
+        return OverflowBox(
+          alignment: Alignment.center,
+          minWidth: side,
+          maxWidth: side,
+          minHeight: side,
+          maxHeight: side,
+          child: ImageFiltered(
+            imageFilter: AppGlass.filterFor(AppGlassStyle.regular),
+            child: ArtworkImage(
+              artwork,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final dim = AppColors.isDark(context)
         ? const Color(0x8A000000)
         : const Color(0x73FFFFFF);
+    final reduced = reduceMotion(context);
+    final curved = CurvedAnimation(
+      parent: _controller,
+      curve: MotionCurve.iosSpring,
+    );
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
         children: [
           ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
-          if (artwork != null && artwork!.isNotEmpty)
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final side = constraints.biggest.longestSide;
-                return OverflowBox(
-                  alignment: Alignment.center,
-                  minWidth: side,
-                  maxWidth: side,
-                  minHeight: side,
-                  maxHeight: side,
-                  child: ImageFiltered(
-                    imageFilter: AppGlass.filterFor(AppGlassStyle.regular),
-                    child: ArtworkImage(
-                      artwork!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                    ),
-                  ),
-                );
-              },
+          if (!reduced && _previous != null)
+            FadeTransition(
+              opacity: ReverseAnimation(curved),
+              child: _previous,
             ),
+          if (reduced)
+            _current
+          else
+            FadeTransition(opacity: curved, child: _current),
           ColoredBox(color: dim),
         ],
       ),
