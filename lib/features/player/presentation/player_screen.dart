@@ -2632,27 +2632,25 @@ class _PlayerCoverBackdrop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dim = AppColors.isDark(context)
-        ? const Color(0x99000000)
-        : const Color(0x66FFFFFF);
+        ? const Color(0x8A000000)
+        : const Color(0x73FFFFFF);
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
         children: [
           ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
-          Transform.scale(
-            scale: 1.35,
-            child: artwork != null && artwork!.isNotEmpty
-                ? ArtworkImage(
-                    artwork!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                  )
-                : const SizedBox.shrink(),
-          ),
-          BackdropFilter(
-            filter: AppGlass.filterFor(AppGlassStyle.regular),
-            child: ColoredBox(color: dim),
-          ),
+          if (artwork != null && artwork!.isNotEmpty)
+            ImageFiltered(
+              imageFilter: AppGlass.filterFor(AppGlassStyle.regular),
+              child: SizedBox.expand(
+                child: ArtworkImage(
+                  artwork!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ColoredBox(color: dim),
         ],
       ),
     );
