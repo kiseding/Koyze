@@ -245,28 +245,23 @@ class DownloadService {
   DownloadService({
     Dio? dio,
     int maxConcurrent = 3,
-    bool wifiOnly = false,
+    this._wifiOnly = false,
     Stream<DownloadNetwork>? connectivity,
     Future<DownloadNetwork> Function()? currentNetwork,
     String Function()? taskIdFactory,
-    DownloadExecutor? downloader,
-    DownloadTaskStorage? storage,
-    Future<Directory> Function()? downloadDirectory,
-    Duration progressPersistenceInterval = const Duration(seconds: 2),
+    this._downloader,
+    this._storage,
+    this._downloadDirectory,
+    this._progressPersistenceInterval = const Duration(seconds: 2),
     DateTime Function()? clock,
     SourceMediaTransport? sourceMediaTransport,
   }) : assert(maxConcurrent > 0),
        _dio = dio ?? _createDownloadDio(),
        _sourceMediaTransport = sourceMediaTransport ?? SourceMediaTransport(),
        _maxConcurrent = maxConcurrent,
-       _wifiOnly = wifiOnly,
-       _downloader = downloader,
-       _storage = storage,
-       _downloadDirectory = downloadDirectory,
        _taskIdFactory = taskIdFactory ?? const Uuid().v4,
        _currentNetwork = currentNetwork ?? _platformNetwork,
-       _clock = clock ?? DateTime.now,
-       _progressPersistenceInterval = progressPersistenceInterval {
+       _clock = clock ?? DateTime.now {
     _connectivitySubscription = connectivity?.listen(_onNetworkChanged);
   }
 

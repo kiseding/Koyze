@@ -106,8 +106,7 @@ void main() {
     },
   );
 
-  test(
-    'newer playlist invalidates an in-flight paged playlist load', () async {
+  test('newer playlist invalidates an in-flight paged playlist load', () async {
     audioHandler = handler;
     final service = PlayerService();
     final pageStarted = Completer<void>();
@@ -284,7 +283,7 @@ void main() {
       final pausesBefore = player.pauseCalls;
 
       // 'New' has no cached URL, forcing a real resolution round-trip.
-      final newItem = MediaItem(
+      final newItem = const MediaItem(
         id: 'New',
         title: 'New',
         extras: {'requestedQuality': '320k'},
@@ -457,12 +456,7 @@ void main() {
         title: id,
         extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
       );
-      await handler.setPlaylist([
-        item('A'),
-        item('B'),
-        item('C'),
-        item('D'),
-      ]);
+      await handler.setPlaylist([item('A'), item('B'), item('C'), item('D')]);
       final playedIds = <String>[];
       String currentSourceId() =>
           (player.loadedSource as ProgressiveAudioSource).tag.id as String;
@@ -570,7 +564,7 @@ void main() {
   });
 
   test('removing sole item clears authoritative queue state', () async {
-    final item = MediaItem(id: 'A', title: 'A');
+    final item = const MediaItem(id: 'A', title: 'A');
     await handler.updateQueue([item]);
 
     await handler.removeQueueItem(item);

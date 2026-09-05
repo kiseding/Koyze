@@ -6,7 +6,7 @@ final class FireAndForgetObserver {
   final AsyncErrorHandler _onError;
 
   FireAndForgetObserver({AsyncErrorHandler? onError})
-      : _onError = onError ?? Zone.current.handleUncaughtError;
+    : _onError = onError ?? Zone.current.handleUncaughtError;
 
   Future<void> observe(Future<void> future) async {
     try {

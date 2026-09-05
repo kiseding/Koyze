@@ -3,8 +3,21 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/network/source_request_policy.dart';
+import 'package:koyze/core/storage/storage_service.dart';
+import 'package:koyze/features/custom_source/domain/custom_source.dart';
+import 'package:koyze/features/custom_source/domain/custom_source_engine.dart';
 import 'package:koyze/features/custom_source/domain/custom_source_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+final class _AlwaysReadySourceEngine extends CustomSourceEngine {
+  CustomSource? loadedSource;
+
+  @override
+  Future<bool> loadSource(CustomSource source) async {
+    loadedSource = source;
+    return true;
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -186,19 +199,69 @@ void main() {
     expect(service.validateScript('{"name":"json source"}'), isFalse);
   });
 
-  test('ordinary imported scripts can be enabled', () async {
+  test(
+    'ordinary imported scripts remain disabled until explicit opt-in',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final engine = _AlwaysReadySourceEngine();
+      final service = CustomSourceService(
+        storage: StorageService.forTesting(prefs),
+        engineFactory: () => engine,
+      );
+      await service.init();
+      addTearDown(service.dispose);
+
+      expect(
+        await service.importLxMusicScript(r'''
+/* @name Retained */
+lx.on(lx.EVENT_NAMES.request, async function() { return null; });
+lx.send(lx.EVENT_NAMES.inited, {
+  status: true,
+  sources: { kw: { musicUrl: true, qualitys: ['320k'] } }
+});
+'''),
+        isTrue,
+      );
+      expect(service.sources.single.isEnabled, isFalse);
+      expect(service.enabledSources, isEmpty);
+
+      final id = service.sources.single.id;
+      expect(await service.toggleSource(id), isTrue);
+      expect(service.sources.single.isEnabled, isTrue);
+      expect(service.enabledSources.single.id, id);
+      expect(engine.loadedSource?.id, id);
+    },
+  );
+
+  test('JSON import cannot self-enable a new third-party script', () async {
     SharedPreferences.setMockInitialValues({});
-    final service = CustomSourceService();
+    final prefs = await SharedPreferences.getInstance();
+    final service = CustomSourceService(
+      storage: StorageService.forTesting(prefs),
+    );
     await service.init();
     addTearDown(service.dispose);
+    final now = DateTime.utc(2026).toIso8601String();
 
     expect(
-      await service.importLxMusicScript(
-        "/* @name Retained */\nlx.send('inited', {});",
+      await service.importSource(
+        jsonEncode({
+          'id': 'untrusted-json',
+          'name': 'Untrusted JSON',
+          'description': '',
+          'version': '1',
+          'author': 'remote',
+          'script': '/* @name Untrusted JSON */\nsearch',
+          'createdAt': now,
+          'updatedAt': now,
+          'isEnabled': true,
+        }),
       ),
       isTrue,
     );
-    expect(service.sources.single.isEnabled, isTrue);
-    expect(service.enabledSources, hasLength(1));
+
+    expect(service.sources.single.isEnabled, isFalse);
+    expect(service.enabledSources, isEmpty);
   });
 }

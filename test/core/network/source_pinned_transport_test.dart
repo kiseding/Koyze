@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -36,67 +37,72 @@ void main() {
   });
 
   test(
-      'request executor receives original HTTPS URI and force-closes on cancel',
-      () async {
-    final started = Completer<void>();
-    final pending = Completer<Response<dynamic>>();
-    final dio = Dio();
-    var forceClosed = false;
-    Uri? openedUri;
-    final transport = SourcePinnedTransport(
-      useNativeExecutor: false,
-      createDio: () => dio,
-      closeDio: (_) => forceClosed = true,
-      execute: (dio, sourceRequest, cancelToken) {
-        openedUri = sourceRequest.uri;
-        started.complete();
-        return pending.future;
-      },
-    );
-    final cancellation = SourceRequestCancellation();
+    'request executor receives original HTTPS URI and force-closes on cancel',
+    () async {
+      final started = Completer<void>();
+      final pending = Completer<Response<dynamic>>();
+      final dio = Dio();
+      var forceClosed = false;
+      Uri? openedUri;
+      final transport = SourcePinnedTransport(
+        useNativeExecutor: false,
+        createDio: () => dio,
+        closeDio: (_) => forceClosed = true,
+        execute: (dio, sourceRequest, cancelToken) {
+          openedUri = sourceRequest.uri;
+          started.complete();
+          return pending.future;
+        },
+      );
+      final cancellation = SourceRequestCancellation();
 
-    final result = transport(request(), cancellation);
-    await started.future;
-    cancellation.cancel('disposed');
+      final result = transport(request(), cancellation);
+      await started.future;
+      cancellation.cancel('disposed');
 
-    await expectLater(result, throwsA(isA<SourceRequestPolicyException>()));
-    expect(openedUri, Uri.parse('https://source.example/path'));
-    expect(forceClosed, isTrue);
-  });
+      await expectLater(result, throwsA(isA<SourceRequestPolicyException>()));
+      expect(openedUri, Uri.parse('https://source.example/path'));
+      expect(forceClosed, isTrue);
+    },
+  );
 
-  test('connection factory allows proxies and dials only validated address',
-      () async {
-    InternetAddress? dialedAddress;
-    int? dialedPort;
-    String? dialedHost;
-    var secure = false;
-    final factory = SourcePinnedTransport.connectionFactory(
-      request(),
-      (address, port, {required String host, required bool useTls}) {
+  test(
+    'connection factory allows proxies and dials only validated address',
+    () async {
+      InternetAddress? dialedAddress;
+      int? dialedPort;
+      String? dialedHost;
+      var secure = false;
+      final factory = SourcePinnedTransport.connectionFactory(request(), (
+        address,
+        port, {
+        required String host,
+        required bool useTls,
+      }) {
         dialedAddress = address;
         dialedPort = port;
         dialedHost = host;
         secure = useTls;
         throw const SocketException('stop after selection');
-      },
-    );
-    final originalUri = Uri.parse('https://source.example/path');
+      });
+      final originalUri = Uri.parse('https://source.example/path');
 
-    // 代理不再被拦截：无论是否配置代理，都直连已校验的目标地址。
-    expect(
-      () => factory(originalUri, 'proxy.example', 8080),
-      throwsA(isA<SocketException>()),
-    );
-    expect(
-      () => factory(originalUri, null, null),
-      throwsA(isA<SocketException>()),
-    );
-    expect(dialedAddress?.address, '93.184.216.34');
-    expect(dialedPort, 443);
-    expect(dialedHost, 'source.example');
-    expect(secure, isTrue);
-    expect(originalUri.host, 'source.example');
-  });
+      // 代理不再被拦截：无论是否配置代理，都直连已校验的目标地址。
+      expect(
+        () => factory(originalUri, 'proxy.example', 8080),
+        throwsA(isA<SocketException>()),
+      );
+      expect(
+        () => factory(originalUri, null, null),
+        throwsA(isA<SocketException>()),
+      );
+      expect(dialedAddress?.address, '93.184.216.34');
+      expect(dialedPort, 443);
+      expect(dialedHost, 'source.example');
+      expect(secure, isTrue);
+      expect(originalUri.host, 'source.example');
+    },
+  );
 
   test('HTTP pinned connect does not force TLS', () async {
     var secure = true;
@@ -113,6 +119,78 @@ void main() {
       throwsA(isA<SocketException>()),
     );
     expect(secure, isFalse);
+  });
+
+  test('default native executor writes UTF-8 string request bodies', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    final received = Completer<List<int>>();
+    server.listen((incoming) async {
+      received.complete(
+        await incoming.fold<List<int>>(
+          <int>[],
+          (all, chunk) => all..addAll(chunk),
+        ),
+      );
+      incoming.response.statusCode = HttpStatus.noContent;
+      await incoming.response.close();
+    });
+
+    final transport = SourcePinnedTransport();
+    final response = await transport.call(
+      ValidatedSourceRequest(
+        uri: Uri.parse('http://source.example:${server.port}/submit'),
+        addresses: [InternetAddress.loopbackIPv4],
+        method: 'POST',
+        headers: const {'Content-Type': 'application/json'},
+        body: '{"name":"音源"}',
+        timeout: const Duration(seconds: 2),
+      ),
+      SourceRequestCancellation(),
+    );
+    await response.body.drain<void>();
+    response.close();
+
+    expect(utf8.decode(await received.future), '{"name":"音源"}');
+    expect(response.statusCode, HttpStatus.noContent);
+  });
+
+  test('structured and one-shot bodies stay on the pinned Dio path', () async {
+    final formData = FormData.fromMap({'field': 'value'});
+    final stream = Stream<List<int>>.value([1, 2, 3]);
+
+    for (final body in <dynamic>[formData, stream]) {
+      var dioCreations = 0;
+      dynamic capturedBody;
+      final expectedFailure = StateError('dio path selected');
+      final transport = SourcePinnedTransport(
+        createDio: () {
+          dioCreations++;
+          return Dio();
+        },
+        execute: (dio, sourceRequest, cancelToken) async {
+          capturedBody = sourceRequest.body;
+          throw expectedFailure;
+        },
+      );
+
+      await expectLater(
+        transport.call(
+          ValidatedSourceRequest(
+            uri: Uri.parse('https://source.example/submit'),
+            addresses: [InternetAddress('93.184.216.34')],
+            method: 'POST',
+            headers: const {},
+            body: body,
+            timeout: const Duration(seconds: 1),
+          ),
+          SourceRequestCancellation(),
+        ),
+        throwsA(same(expectedFailure)),
+      );
+      expect(dioCreations, 1);
+      expect(capturedBody, same(body));
+    }
   });
 
   test('failover skips a hanging address and connects to the next', () async {
@@ -132,17 +210,18 @@ void main() {
       443,
       host: 'source.example',
       useTls: false,
-      connect: (address, port, {required String host, required bool useTls}) async {
-        attempts++;
-        if (address.address == '10.0.0.1') {
-          // 第一个地址的 task.socket 永不完成（模拟 TCP 通但 TLS 挂起）
-          return ConnectionTask.fromSocket(
-            Completer<Socket>().future,
-            () {},
-          );
-        }
-        return ConnectionTask.fromSocket(clientTask, () {});
-      },
+      connect:
+          (address, port, {required String host, required bool useTls}) async {
+            attempts++;
+            if (address.address == '10.0.0.1') {
+              // 第一个地址的 task.socket 永不完成（模拟 TCP 通但 TLS 挂起）
+              return ConnectionTask.fromSocket(
+                Completer<Socket>().future,
+                () {},
+              );
+            }
+            return ConnectionTask.fromSocket(clientTask, () {});
+          },
     );
 
     expect(attempts, 2);

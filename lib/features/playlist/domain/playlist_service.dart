@@ -13,15 +13,13 @@ typedef PlaylistSyncRecorder =
 
 class PlaylistService {
   PlaylistService({
-    required PlaylistRepository repository,
+    required this._repository,
     DateTime Function()? clock,
     String Function()? createId,
-    PlaylistSyncRecorder? syncRecorder,
-  }) : _repository = repository,
-       _clock = clock ?? DateTime.now,
+    this._syncRecorder,
+  }) : _clock = clock ?? DateTime.now,
        _createId =
-           createId ?? (() => DateTime.now().microsecondsSinceEpoch.toString()),
-       _syncRecorder = syncRecorder;
+           createId ?? (() => DateTime.now().microsecondsSinceEpoch.toString());
 
   final PlaylistRepository _repository;
   final DateTime Function() _clock;
@@ -239,8 +237,9 @@ class PlaylistService {
       );
     }
     final playlist = getPlaylist(playlistId);
-    if (playlist == null)
+    if (playlist == null) {
       throw StateError('Playlist $playlistId does not exist');
+    }
     if (playlist.songs.length == playlist.songCount) {
       final start = offset.clamp(0, playlist.songCount).toInt();
       final end = (start + limit).clamp(0, playlist.songCount).toInt();
@@ -263,8 +262,9 @@ class PlaylistService {
 
   Future<List<MusicItem>> getAllSongs(String playlistId) async {
     final playlist = getPlaylist(playlistId);
-    if (playlist == null)
+    if (playlist == null) {
       throw StateError('Playlist $playlistId does not exist');
+    }
     return _loadAllSongsFor(playlist);
   }
 

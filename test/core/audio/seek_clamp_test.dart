@@ -9,34 +9,33 @@ import 'package:koyze/core/audio/audio_handler.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('local progressive sources request precise darwin timing for flac seek',
-      () {
-    final handler = File(
-      'lib/core/audio/audio_handler.dart',
-    ).readAsStringSync();
-    final sourceFactory = handler.substring(
-      handler.indexOf('AudioSource _progressiveSource'),
-      handler.indexOf('AudioProcessingState audioProcessingState'),
-    );
+  test(
+    'local progressive sources request precise darwin timing for flac seek',
+    () {
+      final handler = File(
+        'lib/core/audio/audio_handler.dart',
+      ).readAsStringSync();
+      final sourceFactory = handler.substring(
+        handler.indexOf('AudioSource _progressiveSource'),
+        handler.indexOf('AudioProcessingState audioProcessingState'),
+      );
 
-    expect(
-      audioSourceFor('file:///tmp/song.flac'),
-      isA<ProgressiveAudioSource>(),
-    );
-    expect(
-      audioSourceFor(
-        'file:///C:/music/a.mp3',
-        streamLocalFiles: true,
-      ),
-      // ignore: experimental_member_use
-      isA<StreamAudioSource>(),
-    );
-    expect(handler, contains('preferPreciseDurationAndTiming: true'));
-    expect(handler, contains('DarwinAssetOptions'));
-    expect(sourceFactory, contains('ProgressiveAudioSource('));
-    expect(sourceFactory, isNot(contains('AudioSource.file(')));
-    expect(handler, contains('streamLocalFiles: Platform.isWindows'));
-  });
+      expect(
+        audioSourceFor('file:///tmp/song.flac'),
+        isA<ProgressiveAudioSource>(),
+      );
+      expect(
+        audioSourceFor('file:///C:/music/a.mp3', streamLocalFiles: true),
+        // ignore: experimental_member_use
+        isA<StreamAudioSource>(),
+      );
+      expect(handler, contains('preferPreciseDurationAndTiming: true'));
+      expect(handler, contains('DarwinAssetOptions'));
+      expect(sourceFactory, contains('ProgressiveAudioSource('));
+      expect(sourceFactory, isNot(contains('AudioSource.file(')));
+      expect(handler, contains('streamLocalFiles: _streamLocalFiles'));
+    },
+  );
 
   test('seek path has no settle polling or timing compensation', () {
     final handler = File(
@@ -89,59 +88,62 @@ void main() {
     );
   });
 
-  test('confirmed seek returns and publishes actual clamped engine position',
-      () async {
-    final player = _SeekAudioPlayer(
-      processingState: ProcessingState.ready,
-      engineDuration: const Duration(minutes: 3),
-      confirmedPosition: const Duration(minutes: 2, seconds: 59),
-    );
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-
-    final confirmed = await handler.seekConfirmed(const Duration(minutes: 4));
-
-    expect(player.requestedPositions, [
-      const Duration(minutes: 2, seconds: 59, milliseconds: 920),
-    ]);
-    expect(confirmed, const Duration(minutes: 2, seconds: 59));
-    expect(
-      handler.playbackState.value.updatePosition,
-      const Duration(minutes: 2, seconds: 59),
-    );
-  });
-
-  for (final confirmation in <({
-    String name,
-    Duration enginePosition,
-    Duration expected,
-  })>[
-    (
-      name: 'negative',
-      enginePosition: const Duration(seconds: -4),
-      expected: Duration.zero,
-    ),
-    (
-      name: 'beyond duration',
-      enginePosition: const Duration(minutes: 4),
-      expected: const Duration(minutes: 3),
-    ),
-  ]) {
-    test('${confirmation.name} engine confirmation publishes clamped position',
-        () async {
+  test(
+    'confirmed seek returns and publishes actual clamped engine position',
+    () async {
       final player = _SeekAudioPlayer(
         processingState: ProcessingState.ready,
         engineDuration: const Duration(minutes: 3),
-        confirmedPosition: confirmation.enginePosition,
+        confirmedPosition: const Duration(minutes: 2, seconds: 59),
       );
       final handler = LxAudioHandler(player: player);
       addTearDown(player.dispose);
 
-      final confirmed = await handler.seekConfirmed(const Duration(minutes: 2));
+      final confirmed = await handler.seekConfirmed(const Duration(minutes: 4));
 
-      expect(confirmed, confirmation.expected);
-      expect(handler.playbackState.value.updatePosition, confirmed);
-    });
+      expect(player.requestedPositions, [
+        const Duration(minutes: 2, seconds: 59, milliseconds: 920),
+      ]);
+      expect(confirmed, const Duration(minutes: 2, seconds: 59));
+      expect(
+        handler.playbackState.value.updatePosition,
+        const Duration(minutes: 2, seconds: 59),
+      );
+    },
+  );
+
+  for (final confirmation
+      in <({String name, Duration enginePosition, Duration expected})>[
+        (
+          name: 'negative',
+          enginePosition: const Duration(seconds: -4),
+          expected: Duration.zero,
+        ),
+        (
+          name: 'beyond duration',
+          enginePosition: const Duration(minutes: 4),
+          expected: const Duration(minutes: 3),
+        ),
+      ]) {
+    test(
+      '${confirmation.name} engine confirmation publishes clamped position',
+      () async {
+        final player = _SeekAudioPlayer(
+          processingState: ProcessingState.ready,
+          engineDuration: const Duration(minutes: 3),
+          confirmedPosition: confirmation.enginePosition,
+        );
+        final handler = LxAudioHandler(player: player);
+        addTearDown(player.dispose);
+
+        final confirmed = await handler.seekConfirmed(
+          const Duration(minutes: 2),
+        );
+
+        expect(confirmed, confirmation.expected);
+        expect(handler.playbackState.value.updatePosition, confirmed);
+      },
+    );
   }
 
   test('loading seek failure returns null without publishing target', () async {
@@ -157,118 +159,134 @@ void main() {
 
     expect(confirmed, isNull);
     expect(player.requestedPositions, isEmpty);
-    expect(handler.playbackState.value.updatePosition,
-        isNot(const Duration(minutes: 2)));
-  });
-
-  test('native seek failure returns null and publishes actual engine state',
-      () async {
-    final player = _SeekAudioPlayer(
-      processingState: ProcessingState.ready,
-      engineDuration: const Duration(minutes: 3),
-      position: const Duration(seconds: 17),
-      failedSeekPosition: const Duration(seconds: 19),
-      seekError: StateError('native seek failed'),
+    expect(
+      handler.playbackState.value.updatePosition,
+      isNot(const Duration(minutes: 2)),
     );
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-
-    final confirmed = await handler.seekConfirmed(const Duration(minutes: 2));
-
-    expect(confirmed, isNull);
-    expect(handler.playbackState.value.updatePosition,
-        const Duration(seconds: 19));
   });
 
-  for (final failure in ['null', 'throw', 'stale']) {
-    test('real scrub $failure seek stays paused until later explicit play',
-        () async {
-      final seekGate = failure == 'stale' ? _Gate() : null;
-      final player = _SeekAudioPlayer(
-        processingState:
-            failure == 'null' ? ProcessingState.loading : ProcessingState.ready,
-        engineDuration: const Duration(minutes: 3),
-        seekError: failure == 'throw' ? StateError('native seek failed') : null,
-        seekGate: seekGate,
-      );
-      final handler = LxAudioHandler(player: player);
-      addTearDown(player.dispose);
-      await handler.setPlaylist([_item('A'), _item('B')]);
-      final sourceGeneration = handler.sourceGeneration;
-      final userIntentGeneration = handler.userIntentGeneration;
-      final owner = await handler.pauseForScrub(
-        sourceGeneration: sourceGeneration,
-        userIntentGeneration: userIntentGeneration,
-        stillOwnsScrub: () => true,
-      );
-      if (failure == 'null') {
-        player.engineProcessingState = ProcessingState.loading;
-      }
-
-      final seek = handler.seekConfirmed(const Duration(seconds: 40));
-      if (seekGate != null) {
-        await seekGate.started.future;
-        final selection = handler.skipToQueueItem(1);
-        seekGate.release.complete();
-        await selection;
-      }
-      expect(await seek, isNull);
-      await handler.releaseAfterScrub(
-        owner,
-        resumeAfter: false,
-        sourceGeneration: sourceGeneration,
-        userIntentGeneration: userIntentGeneration,
-      );
-
-      expect(player.playing, failure == 'stale');
-      if (failure != 'stale') await handler.play();
-      expect(player.playing, isTrue);
-    });
-  }
-
-  for (final outcome in ['superseded', 'source stale', 'error']) {
-    test('newer explicit play survives old scrub $outcome seek release',
-        () async {
-      final seekGate = _Gate();
+  test(
+    'native seek failure returns null and publishes actual engine state',
+    () async {
       final player = _SeekAudioPlayer(
         processingState: ProcessingState.ready,
         engineDuration: const Duration(minutes: 3),
-        seekError: outcome == 'error' ? StateError('native seek failed') : null,
-        seekGate: seekGate,
+        position: const Duration(seconds: 17),
+        failedSeekPosition: const Duration(seconds: 19),
+        seekError: StateError('native seek failed'),
       );
       final handler = LxAudioHandler(player: player);
       addTearDown(player.dispose);
-      await handler.setPlaylist([_item('A'), _item('B')]);
-      final sourceGeneration = handler.sourceGeneration;
-      final userIntentGeneration = handler.userIntentGeneration;
-      final owner = await handler.pauseForScrub(
-        sourceGeneration: sourceGeneration,
-        userIntentGeneration: userIntentGeneration,
-        stillOwnsScrub: () => true,
-      );
 
-      final seek = handler.seekConfirmed(const Duration(seconds: 40));
-      await seekGate.started.future;
-      await handler.play();
-      Future<void>? newerOperation;
-      if (outcome == 'superseded') {
-        newerOperation =
-            handler.seekConfirmed(const Duration(seconds: 45)).then((_) {});
-      } else if (outcome == 'source stale') {
-        newerOperation = handler.skipToQueueItem(1);
-      }
-      seekGate.release.complete();
-      expect(await seek, isNull);
-      await newerOperation;
-      await handler.releaseAfterScrub(
-        owner,
-        resumeAfter: false,
-        sourceGeneration: sourceGeneration,
-        userIntentGeneration: userIntentGeneration,
-      );
+      final confirmed = await handler.seekConfirmed(const Duration(minutes: 2));
 
-      expect(player.playing, isTrue);
-    });
+      expect(confirmed, isNull);
+      expect(
+        handler.playbackState.value.updatePosition,
+        const Duration(seconds: 19),
+      );
+    },
+  );
+
+  for (final failure in ['null', 'throw', 'stale']) {
+    test(
+      'real scrub $failure seek stays paused until later explicit play',
+      () async {
+        final seekGate = failure == 'stale' ? _Gate() : null;
+        final player = _SeekAudioPlayer(
+          processingState: failure == 'null'
+              ? ProcessingState.loading
+              : ProcessingState.ready,
+          engineDuration: const Duration(minutes: 3),
+          seekError: failure == 'throw'
+              ? StateError('native seek failed')
+              : null,
+          seekGate: seekGate,
+        );
+        final handler = LxAudioHandler(player: player);
+        addTearDown(player.dispose);
+        await handler.setPlaylist([_item('A'), _item('B')]);
+        final sourceGeneration = handler.sourceGeneration;
+        final userIntentGeneration = handler.userIntentGeneration;
+        final owner = await handler.pauseForScrub(
+          sourceGeneration: sourceGeneration,
+          userIntentGeneration: userIntentGeneration,
+          stillOwnsScrub: () => true,
+        );
+        if (failure == 'null') {
+          player.engineProcessingState = ProcessingState.loading;
+        }
+
+        final seek = handler.seekConfirmed(const Duration(seconds: 40));
+        if (seekGate != null) {
+          await seekGate.started.future;
+          final selection = handler.skipToQueueItem(1);
+          seekGate.release.complete();
+          await selection;
+        }
+        expect(await seek, isNull);
+        await handler.releaseAfterScrub(
+          owner,
+          resumeAfter: false,
+          sourceGeneration: sourceGeneration,
+          userIntentGeneration: userIntentGeneration,
+        );
+
+        expect(player.playing, failure == 'stale');
+        if (failure != 'stale') await handler.play();
+        expect(player.playing, isTrue);
+      },
+    );
+  }
+
+  for (final outcome in ['superseded', 'source stale', 'error']) {
+    test(
+      'newer explicit play survives old scrub $outcome seek release',
+      () async {
+        final seekGate = _Gate();
+        final player = _SeekAudioPlayer(
+          processingState: ProcessingState.ready,
+          engineDuration: const Duration(minutes: 3),
+          seekError: outcome == 'error'
+              ? StateError('native seek failed')
+              : null,
+          seekGate: seekGate,
+        );
+        final handler = LxAudioHandler(player: player);
+        addTearDown(player.dispose);
+        await handler.setPlaylist([_item('A'), _item('B')]);
+        final sourceGeneration = handler.sourceGeneration;
+        final userIntentGeneration = handler.userIntentGeneration;
+        final owner = await handler.pauseForScrub(
+          sourceGeneration: sourceGeneration,
+          userIntentGeneration: userIntentGeneration,
+          stillOwnsScrub: () => true,
+        );
+
+        final seek = handler.seekConfirmed(const Duration(seconds: 40));
+        await seekGate.started.future;
+        await handler.play();
+        Future<void>? newerOperation;
+        if (outcome == 'superseded') {
+          newerOperation = handler
+              .seekConfirmed(const Duration(seconds: 45))
+              .then((_) {});
+        } else if (outcome == 'source stale') {
+          newerOperation = handler.skipToQueueItem(1);
+        }
+        seekGate.release.complete();
+        expect(await seek, isNull);
+        await newerOperation;
+        await handler.releaseAfterScrub(
+          owner,
+          resumeAfter: false,
+          sourceGeneration: sourceGeneration,
+          userIntentGeneration: userIntentGeneration,
+        );
+
+        expect(player.playing, isTrue);
+      },
+    );
   }
 
   test('real confirmed scrub release reconciles playback', () async {
@@ -344,8 +362,10 @@ void main() {
     seekGate.release.complete();
 
     expect(await staleSeek, isNull);
-    expect(handler.playbackState.value.updatePosition,
-        isNot(const Duration(seconds: 19)));
+    expect(
+      handler.playbackState.value.updatePosition,
+      isNot(const Duration(seconds: 19)),
+    );
     await newerSelection;
     expect(handler.mediaItem.value?.id, 'B');
     expect(handler.playbackState.value.updatePosition, Duration.zero);
@@ -406,44 +426,43 @@ void main() {
 
   for (final action
       in <({String name, Future<void> Function(LxAudioHandler) run})>[
-    (name: 'pause', run: (handler) => handler.pause()),
-    (name: 'stop', run: (handler) => handler.stop()),
-  ]) {
-    test('newer explicit ${action.name} is not revived by stale scrub pause',
-        () async {
-      final pauseGate = _Gate();
-      final player = _SeekAudioPlayer(
-        processingState: ProcessingState.ready,
-        pauseGate: pauseGate,
-      );
-      final handler = LxAudioHandler(player: player);
-      addTearDown(player.dispose);
-      await handler.setPlaylist([_item('A')]);
-      await pumpEventQueue();
+        (name: 'pause', run: (handler) => handler.pause()),
+        (name: 'stop', run: (handler) => handler.stop()),
+      ]) {
+    test(
+      'newer explicit ${action.name} is not revived by stale scrub pause',
+      () async {
+        final pauseGate = _Gate();
+        final player = _SeekAudioPlayer(
+          processingState: ProcessingState.ready,
+          pauseGate: pauseGate,
+        );
+        final handler = LxAudioHandler(player: player);
+        addTearDown(player.dispose);
+        await handler.setPlaylist([_item('A')]);
+        await pumpEventQueue();
 
-      final scrubPause = handler.pauseForScrub(
-        sourceGeneration: handler.sourceGeneration,
-        userIntentGeneration: handler.userIntentGeneration,
-        stillOwnsScrub: () => true,
-      );
-      await pauseGate.started.future;
-      await action.run(handler);
-      pauseGate.release.complete();
-      await scrubPause;
+        final scrubPause = handler.pauseForScrub(
+          sourceGeneration: handler.sourceGeneration,
+          userIntentGeneration: handler.userIntentGeneration,
+          stillOwnsScrub: () => true,
+        );
+        await pauseGate.started.future;
+        await action.run(handler);
+        pauseGate.release.complete();
+        await scrubPause;
 
-      expect(player.playing, isFalse);
-    });
+        expect(player.playing, isFalse);
+      },
+    );
   }
 }
 
 MediaItem _item(String id) => MediaItem(
-      id: id,
-      title: id,
-      extras: {
-        'url': 'file:///tmp/$id.mp3',
-        'requestedQuality': '320k',
-      },
-    );
+  id: id,
+  title: id,
+  extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+);
 
 class _SeekAudioPlayer extends AudioPlayer {
   ProcessingState engineProcessingState;
@@ -467,8 +486,8 @@ class _SeekAudioPlayer extends AudioPlayer {
     this.seekError,
     this.seekGate,
     this.pauseGate,
-  })  : engineProcessingState = processingState,
-        enginePosition = position;
+  }) : engineProcessingState = processingState,
+       enginePosition = position;
 
   @override
   ProcessingState get processingState => engineProcessingState;

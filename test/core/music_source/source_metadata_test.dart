@@ -15,7 +15,7 @@ void main() {
       'strMediaMid': 'media-mid',
       'pay': {'payplay': 1},
       'singer': [
-        {'name': 'Singer'}
+        {'name': 'Singer'},
       ],
     };
 

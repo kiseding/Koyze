@@ -177,11 +177,11 @@ class CustomSourceEngine {
     SourceTransport? requestTransport,
   }) {
     _requestSandbox = SourceRequestSandbox(
-      // 自定义源是用户显式信任的第三方 API：DNS 全非公网时放行
-      // （运营商 CGNAT / 异常 DNS 会解析出内网地址，误杀正常源）。
-      policy:
-          requestPolicy ??
-          SourceRequestPolicy(allowNonPublicResolved: true),
+      // Imported scripts are third-party code, not a network trust boundary.
+      // Keep loopback, link-local and private destinations blocked by default.
+      // A caller that owns the complete deployment may still inject a narrower
+      // policy explicitly, but the app never grants private-network access.
+      policy: requestPolicy ?? SourceRequestPolicy(),
       transport: requestTransport ?? IOSSourceTransport().call,
       maximumRedirects: 10,
     );
@@ -223,7 +223,9 @@ class CustomSourceEngine {
     await Future.delayed(Duration.zero);
 
     try {
-      _runtime = getJavascriptRuntime();
+      // flutter_js XHR uses its own unrestricted HTTP client. Do not register
+      // that native channel: source requests must pass through our sandbox.
+      _runtime = getJavascriptRuntime(xhr: false);
       _setupBaseEnvironment();
       _initialized = true;
     } catch (e) {

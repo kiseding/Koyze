@@ -146,9 +146,9 @@ void main() {
     // then put known lyrics into the injected cache and assert hit.
     cache.set(
       'tx|song-1|song-1',
-      Lyrics(
+      const Lyrics(
         raw: '[00:00.00]hello',
-        lines: const [LyricLine(time: Duration.zero, text: 'hello')],
+        lines: [LyricLine(time: Duration.zero, text: 'hello')],
       ),
     );
     final hit = await service.fetchLyric(music);

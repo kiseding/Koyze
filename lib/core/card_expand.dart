@@ -1,6 +1,5 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
@@ -192,19 +191,19 @@ CustomTransitionPage<Object?> expandablePage(
         );
       }
       return EdgeSwipeDismiss(
-        child: transition,
         fullWidthSwipe: fullWidthSwipe,
         // 收拢成型后锁定路由反向动画，pop 后不会弹回全屏再收一遍。
         onDismissCommit: () {
           cardDismissLocked = true;
         },
+        child: transition,
       );
     },
   );
 }
 
 class _CardExpandPage extends CustomTransitionPage<Object?> {
-  _CardExpandPage({
+  const _CardExpandPage({
     required super.key,
     required super.child,
     required super.transitionsBuilder,

@@ -23,9 +23,10 @@ void main() {
         .read(downloadQualityProvider.notifier)
         .setQuality(AudioQualityOption.low);
     await container.read(wifiOnlyDownloadProvider.notifier).setWifiOnly(false);
-    await container
-        .read(searchHistoryProvider.notifier)
-        .replaceAll(['one', 'two']);
+    await container.read(searchHistoryProvider.notifier).replaceAll([
+      'one',
+      'two',
+    ]);
 
     expect(container.read(themeModeProvider), ThemeMode.dark);
     expect(container.read(audioQualityProvider), AudioQualityOption.lossless);

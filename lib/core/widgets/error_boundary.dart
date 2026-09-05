@@ -35,10 +35,7 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
       if (widget.errorBuilder != null) {
         return widget.errorBuilder!(_error!, _stack);
       }
-      return _DefaultErrorWidget(
-        error: _error!,
-        onRetry: _retry,
-      );
+      return _DefaultErrorWidget(error: _error!, onRetry: _retry);
     }
 
     return widget.child;
@@ -57,16 +54,13 @@ class _DefaultErrorWidget extends StatelessWidget {
   final Object error;
   final VoidCallback onRetry;
 
-  const _DefaultErrorWidget({
-    required this.error,
-    required this.onRetry,
-  });
+  const _DefaultErrorWidget({required this.error, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -78,7 +72,11 @@ class _DefaultErrorWidget extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: AppColors.error.withAlpha(60)),
               ),
-              child: Icon(Icons.error_outline, size: 34, color: AppColors.error),
+              child: const Icon(
+                Icons.error_outline,
+                size: 34,
+                color: AppColors.error,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -106,9 +104,12 @@ class _DefaultErrorWidget extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999),
                   ),
-                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                 ),
-                child: const Text('重试', style: TextStyle(fontWeight: FontWeight.w600)),
+                child: const Text(
+                  '重试',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],

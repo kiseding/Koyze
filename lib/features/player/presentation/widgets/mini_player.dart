@@ -464,7 +464,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                                   valueListenable: playerRouteProgress,
                                   builder: (context, progress, child) {
                                     // 动效期间隐藏迷你栏真封面，只留飞行快照封面。
-                                    final hideCover = progress > 0 && progress < 1;
+                                    final hideCover =
+                                        progress > 0 && progress < 1;
                                     return Opacity(
                                       opacity: hideCover ? 0 : 1,
                                       child: child,
@@ -497,11 +498,12 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                                           ? ArtworkImage(
                                               currentMusic.artwork!,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => Icon(
-                                                Icons.music_note,
-                                                color: subColor,
-                                                size: 20,
-                                              ),
+                                              errorBuilder: (_, __, ___) =>
+                                                  Icon(
+                                                    Icons.music_note,
+                                                    color: subColor,
+                                                    size: 20,
+                                                  ),
                                             )
                                           : Icon(
                                               Icons.music_note,

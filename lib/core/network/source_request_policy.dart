@@ -48,8 +48,8 @@ class SourceTransportResponse {
     this.statusMessage = '',
     required this.headers,
     required this.body,
-    void Function()? close,
-  }) : _close = close;
+    this._close,
+  });
 
   void close() {
     final close = _close;
@@ -111,8 +111,8 @@ class SourceStreamResponse {
     required this.statusMessage,
     required this.headers,
     required this.body,
-    required void Function() close,
-  }) : _close = close;
+    required void Function() this._close,
+  });
 
   void close() {
     final close = _close;
@@ -262,9 +262,9 @@ class SourceRequestPolicy {
   final SourceAddressResolver resolve;
   final int maximumResponseBytes;
 
-  /// 自定义源（用户自配的 LX 脚本）是用户显式信任的第三方 API：
-  /// 当 DNS 全部返回非公网地址（运营商 CGNAT / 异常 DNS）时放行，
-  /// 避免正常自定义源被误杀；内置源的请求仍保持严格 SSRF 防护。
+  /// Exceptional compatibility escape hatch for callers that own the full
+  /// network boundary. App-facing transports intentionally keep this false:
+  /// imported scripts and media URLs must never gain private-network access.
   final bool allowNonPublicResolved;
 
   SourceRequestPolicy({
@@ -332,13 +332,12 @@ class SourceRequestPolicy {
       );
     }
     // 自定义源放行时仍按解析顺序连接（IPv4 优先）。
-    final orderedAddresses = [
-      ...(publicAddresses.isEmpty ? addresses : publicAddresses),
-    ]
-      ..sort((left, right) {
-        if (left.type == right.type) return 0;
-        return left.type == InternetAddressType.IPv4 ? -1 : 1;
-      });
+    final orderedAddresses =
+        [...(publicAddresses.isEmpty ? addresses : publicAddresses)]
+          ..sort((left, right) {
+            if (left.type == right.type) return 0;
+            return left.type == InternetAddressType.IPv4 ? -1 : 1;
+          });
 
     final rawHeaders = options['headers'];
     final headers = <String, String>{};
@@ -445,9 +444,11 @@ class SourceRequestSandbox {
         ]);
         if (cancel.isCancelled) _throwCancelled();
         final transportFuture = transport(request, cancel);
-        transportFuture.then((lateResponse) {
-          if (cancel.isCancelled) lateResponse.close();
-        }, onError: (_) {});
+        unawaited(
+          transportFuture.then((lateResponse) {
+            if (cancel.isCancelled) lateResponse.close();
+          }, onError: (_) {}),
+        );
         if (cancel.isCancelled) _throwCancelled();
         final response = await Future.any([
           transportFuture.timeout(
@@ -614,11 +615,13 @@ class SourceRequestSandbox {
       );
       unawaited(subscription.cancel());
     });
-    cancellation.future.then((reason) {
-      completeError(SourceRequestPolicyException('cancelled', reason));
-      unawaited(subscription.cancel());
-      response.close();
-    });
+    unawaited(
+      cancellation.future.then((reason) {
+        completeError(SourceRequestPolicyException('cancelled', reason));
+        unawaited(subscription.cancel());
+        response.close();
+      }),
+    );
 
     try {
       final result = await done.future;

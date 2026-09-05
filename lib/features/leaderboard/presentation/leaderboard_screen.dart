@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/music_source/platform/music_platform.dart';
@@ -78,7 +79,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.error_outline,
                                 color: AppColors.error,
                                 size: 48,
@@ -186,13 +187,13 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     final columns = _columnsFor(contentWidth);
     final rows = _packLeaderboardRows(visible, columns);
     return ListView.builder(
+      scrollCacheExtent: const ScrollCacheExtent.pixels(520),
       padding: EdgeInsets.fromLTRB(
         12,
         MediaQuery.paddingOf(context).top + 72,
         12,
         16,
       ),
-      cacheExtent: 520,
       itemCount: rows.length,
       itemBuilder: (context, index) =>
           _buildPackedItem(context, rows[index], categoryByKey, columns),
@@ -752,7 +753,7 @@ class LeaderboardDetailScreenById extends ConsumerWidget {
               );
             }
             return ListView.builder(
-              cacheExtent: 420,
+              scrollCacheExtent: const ScrollCacheExtent.pixels(420),
               padding: EdgeInsets.only(
                 top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
                 left: 16,
@@ -809,7 +810,7 @@ class _LeaderboardSongRow extends ConsumerWidget {
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
                 SizedBox(

@@ -3,13 +3,13 @@ class PageRange {
     required this.itemCount,
     required int pageIndex,
     this.pageSize = defaultPageSize,
-  })  : assert(itemCount >= 0),
-        assert(pageSize > 0),
-        pageIndex = _clampPageIndex(
-          pageIndex: pageIndex,
-          itemCount: itemCount,
-          pageSize: pageSize,
-        );
+  }) : assert(itemCount >= 0),
+       assert(pageSize > 0),
+       pageIndex = _clampPageIndex(
+         pageIndex: pageIndex,
+         itemCount: itemCount,
+         pageSize: pageSize,
+       );
 
   static const defaultPageSize = 100;
 

@@ -9,8 +9,8 @@ import { importKw, searchKw } from '../sources/kw';
 import { importWy, searchWy } from '../sources/wy';
 import type { PlaylistImportSaveBody, PlaylistImportResult, SongInfo } from '../utils/types';
 import { bestQuality } from '../utils/quality';
-import { writePlaylistAtomically } from '../db/playlist-staging';
-import { advanceSyncRevision } from '../db/sync-state';
+import { writePlaylistAtRevision } from '../db/playlist-staging';
+import { getSyncRevision } from '../db/sync-state';
 
 const VALID_SOURCES = new Set(['tx', 'kw', 'wy']);
 
@@ -123,6 +123,11 @@ export async function handlePlaylistImport(request: Request, env: Env, ctx: Exec
   // Phase 2: save songs to D1
   if (body.songs?.length && body.name) {
 
+    const baseRevision = body.baseRevision;
+    if (typeof baseRevision !== 'number' || !Number.isSafeInteger(baseRevision) || baseRevision < 0) {
+      return jsonResponse({ error: 'baseRevision 无效' }, 400);
+    }
+
     const source = body.source || '';
     const sourceId = String(body.sourceId || '');
     if (!VALID_SOURCES.has(source)) {
@@ -167,15 +172,20 @@ export async function handlePlaylistImport(request: Request, env: Env, ctx: Exec
       if (!body.playlistId && body.name === 'love') {
         return jsonResponse({ error: '无效歌单名' }, 400);
       }
-      await writePlaylistAtomically(env, {
+      const revision = await writePlaylistAtRevision(env, {
         id: plId,
         userId,
         name: existingPlaylist?.name || String(body.name).slice(0, 128),
         position: existingPlaylist?.position ?? 10,
         source: existingPlaylist?.source || source,
         sourceId: existingPlaylist?.source_id || sourceId,
-      }, cleanSongs, { replace: !body.playlistId, startPosition });
-      const revision = await advanceSyncRevision(env, userId);
+      }, cleanSongs, { replace: !body.playlistId, startPosition }, baseRevision);
+      if (revision == null) {
+        return jsonResponse({
+          error: 'revision_conflict',
+          currentRevision: await getSyncRevision(env, userId),
+        }, 409);
+      }
       return jsonResponse({ ok: true, revision, playlist: { id: plId, name: body.name, source, count: cleanSongs.length, appended: !!body.playlistId } });
     } catch (err: unknown) {
       // P2-10: generic message to user; log details server-side.

@@ -15,6 +15,22 @@ const loginRules = (account: string): RateLimitRule[] => [
 ];
 
 describe('RateLimiter adapter', () => {
+  it('uses an isolated Durable Object shard for each limiter scope', async () => {
+    const names: string[] = [];
+    const binding = {
+      idFromName: (name: string) => {
+        names.push(name);
+        return {} as DurableObjectId;
+      },
+      get: () => ({
+        fetch: async () => Response.json({ allowed: true, remaining: 1, resetAt: Date.now() + 1000 }),
+      }),
+    } as unknown as DurableObjectNamespace;
+
+    await new RateLimiter(binding, 'sync').check('203.0.113.8', loginRules('8'));
+    expect(names).toEqual(['sync-ip:203.0.113.8']);
+  });
+
   it('fails closed when the binding call fails', async () => {
     const binding = {
       idFromName: () => ({}) as DurableObjectId,

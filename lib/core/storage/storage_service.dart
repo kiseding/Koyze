@@ -4,11 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-typedef PreferenceWriteOverride = Future<bool> Function(
-  String operation,
-  String key,
-  Object? value,
-);
+typedef PreferenceWriteOverride =
+    Future<bool> Function(String operation, String key, Object? value);
 
 typedef StorageLoader = Future<StorageService> Function();
 
@@ -112,18 +109,20 @@ class StorageService {
 
   /// 损坏数据隔离：删除损坏键并记录，避免每次启动重复崩溃。
   void _abandonCorrupted(String key, String corrupted) {
-    debugPrint('[StorageService] dropping corrupted data for "$key" '
-        '(${corrupted.length} bytes)');
+    debugPrint(
+      '[StorageService] dropping corrupted data for "$key" '
+      '(${corrupted.length} bytes)',
+    );
     unawaited(
-      _checked('remove', key, null, () => _prefs.remove(key)).catchError(
-        (Object error) {
-          debugPrint(
-            '[StorageService] failed to remove corrupted data for "$key": '
-            '$error',
-          );
-          return false;
-        },
-      ),
+      _checked('remove', key, null, () => _prefs.remove(key)).catchError((
+        Object error,
+      ) {
+        debugPrint(
+          '[StorageService] failed to remove corrupted data for "$key": '
+          '$error',
+        );
+        return false;
+      }),
     );
   }
 
@@ -135,7 +134,11 @@ class StorageService {
 
   List<String> getStringList(String key) => _prefs.getStringList(key) ?? [];
   Future<bool> setStringList(String key, List<String> value) => _checked(
-      'setStringList', key, value, () => _prefs.setStringList(key, value));
+    'setStringList',
+    key,
+    value,
+    () => _prefs.setStringList(key, value),
+  );
 
   // ---- 删除 ----
 
@@ -143,9 +146,9 @@ class StorageService {
       _checked('remove', key, null, () => _prefs.remove(key));
 
   PreferenceSnapshot snapshot(Set<String> keys) => PreferenceSnapshot({
-        for (final key in keys)
-          key: _prefs.containsKey(key) ? _prefs.get(key) : null,
-      });
+    for (final key in keys)
+      key: _prefs.containsKey(key) ? _prefs.get(key) : null,
+  });
 
   Future<void> restore(PreferenceSnapshot snapshot) async {
     Object? firstError;

@@ -13,25 +13,74 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  native-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: android
+          - os: macos-15
+            platform: ios
+          - os: windows-2022
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Java
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Verify native script network boundary
+        run: node tool/test-native-runtime.mjs
+      - name: Build Android without release credentials
+        if: matrix.platform == 'android'
+        run: flutter build apk --debug --no-pub
+      - name: Build iOS without signing
+        if: matrix.platform == 'ios'
+        run: flutter build ios --release --no-codesign --no-pub
+      - name: Build Windows
+        if: matrix.platform == 'windows'
+        run: flutter build windows --release --no-pub
+
   flutter-ci:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: '3.44.9'
           channel: stable
           cache: true
 
       - name: Resolve Flutter dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
+
+      - name: Verify Dart formatting
+        run: dart format --output=none --set-exit-if-changed lib test
 
       - name: Analyze Dart and Flutter sources
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --fatal-infos --fatal-warnings
 
       - name: Run deterministic Flutter tests
         run: flutter test --exclude-tags live
@@ -45,13 +94,18 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: workers/package-lock.json
+
+      - name: Audit locked dependency graph
+        run: npm audit --package-lock-only --audit-level=high
 
       - name: Install dependencies
         run: npm ci

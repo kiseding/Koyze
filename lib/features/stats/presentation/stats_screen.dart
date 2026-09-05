@@ -106,7 +106,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           if (range != StatsRange.values.first) const SizedBox(width: 8),
           Expanded(
             child: ChoiceChip(
-              label: Text(range.label, style: TextStyle(fontSize: 13)),
+              label: Text(range.label, style: const TextStyle(fontSize: 13)),
               selected: _range == range,
               onSelected: (_) => setState(() => _range = range),
               selectedColor: Theme.of(context).colorScheme.primaryContainer,
@@ -218,7 +218,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                               : AppColors.accentOf(context).withValues(
                                   alpha: 0.35 + 0.65 * (count / maxCount),
                                 ),
-                          borderRadius: BorderRadius.vertical(
+                          borderRadius: const BorderRadius.vertical(
                             top: Radius.circular(3),
                           ),
                         ),

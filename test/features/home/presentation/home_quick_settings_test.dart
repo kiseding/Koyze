@@ -41,5 +41,4 @@ void main() {
     expect(notifier.state.order, orderBefore);
     expect(notifier.state.enabled.length, disabledCount + 1);
   });
-
 }

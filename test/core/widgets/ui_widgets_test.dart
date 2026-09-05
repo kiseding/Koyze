@@ -8,11 +8,7 @@ void main() {
   group('LoadingWidget', () {
     testWidgets('shows loading indicator', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: LoadingWidget(),
-          ),
-        ),
+        const MaterialApp(home: Scaffold(body: LoadingWidget())),
       );
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -21,9 +17,7 @@ void main() {
     testWidgets('shows hint text when provided', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(
-            body: LoadingWidget(hint: '加载中...'),
-          ),
+          home: Scaffold(body: LoadingWidget(hint: '加载中...')),
         ),
       );
 
@@ -35,9 +29,7 @@ void main() {
     testWidgets('shows message', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(
-            body: EmptyWidget(message: '暂无数据'),
-          ),
+          home: Scaffold(body: EmptyWidget(message: '暂无数据')),
         ),
       );
 
@@ -69,11 +61,7 @@ void main() {
   group('ErrorBoundary', () {
     testWidgets('renders child when no error', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: ErrorBoundary(
-            child: const Text('Normal Content'),
-          ),
-        ),
+        const MaterialApp(home: ErrorBoundary(child: Text('Normal Content'))),
       );
 
       expect(find.text('Normal Content'), findsOneWidget);

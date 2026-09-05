@@ -68,7 +68,7 @@ abstract class PlaybackCacheIndexStore {
 }
 
 class PrefsPlaybackCacheIndexStore implements PlaybackCacheIndexStore {
-  PrefsPlaybackCacheIndexStore({StorageService? storage}) : _storage = storage;
+  PrefsPlaybackCacheIndexStore({this._storage});
 
   static const key = 'playback_cache_index_v1';
   StorageService? _storage;
@@ -712,12 +712,12 @@ class PlaybackCacheService {
 
   PlaybackCacheService({
     Dio? dio,
-    PlaybackDownloader? downloader,
+    this._downloader,
     this.cacheRootOverride,
     PlaybackCacheIndexStore? indexStore,
     DateTime Function()? clock,
-    PlaybackCacheKeyHook? beforeLeaseValidation,
-    @visibleForTesting PlaybackCacheKeyHook? beforeExistingLeaseValidation,
+    this._beforeLeaseValidation,
+    @visibleForTesting this._beforeExistingLeaseValidation,
     BackgroundFileProtector? protectFile,
     this.ttl = defaultTtl,
     this.maxBytes = defaultMaxBytes,
@@ -725,11 +725,8 @@ class PlaybackCacheService {
     SourceMediaTransport? sourceMediaTransport,
   }) : _dio = dio ?? _createDownloadDio(),
        _ownsDio = dio == null,
-       _downloader = downloader,
        _indexStore = indexStore ?? PrefsPlaybackCacheIndexStore(),
        _clock = clock ?? DateTime.now,
-       _beforeLeaseValidation = beforeLeaseValidation,
-       _beforeExistingLeaseValidation = beforeExistingLeaseValidation,
        _protectFile = protectFile ?? ensureBackgroundReadable,
        _sourceMediaTransport = sourceMediaTransport ?? SourceMediaTransport();
 

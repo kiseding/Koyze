@@ -29,7 +29,7 @@ lx.send(lx.EVENT_NAMES.inited, { status: true, sources: {} });
     expect(service.sources.any((s) => s.name == 'SeedScript'), isTrue);
     expect(
       service.sources.firstWhere((s) => s.name == 'SeedScript').isEnabled,
-      isTrue,
+      isFalse,
     );
 
     final id = service.sources.firstWhere((s) => s.name == 'SeedScript').id;

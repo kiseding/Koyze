@@ -52,19 +52,14 @@ class MusicSourceService {
 
   MusicSourceService(
     this._customSourceService, {
-    bool Function()? hasEnabledCustomSources,
-    List<String> Function()? enabledCustomSourceIds,
-    QualityResolver? customQualityResolver,
-    CustomSourceQualityResolver? customSourceQualityResolver,
-    QualityResolver? builtInQualityResolver,
+    this._hasEnabledCustomSources,
+    this._enabledCustomSourceIds,
+    this._customQualityResolver,
+    this._customSourceQualityResolver,
+    this._builtInQualityResolver,
     BuiltInSourceManager? builtInSources,
     this.playUrlResolutionTimeout = const Duration(seconds: 30),
-  }) : _hasEnabledCustomSources = hasEnabledCustomSources,
-       _enabledCustomSourceIds = enabledCustomSourceIds,
-       _customQualityResolver = customQualityResolver,
-       _customSourceQualityResolver = customSourceQualityResolver,
-       _builtInSources = builtInSources ?? BuiltInSourceManager(),
-       _builtInQualityResolver = builtInQualityResolver;
+  }) : _builtInSources = builtInSources ?? BuiltInSourceManager();
 
   BuiltInSourceManager get builtInSources => _builtInSources;
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/music_source/platform/music_platform.dart';
 import '../../../core/music_source/platform/built_in_source_manager.dart';
@@ -17,10 +19,7 @@ final leaderboardCategoriesProvider =
       LeaderboardCategoriesNotifier,
       AsyncValue<List<LeaderboardCategory>>
     >((ref) {
-      return LeaderboardCategoriesNotifier(
-        ref,
-        () => StorageService.instance,
-      );
+      return LeaderboardCategoriesNotifier(ref, () => StorageService.instance);
     });
 
 class LeaderboardCategoriesNotifier
@@ -42,7 +41,7 @@ class LeaderboardCategoriesNotifier
     if (!mounted) return;
     if (cached.isNotEmpty) {
       state = AsyncValue.data(cached);
-      _refresh();
+      unawaited(_refresh());
     } else {
       await _refresh();
     }
@@ -57,7 +56,7 @@ class LeaderboardCategoriesNotifier
       final fresh = await builtIn.getAllLeaderboardCategories();
       if (!mounted) return;
       state = AsyncValue.data(fresh);
-      _persist(fresh);
+      unawaited(_persist(fresh));
     } catch (error, stackTrace) {
       if (!mounted) return;
       if (state is! AsyncData) {

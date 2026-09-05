@@ -125,20 +125,22 @@ void main() {
     expect(notifier.state.error, contains('network failure'));
   });
 
-  test('dispose invalidates an in-flight request without async errors',
-      () async {
-    final result = Completer<List<MusicItem>>();
-    final notifier = SearchNotifier(
-      (query, source, page) => result.future,
-      () => 'tx',
-    );
+  test(
+    'dispose invalidates an in-flight request without async errors',
+    () async {
+      final result = Completer<List<MusicItem>>();
+      final notifier = SearchNotifier(
+        (query, source, page) => result.future,
+        () => 'tx',
+      );
 
-    final search = notifier.search('old');
-    notifier.dispose();
-    result.complete([_item('old')]);
+      final search = notifier.search('old');
+      notifier.dispose();
+      result.complete([_item('old')]);
 
-    await expectLater(search, completes);
-  });
+      await expectLater(search, completes);
+    },
+  );
 
   test('search prepends exact local matches', () async {
     final local = _item('local-hit');
@@ -157,10 +159,5 @@ void main() {
   });
 }
 
-MusicItem _item(String id) => MusicItem(
-      id: id,
-      name: id,
-      singer: 'artist',
-      source: 'tx',
-      platform: 'tx',
-    );
+MusicItem _item(String id) =>
+    MusicItem(id: id, name: id, singer: 'artist', source: 'tx', platform: 'tx');

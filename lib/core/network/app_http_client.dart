@@ -24,7 +24,10 @@ final class _DiagnosticNetworkInterceptor extends Interceptor {
   }
 
   @override
-  void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) {
+  void onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
     final statusCode = response.statusCode;
     AppLog.instance.record(
       'network.response',
@@ -44,8 +47,8 @@ final class _DiagnosticNetworkInterceptor extends Interceptor {
     AppLog.instance.record(
       cancelled ? 'network.cancel' : 'network.error',
       '${error.requestOptions.method} ${_target(error.requestOptions)} '
-          'type=${error.type.name} status=$responseStatus '
-          'elapsed=${_elapsed(error.requestOptions)}ms error=${error.message}',
+      'type=${error.type.name} status=$responseStatus '
+      'elapsed=${_elapsed(error.requestOptions)}ms error=${error.message}',
       level: cancelled ? AppLogLevel.info : AppLogLevel.error,
     );
     handler.next(error);

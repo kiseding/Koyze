@@ -48,6 +48,7 @@ final class _CloudSessionSnapshot {
     required this.token,
     required this.legacyToken,
     required this.username,
+    required this.accountId,
     required this.role,
     required this.tokenKey,
   });
@@ -55,6 +56,7 @@ final class _CloudSessionSnapshot {
   final String? token;
   final String? legacyToken;
   final String? username;
+  final String? accountId;
   final String? role;
   final String? tokenKey;
 }
@@ -166,6 +168,7 @@ class CloudApiClient {
       }
       _token = null;
       _username = prefs.getString(_kUsername);
+      _accountId = prefs.getString(_kAccountId);
       _role = prefs.getString(_kRole);
       return;
     }
@@ -234,6 +237,7 @@ class CloudApiClient {
       final baseUrlRevision = ++_baseUrlRevision;
       final previousToken = _token;
       final previousUsername = _username;
+      final previousAccountId = _accountId;
       final previousRole = _role;
       // Invalidate concurrent session work immediately; old-origin secure
       // tokens stay partitioned under their origin key.
@@ -248,26 +252,37 @@ class CloudApiClient {
           final preferences = await _baseUrlPreferences();
           if (!_ownsBaseUrlRevision(baseUrlRevision)) return;
           final previousMetaUsername = preferences.getString(_kUsername);
+          final previousMetaAccountId = preferences.getString(_kAccountId);
           final previousMetaRole = preferences.getString(_kRole);
           try {
             await preferences.remove(_kUsername);
             if (!_ownsBaseUrlRevision(baseUrlRevision)) {
-              await _restorePreference(
+              await _restoreSessionIdentity(
                 preferences,
-                _kUsername,
-                previousMetaUsername,
+                username: previousMetaUsername,
+                accountId: previousMetaAccountId,
+                role: previousMetaRole,
               );
-              await _restorePreference(preferences, _kRole, previousMetaRole);
               return;
             }
             await preferences.remove(_kRole);
             if (!_ownsBaseUrlRevision(baseUrlRevision)) {
-              await _restorePreference(
+              await _restoreSessionIdentity(
                 preferences,
-                _kUsername,
-                previousMetaUsername,
+                username: previousMetaUsername,
+                accountId: previousMetaAccountId,
+                role: previousMetaRole,
               );
-              await _restorePreference(preferences, _kRole, previousMetaRole);
+              return;
+            }
+            await preferences.remove(_kAccountId);
+            if (!_ownsBaseUrlRevision(baseUrlRevision)) {
+              await _restoreSessionIdentity(
+                preferences,
+                username: previousMetaUsername,
+                accountId: previousMetaAccountId,
+                role: previousMetaRole,
+              );
               return;
             }
             await preferences.setString(_kBase, validated);
@@ -276,12 +291,12 @@ class CloudApiClient {
             _configurationError = null;
           } catch (_) {
             try {
-              await _restorePreference(
+              await _restoreSessionIdentity(
                 preferences,
-                _kUsername,
-                previousMetaUsername,
+                username: previousMetaUsername,
+                accountId: previousMetaAccountId,
+                role: previousMetaRole,
               );
-              await _restorePreference(preferences, _kRole, previousMetaRole);
             } catch (_) {}
             if (_ownsBaseUrlRevision(baseUrlRevision)) {
               _baseUrl = previousBaseUrl;
@@ -296,6 +311,7 @@ class CloudApiClient {
         if (_sessionRevision == sessionRevision) {
           _token = previousToken;
           _username = previousUsername;
+          _accountId = previousAccountId;
           _role = previousRole;
         }
         rethrow;
@@ -365,6 +381,7 @@ class CloudApiClient {
       token: key == null ? null : await _secureStore.read(key),
       legacyToken: preferences.getString(_kToken),
       username: preferences.getString(_kUsername),
+      accountId: preferences.getString(_kAccountId),
       role: preferences.getString(_kRole),
       tokenKey: key,
     );
@@ -380,6 +397,17 @@ class CloudApiClient {
     } else {
       await preferences.setString(key, value);
     }
+  }
+
+  Future<void> _restoreSessionIdentity(
+    CloudSessionPreferences preferences, {
+    required String? username,
+    required String? accountId,
+    required String? role,
+  }) async {
+    await _restorePreference(preferences, _kUsername, username);
+    await _restorePreference(preferences, _kAccountId, accountId);
+    await _restorePreference(preferences, _kRole, role);
   }
 
   Future<bool> _restoreSecureToken(String? token, {String? tokenKey}) async {
@@ -448,7 +476,7 @@ class CloudApiClient {
       (_kToken, snapshot.legacyToken),
       (_kUsername, snapshot.username),
       (_kRole, snapshot.role),
-      (_kAccountId, _accountId),
+      (_kAccountId, snapshot.accountId),
     ]) {
       try {
         await _restorePreference(preferences, entry.$1, entry.$2);
@@ -466,6 +494,7 @@ class CloudApiClient {
     try {
       _token = key == null ? null : await _secureStore.read(key);
       _username = preferences.getString(_kUsername);
+      _accountId = preferences.getString(_kAccountId);
       _role = preferences.getString(_kRole);
     } catch (_) {
       _token = null;
@@ -490,6 +519,8 @@ class CloudApiClient {
     required String token,
     required String? username,
     required String? role,
+    String? accountId,
+    bool replaceAccountId = false,
     int? expectedRevision,
   }) {
     return _runSessionMutation(
@@ -497,6 +528,8 @@ class CloudApiClient {
         token: token,
         username: username,
         role: role,
+        accountId: accountId,
+        replaceAccountId: replaceAccountId,
         expectedRevision: expectedRevision,
       ),
     );
@@ -506,6 +539,8 @@ class CloudApiClient {
     required String token,
     required String? username,
     required String? role,
+    required String? accountId,
+    required bool replaceAccountId,
     int? expectedRevision,
   }) async {
     if (token.isEmpty) {
@@ -516,6 +551,7 @@ class CloudApiClient {
     }
     final previousToken = _token;
     final previousUsername = _username;
+    final previousAccountId = _accountId;
     final previousRole = _role;
     final tokenKey = _activeTokenKey;
     if (tokenKey == null) {
@@ -576,9 +612,24 @@ class CloudApiClient {
           _tokenKeyFor(_baseUrl) != tokenKey) {
         return;
       }
+      if (replaceAccountId) {
+        if (accountId == null || accountId.isEmpty) {
+          await preferences.remove(_kAccountId);
+        } else {
+          await preferences.setString(_kAccountId, accountId);
+        }
+      }
+      if (!_ownsRevision(expectedRevision) ||
+          _tokenKeyFor(_baseUrl) != tokenKey) {
+        await _reportUnrecoverableStaleCredential(
+          preferences,
+          tokenKey: tokenKey,
+        );
+      }
       await preferences.remove(_kTokenInvalidated);
       _token = token;
       _username = username;
+      if (replaceAccountId) _accountId = accountId;
       _role = role;
     } on CloudSessionSafetyError {
       // Do not re-publish a superseded origin session into memory.
@@ -596,6 +647,7 @@ class CloudApiClient {
       } else if (_tokenKeyFor(_baseUrl) == tokenKey) {
         _token = previousToken;
         _username = previousUsername;
+        _accountId = previousAccountId;
         _role = previousRole;
       }
       rethrow;
@@ -847,11 +899,10 @@ class CloudApiClient {
       token: data['token'] as String,
       username: data['username']?.toString() ?? username,
       role: data['role']?.toString() ?? 'user',
+      accountId: data['accountId']?.toString() ?? data['id']?.toString(),
+      replaceAccountId: true,
       expectedRevision: revision,
     );
-    _accountId = data['accountId']?.toString() ?? data['id']?.toString();
-    final prefs = await _preferences();
-    if (_accountId != null) await prefs.setString(_kAccountId, _accountId!);
     return data;
   }
 
@@ -873,11 +924,10 @@ class CloudApiClient {
       token: data['token'] as String,
       username: data['username']?.toString() ?? username,
       role: data['role']?.toString() ?? 'user',
+      accountId: data['accountId']?.toString() ?? data['id']?.toString(),
+      replaceAccountId: true,
       expectedRevision: revision,
     );
-    _accountId = data['accountId']?.toString() ?? data['id']?.toString();
-    final prefs = await _preferences();
-    if (_accountId != null) await prefs.setString(_kAccountId, _accountId!);
     return data;
   }
 
@@ -1079,11 +1129,11 @@ class CloudApiClient {
   Future<int> saveUserList({
     List<Map<String, dynamic>>? loveList,
     required List<Map<String, dynamic>> userList,
-    int? baseRevision,
+    required int baseRevision,
   }) async {
     final data = <String, dynamic>{
       'userList': userList,
-      if (baseRevision != null) 'baseRevision': baseRevision,
+      'baseRevision': baseRevision,
     };
     if (loveList != null) data['loveList'] = loveList;
     final response = await _dio.post(
@@ -1091,26 +1141,23 @@ class CloudApiClient {
       data: data,
       options: _authOptions(),
     );
-    return _responseRevision(response, baseRevision ?? 0);
+    return _responseRevision(response, baseRevision);
   }
 
   /// Adds favorites in byte-bounded batches. The server also caps each batch
   /// at 500 songs, while the byte budget protects metadata-heavy entries.
   Future<int> addLoveSongs(
     List<Map<String, dynamic>> songs, {
-    int? baseRevision,
+    required int baseRevision,
   }) async {
-    var revision = baseRevision ?? 0;
+    var revision = baseRevision;
     for (final batch in _byteBoundedBatches(
       songs,
       maxCount: _maxLoveBatchSongs,
     )) {
       final response = await _dio.post(
         _url('/api/user/love/add'),
-        data: {
-          'songs': batch,
-          if (baseRevision != null) 'baseRevision': revision,
-        },
+        data: {'songs': batch, 'baseRevision': revision},
         options: _authOptions(),
       );
       revision = _responseRevision(response, revision);
@@ -1145,9 +1192,9 @@ class CloudApiClient {
     required String name,
     required int position,
     required List<Map<String, dynamic>> songs,
-    int? baseRevision,
+    required int baseRevision,
   }) async {
-    var revision = baseRevision ?? 0;
+    var revision = baseRevision;
     final batches = _byteBoundedBatches(
       songs,
       maxCount: _maxPlaylistBatchSongs,
@@ -1157,7 +1204,7 @@ class CloudApiClient {
       final response = await _dio.post(
         _url('/api/user/list'),
         data: {
-          if (baseRevision != null) 'baseRevision': revision,
+          'baseRevision': revision,
           'userList': [
             {
               'id': id,
@@ -1281,15 +1328,12 @@ class CloudApiClient {
     );
   }
 
-  Future<int> deletePlaylist(String id, {int? baseRevision}) async {
+  Future<int> deletePlaylist(String id, {required int baseRevision}) async {
     final response = await _dio.delete(
       _url('/api/user/playlist'),
-      queryParameters: {
-        'id': id,
-        if (baseRevision != null) 'baseRevision': baseRevision,
-      },
+      queryParameters: {'id': id, 'baseRevision': baseRevision},
       options: _authOptions(),
     );
-    return _responseRevision(response, baseRevision ?? 0);
+    return _responseRevision(response, baseRevision);
   }
 }

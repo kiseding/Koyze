@@ -29,7 +29,10 @@ void main() {
       final items = List.generate(205, (index) => index);
       final range = PageRange(itemCount: items.length, pageIndex: 1);
 
-      expect(pageSlice(items, range), List.generate(100, (index) => index + 100));
+      expect(
+        pageSlice(items, range),
+        List.generate(100, (index) => index + 100),
+      );
     });
   });
 }

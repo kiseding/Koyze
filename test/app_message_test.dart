@@ -7,17 +7,18 @@ import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
 
 void main() {
-  testWidgets('top notification consumes one playback message exactly once',
-      (tester) async {
+  testWidgets('top notification consumes one playback message exactly once', (
+    tester,
+  ) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(
+        child: const MaterialApp(
           home: AppNotificationHost(
-            child: const PlayerMessageListener(
+            child: PlayerMessageListener(
               child: Scaffold(body: SizedBox.expand()),
             ),
           ),
@@ -39,8 +40,9 @@ void main() {
     expect(find.text('播放失败'), findsNothing);
   });
 
-  testWidgets('new notification immediately replaces the current one',
-      (tester) async {
+  testWidgets('new notification immediately replaces the current one', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: AppNotificationHost(child: Scaffold(body: SizedBox.expand())),
@@ -57,8 +59,9 @@ void main() {
     expect(find.text('第二条通知'), findsOneWidget);
   });
 
-  testWidgets('notification text explicitly disables inherited decoration',
-      (tester) async {
+  testWidgets('notification text explicitly disables inherited decoration', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: DefaultTextStyle(
@@ -75,8 +78,9 @@ void main() {
     expect(text.style?.decoration, TextDecoration.none);
   });
 
-  testWidgets('new notification replaces one that is dismissing',
-      (tester) async {
+  testWidgets('new notification replaces one that is dismissing', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: AppNotificationHost(child: Scaffold(body: SizedBox.expand())),
@@ -94,8 +98,9 @@ void main() {
     expect(find.text('退场期间的新通知'), findsOneWidget);
   });
 
-  testWidgets('tapping a truncated notification copies its full content',
-      (tester) async {
+  testWidgets('tapping a truncated notification copies its full content', (
+    tester,
+  ) async {
     final clipboardWrites = <String>[];
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -130,8 +135,9 @@ void main() {
     expect(clipboardWrites, [fullMessage]);
   });
 
-  testWidgets('message remains pending until a notification host exists',
-      (tester) async {
+  testWidgets('message remains pending until a notification host exists', (
+    tester,
+  ) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     container.read(playerMessageProvider.notifier).state = '稍后显示';

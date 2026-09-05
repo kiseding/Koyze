@@ -6,7 +6,22 @@ import 'package:encrypt/encrypt.dart';
 class WbdCrypto {
   static const String aesMode = 'aes-128-ecb';
   static final Uint8List aesKey = Uint8List.fromList([
-    112, 87, 39, 61, 199, 250, 41, 191, 57, 68, 45, 114, 221, 94, 140, 228
+    112,
+    87,
+    39,
+    61,
+    199,
+    250,
+    41,
+    191,
+    57,
+    68,
+    45,
+    114,
+    221,
+    94,
+    140,
+    228,
   ]);
   static const String appId = 'y67sprxhhpws';
 

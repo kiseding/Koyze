@@ -20,6 +20,24 @@ void main() {
   }
 
   group('SourceRequestPolicy', () {
+    test('defaults to a fail-closed private-address policy', () async {
+      final policy = SourceRequestPolicy(
+        resolve: (_) async => [InternetAddress.loopbackIPv4],
+      );
+
+      expect(policy.allowNonPublicResolved, isFalse);
+      await expectLater(
+        policy.validate(Uri.parse('https://private.example/resource'), {}),
+        throwsA(
+          isA<SourceRequestPolicyException>().having(
+            (error) => error.code,
+            'code',
+            'blocked_address',
+          ),
+        ),
+      );
+    });
+
     test('allows a public HTTPS destination', () async {
       final policy = policyWith({
         'example.com': ['93.184.216.34'],

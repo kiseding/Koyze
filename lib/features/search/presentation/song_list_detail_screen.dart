@@ -217,7 +217,7 @@ class _SongListRow extends ConsumerWidget {
     final accent = AppColors.accentOf(context);
 
     return Container(
-      margin: EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: AppColors.fill(context),
         borderRadius: BorderRadius.circular(12),
@@ -227,7 +227,7 @@ class _SongListRow extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: EdgeInsets.all(12),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               SizedBox(

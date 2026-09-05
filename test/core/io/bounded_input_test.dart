@@ -12,8 +12,13 @@ void main() {
 
     await expectLater(
       readFileBytesBounded(file, maximumBytes: 8),
-      throwsA(isA<InputLimitException>()
-          .having((error) => error.code, 'code', 'bytes')),
+      throwsA(
+        isA<InputLimitException>().having(
+          (error) => error.code,
+          'code',
+          'bytes',
+        ),
+      ),
     );
   });
 
@@ -40,20 +45,28 @@ void main() {
 
   test('JSON budget rejects oversized strings and collection counts', () {
     expect(
-      () => validateJsonBudget(
-        'x' * 5,
-        const JsonBudget(maximumStringLength: 4),
+      () =>
+          validateJsonBudget('x' * 5, const JsonBudget(maximumStringLength: 4)),
+      throwsA(
+        isA<InputLimitException>().having(
+          (error) => error.code,
+          'code',
+          'string',
+        ),
       ),
-      throwsA(isA<InputLimitException>()
-          .having((error) => error.code, 'code', 'string')),
     );
     expect(
       () => validateJsonBudget(
         List<int>.filled(3, 1),
         const JsonBudget(maximumCollectionItems: 2),
       ),
-      throwsA(isA<InputLimitException>()
-          .having((error) => error.code, 'code', 'collection')),
+      throwsA(
+        isA<InputLimitException>().having(
+          (error) => error.code,
+          'code',
+          'collection',
+        ),
+      ),
     );
   });
 }

@@ -55,8 +55,10 @@ final dynamicUrl = '$scheme://example.com';
   test('policy scanner has no analyzer dependency', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     expect(pubspec, isNot(contains(RegExp(r'^\s*analyzer:', multiLine: true))));
-    expect(File('test/support/outbound_url_literal_scanner.dart').existsSync(),
-        isFalse);
+    expect(
+      File('test/support/outbound_url_literal_scanner.dart').existsSync(),
+      isFalse,
+    );
   });
 
   test('production clients use the centralized system-trust factory', () {

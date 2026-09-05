@@ -95,14 +95,11 @@ class PlaybackCommandCoordinator {
 
   PlaybackCommandCoordinator(
     this._player, {
-    VoidCallback? onStateChanged,
-    PlaybackMutationError? onError,
-    PrepareForPlayback? prepareForPlayback,
-    Duration sourceLoadTimeout = const Duration(seconds: 20),
-  }) : _onStateChanged = onStateChanged,
-       _onError = onError,
-       _prepareForPlayback = prepareForPlayback,
-       _sourceLoadTimeout = sourceLoadTimeout;
+    this._onStateChanged,
+    this._onError,
+    this._prepareForPlayback,
+    this._sourceLoadTimeout = const Duration(seconds: 20),
+  });
 
   int get sourceToken => _sourceToken;
   int? get desiredSourceToken => _desiredSource?.token;

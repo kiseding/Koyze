@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:koyze/features/search/presentation/search_screen.dart';
 
 import '../motion/motion_tokens.dart';
@@ -23,7 +22,7 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
     requestFocus: false,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black45,
-    sheetAnimationStyle: AnimationStyle(
+    sheetAnimationStyle: const AnimationStyle(
       duration: MotionDuration.container,
       reverseDuration: Duration.zero,
       curve: MotionCurve.easeOut,

@@ -49,7 +49,8 @@ final class RatingStore {
   }
 
   Future<void> remove(String songId) async {
-    final values = await load()..remove(songId);
+    final values = await load()
+      ..remove(songId);
     await (await _preferences()).setString(_key, jsonEncode(values));
   }
 

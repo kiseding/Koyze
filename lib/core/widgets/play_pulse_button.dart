@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
@@ -84,7 +86,7 @@ class _PlayPulseButtonState extends State<PlayPulseButton>
       TweenSequenceItem(tween: Tween(begin: 0.70, end: 1.12), weight: 60),
       TweenSequenceItem(tween: Tween(begin: 1.12, end: 1.00), weight: 40),
     ]).animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeOutCubic));
-    _glowCtrl.forward(from: 0);
+    unawaited(_glowCtrl.forward(from: 0));
     try {
       await _scaleCtrl.forward(from: 0);
     } on TickerCanceled {

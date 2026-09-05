@@ -76,8 +76,9 @@ final class FakeLegacyTokenPreferences implements LegacyTokenPreferences {
   }
 }
 
-Future<SharedPreferences> preferences(
-    [Map<String, Object> values = const {}]) async {
+Future<SharedPreferences> preferences([
+  Map<String, Object> values = const {},
+]) async {
   SharedPreferences.setMockInitialValues(Map<String, Object>.from(values));
   return SharedPreferences.getInstance();
 }
@@ -85,56 +86,66 @@ Future<SharedPreferences> preferences(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('verified migration writes and reads before deleting plaintext',
-      () async {
-    final secure = FakeSecureTokenStore();
-    final prefs = await preferences({'cloud_api_token': 'cloud-secret'});
-    final migrator = LegacyTokenMigrator(
-      secureStore: secure,
-      preferences: prefs,
-    );
+  test(
+    'verified migration writes and reads before deleting plaintext',
+    () async {
+      final secure = FakeSecureTokenStore();
+      final prefs = await preferences({'cloud_api_token': 'cloud-secret'});
+      final migrator = LegacyTokenMigrator(
+        secureStore: secure,
+        preferences: prefs,
+      );
 
-    expect(await migrator.readAndMigrate('cloud_api_token'), 'cloud-secret');
-    expect(secure.operations, [
-      'read:cloud_api_token',
-      'write:cloud_api_token:cloud-secret',
-      'read:cloud_api_token',
-    ]);
-    expect(prefs.containsKey('cloud_api_token'), isFalse);
-    expect(prefs.getBool('secure_token_migrated_v1_cloud_api_token'), isTrue);
-  });
+      expect(await migrator.readAndMigrate('cloud_api_token'), 'cloud-secret');
+      expect(secure.operations, [
+        'read:cloud_api_token',
+        'write:cloud_api_token:cloud-secret',
+        'read:cloud_api_token',
+      ]);
+      expect(prefs.containsKey('cloud_api_token'), isFalse);
+      expect(prefs.getBool('secure_token_migrated_v1_cloud_api_token'), isTrue);
+    },
+  );
 
-  test('failed verification removes plaintext and requires reauthentication',
-      () async {
-    final secure = FakeSecureTokenStore(readAfterWrite: 'different');
-    final prefs = await preferences({'cloud_api_token': 'cloud-secret'});
-    final migrator =
-        LegacyTokenMigrator(secureStore: secure, preferences: prefs);
+  test(
+    'failed verification removes plaintext and requires reauthentication',
+    () async {
+      final secure = FakeSecureTokenStore(readAfterWrite: 'different');
+      final prefs = await preferences({'cloud_api_token': 'cloud-secret'});
+      final migrator = LegacyTokenMigrator(
+        secureStore: secure,
+        preferences: prefs,
+      );
 
-    await expectLater(
-      migrator.readAndMigrate('cloud_api_token'),
-      throwsA(isA<SecureTokenMigrationException>()),
-    );
-    expect(prefs.containsKey('cloud_api_token'), isFalse);
-    expect(
-        prefs.getBool('secure_token_migrated_v1_cloud_api_token'), isNot(true));
-  });
+      await expectLater(
+        migrator.readAndMigrate('cloud_api_token'),
+        throwsA(isA<SecureTokenMigrationException>()),
+      );
+      expect(prefs.containsKey('cloud_api_token'), isFalse);
+      expect(
+        prefs.getBool('secure_token_migrated_v1_cloud_api_token'),
+        isNot(true),
+      );
+    },
+  );
 
-  test('Keychain failure removes plaintext and requires reauthentication',
-      () async {
-    final secure = FakeSecureTokenStore()..throwOnRead = true;
-    final prefs = await preferences({'cloud_api_token': 'plaintext'});
-    final migrator = LegacyTokenMigrator(
-      secureStore: secure,
-      preferences: prefs,
-    );
+  test(
+    'Keychain failure removes plaintext and requires reauthentication',
+    () async {
+      final secure = FakeSecureTokenStore()..throwOnRead = true;
+      final prefs = await preferences({'cloud_api_token': 'plaintext'});
+      final migrator = LegacyTokenMigrator(
+        secureStore: secure,
+        preferences: prefs,
+      );
 
-    await expectLater(
-      migrator.readAndMigrate('cloud_api_token'),
-      throwsA(isA<SecureTokenMigrationException>()),
-    );
-    expect(prefs.containsKey('cloud_api_token'), isFalse);
-  });
+      await expectLater(
+        migrator.readAndMigrate('cloud_api_token'),
+        throwsA(isA<SecureTokenMigrationException>()),
+      );
+      expect(prefs.containsKey('cloud_api_token'), isFalse);
+    },
+  );
 
   test('Keychain failure without plaintext is a migration failure', () async {
     final secure = FakeSecureTokenStore()..throwOnRead = true;
@@ -151,32 +162,40 @@ void main() {
     expect(prefs.containsKey('cloud_api_token'), isFalse);
   });
 
-  test('retry completes migration when secure already matches plaintext',
-      () async {
-    final secure = FakeSecureTokenStore();
-    secure.seed('cloud_api_token', 'cloud-secret');
-    final prefs = await preferences({'cloud_api_token': 'cloud-secret'});
-    final migrator =
-        LegacyTokenMigrator(secureStore: secure, preferences: prefs);
+  test(
+    'retry completes migration when secure already matches plaintext',
+    () async {
+      final secure = FakeSecureTokenStore();
+      secure.seed('cloud_api_token', 'cloud-secret');
+      final prefs = await preferences({'cloud_api_token': 'cloud-secret'});
+      final migrator = LegacyTokenMigrator(
+        secureStore: secure,
+        preferences: prefs,
+      );
 
-    expect(await migrator.readAndMigrate('cloud_api_token'), 'cloud-secret');
-    expect(secure.operations, ['read:cloud_api_token']);
-    expect(prefs.containsKey('cloud_api_token'), isFalse);
-    expect(prefs.getBool('secure_token_migrated_v1_cloud_api_token'), isTrue);
-  });
+      expect(await migrator.readAndMigrate('cloud_api_token'), 'cloud-secret');
+      expect(secure.operations, ['read:cloud_api_token']);
+      expect(prefs.containsKey('cloud_api_token'), isFalse);
+      expect(prefs.getBool('secure_token_migrated_v1_cloud_api_token'), isTrue);
+    },
+  );
 
-  test('mismatched secure token is authoritative and deletes plaintext',
-      () async {
-    final secure = FakeSecureTokenStore();
-    secure.seed('cloud_api_token', 'secure-secret');
-    final prefs = await preferences({'cloud_api_token': 'cloud-secret'});
-    final migrator =
-        LegacyTokenMigrator(secureStore: secure, preferences: prefs);
+  test(
+    'mismatched secure token is authoritative and deletes plaintext',
+    () async {
+      final secure = FakeSecureTokenStore();
+      secure.seed('cloud_api_token', 'secure-secret');
+      final prefs = await preferences({'cloud_api_token': 'cloud-secret'});
+      final migrator = LegacyTokenMigrator(
+        secureStore: secure,
+        preferences: prefs,
+      );
 
-    expect(await migrator.readAndMigrate('cloud_api_token'), 'secure-secret');
-    expect(prefs.containsKey('cloud_api_token'), isFalse);
-    expect(secure.operations, ['read:cloud_api_token']);
-  });
+      expect(await migrator.readAndMigrate('cloud_api_token'), 'secure-secret');
+      expect(prefs.containsKey('cloud_api_token'), isFalse);
+      expect(secure.operations, ['read:cloud_api_token']);
+    },
+  );
 
   test('normalizedOrigin lowercases host and omits default https port', () {
     expect(
@@ -201,33 +220,41 @@ void main() {
     );
   });
 
-  test('origin migration rekeys legacy secure value and removes plaintext',
-      () async {
-    final secure = FakeSecureTokenStore();
-    secure.seed('cloud_api_token', 'legacy-secret');
-    final prefs = await preferences({'cloud_api_token': 'legacy-secret'});
-    final migrator =
-        LegacyTokenMigrator(secureStore: secure, preferences: prefs);
-    final originKey =
-        originTokenKey('cloud_api_token', 'https://cloud.example/api');
+  test(
+    'origin migration rekeys legacy secure value and removes plaintext',
+    () async {
+      final secure = FakeSecureTokenStore();
+      secure.seed('cloud_api_token', 'legacy-secret');
+      final prefs = await preferences({'cloud_api_token': 'legacy-secret'});
+      final migrator = LegacyTokenMigrator(
+        secureStore: secure,
+        preferences: prefs,
+      );
+      final originKey = originTokenKey(
+        'cloud_api_token',
+        'https://cloud.example/api',
+      );
 
-    expect(
-      await migrator.readAndMigrateToOrigin(
-        legacyKey: 'cloud_api_token',
-        serviceUrl: 'https://cloud.example/api',
-      ),
-      'legacy-secret',
-    );
-    expect(await secure.read(originKey), 'legacy-secret');
-    expect(await secure.read('cloud_api_token'), isNull);
-    expect(prefs.containsKey('cloud_api_token'), isFalse);
-  });
+      expect(
+        await migrator.readAndMigrateToOrigin(
+          legacyKey: 'cloud_api_token',
+          serviceUrl: 'https://cloud.example/api',
+        ),
+        'legacy-secret',
+      );
+      expect(await secure.read(originKey), 'legacy-secret');
+      expect(await secure.read('cloud_api_token'), isNull);
+      expect(prefs.containsKey('cloud_api_token'), isFalse);
+    },
+  );
 
   test('empty secure and empty legacy returns null', () async {
     final secure = FakeSecureTokenStore();
     final prefs = await preferences();
-    final migrator =
-        LegacyTokenMigrator(secureStore: secure, preferences: prefs);
+    final migrator = LegacyTokenMigrator(
+      secureStore: secure,
+      preferences: prefs,
+    );
 
     expect(await migrator.readAndMigrate('sync_token'), isNull);
     expect(prefs.getBool('secure_token_migrated_v1_sync_token'), isNot(true));
@@ -235,12 +262,13 @@ void main() {
 
   test('marker false throws and still attempts plaintext cleanup', () async {
     final secure = FakeSecureTokenStore();
-    final prefs = FakeLegacyTokenPreferences(
-      {'cloud_api_token': 'plaintext'},
-      markerResult: false,
+    final prefs = FakeLegacyTokenPreferences({
+      'cloud_api_token': 'plaintext',
+    }, markerResult: false);
+    final migrator = LegacyTokenMigrator(
+      secureStore: secure,
+      preferences: prefs,
     );
-    final migrator =
-        LegacyTokenMigrator(secureStore: secure, preferences: prefs);
 
     await expectLater(
       migrator.readAndMigrate('cloud_api_token'),
@@ -257,8 +285,10 @@ void main() {
       {'cloud_api_token': 'plaintext'},
       removeResults: const [false, false],
     );
-    final migrator =
-        LegacyTokenMigrator(secureStore: secure, preferences: prefs);
+    final migrator = LegacyTokenMigrator(
+      secureStore: secure,
+      preferences: prefs,
+    );
 
     await expectLater(
       migrator.readAndMigrate('cloud_api_token'),
@@ -269,27 +299,31 @@ void main() {
     expect(prefs.containsKey('cloud_api_token'), isTrue);
   });
 
-  test('cleanup false preserves the original Keychain error as cause',
-      () async {
-    final keychainError = StateError('keychain unavailable');
-    final secure = FakeSecureTokenStore()..throwOnRead = true;
-    final prefs = FakeLegacyTokenPreferences(
-      {'cloud_api_token': 'plaintext'},
-      removeResults: const [false],
-    );
-    final migrator =
-        LegacyTokenMigrator(secureStore: secure, preferences: prefs);
+  test(
+    'cleanup false preserves the original Keychain error as cause',
+    () async {
+      final keychainError = StateError('keychain unavailable');
+      final secure = FakeSecureTokenStore()..throwOnRead = true;
+      final prefs = FakeLegacyTokenPreferences(
+        {'cloud_api_token': 'plaintext'},
+        removeResults: const [false],
+      );
+      final migrator = LegacyTokenMigrator(
+        secureStore: secure,
+        preferences: prefs,
+      );
 
-    await expectLater(
-      migrator.readAndMigrate('cloud_api_token'),
-      throwsA(
-        isA<SecureTokenMigrationException>().having(
-          (error) => error.cause.toString(),
-          'cause',
-          keychainError.toString(),
+      await expectLater(
+        migrator.readAndMigrate('cloud_api_token'),
+        throwsA(
+          isA<SecureTokenMigrationException>().having(
+            (error) => error.cause.toString(),
+            'cause',
+            keychainError.toString(),
+          ),
         ),
-      ),
-    );
-    expect(prefs.removeCalls, 1);
-  });
+      );
+      expect(prefs.removeCalls, 1);
+    },
+  );
 }

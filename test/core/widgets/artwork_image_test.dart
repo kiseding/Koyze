@@ -45,7 +45,7 @@ void main() {
       statusCode: 200,
       contentLength: 9,
       chunks: const [
-        [1, 2]
+        [1, 2],
       ],
     );
     final loader = ArtworkBytesLoader(
@@ -66,7 +66,7 @@ void main() {
       contentLength: -1,
       chunks: const [
         [1, 2, 3],
-        [4, 5, 6]
+        [4, 5, 6],
       ],
     );
     final loader = ArtworkBytesLoader(
@@ -101,7 +101,7 @@ void main() {
       contentLength: 4,
       chunks: const [
         [1, 2],
-        [3, 4]
+        [3, 4],
       ],
     );
     final loader = ArtworkBytesLoader(createClient: () => client);
@@ -122,7 +122,7 @@ void main() {
       statusCode: 403,
       contentLength: 2,
       chunks: const [
-        [0x3C, 0x68]
+        [0x3C, 0x68],
       ],
     );
     final loader = ArtworkBytesLoader(createClient: () => client);
@@ -139,7 +139,7 @@ void main() {
       qqUrl,
       loader: ArtworkBytesLoader(createClient: FakeArtworkClient.new),
     );
-    final b = ArtworkNetworkImage(qqUrl);
+    final b = const ArtworkNetworkImage(qqUrl);
     expect(a, b);
     expect(a.hashCode, b.hashCode);
   });
@@ -234,8 +234,8 @@ class _FakeHttpClientResponse extends Stream<List<int>>
   _FakeHttpClientResponse({
     required this.statusCode,
     required this.contentLength,
-    required List<List<int>> chunks,
-  }) : _chunks = chunks;
+    required this._chunks,
+  });
 
   @override
   final int statusCode;

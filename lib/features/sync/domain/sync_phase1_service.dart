@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'dart:convert';
 
 import '../../cloud/domain/cloud_api_client.dart';
@@ -311,13 +312,14 @@ final class SyncPhase1Service {
         account,
         force: cloudFavoriteCount < localFavoriteCount,
       );
-      final downloaded = <Map<String, dynamic>>[];
       onProgress?.call('检查云端数据');
       if (firstSync && status['hasCloudData'] == true) {
-        // Pull the complete event stream before uploading local anonymous
-        // changes. Missing local rows are not treated as deletions.
+        // Bootstrap from a compact snapshot. The snapshot cursor is persisted
+        // only after every local store has accepted the snapshot, so a failed
+        // apply cannot skip remote events. Events created while the snapshot
+        // is being read are replayed by the later pull.
         onProgress?.call('下载云端数据');
-        downloaded.addAll(await _pullAll());
+        await _applyCloudSnapshot();
       }
       await identity.setState(account, SyncAccountState.syncing);
       onProgress?.call('上传本地变更');
@@ -332,7 +334,7 @@ final class SyncPhase1Service {
           )) {
         await identity.markFavoriteBaseline(accountId);
       }
-      downloaded.addAll(await _pullAll());
+      await _pullAll();
       await identity.markSynced(account);
       return SyncReport.fromCurrentState(
         deviceId: account.deviceId,
@@ -379,11 +381,19 @@ final class SyncPhase1Service {
 
   Future<void> fullResync() async {
     if (!api.isLoggedIn) return;
-    final snapshot = await api.fetchSyncSnapshot();
-    await _applySnapshot(snapshot);
-    await cursor.clear();
+    await _applyCloudSnapshot();
     await _pullAll();
     await identity.markSynced(await identity.load());
+  }
+
+  Future<void> _applyCloudSnapshot() async {
+    final snapshot = await api.fetchSyncSnapshot();
+    final snapshotCursor = (snapshot['cursor'] as num?)?.toInt();
+    if (snapshotCursor == null || snapshotCursor < 0) {
+      throw const FormatException('sync snapshot cursor invalid');
+    }
+    await _applySnapshot(snapshot);
+    await cursor.write(snapshotCursor);
   }
 
   Future<void> _applySnapshot(Map<String, dynamic> snapshot) async {
@@ -395,8 +405,9 @@ final class SyncPhase1Service {
       throw StateError('同步目标尚未初始化');
     }
     final rawPlaylists = snapshot['playlists'];
-    if (rawPlaylists is! List)
+    if (rawPlaylists is! List) {
       throw const FormatException('sync snapshot playlists invalid');
+    }
     final playlists = <Playlist>[];
     for (final raw in rawPlaylists) {
       if (raw is! Map) continue;
@@ -431,9 +442,7 @@ final class SyncPhase1Service {
     if (sources is List) {
       // 快照同步也只同步"源定义"：本地已存在的源保留本地启用状态，
       // 新增源默认禁用（启用状态是设备本地偏好）。
-      final existingById = {
-        for (final s in _sources!.sources) s.id: s,
-      };
+      final existingById = {for (final s in _sources!.sources) s.id: s};
       await _sources!.replaceAllSources([
         for (final raw in sources)
           if (raw is Map)
@@ -464,12 +473,13 @@ final class SyncPhase1Service {
     final all = <Map<String, dynamic>>[];
     while (true) {
       final result = await pull();
-      if (result['events'] is List)
+      if (result['events'] is List) {
         all.addAll(
           (result['events'] as List).whereType<Map>().map(
             Map<String, dynamic>.from,
           ),
         );
+      }
       if (result['hasMore'] != true) return all;
     }
   }
@@ -495,7 +505,20 @@ final class SyncPhase1Service {
 
   Future<Map<String, dynamic>> pull() async {
     if (!api.isLoggedIn) return const {};
-    final result = await api.pullSyncEvents(cursor: await cursor.read());
+    Map<String, dynamic> result;
+    try {
+      result = await api.pullSyncEvents(cursor: await cursor.read());
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      final expired =
+          error.response?.statusCode == 409 &&
+          data is Map &&
+          data['error'] == 'sync_cursor_expired' &&
+          data['snapshotRequired'] == true;
+      if (!expired) rethrow;
+      await _applyCloudSnapshot();
+      result = await api.pullSyncEvents(cursor: await cursor.read());
+    }
     final applied = await applyPulledEvents(result['events']);
     if (!applied) throw StateError('同步数据尚未准备好，Cursor 未推进');
     final next = (result['cursor'] as num?)?.toInt();
@@ -642,8 +665,9 @@ final class SyncPhase1Service {
         if (service == null) return;
         final playlistId = data['playlistId']?.toString() ?? '';
         final songId = data['songId']?.toString() ?? '';
-        if (playlistId.isNotEmpty)
+        if (playlistId.isNotEmpty) {
           await service.removeSongFromPlaylist(playlistId, songId);
+        }
       case 'playlist_item.move':
         if (service == null) return;
         final playlistId = data['playlistId']?.toString() ?? '';
@@ -654,12 +678,13 @@ final class SyncPhase1Service {
           final old = playlist.songs.indexWhere(
             (song) => song.identityKey == songId,
           );
-          if (old >= 0)
+          if (old >= 0) {
             await service.sortSongsInPlaylist(
               playlistId,
               oldIndex: old,
               newIndex: target,
             );
+          }
         }
       case 'rating.set':
         final rating = (data['rating'] as num?)?.toInt();

@@ -30,13 +30,19 @@ void main() {
     ).readAsStringSync();
 
     expect(player.indexOf('class _PlayerProgress'), isNonNegative);
-    expect(player.substring(0, player.indexOf('class _PlayerProgress')),
-        isNot(contains('ref.watch(playerPositionProvider)')));
+    expect(
+      player.substring(0, player.indexOf('class _PlayerProgress')),
+      isNot(contains('ref.watch(playerPositionProvider)')),
+    );
     expect(mini.indexOf('class _MiniProgress'), isNonNegative);
-    expect(mini.substring(0, mini.indexOf('class _MiniProgress')),
-        isNot(contains('ref.watch(positionProvider)')));
+    expect(
+      mini.substring(0, mini.indexOf('class _MiniProgress')),
+      isNot(contains('ref.watch(positionProvider)')),
+    );
     expect(lyric.indexOf('class _PositionedKtvLyricLine'), isNonNegative);
-    expect(lyric.substring(0, lyric.indexOf('class _PositionedKtvLyricLine')),
-        isNot(contains('ref.watch(playerPositionProvider)')));
+    expect(
+      lyric.substring(0, lyric.indexOf('class _PositionedKtvLyricLine')),
+      isNot(contains('ref.watch(playerPositionProvider)')),
+    );
   });
 }

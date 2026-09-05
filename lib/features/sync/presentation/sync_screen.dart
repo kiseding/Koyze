@@ -241,8 +241,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             : null,
                       ),
                       foregroundColor: WidgetStateProperty.resolveWith(
-                        (states) =>
-                            states.contains(WidgetState.selected)
+                        (states) => states.contains(WidgetState.selected)
                             ? AppColors.amber
                             : AppColors.mutedText(context),
                       ),
@@ -634,7 +633,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             ),
                           ),
                           subtitle: Text(
-                            role == 'admin' ? '管理员 · id=${u['id']}' : '普通用户 · id=${u['id']}',
+                            role == 'admin'
+                                ? '管理员 · id=${u['id']}'
+                                : '普通用户 · id=${u['id']}',
                             style: TextStyle(
                               color: AppColors.mutedText(context),
                               fontSize: 12,

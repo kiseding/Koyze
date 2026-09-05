@@ -139,12 +139,8 @@ final cloudSyncProvider =
     });
 
 final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
-  CloudSyncNotifier({
-    required SyncPhase1Service phase1,
-    required bool Function() loggedIn,
-  }) : _phase1 = phase1,
-       _loggedIn = loggedIn,
-       super(const CloudSyncState());
+  CloudSyncNotifier({required this._phase1, required this._loggedIn})
+    : super(const CloudSyncState());
 
   final SyncPhase1Service _phase1;
   final bool Function() _loggedIn;
@@ -158,7 +154,7 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
   bool _applyingRemote = false;
   int _retryIndex = 0;
   int _localGeneration = 0;
-  int _conflictGeneration = 0;
+  final int _conflictGeneration = 0;
   int _sessionGeneration = 0;
   Map<String, CustomSource> _knownSources = const {};
   DateTime? _lastRemoteCheck;

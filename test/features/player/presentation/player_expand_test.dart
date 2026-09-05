@@ -6,7 +6,7 @@ void main() {
   test('full player morphs from mini-bar rect with staggered fades', () {
     final full = File(
       'lib/features/player/presentation/player_screen.dart',
-    ).readAsStringSync();
+    ).readAsStringSync().replaceAll('\r\n', '\n');
 
     // 对称收起（卡片式）：矩形从全屏线性收向目标——封面页→迷你栏、
     // 歌词页→迷你栏歌词行同款长条；内容中心锚定 + 按宽度比缩放，
@@ -49,10 +49,7 @@ void main() {
     expect(full, contains('if (_currentPage == 0)'));
     expect(full, contains('artworkReveal'));
     expect(full, contains('progress >= 1.0 ? 1.0 : 0.0'));
-    expect(
-      full,
-      isNot(contains('((progress - 0.74) / 0.22).clamp(0.0, 1.0)')),
-    );
+    expect(full, isNot(contains('((progress - 0.74) / 0.22).clamp(0.0, 1.0)')));
     expect(full, contains('OverflowBox'));
     expect(full, contains('ClipRRect'));
     expect(full, contains('playerRouteProgress'));

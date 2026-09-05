@@ -2,8 +2,13 @@ import { Env, jsonResponse, requireJsonContentType, readJsonBody } from '../../l
 import { getUserId } from '../../utils/auth';
 import { fetchAndRematch } from '../playlist-import';
 import type { SongInfo } from '../../utils/types';
-import { songIdentity, writePlaylistAtomically } from '../../db/playlist-staging';
-import { advanceSyncRevision, getSyncRevision, requireSyncRevision } from '../../db/sync-state';
+import {
+  applyLegacyPlaylistMutation,
+  type LegacyPlaylistMutation,
+  songIdentity,
+  writePlaylistAtRevision,
+} from '../../db/playlist-staging';
+import { getSyncRevision } from '../../db/sync-state';
 
 // P1-4: D1 is now the single source of truth for love-list / playlists. KV
 // is a read-through cache, populated on save and on cache miss. This removes
@@ -34,61 +39,21 @@ async function readLoveList(env: Env, userId: number, _ctx: ExecutionContext): P
   return readLoveListFromD1(env, userId);
 }
 
-async function writeLoveListToD1(env: Env, userId: number, list: any[]): Promise<void> {
-  await writePlaylistAtomically(env, {
-    id: 'love', userId, name: '我喜欢', position: 0,
-  }, list, { replace: true });
+function parseBaseRevision(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : null;
 }
 
-// Append mode is deliberately a direct D1 write. The atomic staging path is
-// useful for replacing a whole playlist, but moving a staged playlist into an
-// existing parent adds unnecessary foreign-key/transaction coupling here.
-async function appendPlaylistSongsToD1(
-  env: Env,
-  target: { id: string; userId: number; name: string; position: number },
-  songs: SongInfo[],
-  startPosition: number,
-): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO playlists (id, user_id, name, position, source, source_id)
-     VALUES (?, ?, ?, ?, '', '')
-     ON CONFLICT(id, user_id) DO UPDATE SET
-       name = excluded.name,
-       position = excluded.position,
-       updated_at = datetime('now')`,
-  ).bind(target.id, target.userId, target.name, target.position).run();
-
-  const statements = songs.map((song, index) => {
-    const metadata = JSON.stringify({
-      mrcUrl: song.mrcUrl || '',
-      lrcUrl: song.lrcUrl || '',
-      trcUrl: song.trcUrl || '',
-    });
-    return env.DB.prepare(
-      `INSERT INTO playlist_songs
-       (playlist_id, user_id, name, singer, source, songmid, album_name, album_id,
-        img, interval, types, hash, metadata, position)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      target.id,
-      target.userId,
-      String(song.name || '').slice(0, 256),
-      String(song.singer || '').slice(0, 256),
-      String(song.source || '').slice(0, 32),
-      String(song.songmid || '').slice(0, 256),
-      String(song.albumName || '').slice(0, 256),
-      String(song.albumId || '').slice(0, 128),
-      String(song.img || '').slice(0, 512),
-      song.interval || '0',
-      JSON.stringify(song.types || []).slice(0, 1024),
-      String(song.hash || '').slice(0, 256),
-      metadata,
-      startPosition + index,
-    );
+function isSongList(value: unknown): value is SongInfo[] {
+  return Array.isArray(value) && value.every((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+    const song = raw as Record<string, unknown>;
+    return typeof song.name === 'string' && song.name.length > 0 && song.name.length <= 256 &&
+      String(song.singer ?? '').length <= 256 &&
+      String(song.source ?? '').length <= 32 &&
+      String(song.songmid ?? '').length <= 256;
   });
-  for (let i = 0; i < statements.length; i += 100) {
-    await env.DB.batch(statements.slice(i, i + 100));
-  }
 }
 
 // GET /api/user/list — return loveList + imported playlists
@@ -193,31 +158,30 @@ export async function handleUserPlaylistSave(request: Request, env: Env, ctx: Ex
     baseRevision?: unknown;
   };
   const { loveList, pls, userList, append } = body;
-  const revisionCheck = await requireSyncRevision(env, userId, body.baseRevision);
-  if (!revisionCheck.ok) {
-    return jsonResponse({
-      error: 'revision_conflict',
-      baseRevision: body.baseRevision,
-      currentRevision: revisionCheck.revision,
-    }, 409);
+  const baseRevision = parseBaseRevision(body.baseRevision);
+  if (baseRevision == null) {
+    return jsonResponse({ error: 'baseRevision 无效' }, 400);
+  }
+  if (pls != null && !Array.isArray(pls)) {
+    return jsonResponse({ error: '歌单名称数据无效' }, 400);
   }
   const plsArray = Array.isArray(pls) ? pls : [];
   const hasLoveList = Object.prototype.hasOwnProperty.call(body, 'loveList');
-  if (hasLoveList && !Array.isArray(loveList)) {
+  if (hasLoveList && !isSongList(loveList)) {
     return jsonResponse({ error: '收藏数据无效' }, 400);
   }
-  const loveArray = hasLoveList ? loveList as unknown[] : [];
+  const loveArray = hasLoveList ? loveList as SongInfo[] : [];
 
-  // P2-16: never let a user rename the protected 'love' playlist. The
-  // A parent rewrite in the save path would otherwise reset the name to
-  // '我喜欢' on the next save, causing UI/DB drift.
+  const mutations: LegacyPlaylistMutation[] = [];
   for (const p of plsArray) {
-    const pid = String(p.id || '');
-    if (pid === 'love') continue;
-    const name = typeof p.name === 'string' ? p.name : '';
-    if (pid && name.length > 0 && name.length <= 128) {
-      await env.DB.prepare('UPDATE playlists SET name = ?, updated_at = datetime(\'now\') WHERE id = ? AND user_id = ?')
-        .bind(name, pid, userId).run();
+    const pid = String(p?.id || '');
+    const name = typeof p?.name === 'string' ? p.name.trim() : '';
+    if (!pid || pid.length > 128 || pid.startsWith('__stage__:') ||
+        (pid !== 'love' && (!name || name.length > 128))) {
+      return jsonResponse({ error: '歌单名称数据无效' }, 400);
+    }
+    if (pid !== 'love') {
+      mutations.push({ id: pid, name, position: 0, mode: 'rename' });
     }
   }
 
@@ -225,84 +189,74 @@ export async function handleUserPlaylistSave(request: Request, env: Env, ctx: Ex
     if (!Array.isArray(userList) || userList.length > 200) {
       return jsonResponse({ error: '歌单数据无效或数量超限' }, 400);
     }
-let songCount = 0;
-    const snapshot: Array<{ id: string; name: string; list: SongInfo[]; append?: boolean; position?: number }> = [];
+    let validatedSongCount = 0;
     const ids = new Set<string>();
-    for (const raw of userList) {
-      const id = String(raw?.id || '').slice(0, 128);
-      const name = String(raw?.name || '').trim().slice(0, 128);
+    for (let index = 0; index < userList.length; index += 1) {
+      const raw = userList[index];
+      const rawId = String(raw?.id || '');
+      const id = rawId.slice(0, 128);
+      const rawName = String(raw?.name || '').trim();
+      const name = rawName.slice(0, 128);
       const list = raw?.list;
-      const append = raw?.mode === 'append';
-      if (!id || id === 'love' || id === 'favorites' || id === 'recent' ||
-          id.startsWith('__stage__:') || !name || !Array.isArray(list) || ids.has(id)) {
+      const mode = raw?.mode == null ? 'replace' : raw.mode;
+      const position = raw?.position == null ? index + 1 : Number(raw.position);
+      if (!id || rawId.length > 128 || id === 'love' || id === 'favorites' ||
+          id === 'recent' || id === 'local' || id.startsWith('__stage__:') ||
+          !name || rawName.length > 128 || !isSongList(list) || ids.has(id) ||
+          (mode !== 'replace' && mode !== 'append') ||
+          !Number.isSafeInteger(position) || position < 0 || position > 1_000_000) {
         return jsonResponse({ error: '歌单数据无效' }, 400);
       }
       ids.add(id);
-      songCount += list.length;
-      if (songCount > 20000) return jsonResponse({ error: '歌曲数量超限' }, 400);
-      const position = append ? (Number(raw?.position) || 0) : 0;
-      snapshot.push({ id, name, list: list as SongInfo[], append, position });
-    }
-    try {
-      for (let index = 0; index < snapshot.length; index++) {
-        const playlist = snapshot[index];
-        if (playlist.append) {
-          // Merge into the existing playlist instead of replacing it. Append
-          // after the current max position so chunked syncs order correctly.
-          const maxPos = await env.DB.prepare(
-            "SELECT COALESCE(MAX(position), -1) AS m FROM playlist_songs WHERE playlist_id = ? AND user_id = ?"
-          ).bind(playlist.id, userId).first<{ m: number | null }>();
-          const startPosition = (maxPos?.m ?? -1) + 1;
-          await appendPlaylistSongsToD1(env, {
-            id: playlist.id,
-            userId,
-            name: playlist.name,
-            position: playlist.position ?? 0,
-          }, playlist.list, startPosition);
-        } else {
-          await writePlaylistAtomically(env, {
-            id: playlist.id,
-            userId,
-            name: playlist.name,
-            position: index + 1,
-          }, playlist.list, { replace: true });
-        }
+      validatedSongCount += list.length;
+      if (validatedSongCount > 20000) {
+        return jsonResponse({ error: '歌曲数量超限' }, 400);
       }
-    } catch (error: any) {
-      console.error('[playlist:snapshot] save failed:', error?.message);
-      throw error;
+      mutations.push({
+        id,
+        name,
+        position,
+        mode,
+        songs: list,
+      });
     }
   }
-
-  if (hasLoveList && loveArray.length) {
-    // P1-4: D1 is the source of truth. Write to D1 first, then update KV
-    // so concurrent saves from the same user converge on a single consistent
-    // state instead of one racing with another in waitUntil.
-    try {
-      await writeLoveListToD1(env, userId, loveArray as any[]);
-      ctx.waitUntil(env.CACHE.delete(`v2:love:${userId}`));
-    } catch (e: any) {
-      console.error('[love:d1] save failed:', e?.message);
-      return jsonResponse({ error: '保存失败' }, 500);
-    }
-  } else if (hasLoveList && loveArray.length === 0 && !append) {
-    // Clearing the love list — explicit empty array, append flag not set.
-    try {
-      await env.DB.prepare('DELETE FROM playlist_songs WHERE playlist_id = ? AND user_id = ?').bind('love', userId).run();
-      ctx.waitUntil(env.CACHE.delete(`v2:love:${userId}`));
-    } catch (e: any) {
-      console.error('[love:d1:clear] failed:', e?.message);
-      return jsonResponse({ error: '清空失败' }, 500);
-    }
+  if (hasLoveList && (loveArray.length > 0 || !append)) {
+    mutations.push({
+      id: 'love',
+      name: '我喜欢',
+      position: 0,
+      mode: 'replace',
+      songs: loveArray,
+      deduplicate: true,
+    });
+  }
+  if (mutations.length === 0) {
+    return jsonResponse({ ok: true, saved: 0, revision: await getSyncRevision(env, userId) });
   }
 
-  const changed = plsArray.length > 0 || userList != null || hasLoveList;
-  const revision = changed
-    ? revisionCheck.claimed
-      ? revisionCheck.revision
-      : await advanceSyncRevision(env, userId)
-    : revisionCheck.revision;
-  return jsonResponse({ ok: true, saved: loveArray.length, revision });
+  try {
+    const result = await applyLegacyPlaylistMutation(
+      env,
+      userId,
+      baseRevision,
+      mutations,
+    );
+    if (!result) {
+      return jsonResponse({
+        error: 'revision_conflict',
+        baseRevision,
+        currentRevision: await getSyncRevision(env, userId),
+      }, 409);
+    }
+    if (hasLoveList) {
+      try { ctx.waitUntil(env.CACHE.delete(`v2:love:${userId}`)); } catch {}
+    }
+    return jsonResponse({ ok: true, saved: loveArray.length, revision: result.revision });
+  } catch (error) {
+    console.error('[playlist:legacy-commit]', error);
+    return jsonResponse({ error: '保存失败' }, 500);
+  }
 }
 
 // POST /api/user/love/add — incrementally add songs to the love list
@@ -318,18 +272,10 @@ export async function handleLoveAdd(request: Request, env: Env, ctx: ExecutionCo
 
   const parsed = await readJsonBody(request);
   if (parsed instanceof Response) return parsed;
-  const revisionCheck = await requireSyncRevision(
-    env,
-    userId,
-    parsed.body.baseRevision,
-  );
-  if (!revisionCheck.ok) {
-    return jsonResponse({
-      error: 'revision_conflict',
-      currentRevision: revisionCheck.revision,
-    }, 409);
-  }
-  const songs: any[] = Array.isArray(parsed.body.songs) ? parsed.body.songs : [];
+  const baseRevision = parseBaseRevision(parsed.body.baseRevision);
+  if (baseRevision == null) return jsonResponse({ error: 'baseRevision 无效' }, 400);
+  if (!isSongList(parsed.body.songs)) return jsonResponse({ error: '歌曲数据无效' }, 400);
+  const songs = parsed.body.songs;
   if (songs.length === 0) return jsonResponse({ error: '无歌曲' }, 400);
   if (songs.length > 500) return jsonResponse({ error: '单批最多500首' }, 400);
 
@@ -339,19 +285,9 @@ export async function handleLoveAdd(request: Request, env: Env, ctx: ExecutionCo
   ).bind(userId).all<{ songmid: string; source: string }>();
   const existingMids = new Set((existing.results || []).map(r => songIdentity(r.songmid, r.source)));
 
-  // Ensure the love playlist row exists.
-  await env.DB.prepare('INSERT OR IGNORE INTO playlists (id, user_id, name, position) VALUES (?, ?, ?, ?)')
-    .bind('love', userId, '我喜欢', 0).run();
-
-  // Find the current max position to append after.
-  const maxPos = await env.DB.prepare(
-    "SELECT MAX(position) AS m FROM playlist_songs WHERE playlist_id = 'love' AND user_id = ?"
-  ).bind(userId).first<{ m: number | null }>();
-  let pos = (maxPos?.m ?? -1) + 1;
-
   // Filter out duplicates and insert.
   const seen = new Set<string>();
-  const toInsert: any[] = [];
+  const toInsert: SongInfo[] = [];
   for (const s of songs) {
     const mid = String(s.songmid || '').slice(0, 256);
     const src = String(s.source || '').slice(0, 32);
@@ -363,34 +299,33 @@ export async function handleLoveAdd(request: Request, env: Env, ctx: ExecutionCo
   }
 
   if (toInsert.length === 0) {
-    return jsonResponse({ ok: true, added: 0, revision: revisionCheck.revision, message: '全部已存在' });
+    return jsonResponse({ ok: true, added: 0, revision: await getSyncRevision(env, userId), message: '全部已存在' });
   }
-
-  // P0-1 fix: ON CONFLICT DO NOTHING. The in-memory seen / existingMids
-  // checks above already filter obvious duplicates, but a concurrent
-  // handleLoveAdd on another tab/isolate can still race past them. With the
-  // UNIQUE INDEX in place, the INSERT now silently no-ops instead of
-  // either failing or duplicating the row.
-  const stmts = toInsert.map((s: any) => {
-    const meta = JSON.stringify({ mrcUrl: s.mrcUrl||'', lrcUrl: s.lrcUrl||'', trcUrl: s.trcUrl||'' });
-    return env.DB.prepare(
-      `INSERT INTO playlist_songs (playlist_id, user_id, name, singer, source, songmid, album_name, album_id, img, interval, types, hash, metadata, position)
-       VALUES ('love', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(playlist_id, user_id, songmid, source)
-       WHERE playlist_id = 'love' DO NOTHING`
-    ).bind(userId, (s.name||'').slice(0, 256), (s.singer||'').slice(0, 256), s.source||'', (s.songmid||'').slice(0, 256), (s.albumName||'').slice(0, 256), (s.albumId||'').slice(0, 128), (s.img||'').slice(0, 512), s.interval||'0', JSON.stringify(s.types||[]).slice(0, 1024), (s.hash||'').slice(0, 256), meta, pos++);
-  });
-  for (let i = 0; i < stmts.length; i += 100) {
-    await env.DB.batch(stmts.slice(i, i + 100));
+  let result;
+  try {
+    result = await applyLegacyPlaylistMutation(env, userId, baseRevision, [{
+      id: 'love',
+      name: '我喜欢',
+      position: 0,
+      mode: 'append',
+      songs: toInsert,
+      deduplicate: true,
+    }]);
+  } catch (error) {
+    console.error('[love:add]', error);
+    return jsonResponse({ error: '保存失败' }, 500);
+  }
+  if (!result) {
+    return jsonResponse({
+      error: 'revision_conflict',
+      currentRevision: await getSyncRevision(env, userId),
+    }, 409);
   }
 
   // Bust the KV cache so the next GET fetches fresh data from D1.
   try { ctx.waitUntil(env.CACHE.delete(`v2:love:${userId}`)); } catch {}
 
-  const revision = revisionCheck.claimed
-    ? revisionCheck.revision
-    : await advanceSyncRevision(env, userId);
-  return jsonResponse({ ok: true, added: toInsert.length, revision });
+  return jsonResponse({ ok: true, added: result.insertedSongs, revision: result.revision });
 }
 
 // POST /api/user/love/remove — incrementally remove songs from the love list.
@@ -404,55 +339,62 @@ export async function handleLoveRemove(request: Request, env: Env, ctx: Executio
 
   const parsed = await readJsonBody(request);
   if (parsed instanceof Response) return parsed;
-  const body = parsed.body as { songs?: unknown; keys?: unknown };
-  const revisionCheck = await requireSyncRevision(
-    env,
-    userId,
-    parsed.body.baseRevision,
-  );
-  if (!revisionCheck.ok) {
-    return jsonResponse({
-      error: 'revision_conflict',
-      currentRevision: revisionCheck.revision,
-    }, 409);
-  }
-
+  const body = parsed.body as { songs?: unknown; keys?: unknown; baseRevision?: unknown };
+  const baseRevision = parseBaseRevision(body.baseRevision);
+  if (baseRevision == null) return jsonResponse({ error: 'baseRevision 无效' }, 400);
   const keys: string[] = [];
   if (Array.isArray(body.songs)) {
     for (const s of body.songs) {
+      if (!s || typeof s !== 'object' || Array.isArray(s)) {
+        return jsonResponse({ error: '歌曲数据无效' }, 400);
+      }
       const mid = String((s as any).songmid || '');
       const src = String((s as any).source || '');
-      if (mid) keys.push(mid + '|' + src);
+      if (!mid || mid.length > 256 || src.length > 32 || mid.includes('|') || src.includes('|')) {
+        return jsonResponse({ error: '歌曲数据无效' }, 400);
+      }
+      keys.push(mid + '|' + src);
     }
   }
   if (Array.isArray(body.keys)) {
-    keys.push(...body.keys.filter((k: any) => typeof k === 'string' && k.length > 0));
+    for (const key of body.keys) {
+      if (typeof key !== 'string' || key.length === 0 || key.length > 289 ||
+          !key.includes('|')) {
+        return jsonResponse({ error: '歌曲数据无效' }, 400);
+      }
+      keys.push(key);
+    }
   }
-  if (keys.length === 0) return jsonResponse({ error: '无歌曲' }, 400);
-  if (keys.length > 500) return jsonResponse({ error: '单批最多500首' }, 400);
-
-  // O3: 批量删除，避免逐条串行 DELETE。
-  let removed = 0;
-  for (let i = 0; i < keys.length; i += 100) {
-    const batch = keys.slice(i, i + 100);
-    const stmts = batch.map((key) => {
-      const [mid, src] = key.split('|', 2);
-      return env.DB.prepare(
-        "DELETE FROM playlist_songs WHERE playlist_id = 'love' AND user_id = ? AND songmid = ? AND source = ?"
-      ).bind(userId, mid, src || '');
-    });
-    const results = await env.DB.batch(stmts);
-    for (const r of results) removed += r.meta?.changes ?? 0;
+  const uniqueKeys = [...new Set(keys)];
+  if (uniqueKeys.length === 0) return jsonResponse({ error: '无歌曲' }, 400);
+  if (uniqueKeys.length > 500) return jsonResponse({ error: '单批最多500首' }, 400);
+  let result;
+  try {
+    result = await applyLegacyPlaylistMutation(env, userId, baseRevision, [{
+      id: 'love',
+      name: '我喜欢',
+      position: 0,
+      mode: 'remove-items',
+      songs: uniqueKeys.map((key) => {
+        const [songmid, source] = key.split('|', 2);
+        return { name: songmid, singer: '', songmid, source };
+      }),
+      deduplicate: true,
+    }]);
+  } catch (error) {
+    console.error('[love:remove]', error);
+    return jsonResponse({ error: '保存失败' }, 500);
+  }
+  if (!result) {
+    return jsonResponse({
+      error: 'revision_conflict',
+      currentRevision: await getSyncRevision(env, userId),
+    }, 409);
   }
 
   try { ctx.waitUntil(env.CACHE.delete(`v2:love:${userId}`)); } catch {}
 
-  const revision = removed > 0
-    ? revisionCheck.claimed
-      ? revisionCheck.revision
-      : await advanceSyncRevision(env, userId)
-    : await getSyncRevision(env, userId);
-  return jsonResponse({ ok: true, removed, revision });
+  return jsonResponse({ ok: true, removed: result.removedSongs, revision: result.revision });
 }
 
 // DELETE /api/user/playlist?id=xxx
@@ -461,26 +403,38 @@ export async function handlePlaylistDelete(request: Request, url: URL, env: Env)
   if (!userId) return jsonResponse({ error: '未登录' }, 401);
 
   const id = url.searchParams.get('id');
-  if (!id || id === 'love') return jsonResponse({ error: '无效歌单ID' }, 400);
-  const revisionCheck = await requireSyncRevision(
-    env,
-    userId,
-    url.searchParams.get('baseRevision'),
-  );
-  if (!revisionCheck.ok) {
+  if (!id || id.length > 128 || id === 'love' || id.startsWith('__stage__:')) {
+    return jsonResponse({ error: '无效歌单ID' }, 400);
+  }
+  const rawBaseRevision = url.searchParams.get('baseRevision');
+  const baseRevision = rawBaseRevision != null && /^\d+$/.test(rawBaseRevision)
+    ? Number(rawBaseRevision)
+    : null;
+  if (baseRevision == null || !Number.isSafeInteger(baseRevision)) {
+    return jsonResponse({ error: 'baseRevision 无效' }, 400);
+  }
+  const existing = await env.DB.prepare(
+    'SELECT id, name, position FROM playlists WHERE id = ? AND user_id = ?',
+  ).bind(id, userId).first<{ id: string; name: string; position: number }>();
+  if (!existing) return jsonResponse({ error: '歌单不存在' }, 404);
+
+  const result = await applyLegacyPlaylistMutation(env, userId, baseRevision, [{
+    id,
+    name: existing.name,
+    position: existing.position,
+    mode: 'delete',
+  }]);
+  if (!result) {
     return jsonResponse({
       error: 'revision_conflict',
-      currentRevision: revisionCheck.revision,
+      currentRevision: await getSyncRevision(env, userId),
     }, 409);
   }
-
-  await env.DB.prepare('DELETE FROM playlist_songs WHERE playlist_id = ? AND user_id = ?').bind(id, userId).run();
-  await env.DB.prepare('DELETE FROM playlists WHERE id = ? AND user_id = ?').bind(id, userId).run();
-
-  const revision = revisionCheck.claimed
-    ? revisionCheck.revision
-    : await advanceSyncRevision(env, userId);
-  return jsonResponse({ ok: true, revision });
+  return jsonResponse({
+    ok: true,
+    deleted: result.deletedPlaylists,
+    revision: result.revision,
+  });
 }
 
 
@@ -501,6 +455,8 @@ export async function handlePlaylistRefresh(request: Request, env: Env, ctx: Exe
 
   const id = String(parsed.body.id || '').slice(0, 128);
   if (!id || id === 'love') return jsonResponse({ error: '无效歌单ID' }, 400);
+  const baseRevision = parseBaseRevision(parsed.body.baseRevision);
+  if (baseRevision == null) return jsonResponse({ error: 'baseRevision 无效' }, 400);
 
   const pl = await env.DB.prepare(
     'SELECT id, name, source, source_id, position FROM playlists WHERE id = ? AND user_id = ?'
@@ -523,14 +479,22 @@ export async function handlePlaylistRefresh(request: Request, env: Env, ctx: Exe
 
   const newName = String(info.name || pl.name || '').slice(0, 128);
   try {
-    await writePlaylistAtomically(env, {
+    const revision = await writePlaylistAtRevision(env, {
       id, userId, name: newName, position: pl.position, source: pl.source, sourceId: pl.source_id,
-    }, songs, { replace: true });
+    }, songs, { replace: true }, baseRevision);
+    if (revision == null) {
+      return jsonResponse({
+        error: 'revision_conflict',
+        currentRevision: await getSyncRevision(env, userId),
+      }, 409);
+    }
+    return jsonResponse({
+      ok: true,
+      revision,
+      playlist: { id, name: newName, source: pl.source, count: songs.length },
+    });
   } catch (err: any) {
     console.error('[refresh:save]', err?.message);
     return jsonResponse({ error: '刷新保存失败' }, 500);
   }
-
-  const revision = await advanceSyncRevision(env, userId);
-  return jsonResponse({ ok: true, revision, playlist: { id, name: newName, source: pl.source, count: songs.length } });
 }

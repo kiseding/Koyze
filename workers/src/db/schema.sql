@@ -21,6 +21,36 @@ CREATE TABLE IF NOT EXISTS user_sync_state (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS user_sync_payloads (
+  user_id INTEGER PRIMARY KEY,
+  settings TEXT NOT NULL DEFAULT '{}',
+  sources TEXT NOT NULL DEFAULT '[]',
+  base_sequence INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS sync_setting_projections (
+  user_id INTEGER NOT NULL,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  server_sequence INTEGER NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, key),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS sync_source_projections (
+  user_id INTEGER NOT NULL,
+  id TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT '{}',
+  deleted INTEGER NOT NULL DEFAULT 0,
+  server_sequence INTEGER NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS playlists (
   id TEXT NOT NULL,
   user_id INTEGER NOT NULL,
@@ -112,8 +142,24 @@ CREATE TABLE IF NOT EXISTS sync_events (
   payload TEXT NOT NULL DEFAULT '{}',
   client_created_at INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  applied_at TEXT,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE(user_id, event_id)
+);
+
+CREATE TABLE IF NOT EXISTS sync_event_receipts (
+  user_id INTEGER NOT NULL,
+  event_id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  local_user_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  payload TEXT NOT NULL DEFAULT '{}',
+  client_created_at INTEGER NOT NULL,
+  server_sequence INTEGER NOT NULL,
+  accepted_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, event_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS sync_devices (
@@ -145,6 +191,16 @@ CREATE INDEX IF NOT EXISTS idx_albums_lookup ON user_albums(user_id, album_id, s
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_settings_user ON user_settings(user_id);
 CREATE INDEX IF NOT EXISTS idx_sync_events_user_id ON sync_events(user_id, id);
+CREATE INDEX IF NOT EXISTS idx_sync_setting_projection_sequence
+  ON sync_setting_projections(user_id, server_sequence);
+CREATE INDEX IF NOT EXISTS idx_sync_source_projection_sequence
+  ON sync_source_projections(user_id, server_sequence);
+CREATE TABLE IF NOT EXISTS sync_event_watermarks (
+  user_id INTEGER PRIMARY KEY,
+  compacted_through INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_playlist_item_id
   ON playlist_songs(user_id, playlist_id, playlist_item_id)
   WHERE playlist_item_id IS NOT NULL;

@@ -21,8 +21,10 @@ void main() {
       ),
     );
 
-    expect(tester.widget<AnimatedSwitcher>(find.byType(AnimatedSwitcher)).duration,
-        Duration.zero);
+    expect(
+      tester.widget<AnimatedSwitcher>(find.byType(AnimatedSwitcher)).duration,
+      Duration.zero,
+    );
     expect(
       tester
           .widget<TweenAnimationBuilder<double>>(

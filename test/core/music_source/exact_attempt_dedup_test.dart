@@ -1,5 +1,6 @@
 @Tags(['live'])
 library;
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:koyze/core/network/music_source_service.dart';
@@ -27,26 +28,28 @@ void main() {
     expect(calls, MusicSourceService.qualityChain('hires'));
   });
 
-  test('coordinator invokes each underlying adapter attempt key once',
-      () async {
-    final platform = _RecordingPlatform();
-    final service = MusicSourceService(
-      CustomSourceService(),
-      builtInSources: BuiltInSourceManager(platforms: [platform]),
-      hasEnabledCustomSources: () => false,
-    );
-    final music = MusicItem(
-      id: 'song',
-      name: 'Song',
-      singer: 'Singer',
-      source: 'kw',
-      platform: 'kw',
-    );
+  test(
+    'coordinator invokes each underlying adapter attempt key once',
+    () async {
+      final platform = _RecordingPlatform();
+      final service = MusicSourceService(
+        CustomSourceService(),
+        builtInSources: BuiltInSourceManager(platforms: [platform]),
+        hasEnabledCustomSources: () => false,
+      );
+      final music = MusicItem(
+        id: 'song',
+        name: 'Song',
+        singer: 'Singer',
+        source: 'kw',
+        platform: 'kw',
+      );
 
-    await service.resolvePlayableUrl(music, preferredQuality: 'hires');
+      await service.resolvePlayableUrl(music, preferredQuality: 'hires');
 
-    expect(platform.attemptKeys, ['flac', 'mp3']);
-  });
+      expect(platform.attemptKeys, ['flac', 'mp3']);
+    },
+  );
 }
 
 class _RecordingPlatform extends MusicPlatform {
@@ -61,20 +64,23 @@ class _RecordingPlatform extends MusicPlatform {
   @override
   String? exactAttemptKey(String quality) =>
       quality == 'hires' || quality == 'flac24bit' || quality == 'flac'
-          ? 'flac'
-          : 'mp3';
+      ? 'flac'
+      : 'mp3';
 
   @override
-  Future<ExactPlayUrl?> getMusicUrlExactDetailed(MusicItem music,
-      {required String quality}) async {
+  Future<ExactPlayUrl?> getMusicUrlExactDetailed(
+    MusicItem music, {
+    required String quality,
+  }) async {
     attemptKeys.add(exactAttemptKey(quality)!);
     return null;
   }
 
   @override
-  Future<String?> getMusicUrl(MusicItem music,
-          {String quality = '128k'}) async =>
-      null;
+  Future<String?> getMusicUrl(
+    MusicItem music, {
+    String quality = '128k',
+  }) async => null;
 
   @override
   Future<String?> getLyric(MusicItem music) async => null;
@@ -84,7 +90,9 @@ class _RecordingPlatform extends MusicPlatform {
       throw UnimplementedError();
 
   @override
-  Future<List<MusicItem>> search(String keyword,
-          {int page = 1, int limit = 20}) async =>
-      [];
+  Future<List<MusicItem>> search(
+    String keyword, {
+    int page = 1,
+    int limit = 20,
+  }) async => [];
 }

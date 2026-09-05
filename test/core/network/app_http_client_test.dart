@@ -16,8 +16,7 @@ class _ResponseAdapter implements HttpClientAdapter {
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
-  ) async =>
-      ResponseBody.fromString('{}', statusCode);
+  ) async => ResponseBody.fromString('{}', statusCode);
 
   @override
   void close({bool force = false}) {}
@@ -34,8 +33,14 @@ void main() {
     await client.get('https://example.test/health?access_token=secret');
 
     final output = log.exportText();
-    expect(output, contains('[network.request] GET https://example.test/health'));
-    expect(output, contains('[network.response] GET https://example.test/health'));
+    expect(
+      output,
+      contains('[network.request] GET https://example.test/health'),
+    );
+    expect(
+      output,
+      contains('[network.response] GET https://example.test/health'),
+    );
     expect(output, contains('status=200'));
     expect(output, isNot(contains('access_token')));
     expect(output, isNot(contains('secret')));

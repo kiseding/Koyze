@@ -23,15 +23,11 @@ void main() {
       isTrue,
     );
     expect(
-      isPlayableMediaUrl(
-        'http://wx.music.tc.qq.com/F000004UlK9x0jeuow.flac',
-      ),
+      isPlayableMediaUrl('http://wx.music.tc.qq.com/F000004UlK9x0jeuow.flac'),
       isTrue,
     );
     expect(
-      isPlayableMediaUrl(
-        'https://m801.music.126.net/20260726/abc/file.mp3',
-      ),
+      isPlayableMediaUrl('https://m801.music.126.net/20260726/abc/file.mp3'),
       isTrue,
     );
   });

@@ -13,37 +13,63 @@ permissions:
 
 concurrency:
   group: deploy-workers-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: workers
-
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: workers/package-lock.json
 
+      - name: Audit locked dependency graph
+        run: npm audit --package-lock-only --audit-level=high
+
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+        run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Validate Workers API
+        run: npm run validate
 
-      - name: Test
-        run: npm test
+  deploy:
+    needs: validate
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: workers
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
-      - name: Batch D structural checks
-        run: npm run check:batch-d
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: workers/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
 
       - name: Stamp build version
         run: |
@@ -53,22 +79,31 @@ jobs:
           EOF
 
       - name: Replace D1 / KV placeholders in wrangler.toml
+        env:
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
         run: |
-          if [ -z "${{ secrets.D1_DATABASE_ID }}" ] || [ -z "${{ secrets.KV_NAMESPACE_ID }}" ]; then
+          set -euo pipefail
+          if [ -z "${D1_DATABASE_ID:-}" ] || [ -z "${KV_NAMESPACE_ID:-}" ]; then
             echo "Missing D1_DATABASE_ID or KV_NAMESPACE_ID secret" >&2
             exit 1
           fi
-          sed -i "s/REPLACE_WITH_YOUR_D1_DATABASE_ID/${{ secrets.D1_DATABASE_ID }}/g" wrangler.toml
-          sed -i "s/REPLACE_WITH_YOUR_KV_NAMESPACE_ID/${{ secrets.KV_NAMESPACE_ID }}/g" wrangler.toml
+          printf '%s' "$D1_DATABASE_ID" | grep -Eq '^([0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'
+          printf '%s' "$KV_NAMESPACE_ID" | grep -Eq '^[0-9a-fA-F]{32}$'
+          sed -i "s/REPLACE_WITH_YOUR_D1_DATABASE_ID/$D1_DATABASE_ID/g" wrangler.toml
+          sed -i "s/REPLACE_WITH_YOUR_KV_NAMESPACE_ID/$KV_NAMESPACE_ID/g" wrangler.toml
           echo "--- wrangler.toml (ids redacted) ---"
-          sed -E 's/[0-9a-f]{8}-[0-9a-f-]{27}/***/gi' wrangler.toml
+          sed -E \
+            -e 's/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/***/gi' \
+            -e 's/[0-9a-f]{32}/***/gi' \
+            wrangler.toml
 
       - name: Verify legacy D1 schema and apply migrations
         run: |
           set -euo pipefail
-          COLUMNS="$(npx wrangler d1 execute koyze-api --remote --json --command "PRAGMA table_info('users')")"
+          COLUMNS="$(npx --no-install wrangler d1 execute koyze-api --remote --json --command "PRAGMA table_info('users')")"
           if printf '%s' "$COLUMNS" | jq -e '.[0].results | length == 0 or any(.name == "token_version")' >/dev/null; then
-            npx wrangler d1 migrations apply koyze-api --remote
+            npx --no-install wrangler d1 migrations apply koyze-api --remote
           else
             echo "users.token_version is missing; run the approved one-time ALTER TABLE migration before deployment" >&2
             exit 1
@@ -78,16 +113,13 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Validate deployment bundle
-        run: npx wrangler deploy --dry-run --outdir .wrangler-dry-run
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --no-install wrangler deploy --dry-run --outdir .wrangler-dry-run
 
       - name: Deploy
         id: deploy
         run: |
           set -euo pipefail
-          DEPLOY_OUTPUT="$(npx wrangler deploy 2>&1)"
+          DEPLOY_OUTPUT="$(npx --no-install wrangler deploy 2>&1)"
           printf '%s\n' "$DEPLOY_OUTPUT"
           WORKER_URL="$(printf '%s\n' "$DEPLOY_OUTPUT" | grep -Eo 'https://[a-zA-Z0-9.-]+\.workers\.dev' | tail -1 || true)"
           if [ -z "$WORKER_URL" ]; then
@@ -109,8 +141,8 @@ jobs:
             echo "ADMIN_USERNAME / ADMIN_PASSWORD secrets are required" >&2
             exit 1
           fi
-          printf '%s' "$ADMIN_PASSWORD" | npx wrangler secret put ADMIN_PASSWORD
-          printf '%s' "$ADMIN_USERNAME" | npx wrangler secret put ADMIN_USERNAME
+          printf '%s' "$ADMIN_PASSWORD" | npx --no-install wrangler secret put ADMIN_PASSWORD
+          printf '%s' "$ADMIN_USERNAME" | npx --no-install wrangler secret put ADMIN_USERNAME
           sleep 3
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

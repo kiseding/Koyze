@@ -93,9 +93,8 @@ class PlayHistoryStore extends ChangeNotifier {
   PlayHistoryStore(
     this._storageLoader, {
     DateTime Function()? clock,
-    Future<void> Function(PlayHistoryEntry entry)? onRecorded,
-  }) : _clock = clock ?? DateTime.now,
-       _onRecorded = onRecorded;
+    this._onRecorded,
+  }) : _clock = clock ?? DateTime.now;
 
   static const double thresholdSec = 30;
   static const int maxEntries = 5000;
@@ -259,8 +258,9 @@ class PlayHistoryStore extends ChangeNotifier {
   Future<void> applyRemoteEntry(PlayHistoryEntry entry) async {
     if (_entries.any((item) => item.id == entry.id)) return;
     _entries.insert(0, entry);
-    if (_entries.length > maxEntries)
+    if (_entries.length > maxEntries) {
       _entries.removeRange(maxEntries, _entries.length);
+    }
     _scheduleSave();
     _notify();
   }
@@ -268,8 +268,9 @@ class PlayHistoryStore extends ChangeNotifier {
   Future<void> replaceRemoteEntries(List<PlayHistoryEntry> entries) async {
     _entries = entries.toList()
       ..sort((a, b) => b.playedAt.compareTo(a.playedAt));
-    if (_entries.length > maxEntries)
+    if (_entries.length > maxEntries) {
       _entries.removeRange(maxEntries, _entries.length);
+    }
     await _flushPendingSave();
     _notify();
   }

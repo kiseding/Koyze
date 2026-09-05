@@ -31,9 +31,9 @@ void main() {
             ('setInt', int value) => prefs.setInt(key, value),
             ('setBool', bool value) => prefs.setBool(key, value),
             ('setStringList', List<String> value) => prefs.setStringList(
-                key,
-                value,
-              ),
+              key,
+              value,
+            ),
             ('setString', String value) => prefs.setString(key, value),
             ('remove', _) => prefs.remove(key),
             _ => throw StateError('unexpected write: $operation $key'),

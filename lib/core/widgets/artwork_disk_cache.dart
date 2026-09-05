@@ -16,10 +16,9 @@ class ArtworkDiskCache {
     this.ttl = TtlCache.defaultTtl,
     ArtworkBytesLoader? loader,
     DateTime Function()? clock,
-    String? rootOverride,
+    this._rootOverride,
   }) : _loader = loader ?? ArtworkBytesLoader(),
        _clock = clock ?? DateTime.now,
-       _rootOverride = rootOverride,
        _memory = TtlCache<Uint8List>(
          ttl: ttl,
          clock: clock,

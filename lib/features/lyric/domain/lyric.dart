@@ -17,24 +17,18 @@ class LyricLine {
 class LyricWord {
   final Duration time;
   final String text;
+
   /// 该字/词持续时间；无则按到下一字或行结束估算。
   final Duration? duration;
 
-  const LyricWord({
-    required this.time,
-    required this.text,
-    this.duration,
-  });
+  const LyricWord({required this.time, required this.text, this.duration});
 }
 
 class Lyrics {
   final String raw;
   final List<LyricLine> lines;
 
-  const Lyrics({
-    required this.raw,
-    required this.lines,
-  });
+  const Lyrics({required this.raw, required this.lines});
 
   factory Lyrics.empty() => const Lyrics(raw: '', lines: []);
 

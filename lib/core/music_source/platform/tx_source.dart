@@ -17,28 +17,31 @@ class TxSource extends MusicPlatform {
   TxSource() {
     _dio = createDio();
     _dio.options.baseUrl = 'https://u.y.qq.com';
-    _dio.options.headers.addAll({
-      'User-Agent': 'QQMusic 14090508(android 12)',
-    });
+    _dio.options.headers.addAll({'User-Agent': 'QQMusic 14090508(android 12)'});
   }
 
   @override
-  Future<List<MusicItem>> search(String keyword,
-      {int page = 1, int limit = 20}) async {
+  Future<List<MusicItem>> search(
+    String keyword, {
+    int page = 1,
+    int limit = 20,
+  }) async {
     try {
-      final response = await _dio.get(
-        'https://c.y.qq.com/soso/fcgi-bin/client_search_cp',
-        queryParameters: {
-          'w': keyword,
-          'format': 'json',
-          'p': page.toString(),
-          'n': limit.toString(),
-          'cr': '1',
-          'aggr': '1',
-          'lossless': '1',
-          'platform': 'h5',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await _dio
+          .get(
+            'https://c.y.qq.com/soso/fcgi-bin/client_search_cp',
+            queryParameters: {
+              'w': keyword,
+              'format': 'json',
+              'p': page.toString(),
+              'n': limit.toString(),
+              'cr': '1',
+              'aggr': '1',
+              'lossless': '1',
+              'platform': 'h5',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = response.data;
       if (data == null) return [];
@@ -76,28 +79,32 @@ class TxSource extends MusicPlatform {
       final albumMid = map['albummid'] as String? ?? '';
       final interval = int.tryParse(map['interval']?.toString() ?? '0') ?? 0;
 
-      list.add(MusicItem(
-        id: songmid,
-        name: (map['songname'] as String? ?? '').trim(),
-        singer: _staticFormatSingerName(singerList, nameKey: 'name'),
-        source: 'tx',
-        platform: 'tx',
-        artwork: albumMid.isNotEmpty && albumMid != '空'
-            ? 'https://y.gtimg.cn/music/photo_new/T002R500x500M000$albumMid.jpg'
-            : '',
-        url: '',
-        songmid: songmid,
-        duration: Duration(seconds: interval),
-        album: albumName,
-        // 自定义洛雪源会读取 strMediaMid、file、pay 等平台原始字段来签发 URL。
-        meta: Map<String, dynamic>.from(map),
-      ));
+      list.add(
+        MusicItem(
+          id: songmid,
+          name: (map['songname'] as String? ?? '').trim(),
+          singer: _staticFormatSingerName(singerList, nameKey: 'name'),
+          source: 'tx',
+          platform: 'tx',
+          artwork: albumMid.isNotEmpty && albumMid != '空'
+              ? 'https://y.gtimg.cn/music/photo_new/T002R500x500M000$albumMid.jpg'
+              : '',
+          url: '',
+          songmid: songmid,
+          duration: Duration(seconds: interval),
+          album: albumName,
+          // 自定义洛雪源会读取 strMediaMid、file、pay 等平台原始字段来签发 URL。
+          meta: Map<String, dynamic>.from(map),
+        ),
+      );
     }
     return list;
   }
 
-  static String _staticFormatSingerName(List<dynamic> singers,
-      {String nameKey = 'name'}) {
+  static String _staticFormatSingerName(
+    List<dynamic> singers, {
+    String nameKey = 'name',
+  }) {
     if (singers.isEmpty) return '未知歌手';
     return singers
         .map((s) => (s as Map)[nameKey]?.toString() ?? '')
@@ -110,20 +117,26 @@ class TxSource extends MusicPlatform {
   }
 
   @override
-  Future<String?> getMusicUrl(MusicItem music,
-      {String quality = '128k'}) async {
+  Future<String?> getMusicUrl(
+    MusicItem music, {
+    String quality = '128k',
+  }) async {
     return _getMusicUrl(music, quality: quality, exact: false);
   }
 
   @override
-  Future<String?> getMusicUrlExact(MusicItem music,
-      {required String quality}) async {
+  Future<String?> getMusicUrlExact(
+    MusicItem music, {
+    required String quality,
+  }) async {
     return _getMusicUrl(music, quality: quality, exact: true);
   }
 
   @override
-  Future<ExactPlayUrl?> getMusicUrlExactDetailed(MusicItem music,
-      {required String quality}) async {
+  Future<ExactPlayUrl?> getMusicUrlExactDetailed(
+    MusicItem music, {
+    required String quality,
+  }) async {
     final url = await getMusicUrlExact(music, quality: quality);
     if (url == null) return null;
     final actual = switch (exactAttemptKeyForQuality(quality)) {
@@ -134,23 +147,29 @@ class TxSource extends MusicPlatform {
     return ExactPlayUrl(url: url, actualQuality: actual);
   }
 
-  Future<String?> _getMusicUrl(MusicItem music,
-      {required String quality, required bool exact}) async {
+  Future<String?> _getMusicUrl(
+    MusicItem music, {
+    required String quality,
+    required bool exact,
+  }) async {
     try {
       final songmid = music.songmid ?? music.id;
       if (songmid.isEmpty) return null;
 
-      final mediaMid = music.meta?['strMediaMid']?.toString() ??
+      final mediaMid =
+          music.meta?['strMediaMid']?.toString() ??
           music.meta?['media_mid']?.toString() ??
           songmid;
-      final guid =
-          (DateTime.now().millisecondsSinceEpoch % 10000000000).toString();
-      final urlDio =
-          createDioForService(headers: {'Referer': 'https://y.qq.com/'});
+      final guid = (DateTime.now().millisecondsSinceEpoch % 10000000000)
+          .toString();
+      final urlDio = createDioForService(
+        headers: {'Referer': 'https://y.qq.com/'},
+      );
 
-      for (final filename in exact
-          ? exactFilenames(songmid, mediaMid, quality)
-          : legacyFilenames(songmid, mediaMid, quality)) {
+      for (final filename
+          in exact
+              ? exactFilenames(songmid, mediaMid, quality)
+              : legacyFilenames(songmid, mediaMid, quality)) {
         try {
           final resp = await urlDio.get(
             'https://c.y.qq.com/base/fcgi-bin/fcg_music_express_mobile3.fcg',
@@ -209,19 +228,22 @@ class TxSource extends MusicPlatform {
 
   /// QQ 文件名前缀：F000 flac / M800 320k / M500 128k mp3 / C400 m4a
   static List<String> exactFilenames(
-      String songmid, String mediaMid, String quality) {
+    String songmid,
+    String mediaMid,
+    String quality,
+  ) {
     switch (quality) {
       case 'hires':
       case 'flac24bit':
       case 'flac':
         return [
           'F000$mediaMid.flac',
-          if (mediaMid != songmid) 'F000$songmid.flac'
+          if (mediaMid != songmid) 'F000$songmid.flac',
         ];
       case '320k':
         return [
           'M800$mediaMid.mp3',
-          if (mediaMid != songmid) 'M800$songmid.mp3'
+          if (mediaMid != songmid) 'M800$songmid.mp3',
         ];
       case '128k':
         return [
@@ -264,7 +286,10 @@ class TxSource extends MusicPlatform {
   String? exactAttemptKey(String quality) => exactAttemptKeyForQuality(quality);
 
   static List<String> legacyFilenames(
-      String songmid, String mediaMid, String quality) {
+    String songmid,
+    String mediaMid,
+    String quality,
+  ) {
     switch (quality) {
       case 'hires':
       case 'flac24bit':
@@ -308,11 +333,7 @@ class TxSource extends MusicPlatform {
     final resp = await lyricDio.post(
       'https://u.y.qq.com/cgi-bin/musicu.fcg',
       data: {
-        'comm': {
-          'ct': '19',
-          'cv': '1859',
-          'uin': '0',
-        },
+        'comm': {'ct': '19', 'cv': '1859', 'uin': '0'},
         'req': {
           'method': 'GetPlayLyricInfo',
           'module': 'music.musichallSong.PlayLyricInfo',
@@ -355,24 +376,17 @@ class TxSource extends MusicPlatform {
     final dio = createDioForService(
       headers: {
         'User-Agent':
-            'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)'
+            'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)',
       },
     );
     final resp = await dio.post(
       'https://u.y.qq.com/cgi-bin/musicu.fcg',
       data: {
-        'comm': {
-          'ct': '19',
-          'cv': '1859',
-          'uin': '0',
-        },
+        'comm': {'ct': '19', 'cv': '1859', 'uin': '0'},
         'req': {
           'module': 'music.pf_song_detail_svr',
           'method': 'get_song_detail_yqq',
-          'param': {
-            'song_type': 0,
-            'song_mid': songmid,
-          },
+          'param': {'song_type': 0, 'song_mid': songmid},
         },
       },
     );
@@ -392,8 +406,9 @@ class TxSource extends MusicPlatform {
       final songmid = music.songmid ?? music.id;
       if (songmid.isEmpty) return null;
 
-      final lyricDio =
-          createDioForService(headers: {'Referer': 'https://y.qq.com/'});
+      final lyricDio = createDioForService(
+        headers: {'Referer': 'https://y.qq.com/'},
+      );
 
       final resp = await lyricDio.get(
         'https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg',
@@ -438,22 +453,28 @@ class TxSource extends MusicPlatform {
       LeaderboardCategory(id: 'tx:16', name: '韩国榜', platform: 'tx'),
     ];
     // 用榜单首曲封面作为榜单封面
-    final results = await Future.wait(base.map((c) async {
-      try {
-        final songs = await getLeaderboardSongs(c.id, limit: 1);
-        final cover = songs.isNotEmpty ? songs.first.artwork : null;
-        return c.copyWith(
-            coverUrl: (cover != null && cover.isNotEmpty) ? cover : null);
-      } catch (_) {
-        return c;
-      }
-    }));
+    final results = await Future.wait(
+      base.map((c) async {
+        try {
+          final songs = await getLeaderboardSongs(c.id, limit: 1);
+          final cover = songs.isNotEmpty ? songs.first.artwork : null;
+          return c.copyWith(
+            coverUrl: (cover != null && cover.isNotEmpty) ? cover : null,
+          );
+        } catch (_) {
+          return c;
+        }
+      }),
+    );
     return results;
   }
 
   @override
-  Future<List<MusicItem>> getLeaderboardSongs(String leaderboardId,
-      {int page = 1, int limit = 100}) async {
+  Future<List<MusicItem>> getLeaderboardSongs(
+    String leaderboardId, {
+    int page = 1,
+    int limit = 100,
+  }) async {
     try {
       final parts = leaderboardId.split(':');
       final topid = int.parse(parts.length == 2 ? parts[1] : leaderboardId);
@@ -467,18 +488,9 @@ class TxSource extends MusicPlatform {
           'toplist': {
             'module': 'musicToplist.ToplistInfoServer',
             'method': 'GetDetail',
-            'param': {
-              'topid': topid,
-              'num': limit,
-              'period': '',
-            },
+            'param': {'topid': topid, 'num': limit, 'period': ''},
           },
-          'comm': {
-            'uin': 0,
-            'format': 'json',
-            'ct': 20,
-            'cv': 1859,
-          },
+          'comm': {'uin': 0, 'format': 'json', 'ct': 20, 'cv': 1859},
         },
         options: Options(
           headers: {
@@ -502,12 +514,14 @@ class TxSource extends MusicPlatform {
           if (callbackIdx != -1 && jsonStr.endsWith(')')) {
             jsonStr = jsonStr.substring(callbackIdx + 1, jsonStr.length - 1);
           }
-          bodyMap = (jsonDecode(jsonStr) as Map)
-              .map((k, v) => MapEntry(k.toString(), v));
+          bodyMap = (jsonDecode(jsonStr) as Map).map(
+            (k, v) => MapEntry(k.toString(), v),
+          );
         } catch (e) {
           debugPrint('[TX] getLeaderboardSongs: jsonDecode failed: $e');
           debugPrint(
-              '[TX] response preview: ${body.toString().substring(0, body.toString().length > 300 ? 300 : body.toString().length)}');
+            '[TX] response preview: ${body.toString().substring(0, body.toString().length > 300 ? 300 : body.toString().length)}',
+          );
           return [];
         }
       } else {

@@ -74,8 +74,9 @@ void main() {
     expect(notifier.state, isA<SleepTimerIdle>());
   });
 
-  testWidgets('reset prevents an old pause completion from publishing',
-      (tester) async {
+  testWidgets('reset prevents an old pause completion from publishing', (
+    tester,
+  ) async {
     final oldPause = Completer<void>();
     var pauseCalls = 0;
     final notifier = SleepTimerNotifier(() {
@@ -96,8 +97,9 @@ void main() {
     notifier.cancelTimer();
   });
 
-  testWidgets('cancel prevents an old pause failure from publishing',
-      (tester) async {
+  testWidgets('cancel prevents an old pause failure from publishing', (
+    tester,
+  ) async {
     final oldPause = Completer<void>();
     final notifier = SleepTimerNotifier(() => oldPause.future);
     addTearDown(notifier.dispose);
@@ -111,8 +113,9 @@ void main() {
     expect(notifier.state, isA<SleepTimerIdle>());
   });
 
-  testWidgets('dispose prevents an old pause failure from escaping the zone',
-      (tester) async {
+  testWidgets('dispose prevents an old pause failure from escaping the zone', (
+    tester,
+  ) async {
     final oldPause = Completer<void>();
     final notifier = SleepTimerNotifier(() => oldPause.future);
 

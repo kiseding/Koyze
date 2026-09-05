@@ -26,7 +26,7 @@ class ImageFileService {
     final image = img.decodeImage(bytes);
 
     if (image == null) {
-      throw Exception("Invalid image file");
+      throw Exception('Invalid image file');
     }
 
     final imageWidth = image.width;

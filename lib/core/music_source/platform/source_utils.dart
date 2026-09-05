@@ -29,8 +29,9 @@ int parseDuration(String? input) {
 
 String aes128EcbHex(String data, String keyStr) {
   final key = encrypt.Key.fromUtf8(keyStr);
-  final encrypter =
-      encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.ecb));
+  final encrypter = encrypt.Encrypter(
+    encrypt.AES(key, mode: encrypt.AESMode.ecb),
+  );
   final encrypted = encrypter.encrypt(data);
   return encrypted.bytes
       .map((b) => b.toRadixString(16).padLeft(2, '0'))
@@ -38,8 +39,11 @@ String aes128EcbHex(String data, String keyStr) {
       .toUpperCase();
 }
 
-String formatSingerName(List<dynamic> singers,
-    {String nameKey = 'name', String join = '、'}) {
+String formatSingerName(
+  List<dynamic> singers, {
+  String nameKey = 'name',
+  String join = '、',
+}) {
   if (singers.isEmpty) return '';
   return singers
       .map((s) => (s is Map ? s[nameKey] : s?.toString()) ?? '')

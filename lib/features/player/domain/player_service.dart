@@ -10,11 +10,8 @@ import '../../../core/widgets/artwork_disk_cache.dart';
 import 'lazy_playlist_order.dart';
 
 class PlayerService {
-  PlayerService({
-    ArtworkDiskCache? artworkCache,
-    Future<bool> Function(MusicItem song)? isDisliked,
-  }) : _artworkCache = artworkCache ?? ArtworkDiskCache.instance,
-       _isDisliked = isDisliked;
+  PlayerService({ArtworkDiskCache? artworkCache, this._isDisliked})
+    : _artworkCache = artworkCache ?? ArtworkDiskCache.instance;
 
   static const int dislikedRating = 0;
 

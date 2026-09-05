@@ -112,7 +112,7 @@ void main() {
     () async {
       final resolverStarted = Completer<void>();
       final releaseResolver = Completer<void>();
-      final next = MediaItem(id: 'B', title: 'B');
+      final next = const MediaItem(id: 'B', title: 'B');
       handler.urlResolver = (id, [extras]) async {
         if (id == 'B') {
           resolverStarted.complete();
@@ -223,44 +223,39 @@ void main() {
     },
   );
 
-  test(
-    'lock screen duration backfill only happens after source installation '
-    'completes and never replaces mediaItem mid-transaction',
-    () {
-      final source = File(
-        'lib/core/audio/audio_handler.dart',
-      ).readAsStringSync();
-      final backfill = source.substring(
-        source.indexOf('_publishKnownDurationIfChanged()'),
-        source.indexOf('/// 把 just_audio 解析出的真实时长回填'),
-      );
-      expect(backfill, contains('_publishKnownDurationIfChanged()'));
-      final method = source.substring(
-        source.indexOf('void _publishKnownDurationIfChanged()'),
-        source.indexOf('bool _ownsOutputRouteRecovery({'),
-      );
-      expect(
-        method,
-        contains('_commands.installedSourceIsAuthoritative'),
-        reason: '回填必须在源安装完成（authoritative）后才允许',
-      );
-      expect(
-        method,
-        contains('_installedPlaybackGeneration != _playGeneration'),
-        reason: '过期安装世代不得回填',
-      );
-      expect(
-        method,
-        contains('_installedMediaId != _activeItemId'),
-        reason: '媒体项必须与当前安装一致才允许回填',
-      );
-      expect(
-        method,
-        contains('mediaItem.add(updated)'),
-        reason: '回填必须同步发布媒体项，锁屏才能拿到新时长',
-      );
-    },
-  );
+  test('lock screen duration backfill only happens after source installation '
+      'completes and never replaces mediaItem mid-transaction', () {
+    final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
+    final backfill = source.substring(
+      source.indexOf('_publishKnownDurationIfChanged()'),
+      source.indexOf('/// 把 just_audio 解析出的真实时长回填'),
+    );
+    expect(backfill, contains('_publishKnownDurationIfChanged()'));
+    final method = source.substring(
+      source.indexOf('void _publishKnownDurationIfChanged()'),
+      source.indexOf('bool _ownsOutputRouteRecovery({'),
+    );
+    expect(
+      method,
+      contains('_commands.installedSourceIsAuthoritative'),
+      reason: '回填必须在源安装完成（authoritative）后才允许',
+    );
+    expect(
+      method,
+      contains('_installedPlaybackGeneration != _playGeneration'),
+      reason: '过期安装世代不得回填',
+    );
+    expect(
+      method,
+      contains('_installedMediaId != _activeItemId'),
+      reason: '媒体项必须与当前安装一致才允许回填',
+    );
+    expect(
+      method,
+      contains('mediaItem.add(updated)'),
+      reason: '回填必须同步发布媒体项，锁屏才能拿到新时长',
+    );
+  });
 }
 
 class _CompletionAudioPlayer extends AudioPlayer {

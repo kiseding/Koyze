@@ -43,7 +43,7 @@ void main() {
           ),
         ),
         durationProvider.overrideWithValue(
-          AsyncValue.data(const Duration(seconds: 200)),
+          const AsyncValue.data(Duration(seconds: 200)),
         ),
         playModeProvider.overrideWithValue(PlayMode.sequential),
         playerPositionProvider.overrideWith((ref) => PositionNotifier(null)),
@@ -64,12 +64,12 @@ void main() {
           ),
           scaffoldBackgroundColor: Colors.white,
         ),
-        home: Scaffold(
+        home: const Scaffold(
           body: Stack(
             fit: StackFit.expand,
             children: [
-              const ColoredBox(color: Color(0xFFB8D4FF)),
-              const PlayerScreen(),
+              ColoredBox(color: Color(0xFFB8D4FF)),
+              PlayerScreen(),
             ],
           ),
         ),
@@ -90,10 +90,7 @@ void main() {
     await tester.pump();
 
     // 切到歌词页（PageView 横滑）。
-    await tester.drag(
-      find.byType(PageView),
-      const Offset(-360, 0),
-    );
+    await tester.drag(find.byType(PageView), const Offset(-360, 0));
     await tester.pumpAndSettle();
     expect(find.text('歌词'), findsOneWidget);
     expect(find.text('正在播放'), findsNothing);

@@ -7,6 +7,20 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/audio/playback_cache_service.dart';
 
+Future<void> _deleteTemporaryDirectory(Directory directory) async {
+  for (var attempt = 0; attempt < 5; attempt++) {
+    if (!await directory.exists()) return;
+    try {
+      await directory.delete(recursive: true);
+      return;
+    } on FileSystemException {
+      if (attempt == 4) rethrow;
+      // Windows can retain a just-closed file handle for a scheduler turn.
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
+}
+
 class _RangeResponseAdapter implements HttpClientAdapter {
   _RangeResponseAdapter(this.response);
 
@@ -60,9 +74,7 @@ void main() {
 
   tearDown(() async {
     await cache.dispose();
-    if (tempDir.existsSync()) {
-      tempDir.deleteSync(recursive: true);
-    }
+    await _deleteTemporaryDirectory(tempDir);
   });
 
   test('cacheKey is stable for platform|songId|quality', () {
@@ -878,13 +890,17 @@ void main() {
   );
 
   test('rejects dot-dot and sibling-prefix persisted paths', () async {
-    final parent = tempDir.parent;
     final sibling = Directory('${tempDir.path}_sibling')..createSync();
     addTearDown(() => sibling.deleteSync(recursive: true));
-    final escaped = File(
-      '${parent.path}/${tempDir.path.split('/').last}/../escape.mp3',
-    )..writeAsBytesSync(List<int>.filled(32, 1));
-    final siblingFile = File('${sibling.path}/song.mp3')
+    final separator = Platform.pathSeparator;
+    final escapeName =
+        '${tempDir.path.split(Platform.pathSeparator).last}-escape.mp3';
+    final escaped = File('${tempDir.path}$separator..$separator$escapeName')
+      ..writeAsBytesSync(List<int>.filled(32, 1));
+    addTearDown(() {
+      if (escaped.existsSync()) escaped.deleteSync();
+    });
+    final siblingFile = File.fromUri(sibling.uri.resolve('song.mp3'))
       ..writeAsBytesSync(List<int>.filled(32, 1));
     for (final record in [
       ('dot-dot', escaped.path),
@@ -1500,7 +1516,8 @@ void main() {
         platform: 'tx',
         songId: 'metadata-race',
         quality: '320k',
-      )..whenComplete(() => newerCompleted = true);
+      );
+      unawaited(newerHit.whenComplete(() => newerCompleted = true));
       await Future<void>.delayed(Duration.zero);
       expect(newerCompleted, isFalse);
       store.releaseBlockedWrite.complete();
@@ -1918,12 +1935,16 @@ void main() {
     'load repairs persisted path and size from physical stable file',
     () async {
       final key = List.filled(40, '1').join();
-      final file = File('${tempDir.path}/$key.mp3')
+      final file = File.fromUri(tempDir.uri.resolve('$key.mp3'))
         ..writeAsBytesSync(List<int>.filled(37, 2));
+      final separator = Platform.pathSeparator;
       final store = MemoryPlaybackCacheIndexStore()
         ..value = jsonEncode([
           {
-            ..._entryJson(key: key, path: '${tempDir.path}/./$key.mp3'),
+            ..._entryJson(
+              key: key,
+              path: '${tempDir.path}$separator.$separator$key.mp3',
+            ),
             'sizeBytes': 0,
           },
         ]);
@@ -2316,8 +2337,8 @@ void main() {
     await store.blockedWriteStarted.future;
     now = now.add(const Duration(minutes: 60));
     var purgeCompleted = false;
-    final purge = cache.purgeExpired()
-      ..whenComplete(() => purgeCompleted = true);
+    final purge = cache.purgeExpired();
+    unawaited(purge.whenComplete(() => purgeCompleted = true));
     await Future<void>.delayed(Duration.zero);
     expect(purgeCompleted, isFalse);
     store.releaseBlockedWrite.complete();
@@ -2354,8 +2375,8 @@ void main() {
       );
       await store.blockedWriteStarted.future;
       var purgeCompleted = false;
-      final purge = cache.purgeExpired()
-        ..whenComplete(() => purgeCompleted = true);
+      final purge = cache.purgeExpired();
+      unawaited(purge.whenComplete(() => purgeCompleted = true));
       await Future<void>.delayed(Duration.zero);
       expect(purgeCompleted, isFalse);
       store.releaseBlockedWrite.complete();

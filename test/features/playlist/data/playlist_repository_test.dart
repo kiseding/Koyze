@@ -40,11 +40,16 @@ void main() {
 
     test('deeply copies and freezes constructor song meta', () {
       final nested = <String, dynamic>{'number': 1};
-      final tags = <dynamic>['one', <String, dynamic>{'value': 'two'}];
+      final tags = <dynamic>[
+        'one',
+        <String, dynamic>{'value': 'two'},
+      ];
       final meta = <String, dynamic>{'nested': nested, 'tags': tags};
       final snapshot = PlaylistSnapshot(
         schemaVersion: 1,
-        playlists: [playlistFixture(songs: [songFixture(meta: meta)])],
+        playlists: [
+          playlistFixture(songs: [songFixture(meta: meta)]),
+        ],
       );
 
       meta['new'] = true;
@@ -54,13 +59,20 @@ void main() {
       final stored = snapshot.playlists.single.songs.single.meta!;
       expect(stored, {
         'nested': {'number': 1},
-        'tags': ['one', {'value': 'two'}],
+        'tags': [
+          'one',
+          {'value': 'two'},
+        ],
       });
       expect(() => stored['new'] = true, throwsUnsupportedError);
-      expect(() => (stored['nested'] as Map<String, dynamic>)['number'] = 2,
-          throwsUnsupportedError);
-      expect(() => (stored['tags'] as List<dynamic>).add('three'),
-          throwsUnsupportedError);
+      expect(
+        () => (stored['nested'] as Map<String, dynamic>)['number'] = 2,
+        throwsUnsupportedError,
+      );
+      expect(
+        () => (stored['tags'] as List<dynamic>).add('three'),
+        throwsUnsupportedError,
+      );
     });
 
     test('rejects non-JSON constructor meta at its field path', () {
@@ -69,7 +81,9 @@ void main() {
           schemaVersion: 1,
           playlists: [
             playlistFixture(
-              songs: [songFixture(meta: {'nested': DateTime.utc(2026)})],
+              songs: [
+                songFixture(meta: {'nested': DateTime.utc(2026)}),
+              ],
             ),
           ],
         ),
@@ -99,10 +113,14 @@ void main() {
     });
 
     test('encodes the exact version 1 envelope', () {
-      final encoded = jsonDecode(codec.encode(PlaylistSnapshot(
-        schemaVersion: 1,
-        playlists: [playlistFixture(id: 'favorites', songs: const [])],
-      )));
+      final encoded = jsonDecode(
+        codec.encode(
+          PlaylistSnapshot(
+            schemaVersion: 1,
+            playlists: [playlistFixture(id: 'favorites', songs: const [])],
+          ),
+        ),
+      );
 
       expect(encoded, {
         'schemaVersion': 1,
@@ -111,12 +129,14 @@ void main() {
     });
 
     test('decoded snapshot and song lists are immutable', () {
-      final decoded = codec.decode(jsonEncode({
-        'schemaVersion': 1,
-        'playlists': [
-          playlistJson('one', songs: [songJson()])
-        ],
-      }));
+      final decoded = codec.decode(
+        jsonEncode({
+          'schemaVersion': 1,
+          'playlists': [
+            playlistJson('one', songs: [songJson()]),
+          ],
+        }),
+      );
 
       expect(
         () => decoded.playlists.add(playlistFixture(id: 'two')),
@@ -129,19 +149,25 @@ void main() {
     });
 
     test('deeply freezes decoded song meta', () {
-      final decoded = codec.decode(jsonEncode({
-        'schemaVersion': 1,
-        'playlists': [
-          playlistJson('one', songs: [songJson()])
-        ],
-      }));
+      final decoded = codec.decode(
+        jsonEncode({
+          'schemaVersion': 1,
+          'playlists': [
+            playlistJson('one', songs: [songJson()]),
+          ],
+        }),
+      );
       final meta = decoded.playlists.single.songs.single.meta!;
 
       expect(() => meta['new'] = true, throwsUnsupportedError);
-      expect(() => (meta['nested'] as Map<String, dynamic>)['number'] = 2,
-          throwsUnsupportedError);
-      expect(() => (meta['tags'] as List<dynamic>).add('three'),
-          throwsUnsupportedError);
+      expect(
+        () => (meta['nested'] as Map<String, dynamic>)['number'] = 2,
+        throwsUnsupportedError,
+      );
+      expect(
+        () => (meta['tags'] as List<dynamic>).add('three'),
+        throwsUnsupportedError,
+      );
       expect(meta, {
         'nested': {'number': 1},
         'tags': ['one', 'two'],
@@ -157,10 +183,12 @@ void main() {
 
     test('decoder rejects duplicate playlist ids at playlists[1].id', () {
       expectFormatException(
-        () => codec.decode(jsonEncode({
-          'schemaVersion': 1,
-          'playlists': [playlistJson('same'), playlistJson('same')],
-        })),
+        () => codec.decode(
+          jsonEncode({
+            'schemaVersion': 1,
+            'playlists': [playlistJson('same'), playlistJson('same')],
+          }),
+        ),
         'playlists[1].id',
       );
     });
@@ -169,25 +197,33 @@ void main() {
       final first = playlistJson('first')..['name'] = 'Same name';
       final second = playlistJson('second')..['name'] = 'Same name';
 
-      final snapshot = codec.decode(jsonEncode({
-        'schemaVersion': 1,
-        'playlists': [first, second],
-      }));
+      final snapshot = codec.decode(
+        jsonEncode({
+          'schemaVersion': 1,
+          'playlists': [first, second],
+        }),
+      );
 
-      expect(snapshot.playlists.map((playlist) => playlist.id),
-          ['first', 'second']);
-      expect(snapshot.playlists.map((playlist) => playlist.name),
-          ['Same name', 'Same name']);
+      expect(snapshot.playlists.map((playlist) => playlist.id), [
+        'first',
+        'second',
+      ]);
+      expect(snapshot.playlists.map((playlist) => playlist.name), [
+        'Same name',
+        'Same name',
+      ]);
     });
 
     test('decoder rejects empty playlist names at playlists[0].name', () {
       final playlist = playlistJson('one')..['name'] = '';
 
       expectFormatException(
-        () => codec.decode(jsonEncode({
-          'schemaVersion': 1,
-          'playlists': [playlist],
-        })),
+        () => codec.decode(
+          jsonEncode({
+            'schemaVersion': 1,
+            'playlists': [playlist],
+          }),
+        ),
         'playlists[0].name',
       );
     });
@@ -196,52 +232,66 @@ void main() {
       final playlist = playlistJson('one')..['createdAt'] = 'not-an-int';
 
       expectFormatException(
-        () => codec.decode(jsonEncode({
-          'schemaVersion': 1,
-          'playlists': [playlist],
-        })),
+        () => codec.decode(
+          jsonEncode({
+            'schemaVersion': 1,
+            'playlists': [playlist],
+          }),
+        ),
         'playlists[0].createdAt',
       );
     });
 
-    test('decoder rejects invalid duration at playlists[0].songs[0].duration',
-        () {
-      final song = songJson()..['duration'] = -1;
+    test(
+      'decoder rejects invalid duration at playlists[0].songs[0].duration',
+      () {
+        final song = songJson()..['duration'] = -1;
 
-      expectFormatException(
-        () => codec.decode(jsonEncode({
-          'schemaVersion': 1,
-          'playlists': [
-            playlistJson('one', songs: [song])
-          ],
-        })),
-        'playlists[0].songs[0].duration',
-      );
-    });
+        expectFormatException(
+          () => codec.decode(
+            jsonEncode({
+              'schemaVersion': 1,
+              'playlists': [
+                playlistJson('one', songs: [song]),
+              ],
+            }),
+          ),
+          'playlists[0].songs[0].duration',
+        );
+      },
+    );
 
     test(
-        'decoder rejects a missing song source at playlists[0].songs[0].source',
-        () {
-      final song = songJson()..remove('source');
+      'decoder rejects a missing song source at playlists[0].songs[0].source',
+      () {
+        final song = songJson()..remove('source');
 
-      expectFormatException(
-        () => codec.decode(jsonEncode({
-          'schemaVersion': 1,
-          'playlists': [
-            playlistJson('one', songs: [song])
-          ],
-        })),
-        'playlists[0].songs[0].source',
-      );
-    });
+        expectFormatException(
+          () => codec.decode(
+            jsonEncode({
+              'schemaVersion': 1,
+              'playlists': [
+                playlistJson('one', songs: [song]),
+              ],
+            }),
+          ),
+          'playlists[0].songs[0].source',
+        );
+      },
+    );
   });
 }
 
 void expectFormatException(void Function() action, String path) {
   expect(
     action,
-    throwsA(isA<FormatException>()
-        .having((error) => error.message, 'message', contains(path))),
+    throwsA(
+      isA<FormatException>().having(
+        (error) => error.message,
+        'message',
+        contains(path),
+      ),
+    ),
   );
 }
 
@@ -272,7 +322,8 @@ MusicItem songFixture({Map<String, dynamic>? meta}) {
     isPlayable: false,
     songmid: 'song-mid',
     hash: 'song-hash',
-    meta: meta ??
+    meta:
+        meta ??
         {
           'nested': {'number': 1},
           'tags': ['one', 'two'],
@@ -280,8 +331,10 @@ MusicItem songFixture({Map<String, dynamic>? meta}) {
   );
 }
 
-Map<String, dynamic> playlistJson(String id,
-    {List<Map<String, dynamic>> songs = const []}) {
+Map<String, dynamic> playlistJson(
+  String id, {
+  List<Map<String, dynamic>> songs = const [],
+}) {
   return {
     'id': id,
     'name': 'Fixture playlist',

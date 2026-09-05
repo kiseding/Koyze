@@ -6,7 +6,7 @@ void main() {
   test('bottom chrome preserves mini-player shadow clearance', () {
     final source = File(
       'lib/features/home/presentation/main_scaffold.dart',
-    ).readAsStringSync();
+    ).readAsStringSync().replaceAll('\r\n', '\n');
 
     expect(source, contains('bottomInset == 0 ? 2.0 : 0.0'));
     expect(source, contains('final navHeight = 36.0'));

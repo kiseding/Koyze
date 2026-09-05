@@ -8,13 +8,18 @@ String normalizedOrigin(String serviceUrl) {
   final uri = Uri.parse(serviceUrl.trim());
   final scheme = uri.scheme.toLowerCase();
   final host = uri.host.toLowerCase();
-  final port = uri.hasPort ? uri.port : uri.scheme == 'https'
+  final port = uri.hasPort
+      ? uri.port
+      : uri.scheme == 'https'
       ? 443
       : uri.scheme == 'http'
-          ? 80
-          : uri.port;
-  final defaultPort =
-      scheme == 'https' ? 443 : scheme == 'http' ? 80 : null;
+      ? 80
+      : uri.port;
+  final defaultPort = scheme == 'https'
+      ? 443
+      : scheme == 'http'
+      ? 80
+      : null;
   if (defaultPort != null && port == defaultPort) {
     return '$scheme://$host';
   }
@@ -22,8 +27,9 @@ String normalizedOrigin(String serviceUrl) {
 }
 
 String originTokenKey(String namespace, String serviceUrl) {
-  final digest =
-      sha256.convert(utf8.encode(normalizedOrigin(serviceUrl))).toString();
+  final digest = sha256
+      .convert(utf8.encode(normalizedOrigin(serviceUrl)))
+      .toString();
   return '$namespace:$digest';
 }
 
@@ -62,7 +68,7 @@ final class SharedPreferencesLegacyTokenPreferences
 
 final class FlutterSecureTokenStore implements SecureTokenStore {
   FlutterSecureTokenStore({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   static const _ios = IOSOptions(
     accessibility: KeychainAccessibility.first_unlock_this_device,
@@ -92,14 +98,12 @@ final class SecureTokenMigrationException implements Exception {
 }
 
 final class LegacyTokenMigrator {
-  LegacyTokenMigrator({
-    required this.secureStore,
-    required Object preferences,
-  }) : preferences = preferences is LegacyTokenPreferences
-            ? preferences
-            : SharedPreferencesLegacyTokenPreferences(
-                preferences as SharedPreferences,
-              );
+  LegacyTokenMigrator({required this.secureStore, required Object preferences})
+    : preferences = preferences is LegacyTokenPreferences
+          ? preferences
+          : SharedPreferencesLegacyTokenPreferences(
+              preferences as SharedPreferences,
+            );
 
   final SecureTokenStore secureStore;
   final LegacyTokenPreferences preferences;
@@ -242,7 +246,9 @@ final class LegacyTokenMigrator {
       final legacySecure = await secureStore.read(legacyKey);
       final source = (legacySecure != null && legacySecure.isNotEmpty)
           ? legacySecure
-          : (legacyPlain != null && legacyPlain.isNotEmpty ? legacyPlain : null);
+          : (legacyPlain != null && legacyPlain.isNotEmpty
+                ? legacyPlain
+                : null);
       if (source == null) return null;
       if (canMutate != null && !canMutate()) return null;
 

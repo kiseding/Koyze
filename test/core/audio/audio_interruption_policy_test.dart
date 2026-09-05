@@ -30,10 +30,7 @@ void main() {
   test('interruption that did not pause playback cannot resume it', () {
     final policy = AudioInterruptionPolicy();
 
-    expect(
-      policy.onBegin(wasPlaying: false),
-      InterruptionAction.none,
-    );
+    expect(policy.onBegin(wasPlaying: false), InterruptionAction.none);
     expect(
       policy.onEnd(userStillWantsPlay: true, mayResume: true),
       InterruptionAction.none,
@@ -58,17 +55,16 @@ void main() {
   test('becoming noisy pauses and preserves resume intent', () {
     final policy = AudioInterruptionPolicy();
 
-    expect(
-      policy.onBecomingNoisy(),
-      InterruptionAction.pausePreservingIntent,
-    );
+    expect(policy.onBecomingNoisy(), InterruptionAction.pausePreservingIntent);
   });
 
   test('pure policy tracks nested interruption depth', () {
     final policy = AudioInterruptionPolicy();
 
-    expect(policy.onBegin(wasPlaying: true),
-        InterruptionAction.pausePreservingIntent);
+    expect(
+      policy.onBegin(wasPlaying: true),
+      InterruptionAction.pausePreservingIntent,
+    );
     expect(policy.onBegin(wasPlaying: false), InterruptionAction.none);
     expect(policy.active, isTrue);
     expect(policy.depth, 2);
@@ -120,22 +116,24 @@ void main() {
     );
   });
 
-  test('handler resumes an owned interruption without changing user intent',
-      () async {
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A')]);
-    final intentGeneration = handler.userIntentGeneration;
+  test(
+    'handler resumes an owned interruption without changing user intent',
+    () async {
+      final player = _InterruptionAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A')]);
+      final intentGeneration = handler.userIntentGeneration;
 
-    await handler.beginAudioInterruption();
-    expect(player.playing, isFalse);
-    expect(handler.userIntentGeneration, intentGeneration);
+      await handler.beginAudioInterruption();
+      expect(player.playing, isFalse);
+      expect(handler.userIntentGeneration, intentGeneration);
 
-    await handler.endAudioInterruption(mayResume: true);
-    expect(player.playing, isTrue);
-    expect(handler.userIntentGeneration, intentGeneration);
-  });
+      await handler.endAudioInterruption(mayResume: true);
+      expect(player.playing, isTrue);
+      expect(handler.userIntentGeneration, intentGeneration);
+    },
+  );
 
   test('explicit user pause invalidates interruption resume', () async {
     final player = _InterruptionAudioPlayer();
@@ -164,32 +162,34 @@ void main() {
     expect(player.playing, isFalse);
   });
 
-  test('repeated begin before pause completes initiates one owned pause',
-      () async {
-    final pauseGate = _Gate();
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A')]);
-    await pumpEventQueue();
-    player.gateNextPause(pauseGate);
+  test(
+    'repeated begin before pause completes initiates one owned pause',
+    () async {
+      final pauseGate = _Gate();
+      final player = _InterruptionAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A')]);
+      await pumpEventQueue();
+      player.gateNextPause(pauseGate);
 
-    final firstBegin = handler.beginAudioInterruption();
-    await pauseGate.started.future;
-    final nestedBegin = handler.beginAudioInterruption();
+      final firstBegin = handler.beginAudioInterruption();
+      await pauseGate.started.future;
+      final nestedBegin = handler.beginAudioInterruption();
 
-    expect(handler.interruptionActive, isTrue);
-    expect(handler.interruptionDepth, 2);
-    expect(player.pauseCalls, 1);
-    pauseGate.release.complete();
-    await Future.wait([firstBegin, nestedBegin]);
+      expect(handler.interruptionActive, isTrue);
+      expect(handler.interruptionDepth, 2);
+      expect(player.pauseCalls, 1);
+      pauseGate.release.complete();
+      await Future.wait([firstBegin, nestedBegin]);
 
-    await handler.endAudioInterruption(mayResume: true);
-    expect(player.playing, isFalse);
-    expect(handler.interruptionActive, isTrue);
-    await handler.endAudioInterruption(mayResume: true);
-    expect(player.playing, isTrue);
-  });
+      await handler.endAudioInterruption(mayResume: true);
+      expect(player.playing, isFalse);
+      expect(handler.interruptionActive, isTrue);
+      await handler.endAudioInterruption(mayResume: true);
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('queued final end cannot consume a newer interruption begin', () async {
     final player = _InterruptionAudioPlayer();
@@ -262,78 +262,83 @@ void main() {
 
   for (final action
       in <({String name, Future<void> Function(LxAudioHandler) run})>[
-    (name: 'pause', run: (handler) => handler.pause()),
-    (name: 'stop', run: (handler) => handler.stop()),
-    (
-      name: 'selection',
-      run: (handler) => handler.skipToQueueItem(1),
-    ),
-  ]) {
-    test('explicit ${action.name} during interruption owns final state',
-        () async {
+        (name: 'pause', run: (handler) => handler.pause()),
+        (name: 'stop', run: (handler) => handler.stop()),
+        (name: 'selection', run: (handler) => handler.skipToQueueItem(1)),
+      ]) {
+    test(
+      'explicit ${action.name} during interruption owns final state',
+      () async {
+        final player = _InterruptionAudioPlayer();
+        final handler = LxAudioHandler(player: player);
+        addTearDown(player.dispose);
+        await handler.setPlaylist([_item('A'), _item('B')]);
+
+        await handler.beginAudioInterruption();
+        await action.run(handler);
+        await handler.endAudioInterruption(mayResume: true);
+
+        expect(player.playing, action.name == 'selection');
+      },
+    );
+  }
+
+  test(
+    'explicit selection crossing final end starts selected source',
+    () async {
+      final resolveGate = _Gate();
       final player = _InterruptionAudioPlayer();
       final handler = LxAudioHandler(player: player);
       addTearDown(player.dispose);
-      await handler.setPlaylist([_item('A'), _item('B')]);
-
+      await handler.setPlaylist([
+        _item('A'),
+        const MediaItem(id: 'B', title: 'B'),
+      ]);
+      await pumpEventQueue();
+      handler.urlResolver = (id, [extras]) async {
+        resolveGate.started.complete();
+        await resolveGate.release.future;
+        return 'file:///tmp/$id.mp3';
+      };
       await handler.beginAudioInterruption();
-      await action.run(handler);
+
+      final selection = handler.skipToQueueItem(1);
+      await resolveGate.started.future;
       await handler.endAudioInterruption(mayResume: true);
+      resolveGate.release.complete();
+      await selection;
 
-      expect(player.playing, action.name == 'selection');
-    });
-  }
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(player.playing, isTrue);
+    },
+  );
 
-  test('explicit selection crossing final end starts selected source',
-      () async {
-    final resolveGate = _Gate();
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler
-        .setPlaylist([_item('A'), const MediaItem(id: 'B', title: 'B')]);
-    await pumpEventQueue();
-    handler.urlResolver = (id, [extras]) async {
-      resolveGate.started.complete();
-      await resolveGate.release.future;
-      return 'file:///tmp/$id.mp3';
-    };
-    await handler.beginAudioInterruption();
+  test(
+    'stale preserving pause cannot restart playback while interrupted',
+    () async {
+      final stalePause = _Gate();
+      final player = _InterruptionAudioPlayer()..gateNextPause(stalePause);
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A')]);
+      final sourceGeneration = handler.sourceGeneration;
+      final intentGeneration = handler.userIntentGeneration;
 
-    final selection = handler.skipToQueueItem(1);
-    await resolveGate.started.future;
-    await handler.endAudioInterruption(mayResume: true);
-    resolveGate.release.complete();
-    await selection;
+      final pause = handler.pauseForScrub(
+        sourceGeneration: sourceGeneration,
+        userIntentGeneration: intentGeneration,
+        stillOwnsScrub: () => false,
+      );
+      await stalePause.started.future;
+      final interruption = handler.beginAudioInterruption();
+      stalePause.release.complete();
+      await pause;
+      await interruption;
 
-    expect(handler.mediaItem.value?.id, 'B');
-    expect(player.playing, isTrue);
-  });
-
-  test('stale preserving pause cannot restart playback while interrupted',
-      () async {
-    final stalePause = _Gate();
-    final player = _InterruptionAudioPlayer()..gateNextPause(stalePause);
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A')]);
-    final sourceGeneration = handler.sourceGeneration;
-    final intentGeneration = handler.userIntentGeneration;
-
-    final pause = handler.pauseForScrub(
-      sourceGeneration: sourceGeneration,
-      userIntentGeneration: intentGeneration,
-      stillOwnsScrub: () => false,
-    );
-    await stalePause.started.future;
-    final interruption = handler.beginAudioInterruption();
-    stalePause.release.complete();
-    await pause;
-    await interruption;
-
-    expect(handler.interruptionActive, isTrue);
-    expect(player.playing, isFalse);
-  });
+      expect(handler.interruptionActive, isTrue);
+      expect(player.playing, isFalse);
+    },
+  );
 
   test('scrub resume is deferred until final interruption end', () async {
     final seekGate = _Gate();
@@ -432,34 +437,36 @@ void main() {
     expect(player.playing, isTrue);
   });
 
-  test('interruption during coordinator scrub pause defers finish resume',
-      () async {
-    final pauseGate = _Gate();
-    final player = _InterruptionAudioPlayer()..gateNextPause(pauseGate);
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A')]);
-    final coordinator = ScrubCoordinator(
-      _InterruptionScrubPlayback(handler),
-      _InterruptionScrubPosition(),
-    );
+  test(
+    'interruption during coordinator scrub pause defers finish resume',
+    () async {
+      final pauseGate = _Gate();
+      final player = _InterruptionAudioPlayer()..gateNextPause(pauseGate);
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A')]);
+      final coordinator = ScrubCoordinator(
+        _InterruptionScrubPlayback(handler),
+        _InterruptionScrubPosition(),
+      );
 
-    final begin = coordinator.begin();
-    await pauseGate.started.future;
-    final interruption = handler.beginAudioInterruption();
-    pauseGate.release.complete();
-    final generation = await begin;
-    await interruption;
-    await coordinator.finish(
-      generation,
-      const Duration(seconds: 30),
-      resumeAfter: true,
-    );
+      final begin = coordinator.begin();
+      await pauseGate.started.future;
+      final interruption = handler.beginAudioInterruption();
+      pauseGate.release.complete();
+      final generation = await begin;
+      await interruption;
+      await coordinator.finish(
+        generation,
+        const Duration(seconds: 30),
+        resumeAfter: true,
+      );
 
-    expect(player.playing, isFalse);
-    await handler.endAudioInterruption(mayResume: true);
-    expect(player.playing, isTrue);
-  });
+      expect(player.playing, isFalse);
+      await handler.endAudioInterruption(mayResume: true);
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('scrub pause cannot forget a completed interruption cycle', () async {
     final pauseGate = _Gate();
@@ -490,91 +497,99 @@ void main() {
     expect(player.playing, isFalse);
   });
 
-  test('public play records intent but cannot start while interrupted',
-      () async {
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A')]);
-    await handler.beginAudioInterruption();
-    final playCalls = player.playCalls;
+  test(
+    'public play records intent but cannot start while interrupted',
+    () async {
+      final player = _InterruptionAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A')]);
+      await handler.beginAudioInterruption();
+      final playCalls = player.playCalls;
 
-    await handler.play();
+      await handler.play();
 
-    expect(player.playCalls, playCalls);
-    expect(player.playing, isFalse);
-  });
+      expect(player.playCalls, playCalls);
+      expect(player.playing, isFalse);
+    },
+  );
 
-  test('explicit play during interruption starts after resumable final end',
-      () async {
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A')]);
-    await handler.pause();
-    await handler.beginAudioInterruption();
-    final playCalls = player.playCalls;
+  test(
+    'explicit play during interruption starts after resumable final end',
+    () async {
+      final player = _InterruptionAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A')]);
+      await handler.pause();
+      await handler.beginAudioInterruption();
+      final playCalls = player.playCalls;
 
-    await handler.play();
+      await handler.play();
 
-    expect(player.playCalls, playCalls);
-    expect(player.playing, isFalse);
+      expect(player.playCalls, playCalls);
+      expect(player.playing, isFalse);
 
-    await handler.endAudioInterruption(mayResume: true);
+      await handler.endAudioInterruption(mayResume: true);
 
-    expect(player.playCalls, playCalls + 1);
-    expect(player.playing, isTrue);
-  });
+      expect(player.playCalls, playCalls + 1);
+      expect(player.playing, isTrue);
+    },
+  );
 
-  test('play idle recovery cannot forget a completed interruption cycle',
-      () async {
-    final sourceGate = _Gate();
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A')]);
-    await pumpEventQueue();
-    await handler.pause();
-    player
-      ..setProcessingState(ProcessingState.idle)
-      ..gateNextSourceInstall(sourceGate);
-    final playCalls = player.playCalls;
+  test(
+    'play idle recovery cannot forget a completed interruption cycle',
+    () async {
+      final sourceGate = _Gate();
+      final player = _InterruptionAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A')]);
+      await pumpEventQueue();
+      await handler.pause();
+      player
+        ..setProcessingState(ProcessingState.idle)
+        ..gateNextSourceInstall(sourceGate);
+      final playCalls = player.playCalls;
 
-    final play = handler.play();
-    await sourceGate.started.future;
-    await handler.beginAudioInterruption();
-    await handler.endAudioInterruption(mayResume: false);
-    sourceGate.release.complete();
-    await play;
-    await pumpEventQueue();
+      final play = handler.play();
+      await sourceGate.started.future;
+      await handler.beginAudioInterruption();
+      await handler.endAudioInterruption(mayResume: false);
+      sourceGate.release.complete();
+      await play;
+      await pumpEventQueue();
 
-    expect(player.playCalls, playCalls);
-    expect(player.playing, isFalse);
-  });
+      expect(player.playCalls, playCalls);
+      expect(player.playing, isFalse);
+    },
+  );
 
-  test('skip source transition cannot forget a completed interruption cycle',
-      () async {
-    final sourceGate = _Gate();
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A'), _item('B')]);
-    await pumpEventQueue();
-    player.gateNextSourceInstall(sourceGate);
-    final playCalls = player.playCalls;
+  test(
+    'skip source transition cannot forget a completed interruption cycle',
+    () async {
+      final sourceGate = _Gate();
+      final player = _InterruptionAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A'), _item('B')]);
+      await pumpEventQueue();
+      player.gateNextSourceInstall(sourceGate);
+      final playCalls = player.playCalls;
 
-    final skip = handler.skipToNext();
-    await sourceGate.started.future;
-    await handler.beginAudioInterruption();
-    await handler.endAudioInterruption(mayResume: false);
-    sourceGate.release.complete();
-    await skip;
-    await pumpEventQueue();
+      final skip = handler.skipToNext();
+      await sourceGate.started.future;
+      await handler.beginAudioInterruption();
+      await handler.endAudioInterruption(mayResume: false);
+      sourceGate.release.complete();
+      await skip;
+      await pumpEventQueue();
 
-    expect(handler.mediaItem.value?.id, 'B');
-    expect(player.playCalls, playCalls);
-    expect(player.playing, isFalse);
-  });
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(player.playCalls, playCalls);
+      expect(player.playing, isFalse);
+    },
+  );
 
   test('explicit play transfers authority to older paused selection', () async {
     final pauseGate = _Gate();
@@ -601,26 +616,28 @@ void main() {
     expect(player.playing, isTrue);
   });
 
-  test('play completing after interruption pause cannot restart output',
-      () async {
-    final playGate = _Gate();
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A')]);
-    await pumpEventQueue();
-    await handler.pause();
-    player.gateNextPlay(playGate);
+  test(
+    'play completing after interruption pause cannot restart output',
+    () async {
+      final playGate = _Gate();
+      final player = _InterruptionAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A')]);
+      await pumpEventQueue();
+      await handler.pause();
+      player.gateNextPlay(playGate);
 
-    await handler.play();
-    await playGate.started.future;
-    await handler.beginAudioInterruption();
-    playGate.release.complete();
-    await pumpEventQueue();
+      await handler.play();
+      await playGate.started.future;
+      await handler.beginAudioInterruption();
+      playGate.release.complete();
+      await pumpEventQueue();
 
-    expect(handler.interruptionActive, isTrue);
-    expect(player.playing, isFalse);
-  });
+      expect(handler.interruptionActive, isTrue);
+      expect(player.playing, isFalse);
+    },
+  );
 
   test('play crossing non-resumable interruption end remains paused', () async {
     final playGate = _Gate();
@@ -643,26 +660,28 @@ void main() {
     expect(player.playing, isFalse);
   });
 
-  test('stale play completion cannot pause a newer authoritative source',
-      () async {
-    final playGate = _Gate();
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A'), _item('B')]);
-    await pumpEventQueue();
-    await handler.pause();
-    player.gateNextPlay(playGate);
+  test(
+    'stale play completion cannot pause a newer authoritative source',
+    () async {
+      final playGate = _Gate();
+      final player = _InterruptionAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A'), _item('B')]);
+      await pumpEventQueue();
+      await handler.pause();
+      player.gateNextPlay(playGate);
 
-    await handler.play();
-    await playGate.started.future;
-    await handler.skipToQueueItem(1);
-    playGate.release.complete();
-    await pumpEventQueue();
+      await handler.play();
+      await playGate.started.future;
+      await handler.skipToQueueItem(1);
+      playGate.release.complete();
+      await pumpEventQueue();
 
-    expect(handler.mediaItem.value?.id, 'B');
-    expect(player.playing, isTrue);
-  });
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('old play crossing cycle is side-effect free on newer source', () async {
     final playGate = _Gate();
@@ -719,138 +738,150 @@ void main() {
     expect(player.playing, isFalse);
   });
 
-  test('output route recovery keeps the player and preserves progress', () async {
-    var playerCreations = 0;
-    final handler = LxAudioHandler(playerFactory: () {
-      playerCreations++;
-      return _InterruptionAudioPlayer();
-    });
-    addTearDown(handler.dispose);
-    final firstPlayer = handler.player as _InterruptionAudioPlayer;
-    await handler.setPlaylist([_item('A')]);
-    await firstPlayer.seek(const Duration(seconds: 42));
-    firstPlayer.advanceOnPlay = true;
-    final positionNotifier = PositionNotifier(handler);
-    addTearDown(positionNotifier.dispose);
+  test(
+    'output route recovery keeps the player and preserves progress',
+    () async {
+      var playerCreations = 0;
+      final handler = LxAudioHandler(
+        playerFactory: () {
+          playerCreations++;
+          return _InterruptionAudioPlayer();
+        },
+      );
+      addTearDown(handler.dispose);
+      final firstPlayer = handler.player as _InterruptionAudioPlayer;
+      await handler.setPlaylist([_item('A')]);
+      await firstPlayer.seek(const Duration(seconds: 42));
+      firstPlayer.advanceOnPlay = true;
+      final positionNotifier = PositionNotifier(handler);
+      addTearDown(positionNotifier.dispose);
 
-    expect(positionNotifier.state, const Duration(seconds: 42));
+      expect(positionNotifier.state, const Duration(seconds: 42));
 
-    await handler.handleBecomingNoisy();
-    await handler.handleAudioOutputRouteChanged();
-    await handler.handleAudioOutputRouteChanged();
-    await handler.play();
-    await handler.debugOutputRouteRecoverySettled;
+      await handler.handleBecomingNoisy();
+      await handler.handleAudioOutputRouteChanged();
+      await handler.handleAudioOutputRouteChanged();
+      await handler.play();
+      await handler.debugOutputRouteRecoverySettled;
 
-    expect(playerCreations, 1);
-    expect(handler.player, same(firstPlayer));
-    expect(firstPlayer.playing, isTrue);
-    expect(firstPlayer.position, const Duration(seconds: 43));
-    expect(positionNotifier.state, const Duration(seconds: 43));
+      expect(playerCreations, 1);
+      expect(handler.player, same(firstPlayer));
+      expect(firstPlayer.playing, isTrue);
+      expect(firstPlayer.position, const Duration(seconds: 43));
+      expect(positionNotifier.state, const Duration(seconds: 43));
 
-    await firstPlayer.seek(const Duration(seconds: 45));
-    expect(positionNotifier.state, const Duration(seconds: 45));
-  });
+      await firstPlayer.seek(const Duration(seconds: 45));
+      expect(positionNotifier.state, const Duration(seconds: 45));
+    },
+  );
 
-  test('output route rebuild is used only after an existing player stall',
-      () async {
-    var playerCreations = 0;
-    final handler = LxAudioHandler(
-      playerFactory: () {
-        playerCreations++;
-        return _InterruptionAudioPlayer()
-          ..advanceOnPlay = playerCreations > 1;
-      },
-      outputRouteRecoveryTimeout: const Duration(milliseconds: 5),
-    );
-    addTearDown(handler.dispose);
-    final firstPlayer = handler.player as _InterruptionAudioPlayer;
-    await handler.setPlaylist([_item('A')]);
-    await firstPlayer.seek(const Duration(seconds: 42));
-    final positionNotifier = PositionNotifier(handler);
-    addTearDown(positionNotifier.dispose);
+  test(
+    'output route rebuild is used only after an existing player stall',
+    () async {
+      var playerCreations = 0;
+      final handler = LxAudioHandler(
+        playerFactory: () {
+          playerCreations++;
+          return _InterruptionAudioPlayer()
+            ..advanceOnPlay = playerCreations > 1;
+        },
+        outputRouteRecoveryTimeout: const Duration(milliseconds: 5),
+      );
+      addTearDown(handler.dispose);
+      final firstPlayer = handler.player as _InterruptionAudioPlayer;
+      await handler.setPlaylist([_item('A')]);
+      await firstPlayer.seek(const Duration(seconds: 42));
+      final positionNotifier = PositionNotifier(handler);
+      addTearDown(positionNotifier.dispose);
 
-    await handler.handleBecomingNoisy();
-    await handler.play();
-    await handler.debugOutputRouteRecoverySettled;
+      await handler.handleBecomingNoisy();
+      await handler.play();
+      await handler.debugOutputRouteRecoverySettled;
 
-    expect(playerCreations, 2);
-    expect(handler.player, isNot(same(firstPlayer)));
-    expect(handler.player.playing, isTrue);
-    expect(handler.player.position, const Duration(seconds: 43));
-    expect(positionNotifier.state, const Duration(seconds: 43));
-  });
+      expect(playerCreations, 2);
+      expect(handler.player, isNot(same(firstPlayer)));
+      expect(handler.player.playing, isTrue);
+      expect(handler.player.position, const Duration(seconds: 43));
+      expect(positionNotifier.state, const Duration(seconds: 43));
+    },
+  );
 
-  test('device change cannot clear noisy recovery before pause completes',
-      () async {
-    var playerCreations = 0;
-    final handler = LxAudioHandler(
-      playerFactory: () {
-        playerCreations++;
-        return _InterruptionAudioPlayer()
-          ..advanceOnPlay = playerCreations > 1;
-      },
-      outputRouteRecoveryTimeout: const Duration(milliseconds: 5),
-    );
-    addTearDown(handler.dispose);
-    final firstPlayer = handler.player as _InterruptionAudioPlayer;
-    await handler.setPlaylist([_item('A')]);
-    await firstPlayer.seek(const Duration(seconds: 42));
-    final pauseGate = _Gate();
-    firstPlayer.gateNextPause(pauseGate);
+  test(
+    'device change cannot clear noisy recovery before pause completes',
+    () async {
+      var playerCreations = 0;
+      final handler = LxAudioHandler(
+        playerFactory: () {
+          playerCreations++;
+          return _InterruptionAudioPlayer()
+            ..advanceOnPlay = playerCreations > 1;
+        },
+        outputRouteRecoveryTimeout: const Duration(milliseconds: 5),
+      );
+      addTearDown(handler.dispose);
+      final firstPlayer = handler.player as _InterruptionAudioPlayer;
+      await handler.setPlaylist([_item('A')]);
+      await firstPlayer.seek(const Duration(seconds: 42));
+      final pauseGate = _Gate();
+      firstPlayer.gateNextPause(pauseGate);
 
-    final becomingNoisy = handler.handleBecomingNoisy();
-    await pauseGate.started.future;
-    await handler.handleAudioOutputRouteChanged();
-    pauseGate.release.complete();
-    await becomingNoisy;
-    await handler.play();
-    await handler.debugOutputRouteRecoverySettled;
+      final becomingNoisy = handler.handleBecomingNoisy();
+      await pauseGate.started.future;
+      await handler.handleAudioOutputRouteChanged();
+      pauseGate.release.complete();
+      await becomingNoisy;
+      await handler.play();
+      await handler.debugOutputRouteRecoverySettled;
 
-    expect(playerCreations, 2);
-    expect(handler.player, isNot(same(firstPlayer)));
-    expect(handler.player.position, const Duration(seconds: 43));
-  });
+      expect(playerCreations, 2);
+      expect(handler.player, isNot(same(firstPlayer)));
+      expect(handler.player.position, const Duration(seconds: 43));
+    },
+  );
 
   for (final denial in ['non-resumable interruption', 'becoming noisy']) {
-    for (final navigation in <({
-      String name,
-      int initialIndex,
-      String expectedId,
-      Future<void> Function(LxAudioHandler) run,
-    })>[
-      (
-        name: 'next',
-        initialIndex: 0,
-        expectedId: 'B',
-        run: (handler) => handler.skipToNext(),
-      ),
-      (
-        name: 'previous',
-        initialIndex: 1,
-        expectedId: 'A',
-        run: (handler) => handler.skipToPrevious(),
-      ),
-      (
-        name: 'direct selection',
-        initialIndex: 0,
-        expectedId: 'B',
-        run: (handler) => handler.skipToQueueItem(1),
-      ),
-      (
-        name: 'playlist replacement',
-        initialIndex: 0,
-        expectedId: 'C',
-        run: (handler) => handler.setPlaylist([_item('C'), _item('D')]),
-      ),
-    ]) {
+    for (final navigation
+        in <
+          ({
+            String name,
+            int initialIndex,
+            String expectedId,
+            Future<void> Function(LxAudioHandler) run,
+          })
+        >[
+          (
+            name: 'next',
+            initialIndex: 0,
+            expectedId: 'B',
+            run: (handler) => handler.skipToNext(),
+          ),
+          (
+            name: 'previous',
+            initialIndex: 1,
+            expectedId: 'A',
+            run: (handler) => handler.skipToPrevious(),
+          ),
+          (
+            name: 'direct selection',
+            initialIndex: 0,
+            expectedId: 'B',
+            run: (handler) => handler.skipToQueueItem(1),
+          ),
+          (
+            name: 'playlist replacement',
+            initialIndex: 0,
+            expectedId: 'C',
+            run: (handler) => handler.setPlaylist([_item('C'), _item('D')]),
+          ),
+        ]) {
       test('public ${navigation.name} clears $denial play denial', () async {
         final player = _InterruptionAudioPlayer();
         final handler = LxAudioHandler(player: player);
         addTearDown(player.dispose);
-        await handler.setPlaylist(
-          [_item('A'), _item('B')],
-          initialIndex: navigation.initialIndex,
-        );
+        await handler.setPlaylist([
+          _item('A'),
+          _item('B'),
+        ], initialIndex: navigation.initialIndex);
         if (denial == 'non-resumable interruption') {
           await handler.beginAudioInterruption();
           await handler.endAudioInterruption(mayResume: false);
@@ -866,22 +897,24 @@ void main() {
     }
   }
 
-  test('automatic completion after non-resumable denial stays blocked',
-      () async {
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A'), _item('B')]);
-    await handler.beginAudioInterruption();
-    await handler.endAudioInterruption(mayResume: false);
-    final playCalls = player.playCalls;
+  test(
+    'automatic completion after non-resumable denial stays blocked',
+    () async {
+      final player = _InterruptionAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A'), _item('B')]);
+      await handler.beginAudioInterruption();
+      await handler.endAudioInterruption(mayResume: false);
+      final playCalls = player.playCalls;
 
-    handler.debugEmitTrackCompleted();
-    await pumpEventQueue();
+      handler.debugEmitTrackCompleted();
+      await pumpEventQueue();
 
-    expect(player.playCalls, playCalls);
-    expect(player.playing, isFalse);
-  });
+      expect(player.playCalls, playCalls);
+      expect(player.playing, isFalse);
+    },
+  );
 
   for (final denial in ['non-resumable interruption', 'becoming noisy']) {
     test('paused direct selection preserves $denial denial', () async {
@@ -928,25 +961,27 @@ void main() {
     expect(player.playing, isTrue);
   });
 
-  test('noisy pause completion reconciles explicit play during native pause',
-      () async {
-    final noisyPause = _Gate();
-    final player = _InterruptionAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([_item('A')]);
-    await pumpEventQueue();
-    player.gateNextPause(noisyPause);
+  test(
+    'noisy pause completion reconciles explicit play during native pause',
+    () async {
+      final noisyPause = _Gate();
+      final player = _InterruptionAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([_item('A')]);
+      await pumpEventQueue();
+      player.gateNextPause(noisyPause);
 
-    final noisy = handler.handleBecomingNoisy();
-    await noisyPause.started.future;
-    await handler.play();
-    noisyPause.release.complete();
-    await noisy;
-    await pumpEventQueue();
+      final noisy = handler.handleBecomingNoisy();
+      await noisyPause.started.future;
+      await handler.play();
+      noisyPause.release.complete();
+      await noisy;
+      await pumpEventQueue();
 
-    expect(player.playing, isTrue);
-  });
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('play mode is derived from handler repeat and shuffle state', () {
     expect(
@@ -961,21 +996,15 @@ void main() {
       ),
       PlayMode.shuffle,
     );
-    expect(
-      playModeFromPlaybackState(PlaybackState()),
-      PlayMode.sequential,
-    );
+    expect(playModeFromPlaybackState(PlaybackState()), PlayMode.sequential);
   });
 }
 
 MediaItem _item(String id) => MediaItem(
-      id: id,
-      title: id,
-      extras: {
-        'url': 'file:///tmp/$id.mp3',
-        'requestedQuality': '320k',
-      },
-    );
+  id: id,
+  title: id,
+  extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+);
 
 class _InterruptionAudioPlayer extends AudioPlayer {
   final _events = StreamController<PlaybackEvent>.broadcast();
@@ -1142,12 +1171,11 @@ class _InterruptionScrubPlayback implements ScrubPlayback {
     required int sourceGeneration,
     required int userIntentGeneration,
     required bool Function() stillOwnsScrub,
-  }) =>
-      handler.pauseForScrub(
-        sourceGeneration: sourceGeneration,
-        userIntentGeneration: userIntentGeneration,
-        stillOwnsScrub: stillOwnsScrub,
-      );
+  }) => handler.pauseForScrub(
+    sourceGeneration: sourceGeneration,
+    userIntentGeneration: userIntentGeneration,
+    stillOwnsScrub: stillOwnsScrub,
+  );
 
   @override
   Future<Duration?> seekConfirmed(Duration position) =>
@@ -1161,15 +1189,14 @@ class _InterruptionScrubPlayback implements ScrubPlayback {
     required int userIntentGeneration,
     required int interruptionGeneration,
     required int startBlockGeneration,
-  }) =>
-      handler.releaseAfterScrub(
-        owner,
-        resumeAfter: resumeAfter,
-        sourceGeneration: sourceGeneration,
-        userIntentGeneration: userIntentGeneration,
-        interruptionGeneration: interruptionGeneration,
-        startBlockGeneration: startBlockGeneration,
-      );
+  }) => handler.releaseAfterScrub(
+    owner,
+    resumeAfter: resumeAfter,
+    sourceGeneration: sourceGeneration,
+    userIntentGeneration: userIntentGeneration,
+    interruptionGeneration: interruptionGeneration,
+    startBlockGeneration: startBlockGeneration,
+  );
 }
 
 class _InterruptionScrubPosition implements ScrubPosition {

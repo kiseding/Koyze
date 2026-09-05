@@ -20,7 +20,7 @@ void main() {
     expect(bridge, contains('freezeObject(globalThis.lx, []);'));
     expect(bridge, contains('lockProperties(globalThis, []);'));
     expect(bridge, contains("throw new Error('eval is not available');"));
-    expect(bridge, contains("Dynamic code execution is not allowed."));
+    expect(bridge, contains('Dynamic code execution is not allowed.'));
 
     // 官方移动端始终回调 (err, response, body)，不能依赖混淆后不稳定的
     // Function.length 来重排参数。
@@ -34,8 +34,8 @@ void main() {
     expect(bridge, contains('globalThis._md5 = md5Utf8;'));
     expect(bridge, contains('Math.abs(Math.sin(i + 1)) * 4294967296'));
 
-    expect(bridge, contains("eventName !== globalThis.lx.EVENT_NAMES.request"));
-    expect(bridge, contains("eventName !== globalThis.lx.EVENT_NAMES.inited"));
+    expect(bridge, contains('eventName !== globalThis.lx.EVENT_NAMES.request'));
+    expect(bridge, contains('eventName !== globalThis.lx.EVENT_NAMES.inited'));
     expect(bridge, contains('The event is not supported:'));
     expect(bridge, contains("'statusMessage':"));
     expect(bridge, contains("'responseRaw':"));

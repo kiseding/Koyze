@@ -9,36 +9,59 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: build-windows-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  verify-release-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require source commit on main
+        shell: bash
+        run: git merge-base --is-ancestor HEAD origin/main
+
   build-windows:
+    needs: verify-release-source
     runs-on: windows-2022
     timeout-minutes: 45
 
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        # Reviewed upstream major: uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: '3.44.9'
           channel: stable
           cache: true
 
       - name: Resolve Flutter dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
+
+      - name: Verify Dart formatting
+        run: dart format --output=none --set-exit-if-changed lib test
 
       - name: Analyze Dart and Flutter sources
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --fatal-infos --fatal-warnings
 
       - name: Validate cross-platform build configuration
         run: flutter test test/build_configuration_test.dart
+
+      - name: Run deterministic Flutter tests
+        run: flutter test --exclude-tags live
 
       - name: Build Windows release
         run: flutter build windows --release
@@ -61,9 +84,30 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  release-windows:
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: release
+    needs: build-windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows portable ZIP
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: Koyze-Windows-x64
+          path: release-assets
+
+      - name: Generate Windows checksum
+        working-directory: release-assets
+        run: sha256sum -- Koyze-Windows-x64.zip > Koyze-Windows-SHA256SUMS
+
       - name: Upload Windows ZIP to Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ github.ref_name }}
-          files: build/windows/Koyze-Windows-x64.zip
+          files: |
+            release-assets/Koyze-Windows-x64.zip
+            release-assets/Koyze-Windows-SHA256SUMS
+          fail_on_unmatched_files: true

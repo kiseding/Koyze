@@ -22,15 +22,18 @@ void main() {
     ]);
   });
 
-  testWidgets('playlist deep link resolves current repository value',
-      (tester) async {
+  testWidgets('playlist deep link resolves current repository value', (
+    tester,
+  ) async {
     final now = DateTime.utc(2026);
-    final repository = _Repository(PlaylistSnapshot(
-      schemaVersion: 1,
-      playlists: [
-        Playlist(id: 'deep', name: 'Deep', createdAt: now, updatedAt: now)
-      ],
-    ));
+    final repository = _Repository(
+      PlaylistSnapshot(
+        schemaVersion: 1,
+        playlists: [
+          Playlist(id: 'deep', name: 'Deep', createdAt: now, updatedAt: now),
+        ],
+      ),
+    );
     final router = GoRouter(
       initialLocation: '/playlist/detail/deep',
       routes: [
@@ -42,16 +45,18 @@ void main() {
         ),
       ],
     );
-    final container = ProviderContainer(overrides: [
-      playlistRepositoryProvider.overrideWithValue(repository),
-    ]);
+    final container = ProviderContainer(
+      overrides: [playlistRepositoryProvider.overrideWithValue(repository)],
+    );
     addTearDown(container.dispose);
     await container.read(playlistServiceProvider).init();
 
-    await tester.pumpWidget(UncontrolledProviderScope(
-      container: container,
-      child: MaterialApp.router(routerConfig: router),
-    ));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Deep'), findsOneWidget);

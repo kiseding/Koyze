@@ -1,12 +1,10 @@
 import 'dart:async';
 
-typedef RegisterDisposal = void Function() Function(
-  Future<void> Function() dispose,
-);
+typedef RegisterDisposal =
+    void Function() Function(Future<void> Function() dispose);
 
 final class AudioRuntime {
-  AudioRuntime({required Future<void> Function() disposeHandler})
-      : _disposeHandler = disposeHandler;
+  AudioRuntime({required this._disposeHandler});
 
   final Future<void> Function() _disposeHandler;
   Future<void> Function()? _disposeCache;
@@ -54,13 +52,13 @@ final class AudioRuntime {
   void _track(Future<void> Function() callback) {
     final tracked = _TrackedCallback();
     _callbacks.add(tracked);
-    tracked.completion = Future<void>.sync(callback).catchError(
-      (Object error, StackTrace stackTrace) {
-        tracked.error = error;
-        tracked.stackTrace = stackTrace;
-        _callbackFailures.add(_CallbackFailure(error, stackTrace));
-      },
-    ).whenComplete(() => _callbacks.remove(tracked));
+    tracked.completion = Future<void>.sync(callback)
+        .catchError((Object error, StackTrace stackTrace) {
+          tracked.error = error;
+          tracked.stackTrace = stackTrace;
+          _callbackFailures.add(_CallbackFailure(error, stackTrace));
+        })
+        .whenComplete(() => _callbacks.remove(tracked));
   }
 
   Future<void> dispose() => _disposeFuture ??= _dispose();

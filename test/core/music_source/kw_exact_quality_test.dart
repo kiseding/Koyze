@@ -1,5 +1,6 @@
 @Tags(['live'])
 library;
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -24,17 +25,23 @@ void main() {
   test('Kw exact response quality is corrected from returned URL', () {
     expect(
       KwSource.actualQualityForExactUrl(
-          'flac', 'https://media.example/song.flac'),
+        'flac',
+        'https://media.example/song.flac',
+      ),
       'flac',
     );
     expect(
       KwSource.actualQualityForExactUrl(
-          'flac', 'https://media.example/song.mp3'),
+        'flac',
+        'https://media.example/song.mp3',
+      ),
       '128k',
     );
     expect(
       KwSource.actualQualityForExactUrl(
-          'mp3', 'https://media.example/song.mp3'),
+        'mp3',
+        'https://media.example/song.mp3',
+      ),
       '128k',
     );
   });
@@ -45,33 +52,37 @@ void main() {
     expect(KwSource.legacyFormatForQuality('flac'), 'flac');
   });
 
-  test('Kw unsupported exact quality performs no token or adapter work',
-      () async {
-    var tokenCalls = 0;
-    var adapterCalls = 0;
-    final source = KwSource(
-      tokenLoader: () async {
-        tokenCalls++;
-        return null;
-      },
-      serviceDioFactory: (headers) {
-        adapterCalls++;
-        return Dio();
-      },
-    );
-    final music = MusicItem(
-      id: 'song',
-      name: 'Song',
-      singer: 'Singer',
-      source: 'kw',
-      platform: 'kw',
-    );
+  test(
+    'Kw unsupported exact quality performs no token or adapter work',
+    () async {
+      var tokenCalls = 0;
+      var adapterCalls = 0;
+      final source = KwSource(
+        tokenLoader: () async {
+          tokenCalls++;
+          return null;
+        },
+        serviceDioFactory: (headers) {
+          adapterCalls++;
+          return Dio();
+        },
+      );
+      final music = MusicItem(
+        id: 'song',
+        name: 'Song',
+        singer: 'Singer',
+        source: 'kw',
+        platform: 'kw',
+      );
 
-    final result =
-        await source.getMusicUrlExact(music, quality: 'future-quality');
+      final result = await source.getMusicUrlExact(
+        music,
+        quality: 'future-quality',
+      );
 
-    expect(result, isNull);
-    expect(tokenCalls, 0);
-    expect(adapterCalls, 0);
-  });
+      expect(result, isNull);
+      expect(tokenCalls, 0);
+      expect(adapterCalls, 0);
+    },
+  );
 }

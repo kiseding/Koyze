@@ -20,7 +20,7 @@ Future<T?> showKoyzeSheet<T>({
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    sheetAnimationStyle: AnimationStyle(
+    sheetAnimationStyle: const AnimationStyle(
       duration: MotionDuration.normal,
       reverseDuration: MotionDuration.micro,
       curve: MotionCurve.easeOut,

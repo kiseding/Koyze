@@ -1,25 +1,28 @@
 @Tags(['live'])
 library;
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:koyze/core/music_source/platform/music_platform.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 
 void main() {
-  test('platform must opt in before legacy URL lookup is treated as exact',
-      () async {
-    final platform = _LegacyPlatform();
-    final music = MusicItem(
-      id: 'song',
-      name: 'Song',
-      singer: 'Singer',
-      source: 'legacy',
-      platform: 'legacy',
-    );
+  test(
+    'platform must opt in before legacy URL lookup is treated as exact',
+    () async {
+      final platform = _LegacyPlatform();
+      final music = MusicItem(
+        id: 'song',
+        name: 'Song',
+        singer: 'Singer',
+        source: 'legacy',
+        platform: 'legacy',
+      );
 
-    expect(await platform.getMusicUrlExact(music, quality: 'flac'), isNull);
-    expect(platform.legacyCalls, 0);
-  });
+      expect(await platform.getMusicUrlExact(music, quality: 'flac'), isNull);
+      expect(platform.legacyCalls, 0);
+    },
+  );
 }
 
 class _LegacyPlatform extends MusicPlatform {
@@ -32,8 +35,10 @@ class _LegacyPlatform extends MusicPlatform {
   String get name => 'Legacy';
 
   @override
-  Future<String?> getMusicUrl(MusicItem music,
-      {String quality = '128k'}) async {
+  Future<String?> getMusicUrl(
+    MusicItem music, {
+    String quality = '128k',
+  }) async {
     legacyCalls++;
     return 'https://media.example/song.mp3';
   }
@@ -46,7 +51,9 @@ class _LegacyPlatform extends MusicPlatform {
       throw UnimplementedError();
 
   @override
-  Future<List<MusicItem>> search(String keyword,
-          {int page = 1, int limit = 20}) async =>
-      [];
+  Future<List<MusicItem>> search(
+    String keyword, {
+    int page = 1,
+    int limit = 20,
+  }) async => [];
 }

@@ -11,26 +11,28 @@ import 'package:koyze/features/player/presentation/player_provider.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('loading seek unfreezes to current engine position without resuming',
-      () async {
-    final playback = _FakeScrubPlayback(
-      playing: true,
-      position: const Duration(seconds: 17),
-      seekResult: null,
-    );
-    final position = _FakeScrubPosition();
-    final coordinator = ScrubCoordinator(playback, position);
+  test(
+    'loading seek unfreezes to current engine position without resuming',
+    () async {
+      final playback = _FakeScrubPlayback(
+        playing: true,
+        position: const Duration(seconds: 17),
+        seekResult: null,
+      );
+      final position = _FakeScrubPosition();
+      final coordinator = ScrubCoordinator(playback, position);
 
-    final generation = await coordinator.begin();
-    await coordinator.finish(
-      generation,
-      const Duration(minutes: 2),
-      resumeAfter: true,
-    );
+      final generation = await coordinator.begin();
+      await coordinator.finish(
+        generation,
+        const Duration(minutes: 2),
+        resumeAfter: true,
+      );
 
-    expect(position.unfreezes, [const Duration(seconds: 17)]);
-    expect(playback.resumeCalls, 0);
-  });
+      expect(position.unfreezes, [const Duration(seconds: 17)]);
+      expect(playback.resumeCalls, 0);
+    },
+  );
 
   test('idle seek unfreezes paused scrub to current engine position', () async {
     final playback = _FakeScrubPlayback(
@@ -125,169 +127,49 @@ void main() {
     expect(position.unfreezes, [const Duration(seconds: 55)]);
   });
 
-  test('older finish does not wait for newer scrub pause transaction',
-      () async {
-    final secondPause = _Gate();
-    final playback = _FakeScrubPlayback(
-      playing: false,
-      position: const Duration(seconds: 12),
-      seekResult: const Duration(seconds: 40),
-    );
-    final position = _FakeScrubPosition();
-    final coordinator = ScrubCoordinator(playback, position);
-
-    final firstGeneration = await coordinator.begin();
-    playback
-      ..playing = true
-      ..pauseGate = secondPause;
-    final secondBegin = coordinator.begin();
-    await secondPause.started.future;
-
-    final firstFinish = coordinator.finish(
-      firstGeneration,
-      const Duration(seconds: 40),
-      resumeAfter: false,
-    );
-    var firstFinished = false;
-    firstFinish.whenComplete(() => firstFinished = true);
-    await pumpEventQueue();
-
-    expect(firstFinished, isTrue);
-    expect(position.unfreezes, isEmpty);
-    secondPause.release.complete();
-    await secondBegin;
-  });
-
-  test('source change during seek unfreezes actual new-source position',
-      () async {
-    final seekGate = _Gate();
-    final playback = _FakeScrubPlayback(
-      playing: true,
-      position: const Duration(seconds: 10),
-      seekResult: null,
-      seekGate: seekGate,
-    );
-    final position = _FakeScrubPosition();
-    final coordinator = ScrubCoordinator(playback, position);
-
-    final generation = await coordinator.begin();
-    final finish = coordinator.finish(
-      generation,
-      const Duration(seconds: 40),
-      resumeAfter: true,
-    );
-    await seekGate.started.future;
-    playback.sourceGeneration++;
-    playback.position = const Duration(seconds: 3);
-    seekGate.release.complete();
-    await finish;
-
-    expect(position.unfreezes, [const Duration(seconds: 3)]);
-    expect(playback.resumeCalls, 0);
-  });
-
-  test('source change between begin and finish prevents seek and resume',
-      () async {
-    final playback = _FakeScrubPlayback(
-      playing: true,
-      position: const Duration(seconds: 10),
-      seekResult: const Duration(seconds: 40),
-    );
-    final position = _FakeScrubPosition();
-    final coordinator = ScrubCoordinator(playback, position);
-
-    final generation = await coordinator.begin();
-    playback.sourceGeneration++;
-    playback.position = const Duration(seconds: 3);
-    await coordinator.finish(
-      generation,
-      const Duration(seconds: 40),
-      resumeAfter: true,
-    );
-
-    expect(playback.seekCalls, 0);
-    expect(playback.resumeCalls, 0);
-    expect(position.unfreezes, [const Duration(seconds: 3)]);
-  });
-
-  for (final action in <({String name, void Function(_FakeScrubPlayback) run})>[
-    (name: 'pause', run: (playback) => playback.userPause()),
-    (name: 'play', run: (playback) => playback.userPlay()),
-  ]) {
-    test('explicit ${action.name} between begin and finish prevents seek',
-        () async {
+  test(
+    'older finish does not wait for newer scrub pause transaction',
+    () async {
+      final secondPause = _Gate();
       final playback = _FakeScrubPlayback(
-        playing: true,
-        position: const Duration(seconds: 10),
+        playing: false,
+        position: const Duration(seconds: 12),
         seekResult: const Duration(seconds: 40),
       );
       final position = _FakeScrubPosition();
       final coordinator = ScrubCoordinator(playback, position);
 
-      final generation = await coordinator.begin();
-      action.run(playback);
-      await coordinator.finish(
-        generation,
+      final firstGeneration = await coordinator.begin();
+      playback
+        ..playing = true
+        ..pauseGate = secondPause;
+      final secondBegin = coordinator.begin();
+      await secondPause.started.future;
+
+      final firstFinish = coordinator.finish(
+        firstGeneration,
         const Duration(seconds: 40),
-        resumeAfter: true,
+        resumeAfter: false,
       );
+      var firstFinished = false;
+      unawaited(firstFinish.whenComplete(() => firstFinished = true));
+      await pumpEventQueue();
 
-      expect(playback.seekCalls, 0);
-      expect(playback.resumeCalls, 0);
-      expect(position.unfreezes, [const Duration(seconds: 10)]);
-      expect(playback.playing, action.name == 'play');
-    });
-  }
+      expect(firstFinished, isTrue);
+      expect(position.unfreezes, isEmpty);
+      secondPause.release.complete();
+      await secondBegin;
+    },
+  );
 
-  for (final change in <({String name, void Function(_FakeScrubPlayback) run})>[
-    (
-      name: 'source',
-      run: (playback) {
-        playback.sourceGeneration++;
-        playback.position = const Duration(seconds: 3);
-      },
-    ),
-    (name: 'intent', run: (playback) => playback.userPause()),
-  ]) {
-    test('${change.name} change while begin pause is gated prevents seek',
-        () async {
-      final pauseGate = _Gate();
-      final playback = _FakeScrubPlayback(
-        playing: true,
-        position: const Duration(seconds: 10),
-        seekResult: const Duration(seconds: 40),
-      )..pauseGate = pauseGate;
-      final position = _FakeScrubPosition();
-      final coordinator = ScrubCoordinator(playback, position);
-
-      final begin = coordinator.begin();
-      await pauseGate.started.future;
-      change.run(playback);
-      pauseGate.release.complete();
-      final generation = await begin;
-      await coordinator.finish(
-        generation,
-        const Duration(seconds: 40),
-        resumeAfter: true,
-      );
-
-      expect(playback.seekCalls, 0);
-      expect(playback.resumeCalls, 0);
-      expect(position.unfreezes, [playback.position]);
-    });
-  }
-
-  for (final action in <({String name, void Function(_FakeScrubPlayback) run})>[
-    (name: 'pause', run: (playback) => playback.userPause()),
-    (name: 'play', run: (playback) => playback.userPlay()),
-  ]) {
-    test('newer user ${action.name} during seek suppresses scrub resume',
-        () async {
+  test(
+    'source change during seek unfreezes actual new-source position',
+    () async {
       final seekGate = _Gate();
       final playback = _FakeScrubPlayback(
         playing: true,
         position: const Duration(seconds: 10),
-        seekResult: const Duration(seconds: 40),
+        seekResult: null,
         seekGate: seekGate,
       );
       final position = _FakeScrubPosition();
@@ -300,59 +182,195 @@ void main() {
         resumeAfter: true,
       );
       await seekGate.started.future;
-      action.run(playback);
+      playback.sourceGeneration++;
+      playback.position = const Duration(seconds: 3);
       seekGate.release.complete();
       await finish;
 
-      expect(position.unfreezes, [const Duration(seconds: 40)]);
+      expect(position.unfreezes, [const Duration(seconds: 3)]);
       expect(playback.resumeCalls, 0);
-      expect(playback.playing, action.name == 'play');
-    });
+    },
+  );
+
+  test(
+    'source change between begin and finish prevents seek and resume',
+    () async {
+      final playback = _FakeScrubPlayback(
+        playing: true,
+        position: const Duration(seconds: 10),
+        seekResult: const Duration(seconds: 40),
+      );
+      final position = _FakeScrubPosition();
+      final coordinator = ScrubCoordinator(playback, position);
+
+      final generation = await coordinator.begin();
+      playback.sourceGeneration++;
+      playback.position = const Duration(seconds: 3);
+      await coordinator.finish(
+        generation,
+        const Duration(seconds: 40),
+        resumeAfter: true,
+      );
+
+      expect(playback.seekCalls, 0);
+      expect(playback.resumeCalls, 0);
+      expect(position.unfreezes, [const Duration(seconds: 3)]);
+    },
+  );
+
+  for (final action in <({String name, void Function(_FakeScrubPlayback) run})>[
+    (name: 'pause', run: (playback) => playback.userPause()),
+    (name: 'play', run: (playback) => playback.userPlay()),
+  ]) {
+    test(
+      'explicit ${action.name} between begin and finish prevents seek',
+      () async {
+        final playback = _FakeScrubPlayback(
+          playing: true,
+          position: const Duration(seconds: 10),
+          seekResult: const Duration(seconds: 40),
+        );
+        final position = _FakeScrubPosition();
+        final coordinator = ScrubCoordinator(playback, position);
+
+        final generation = await coordinator.begin();
+        action.run(playback);
+        await coordinator.finish(
+          generation,
+          const Duration(seconds: 40),
+          resumeAfter: true,
+        );
+
+        expect(playback.seekCalls, 0);
+        expect(playback.resumeCalls, 0);
+        expect(position.unfreezes, [const Duration(seconds: 10)]);
+        expect(playback.playing, action.name == 'play');
+      },
+    );
   }
 
-  test('paused successful scrub publishes confirmation without resuming',
+  for (final change in <({String name, void Function(_FakeScrubPlayback) run})>[
+    (
+      name: 'source',
+      run: (playback) {
+        playback.sourceGeneration++;
+        playback.position = const Duration(seconds: 3);
+      },
+    ),
+    (name: 'intent', run: (playback) => playback.userPause()),
+  ]) {
+    test(
+      '${change.name} change while begin pause is gated prevents seek',
       () async {
-    final playback = _FakeScrubPlayback(
-      playing: false,
-      position: const Duration(seconds: 8),
-      seekResult: const Duration(seconds: 44),
+        final pauseGate = _Gate();
+        final playback = _FakeScrubPlayback(
+          playing: true,
+          position: const Duration(seconds: 10),
+          seekResult: const Duration(seconds: 40),
+        )..pauseGate = pauseGate;
+        final position = _FakeScrubPosition();
+        final coordinator = ScrubCoordinator(playback, position);
+
+        final begin = coordinator.begin();
+        await pauseGate.started.future;
+        change.run(playback);
+        pauseGate.release.complete();
+        final generation = await begin;
+        await coordinator.finish(
+          generation,
+          const Duration(seconds: 40),
+          resumeAfter: true,
+        );
+
+        expect(playback.seekCalls, 0);
+        expect(playback.resumeCalls, 0);
+        expect(position.unfreezes, [playback.position]);
+      },
     );
-    final position = _FakeScrubPosition();
-    final coordinator = ScrubCoordinator(playback, position);
+  }
 
-    final generation = await coordinator.begin();
-    await coordinator.finish(
-      generation,
-      const Duration(seconds: 45),
-      resumeAfter: false,
-    );
-
-    expect(position.unfreezes, [const Duration(seconds: 44)]);
-    expect(playback.pauseCalls, 0);
-    expect(playback.resumeCalls, 0);
-  });
-
-  test('confirmed seek resumes when source and user ownership are unchanged',
+  for (final action in <({String name, void Function(_FakeScrubPlayback) run})>[
+    (name: 'pause', run: (playback) => playback.userPause()),
+    (name: 'play', run: (playback) => playback.userPlay()),
+  ]) {
+    test(
+      'newer user ${action.name} during seek suppresses scrub resume',
       () async {
-    final playback = _FakeScrubPlayback(
-      playing: true,
-      position: const Duration(seconds: 8),
-      seekResult: const Duration(seconds: 44),
-    );
-    final position = _FakeScrubPosition();
-    final coordinator = ScrubCoordinator(playback, position);
+        final seekGate = _Gate();
+        final playback = _FakeScrubPlayback(
+          playing: true,
+          position: const Duration(seconds: 10),
+          seekResult: const Duration(seconds: 40),
+          seekGate: seekGate,
+        );
+        final position = _FakeScrubPosition();
+        final coordinator = ScrubCoordinator(playback, position);
 
-    final generation = await coordinator.begin();
-    await coordinator.finish(
-      generation,
-      const Duration(seconds: 45),
-      resumeAfter: true,
-    );
+        final generation = await coordinator.begin();
+        final finish = coordinator.finish(
+          generation,
+          const Duration(seconds: 40),
+          resumeAfter: true,
+        );
+        await seekGate.started.future;
+        action.run(playback);
+        seekGate.release.complete();
+        await finish;
 
-    expect(position.unfreezes, [const Duration(seconds: 44)]);
-    expect(playback.pauseCalls, 1);
-    expect(playback.resumeCalls, 1);
-  });
+        expect(position.unfreezes, [const Duration(seconds: 40)]);
+        expect(playback.resumeCalls, 0);
+        expect(playback.playing, action.name == 'play');
+      },
+    );
+  }
+
+  test(
+    'paused successful scrub publishes confirmation without resuming',
+    () async {
+      final playback = _FakeScrubPlayback(
+        playing: false,
+        position: const Duration(seconds: 8),
+        seekResult: const Duration(seconds: 44),
+      );
+      final position = _FakeScrubPosition();
+      final coordinator = ScrubCoordinator(playback, position);
+
+      final generation = await coordinator.begin();
+      await coordinator.finish(
+        generation,
+        const Duration(seconds: 45),
+        resumeAfter: false,
+      );
+
+      expect(position.unfreezes, [const Duration(seconds: 44)]);
+      expect(playback.pauseCalls, 0);
+      expect(playback.resumeCalls, 0);
+    },
+  );
+
+  test(
+    'confirmed seek resumes when source and user ownership are unchanged',
+    () async {
+      final playback = _FakeScrubPlayback(
+        playing: true,
+        position: const Duration(seconds: 8),
+        seekResult: const Duration(seconds: 44),
+      );
+      final position = _FakeScrubPosition();
+      final coordinator = ScrubCoordinator(playback, position);
+
+      final generation = await coordinator.begin();
+      await coordinator.finish(
+        generation,
+        const Duration(seconds: 45),
+        resumeAfter: true,
+      );
+
+      expect(position.unfreezes, [const Duration(seconds: 44)]);
+      expect(playback.pauseCalls, 1);
+      expect(playback.resumeCalls, 1);
+    },
+  );
 
   test('cancel releases preserving pause once without seeking', () async {
     final playback = _FakeScrubPlayback(
@@ -373,32 +391,34 @@ void main() {
     expect(position.unfreezes, [const Duration(seconds: 18)]);
   });
 
-  test('cancel invalidates generation before owner release completes',
-      () async {
-    final releaseGate = _Gate();
-    final playback = _FakeScrubPlayback(
-      playing: true,
-      position: const Duration(seconds: 18),
-      seekResult: const Duration(seconds: 50),
-    )..releaseGate = releaseGate;
-    final position = _FakeScrubPosition();
-    final coordinator = ScrubCoordinator(playback, position);
-    final generation = await coordinator.begin();
+  test(
+    'cancel invalidates generation before owner release completes',
+    () async {
+      final releaseGate = _Gate();
+      final playback = _FakeScrubPlayback(
+        playing: true,
+        position: const Duration(seconds: 18),
+        seekResult: const Duration(seconds: 50),
+      )..releaseGate = releaseGate;
+      final position = _FakeScrubPosition();
+      final coordinator = ScrubCoordinator(playback, position);
+      final generation = await coordinator.begin();
 
-    final cancellation = coordinator.cancel(generation);
-    await releaseGate.started.future;
-    final finish = coordinator.finish(
-      generation,
-      const Duration(seconds: 50),
-      resumeAfter: true,
-    );
-    await pumpEventQueue();
+      final cancellation = coordinator.cancel(generation);
+      await releaseGate.started.future;
+      final finish = coordinator.finish(
+        generation,
+        const Duration(seconds: 50),
+        resumeAfter: true,
+      );
+      await pumpEventQueue();
 
-    expect(playback.seekCalls, 0);
-    releaseGate.release.complete();
-    await Future.wait([cancellation, finish]);
-    expect(playback.releaseCalls, 1);
-  });
+      expect(playback.seekCalls, 0);
+      releaseGate.release.complete();
+      await Future.wait([cancellation, finish]);
+      expect(playback.releaseCalls, 1);
+    },
+  );
 
   test('cancelAll releases a pending pause after disposal', () async {
     final pauseGate = _Gate();
@@ -470,81 +490,79 @@ void main() {
     expect(reportCalls, 1);
   });
 
-  test('newer scrub resume survives older preserving pause completion',
-      () async {
-    final oldPauseGate = _Gate();
-    final player = _CoordinatorAudioPlayer(oldPauseGate);
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([
-      const MediaItem(
-        id: 'A',
-        title: 'A',
-        extras: {
-          'url': 'file:///tmp/A.mp3',
-          'requestedQuality': '320k',
-        },
-      )
-    ]);
-    await pumpEventQueue();
-    final position = _FakeScrubPosition();
-    final coordinator = ScrubCoordinator(
-      _RealHandlerScrubPlayback(handler),
-      position,
-    );
+  test(
+    'newer scrub resume survives older preserving pause completion',
+    () async {
+      final oldPauseGate = _Gate();
+      final player = _CoordinatorAudioPlayer(oldPauseGate);
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([
+        const MediaItem(
+          id: 'A',
+          title: 'A',
+          extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+        ),
+      ]);
+      await pumpEventQueue();
+      final position = _FakeScrubPosition();
+      final coordinator = ScrubCoordinator(
+        _RealHandlerScrubPlayback(handler),
+        position,
+      );
 
-    final oldBegin = coordinator.begin();
-    await oldPauseGate.started.future;
-    final newerBegin = coordinator.begin();
-    oldPauseGate.release.complete();
-    final newerGeneration = await newerBegin;
-    await coordinator.finish(
-      newerGeneration,
-      const Duration(seconds: 30),
-      resumeAfter: true,
-    );
-    await oldBegin;
+      final oldBegin = coordinator.begin();
+      await oldPauseGate.started.future;
+      final newerBegin = coordinator.begin();
+      oldPauseGate.release.complete();
+      final newerGeneration = await newerBegin;
+      await coordinator.finish(
+        newerGeneration,
+        const Duration(seconds: 30),
+        resumeAfter: true,
+      );
+      await oldBegin;
 
-    expect(player.playing, isTrue);
-  });
+      expect(player.playing, isTrue);
+    },
+  );
 
-  test('second begin releases fully acquired first owner exactly once',
-      () async {
-    final player = _CoordinatorAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    await handler.setPlaylist([
-      const MediaItem(
-        id: 'A',
-        title: 'A',
-        extras: {
-          'url': 'file:///tmp/A.mp3',
-          'requestedQuality': '320k',
-        },
-      )
-    ]);
-    await pumpEventQueue();
-    final coordinator = ScrubCoordinator(
-      _RealHandlerScrubPlayback(handler),
-      _FakeScrubPosition(),
-    );
+  test(
+    'second begin releases fully acquired first owner exactly once',
+    () async {
+      final player = _CoordinatorAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      await handler.setPlaylist([
+        const MediaItem(
+          id: 'A',
+          title: 'A',
+          extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+        ),
+      ]);
+      await pumpEventQueue();
+      final coordinator = ScrubCoordinator(
+        _RealHandlerScrubPlayback(handler),
+        _FakeScrubPosition(),
+      );
 
-    final firstGeneration = await coordinator.begin();
-    final secondGeneration = await coordinator.begin();
-    await coordinator.finish(
-      firstGeneration,
-      const Duration(seconds: 10),
-      resumeAfter: true,
-    );
-    await coordinator.finish(
-      secondGeneration,
-      const Duration(seconds: 20),
-      resumeAfter: false,
-    );
-    await handler.play();
+      final firstGeneration = await coordinator.begin();
+      final secondGeneration = await coordinator.begin();
+      await coordinator.finish(
+        firstGeneration,
+        const Duration(seconds: 10),
+        resumeAfter: true,
+      );
+      await coordinator.finish(
+        secondGeneration,
+        const Duration(seconds: 20),
+        resumeAfter: false,
+      );
+      await handler.play();
 
-    expect(player.playing, isTrue);
-  });
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('multiple rapid begins release superseded pending owners', () async {
     final player = _CoordinatorAudioPlayer();
@@ -554,11 +572,8 @@ void main() {
       const MediaItem(
         id: 'A',
         title: 'A',
-        extras: {
-          'url': 'file:///tmp/A.mp3',
-          'requestedQuality': '320k',
-        },
-      )
+        extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+      ),
     ]);
     await pumpEventQueue();
     final coordinator = ScrubCoordinator(
@@ -575,10 +590,7 @@ void main() {
     await secondPauseGate.started.future;
     final thirdBegin = coordinator.begin();
     secondPauseGate.release.complete();
-    final laterGenerations = await Future.wait([
-      secondBegin,
-      thirdBegin,
-    ]);
+    final laterGenerations = await Future.wait([secondBegin, thirdBegin]);
     await coordinator.finish(
       firstGeneration,
       const Duration(seconds: 10),
@@ -741,12 +753,11 @@ class _RealHandlerScrubPlayback implements ScrubPlayback {
     required int sourceGeneration,
     required int userIntentGeneration,
     required bool Function() stillOwnsScrub,
-  }) =>
-      handler.pauseForScrub(
-        sourceGeneration: sourceGeneration,
-        userIntentGeneration: userIntentGeneration,
-        stillOwnsScrub: stillOwnsScrub,
-      );
+  }) => handler.pauseForScrub(
+    sourceGeneration: sourceGeneration,
+    userIntentGeneration: userIntentGeneration,
+    stillOwnsScrub: stillOwnsScrub,
+  );
 
   @override
   Future<Duration?> seekConfirmed(Duration position) =>
@@ -760,15 +771,14 @@ class _RealHandlerScrubPlayback implements ScrubPlayback {
     required int userIntentGeneration,
     required int interruptionGeneration,
     required int startBlockGeneration,
-  }) =>
-      handler.releaseAfterScrub(
-        owner,
-        resumeAfter: resumeAfter,
-        sourceGeneration: sourceGeneration,
-        userIntentGeneration: userIntentGeneration,
-        interruptionGeneration: interruptionGeneration,
-        startBlockGeneration: startBlockGeneration,
-      );
+  }) => handler.releaseAfterScrub(
+    owner,
+    resumeAfter: resumeAfter,
+    sourceGeneration: sourceGeneration,
+    userIntentGeneration: userIntentGeneration,
+    interruptionGeneration: interruptionGeneration,
+    startBlockGeneration: startBlockGeneration,
+  );
 }
 
 class _CoordinatorAudioPlayer extends AudioPlayer {

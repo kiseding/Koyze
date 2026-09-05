@@ -72,57 +72,59 @@ void main() {
     expect(storage.getJsonList('not_a_list'), isEmpty);
   });
 
-  test('restorePreserving attempts every key and rethrows original error',
-      () async {
-    SharedPreferences.setMockInitialValues({'first': 1, 'second': 2});
-    final prefs = await SharedPreferences.getInstance();
-    var restoring = false;
-    final attempted = <String>[];
-    final storage = StorageService.forTesting(
-      prefs,
-      writeOverride: (operation, key, value) async {
-        if (restoring) {
-          attempted.add(key);
-          if (key == 'first') return false;
-        }
-        return switch (value) {
-          int intValue => prefs.setInt(key, intValue),
-          _ => prefs.remove(key),
-        };
-      },
-    );
-    final before = storage.snapshot({'first', 'second'});
-    await storage.setInt('first', 10);
-    await storage.setInt('second', 20);
-    final original = StateError('original write failed');
-    late final StackTrace originalStack;
-    try {
-      throw original;
-    } catch (_, stackTrace) {
-      originalStack = stackTrace;
-    }
-    restoring = true;
-    final rollbackErrors = <Object>[];
-
-    Object? caught;
-    StackTrace? caughtStack;
-    try {
-      await storage.restorePreserving(
-        before,
-        original,
-        originalStack,
-        onRollbackError: (error, _) => rollbackErrors.add(error),
+  test(
+    'restorePreserving attempts every key and rethrows original error',
+    () async {
+      SharedPreferences.setMockInitialValues({'first': 1, 'second': 2});
+      final prefs = await SharedPreferences.getInstance();
+      var restoring = false;
+      final attempted = <String>[];
+      final storage = StorageService.forTesting(
+        prefs,
+        writeOverride: (operation, key, value) async {
+          if (restoring) {
+            attempted.add(key);
+            if (key == 'first') return false;
+          }
+          return switch (value) {
+            int intValue => prefs.setInt(key, intValue),
+            _ => prefs.remove(key),
+          };
+        },
       );
-    } catch (error, stackTrace) {
-      caught = error;
-      caughtStack = stackTrace;
-    }
+      final before = storage.snapshot({'first', 'second'});
+      await storage.setInt('first', 10);
+      await storage.setInt('second', 20);
+      final original = StateError('original write failed');
+      late final StackTrace originalStack;
+      try {
+        throw original;
+      } catch (_, stackTrace) {
+        originalStack = stackTrace;
+      }
+      restoring = true;
+      final rollbackErrors = <Object>[];
 
-    expect(caught, same(original));
-    expect(caughtStack.toString(), originalStack.toString());
-    expect(attempted, ['first', 'second']);
-    expect(rollbackErrors, [isA<StorageWriteException>()]);
-    expect(storage.getInt('first'), 10);
-    expect(storage.getInt('second'), 2);
-  });
+      Object? caught;
+      StackTrace? caughtStack;
+      try {
+        await storage.restorePreserving(
+          before,
+          original,
+          originalStack,
+          onRollbackError: (error, _) => rollbackErrors.add(error),
+        );
+      } catch (error, stackTrace) {
+        caught = error;
+        caughtStack = stackTrace;
+      }
+
+      expect(caught, same(original));
+      expect(caughtStack.toString(), originalStack.toString());
+      expect(attempted, ['first', 'second']);
+      expect(rollbackErrors, [isA<StorageWriteException>()]);
+      expect(storage.getInt('first'), 10);
+      expect(storage.getInt('second'), 2);
+    },
+  );
 }

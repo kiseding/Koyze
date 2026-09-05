@@ -38,7 +38,9 @@ Uri playableUri(String url) {
   if (url.startsWith('file://')) return Uri.parse(url);
   if (url.startsWith('/')) return Uri.file(url);
   // Windows 裸盘符路径（C:\...）不能当 URL scheme 解析
-  if (RegExp(r'^[A-Za-z]:[\\/]').hasMatch(url)) return Uri.file(url);
+  if (RegExp(r'^[A-Za-z]:[\\/]').hasMatch(url)) {
+    return Uri.file(url, windows: true);
+  }
   return Uri.parse(url);
 }
 
@@ -337,6 +339,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final PrepareForPlayback? _prepareForPlayback;
   final Duration _outputRouteRecoveryTimeout;
   final Duration _resolveTimeout;
+  final bool _streamLocalFiles;
   final AudioInterruptionPolicy _interruptionPolicy = AudioInterruptionPolicy();
   // just_audio_windows 不支持 SilenceAudioSource；Windows 切歌跳过静音过渡
   final bool _useSilenceKeepalive;
@@ -759,7 +762,24 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.scheme != 'file') return false;
     try {
-      return uri.toFilePath() == lease.path;
+      // Compare canonical URI paths instead of host-OS file strings. A POSIX
+      // fixture such as /tmp/a.mp3 becomes \\tmp\\a.mp3 when toFilePath() is
+      // evaluated on Windows even though both values identify the same URI.
+      final windowsPath = RegExp(
+        r'^(?:[A-Za-z]:[\\/]|\\\\)',
+      ).hasMatch(lease.path);
+      final leaseUri = Uri.file(
+        lease.path,
+        windows: windowsPath,
+      ).normalizePath();
+      final candidate = uri.normalizePath();
+      final sameAuthority = windowsPath
+          ? candidate.host.toLowerCase() == leaseUri.host.toLowerCase()
+          : candidate.host == leaseUri.host;
+      if (!sameAuthority) return false;
+      return windowsPath
+          ? candidate.path.toLowerCase() == leaseUri.path.toLowerCase()
+          : candidate.path == leaseUri.path;
     } on FormatException {
       return false;
     }
@@ -806,18 +826,24 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   LxAudioHandler({
     AudioPlayer? player,
     AudioPlayer Function()? playerFactory,
-    PrepareForPlayback? prepareForPlayback,
-    Duration outputRouteRecoveryTimeout = const Duration(milliseconds: 1200),
-    Duration resolveTimeout = _defaultResolveTimeout,
+    this._prepareForPlayback,
+    this._outputRouteRecoveryTimeout = const Duration(milliseconds: 1200),
+    this._resolveTimeout = _defaultResolveTimeout,
     bool? useSilenceKeepalive,
+    bool? streamLocalFiles,
   }) : assert(player == null || playerFactory == null),
        _replacementPlayerFactory = player == null
            ? (playerFactory ?? _createDefaultPlayer)
            : null,
-       _prepareForPlayback = prepareForPlayback,
-       _useSilenceKeepalive = useSilenceKeepalive ?? !Platform.isWindows,
-       _outputRouteRecoveryTimeout = outputRouteRecoveryTimeout,
-       _resolveTimeout = resolveTimeout {
+       _useSilenceKeepalive =
+           useSilenceKeepalive ??
+           (player != null || playerFactory != null || !Platform.isWindows),
+       // The proxy is a capability of our default Windows player. Injected
+       // players (including deterministic fakes) opt in explicitly instead of
+       // inheriting behavior from the host running the test.
+       _streamLocalFiles =
+           streamLocalFiles ??
+           (player == null && playerFactory == null && Platform.isWindows) {
     _player = player ?? (playerFactory ?? _createDefaultPlayer)();
     _playerSubject = BehaviorSubject<AudioPlayer>.seeded(_player);
     _commands = _createCommandCoordinator(_player);
@@ -3101,7 +3127,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             url,
             tag: updatedItem,
             headers: requestHeaders,
-            streamLocalFiles: Platform.isWindows,
+            streamLocalFiles: _streamLocalFiles,
           ),
         );
         sourceTransitionFollows = true;
@@ -3169,7 +3195,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               _discardCacheKey != null &&
               _badCacheRetriedOccurrenceIds.add(occurrenceId)) {
             final discardCacheKey = _discardCacheKey!;
-            final badKey = _foregroundCacheKey ??
+            final badKey =
+                _foregroundCacheKey ??
                 item.extras?['cacheKey']?.toString() ??
                 _cacheKeyFromLeasePath(stagedLease.path);
             if (badKey != null && badKey.isNotEmpty) {

@@ -2,11 +2,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../widgets/artwork_disk_cache.dart';
 
-enum AppCacheCategory {
-  playback,
-  artwork,
-  temporaryFiles,
-}
+enum AppCacheCategory { playback, artwork, temporaryFiles }
 
 class CacheClearSummary {
   const CacheClearSummary({this.retainedPlaybackEntries = 0});
@@ -18,13 +14,12 @@ typedef PlaybackCacheClearer = Future<int> Function();
 
 class CacheMaintenanceService {
   CacheMaintenanceService({
-    PlaybackCacheClearer? clearPlaybackCache,
+    this._clearPlaybackCache,
     Future<void> Function()? clearArtworkCache,
     Future<void> Function()? clearTemporaryFiles,
-  })  : _clearPlaybackCache = clearPlaybackCache,
-        _clearArtworkCache =
-            clearArtworkCache ?? ArtworkDiskCache.instance.clear,
-        _clearTemporaryFiles = clearTemporaryFiles ?? _clearTemporaryDirectory;
+  }) : _clearArtworkCache =
+           clearArtworkCache ?? ArtworkDiskCache.instance.clear,
+       _clearTemporaryFiles = clearTemporaryFiles ?? _clearTemporaryDirectory;
 
   PlaybackCacheClearer? _clearPlaybackCache;
   final Future<void> Function() _clearArtworkCache;
@@ -72,9 +67,7 @@ class CacheMaintenanceService {
     if (firstError case final error?) {
       Error.throwWithStackTrace(error, firstStackTrace!);
     }
-    return CacheClearSummary(
-      retainedPlaybackEntries: retainedPlaybackEntries,
-    );
+    return CacheClearSummary(retainedPlaybackEntries: retainedPlaybackEntries);
   }
 
   static Future<void> _clearTemporaryDirectory() async {

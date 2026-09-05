@@ -167,7 +167,7 @@ class MethodChannelLiveActivities extends LiveActivitiesPlatform {
   @override
   Stream<UrlSchemeData> urlSchemeStream() {
     if (defaultTargetPlatform != TargetPlatform.iOS) {
-      return Stream.empty();
+      return const Stream.empty();
     }
 
     return urlSchemeChannel
@@ -206,7 +206,7 @@ class MethodChannelLiveActivities extends LiveActivitiesPlatform {
   @override
   Stream<ActivityUpdate> get activityUpdateStream {
     if (defaultTargetPlatform != TargetPlatform.iOS) {
-      return Stream.empty();
+      return const Stream.empty();
     }
 
     return activityStatusChannel
@@ -220,7 +220,7 @@ class MethodChannelLiveActivities extends LiveActivitiesPlatform {
   @override
   Stream<String> get pushToStartTokenUpdateStream {
     if (defaultTargetPlatform != TargetPlatform.iOS) {
-      return Stream.empty();
+      return const Stream.empty();
     }
 
     return pushToStartTokenUpdatesChannel

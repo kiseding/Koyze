@@ -1,16 +1,18 @@
 import { Env, jsonResponse, requireJsonContentType, readJsonBody } from '../../lib/response';
 import { insertStageSongs } from '../../db/playlist-staging';
+import { readSyncPayload, replaceSyncPayload } from '../../db/sync-payload';
 import { getSyncRevision } from '../../db/sync-state';
 import { getUserId } from '../../utils/auth';
 import type { SongInfo } from '../../utils/types';
 
-// GET /api/user/sync/state — return settings + custom sources + revision (from KV)
+// GET /api/user/sync/state — return the transactionally materialized payload.
 export async function handleSyncStateGet(request: Request, env: Env): Promise<Response> {
   const userId = await getUserId(request, env);
   if (!userId) return jsonResponse({ error: '未登录' }, 401);
 
-  const settings = await _readKvJson(env, `sync:settings:${userId}`);
-  const rawSources = await _readKvJson(env, `sync:sources:${userId}`);
+  const payload = await readSyncPayload(env, userId);
+  const settings = payload.settings;
+  const rawSources = payload.sources;
   const fallbackTime = new Date().toISOString();
   const sources = Array.isArray(rawSources)
     ? rawSources.map((source: any) => ({
@@ -23,7 +25,7 @@ export async function handleSyncStateGet(request: Request, env: Env): Promise<Re
   return jsonResponse({ settings, sources, revision, syncProtocol: 1 });
 }
 
-// POST /api/user/sync/state — atomically replace settings + custom sources in KV
+// POST /api/user/sync/state — atomically replace settings + custom sources in D1.
 export async function handleSyncStateSet(request: Request, env: Env): Promise<Response> {
   const userId = await getUserId(request, env);
   if (!userId) return jsonResponse({ error: '未登录' }, 401);
@@ -74,46 +76,17 @@ export async function handleSyncStateSet(request: Request, env: Env): Promise<Re
     }
   }
 
-  // Check revision (KV is eventually consistent, so we still gate on D1 revision)
-  const currentRevision = await getSyncRevision(env, userId);
-  if (currentRevision !== baseRevision) {
-    return jsonResponse({ error: 'revision_conflict', currentRevision }, 409);
+  const revision = await replaceSyncPayload(env, userId, baseRevision, {
+    settings: cleanSettings,
+    sources: cleanSources,
+  });
+  if (revision == null) {
+    return jsonResponse({
+      error: 'revision_conflict',
+      currentRevision: await getSyncRevision(env, userId),
+    }, 409);
   }
-
-  // Stage KV first. Only the request that wins the D1 CAS promotes staged KV
-  // to live keys, so failed 409 writers cannot overwrite the winning state.
-  const pendingId = crypto.randomUUID();
-  const pendingSettingsKey = `sync:pending:settings:${userId}:${pendingId}`;
-  const pendingSourcesKey = `sync:pending:sources:${userId}:${pendingId}`;
-  await env.CACHE.put(pendingSettingsKey, JSON.stringify(cleanSettings), { expirationTtl: 3600 });
-  await env.CACHE.put(pendingSourcesKey, JSON.stringify(cleanSources), { expirationTtl: 3600 });
-  const bumped = await env.DB.prepare(
-    `UPDATE user_sync_state SET revision = revision + 1, updated_at = datetime('now') WHERE user_id = ? AND revision = ?`,
-  ).bind(userId, baseRevision).run();
-  if ((bumped.meta?.changes ?? 0) !== 1) {
-    await Promise.allSettled([
-      env.CACHE.delete(pendingSettingsKey),
-      env.CACHE.delete(pendingSourcesKey),
-    ]);
-    return jsonResponse({ error: 'revision_conflict', currentRevision: await getSyncRevision(env, userId) }, 409);
-  }
-  await env.CACHE.put(`sync:settings:${userId}`, JSON.stringify(cleanSettings));
-  await env.CACHE.put(`sync:sources:${userId}`, JSON.stringify(cleanSources));
-  await Promise.allSettled([
-    env.CACHE.delete(pendingSettingsKey),
-    env.CACHE.delete(pendingSourcesKey),
-  ]);
-  return jsonResponse({ ok: true, revision: baseRevision + 1 });
-}
-
-async function _readKvJson(env: Env, key: string): Promise<any> {
-  try {
-    const raw = await env.CACHE.get(key);
-    if (!raw) return raw === null ? (key.includes('settings') ? {} : []) : null;
-    return JSON.parse(raw);
-  } catch {
-    return key.includes('settings') ? {} : [];
-  }
+  return jsonResponse({ ok: true, revision });
 }
 
 function stagePrefix(operationId: string): string {

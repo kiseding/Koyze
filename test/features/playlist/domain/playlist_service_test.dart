@@ -640,7 +640,7 @@ void main() {
     await repository.waitForSaveCount(1);
     final disposal = service.dispose();
     var disposed = false;
-    disposal.then((_) => disposed = true);
+    unawaited(disposal.then((_) => disposed = true));
     await Future<void>.delayed(Duration.zero);
     expect(disposed, isFalse);
 
@@ -798,7 +798,7 @@ void main() {
       final mutation = service.createPlaylist(name: 'Accepted');
       final disposal = service.dispose();
       var disposed = false;
-      disposal.then((_) => disposed = true);
+      unawaited(disposal.then((_) => disposed = true));
       await Future<void>.delayed(Duration.zero);
 
       expect(disposed, isFalse);
@@ -836,7 +836,7 @@ void main() {
       final init = service.init();
       final disposal = service.dispose();
       var disposed = false;
-      disposal.then((_) => disposed = true);
+      unawaited(disposal.then((_) => disposed = true));
       await Future<void>.delayed(Duration.zero);
       expect(disposed, isFalse);
 
@@ -1277,8 +1277,7 @@ void main() {
 }
 
 final class ControlledPlaylistRepository implements PlaylistRepository {
-  ControlledPlaylistRepository({required PlaylistSnapshot initial})
-    : _initial = initial;
+  ControlledPlaylistRepository({required this._initial});
 
   final PlaylistSnapshot _initial;
   final List<PlaylistSnapshot> saves = [];

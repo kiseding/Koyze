@@ -4,13 +4,15 @@ import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/core/network/play_url_result.dart';
 
 void main() {
-  test('scraped song without types still exposes requested quality to scripts',
-      () {
-    final types = ensureMusicInfoTypes({}, 'flac');
-    expect(types.first, 'flac');
-    expect(types, contains('320k'));
-    expect(types, contains('128k'));
-  });
+  test(
+    'scraped song without types still exposes requested quality to scripts',
+    () {
+      final types = ensureMusicInfoTypes({}, 'flac');
+      expect(types.first, 'flac');
+      expect(types, contains('320k'));
+      expect(types, contains('128k'));
+    },
+  );
 
   test('existing types keep request quality at front', () {
     final types = ensureMusicInfoTypes({

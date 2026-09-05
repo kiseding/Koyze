@@ -101,11 +101,12 @@ MusicItem _song(String id) => MusicItem(
 void main() {
   test('never starts more than maxConcurrent downloads', () async {
     final downloader = _GatedDownloader();
+    var nextTaskId = 0;
     final service = DownloadService(
       maxConcurrent: 2,
       downloader: downloader.call,
       storage: _MemoryStorage(),
-      taskIdFactory: () => 'id-${DateTime.now().microsecondsSinceEpoch}',
+      taskIdFactory: () => 'id-${nextTaskId++}',
     );
     addTearDown(() async {
       downloader.completeAll();
@@ -578,12 +579,13 @@ void main() {
     'startup recovers promoted file and removes strict orphan and part',
     () async {
       final root = await Directory.systemTemp.createTemp('downloads_');
-      final recoverable = File('${root.path}/Song-task-2.mp3')
+      final recoverable = File.fromUri(root.uri.resolve('Song-task-2.mp3'))
         ..writeAsBytesSync(List<int>.filled(2048, 1));
-      final orphan = File('${root.path}/orphan-id-1.flac')
+      final orphan = File.fromUri(root.uri.resolve('orphan-id-1.flac'))
         ..writeAsBytesSync([1]);
-      final part = File('${root.path}/Song-task-2.part')..writeAsBytesSync([1]);
-      final unrelated = File('${root.path}/notes.txt')
+      final part = File.fromUri(root.uri.resolve('Song-task-2.part'))
+        ..writeAsBytesSync([1]);
+      final unrelated = File.fromUri(root.uri.resolve('notes.txt'))
         ..writeAsStringSync('keep');
       final storage = _MemoryStorage()
         ..saved = [

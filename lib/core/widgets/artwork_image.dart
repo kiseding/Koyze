@@ -308,7 +308,7 @@ class ArtworkNetworkImage extends ImageProvider<ArtworkNetworkImage> {
       });
       rethrow;
     } finally {
-      chunkEvents.close();
+      await chunkEvents.close();
     }
   }
 

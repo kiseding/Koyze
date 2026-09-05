@@ -39,7 +39,8 @@ int completionQueueIndex({
     currentIndex: currentIndex,
     queueLength: queueLength,
     shuffle: shuffle,
-    loop: repeatMode == AudioServiceRepeatMode.all ||
+    loop:
+        repeatMode == AudioServiceRepeatMode.all ||
         repeatMode == AudioServiceRepeatMode.group,
     randomNext: randomNext,
   );

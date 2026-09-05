@@ -13,20 +13,27 @@ export interface RateLimitResult {
 
 export class RateLimiterUnavailableError extends Error {
   constructor() {
-    super('Authentication rate limiter unavailable');
+    super('Rate limiter unavailable');
     this.name = 'RateLimiterUnavailableError';
   }
 }
 
 export class RateLimiter {
-  constructor(private readonly binding: DurableObjectNamespace) {}
+  constructor(
+    private readonly binding: DurableObjectNamespace,
+    private readonly scope = 'auth',
+  ) {
+    if (!/^[a-z][a-z0-9-]{0,31}$/.test(scope)) {
+      throw new RangeError(`Invalid rate-limit scope: ${scope}`);
+    }
+  }
 
   async check(ip: string, limits: RateLimitRule[]): Promise<RateLimitResult> {
     try {
       if (!this.binding || typeof this.binding.idFromName !== 'function') {
         throw new Error('RATE_LIMITER binding unavailable');
       }
-      const stub = this.binding.get(this.binding.idFromName(`auth-ip:${ip}`));
+      const stub = this.binding.get(this.binding.idFromName(`${this.scope}-ip:${ip}`));
       const response = await stub.fetch('https://rate/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -46,7 +53,7 @@ export class RateLimiter {
 
   async reset(ip: string, keys: string[]): Promise<void> {
     try {
-      const stub = this.binding.get(this.binding.idFromName(`auth-ip:${ip}`));
+      const stub = this.binding.get(this.binding.idFromName(`${this.scope}-ip:${ip}`));
       const response = await stub.fetch('https://rate/reset', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },

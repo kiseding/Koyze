@@ -4,10 +4,7 @@ import 'package:koyze/features/lyric/data/lyric_parser.dart';
 
 void main() {
   test('NetEase EAPI request endpoints use HTTPS', () {
-    expect(
-      neteaseSearchEndpoint,
-      'https://interface.music.163.com/eapi/batch',
-    );
+    expect(neteaseSearchEndpoint, 'https://interface.music.163.com/eapi/batch');
     expect(
       neteaseLyricEndpoint,
       'https://interface.music.163.com/eapi/song/lyric/v1',

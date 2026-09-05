@@ -189,7 +189,7 @@ class _PlayerProgress extends ConsumerWidget {
     // 10Hz 进度更新只重绘进度条自身，避免波及整页（封面/阴影/遮罩）。
     return RepaintBoundary(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -200,7 +200,7 @@ class _PlayerProgress extends ConsumerWidget {
                 style: TextStyle(
                   color: AppColors.mutedText(context),
                   fontSize: 11,
-                  fontFeatures: [FontFeature.tabularFigures()],
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ),
@@ -322,7 +322,7 @@ class _PlayerProgress extends ConsumerWidget {
                 style: TextStyle(
                   color: AppColors.mutedText(context),
                   fontSize: 11,
-                  fontFeatures: [FontFeature.tabularFigures()],
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ),
@@ -859,7 +859,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 size: 64,
                 color: AppColors.mutedText(context),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 '暂无播放内容',
                 style: TextStyle(color: AppColors.mutedText(context)),
@@ -1228,9 +1228,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             delay: 0.2,
                             child: _buildSongInfo(currentMusic),
                           ),
-                          _StaggeredFade(
+                          const _StaggeredFade(
                             delay: 0.3,
-                            child: const _CurrentLyricLine(),
+                            child: _CurrentLyricLine(),
                           ),
                           _StaggeredFade(
                             delay: 0.45,
@@ -1350,7 +1350,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Widget _buildAppBar(BuildContext context, MusicItem music) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1439,7 +1439,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       children: List.generate(2, (index) {
         return AnimatedContainer(
           duration: motionDuration(context, const Duration(milliseconds: 300)),
-          margin: EdgeInsets.symmetric(horizontal: 4),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
           width: _currentPage == index ? 12 : 6,
           height: 4,
           decoration: BoxDecoration(
@@ -1513,7 +1513,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Widget _buildSongInfo(MusicItem music) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       child: Row(
         children: [
           Expanded(
@@ -1772,7 +1772,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     PlayMode playMode,
   ) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -1808,7 +1808,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             semanticLabel: '上一首',
             onTap: playerService.previous,
             child: Padding(
-              padding: EdgeInsets.all(8),
+              padding: const EdgeInsets.all(8),
               child: Icon(
                 Icons.skip_previous,
                 color: AppColors.onScaffold(context),
@@ -1827,7 +1827,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             semanticLabel: '下一首',
             onTap: playerService.next,
             child: Padding(
-              padding: EdgeInsets.all(8),
+              padding: const EdgeInsets.all(8),
               child: Icon(
                 Icons.skip_next,
                 color: AppColors.onScaffold(context),
@@ -1941,14 +1941,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             Container(
               width: 32,
               height: 4,
-              margin: EdgeInsets.symmetric(vertical: 12),
+              margin: const EdgeInsets.symmetric(vertical: 12),
               decoration: BoxDecoration(
                 color: AppColors.mutedText(context),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
                   Container(

@@ -24,8 +24,7 @@ lockScreenPlaybackSnapshot(PlaybackState state) => (
 
 /// Syncs the current song to the iOS home widget and Live Activity.
 class LockScreenSyncService {
-  LockScreenSyncService(this._handler, {String Function()? currentLyricLine})
-    : _currentLyricLine = currentLyricLine;
+  LockScreenSyncService(this._handler, {this._currentLyricLine});
 
   final LxAudioHandler _handler;
   final LiveActivities _liveActivities = LiveActivities();

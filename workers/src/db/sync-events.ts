@@ -1,4 +1,6 @@
 import type { Env } from '../lib/response';
+import { ensureSyncPayload } from './sync-payload';
+import { getSyncRevision } from './sync-state';
 
 export type IncomingSyncEvent = {
   eventId: string;
@@ -10,157 +12,232 @@ export type IncomingSyncEvent = {
   createdAt: number;
 };
 
+type SyncEventReceipt = {
+  device_id: string;
+  local_user_id: string;
+  event_type: string;
+  entity_id: string;
+  payload: string;
+  client_created_at: number;
+};
+
+export class SyncEventIdConflictError extends Error {
+  constructor(readonly eventId: string) {
+    super(`sync event id already belongs to a different event: ${eventId}`);
+    this.name = 'SyncEventIdConflictError';
+  }
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object).sort().map((key) =>
+      `${JSON.stringify(key)}:${canonicalJson(object[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function receiptMatches(receipt: SyncEventReceipt, event: IncomingSyncEvent): boolean {
+  let storedPayload: unknown;
+  try {
+    storedPayload = JSON.parse(receipt.payload);
+  } catch {
+    return false;
+  }
+  return receipt.device_id === event.deviceId &&
+    receipt.local_user_id === event.localUserId &&
+    receipt.event_type === event.eventType &&
+    receipt.entity_id === event.entityId &&
+    Number(receipt.client_created_at) === event.createdAt &&
+    canonicalJson(storedPayload) === canonicalJson(event.payload);
+}
+
 export async function appendSyncEvents(
   env: Env,
   userId: number,
   events: IncomingSyncEvent[],
 ): Promise<{ acceptedEventIds: string[]; cursor: number }> {
-  if (events.length > 1 && events.every((event) => event.eventType === 'favorite.add')) {
-    return appendFavoriteBatch(env, userId, events);
-  }
   const acceptedEventIds: string[] = [];
-  const device = events[0];
+  await getSyncRevision(env, userId);
   for (const event of events) {
-    const result = await env.DB.prepare(
-      `INSERT OR IGNORE INTO sync_events
-       (user_id, event_id, device_id, local_user_id, event_type, entity_id,
-        payload, client_created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      userId,
-      event.eventId,
-      event.deviceId,
-      event.localUserId,
-      event.eventType,
-      event.entityId,
-      JSON.stringify(event.payload),
-      event.createdAt,
-    ).run();
-    if ((result.meta?.changes ?? 0) === 1) {
-      const sequence = Number(result.meta.last_row_id);
-      try {
-        await applySyncEvent(env, userId, event, sequence);
-      } catch (error) {
-        await env.DB.prepare('DELETE FROM sync_events WHERE user_id = ? AND event_id = ?')
-          .bind(userId, event.eventId).run();
-        throw error;
-      }
-      acceptedEventIds.push(event.eventId);
-    } else {
-      const existing = await env.DB.prepare(
-        'SELECT event_id FROM sync_events WHERE user_id = ? AND event_id = ?',
-      ).bind(userId, event.eventId).first<{ event_id: string }>();
-      if (existing) acceptedEventIds.push(event.eventId);
+    if (event.eventType === 'setting.set' || event.eventType.startsWith('custom_source.')) {
+      await ensureSyncPayload(env, userId);
     }
+    const statements = buildEventTransaction(env, userId, event);
+    const results = await env.DB.batch(statements);
+    const receipt = results.at(-1)?.results?.[0] as SyncEventReceipt | undefined;
+    if (!receipt || !receiptMatches(receipt, event)) {
+      throw new SyncEventIdConflictError(event.eventId);
+    }
+    // A durable receipt survives replay-log compaction. Both a new event and
+    // an identical retry are acknowledged; only the new pending row can touch
+    // projections.
+    acceptedEventIds.push(event.eventId);
   }
-  if (device) {
-    await env.DB.prepare(
-      `INSERT INTO sync_devices (user_id, device_id, local_user_id, last_seen_at)
-       VALUES (?, ?, ?, datetime('now'))
-       ON CONFLICT(user_id, device_id) DO UPDATE SET
-         local_user_id = excluded.local_user_id,
-         last_seen_at = datetime('now')`,
-    ).bind(userId, device.deviceId, device.localUserId).run();
+  try {
+    await compactSyncEvents(env, userId);
+  } catch (error) {
+    // Compaction is maintenance, not part of event acceptance. A failed
+    // maintenance pass is safe to retry on the next push.
+    console.error('[sync:compact]', error);
   }
   return { acceptedEventIds, cursor: await currentSyncCursor(env, userId) };
 }
 
-async function appendFavoriteBatch(
+/**
+ * Bounds each account's replay log. Materialized state remains authoritative;
+ * clients behind the recorded watermark must bootstrap from a snapshot.
+ */
+export async function compactSyncEvents(
   env: Env,
   userId: number,
-  events: IncomingSyncEvent[],
-): Promise<{ acceptedEventIds: string[]; cursor: number }> {
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO playlists (id, user_id, name, position)
-     VALUES ('love', ?, '我喜欢', 0)`,
-  ).bind(userId).run();
-  const eventStatements = events.map((event) => env.DB.prepare(
-    `INSERT OR IGNORE INTO sync_events
-     (user_id, event_id, device_id, local_user_id, event_type, entity_id,
-      payload, client_created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(
-    userId, event.eventId, event.deviceId, event.localUserId,
-    event.eventType, event.entityId, JSON.stringify(event.payload), event.createdAt,
-  ));
-  const songStatements = events.map((event) => {
-    const song = event.payload.song as Record<string, unknown>;
-    return env.DB.prepare(
-      `INSERT OR IGNORE INTO playlist_songs
-       (playlist_id, user_id, name, singer, source, songmid, album_name, img,
-        interval, hash, metadata, position, playlist_item_id)
-       VALUES ('love', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-         COALESCE((SELECT MAX(position) + 1 FROM playlist_songs WHERE playlist_id = 'love' AND user_id = ?), 0), ?)`,
-    ).bind(
-      userId, String(song.name ?? '').slice(0, 256), String(song.singer ?? '').slice(0, 256),
-      String(song.source ?? '').slice(0, 32), String(song.songmid ?? song.id ?? '').slice(0, 256),
-      String(song.album ?? song.albumName ?? '').slice(0, 256), String(song.artwork ?? song.img ?? '').slice(0, 512),
-      String(song.duration ?? 0), String(song.hash ?? '').slice(0, 256), JSON.stringify(song.meta ?? {}),
-      userId, event.entityId,
-    );
-  });
-  for (let index = 0; index < eventStatements.length; index += 100) {
-    await env.DB.batch([...eventStatements.slice(index, index + 100), ...songStatements.slice(index, index + 100)]);
+  maxRetained = 10_000,
+): Promise<number> {
+  if (!Number.isInteger(maxRetained) || maxRetained < 1) {
+    throw new RangeError('maxRetained must be a positive integer');
   }
-  if (events[0]) {
-    await env.DB.prepare(
-      `INSERT INTO sync_devices (user_id, device_id, local_user_id, last_seen_at)
-       VALUES (?, ?, ?, datetime('now'))
-       ON CONFLICT(user_id, device_id) DO UPDATE SET last_seen_at = datetime('now')`,
-    ).bind(userId, events[0].deviceId, events[0].localUserId).run();
-  }
-  return { acceptedEventIds: events.map((event) => event.eventId), cursor: await currentSyncCursor(env, userId) };
+  const cutoff = await env.DB.prepare(
+    `SELECT id FROM sync_events
+     WHERE user_id = ? AND applied_at IS NOT NULL
+     ORDER BY id DESC LIMIT 1 OFFSET ?`,
+  ).bind(userId, maxRetained).first<{ id: number }>();
+  if (!cutoff) return 0;
+  const cutoffId = Number(cutoff.id);
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO sync_event_watermarks (user_id, compacted_through, updated_at)
+       VALUES (?, ?, datetime('now'))
+       ON CONFLICT(user_id) DO UPDATE SET
+         compacted_through = MAX(compacted_through, excluded.compacted_through),
+         updated_at = datetime('now')`,
+    ).bind(userId, cutoffId),
+    env.DB.prepare(
+      'DELETE FROM sync_events WHERE user_id = ? AND id <= ? AND applied_at IS NOT NULL',
+    ).bind(userId, cutoffId),
+  ]);
+  return cutoffId;
 }
 
-async function applySyncEvent(
+export async function syncEventWatermark(env: Env, userId: number): Promise<number> {
+  const row = await env.DB.prepare(
+    'SELECT compacted_through FROM sync_event_watermarks WHERE user_id = ?',
+  ).bind(userId).first<{ compacted_through: number }>();
+  return Number(row?.compacted_through ?? 0);
+}
+
+const PENDING_EVENT = `EXISTS (
+  SELECT 1 FROM sync_events AS pending
+  WHERE pending.user_id = ? AND pending.event_id = ?
+    AND pending.applied_at IS NULL
+)`;
+
+function tombstoneStatement(
+  env: Env,
+  userId: number,
+  eventId: string,
+  entityType: string,
+  entityId: string,
+): D1PreparedStatement {
+  return env.DB.prepare(
+    `INSERT INTO sync_tombstones
+     (user_id, entity_type, entity_id, server_sequence)
+     SELECT ?, ?, ?, pending.id
+     FROM sync_events AS pending
+     WHERE pending.user_id = ? AND pending.event_id = ?
+       AND pending.applied_at IS NULL
+     ON CONFLICT(user_id, entity_type, entity_id) DO UPDATE SET
+       server_sequence = excluded.server_sequence,
+       created_at = datetime('now')
+     WHERE excluded.server_sequence > sync_tombstones.server_sequence`,
+  ).bind(userId, entityType, entityId, userId, eventId);
+}
+
+function buildEventTransaction(
   env: Env,
   userId: number,
   event: IncomingSyncEvent,
-  sequence: number,
-): Promise<void> {
+): D1PreparedStatement[] {
+  const statements: D1PreparedStatement[] = [env.DB.prepare(
+    `INSERT INTO sync_events
+     (user_id, event_id, device_id, local_user_id, event_type, entity_id,
+      payload, client_created_at)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?
+     WHERE NOT EXISTS (
+       SELECT 1 FROM sync_event_receipts WHERE user_id = ? AND event_id = ?
+     )
+     ON CONFLICT(user_id, event_id) DO NOTHING`,
+  ).bind(
+    userId,
+    event.eventId,
+    event.deviceId,
+    event.localUserId,
+    event.eventType,
+    event.entityId,
+    JSON.stringify(event.payload),
+    event.createdAt,
+    userId,
+    event.eventId,
+  )];
+
   if (event.eventType === 'favorite.add') {
-    const song = event.payload.song;
-    if (!song || typeof song !== 'object' || Array.isArray(song)) return;
-    const s = song as Record<string, unknown>;
+    const s = event.payload.song as Record<string, unknown>;
     const songmid = String(s.songmid ?? s.id ?? '').slice(0, 256);
     const source = String(s.source ?? '').slice(0, 32);
-    const tombstone = await env.DB.prepare(
-      `SELECT server_sequence FROM sync_tombstones
-       WHERE user_id = ? AND entity_type = ? AND entity_id = ?`,
-    ).bind(userId, 'favorite', event.entityId).first<{ server_sequence: number }>();
-    if (tombstone && Number(tombstone.server_sequence) >= sequence) return;
-    await env.DB.prepare(
-      `INSERT OR IGNORE INTO playlists (id, user_id, name, position)
-       VALUES ('love', ?, '我喜欢', 0)`,
-    ).bind(userId).run();
-    await env.DB.prepare(
-      `INSERT OR IGNORE INTO playlist_songs
+    const noNewerTombstone = `NOT EXISTS (
+      SELECT 1 FROM sync_tombstones AS tombstone
+      WHERE tombstone.user_id = ? AND tombstone.entity_type = 'favorite'
+        AND tombstone.entity_id = ? AND tombstone.server_sequence >= (
+          SELECT id FROM sync_events WHERE user_id = ? AND event_id = ?
+        )
+    )`;
+    statements.push(
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO playlists (id, user_id, name, position)
+         SELECT 'love', ?, '我喜欢', 0
+         WHERE ${PENDING_EVENT} AND ${noNewerTombstone}`,
+      ).bind(
+        userId, userId, event.eventId,
+        userId, event.entityId, userId, event.eventId,
+      ),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO playlist_songs
        (playlist_id, user_id, name, singer, source, songmid, album_name, img,
          interval, hash, metadata, position, playlist_item_id)
-       VALUES ('love', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-          COALESCE((SELECT MAX(position) + 1 FROM playlist_songs WHERE playlist_id = 'love' AND user_id = ?), 0), ?)`,
-    ).bind(
-       userId,
-       String(s.name ?? '').slice(0, 256),
-      String(s.singer ?? '').slice(0, 256),
-      source,
-      songmid,
-      String(s.album ?? s.albumName ?? '').slice(0, 256),
-      String(s.artwork ?? s.img ?? '').slice(0, 512),
-      String(s.duration ?? 0),
-      String(s.hash ?? '').slice(0, 256),
-       JSON.stringify(s.meta ?? {}),
-       userId,
-       event.entityId,
-    ).run();
-    if (!tombstone || Number(tombstone.server_sequence) < sequence) {
-      await env.DB.prepare(
-        'DELETE FROM sync_tombstones WHERE user_id = ? AND entity_type = ? AND entity_id = ?',
-      ).bind(userId, 'favorite', event.entityId).run();
-    }
-    return;
-  }
-  if (event.eventType === 'favorite.remove') {
+         SELECT 'love', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+           COALESCE((SELECT MAX(position) + 1 FROM playlist_songs
+                     WHERE playlist_id = 'love' AND user_id = ?), 0), ?
+         WHERE ${PENDING_EVENT} AND ${noNewerTombstone}`,
+      ).bind(
+        userId,
+        String(s.name ?? '').slice(0, 256),
+        String(s.singer ?? '').slice(0, 256),
+        source,
+        songmid,
+        String(s.album ?? s.albumName ?? '').slice(0, 256),
+        String(s.artwork ?? s.img ?? '').slice(0, 512),
+        String(s.duration ?? 0),
+        String(s.hash ?? '').slice(0, 256),
+        JSON.stringify(s.meta ?? {}),
+        userId,
+        event.entityId,
+        userId, event.eventId,
+        userId, event.entityId, userId, event.eventId,
+      ),
+      env.DB.prepare(
+        `DELETE FROM sync_tombstones
+         WHERE user_id = ? AND entity_type = 'favorite' AND entity_id = ?
+           AND server_sequence < (
+             SELECT id FROM sync_events WHERE user_id = ? AND event_id = ?
+           ) AND ${PENDING_EVENT}`,
+      ).bind(
+        userId, event.entityId, userId, event.eventId,
+        userId, event.eventId,
+      ),
+    );
+  } else if (event.eventType === 'favorite.remove') {
     const song = event.payload.song;
     const songmid = song && typeof song === 'object'
       ? String((song as Record<string, unknown>).songmid ?? (song as Record<string, unknown>).id ?? '')
@@ -168,179 +245,267 @@ async function applySyncEvent(
     const source = song && typeof song === 'object'
       ? String((song as Record<string, unknown>).source ?? '')
       : String(event.payload.source ?? '');
-    await env.DB.prepare(
-      "DELETE FROM playlist_songs WHERE playlist_id = 'love' AND user_id = ? AND songmid = ? AND source = ?",
-    ).bind(userId, songmid, source ?? '').run();
-    await writeTombstone(env, userId, 'favorite', event.entityId, sequence);
-    return;
-  }
-  if (event.eventType === 'playlist.create') {
-    await env.DB.prepare(
-      `INSERT OR IGNORE INTO playlists (id, user_id, name, position)
-       VALUES (?, ?, ?, COALESCE((SELECT MAX(position) + 1 FROM playlists WHERE user_id = ?), 0))`,
-    ).bind(event.entityId, userId, String(event.payload.name ?? event.entityId), userId).run();
-    return;
-  }
-  if (event.eventType === 'playlist.rename') {
-    await env.DB.prepare(
-      'UPDATE playlists SET name = ?, updated_at = datetime(\'now\') WHERE id = ? AND user_id = ?',
-    ).bind(String(event.payload.name ?? event.entityId), event.entityId, userId).run();
-    return;
-  }
-  if (event.eventType === 'playlist.delete') {
-    await env.DB.prepare('DELETE FROM playlists WHERE id = ? AND user_id = ?')
-      .bind(event.entityId, userId).run();
-    await writeTombstone(env, userId, 'playlist', event.entityId, sequence);
-    return;
-  }
-  if (event.eventType === 'playlist_item.add') {
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM playlist_songs
+         WHERE playlist_id = 'love' AND user_id = ? AND songmid = ?
+           AND source = ? AND ${PENDING_EVENT}`,
+      ).bind(userId, songmid, source, userId, event.eventId),
+      tombstoneStatement(env, userId, event.eventId, 'favorite', event.entityId),
+    );
+  } else if (event.eventType === 'playlist.create') {
+    statements.push(
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO playlists (id, user_id, name, position)
+         SELECT ?, ?, ?, COALESCE((SELECT MAX(position) + 1 FROM playlists
+                                   WHERE user_id = ? AND id NOT LIKE '__stage__:%'), 0)
+         WHERE ${PENDING_EVENT}`,
+      ).bind(
+        event.entityId, userId, String(event.payload.name ?? event.entityId), userId,
+        userId, event.eventId,
+      ),
+      env.DB.prepare(
+        `DELETE FROM sync_tombstones
+         WHERE user_id = ? AND entity_type = 'playlist' AND entity_id = ?
+           AND server_sequence < (
+             SELECT id FROM sync_events WHERE user_id = ? AND event_id = ?
+           ) AND ${PENDING_EVENT}`,
+      ).bind(
+        userId, event.entityId, userId, event.eventId,
+        userId, event.eventId,
+      ),
+    );
+  } else if (event.eventType === 'playlist.rename') {
+    statements.push(env.DB.prepare(
+      `UPDATE playlists SET name = ?, updated_at = datetime('now')
+       WHERE id = ? AND user_id = ? AND ${PENDING_EVENT}`,
+    ).bind(
+      String(event.payload.name ?? event.entityId), event.entityId, userId,
+      userId, event.eventId,
+    ));
+  } else if (event.eventType === 'playlist.delete') {
+    statements.push(
+      env.DB.prepare(
+        `DELETE FROM playlists WHERE id = ? AND user_id = ? AND ${PENDING_EVENT}`,
+      ).bind(event.entityId, userId, userId, event.eventId),
+      tombstoneStatement(env, userId, event.eventId, 'playlist', event.entityId),
+    );
+  } else if (event.eventType === 'playlist_item.add') {
     const playlistId = String(event.payload.playlistId ?? '');
-    const song = event.payload.song;
-    if (!playlistId || !song || typeof song !== 'object' || Array.isArray(song)) return;
-    const s = song as Record<string, unknown>;
-    await env.DB.prepare(
+    const s = event.payload.song as Record<string, unknown>;
+    statements.push(env.DB.prepare(
       `INSERT INTO playlist_songs
        (playlist_id, user_id, name, singer, source, songmid, album_name, img,
          interval, hash, metadata, position, playlist_item_id)
        SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
           COALESCE((SELECT MAX(position) + 1 FROM playlist_songs WHERE playlist_id = ? AND user_id = ?), 0), ?
-       WHERE EXISTS (SELECT 1 FROM playlists WHERE id = ? AND user_id = ?)`,
+       WHERE EXISTS (SELECT 1 FROM playlists WHERE id = ? AND user_id = ?)
+         AND ${PENDING_EVENT}`,
     ).bind(
       playlistId, userId, String(s.name ?? '').slice(0, 256),
       String(s.singer ?? '').slice(0, 256), String(s.source ?? '').slice(0, 32),
       String(s.songmid ?? s.id ?? '').slice(0, 256), String(s.album ?? '').slice(0, 256),
       String(s.artwork ?? '').slice(0, 512), String(s.duration ?? 0),
       String(s.hash ?? '').slice(0, 256), JSON.stringify(s.meta ?? {}),
-       playlistId, userId, playlistId, userId, event.entityId,
-    ).run();
-    return;
-  }
-  if (event.eventType === 'playlist_item.remove') {
+      playlistId, userId, event.entityId, playlistId, userId,
+      userId, event.eventId,
+    ));
+  } else if (event.eventType === 'playlist_item.remove') {
     const playlistId = String(event.payload.playlistId ?? '');
-    const itemId = String(event.payload.playlistItemId ?? event.payload.songId ?? '');
+    const itemId = String(
+      event.payload.playlistItemId ?? event.payload.songId ?? event.payload.songmid ?? '',
+    );
     const source = String(event.payload.source ?? '');
-    await env.DB.prepare(
-      'DELETE FROM playlist_songs WHERE playlist_id = ? AND user_id = ? AND (playlist_item_id = ? OR (songmid = ? AND source = ?))',
-    ).bind(playlistId, userId, itemId, itemId, source).run();
-    return;
-  }
-  if (event.eventType === 'playlist_item.move') {
+    statements.push(env.DB.prepare(
+      `DELETE FROM playlist_songs
+       WHERE playlist_id = ? AND user_id = ?
+         AND (playlist_item_id = ? OR (songmid = ? AND source = ?))
+         AND ${PENDING_EVENT}`,
+    ).bind(
+      playlistId, userId, itemId, itemId, source,
+      userId, event.eventId,
+    ));
+  } else if (event.eventType === 'playlist_item.move') {
     const playlistId = String(event.payload.playlistId ?? '');
-    const itemId = String(event.payload.playlistItemId ?? event.payload.songId ?? '');
+    const itemId = String(
+      event.payload.playlistItemId ?? event.payload.songId ?? event.payload.songmid ?? '',
+    );
     const source = String(event.payload.source ?? '');
     const position = Number(event.payload.index);
-    if (!playlistId || !Number.isInteger(position) || position < 0) return;
-    const item = await env.DB.prepare(
-      `SELECT id FROM playlist_songs
-       WHERE playlist_id = ? AND user_id = ? AND (playlist_item_id = ? OR (songmid = ? AND source = ?))
-       ORDER BY position LIMIT 1`,
-    ).bind(playlistId, userId, itemId, itemId, source).first<{ id: number }>();
-    if (!item) return;
-    await env.DB.prepare(
-      `UPDATE playlist_songs SET position = position + 1
-       WHERE playlist_id = ? AND user_id = ? AND position >= ? AND id != ?`,
-    ).bind(playlistId, userId, position, item.id).run();
-    await env.DB.prepare(
-      'UPDATE playlist_songs SET position = ? WHERE id = ? AND user_id = ?',
-    ).bind(position, item.id, userId).run();
-    return;
-  }
-  if (event.eventType === 'rating.set') {
+    statements.push(env.DB.prepare(
+      `WITH moving AS (
+         SELECT id, position AS old_position
+         FROM playlist_songs
+         WHERE playlist_id = ? AND user_id = ?
+           AND (playlist_item_id = ? OR (songmid = ? AND source = ?))
+         ORDER BY position LIMIT 1
+       )
+       UPDATE playlist_songs
+       SET position = CASE
+         WHEN id = (SELECT id FROM moving) THEN ?
+         WHEN (SELECT old_position FROM moving) < ?
+              AND position > (SELECT old_position FROM moving) AND position <= ?
+           THEN position - 1
+         WHEN (SELECT old_position FROM moving) > ?
+              AND position >= ? AND position < (SELECT old_position FROM moving)
+           THEN position + 1
+         ELSE position
+       END
+       WHERE playlist_id = ? AND user_id = ? AND EXISTS (SELECT 1 FROM moving)
+         AND ${PENDING_EVENT}`,
+    ).bind(
+      playlistId, userId, itemId, itemId, source,
+      position, position, position, position, position,
+      playlistId, userId, userId, event.eventId,
+    ));
+  } else if (event.eventType === 'rating.set') {
     const rating = Number(event.payload.rating);
-    if (!Number.isInteger(rating) || rating < 0 || rating > 5) return;
-    await env.DB.prepare(
+    statements.push(env.DB.prepare(
       `INSERT INTO sync_ratings (user_id, song_id, rating, server_sequence)
-       VALUES (?, ?, ?, ?)
+       SELECT ?, ?, ?, pending.id FROM sync_events AS pending
+       WHERE pending.user_id = ? AND pending.event_id = ?
+         AND pending.applied_at IS NULL
        ON CONFLICT(user_id, song_id) DO UPDATE SET
          rating = excluded.rating,
          server_sequence = excluded.server_sequence,
-         updated_at = datetime('now')`,
-    ).bind(userId, event.entityId, rating, sequence).run();
-    return;
+         updated_at = datetime('now')
+       WHERE excluded.server_sequence > sync_ratings.server_sequence`,
+    ).bind(userId, event.entityId, rating, userId, event.eventId));
+  } else if (event.eventType === 'rating.remove') {
+    statements.push(env.DB.prepare(
+      `DELETE FROM sync_ratings
+       WHERE user_id = ? AND song_id = ? AND ${PENDING_EVENT}`,
+    ).bind(userId, event.entityId, userId, event.eventId));
+  } else if (event.eventType === 'setting.set') {
+    statements.push(env.DB.prepare(
+      `INSERT INTO sync_setting_projections (user_id, key, value, server_sequence)
+       SELECT ?, ?, ?, pending.id FROM sync_events AS pending
+       WHERE pending.user_id = ? AND pending.event_id = ?
+         AND pending.applied_at IS NULL
+       ON CONFLICT(user_id, key) DO UPDATE SET
+         value = excluded.value,
+         server_sequence = excluded.server_sequence,
+         updated_at = datetime('now')
+       WHERE excluded.server_sequence > sync_setting_projections.server_sequence`,
+    ).bind(
+      userId, event.entityId, String(event.payload.value ?? ''),
+      userId, event.eventId,
+    ));
+  } else if (event.eventType === 'custom_source.upsert') {
+    statements.push(env.DB.prepare(
+      `INSERT INTO sync_source_projections
+       (user_id, id, source, deleted, server_sequence)
+       SELECT ?, ?, ?, 0, pending.id FROM sync_events AS pending
+       WHERE pending.user_id = ? AND pending.event_id = ?
+         AND pending.applied_at IS NULL
+       ON CONFLICT(user_id, id) DO UPDATE SET
+         source = excluded.source,
+         deleted = 0,
+         server_sequence = excluded.server_sequence,
+         updated_at = datetime('now')
+       WHERE excluded.server_sequence > sync_source_projections.server_sequence`,
+    ).bind(
+      userId, event.entityId, JSON.stringify(event.payload.source),
+      userId, event.eventId,
+    ));
+  } else if (event.eventType === 'custom_source.remove') {
+    statements.push(env.DB.prepare(
+      `INSERT INTO sync_source_projections
+       (user_id, id, source, deleted, server_sequence)
+       SELECT ?, ?, '{}', 1, pending.id FROM sync_events AS pending
+       WHERE pending.user_id = ? AND pending.event_id = ?
+         AND pending.applied_at IS NULL
+       ON CONFLICT(user_id, id) DO UPDATE SET
+         source = '{}',
+         deleted = 1,
+         server_sequence = excluded.server_sequence,
+         updated_at = datetime('now')
+       WHERE excluded.server_sequence > sync_source_projections.server_sequence`,
+    ).bind(userId, event.entityId, userId, event.eventId));
   }
-  if (event.eventType === 'rating.remove') {
-    await env.DB.prepare(
-      'DELETE FROM sync_ratings WHERE user_id = ? AND song_id = ?',
-    ).bind(userId, event.entityId).run();
-    return;
-  }
-  if (event.eventType === 'setting.set') {
-    const settings = await readEventState(env, `sync:settings:${userId}`);
-    settings[event.entityId] = String(event.payload.value ?? '');
-    await env.CACHE.put(`sync:settings:${userId}`, JSON.stringify(settings));
-    return;
-  }
-  if (event.eventType === 'custom_source.upsert') {
-    const sources = await readEventArray(env, `sync:sources:${userId}`);
-    const source = event.payload.source;
-    if (!source || typeof source !== 'object' || Array.isArray(source)) return;
-    const next = sources.filter((item) => item?.id !== event.entityId);
-    next.push(source as Record<string, unknown>);
-    await env.CACHE.put(`sync:sources:${userId}`, JSON.stringify(next));
-    return;
-  }
-  if (event.eventType === 'custom_source.remove') {
-    const sources = await readEventArray(env, `sync:sources:${userId}`);
-    await env.CACHE.put(
-      `sync:sources:${userId}`,
-      JSON.stringify(sources.filter((item) => item?.id !== event.entityId)),
-    );
-  }
+
+  statements.push(
+    env.DB.prepare(
+      `INSERT OR IGNORE INTO sync_event_receipts
+       (user_id, event_id, device_id, local_user_id, event_type, entity_id,
+        payload, client_created_at, server_sequence)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, pending.id
+       FROM sync_events AS pending
+       WHERE pending.user_id = ? AND pending.event_id = ?
+         AND pending.applied_at IS NULL`,
+    ).bind(
+      userId, event.eventId, event.deviceId, event.localUserId,
+      event.eventType, event.entityId, JSON.stringify(event.payload), event.createdAt,
+      userId, event.eventId,
+    ),
+    env.DB.prepare(
+      `UPDATE user_sync_state
+       SET revision = revision + 1, updated_at = datetime('now')
+       WHERE user_id = ? AND ${PENDING_EVENT}`,
+    ).bind(userId, userId, event.eventId),
+    env.DB.prepare(
+      `INSERT INTO sync_devices (user_id, device_id, local_user_id, last_seen_at)
+       SELECT ?, ?, ?, datetime('now') WHERE ${PENDING_EVENT}
+       ON CONFLICT(user_id, device_id) DO UPDATE SET
+         local_user_id = excluded.local_user_id,
+         last_seen_at = datetime('now')`,
+    ).bind(
+      userId, event.deviceId, event.localUserId,
+      userId, event.eventId,
+    ),
+    env.DB.prepare(
+      `UPDATE sync_events SET applied_at = datetime('now')
+       WHERE user_id = ? AND event_id = ? AND applied_at IS NULL`,
+    ).bind(userId, event.eventId),
+    env.DB.prepare(
+      `SELECT device_id, local_user_id, event_type, entity_id, payload,
+              client_created_at
+       FROM sync_event_receipts WHERE user_id = ? AND event_id = ?`,
+    ).bind(userId, event.eventId),
+  );
+  return statements;
 }
 
-export async function readEventState(env: Env, key: string): Promise<Record<string, string>> {
-  try {
-    const raw = await env.CACHE.get(key);
-    const parsed = raw ? JSON.parse(raw) : {};
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch (_) {
-    return {};
-  }
-}
-
-export async function readEventArray(env: Env, key: string): Promise<Record<string, unknown>[]> {
-  try {
-    const raw = await env.CACHE.get(key);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === 'object') : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-async function writeTombstone(
-  env: Env,
-  userId: number,
-  entityType: string,
-  entityId: string,
-  sequence: number,
-): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO sync_tombstones (user_id, entity_type, entity_id, server_sequence)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(user_id, entity_type, entity_id) DO UPDATE SET
-       server_sequence = excluded.server_sequence,
-       created_at = datetime('now')`,
-  ).bind(userId, entityType, entityId, sequence).run();
-}
+export type PullSyncEventsResult =
+  | { expired: true; compactedThrough: number }
+  | {
+    expired: false;
+    cursor: number;
+    events: Record<string, unknown>[];
+    hasMore: boolean;
+  };
 
 export async function pullSyncEvents(
   env: Env,
   userId: number,
   cursor: number,
   limit = 200,
-): Promise<{ cursor: number; events: Record<string, unknown>[]; hasMore: boolean }> {
+): Promise<PullSyncEventsResult> {
   const rows = await env.DB.prepare(
-    `SELECT id, event_id, device_id, local_user_id, event_type, entity_id,
-            payload, client_created_at, created_at
-       FROM sync_events
-      WHERE user_id = ? AND id > ?
-      ORDER BY id ASC
-      LIMIT ?`,
-  ).bind(userId, cursor, limit + 1).all<Record<string, unknown>>();
+    `WITH boundary AS (
+       SELECT COALESCE((
+         SELECT compacted_through FROM sync_event_watermarks WHERE user_id = ?
+       ), 0) AS compacted_through
+     ), page AS (
+       SELECT id, event_id, device_id, local_user_id, event_type, entity_id,
+              payload, client_created_at, created_at
+       FROM sync_events, boundary
+       WHERE user_id = ? AND id > ? AND ? >= boundary.compacted_through
+       ORDER BY id ASC
+       LIMIT ?
+     )
+     SELECT boundary.compacted_through, page.id, page.event_id, page.device_id,
+            page.local_user_id, page.event_type, page.entity_id, page.payload,
+            page.client_created_at, page.created_at
+     FROM boundary LEFT JOIN page ON TRUE
+     ORDER BY page.id ASC`,
+  ).bind(userId, userId, cursor, cursor, limit + 1).all<Record<string, unknown>>();
   const records = rows.results ?? [];
-  const hasMore = records.length > limit;
-  const visible = records.slice(0, limit).map((row) => {
+  const compactedThrough = Number(records[0]?.compacted_through ?? 0);
+  if (cursor < compactedThrough) return { expired: true, compactedThrough };
+  const eventRows = records.filter((row) => row.id !== null && row.id !== undefined);
+  const hasMore = eventRows.length > limit;
+  const visible = eventRows.slice(0, limit).map((row) => {
     let payload: Record<string, unknown> = {};
     try {
       const parsed = JSON.parse(String(row.payload ?? '{}'));
@@ -359,12 +524,15 @@ export async function pullSyncEvents(
     };
   });
   const nextCursor = visible.length === 0 ? cursor : Number(visible[visible.length - 1].serverSequence);
-  return { cursor: nextCursor, events: visible, hasMore };
+  return { expired: false, cursor: nextCursor, events: visible, hasMore };
 }
 
 export async function currentSyncCursor(env: Env, userId: number): Promise<number> {
   const row = await env.DB.prepare(
-    'SELECT COALESCE(MAX(id), 0) AS cursor FROM sync_events WHERE user_id = ?',
-  ).bind(userId).first<{ cursor: number }>();
+    `SELECT MAX(
+       COALESCE((SELECT MAX(id) FROM sync_events WHERE user_id = ?), 0),
+       COALESCE((SELECT compacted_through FROM sync_event_watermarks WHERE user_id = ?), 0)
+     ) AS cursor`,
+  ).bind(userId, userId).first<{ cursor: number }>();
   return Number(row?.cursor ?? 0);
 }

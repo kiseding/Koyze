@@ -8,14 +8,28 @@ import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/playlist/domain/playlist.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+Future<void> _deleteTemporaryDirectory(Directory directory) async {
+  for (var attempt = 0; attempt < 5; attempt++) {
+    if (!await directory.exists()) return;
+    try {
+      await directory.delete(recursive: true);
+      return;
+    } on FileSystemException {
+      if (attempt == 4) rethrow;
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+  }
+}
+
 void main() {
   late Directory tempDir;
 
   setUp(() async {
-    tempDir =
-        await Directory.systemTemp.createTemp('playlist_repository_test_');
+    tempDir = await Directory.systemTemp.createTemp(
+      'playlist_repository_test_',
+    );
   });
-  tearDown(() => tempDir.delete(recursive: true));
+  tearDown(() => _deleteTemporaryDirectory(tempDir));
 
   test('loads a summary and decodes only the requested songs page', () async {
     final time = DateTime.utc(2026, 7, 29);
@@ -40,207 +54,273 @@ void main() {
         ),
       ],
     );
-    await File('${tempDir.path}/playlists.v1.json')
-        .writeAsString(const PlaylistSnapshotCodec().encode(snapshot));
+    await File(
+      '${tempDir.path}/playlists.v1.json',
+    ).writeAsString(const PlaylistSnapshotCodec().encode(snapshot));
     final repository = repositoryFor(tempDir, await preferences({}));
 
     final loaded = await repository.load();
-    final page = await repository.loadSongsPage('large', offset: 100, limit: 100);
+    final page = await repository.loadSongsPage(
+      'large',
+      offset: 100,
+      limit: 100,
+    );
 
     expect(loaded.playlists.single.songCount, 250);
     expect(loaded.playlists.single.songs, isEmpty);
     expect(page.total, 250);
-    expect(page.songs.map((song) => song.id),
-        List.generate(100, (index) => '${index + 100}'));
-  });
-
-  test('legacy migration keeps fallback until new file loads successfully',
-      () async {
-    final prefs = await preferences({'playlists': jsonEncode(legacyPlaylists)});
-    final repository = repositoryFor(tempDir, prefs);
-
-    final migrated = await repository.load();
-
-    expect(migrated.playlists, isNotEmpty);
-    expect(prefs.containsKey('playlists'), isTrue);
-    expect(File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
-        isTrue);
-
-    final reloaded = await repository.load();
-
-    expect(reloaded.playlists, isNotEmpty);
-    expect(prefs.containsKey('playlists'), isFalse);
-    expect(File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
-        isFalse);
-  });
-
-  test('corrupt current file is quarantined and restored from recovery',
-      () async {
-    final snapshot = snapshotFixture();
-    await writeValidRecovery(tempDir, snapshot);
-    await File('${tempDir.path}/playlists.v1.json').writeAsString('{broken');
-
-    final loaded = await repositoryFor(tempDir, await preferences({})).load();
-
-    expect(loaded.playlists.single.id, 'favorites');
-    expect(tempDir.listSync().where((file) => file.path.contains('.corrupt.')),
-        hasLength(1));
     expect(
-      () => const PlaylistSnapshotCodec().decode(
-        File('${tempDir.path}/playlists.v1.json').readAsStringSync(),
-      ),
-      returnsNormally,
+      page.songs.map((song) => song.id),
+      List.generate(100, (index) => '${index + 100}'),
     );
   });
 
-  test('previous snapshot is restored after an interrupted replacement',
-      () async {
-    final previous = snapshotFixture(id: 'previous');
-    await File('${tempDir.path}/playlists.v1.previous')
-        .writeAsString(const PlaylistSnapshotCodec().encode(previous));
+  test(
+    'legacy migration keeps fallback until new file loads successfully',
+    () async {
+      final prefs = await preferences({
+        'playlists': jsonEncode(legacyPlaylists),
+      });
+      final repository = repositoryFor(tempDir, prefs);
 
-    final loaded = await repositoryFor(tempDir, await preferences({})).load();
+      final migrated = await repository.load();
 
-    expect(loaded.playlists.single.id, 'previous');
-    expect(
-      const PlaylistSnapshotCodec()
-          .decode(
-            await File('${tempDir.path}/playlists.v1.json').readAsString(),
-          )
-          .playlists
-          .single
-          .id,
-      'previous',
-    );
-  });
+      expect(migrated.playlists, isNotEmpty);
+      expect(prefs.containsKey('playlists'), isTrue);
+      expect(
+        File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
+        isTrue,
+      );
 
-  test('validated current takes precedence and completes migration cleanup',
-      () async {
-    final current = snapshotFixture(id: 'current');
-    final recovery = snapshotFixture(id: 'recovery');
-    final prefs = await preferences({'playlists': jsonEncode(legacyPlaylists)});
-    final codec = const PlaylistSnapshotCodec();
-    await File('${tempDir.path}/playlists.v1.json')
-        .writeAsString(codec.encode(current));
-    await File('${tempDir.path}/playlists.v1.recovery.json')
-        .writeAsString(codec.encode(recovery));
+      final reloaded = await repository.load();
 
-    final loaded = await repositoryFor(tempDir, prefs).load();
+      expect(reloaded.playlists, isNotEmpty);
+      expect(prefs.containsKey('playlists'), isFalse);
+      expect(
+        File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
+        isFalse,
+      );
+    },
+  );
 
-    expect(loaded.playlists.single.id, 'current');
-    expect(prefs.containsKey('playlists'), isFalse);
-    expect(File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
-        isFalse);
-  });
+  test(
+    'corrupt current file is quarantined and restored from recovery',
+    () async {
+      final snapshot = snapshotFixture();
+      await writeValidRecovery(tempDir, snapshot);
+      await File('${tempDir.path}/playlists.v1.json').writeAsString('{broken');
 
-  test('validated current deletes recovery when legacy is already absent',
-      () async {
-    final current = snapshotFixture(id: 'current');
-    final recovery = snapshotFixture(id: 'recovery');
-    final codec = const PlaylistSnapshotCodec();
-    await File('${tempDir.path}/playlists.v1.json')
-        .writeAsString(codec.encode(current));
-    await File('${tempDir.path}/playlists.v1.recovery.json')
-        .writeAsString(codec.encode(recovery));
+      final loaded = await repositoryFor(tempDir, await preferences({})).load();
 
-    final loaded = await repositoryFor(tempDir, await preferences({})).load();
+      expect(loaded.playlists.single.id, 'favorites');
+      expect(
+        tempDir.listSync().where((file) => file.path.contains('.corrupt.')),
+        hasLength(1),
+      );
+      expect(
+        () => const PlaylistSnapshotCodec().decode(
+          File('${tempDir.path}/playlists.v1.json').readAsStringSync(),
+        ),
+        returnsNormally,
+      );
+    },
+  );
 
-    expect(loaded.playlists.single.id, 'current');
-    expect(File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
-        isFalse);
-  });
+  test(
+    'previous snapshot is restored after an interrupted replacement',
+    () async {
+      final previous = snapshotFixture(id: 'previous');
+      await File(
+        '${tempDir.path}/playlists.v1.previous',
+      ).writeAsString(const PlaylistSnapshotCodec().encode(previous));
 
-  test('validated current preserves malformed legacy during recovery cleanup',
-      () async {
-    final current = snapshotFixture(id: 'current');
-    final recovery = snapshotFixture(id: 'recovery');
-    final prefs = await preferences({'playlists': '{broken'});
-    final codec = const PlaylistSnapshotCodec();
-    await File('${tempDir.path}/playlists.v1.json')
-        .writeAsString(codec.encode(current));
-    await File('${tempDir.path}/playlists.v1.recovery.json')
-        .writeAsString(codec.encode(recovery));
+      final loaded = await repositoryFor(tempDir, await preferences({})).load();
 
-    final loaded = await repositoryFor(tempDir, prefs).load();
+      expect(loaded.playlists.single.id, 'previous');
+      expect(
+        const PlaylistSnapshotCodec()
+            .decode(
+              await File('${tempDir.path}/playlists.v1.json').readAsString(),
+            )
+            .playlists
+            .single
+            .id,
+        'previous',
+      );
+    },
+  );
 
-    expect(loaded.playlists.single.id, 'current');
-    expect(prefs.getString('playlists'), '{broken');
-    expect(File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
-        isTrue);
-  });
+  test(
+    'validated current takes precedence and completes migration cleanup',
+    () async {
+      final current = snapshotFixture(id: 'current');
+      final recovery = snapshotFixture(id: 'recovery');
+      final prefs = await preferences({
+        'playlists': jsonEncode(legacyPlaylists),
+      });
+      final codec = const PlaylistSnapshotCodec();
+      await File(
+        '${tempDir.path}/playlists.v1.json',
+      ).writeAsString(codec.encode(current));
+      await File(
+        '${tempDir.path}/playlists.v1.recovery.json',
+      ).writeAsString(codec.encode(recovery));
 
-  test('validated current preserves recovery when legacy removal fails',
-      () async {
-    final current = snapshotFixture(id: 'current');
-    final recovery = snapshotFixture(id: 'recovery');
-    final prefs = await preferences({'playlists': jsonEncode(legacyPlaylists)});
-    final codec = const PlaylistSnapshotCodec();
-    await File('${tempDir.path}/playlists.v1.json')
-        .writeAsString(codec.encode(current));
-    await File('${tempDir.path}/playlists.v1.recovery.json')
-        .writeAsString(codec.encode(recovery));
-    final removedKeys = <String>[];
-    final repository = repositoryFor(
-      tempDir,
-      prefs,
-      removePreference: (key) async {
-        removedKeys.add(key);
-        return false;
-      },
-    );
+      final loaded = await repositoryFor(tempDir, prefs).load();
 
-    final loaded = await repository.load();
+      expect(loaded.playlists.single.id, 'current');
+      expect(prefs.containsKey('playlists'), isFalse);
+      expect(
+        File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
+        isFalse,
+      );
+    },
+  );
 
-    expect(loaded.playlists.single.id, 'current');
-    expect(prefs.containsKey('playlists'), isTrue);
-    expect(File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
-        isTrue);
-    expect(removedKeys, ['playlists']);
-  });
+  test(
+    'validated current deletes recovery when legacy is already absent',
+    () async {
+      final current = snapshotFixture(id: 'current');
+      final recovery = snapshotFixture(id: 'recovery');
+      final codec = const PlaylistSnapshotCodec();
+      await File(
+        '${tempDir.path}/playlists.v1.json',
+      ).writeAsString(codec.encode(current));
+      await File(
+        '${tempDir.path}/playlists.v1.recovery.json',
+      ).writeAsString(codec.encode(recovery));
 
-  test('retries recovery deletion after legacy removal already succeeded',
-      () async {
-    final current = snapshotFixture(id: 'current');
-    final recovery = snapshotFixture(id: 'recovery');
-    final prefs = await preferences({'playlists': jsonEncode(legacyPlaylists)});
-    final codec = const PlaylistSnapshotCodec();
-    await File('${tempDir.path}/playlists.v1.json')
-        .writeAsString(codec.encode(current));
-    await File('${tempDir.path}/playlists.v1.recovery.json')
-        .writeAsString(codec.encode(recovery));
+      final loaded = await repositoryFor(tempDir, await preferences({})).load();
 
-    await expectLater(
-      repositoryFor(
+      expect(loaded.playlists.single.id, 'current');
+      expect(
+        File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'validated current preserves malformed legacy during recovery cleanup',
+    () async {
+      final current = snapshotFixture(id: 'current');
+      final recovery = snapshotFixture(id: 'recovery');
+      final prefs = await preferences({'playlists': '{broken'});
+      final codec = const PlaylistSnapshotCodec();
+      await File(
+        '${tempDir.path}/playlists.v1.json',
+      ).writeAsString(codec.encode(current));
+      await File(
+        '${tempDir.path}/playlists.v1.recovery.json',
+      ).writeAsString(codec.encode(recovery));
+
+      final loaded = await repositoryFor(tempDir, prefs).load();
+
+      expect(loaded.playlists.single.id, 'current');
+      expect(prefs.getString('playlists'), '{broken');
+      expect(
+        File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'validated current preserves recovery when legacy removal fails',
+    () async {
+      final current = snapshotFixture(id: 'current');
+      final recovery = snapshotFixture(id: 'recovery');
+      final prefs = await preferences({
+        'playlists': jsonEncode(legacyPlaylists),
+      });
+      final codec = const PlaylistSnapshotCodec();
+      await File(
+        '${tempDir.path}/playlists.v1.json',
+      ).writeAsString(codec.encode(current));
+      await File(
+        '${tempDir.path}/playlists.v1.recovery.json',
+      ).writeAsString(codec.encode(recovery));
+      final removedKeys = <String>[];
+      final repository = repositoryFor(
         tempDir,
         prefs,
-        fileSystem: RecoveryDeleteFailingFileSystem(),
-      ).load(),
-      throwsA(isA<FileSystemException>()),
-    );
-    expect(prefs.containsKey('playlists'), isFalse);
-    expect(File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
-        isTrue);
+        removePreference: (key) async {
+          removedKeys.add(key);
+          return false;
+        },
+      );
 
-    final loaded = await repositoryFor(tempDir, prefs).load();
+      final loaded = await repository.load();
 
-    expect(loaded.playlists.single.id, 'current');
-    expect(File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
-        isFalse);
-  });
+      expect(loaded.playlists.single.id, 'current');
+      expect(prefs.containsKey('playlists'), isTrue);
+      expect(
+        File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
+        isTrue,
+      );
+      expect(removedKeys, ['playlists']);
+    },
+  );
 
-  test('recovery restore retains fallbacks until a later current reload',
-      () async {
-    final recovery = snapshotFixture();
-    final prefs = await preferences({'playlists': jsonEncode(legacyPlaylists)});
-    await writeValidRecovery(tempDir, recovery);
-    final repository = repositoryFor(tempDir, prefs);
+  test(
+    'retries recovery deletion after legacy removal already succeeded',
+    () async {
+      final current = snapshotFixture(id: 'current');
+      final recovery = snapshotFixture(id: 'recovery');
+      final prefs = await preferences({
+        'playlists': jsonEncode(legacyPlaylists),
+      });
+      final codec = const PlaylistSnapshotCodec();
+      await File(
+        '${tempDir.path}/playlists.v1.json',
+      ).writeAsString(codec.encode(current));
+      await File(
+        '${tempDir.path}/playlists.v1.recovery.json',
+      ).writeAsString(codec.encode(recovery));
 
-    await repository.load();
+      await expectLater(
+        repositoryFor(
+          tempDir,
+          prefs,
+          fileSystem: RecoveryDeleteFailingFileSystem(),
+        ).load(),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(prefs.containsKey('playlists'), isFalse);
+      expect(
+        File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
+        isTrue,
+      );
 
-    expect(prefs.containsKey('playlists'), isTrue);
-    expect(File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
-        isTrue);
-  });
+      final loaded = await repositoryFor(tempDir, prefs).load();
+
+      expect(loaded.playlists.single.id, 'current');
+      expect(
+        File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'recovery restore retains fallbacks until a later current reload',
+    () async {
+      final recovery = snapshotFixture();
+      final prefs = await preferences({
+        'playlists': jsonEncode(legacyPlaylists),
+      });
+      await writeValidRecovery(tempDir, recovery);
+      final repository = repositoryFor(tempDir, prefs);
+
+      await repository.load();
+
+      expect(prefs.containsKey('playlists'), isTrue);
+      expect(
+        File('${tempDir.path}/playlists.v1.recovery.json').existsSync(),
+        isTrue,
+      );
+    },
+  );
 
   test('malformed legacy data remains untouched', () async {
     final prefs = await preferences({'playlists': '{broken'});
@@ -255,8 +335,9 @@ void main() {
     final existing = snapshotFixture(id: 'existing');
     final next = snapshotFixture(id: 'next');
     final codec = const PlaylistSnapshotCodec();
-    await File('${tempDir.path}/playlists.v1.json')
-        .writeAsString(codec.encode(existing));
+    await File(
+      '${tempDir.path}/playlists.v1.json',
+    ).writeAsString(codec.encode(existing));
     final repository = repositoryFor(
       tempDir,
       await preferences({}),
@@ -264,118 +345,144 @@ void main() {
     );
 
     await expectLater(
-        repository.save(next), throwsA(isA<FileSystemException>()));
+      repository.save(next),
+      throwsA(isA<FileSystemException>()),
+    );
 
     expect(
+      codec
+          .decode(
+            await File('${tempDir.path}/playlists.v1.json').readAsString(),
+          )
+          .playlists
+          .single
+          .id,
+      'existing',
+    );
+  });
+
+  test(
+    'failed replacement rolls back the current snapshot from previous',
+    () async {
+      final existing = snapshotFixture(id: 'existing');
+      final codec = const PlaylistSnapshotCodec();
+      await File(
+        '${tempDir.path}/playlists.v1.json',
+      ).writeAsString(codec.encode(existing));
+      final repository = repositoryFor(
+        tempDir,
+        await preferences({}),
+        fileSystem: FailingRenameFileSystem(),
+      );
+
+      await expectLater(
+        repository.save(snapshotFixture(id: 'next')),
+        throwsA(isA<FileSystemException>()),
+      );
+
+      expect(
         codec
             .decode(
-                await File('${tempDir.path}/playlists.v1.json').readAsString())
+              await File('${tempDir.path}/playlists.v1.json').readAsString(),
+            )
             .playlists
             .single
             .id,
-        'existing');
-  });
+        'existing',
+      );
+    },
+  );
 
-  test('failed replacement rolls back the current snapshot from previous',
-      () async {
-    final existing = snapshotFixture(id: 'existing');
-    final codec = const PlaylistSnapshotCodec();
-    await File('${tempDir.path}/playlists.v1.json')
-        .writeAsString(codec.encode(existing));
-    final repository = repositoryFor(
-      tempDir,
-      await preferences({}),
-      fileSystem: FailingRenameFileSystem(),
-    );
+  test(
+    'post-replacement corruption restores the exact previous snapshot',
+    () async {
+      final existing = snapshotFixture(id: 'existing');
+      final codec = const PlaylistSnapshotCodec();
+      final original = codec.encode(existing);
+      await File('${tempDir.path}/playlists.v1.json').writeAsString(original);
+      final fileSystem = CorruptingReplacementFileSystem();
+      final repository = repositoryFor(
+        tempDir,
+        await preferences({}),
+        fileSystem: fileSystem,
+      );
 
-    await expectLater(repository.save(snapshotFixture(id: 'next')),
-        throwsA(isA<FileSystemException>()));
+      await expectLater(
+        repository.save(snapshotFixture(id: 'next')),
+        throwsA(isA<FileSystemException>()),
+      );
 
-    expect(
+      expect(fileSystem.replacementCompleted, isTrue);
+      final restored = await File(
+        '${tempDir.path}/playlists.v1.json',
+      ).readAsString();
+      expect(codec.encode(codec.decode(restored)), original);
+    },
+  );
+
+  test(
+    'save durably flushes and closes previous before replacing current',
+    () async {
+      final codec = const PlaylistSnapshotCodec();
+      await File(
+        '${tempDir.path}/playlists.v1.json',
+      ).writeAsString(codec.encode(snapshotFixture(id: 'existing')));
+      final fileSystem = RecordingDurabilityFileSystem();
+      final repository = repositoryFor(
+        tempDir,
+        await preferences({}),
+        fileSystem: fileSystem,
+      );
+
+      await repository.save(snapshotFixture(id: 'next'));
+
+      expect(fileSystem.events, [
+        'copy previous',
+        'flush previous completed',
+        'close previous completed',
+        'replace current invoked',
+        'replace current completed',
+      ]);
+    },
+  );
+
+  test(
+    'flush failure closes previous without replacing readable current',
+    () async {
+      final codec = const PlaylistSnapshotCodec();
+      await File(
+        '${tempDir.path}/playlists.v1.json',
+      ).writeAsString(codec.encode(snapshotFixture(id: 'existing')));
+      final fileSystem = FlushFailingFileSystem();
+      final repository = repositoryFor(
+        tempDir,
+        await preferences({}),
+        fileSystem: fileSystem,
+      );
+
+      await expectLater(
+        repository.save(snapshotFixture(id: 'next')),
+        throwsA(isA<FileSystemException>()),
+      );
+
+      expect(
         codec
             .decode(
-                await File('${tempDir.path}/playlists.v1.json').readAsString())
+              await File('${tempDir.path}/playlists.v1.json').readAsString(),
+            )
             .playlists
             .single
             .id,
-        'existing');
-  });
-
-  test('post-replacement corruption restores the exact previous snapshot',
-      () async {
-    final existing = snapshotFixture(id: 'existing');
-    final codec = const PlaylistSnapshotCodec();
-    final original = codec.encode(existing);
-    await File('${tempDir.path}/playlists.v1.json').writeAsString(original);
-    final fileSystem = CorruptingReplacementFileSystem();
-    final repository = repositoryFor(
-      tempDir,
-      await preferences({}),
-      fileSystem: fileSystem,
-    );
-
-    await expectLater(repository.save(snapshotFixture(id: 'next')),
-        throwsA(isA<FileSystemException>()));
-
-    expect(fileSystem.replacementCompleted, isTrue);
-    final restored =
-        await File('${tempDir.path}/playlists.v1.json').readAsString();
-    expect(codec.encode(codec.decode(restored)), original);
-  });
-
-  test('save durably flushes and closes previous before replacing current',
-      () async {
-    final codec = const PlaylistSnapshotCodec();
-    await File('${tempDir.path}/playlists.v1.json')
-        .writeAsString(codec.encode(snapshotFixture(id: 'existing')));
-    final fileSystem = RecordingDurabilityFileSystem();
-    final repository = repositoryFor(
-      tempDir,
-      await preferences({}),
-      fileSystem: fileSystem,
-    );
-
-    await repository.save(snapshotFixture(id: 'next'));
-
-    expect(fileSystem.events, [
-      'copy previous',
-      'flush previous completed',
-      'close previous completed',
-      'replace current invoked',
-      'replace current completed',
-    ]);
-  });
-
-  test('flush failure closes previous without replacing readable current',
-      () async {
-    final codec = const PlaylistSnapshotCodec();
-    await File('${tempDir.path}/playlists.v1.json')
-        .writeAsString(codec.encode(snapshotFixture(id: 'existing')));
-    final fileSystem = FlushFailingFileSystem();
-    final repository = repositoryFor(
-      tempDir,
-      await preferences({}),
-      fileSystem: fileSystem,
-    );
-
-    await expectLater(repository.save(snapshotFixture(id: 'next')),
-        throwsA(isA<FileSystemException>()));
-
-    expect(
-        codec
-            .decode(
-                await File('${tempDir.path}/playlists.v1.json').readAsString())
-            .playlists
-            .single
-            .id,
-        'existing');
-    expect(fileSystem.replacementRenameInvocations, 0);
-    expect(fileSystem.events, [
-      'flush previous invoked',
-      'close previous invoked',
-      'close previous completed',
-    ]);
-  });
+        'existing',
+      );
+      expect(fileSystem.replacementRenameInvocations, 0);
+      expect(fileSystem.events, [
+        'flush previous invoked',
+        'close previous invoked',
+        'close previous completed',
+      ]);
+    },
+  );
 }
 
 FilePlaylistRepository repositoryFor(
@@ -399,9 +506,12 @@ Future<SharedPreferences> preferences(Map<String, Object> values) async {
 }
 
 Future<void> writeValidRecovery(
-    Directory directory, PlaylistSnapshot snapshot) {
-  return File('${directory.path}/playlists.v1.recovery.json')
-      .writeAsString(const PlaylistSnapshotCodec().encode(snapshot));
+  Directory directory,
+  PlaylistSnapshot snapshot,
+) {
+  return File(
+    '${directory.path}/playlists.v1.recovery.json',
+  ).writeAsString(const PlaylistSnapshotCodec().encode(snapshot));
 }
 
 PlaylistSnapshot snapshotFixture({String id = 'favorites'}) {

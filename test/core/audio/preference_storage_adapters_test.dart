@@ -21,10 +21,7 @@ void main() {
   test('playback cache adapter propagates failed durable write', () async {
     final store = PrefsPlaybackCacheIndexStore(storage: failingStorage);
 
-    await expectLater(
-      store.write('{}'),
-      throwsA(isA<StorageWriteException>()),
-    );
+    await expectLater(store.write('{}'), throwsA(isA<StorageWriteException>()));
   });
 
   test('download adapter propagates failed durable write', () async {

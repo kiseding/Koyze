@@ -39,7 +39,7 @@ void main() {
           ),
         ),
         durationProvider.overrideWithValue(
-          AsyncValue.data(const Duration(seconds: 200)),
+          const AsyncValue.data(Duration(seconds: 200)),
         ),
         playModeProvider.overrideWithValue(PlayMode.sequential),
         playerPositionProvider.overrideWith((ref) => PositionNotifier(null)),
@@ -60,12 +60,12 @@ void main() {
           ),
           scaffoldBackgroundColor: Colors.white,
         ),
-        home: Scaffold(
+        home: const Scaffold(
           body: Stack(
             fit: StackFit.expand,
             children: [
-              const ColoredBox(color: Color(0xFFB8D4FF)),
-              const PlayerScreen(),
+              ColoredBox(color: Color(0xFFB8D4FF)),
+              PlayerScreen(),
             ],
           ),
         ),
@@ -73,41 +73,43 @@ void main() {
     );
   }
 
-  testWidgets('pull down follows finger and settles back when under threshold',
-      (tester) async {
-    tester.view.physicalSize = const Size(420, 900);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'pull down follows finger and settles back when under threshold',
+    (tester) async {
+      tester.view.physicalSize = const Size(420, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    playerRouteProgress.value = 1.0;
-    await tester.pumpWidget(harness());
-    await tester.pump();
+      playerRouteProgress.value = 1.0;
+      await tester.pumpWidget(harness());
+      await tester.pump();
 
-    // 拖动中（未松手）：progress 应跟手下降（200px / 378px 满程）。
-    final gesture = await tester.startGesture(
-      tester.getCenter(find.byType(PlayerScreen)),
-    );
-    await gesture.moveBy(const Offset(0, 25));
-    await tester.pump();
-    await tester.pump();
-    await tester.pump();
-    await gesture.moveBy(const Offset(0, 175));
-    await tester.pump();
-    await tester.pump();
-    await tester.pump();
-    final duringDrag = playerRouteProgress.value;
-    debugPrint('during drag progress=$duringDrag');
-    expect(duringDrag, lessThan(0.9));
-    expect(duringDrag, greaterThan(0.2));
+      // 拖动中（未松手）：progress 应跟手下降（200px / 378px 满程）。
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(PlayerScreen)),
+      );
+      await gesture.moveBy(const Offset(0, 25));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, 175));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      final duringDrag = playerRouteProgress.value;
+      debugPrint('during drag progress=$duringDrag');
+      expect(duringDrag, lessThan(0.9));
+      expect(duringDrag, greaterThan(0.2));
 
-    // 松手（低于阈值 screenH*0.4=360）→ 回弹到 1
-    await gesture.up();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(playerRouteProgress.value, 1.0);
-  });
+      // 松手（低于阈值 screenH*0.4=360）→ 回弹到 1
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(playerRouteProgress.value, 1.0);
+    },
+  );
 
   testWidgets('release after segmented drag plays the settle animation', (
     tester,
@@ -170,31 +172,29 @@ void main() {
   });
 
   testWidgets(
-      'pull past threshold continues collapse from current position then pops',
-      (tester) async {
-    tester.view.physicalSize = const Size(420, 900);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    'pull past threshold continues collapse from current position then pops',
+    (tester) async {
+      tester.view.physicalSize = const Size(420, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    playerRouteProgress.value = 1.0;
-    await tester.pumpWidget(harness());
-    await tester.pump();
-    expect(playerRouteDismissLocked, isFalse);
+      playerRouteProgress.value = 1.0;
+      await tester.pumpWidget(harness());
+      await tester.pump();
+      expect(playerRouteDismissLocked, isFalse);
 
-    await tester.drag(
-      find.byType(PlayerScreen),
-      const Offset(0, 425),
-    );
-    await tester.pump();
-    await tester.pump();
-    // 超过满程 → 已跟手收拢到 0
-    expect(playerRouteProgress.value, 0.0);
+      await tester.drag(find.byType(PlayerScreen), const Offset(0, 425));
+      await tester.pump();
+      await tester.pump();
+      // 超过满程 → 已跟手收拢到 0
+      expect(playerRouteProgress.value, 0.0);
 
-    // 松手后继续收拢（不会先弹回），动画完成 pop + 加锁。
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(playerRouteProgress.value, 0.0);
-    expect(playerRouteDismissLocked, isTrue);
-  });
+      // 松手后继续收拢（不会先弹回），动画完成 pop + 加锁。
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(playerRouteProgress.value, 0.0);
+      expect(playerRouteDismissLocked, isTrue);
+    },
+  );
 }

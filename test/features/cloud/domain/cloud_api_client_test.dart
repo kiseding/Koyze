@@ -295,6 +295,30 @@ void main() {
     expect(prefs.getString('cloud_api_base'), 'https://cloud.example.com/api');
   });
 
+  test(
+    'changing origin clears account identity with the active session',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'cloud_api_base': 'https://old.example',
+        'cloud_api_username': 'old-user',
+        'cloud_api_account_id': 'old-account',
+        'cloud_api_role': 'user',
+      });
+      final secure = FakeSecureTokenStore()
+        ..values[cloudTokenKey('https://old.example')] = 'old-token';
+      final client = CloudApiClient(secureStore: secure);
+      await client.load();
+
+      await client.setBaseUrl('https://new.example');
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(client.accountId, isNull);
+      expect(prefs.getString('cloud_api_username'), isNull);
+      expect(prefs.getString('cloud_api_account_id'), isNull);
+      expect(prefs.getString('cloud_api_role'), isNull);
+    },
+  );
+
   test('a stale base URL write cannot overwrite a newer durable URL', () async {
     final preferences = DelayedBaseUrlPreferences({});
     preferences.pause('https://old.example');
@@ -375,6 +399,42 @@ void main() {
       expect(client.configurationError, contains('could not be saved'));
     },
   );
+
+  test('failed origin change restores the previous account identity', () async {
+    SharedPreferences.setMockInitialValues({
+      'cloud_api_base': 'https://old.example',
+      'cloud_api_username': 'old-user',
+      'cloud_api_account_id': 'old-account',
+      'cloud_api_role': 'user',
+    });
+    final preferences = DelayedBaseUrlPreferences({
+      'cloud_api_base': 'https://old.example',
+      'cloud_api_username': 'old-user',
+      'cloud_api_account_id': 'old-account',
+      'cloud_api_role': 'user',
+    })..failSetValue = 'https://new.example';
+    final secure = FakeSecureTokenStore()
+      ..values[cloudTokenKey('https://old.example')] = 'old-token';
+    final client = CloudApiClient(
+      secureStore: secure,
+      baseUrlPreferences: () async => preferences,
+    );
+    await client.load();
+
+    await expectLater(
+      client.setBaseUrl('https://new.example'),
+      throwsStateError,
+    );
+
+    expect(client.baseUrl, 'https://old.example');
+    expect(client.token, 'old-token');
+    expect(client.username, 'old-user');
+    expect(client.accountId, 'old-account');
+    expect(client.role, 'user');
+    expect(preferences.values['cloud_api_username'], 'old-user');
+    expect(preferences.values['cloud_api_account_id'], 'old-account');
+    expect(preferences.values['cloud_api_role'], 'user');
+  });
 
   test(
     'a failed base URL persistence does not poison a later update',
@@ -541,7 +601,12 @@ void main() {
     final secure = FakeSecureTokenStore();
     final client = CloudApiClient(
       dio: responseDio(
-        data: {'token': 'new-token', 'username': 'user', 'role': 'user'},
+        data: {
+          'token': 'new-token',
+          'username': 'user',
+          'accountId': 'account-1',
+          'role': 'user',
+        },
       ),
       secureStore: secure,
     );
@@ -550,6 +615,11 @@ void main() {
     await client.login('user', 'password');
 
     expect(await secure.read(cloudTokenKey()), 'new-token');
+    expect(client.accountId, 'account-1');
+    expect(
+      (await SharedPreferences.getInstance()).getString('cloud_api_account_id'),
+      'account-1',
+    );
     expect(
       (await SharedPreferences.getInstance()).containsKey('cloud_api_token'),
       isFalse,
@@ -565,7 +635,12 @@ void main() {
       final secure = FakeSecureTokenStore();
       final client = CloudApiClient(
         dio: responseDio(
-          data: {'token': 'new-token', 'username': 'user', 'role': 'user'},
+          data: {
+            'token': 'new-token',
+            'username': 'user',
+            'accountId': 'account-1',
+            'role': 'user',
+          },
         ),
         secureStore: secure,
       );
@@ -574,6 +649,7 @@ void main() {
       await client.register('user', 'password');
 
       expect(await secure.read(cloudTokenKey()), 'new-token');
+      expect(client.accountId, 'account-1');
       expect(
         (await SharedPreferences.getInstance()).containsKey('cloud_api_token'),
         isFalse,
@@ -722,11 +798,12 @@ void main() {
   );
 
   test(
-    'login restores secure token and preference state when metadata write fails',
+    'login restores accountId from the durable snapshot when metadata write fails',
     () async {
       SharedPreferences.setMockInitialValues({
         'cloud_api_base': 'https://cloud.example',
         'cloud_api_username': 'old-user',
+        'cloud_api_account_id': 'memory-account',
         'cloud_api_role': 'user',
       });
       final secure = FakeSecureTokenStore()
@@ -734,11 +811,17 @@ void main() {
       final sessionPreferences = FakeCloudSessionPreferences({
         'cloud_api_token': 'old-token',
         'cloud_api_username': 'old-user',
+        'cloud_api_account_id': 'durable-account',
         'cloud_api_role': 'user',
       }, failSetKey: 'cloud_api_username');
       final client = CloudApiClient(
         dio: responseDio(
-          data: {'token': 'new-token', 'username': 'new-user', 'role': 'admin'},
+          data: {
+            'token': 'new-token',
+            'username': 'new-user',
+            'accountId': 'new-account',
+            'role': 'admin',
+          },
         ),
         secureStore: secure,
         sessionPreferences: () async => sessionPreferences,
@@ -750,10 +833,12 @@ void main() {
       expect(await secure.read(cloudTokenKey()), 'old-token');
       expect(client.token, 'old-token');
       expect(client.username, 'old-user');
+      expect(client.accountId, 'durable-account');
       expect(client.role, 'user');
       expect(sessionPreferences.values, {
         'cloud_api_token': 'old-token',
         'cloud_api_username': 'old-user',
+        'cloud_api_account_id': 'durable-account',
         'cloud_api_role': 'user',
       });
     },
@@ -1071,12 +1156,14 @@ void main() {
       responses.complete('newer-register', {
         'token': 'newer-token',
         'username': 'newer-register',
+        'accountId': 'newer-account',
         'role': 'admin',
       });
       await register;
       responses.complete('older-login', {
         'token': 'older-token',
         'username': 'older-login',
+        'accountId': 'older-account',
         'role': 'user',
       });
       await login;
@@ -1084,9 +1171,73 @@ void main() {
       expect(await secure.read(cloudTokenKey()), 'newer-token');
       expect(client.token, 'newer-token');
       expect(client.username, 'newer-register');
+      expect(client.accountId, 'newer-account');
       expect(client.role, 'admin');
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('cloud_api_username'), 'newer-register');
+      expect(prefs.getString('cloud_api_account_id'), 'newer-account');
+      expect(prefs.getString('cloud_api_role'), 'admin');
+    },
+  );
+
+  test(
+    'a superseded login rollback cannot leak its accountId into a newer session',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'cloud_api_base': 'https://cloud.example',
+        'cloud_api_username': 'initial-user',
+        'cloud_api_account_id': 'initial-account',
+        'cloud_api_role': 'user',
+      });
+      final releaseWrite = Completer<void>();
+      final responses = DelayedAuthResponses();
+      final secure = FakeSecureTokenStore()
+        ..values[cloudTokenKey()] = 'initial-token'
+        ..pauseWrite = releaseWrite
+        ..writeStarted = Completer<void>();
+      final client = CloudApiClient(
+        dio: responses.createDio(),
+        secureStore: secure,
+      );
+      await client.load();
+
+      final staleLogin = client.login('stale-login', 'password');
+      await responses.startedFor('stale-login');
+      responses.complete('stale-login', {
+        'token': 'stale-token',
+        'username': 'stale-login',
+        'accountId': 'stale-account',
+        'role': 'user',
+      });
+      await secure.writeStarted!.future;
+      final staleExpectation = expectLater(
+        staleLogin,
+        throwsA(isA<CloudSessionSafetyError>()),
+      );
+
+      final currentRegistration = client.register(
+        'current-register',
+        'password',
+      );
+      await responses.startedFor('current-register');
+      responses.complete('current-register', {
+        'token': 'current-token',
+        'username': 'current-register',
+        'accountId': 'current-account',
+        'role': 'admin',
+      });
+      releaseWrite.complete();
+
+      await staleExpectation;
+      await currentRegistration;
+
+      expect(await secure.read(cloudTokenKey()), 'current-token');
+      expect(client.username, 'current-register');
+      expect(client.accountId, 'current-account');
+      expect(client.role, 'admin');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('cloud_api_username'), 'current-register');
+      expect(prefs.getString('cloud_api_account_id'), 'current-account');
       expect(prefs.getString('cloud_api_role'), 'admin');
     },
   );
@@ -1405,12 +1556,14 @@ void main() {
       userList: const [
         {'id': 'playlist', 'name': 'Playlist', 'list': []},
       ],
+      baseRevision: 7,
     );
 
     expect(requests, hasLength(1));
     expect(requests.single.path, 'https://cloud.example/api/user/list');
     expect(requests.single.headers['Authorization'], 'Bearer token');
     expect(requests.single.data, {
+      'baseRevision': 7,
       'userList': [
         {'id': 'playlist', 'name': 'Playlist', 'list': []},
       ],
@@ -1445,7 +1598,7 @@ void main() {
 
     await testClient.addLoveSongs([
       for (var i = 0; i < 501; i++) {'songmid': 'song-$i', 'source': 'tx'},
-    ]);
+    ], baseRevision: 7);
 
     expect(requests, hasLength(2));
     expect(
@@ -1462,6 +1615,10 @@ void main() {
       requests.every(
         (request) => ((request.data as Map)['songs'] as List).length <= 500,
       ),
+      isTrue,
+    );
+    expect(
+      requests.every((request) => (request.data as Map)['baseRevision'] == 7),
       isTrue,
     );
   });
@@ -1501,7 +1658,7 @@ void main() {
             'source': 'tx',
             'img': List.filled(40000, 'x').join(),
           },
-      ]);
+      ], baseRevision: 7);
 
       expect(requests.length, greaterThan(1));
       for (final request in requests) {
@@ -1551,6 +1708,7 @@ void main() {
             'img': List.filled(40000, 'x').join(),
           },
       ],
+      baseRevision: 7,
     );
 
     expect(requests.length, greaterThan(1));
@@ -1561,11 +1719,45 @@ void main() {
       expect(entry['name'], 'Road Trip');
       expect(entry['mode'], 'append');
       expect(entry['position'], 1);
+      expect((request.data as Map)['baseRevision'], 7);
       expect(
         utf8.encode(jsonEncode(request.data)).length,
         lessThanOrEqualTo(240 * 1024),
       );
     }
+  });
+
+  test('playlist delete always carries its optimistic base revision', () async {
+    SharedPreferences.setMockInitialValues({
+      'cloud_api_base': 'https://cloud.example',
+    });
+    RequestOptions? captured;
+    final dio = Dio()
+      ..interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            captured = options;
+            handler.resolve(
+              Response(
+                requestOptions: options,
+                statusCode: 200,
+                data: const {'ok': true, 'revision': 10},
+              ),
+            );
+          },
+        ),
+      );
+    final client = CloudApiClient(
+      dio: dio,
+      secureStore: FakeSecureTokenStore()..values[cloudTokenKey()] = 'token',
+    );
+    await client.load();
+
+    final revision = await client.deletePlaylist('road-trip', baseRevision: 9);
+
+    expect(revision, 10);
+    expect(captured?.path, 'https://cloud.example/api/user/playlist');
+    expect(captured?.queryParameters, {'id': 'road-trip', 'baseRevision': 9});
   });
 
   test('stages and commits a replacement snapshot by revision', () async {

@@ -68,7 +68,7 @@ void main() {
 
   test('iOS CI gates the build on analysis and deterministic tests', () {
     final workflow = File('.github/workflows/build-ios.yml').readAsStringSync();
-    final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
+    final analyze = workflow.indexOf('run: flutter analyze --fatal-infos');
     final test = workflow.indexOf('run: flutter test --exclude-tags live');
     final build = workflow.indexOf('run: flutter build ios');
 
@@ -113,7 +113,7 @@ void main() {
     final workflow = File(
       '.github/workflows/build-windows.yml',
     ).readAsStringSync();
-    final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
+    final analyze = workflow.indexOf('run: flutter analyze --fatal-infos');
     final test = workflow.indexOf(
       'run: flutter test test/build_configuration_test.dart',
     );
@@ -165,7 +165,7 @@ void main() {
     final workflow = File(
       '.github/workflows/build-android.yml',
     ).readAsStringSync();
-    final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
+    final analyze = workflow.indexOf('run: flutter analyze --fatal-infos');
     final test = workflow.indexOf('run: flutter test --exclude-tags live');
     final build = workflow.indexOf('flutter build apk --release');
     final signingCheck = workflow.indexOf(

@@ -36,15 +36,18 @@ void main() {
   test('playableUri treats windows drive paths as local files', () {
     final fromBackslash = playableUri(r'C:\music\a.mp3');
     final fromSlash = playableUri('C:/music/a.mp3');
-    expect(fromBackslash.scheme, isEmpty);
-    expect(fromSlash.scheme, isEmpty);
-    expect(fromBackslash.toFilePath().startsWith('C:'), isTrue);
-    expect(fromSlash.toFilePath().startsWith('C:'), isTrue);
+    expect(fromBackslash.scheme, 'file');
+    expect(fromSlash.scheme, 'file');
+    expect(fromBackslash.toFilePath(windows: true).startsWith('C:'), isTrue);
+    expect(fromSlash.toFilePath(windows: true).startsWith('C:'), isTrue);
     expect(
       playableUri('file:///C:/music/a.mp3').toString(),
       'file:///C:/music/a.mp3',
     );
-    expect(playableUri('/tmp/a.mp3').toFilePath(), '/tmp/a.mp3');
+    expect(
+      playableUri('/tmp/a.mp3').toFilePath(),
+      Uri.file('/tmp/a.mp3').toFilePath(),
+    );
     expect(playableUri('https://cdn.example/a.mp3').scheme, 'https');
   });
 
@@ -108,75 +111,79 @@ void main() {
     expect(state.controls, isNot(contains(MediaControl.play)));
   });
 
-  test('expired remote queue url is re-resolved before source install',
-      () async {
-    final player = _PlaybackStateAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    var resolveCalls = 0;
-    handler.urlResolver = (id, [extras]) async {
-      resolveCalls++;
-      return 'https://cdn.example/$id.mp3?token=fresh';
-    };
+  test(
+    'expired remote queue url is re-resolved before source install',
+    () async {
+      final player = _PlaybackStateAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      var resolveCalls = 0;
+      handler.urlResolver = (id, [extras]) async {
+        resolveCalls++;
+        return 'https://cdn.example/$id.mp3?token=fresh';
+      };
 
-    await handler.setPlaylist(const [
-      MediaItem(
-        id: 'A',
-        title: 'A',
-        extras: {
-          'url': 'https://cdn.example/A.mp3?token=expired',
-          'requestedQuality': '320k',
-          'platform': 'tx',
-        },
-      ),
-    ]);
+      await handler.setPlaylist(const [
+        MediaItem(
+          id: 'A',
+          title: 'A',
+          extras: {
+            'url': 'https://cdn.example/A.mp3?token=expired',
+            'requestedQuality': '320k',
+            'platform': 'tx',
+          },
+        ),
+      ]);
 
-    expect(resolveCalls, 1);
-    final source = player.loadedSource as ProgressiveAudioSource;
-    expect(source.uri.queryParameters['token'], 'fresh');
-    expect(source.headers?['Referer'], 'https://y.qq.com/');
-    expect(source.headers?['User-Agent'], mediaUserAgent);
-  });
+      expect(resolveCalls, 1);
+      final source = player.loadedSource as ProgressiveAudioSource;
+      expect(source.uri.queryParameters['token'], 'fresh');
+      expect(source.headers?['Referer'], 'https://y.qq.com/');
+      expect(source.headers?['User-Agent'], mediaUserAgent);
+    },
+  );
 
-  test('engine state recovers manual buffering to ready and completed',
-      () async {
-    final player = _PlaybackStateAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    final resolverStarted = Completer<void>();
-    final releaseResolver = Completer<void>();
-    handler.urlResolver = (id, [extras]) async {
-      resolverStarted.complete();
-      await releaseResolver.future;
-      return 'file:///tmp/$id.mp3';
-    };
+  test(
+    'engine state recovers manual buffering to ready and completed',
+    () async {
+      final player = _PlaybackStateAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      handler.urlResolver = (id, [extras]) async {
+        resolverStarted.complete();
+        await releaseResolver.future;
+        return 'file:///tmp/$id.mp3';
+      };
 
-    final loading = handler.setPlaylist([
-      const MediaItem(id: 'A', title: 'A'),
-    ]);
-    await resolverStarted.future;
-    expect(
-      handler.playbackState.value.processingState,
-      AudioProcessingState.buffering,
-    );
+      final loading = handler.setPlaylist([
+        const MediaItem(id: 'A', title: 'A'),
+      ]);
+      await resolverStarted.future;
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.buffering,
+      );
 
-    player.emit(processingState: ProcessingState.ready);
-    await pumpEventQueue();
-    expect(
-      handler.playbackState.value.processingState,
-      AudioProcessingState.ready,
-    );
+      player.emit(processingState: ProcessingState.ready);
+      await pumpEventQueue();
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.ready,
+      );
 
-    player.emit(processingState: ProcessingState.completed);
-    await pumpEventQueue();
-    expect(
-      handler.playbackState.value.processingState,
-      AudioProcessingState.completed,
-    );
+      player.emit(processingState: ProcessingState.completed);
+      await pumpEventQueue();
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.completed,
+      );
 
-    releaseResolver.complete();
-    await loading;
-  });
+      releaseResolver.complete();
+      await loading;
+    },
+  );
 
   test('previous at queue start does not halt or latch buffering', () async {
     final player = _PlaybackStateAudioPlayer();
@@ -217,27 +224,29 @@ void main() {
     expect(handler.playbackState.value.playing, player.playing);
   });
 
-  test('failed fresh resolution never resurrects an expired remote url',
-      () async {
-    final player = _PlaybackStateAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => null;
+  test(
+    'failed fresh resolution never resurrects an expired remote url',
+    () async {
+      final player = _PlaybackStateAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async => null;
 
-    await handler.setPlaylist(const [
-      MediaItem(
-        id: 'A',
-        title: 'A',
-        extras: {
-          'url': 'https://cdn.example/A.mp3?token=expired',
-          'requestedQuality': '320k',
-        },
-      ),
-    ]);
+      await handler.setPlaylist(const [
+        MediaItem(
+          id: 'A',
+          title: 'A',
+          extras: {
+            'url': 'https://cdn.example/A.mp3?token=expired',
+            'requestedQuality': '320k',
+          },
+        ),
+      ]);
 
-    expect(player.loadedSource, isNull);
-    expect(handler.playbackState.value.playing, isFalse);
-  });
+      expect(player.loadedSource, isNull);
+      expect(handler.playbackState.value.playing, isFalse);
+    },
+  );
 
   test('single-item resolver error restores actual engine state', () async {
     final player = _PlaybackStateAudioPlayer();
@@ -256,219 +265,236 @@ void main() {
     expect(handler.playbackState.value.playing, isTrue);
   });
 
-  test('stale resolver restores engine state while it owns buffering',
-      () async {
-    final player = _PlaybackStateAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    final resolverStarted = Completer<void>();
-    final releaseResolver = Completer<void>();
-    handler.urlResolver = (id, [extras]) async {
-      resolverStarted.complete();
-      await releaseResolver.future;
-      return null;
-    };
-    await handler.updateQueue([
-      const MediaItem(id: 'A', title: 'A'),
-      const MediaItem(
-        id: 'B',
-        title: 'B',
-        extras: {'url': 'file:///tmp/B.mp3', 'requestedQuality': '320k'},
-      ),
-    ]);
-    player.emit(processingState: ProcessingState.ready, playing: true);
-    await pumpEventQueue();
-
-    final staleLoad = handler.skipToQueueItem(0);
-    await resolverStarted.future;
-    await handler.skipToQueueItem(1);
-    releaseResolver.complete();
-    await staleLoad;
-
-    expect(
-      handler.playbackState.value.processingState,
-      AudioProcessingState.ready,
-    );
-    expect(handler.playbackState.value.playing, player.playing);
-  });
-
-  test('seamless completion buffers as playing when engine completed false',
-      () async {
-    final player = _PlaybackStateAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    final resolverStarted = Completer<void>();
-    final releaseResolver = Completer<void>();
-    handler.urlResolver = (id, [extras]) async {
-      resolverStarted.complete();
-      await releaseResolver.future;
-      return 'file:///tmp/$id.mp3';
-    };
-    await handler.setPlaylist([
-      const MediaItem(
-        id: 'A',
-        title: 'A',
-        extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
-      ),
-      const MediaItem(id: 'B', title: 'B'),
-    ]);
-
-    player.emit(processingState: ProcessingState.completed, playing: false);
-    await resolverStarted.future;
-
-    expect(
-      handler.playbackState.value.processingState,
-      AudioProcessingState.buffering,
-    );
-    expect(handler.playbackState.value.playing, isTrue);
-
-    releaseResolver.complete();
-    await pumpEventQueue();
-  });
-
-  test('successful source install reconciles state without playback event',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    player.emit(processingState: ProcessingState.completed, playing: false);
-    await pumpEventQueue();
-
-    await handler.setPlaylist([const MediaItem(id: 'A', title: 'A')]);
-
-    expect(player.sourceLoadCalls, 1);
-    expect(player.playCalls, 1);
-    expect(player.processingState, ProcessingState.ready);
-    expect(player.playing, isTrue);
-    expect(
-      handler.playbackState.value.processingState,
-      AudioProcessingState.ready,
-    );
-    expect(handler.playbackState.value.playing, isTrue);
-    expect(handler.playbackState.value.controls, contains(MediaControl.pause));
-  });
-
-  test('selection pauses old source before publishing selected buffering UI',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    final selectedResolverStarted = Completer<void>();
-    final releaseSelectedResolver = Completer<void>();
-    handler.urlResolver = (id, [extras]) async {
-      if (id == 'B') {
-        selectedResolverStarted.complete();
-        await releaseSelectedResolver.future;
-      }
-      return 'file:///tmp/$id.mp3';
-    };
-    await handler.setPlaylist(const [
-      MediaItem(id: 'A', title: 'A'),
-      MediaItem(id: 'B', title: 'B'),
-    ]);
-    expect(player.playing, isTrue);
-
-    final selection = handler.skipToQueueItem(1);
-    await selectedResolverStarted.future;
-
-    expect(player.pauseCalls, 1);
-    // Native player is paused during resolve, but system now-playing stays
-    // playing=true so lock-screen / Control Center skips do not kill the session.
-    expect(player.playing, isFalse);
-    expect(handler.mediaItem.value?.id, 'B');
-    expect(handler.currentQueueIndex, 1);
-    expect(handler.playbackState.value.queueIndex, 1);
-    expect(
-      handler.playbackState.value.processingState,
-      AudioProcessingState.buffering,
-    );
-    expect(handler.playbackState.value.playing, isTrue);
-    expect(handler.playbackState.value.updatePosition, Duration.zero);
-
-    releaseSelectedResolver.complete();
-    await selection;
-    expect(player.playing, isTrue);
-    expect(handler.playbackState.value.playing, isTrue);
-  });
-
-  test('next keeps native audio session playing while resolving new source',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    final resolverStarted = Completer<void>();
-    final releaseResolver = Completer<void>();
-    handler.urlResolver = (id, [extras]) async {
-      if (id == 'B') {
+  test(
+    'stale resolver restores engine state while it owns buffering',
+    () async {
+      final player = _PlaybackStateAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      handler.urlResolver = (id, [extras]) async {
         resolverStarted.complete();
         await releaseResolver.future;
-      }
-      return 'file:///tmp/$id.mp3';
-    };
-    await handler.setPlaylist(const [
-      MediaItem(id: 'A', title: 'A'),
-      MediaItem(id: 'B', title: 'B'),
-    ]);
-    final pausesBeforeSkip = player.pauseCalls;
+        return null;
+      };
+      await handler.updateQueue([
+        const MediaItem(id: 'A', title: 'A'),
+        const MediaItem(
+          id: 'B',
+          title: 'B',
+          extras: {'url': 'file:///tmp/B.mp3', 'requestedQuality': '320k'},
+        ),
+      ]);
+      player.emit(processingState: ProcessingState.ready, playing: true);
+      await pumpEventQueue();
 
-    final navigation = handler.skipToNext();
-    await resolverStarted.future;
+      final staleLoad = handler.skipToQueueItem(0);
+      await resolverStarted.future;
+      await handler.skipToQueueItem(1);
+      releaseResolver.complete();
+      await staleLoad;
 
-    expect(player.sourceLoadCalls, 2);
-    expect(player.loadedSource, isA<SilenceAudioSource>());
-    expect(player.pauseCalls, pausesBeforeSkip);
-    expect(player.playing, isTrue);
-    expect(handler.mediaItem.value?.id, 'B');
-    expect(handler.playbackState.value.processingState,
-        AudioProcessingState.buffering);
-    expect(handler.playbackState.value.playing, isTrue);
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.ready,
+      );
+      expect(handler.playbackState.value.playing, player.playing);
+    },
+  );
 
-    releaseResolver.complete();
-    await navigation;
-    expect(player.sourceLoadCalls, 3);
-    expect(player.loadedSource, isA<ProgressiveAudioSource>());
-    expect(player.playing, isTrue);
-  });
-
-  test('windows next skips silence keepalive and installs target directly',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(
-      player: player,
-      useSilenceKeepalive: false,
-    );
-    addTearDown(player.dispose);
-    final resolverStarted = Completer<void>();
-    final releaseResolver = Completer<void>();
-    handler.urlResolver = (id, [extras]) async {
-      if (id == 'B') {
+  test(
+    'seamless completion buffers as playing when engine completed false',
+    () async {
+      final player = _PlaybackStateAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      handler.urlResolver = (id, [extras]) async {
         resolverStarted.complete();
         await releaseResolver.future;
-      }
-      return 'file:///tmp/$id.mp3';
-    };
-    await handler.setPlaylist(const [
-      MediaItem(id: 'A', title: 'A'),
-      MediaItem(id: 'B', title: 'B'),
-    ]);
+        return 'file:///tmp/$id.mp3';
+      };
+      await handler.setPlaylist([
+        const MediaItem(
+          id: 'A',
+          title: 'A',
+          extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+        ),
+        const MediaItem(id: 'B', title: 'B'),
+      ]);
 
-    final navigation = handler.skipToNext();
-    await resolverStarted.future;
+      player.emit(processingState: ProcessingState.completed, playing: false);
+      await resolverStarted.future;
 
-    expect(player.loadedSource, isNot(isA<SilenceAudioSource>()));
-    expect(player.playing, isTrue);
-    expect(handler.mediaItem.value?.id, 'B');
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.buffering,
+      );
+      expect(handler.playbackState.value.playing, isTrue);
 
-    releaseResolver.complete();
-    await navigation;
-    expect(player.loadedSource, isA<ProgressiveAudioSource>());
-    expect(player.playing, isTrue);
-  });
+      releaseResolver.complete();
+      await pumpEventQueue();
+    },
+  );
+
+  test(
+    'successful source install reconciles state without playback event',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      player.emit(processingState: ProcessingState.completed, playing: false);
+      await pumpEventQueue();
+
+      await handler.setPlaylist([const MediaItem(id: 'A', title: 'A')]);
+
+      expect(player.sourceLoadCalls, 1);
+      expect(player.playCalls, 1);
+      expect(player.processingState, ProcessingState.ready);
+      expect(player.playing, isTrue);
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.ready,
+      );
+      expect(handler.playbackState.value.playing, isTrue);
+      expect(
+        handler.playbackState.value.controls,
+        contains(MediaControl.pause),
+      );
+    },
+  );
+
+  test(
+    'selection pauses old source before publishing selected buffering UI',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      final selectedResolverStarted = Completer<void>();
+      final releaseSelectedResolver = Completer<void>();
+      handler.urlResolver = (id, [extras]) async {
+        if (id == 'B') {
+          selectedResolverStarted.complete();
+          await releaseSelectedResolver.future;
+        }
+        return 'file:///tmp/$id.mp3';
+      };
+      await handler.setPlaylist(const [
+        MediaItem(id: 'A', title: 'A'),
+        MediaItem(id: 'B', title: 'B'),
+      ]);
+      expect(player.playing, isTrue);
+
+      final selection = handler.skipToQueueItem(1);
+      await selectedResolverStarted.future;
+
+      expect(player.pauseCalls, 1);
+      // Native player is paused during resolve, but system now-playing stays
+      // playing=true so lock-screen / Control Center skips do not kill the session.
+      expect(player.playing, isFalse);
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(handler.currentQueueIndex, 1);
+      expect(handler.playbackState.value.queueIndex, 1);
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.buffering,
+      );
+      expect(handler.playbackState.value.playing, isTrue);
+      expect(handler.playbackState.value.updatePosition, Duration.zero);
+
+      releaseSelectedResolver.complete();
+      await selection;
+      expect(player.playing, isTrue);
+      expect(handler.playbackState.value.playing, isTrue);
+    },
+  );
+
+  test(
+    'next keeps native audio session playing while resolving new source',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      handler.urlResolver = (id, [extras]) async {
+        if (id == 'B') {
+          resolverStarted.complete();
+          await releaseResolver.future;
+        }
+        return 'file:///tmp/$id.mp3';
+      };
+      await handler.setPlaylist(const [
+        MediaItem(id: 'A', title: 'A'),
+        MediaItem(id: 'B', title: 'B'),
+      ]);
+      final pausesBeforeSkip = player.pauseCalls;
+
+      final navigation = handler.skipToNext();
+      await resolverStarted.future;
+
+      expect(player.sourceLoadCalls, 2);
+      expect(player.loadedSource, isA<SilenceAudioSource>());
+      expect(player.pauseCalls, pausesBeforeSkip);
+      expect(player.playing, isTrue);
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.buffering,
+      );
+      expect(handler.playbackState.value.playing, isTrue);
+
+      releaseResolver.complete();
+      await navigation;
+      expect(player.sourceLoadCalls, 3);
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+      expect(player.playing, isTrue);
+    },
+  );
+
+  test(
+    'windows next skips silence keepalive and installs target directly',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(
+        player: player,
+        useSilenceKeepalive: false,
+      );
+      addTearDown(player.dispose);
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      handler.urlResolver = (id, [extras]) async {
+        if (id == 'B') {
+          resolverStarted.complete();
+          await releaseResolver.future;
+        }
+        return 'file:///tmp/$id.mp3';
+      };
+      await handler.setPlaylist(const [
+        MediaItem(id: 'A', title: 'A'),
+        MediaItem(id: 'B', title: 'B'),
+      ]);
+
+      final navigation = handler.skipToNext();
+      await resolverStarted.future;
+
+      expect(player.loadedSource, isNot(isA<SilenceAudioSource>()));
+      expect(player.playing, isTrue);
+      expect(handler.mediaItem.value?.id, 'B');
+
+      releaseResolver.complete();
+      await navigation;
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('pause during next resolution keeps the target paused', () async {
     final player = _PlaybackStateAudioPlayer()
@@ -533,76 +559,81 @@ void main() {
     expect(player.playing, isTrue);
   });
 
-  test('windows previous skips silence keepalive and installs target directly',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(
-      player: player,
-      useSilenceKeepalive: false,
-    );
-    addTearDown(player.dispose);
-    final resolverStarted = Completer<void>();
-    final releaseResolver = Completer<void>();
-    handler.urlResolver = (id, [extras]) async {
-      if (id == 'A') {
-        resolverStarted.complete();
-        await releaseResolver.future;
-      }
-      return 'file:///tmp/$id.mp3';
-    };
-    await handler.setPlaylist(const [
-      MediaItem(id: 'A', title: 'A'),
-      MediaItem(id: 'B', title: 'B'),
-    ], initialIndex: 1);
+  test(
+    'windows previous skips silence keepalive and installs target directly',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(
+        player: player,
+        useSilenceKeepalive: false,
+      );
+      addTearDown(player.dispose);
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      handler.urlResolver = (id, [extras]) async {
+        if (id == 'A') {
+          resolverStarted.complete();
+          await releaseResolver.future;
+        }
+        return 'file:///tmp/$id.mp3';
+      };
+      await handler.setPlaylist(const [
+        MediaItem(id: 'A', title: 'A'),
+        MediaItem(id: 'B', title: 'B'),
+      ], initialIndex: 1);
 
-    final navigation = handler.skipToPrevious();
-    await resolverStarted.future;
-    expect(player.loadedSource, isNot(isA<SilenceAudioSource>()));
-    expect(player.playing, isTrue);
+      final navigation = handler.skipToPrevious();
+      await resolverStarted.future;
+      expect(player.loadedSource, isNot(isA<SilenceAudioSource>()));
+      expect(player.playing, isTrue);
 
-    releaseResolver.complete();
-    await navigation;
-    expect(player.loadedSource, isA<ProgressiveAudioSource>());
-    expect(handler.mediaItem.value?.id, 'A');
-    expect(player.playing, isTrue);
-  });
+      releaseResolver.complete();
+      await navigation;
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+      expect(handler.mediaItem.value?.id, 'A');
+      expect(player.playing, isTrue);
+    },
+  );
 
-  test('null resolver keeps lock-screen playback alive while skipping', () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    final resolverStarted = Completer<void>();
-    final releaseResolver = Completer<void>();
-    handler.urlResolver = (id, [extras]) async {
-      if (id == 'B') {
-        resolverStarted.complete();
-        await releaseResolver.future;
-        return null;
-      }
-      return 'file:///tmp/$id.mp3';
-    };
-    await handler.setPlaylist(const [
-      MediaItem(id: 'A', title: 'A'),
-      MediaItem(id: 'B', title: 'B'),
-      MediaItem(id: 'C', title: 'C'),
-    ]);
+  test(
+    'null resolver keeps lock-screen playback alive while skipping',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      handler.urlResolver = (id, [extras]) async {
+        if (id == 'B') {
+          resolverStarted.complete();
+          await releaseResolver.future;
+          return null;
+        }
+        return 'file:///tmp/$id.mp3';
+      };
+      await handler.setPlaylist(const [
+        MediaItem(id: 'A', title: 'A'),
+        MediaItem(id: 'B', title: 'B'),
+        MediaItem(id: 'C', title: 'C'),
+      ]);
 
-    final navigation = handler.skipToNext();
-    await resolverStarted.future;
-    expect(player.loadedSource, isA<SilenceAudioSource>());
-    expect(player.playing, isTrue);
+      final navigation = handler.skipToNext();
+      await resolverStarted.future;
+      expect(player.loadedSource, isA<SilenceAudioSource>());
+      expect(player.playing, isTrue);
 
-    releaseResolver.complete();
-    await Future<void>.delayed(Duration.zero);
-    await pumpEventQueue();
-    expect(player.loadedSource, isA<ProgressiveAudioSource>());
-    expect(handler.currentQueueIndex, 2);
-    await navigation;
-    expect(handler.currentQueueIndex, 2);
-    expect(player.playing, isTrue);
-  });
+      releaseResolver.complete();
+      await Future<void>.delayed(Duration.zero);
+      await pumpEventQueue();
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+      expect(handler.currentQueueIndex, 2);
+      await navigation;
+      expect(handler.currentQueueIndex, 2);
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('five failed tracks halt auto-skip until explicit next', () async {
     final player = _PlaybackStateAudioPlayer()
@@ -749,102 +780,110 @@ void main() {
     expect(player.playing, isFalse);
   });
 
-  test('selection does not publish metadata before native pause completes',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    await handler.setPlaylist(const [
-      MediaItem(id: 'A', title: 'A'),
-      MediaItem(id: 'B', title: 'B'),
-    ]);
-    final publishedIds = <String?>[];
-    final subscription = handler.mediaItem.listen(
-      (item) => publishedIds.add(item?.id),
-    );
-    addTearDown(subscription.cancel);
-    final pauseGate = player.gateNextPause();
+  test(
+    'selection does not publish metadata before native pause completes',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      await handler.setPlaylist(const [
+        MediaItem(id: 'A', title: 'A'),
+        MediaItem(id: 'B', title: 'B'),
+      ]);
+      final publishedIds = <String?>[];
+      final subscription = handler.mediaItem.listen(
+        (item) => publishedIds.add(item?.id),
+      );
+      addTearDown(subscription.cancel);
+      final pauseGate = player.gateNextPause();
 
-    final selection = handler.skipToQueueItem(1);
-    await pauseGate.started.future;
+      final selection = handler.skipToQueueItem(1);
+      await pauseGate.started.future;
 
-    expect(handler.mediaItem.value?.id, 'A');
-    expect(publishedIds, isNot(contains('B')));
+      expect(handler.mediaItem.value?.id, 'A');
+      expect(publishedIds, isNot(contains('B')));
 
-    pauseGate.release.complete();
-    await selection;
+      pauseGate.release.complete();
+      await selection;
 
-    expect(handler.mediaItem.value?.id, 'B');
-    expect(publishedIds, contains('B'));
-  });
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(publishedIds, contains('B'));
+    },
+  );
 
-  test('direct selection releases preserving owner after null resolver',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    const item = MediaItem(id: 'A', title: 'A');
-    await handler.setPlaylist(const [item]);
-    await handler.updateQueue(const [item]);
-    handler.urlResolver = (id, [extras]) async => null;
+  test(
+    'direct selection releases preserving owner after null resolver',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      const item = MediaItem(id: 'A', title: 'A');
+      await handler.setPlaylist(const [item]);
+      await handler.updateQueue(const [item]);
+      handler.urlResolver = (id, [extras]) async => null;
 
-    await handler.skipToQueueItem(0);
+      await handler.skipToQueueItem(0);
 
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    await handler.skipToQueueItem(0, playAfterLoad: false);
-    final playCalls = player.playCalls;
-    await handler.play();
-    expect(player.playCalls, playCalls + 1);
-    expect(player.playing, isTrue);
-  });
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      await handler.skipToQueueItem(0, playAfterLoad: false);
+      final playCalls = player.playCalls;
+      await handler.play();
+      expect(player.playCalls, playCalls + 1);
+      expect(player.playing, isTrue);
+    },
+  );
 
-  test('direct selection releases preserving owner after resolver throws',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    const item = MediaItem(id: 'A', title: 'A');
-    await handler.setPlaylist(const [item]);
-    await handler.updateQueue(const [item]);
-    handler.urlResolver =
-        (id, [extras]) async => throw StateError('resolver failure');
+  test(
+    'direct selection releases preserving owner after resolver throws',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      const item = MediaItem(id: 'A', title: 'A');
+      await handler.setPlaylist(const [item]);
+      await handler.updateQueue(const [item]);
+      handler.urlResolver = (id, [extras]) async =>
+          throw StateError('resolver failure');
 
-    await handler.skipToQueueItem(0);
+      await handler.skipToQueueItem(0);
 
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    await handler.skipToQueueItem(0, playAfterLoad: false);
-    final playCalls = player.playCalls;
-    await handler.play();
-    expect(player.playCalls, playCalls + 1);
-    expect(player.playing, isTrue);
-  });
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      await handler.skipToQueueItem(0, playAfterLoad: false);
+      final playCalls = player.playCalls;
+      await handler.play();
+      expect(player.playCalls, playCalls + 1);
+      expect(player.playing, isTrue);
+    },
+  );
 
-  test('direct selection releases preserving owner after source install fails',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    const item = MediaItem(id: 'A', title: 'A');
-    await handler.setPlaylist(const [item]);
-    await handler.updateQueue(const [item]);
-    player.failNextSourceInstall = true;
+  test(
+    'direct selection releases preserving owner after source install fails',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      const item = MediaItem(id: 'A', title: 'A');
+      await handler.setPlaylist(const [item]);
+      await handler.updateQueue(const [item]);
+      player.failNextSourceInstall = true;
 
-    await handler.skipToQueueItem(0);
+      await handler.skipToQueueItem(0);
 
-    await handler.skipToQueueItem(0, playAfterLoad: false);
-    final playCalls = player.playCalls;
-    await handler.play();
-    expect(player.playCalls, playCalls + 1);
-    expect(player.playing, isTrue);
-  });
+      await handler.skipToQueueItem(0, playAfterLoad: false);
+      final playCalls = player.playCalls;
+      await handler.play();
+      expect(player.playCalls, playCalls + 1);
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('stale direct selection releases preserving owner', () async {
     final player = _PlaybackStateAudioPlayer()
@@ -879,68 +918,75 @@ void main() {
     expect(player.playing, isTrue);
   });
 
-  test('authoritative play failure reloads the source with a new token',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final playFailure = player.gateNextPlayFailure();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+  test(
+    'authoritative play failure reloads the source with a new token',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final playFailure = player.gateNextPlayFailure();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
 
-    await handler.setPlaylist([const MediaItem(id: 'A', title: 'A')]);
-    await playFailure.started.future;
-    expect(handler.playbackState.value.playing, isTrue);
+      await handler.setPlaylist([const MediaItem(id: 'A', title: 'A')]);
+      await playFailure.started.future;
+      expect(handler.playbackState.value.playing, isTrue);
 
-    playFailure.release.complete();
-    await pumpEventQueue();
+      playFailure.release.complete();
+      await pumpEventQueue();
 
-    expect(player.sourceLoadCalls, 2);
-    expect(player.playing, isTrue);
-    expect(handler.playbackState.value.playing, isTrue);
-    expect(
-      handler.playbackState.value.processingState,
-      AudioProcessingState.ready,
-    );
-    expect(handler.playbackState.value.controls, contains(MediaControl.pause));
-  });
+      expect(player.sourceLoadCalls, 2);
+      expect(player.playing, isTrue);
+      expect(handler.playbackState.value.playing, isTrue);
+      expect(
+        handler.playbackState.value.processingState,
+        AudioProcessingState.ready,
+      );
+      expect(
+        handler.playbackState.value.controls,
+        contains(MediaControl.pause),
+      );
+    },
+  );
 
-  test('playback stream error skips failed track and keeps navigation usable',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    await handler.setPlaylist(const [
-      MediaItem(id: 'A', title: 'A'),
-      MediaItem(id: 'B', title: 'B'),
-      MediaItem(id: 'C', title: 'C'),
-    ]);
+  test(
+    'playback stream error skips failed track and keeps navigation usable',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      await handler.setPlaylist(const [
+        MediaItem(id: 'A', title: 'A'),
+        MediaItem(id: 'B', title: 'B'),
+        MediaItem(id: 'C', title: 'C'),
+      ]);
 
-    final published = <PlaybackState>[];
-    handler.playbackState.listen(published.add);
-    await pumpEventQueue();
-    published.clear();
+      final published = <PlaybackState>[];
+      handler.playbackState.listen(published.add);
+      await pumpEventQueue();
+      published.clear();
 
-    player.emitPlaybackError(StateError('native stream failed'));
-    await pumpEventQueue();
+      player.emitPlaybackError(StateError('native stream failed'));
+      await pumpEventQueue();
 
-    expect(handler.currentQueueIndex, 1);
-    expect(handler.mediaItem.value?.id, 'B');
-    expect(player.playing, isTrue);
-    expect(handler.playbackState.value.playing, isTrue);
-    expect(
-      published.where((state) => !state.playing),
-      isEmpty,
-      reason: '锁屏在错误跳歌期间不能发布 playing=false，否则 iOS 会结束后台会话',
-    );
+      expect(handler.currentQueueIndex, 1);
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(player.playing, isTrue);
+      expect(handler.playbackState.value.playing, isTrue);
+      expect(
+        published.where((state) => !state.playing),
+        isEmpty,
+        reason: '锁屏在错误跳歌期间不能发布 playing=false，否则 iOS 会结束后台会话',
+      );
 
-    await handler.skipToNext();
-    expect(handler.currentQueueIndex, 2);
-    expect(handler.mediaItem.value?.id, 'C');
-    expect(player.playing, isTrue);
-  });
+      await handler.skipToNext();
+      expect(handler.currentQueueIndex, 2);
+      expect(handler.mediaItem.value?.id, 'C');
+      expect(player.playing, isTrue);
+    },
+  );
 
   test('stale play failure cannot overwrite newer source state', () async {
     final player = _PlaybackStateAudioPlayer()
@@ -996,77 +1042,81 @@ void main() {
     expect(handler.playbackState.value.playing, isFalse);
   });
 
-  test('authoritative source install failure reports and falls forward once',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    final errors = <String>[];
-    handler.onError = errors.add;
-    const items = [
-      MediaItem(
-        id: 'A',
-        title: 'A',
-        extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
-      ),
-      MediaItem(
-        id: 'B',
-        title: 'B',
-        extras: {'url': 'file:///tmp/B.mp3', 'requestedQuality': '320k'},
-      ),
-      MediaItem(
-        id: 'C',
-        title: 'C',
-        extras: {'url': 'file:///tmp/C.mp3', 'requestedQuality': '320k'},
-      ),
-    ];
-    await handler.setPlaylist(items);
-    player.failNextSourceInstall = true;
+  test(
+    'authoritative source install failure reports and falls forward once',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      final errors = <String>[];
+      handler.onError = errors.add;
+      const items = [
+        MediaItem(
+          id: 'A',
+          title: 'A',
+          extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+        ),
+        MediaItem(
+          id: 'B',
+          title: 'B',
+          extras: {'url': 'file:///tmp/B.mp3', 'requestedQuality': '320k'},
+        ),
+        MediaItem(
+          id: 'C',
+          title: 'C',
+          extras: {'url': 'file:///tmp/C.mp3', 'requestedQuality': '320k'},
+        ),
+      ];
+      await handler.setPlaylist(items);
+      player.failNextSourceInstall = true;
 
-    final navigation = handler.skipToNext();
-    await pumpEventQueue();
+      final navigation = handler.skipToNext();
+      await pumpEventQueue();
 
-    expect(handler.currentQueueIndex, 2);
-    expect(handler.mediaItem.value?.id, 'C');
-    expect(player.playing, isTrue);
-    expect(errors, hasLength(1));
-    await navigation;
-  });
+      expect(handler.currentQueueIndex, 2);
+      expect(handler.mediaItem.value?.id, 'C');
+      expect(player.playing, isTrue);
+      expect(errors, hasLength(1));
+      await navigation;
+    },
+  );
 
-  test('new playlist failure does not resume the previous audible song',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    final errors = <String>[];
-    handler.onError = errors.add;
-    await handler.setPlaylist(const [
-      MediaItem(
-        id: 'A',
-        title: 'A',
-        extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
-      ),
-    ]);
-    expect(handler.mediaItem.value?.id, 'A');
-    expect(player.playing, isTrue);
-    player.failNextSourceInstall = true;
+  test(
+    'new playlist failure does not resume the previous audible song',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      final errors = <String>[];
+      handler.onError = errors.add;
+      await handler.setPlaylist(const [
+        MediaItem(
+          id: 'A',
+          title: 'A',
+          extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+        ),
+      ]);
+      expect(handler.mediaItem.value?.id, 'A');
+      expect(player.playing, isTrue);
+      player.failNextSourceInstall = true;
 
-    await handler.setPlaylist(const [
-      MediaItem(
-        id: 'B',
-        title: 'B',
-        extras: {'url': 'file:///tmp/B.mp3', 'requestedQuality': '320k'},
-      ),
-    ]);
+      await handler.setPlaylist(const [
+        MediaItem(
+          id: 'B',
+          title: 'B',
+          extras: {'url': 'file:///tmp/B.mp3', 'requestedQuality': '320k'},
+        ),
+      ]);
 
-    expect(handler.mediaItem.value?.id, 'B');
-    expect(handler.currentQueueIndex, 0);
-    expect(player.playing, isFalse);
-    expect(handler.playbackState.value.playing, isFalse);
-    expect(errors.single, contains('播放歌曲 "B" 失败'));
-  });
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(handler.currentQueueIndex, 0);
+      expect(player.playing, isFalse);
+      expect(handler.playbackState.value.playing, isFalse);
+      expect(errors.single, contains('播放歌曲 "B" 失败'));
+    },
+  );
 
   test('stale source install failure is silent and cannot fall back', () async {
     final player = _PlaybackStateAudioPlayer()
@@ -1107,37 +1157,41 @@ void main() {
     expect(player.sourceLoadCalls, 4);
   });
 
-  test('handler disposal cancels streams and disposes native player once',
-      () async {
-    final player = _PlaybackStateAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    var cacheCancellationCalls = 0;
-    handler.attachPlaybackCache(
-      cancelAllTrackedCacheWork: () => cacheCancellationCalls++,
-    );
+  test(
+    'handler disposal cancels streams and disposes native player once',
+    () async {
+      final player = _PlaybackStateAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      var cacheCancellationCalls = 0;
+      handler.attachPlaybackCache(
+        cancelAllTrackedCacheWork: () => cacheCancellationCalls++,
+      );
 
-    final first = handler.dispose();
-    final second = handler.dispose();
-    await Future.wait([first, second]);
+      final first = handler.dispose();
+      final second = handler.dispose();
+      await Future.wait([first, second]);
 
-    expect(identical(first, second), isTrue);
-    expect(cacheCancellationCalls, 1);
-    expect(player.disposeCalls, 1);
-    expect(player.playbackEventListenCancels, 1);
-    expect(player.processingStateListenCancels, 1);
-  });
+      expect(identical(first, second), isTrue);
+      expect(cacheCancellationCalls, 1);
+      expect(player.disposeCalls, 1);
+      expect(player.playbackEventListenCancels, 1);
+      expect(player.processingStateListenCancels, 1);
+    },
+  );
 
-  test('handler disposal releases resolver and error callback bindings',
-      () async {
-    final handler = LxAudioHandler(player: _PlaybackStateAudioPlayer());
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    handler.onError = (_) {};
+  test(
+    'handler disposal releases resolver and error callback bindings',
+    () async {
+      final handler = LxAudioHandler(player: _PlaybackStateAudioPlayer());
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      handler.onError = (_) {};
 
-    await handler.dispose();
+      await handler.dispose();
 
-    expect(handler.urlResolver, isNull);
-    expect(handler.onError, isNull);
-  });
+      expect(handler.urlResolver, isNull);
+      expect(handler.onError, isNull);
+    },
+  );
 
   test('handler disposal awaits pending playback lease release', () async {
     final handler = LxAudioHandler(player: _PlaybackStateAudioPlayer());
@@ -1163,9 +1217,7 @@ void main() {
       await releaseResolver.future;
       return lease.playableUri;
     };
-    final loading = handler.setPlaylist([
-      const MediaItem(id: 'A', title: 'A'),
-    ]);
+    final loading = handler.setPlaylist([const MediaItem(id: 'A', title: 'A')]);
     await resolverStarted.future;
 
     var disposeCompleted = false;
@@ -1185,9 +1237,7 @@ void main() {
     final handler = LxAudioHandler(player: player);
     handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
     final sourceGate = player.gateNextSourceInstall();
-    final loading = handler.setPlaylist([
-      const MediaItem(id: 'A', title: 'A'),
-    ]);
+    final loading = handler.setPlaylist([const MediaItem(id: 'A', title: 'A')]);
     await sourceGate.started.future;
 
     var disposed = false;
@@ -1249,61 +1299,65 @@ void main() {
     expect(player.disposeCalls, 1);
   });
 
-  test('handler disposal continues from pending lease failure to active lease',
-      () async {
-    final pendingFailure = StateError('pending lease');
-    var activeReleases = 0;
-    var pendingReleases = 0;
-    final activeLease = PlaybackCacheLease.test(
-      '/tmp/A.mp3',
-      'file:///tmp/A.mp3',
-      () async => activeReleases++,
-    );
-    final pendingLease = PlaybackCacheLease.test(
-      '/tmp/B.mp3',
-      'file:///tmp/B.mp3',
-      () async {
-        pendingReleases++;
-        throw pendingFailure;
-      },
-    );
-    final pendingAccepted = Completer<void>();
-    final releaseResolver = Completer<void>();
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    handler.urlResolver = (id, [extras]) async {
-      final lease = id == 'A' ? activeLease : pendingLease;
-      handler.acceptResolvedPlayback(
-        mediaId: id,
-        generation: extras!['_playbackGeneration'] as int,
-        resolution: CachedPlayback(lease, const {}),
+  test(
+    'handler disposal continues from pending lease failure to active lease',
+    () async {
+      final pendingFailure = StateError('pending lease');
+      var activeReleases = 0;
+      var pendingReleases = 0;
+      final activeLease = PlaybackCacheLease.test(
+        '/tmp/A.mp3',
+        'file:///tmp/A.mp3',
+        () async => activeReleases++,
       );
-      if (id == 'B') {
-        pendingAccepted.complete();
-        await releaseResolver.future;
-      }
-      return lease.playableUri;
-    };
-    await handler.setPlaylist(const [
-      MediaItem(id: 'A', title: 'A'),
-      MediaItem(id: 'B', title: 'B'),
-    ]);
-    final loadingPending = handler.skipToQueueItem(1);
-    final loadingExpectation =
-        expectLater(loadingPending, throwsA(same(pendingFailure)));
-    await pendingAccepted.future;
+      final pendingLease = PlaybackCacheLease.test(
+        '/tmp/B.mp3',
+        'file:///tmp/B.mp3',
+        () async {
+          pendingReleases++;
+          throw pendingFailure;
+        },
+      );
+      final pendingAccepted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      handler.urlResolver = (id, [extras]) async {
+        final lease = id == 'A' ? activeLease : pendingLease;
+        handler.acceptResolvedPlayback(
+          mediaId: id,
+          generation: extras!['_playbackGeneration'] as int,
+          resolution: CachedPlayback(lease, const {}),
+        );
+        if (id == 'B') {
+          pendingAccepted.complete();
+          await releaseResolver.future;
+        }
+        return lease.playableUri;
+      };
+      await handler.setPlaylist(const [
+        MediaItem(id: 'A', title: 'A'),
+        MediaItem(id: 'B', title: 'B'),
+      ]);
+      final loadingPending = handler.skipToQueueItem(1);
+      final loadingExpectation = expectLater(
+        loadingPending,
+        throwsA(same(pendingFailure)),
+      );
+      await pendingAccepted.future;
 
-    final disposing = handler.dispose();
-    await pumpEventQueue();
-    releaseResolver.complete();
-    await expectLater(disposing, throwsA(same(pendingFailure)));
+      final disposing = handler.dispose();
+      await pumpEventQueue();
+      releaseResolver.complete();
+      await expectLater(disposing, throwsA(same(pendingFailure)));
 
-    expect(pendingReleases, 1);
-    expect(activeReleases, 1);
-    expect(player.disposeCalls, 1);
-    await loadingExpectation;
-  });
+      expect(pendingReleases, 1);
+      expect(activeReleases, 1);
+      expect(player.disposeCalls, 1);
+      await loadingExpectation;
+    },
+  );
 
   test('public handler commands are inert after disposal', () async {
     final player = _PlaybackStateAudioPlayer();
@@ -1338,79 +1392,83 @@ void main() {
     expect(player.sourceLoadCalls, calls.source);
   });
 
-  test('handler disposal drains a gated resolver before player disposal',
-      () async {
-    final resolverStarted = Completer<void>();
-    final releaseResolver = Completer<void>();
-    final player = _PlaybackStateAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    handler.urlResolver = (id, [extras]) async {
-      resolverStarted.complete();
-      await releaseResolver.future;
-      return 'file:///tmp/$id.mp3';
-    };
-    final loading = handler.setPlaylist([
-      const MediaItem(id: 'A', title: 'A'),
-    ]);
-    await resolverStarted.future;
+  test(
+    'handler disposal drains a gated resolver before player disposal',
+    () async {
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      final player = _PlaybackStateAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      handler.urlResolver = (id, [extras]) async {
+        resolverStarted.complete();
+        await releaseResolver.future;
+        return 'file:///tmp/$id.mp3';
+      };
+      final loading = handler.setPlaylist([
+        const MediaItem(id: 'A', title: 'A'),
+      ]);
+      await resolverStarted.future;
 
-    var disposed = false;
-    final disposing = handler.dispose().then((_) => disposed = true);
-    await pumpEventQueue();
+      var disposed = false;
+      final disposing = handler.dispose().then((_) => disposed = true);
+      await pumpEventQueue();
 
-    expect(disposed, isFalse);
-    expect(player.disposeCalls, 0);
-    releaseResolver.complete();
-    await Future.wait([loading, disposing]);
-    expect(player.disposeCalls, 1);
-    expect(player.sourceLoadCalls, 0);
-  });
+      expect(disposed, isFalse);
+      expect(player.disposeCalls, 0);
+      releaseResolver.complete();
+      await Future.wait([loading, disposing]);
+      expect(player.disposeCalls, 1);
+      expect(player.sourceLoadCalls, 0);
+    },
+  );
 
-  test('handler disposal drains classification and awaits its late lease',
-      () async {
-    final classificationStarted = Completer<void>();
-    final releaseClassification = Completer<void>();
-    final leaseReleaseStarted = Completer<void>();
-    final releaseLease = Completer<void>();
-    final lease = PlaybackCacheLease.test(
-      '/tmp/A.mp3',
-      'file:///tmp/A.mp3',
-      () async {
-        leaseReleaseStarted.complete();
-        await releaseLease.future;
-      },
-    );
-    final player = _PlaybackStateAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    handler.attachPlaybackCache(
-      classifyExisting: (_) async {
-        classificationStarted.complete();
-        await releaseClassification.future;
-        return LeasedPlaybackCachePath(lease);
-      },
-    );
-    final loading = handler.setPlaylist(const [
-      MediaItem(
-        id: 'A',
-        title: 'A',
-        extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
-      ),
-    ]);
-    await classificationStarted.future;
+  test(
+    'handler disposal drains classification and awaits its late lease',
+    () async {
+      final classificationStarted = Completer<void>();
+      final releaseClassification = Completer<void>();
+      final leaseReleaseStarted = Completer<void>();
+      final releaseLease = Completer<void>();
+      final lease = PlaybackCacheLease.test(
+        '/tmp/A.mp3',
+        'file:///tmp/A.mp3',
+        () async {
+          leaseReleaseStarted.complete();
+          await releaseLease.future;
+        },
+      );
+      final player = _PlaybackStateAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      handler.attachPlaybackCache(
+        classifyExisting: (_) async {
+          classificationStarted.complete();
+          await releaseClassification.future;
+          return LeasedPlaybackCachePath(lease);
+        },
+      );
+      final loading = handler.setPlaylist(const [
+        MediaItem(
+          id: 'A',
+          title: 'A',
+          extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+        ),
+      ]);
+      await classificationStarted.future;
 
-    var disposed = false;
-    final disposing = handler.dispose().then((_) => disposed = true);
-    await pumpEventQueue();
-    expect(disposed, isFalse);
-    releaseClassification.complete();
-    await leaseReleaseStarted.future;
-    await pumpEventQueue();
-    expect(disposed, isFalse);
-    expect(player.disposeCalls, 0);
-    releaseLease.complete();
-    await Future.wait([loading, disposing]);
-    expect(player.disposeCalls, 1);
-  });
+      var disposed = false;
+      final disposing = handler.dispose().then((_) => disposed = true);
+      await pumpEventQueue();
+      expect(disposed, isFalse);
+      releaseClassification.complete();
+      await leaseReleaseStarted.future;
+      await pumpEventQueue();
+      expect(disposed, isFalse);
+      expect(player.disposeCalls, 0);
+      releaseLease.complete();
+      await Future.wait([loading, disposing]);
+      expect(player.disposeCalls, 1);
+    },
+  );
 
   test('handler disposal drains a gated preload resolver', () async {
     final preloadStarted = Completer<void>();
@@ -1449,113 +1507,122 @@ void main() {
     expect(player.disposeCalls, 1);
   });
 
-  test('removeQueueItem cannot mutate queue after dispose begins during halt',
-      () async {
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    const first = MediaItem(id: 'A', title: 'A');
-    const second = MediaItem(id: 'B', title: 'B');
-    await handler.setPlaylist([first, second]);
-    final pauseGate = player.gateNextPause();
-    final removing = handler.removeQueueItem(first);
-    await pauseGate.started.future;
-    final queueBeforeDispose = handler.queueItems;
-    final mediaBeforeDispose = handler.mediaItem.value;
+  test(
+    'removeQueueItem cannot mutate queue after dispose begins during halt',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      const first = MediaItem(id: 'A', title: 'A');
+      const second = MediaItem(id: 'B', title: 'B');
+      await handler.setPlaylist([first, second]);
+      final pauseGate = player.gateNextPause();
+      final removing = handler.removeQueueItem(first);
+      await pauseGate.started.future;
+      final queueBeforeDispose = handler.queueItems;
+      final mediaBeforeDispose = handler.mediaItem.value;
 
-    var disposed = false;
-    final disposing = handler.dispose().then((_) => disposed = true);
-    await Future<void>.delayed(Duration.zero);
-    expect(disposed, isFalse);
-    pauseGate.release.complete();
-    await Future.wait([removing, disposing]);
+      var disposed = false;
+      final disposing = handler.dispose().then((_) => disposed = true);
+      await Future<void>.delayed(Duration.zero);
+      expect(disposed, isFalse);
+      pauseGate.release.complete();
+      await Future.wait([removing, disposing]);
 
-    expect(handler.queueItems, queueBeforeDispose);
-    expect(handler.mediaItem.value, same(mediaBeforeDispose));
-    expect(player.sourceLoadCalls, 1);
-  });
+      expect(handler.queueItems, queueBeforeDispose);
+      expect(handler.mediaItem.value, same(mediaBeforeDispose));
+      expect(player.sourceLoadCalls, 1);
+    },
+  );
 
-  test('empty playlist cannot submit stop after disposal begins during release',
-      () async {
-    final releaseStarted = Completer<void>();
-    final releaseLease = Completer<void>();
-    final lease = PlaybackCacheLease.test(
-      '/tmp/A.mp3',
-      'file:///tmp/A.mp3',
-      () async {
-        releaseStarted.complete();
-        await releaseLease.future;
-      },
-    );
-    final player = _PlaybackStateAudioPlayer()
-      ..sourceInstallProcessingState = ProcessingState.ready;
-    final handler = LxAudioHandler(player: player);
-    handler.urlResolver = (id, [extras]) async {
-      handler.acceptResolvedPlayback(
-        mediaId: id,
-        generation: extras!['_playbackGeneration'] as int,
-        resolution: CachedPlayback(lease, const {}),
+  test(
+    'empty playlist cannot submit stop after disposal begins during release',
+    () async {
+      final releaseStarted = Completer<void>();
+      final releaseLease = Completer<void>();
+      final lease = PlaybackCacheLease.test(
+        '/tmp/A.mp3',
+        'file:///tmp/A.mp3',
+        () async {
+          releaseStarted.complete();
+          await releaseLease.future;
+        },
       );
-      return lease.playableUri;
-    };
-    await handler.setPlaylist(const [MediaItem(id: 'A', title: 'A')]);
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      handler.urlResolver = (id, [extras]) async {
+        handler.acceptResolvedPlayback(
+          mediaId: id,
+          generation: extras!['_playbackGeneration'] as int,
+          resolution: CachedPlayback(lease, const {}),
+        );
+        return lease.playableUri;
+      };
+      await handler.setPlaylist(const [MediaItem(id: 'A', title: 'A')]);
 
-    final stopGate = player.gateNextStop();
-    var cleared = false;
-    final clearing = handler.setPlaylist(const []).then((_) => cleared = true);
-    await releaseStarted.future;
-    final queueAtShutdown = handler.queueItems;
-    final mediaAtShutdown = handler.mediaItem.value;
-    var disposed = false;
-    final disposing = handler.dispose().then((_) => disposed = true);
-    await pumpEventQueue();
+      final stopGate = player.gateNextStop();
+      var cleared = false;
+      final clearing = handler
+          .setPlaylist(const [])
+          .then((_) => cleared = true);
+      await releaseStarted.future;
+      final queueAtShutdown = handler.queueItems;
+      final mediaAtShutdown = handler.mediaItem.value;
+      var disposed = false;
+      final disposing = handler.dispose().then((_) => disposed = true);
+      await pumpEventQueue();
 
-    expect(disposed, isFalse);
-    expect(player.stopCalls, 0);
-    releaseLease.complete();
-    await stopGate.started.future;
-    expect(cleared, isTrue);
-    expect(disposed, isFalse);
-    stopGate.release.complete();
-    await Future.wait([clearing, disposing]);
+      expect(disposed, isFalse);
+      expect(player.stopCalls, 0);
+      releaseLease.complete();
+      await stopGate.started.future;
+      expect(cleared, isTrue);
+      expect(disposed, isFalse);
+      stopGate.release.complete();
+      await Future.wait([clearing, disposing]);
 
-    expect(player.stopCalls, 1);
-    expect(player.sourceLoadCalls, 1);
-    expect(handler.queueItems, queueAtShutdown);
-    expect(handler.mediaItem.value, same(mediaAtShutdown));
-  });
+      expect(player.stopCalls, 1);
+      expect(player.sourceLoadCalls, 1);
+      expect(handler.queueItems, queueAtShutdown);
+      expect(handler.mediaItem.value, same(mediaAtShutdown));
+    },
+  );
 
-  test('patchQueueArtUri writes artCacheFile for lock screen artwork',
-      () async {
-    final player = _PlaybackStateAudioPlayer();
-    final handler = LxAudioHandler(player: player);
-    addTearDown(player.dispose);
-    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
-    await handler.setPlaylist([
-      const MediaItem(id: 'A', title: 'A'),
-    ]);
-    await pumpEventQueue();
+  test(
+    'patchQueueArtUri writes artCacheFile for lock screen artwork',
+    () async {
+      final player = _PlaybackStateAudioPlayer();
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      await handler.setPlaylist([const MediaItem(id: 'A', title: 'A')]);
+      await pumpEventQueue();
 
-    final local = Uri.file('/tmp/cache/art.png');
-    handler.patchQueueArtUri('A', local);
+      final local = Uri.file('/tmp/cache/art.png');
+      handler.patchQueueArtUri('A', local);
 
-    final item = handler.mediaItem.value;
-    expect(item, isNotNull);
-    expect(item!.artUri, local);
-    expect(item.extras?['artCacheFile'], '/tmp/cache/art.png');
-  });
+      final item = handler.mediaItem.value;
+      expect(item, isNotNull);
+      expect(item!.artUri, local);
+      expect(
+        item.extras?['artCacheFile'],
+        Uri.file('/tmp/cache/art.png').toFilePath(),
+      );
+    },
+  );
 }
 
 class _PlaybackStateAudioPlayer extends AudioPlayer {
   late final StreamController<PlaybackEvent> _events =
       StreamController<PlaybackEvent>.broadcast(
-    onCancel: () => playbackEventListenCancels++,
-  );
+        onCancel: () => playbackEventListenCancels++,
+      );
   late final StreamController<ProcessingState> _processingStates =
       StreamController<ProcessingState>.broadcast(
-    onCancel: () => processingStateListenCancels++,
-  );
+        onCancel: () => processingStateListenCancels++,
+      );
   PlaybackEvent _event = PlaybackEvent();
   bool _playing = false;
   double _speed = 1.0;
@@ -1636,19 +1703,15 @@ class _PlaybackStateAudioPlayer extends AudioPlayer {
   PlaybackEvent get playbackEvent => _event;
 
   @override
-  Stream<PlaybackEvent> get playbackEventStream => _CancelFailingStream(
-        _events.stream,
-        playbackCancelError,
-      );
+  Stream<PlaybackEvent> get playbackEventStream =>
+      _CancelFailingStream(_events.stream, playbackCancelError);
 
   @override
   ProcessingState get processingState => _event.processingState;
 
   @override
-  Stream<ProcessingState> get processingStateStream => _CancelFailingStream(
-        _processingStates.stream,
-        processingCancelError,
-      );
+  Stream<ProcessingState> get processingStateStream =>
+      _CancelFailingStream(_processingStates.stream, processingCancelError);
 
   @override
   bool get playing => _playing;
@@ -1712,8 +1775,9 @@ class _PlaybackStateAudioPlayer extends AudioPlayer {
   @override
   Future<void> play() async {
     playCalls++;
-    final failureGate =
-        _playFailureGates.isEmpty ? null : _playFailureGates.removeAt(0);
+    final failureGate = _playFailureGates.isEmpty
+        ? null
+        : _playFailureGates.removeAt(0);
     if (failureGate != null) {
       failureGate.started.complete();
       await failureGate.release.future;

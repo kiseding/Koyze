@@ -283,12 +283,10 @@ String _decodeSearchPlatform(Object? raw) {
 
 final class BackupRestoreCoordinator {
   BackupRestoreCoordinator({
-    required StorageService storage,
-    required PlaylistService playlists,
-    required void Function(BackupData) publishCommitted,
-  }) : _storage = storage,
-       _playlists = playlists,
-       _publishCommitted = publishCommitted;
+    required this._storage,
+    required this._playlists,
+    required this._publishCommitted,
+  });
 
   final StorageService _storage;
   final PlaylistService _playlists;

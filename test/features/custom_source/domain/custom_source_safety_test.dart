@@ -49,8 +49,8 @@ void main() {
     expect(isCustomSourceExecutionSupported, isTrue);
     expect(
       hasUnsafeSynchronousLoop(
-        "lx.on(lx.EVENT_NAMES.request, async () => null); "
-        "lx.send(lx.EVENT_NAMES.inited, { status: true, sources: {} });",
+        'lx.on(lx.EVENT_NAMES.request, async () => null); '
+        'lx.send(lx.EVENT_NAMES.inited, { status: true, sources: {} });',
       ),
       isFalse,
     );

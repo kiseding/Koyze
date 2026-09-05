@@ -10,8 +10,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('late theme load cannot overwrite a user mutation', () async {
-    SharedPreferences.setMockInitialValues(
-        {'theme_mode': ThemeMode.dark.index});
+    SharedPreferences.setMockInitialValues({
+      'theme_mode': ThemeMode.dark.index,
+    });
     final gate = Completer<StorageService>();
     final notifier = ThemeModeNotifier(storage: () => gate.future);
 
@@ -27,7 +28,7 @@ void main() {
 
   test('late history load cannot resurrect entries after clear', () async {
     SharedPreferences.setMockInitialValues({
-      'search_history': ['old']
+      'search_history': ['old'],
     });
     final gate = Completer<StorageService>();
     final notifier = SearchHistoryNotifier(storage: () => gate.future);
@@ -42,81 +43,84 @@ void main() {
     expect(prefs.getStringList('search_history'), isEmpty);
   });
 
-  test('late settings loads cannot overwrite public setter mutations',
-      () async {
-    SharedPreferences.setMockInitialValues({
-      'audio_quality': AudioQualityOption.low.index,
-      'download_quality': AudioQualityOption.low.index,
-      'wifi_only_download': true,
-      'default_search_platform': 'tx',
-    });
-    final prefs = await SharedPreferences.getInstance();
+  test(
+    'late settings loads cannot overwrite public setter mutations',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'audio_quality': AudioQualityOption.low.index,
+        'download_quality': AudioQualityOption.low.index,
+        'wifi_only_download': true,
+        'default_search_platform': 'tx',
+      });
+      final prefs = await SharedPreferences.getInstance();
 
-    for (final kind in const [
-      'audio',
-      'download',
-      'wifi',
-      'platform',
-    ]) {
-      final gate = Completer<StorageService>();
-      Future<StorageService> loader() => gate.future;
-      late final Object? Function() readState;
-      late final Future<void> mutation;
-      late final Object expected;
-      switch (kind) {
-        case 'audio':
-          final value = AudioQualityNotifier(storage: loader);
-          readState = () => value.state;
-          expected = AudioQualityOption.hires;
-          mutation = value.setQuality(AudioQualityOption.hires);
-          break;
-        case 'download':
-          final value = DownloadQualityNotifier(storage: loader);
-          readState = () => value.state;
-          expected = AudioQualityOption.lossless;
-          mutation = value.setQuality(AudioQualityOption.lossless);
-          break;
-        case 'wifi':
-          final value = WifiOnlyDownloadNotifier(storage: loader);
-          readState = () => value.state;
-          expected = false;
-          mutation = value.setWifiOnly(false);
-          break;
-        case 'platform':
-          final value = DefaultSearchPlatformNotifier(storage: loader);
-          readState = () => value.state;
-          expected = 'wy';
-          mutation = value.setPlatform('wy');
-          break;
-        default:
-          throw StateError(kind);
+      for (final kind in const ['audio', 'download', 'wifi', 'platform']) {
+        final gate = Completer<StorageService>();
+        Future<StorageService> loader() => gate.future;
+        late final Object? Function() readState;
+        late final Future<void> mutation;
+        late final Object expected;
+        switch (kind) {
+          case 'audio':
+            final value = AudioQualityNotifier(storage: loader);
+            readState = () => value.state;
+            expected = AudioQualityOption.hires;
+            mutation = value.setQuality(AudioQualityOption.hires);
+            break;
+          case 'download':
+            final value = DownloadQualityNotifier(storage: loader);
+            readState = () => value.state;
+            expected = AudioQualityOption.lossless;
+            mutation = value.setQuality(AudioQualityOption.lossless);
+            break;
+          case 'wifi':
+            final value = WifiOnlyDownloadNotifier(storage: loader);
+            readState = () => value.state;
+            expected = false;
+            mutation = value.setWifiOnly(false);
+            break;
+          case 'platform':
+            final value = DefaultSearchPlatformNotifier(storage: loader);
+            readState = () => value.state;
+            expected = 'wy';
+            mutation = value.setPlatform('wy');
+            break;
+          default:
+            throw StateError(kind);
+        }
+        gate.complete(StorageService.forTesting(prefs));
+        await mutation;
+        await Future<void>.delayed(Duration.zero);
+        expect(readState(), expected, reason: kind);
       }
-      gate.complete(StorageService.forTesting(prefs));
-      await mutation;
-      await Future<void>.delayed(Duration.zero);
-      expect(readState(), expected, reason: kind);
-    }
 
-    expect(prefs.getInt('audio_quality'), AudioQualityOption.hires.index);
-    expect(prefs.getInt('download_quality'), AudioQualityOption.lossless.index);
-    expect(prefs.getBool('wifi_only_download'), isFalse);
-    expect(prefs.getString('default_search_platform'), 'wy');
-  });
+      expect(prefs.getInt('audio_quality'), AudioQualityOption.hires.index);
+      expect(
+        prefs.getInt('download_quality'),
+        AudioQualityOption.lossless.index,
+      );
+      expect(prefs.getBool('wifi_only_download'), isFalse);
+      expect(prefs.getString('default_search_platform'), 'wy');
+    },
+  );
 
   test('failed load does not overwrite a user mutation', () async {
-    SharedPreferences.setMockInitialValues(
-        {'theme_mode': ThemeMode.dark.index});
+    SharedPreferences.setMockInitialValues({
+      'theme_mode': ThemeMode.dark.index,
+    });
     final prefs = await SharedPreferences.getInstance();
     final loadReady = Completer<void>();
     var calls = 0;
-    final notifier = ThemeModeNotifier(storage: () async {
-      calls++;
-      if (calls == 1) {
-        await loadReady.future;
-        throw Exception('load failed');
-      }
-      return StorageService.forTesting(prefs);
-    });
+    final notifier = ThemeModeNotifier(
+      storage: () async {
+        calls++;
+        if (calls == 1) {
+          await loadReady.future;
+          throw Exception('load failed');
+        }
+        return StorageService.forTesting(prefs);
+      },
+    );
 
     final mutation = notifier.setThemeMode(ThemeMode.light);
     loadReady.complete();
@@ -127,95 +131,103 @@ void main() {
     expect(prefs.getInt('theme_mode'), ThemeMode.light.index);
   });
 
-  test('failed download quality persistence rolls back the optimistic state',
-      () async {
-    SharedPreferences.setMockInitialValues({
-      'download_quality': AudioQualityOption.high.index,
-    });
-    final preferences = await SharedPreferences.getInstance();
-    final notifier = DownloadQualityNotifier(
-      storage: () async => StorageService.forTesting(
+  test(
+    'failed download quality persistence rolls back the optimistic state',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'download_quality': AudioQualityOption.high.index,
+      });
+      final preferences = await SharedPreferences.getInstance();
+      final notifier = DownloadQualityNotifier(
+        storage: () async => StorageService.forTesting(
+          preferences,
+          writeOverride: (_, __, ___) async => false,
+        ),
+      );
+
+      await expectLater(
+        notifier.setQuality(AudioQualityOption.lossless),
+        throwsA(isA<StorageWriteException>()),
+      );
+
+      expect(notifier.state, AudioQualityOption.high);
+    },
+  );
+
+  test(
+    'stale failed download write cannot roll back a newer same-value write',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'download_quality': AudioQualityOption.high.index,
+      });
+      final preferences = await SharedPreferences.getInstance();
+      final firstWriteStarted = Completer<void>();
+      final firstWrite = Completer<bool>();
+      var writeCount = 0;
+      final storage = StorageService.forTesting(
         preferences,
-        writeOverride: (_, __, ___) async => false,
-      ),
-    );
+        writeOverride: (_, __, ___) {
+          if (writeCount++ == 0) {
+            firstWriteStarted.complete();
+            return firstWrite.future;
+          }
+          return Future.value(true);
+        },
+      );
+      final notifier = DownloadQualityNotifier(storage: () async => storage);
 
-    await expectLater(
-      notifier.setQuality(AudioQualityOption.lossless),
-      throwsA(isA<StorageWriteException>()),
-    );
+      final staleWrite = notifier.setQuality(AudioQualityOption.lossless);
+      await firstWriteStarted.future;
+      final newerWrite = notifier.setQuality(AudioQualityOption.lossless);
+      firstWrite.complete(false);
 
-    expect(notifier.state, AudioQualityOption.high);
-  });
+      await expectLater(staleWrite, throwsA(isA<StorageWriteException>()));
+      await newerWrite;
+      expect(notifier.state, AudioQualityOption.lossless);
+    },
+  );
 
-  test('stale failed download write cannot roll back a newer same-value write',
-      () async {
-    SharedPreferences.setMockInitialValues({
-      'download_quality': AudioQualityOption.high.index,
-    });
-    final preferences = await SharedPreferences.getInstance();
-    final firstWriteStarted = Completer<void>();
-    final firstWrite = Completer<bool>();
-    var writeCount = 0;
-    final storage = StorageService.forTesting(
-      preferences,
-      writeOverride: (_, __, ___) {
-        if (writeCount++ == 0) {
-          firstWriteStarted.complete();
-          return firstWrite.future;
-        }
-        return Future.value(true);
-      },
-    );
-    final notifier = DownloadQualityNotifier(storage: () async => storage);
+  test(
+    'stale delayed loader cannot persist over a newer download quality',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'download_quality': AudioQualityOption.high.index,
+      });
+      final preferences = await SharedPreferences.getInstance();
+      final storage = StorageService.forTesting(preferences);
+      final firstMutationLoaderRequested = Completer<void>();
+      final firstMutationStorage = Completer<StorageService>();
+      var loadCount = 0;
+      final notifier = DownloadQualityNotifier(
+        storage: () {
+          loadCount++;
+          if (loadCount == 2) {
+            firstMutationLoaderRequested.complete();
+            return firstMutationStorage.future;
+          }
+          return Future.value(storage);
+        },
+      );
+      await Future<void>.delayed(Duration.zero);
 
-    final staleWrite = notifier.setQuality(AudioQualityOption.lossless);
-    await firstWriteStarted.future;
-    final newerWrite = notifier.setQuality(AudioQualityOption.lossless);
-    firstWrite.complete(false);
+      final staleWrite = notifier.setQuality(AudioQualityOption.lossless);
+      await firstMutationLoaderRequested.future;
+      await notifier.setQuality(AudioQualityOption.hires);
+      expect(
+        preferences.getInt('download_quality'),
+        AudioQualityOption.hires.index,
+      );
 
-    await expectLater(staleWrite, throwsA(isA<StorageWriteException>()));
-    await newerWrite;
-    expect(notifier.state, AudioQualityOption.lossless);
-  });
+      firstMutationStorage.complete(storage);
+      await staleWrite;
 
-  test('stale delayed loader cannot persist over a newer download quality',
-      () async {
-    SharedPreferences.setMockInitialValues({
-      'download_quality': AudioQualityOption.high.index,
-    });
-    final preferences = await SharedPreferences.getInstance();
-    final storage = StorageService.forTesting(preferences);
-    final firstMutationLoaderRequested = Completer<void>();
-    final firstMutationStorage = Completer<StorageService>();
-    var loadCount = 0;
-    final notifier = DownloadQualityNotifier(storage: () {
-      loadCount++;
-      if (loadCount == 2) {
-        firstMutationLoaderRequested.complete();
-        return firstMutationStorage.future;
-      }
-      return Future.value(storage);
-    });
-    await Future<void>.delayed(Duration.zero);
-
-    final staleWrite = notifier.setQuality(AudioQualityOption.lossless);
-    await firstMutationLoaderRequested.future;
-    await notifier.setQuality(AudioQualityOption.hires);
-    expect(
-      preferences.getInt('download_quality'),
-      AudioQualityOption.hires.index,
-    );
-
-    firstMutationStorage.complete(storage);
-    await staleWrite;
-
-    expect(notifier.state, AudioQualityOption.hires);
-    expect(
-      preferences.getInt('download_quality'),
-      AudioQualityOption.hires.index,
-    );
-  });
+      expect(notifier.state, AudioQualityOption.hires);
+      expect(
+        preferences.getInt('download_quality'),
+        AudioQualityOption.hires.index,
+      );
+    },
+  );
 
   test('stale audio quality completion cannot apply the old quality', () async {
     SharedPreferences.setMockInitialValues({
@@ -254,19 +266,21 @@ void main() {
 
   test('failed history load does not overwrite clear mutation', () async {
     SharedPreferences.setMockInitialValues({
-      'search_history': ['old']
+      'search_history': ['old'],
     });
     final prefs = await SharedPreferences.getInstance();
     final loadReady = Completer<void>();
     var calls = 0;
-    final notifier = SearchHistoryNotifier(storage: () async {
-      calls++;
-      if (calls == 1) {
-        await loadReady.future;
-        throw Exception('load failed');
-      }
-      return StorageService.forTesting(prefs);
-    });
+    final notifier = SearchHistoryNotifier(
+      storage: () async {
+        calls++;
+        if (calls == 1) {
+          await loadReady.future;
+          throw Exception('load failed');
+        }
+        return StorageService.forTesting(prefs);
+      },
+    );
 
     final clear = notifier.clear();
     loadReady.complete();
@@ -278,8 +292,9 @@ void main() {
   });
 
   test('applyCommitted updates memory and blocks late load', () async {
-    SharedPreferences.setMockInitialValues(
-        {'theme_mode': ThemeMode.dark.index});
+    SharedPreferences.setMockInitialValues({
+      'theme_mode': ThemeMode.dark.index,
+    });
     final gate = Completer<StorageService>();
     final notifier = ThemeModeNotifier(storage: () => gate.future);
 

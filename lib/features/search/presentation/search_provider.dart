@@ -99,12 +99,8 @@ typedef LocalMatchLoader =
     Future<List<MusicItem>> Function(String query, int limit);
 
 class SearchNotifier extends StateNotifier<SearchState> {
-  SearchNotifier(
-    this._load,
-    this._readSelectedSource, {
-    LocalMatchLoader? loadLocalMatches,
-  }) : _loadLocalMatches = loadLocalMatches,
-       super(SearchState());
+  SearchNotifier(this._load, this._readSelectedSource, {this._loadLocalMatches})
+    : super(SearchState());
 
   final SearchLoader _load;
   final String Function() _readSelectedSource;

@@ -10,15 +10,17 @@ import '../domain/source_script_safety.dart' as script_safety;
 import '../domain/source_script_validation.dart';
 import '../../player/domain/music_item.dart';
 
+typedef CustomSourceEngineFactory = CustomSourceEngine Function();
+
 class CustomSourceService {
   CustomSourceService({
     SourceRequestSandbox? importSandbox,
-    StorageService? storage,
-    StorageLoader? storageLoader,
+    this._storage,
+    this._storageLoader,
     DateTime Function()? clock,
-  }) : _storage = storage,
-       _storageLoader = storageLoader,
-       _clock = clock ?? DateTime.now,
+    CustomSourceEngineFactory? engineFactory,
+  }) : _clock = clock ?? DateTime.now,
+       _engineFactory = engineFactory ?? CustomSourceEngine.new,
        _importSandbox =
            importSandbox ??
            SourceRequestSandbox(
@@ -44,6 +46,7 @@ class CustomSourceService {
   final StreamController<int> _revisionController =
       StreamController<int>.broadcast();
   final SourceRequestSandbox _importSandbox;
+  final CustomSourceEngineFactory _engineFactory;
   final StorageLoader? _storageLoader;
   final DateTime Function() _clock;
   StorageService? _storage;
@@ -229,9 +232,7 @@ class CustomSourceService {
       for (final s in sources)
         if (seenIds.add(s.id)) s,
     ];
-    await _mutate<void>(
-      (current) => _SourceMutation(merged, null),
-    );
+    await _mutate<void>((current) => _SourceMutation(merged, null));
   }
 
   Future<void> addSource(CustomSource source) async {
@@ -318,7 +319,7 @@ class CustomSourceService {
 
   CustomSourceEngine _getEngine(String sourceId) {
     if (!_engines.containsKey(sourceId)) {
-      _engines[sourceId] = CustomSourceEngine();
+      _engines[sourceId] = _engineFactory();
     }
     return _engines[sourceId]!;
   }
@@ -453,10 +454,18 @@ class CustomSourceService {
         final index = current.indexWhere((item) => item.id == source.id);
         final invalidated = <String>{};
         if (index >= 0) {
-          current[index] = source.copyWith(updatedAt: now);
+          final existing = current[index];
+          current[index] = source.copyWith(
+            updatedAt: now,
+            // Re-importing updates content without silently changing the
+            // user's prior execution decision.
+            isEnabled: existing.isEnabled,
+          );
           invalidated.add(source.id);
         } else {
-          current.add(source);
+          // JSON metadata is not a trust signal. A new third-party script is
+          // inert until the user explicitly enables it.
+          current.add(source.copyWith(updatedAt: now, isEnabled: false));
         }
         return _SourceMutation(
           _dedupeSources(current),
@@ -481,9 +490,6 @@ class CustomSourceService {
 
       return await _mutate<bool>((current) {
         final now = _clock();
-        final shouldEnable =
-            !script_safety.hasUnsafeSynchronousLoop(script) &&
-            !current.any((source) => source.isEnabled);
         final candidate = CustomSource(
           id: now.microsecondsSinceEpoch.toString(),
           name: name,
@@ -493,7 +499,10 @@ class CustomSourceService {
           script: script,
           createdAt: now,
           updatedAt: now,
-          isEnabled: shouldEnable,
+          // Header/loop heuristics only establish file compatibility; they do
+          // not make third-party JavaScript safe to execute. Enabling is an
+          // explicit user decision after import.
+          isEnabled: false,
         );
         final invalidated = <String>{};
         late final String targetId;
@@ -507,7 +516,9 @@ class CustomSourceService {
             version: version,
             script: script,
             updatedAt: now,
-            isEnabled: old.isEnabled || shouldEnable,
+            // Preserve an existing explicit decision when updating a source,
+            // but never auto-enable a newly imported script.
+            isEnabled: old.isEnabled,
           );
           targetId = old.id;
           invalidated.add(old.id);

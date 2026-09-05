@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -7,17 +8,19 @@ import 'package:dio/io.dart';
 import 'source_request_policy.dart';
 
 typedef SourceDioFactory = Dio Function();
-typedef SourceDioExecutor = Future<Response<dynamic>> Function(
-  Dio dio,
-  ValidatedSourceRequest request,
-  CancelToken cancelToken,
-);
-typedef SourceSocketStarter = Future<ConnectionTask<Socket>> Function(
-  InternetAddress address,
-  int port, {
-  required String host,
-  required bool useTls,
-});
+typedef SourceDioExecutor =
+    Future<Response<dynamic>> Function(
+      Dio dio,
+      ValidatedSourceRequest request,
+      CancelToken cancelToken,
+    );
+typedef SourceSocketStarter =
+    Future<ConnectionTask<Socket>> Function(
+      InternetAddress address,
+      int port, {
+      required String host,
+      required bool useTls,
+    });
 typedef SourceDioCloser = void Function(Dio dio);
 
 class SourcePinnedTransport {
@@ -35,16 +38,16 @@ class SourcePinnedTransport {
     SourceDioExecutor? execute,
     SourceDioCloser? closeDio,
     this.useNativeExecutor = true,
-  })  : createDio = createDio ?? Dio.new,
-        execute = execute ?? _execute,
-        closeDio = closeDio ?? ((dio) => dio.close(force: true));
+  }) : createDio = createDio ?? Dio.new,
+       execute = execute ?? _execute,
+       closeDio = closeDio ?? ((dio) => dio.close(force: true));
 
   Future<SourceTransportResponse> call(
     ValidatedSourceRequest request,
     SourceRequestCancellation cancellation,
   ) async {
     if (cancellation.isCancelled) _throwCancelled();
-    if (useNativeExecutor) {
+    if (useNativeExecutor && _supportsNativeBody(request.body)) {
       return _callNative(request, cancellation);
     }
     final dio = createDio();
@@ -57,10 +60,12 @@ class SourcePinnedTransport {
       closeDio(dio);
     }
 
-    cancellation.future.then((reason) {
-      cancelToken.cancel(reason);
-      close();
-    });
+    unawaited(
+      cancellation.future.then((reason) {
+        cancelToken.cancel(reason);
+        close();
+      }),
+    );
     if (cancellation.isCancelled) {
       close();
       _throwCancelled();
@@ -69,7 +74,6 @@ class SourcePinnedTransport {
     dio.httpClientAdapter = IOHttpClientAdapter(
       // 关闭 dio 自动 gzip：第三方音源 API 对带 gzip 编码头的请求
       // 返回 403/400（如聆澜源），关闭后与 curl 直连行为一致。
-      validateCertificate: (cert, host, port) => true,
       createHttpClient: () {
         final client = HttpClient()..autoUncompress = false;
         client.connectionFactory = connectionFactory(request);
@@ -79,8 +83,9 @@ class SourcePinnedTransport {
     try {
       final response = await Future.any([
         execute(dio, request, cancelToken),
-        cancellation.future.then<Response<dynamic>>((reason) =>
-            throw SourceRequestPolicyException('cancelled', reason)),
+        cancellation.future.then<Response<dynamic>>(
+          (reason) => throw SourceRequestPolicyException('cancelled', reason),
+        ),
       ]);
       if (cancellation.isCancelled) {
         close();
@@ -132,7 +137,7 @@ class SourcePinnedTransport {
       client.close(force: true);
     }
 
-    cancellation.future.then((_) => close());
+    unawaited(cancellation.future.then((_) => close()));
 
     try {
       final httpRequest = await client
@@ -143,15 +148,18 @@ class SourcePinnedTransport {
       });
       // 与 curl 直连一致：显式禁用 gzip，部分音源 API 对 gzip 头拒答。
       httpRequest.headers.set('Accept-Encoding', 'identity');
-      if (request.body != null) {
-        httpRequest.add(request.body as List<int>);
+      final requestBody = request.body;
+      if (requestBody is String) {
+        httpRequest.add(utf8.encode(requestBody));
+      } else if (requestBody is List<int>) {
+        httpRequest.add(requestBody);
       }
       final response = await httpRequest.close().timeout(request.timeout);
       final headers = <String, List<String>>{};
       response.headers.forEach((name, values) {
         headers[name] = List.unmodifiable(values);
       });
-      final body = (() async* {
+      final responseBody = (() async* {
         try {
           await for (final chunk in response) {
             yield chunk;
@@ -164,7 +172,7 @@ class SourcePinnedTransport {
         statusCode: response.statusCode,
         statusMessage: response.reasonPhrase,
         headers: headers,
-        body: body,
+        body: responseBody,
         close: close,
       );
     } catch (_) {
@@ -173,8 +181,14 @@ class SourcePinnedTransport {
     }
   }
 
+  /// HttpClient accepts bytes, while Dio also supports structured one-shot
+  /// payloads such as FormData and streams. Keep those on the pinned Dio path
+  /// instead of guessing an encoding or consuming a non-replayable body.
+  static bool _supportsNativeBody(dynamic body) =>
+      body == null || body is String || body is List<int>;
+
   static Future<ConnectionTask<Socket>> Function(Uri, String?, int?)
-      connectionFactory(
+  connectionFactory(
     ValidatedSourceRequest request, [
     SourceSocketStarter? startSocket,
   ]) {
@@ -279,5 +293,7 @@ class SourcePinnedTransport {
   }
 
   Never _throwCancelled() => throw const SourceRequestPolicyException(
-      'cancelled', 'Source request was cancelled');
+    'cancelled',
+    'Source request was cancelled',
+  );
 }

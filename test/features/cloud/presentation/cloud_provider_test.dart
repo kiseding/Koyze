@@ -6,9 +6,9 @@ import 'package:koyze/features/cloud/presentation/cloud_provider.dart';
 
 final class ControlledCloudApiClient extends CloudApiClient {
   ControlledCloudApiClient({bool initiallyLoggedIn = false})
-      : _loggedIn = initiallyLoggedIn,
-        _username = initiallyLoggedIn ? 'saved-user' : null,
-        _role = initiallyLoggedIn ? 'user' : null;
+    : _loggedIn = initiallyLoggedIn,
+      _username = initiallyLoggedIn ? 'saved-user' : null,
+      _role = initiallyLoggedIn ? 'user' : null;
 
   Completer<void> loadCompleter = Completer<void>();
   Completer<Map<String, dynamic>> loginCompleter =
@@ -82,8 +82,10 @@ final class ControlledCloudApiClient extends CloudApiClient {
   }
 
   @override
-  Future<void> clearSession(
-      {String? expectedToken, int? expectedRevision}) async {
+  Future<void> clearSession({
+    String? expectedToken,
+    int? expectedRevision,
+  }) async {
     clearCount++;
     if (!clearStarted.isCompleted) clearStarted.complete();
     if (!clearImmediately) await clearCompleter.future;
@@ -236,53 +238,63 @@ void main() {
     expect(api.clearCount, 1);
   });
 
-  test('clear failure preserves the authenticated session and reports an error',
-      () async {
-    final api = ControlledCloudApiClient(initiallyLoggedIn: true)
-      ..nextVerification = CloudVerification.unauthorized
-      ..clearImmediately = false;
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+  test(
+    'clear failure preserves the authenticated session and reports an error',
+    () async {
+      final api = ControlledCloudApiClient(initiallyLoggedIn: true)
+        ..nextVerification = CloudVerification.unauthorized
+        ..clearImmediately = false;
+      final notifier = CloudSessionNotifier(api, autoRefresh: false);
 
-    final refresh = notifier.refresh();
-    await api.clearStarted.future;
-    api.clearCompleter.completeError(StateError('keychain unavailable'));
-    await refresh;
+      final refresh = notifier.refresh();
+      await api.clearStarted.future;
+      api.clearCompleter.completeError(StateError('keychain unavailable'));
+      await refresh;
 
-    expect(notifier.state.loggedIn, isTrue);
-    expect(notifier.state.username, 'saved-user');
-    expect(notifier.state.error, contains('无法清除安全凭据'));
-  });
+      expect(notifier.state.loggedIn, isTrue);
+      expect(notifier.state.username, 'saved-user');
+      expect(notifier.state.error, contains('无法清除安全凭据'));
+    },
+  );
 
-  test('a stale login safety failure remains visible after a newer command',
-      () async {
-    final api = ControlledCloudApiClient();
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+  test(
+    'a stale login safety failure remains visible after a newer command',
+    () async {
+      final api = ControlledCloudApiClient();
+      final notifier = CloudSessionNotifier(api, autoRefresh: false);
 
-    final login = notifier.login('user', 'password');
-    await notifier.setBaseUrl('https://new.example');
-    api.failLogin(const CloudSessionSafetyError(
-      'Cloud session became stale and was invalidated. Please sign in again.',
-    ));
+      final login = notifier.login('user', 'password');
+      await notifier.setBaseUrl('https://new.example');
+      api.failLogin(
+        const CloudSessionSafetyError(
+          'Cloud session became stale and was invalidated. Please sign in again.',
+        ),
+      );
 
-    expect(await login, isFalse);
-    expect(notifier.state.error, contains('invalidated'));
-  });
+      expect(await login, isFalse);
+      expect(notifier.state.error, contains('invalidated'));
+    },
+  );
 
-  test('a stale refresh safety failure remains visible after a newer command',
-      () async {
-    final api = ControlledCloudApiClient(initiallyLoggedIn: true);
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+  test(
+    'a stale refresh safety failure remains visible after a newer command',
+    () async {
+      final api = ControlledCloudApiClient(initiallyLoggedIn: true);
+      final notifier = CloudSessionNotifier(api, autoRefresh: false);
 
-    final refresh = notifier.refresh();
-    await api.verifyStarted.future;
-    await notifier.setBaseUrl('https://new.example');
-    api.failVerify(const CloudSessionSafetyError(
-      'Cloud session became stale and was invalidated. Please sign in again.',
-    ));
-    await refresh;
+      final refresh = notifier.refresh();
+      await api.verifyStarted.future;
+      await notifier.setBaseUrl('https://new.example');
+      api.failVerify(
+        const CloudSessionSafetyError(
+          'Cloud session became stale and was invalidated. Please sign in again.',
+        ),
+      );
+      await refresh;
 
-    expect(notifier.state.error, contains('invalidated'));
-    expect(notifier.state.loggedIn, isTrue);
-    expect(notifier.state.baseUrl, 'https://new.example');
-  });
+      expect(notifier.state.error, contains('invalidated'));
+      expect(notifier.state.loggedIn, isTrue);
+      expect(notifier.state.baseUrl, 'https://new.example');
+    },
+  );
 }

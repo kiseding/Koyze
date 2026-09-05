@@ -52,8 +52,9 @@ class WySource extends MusicPlatform {
 
     // 生成 16 字节随机密钥 (base62 字符) - 匹配桌面版: randomBytes(16).map(n => (base62.charAt(n % 62).charCodeAt()))
     final randomBytes = List<int>.generate(16, (_) => random.nextInt(256));
-    final secretKeyBytes =
-        randomBytes.map((n) => _base62.codeUnitAt(n % 62)).toList();
+    final secretKeyBytes = randomBytes
+        .map((n) => _base62.codeUnitAt(n % 62))
+        .toList();
     final secretKey = String.fromCharCodes(secretKeyBytes);
 
     // 第一次 AES-128-CBC 加密 (presetKey + iv)
@@ -68,10 +69,7 @@ class WySource extends MusicPlatform {
     final reversedKey = secretKey.split('').reversed.join('');
     final encSecKey = _rsaEncryptNoPadding(reversedKey);
 
-    return {
-      'params': params,
-      'encSecKey': encSecKey,
-    };
+    return {'params': params, 'encSecKey': encSecKey};
   }
 
   /// eapi 加密 (AES-128-ECB hex)
@@ -87,8 +85,9 @@ class WySource extends MusicPlatform {
   List<int> _aesCbcEncrypt(String data, String keyStr, String ivStr) {
     final key = encrypt.Key.fromUtf8(keyStr);
     final iv = encrypt.IV.fromUtf8(ivStr);
-    final encrypter =
-        encrypt.Encrypter(encrypt.AES(key, mode: encrypt.AESMode.cbc));
+    final encrypter = encrypt.Encrypter(
+      encrypt.AES(key, mode: encrypt.AESMode.cbc),
+    );
     final encrypted = encrypter.encrypt(data, iv: iv);
     return encrypted.bytes;
   }
@@ -125,8 +124,11 @@ class WySource extends MusicPlatform {
   // ==================== 搜索 ====================
 
   @override
-  Future<List<MusicItem>> search(String keyword,
-      {int page = 1, int limit = 20}) async {
+  Future<List<MusicItem>> search(
+    String keyword, {
+    int page = 1,
+    int limit = 20,
+  }) async {
     try {
       final data = {
         'keyword': keyword,
@@ -186,26 +188,30 @@ class WySource extends MusicPlatform {
       final al = songData['al'] as Map?;
       final dt = int.tryParse(songData['dt']?.toString() ?? '0') ?? 0;
 
-      list.add(MusicItem(
-        id: id,
-        name: (songData['name'] as String? ?? '').trim(),
-        singer: _staticFormatSingerName(ar, nameKey: 'name'),
-        source: 'wy',
-        platform: 'wy',
-        artwork: _normalizeArtwork(al?['picUrl']),
-        url: '',
-        songmid: id,
-        duration: Duration(milliseconds: dt),
-        album: al?['name'] as String? ?? '',
-        // 保留 fee、privilege、h/m/l 等原始字段，避免自定义源丢失版权信息。
-        meta: Map<String, dynamic>.from(songData),
-      ));
+      list.add(
+        MusicItem(
+          id: id,
+          name: (songData['name'] as String? ?? '').trim(),
+          singer: _staticFormatSingerName(ar, nameKey: 'name'),
+          source: 'wy',
+          platform: 'wy',
+          artwork: _normalizeArtwork(al?['picUrl']),
+          url: '',
+          songmid: id,
+          duration: Duration(milliseconds: dt),
+          album: al?['name'] as String? ?? '',
+          // 保留 fee、privilege、h/m/l 等原始字段，避免自定义源丢失版权信息。
+          meta: Map<String, dynamic>.from(songData),
+        ),
+      );
     }
     return list;
   }
 
-  static String _staticFormatSingerName(List<dynamic> singers,
-      {String nameKey = 'name'}) {
+  static String _staticFormatSingerName(
+    List<dynamic> singers, {
+    String nameKey = 'name',
+  }) {
     if (singers.isEmpty) return '未知歌手';
     return singers
         .map((s) => (s as Map)[nameKey]?.toString() ?? '')
@@ -229,32 +235,47 @@ class WySource extends MusicPlatform {
   // ==================== 播放链接 ====================
 
   @override
-  Future<String?> getMusicUrl(MusicItem music,
-      {String quality = '128k'}) async {
+  Future<String?> getMusicUrl(
+    MusicItem music, {
+    String quality = '128k',
+  }) async {
     return _getMusicUrl(music, quality: quality, exact: false);
   }
 
   @override
-  Future<String?> getMusicUrlExact(MusicItem music,
-      {required String quality}) async {
+  Future<String?> getMusicUrlExact(
+    MusicItem music, {
+    required String quality,
+  }) async {
     if (exactBitrateForQuality(quality) == null) return null;
     return _getMusicUrl(music, quality: quality, exact: true);
   }
 
   @override
-  Future<ExactPlayUrl?> getMusicUrlExactDetailed(MusicItem music,
-      {required String quality}) async {
+  Future<ExactPlayUrl?> getMusicUrlExactDetailed(
+    MusicItem music, {
+    required String quality,
+  }) async {
     return _getMusicUrlDetailed(music, quality: quality, exact: true);
   }
 
-  Future<String?> _getMusicUrl(MusicItem music,
-      {required String quality, required bool exact}) async {
-    return (await _getMusicUrlDetailed(music, quality: quality, exact: exact))
-        ?.url;
+  Future<String?> _getMusicUrl(
+    MusicItem music, {
+    required String quality,
+    required bool exact,
+  }) async {
+    return (await _getMusicUrlDetailed(
+      music,
+      quality: quality,
+      exact: exact,
+    ))?.url;
   }
 
-  Future<ExactPlayUrl?> _getMusicUrlDetailed(MusicItem music,
-      {required String quality, required bool exact}) async {
+  Future<ExactPlayUrl?> _getMusicUrlDetailed(
+    MusicItem music, {
+    required String quality,
+    required bool exact,
+  }) async {
     try {
       final id = music.songmid ?? music.id;
       if (id.isEmpty) return null;
@@ -264,16 +285,13 @@ class WySource extends MusicPlatform {
           : legacyBitrateForQuality(quality);
       if (br == null) return null;
 
-      final urlDio =
-          createDioForService(headers: {'Referer': 'https://music.163.com/'});
+      final urlDio = createDioForService(
+        headers: {'Referer': 'https://music.163.com/'},
+      );
 
       final response = await urlDio.get(
         'https://music.163.com/api/song/enhance/player/url',
-        queryParameters: {
-          'id': id,
-          'ids': '[$id]',
-          'br': br.toString(),
-        },
+        queryParameters: {'id': id, 'ids': '[$id]', 'br': br.toString()},
       );
 
       final body = response.data;
@@ -299,26 +317,26 @@ class WySource extends MusicPlatform {
   }
 
   static int? exactBitrateForQuality(String quality) => switch (quality) {
-        'hires' || 'flac24bit' || 'flac' => 999000,
-        '320k' => 320000,
-        '192k' => 192000,
-        '128k' => 128000,
-        _ => null,
-      };
+    'hires' || 'flac24bit' || 'flac' => 999000,
+    '320k' => 320000,
+    '192k' => 192000,
+    '128k' => 128000,
+    _ => null,
+  };
 
   static int legacyBitrateForQuality(String quality) => switch (quality) {
-        'hires' || 'flac24bit' || 'flac' => 999000,
-        '320k' => 320000,
-        '192k' => 192000,
-        _ => 128000,
-      };
+    'hires' || 'flac24bit' || 'flac' => 999000,
+    '320k' => 320000,
+    '192k' => 192000,
+    _ => 128000,
+  };
 
   static String qualityFromBitrate(int bitrate) => switch (bitrate) {
-        >= 900000 => 'flac',
-        >= 280000 => '320k',
-        >= 160000 => '192k',
-        _ => '128k',
-      };
+    >= 900000 => 'flac',
+    >= 280000 => '320k',
+    >= 160000 => '192k',
+    _ => '128k',
+  };
 
   @override
   String? exactAttemptKey(String quality) =>
@@ -345,12 +363,14 @@ class WySource extends MusicPlatform {
       };
       final eapiParams = eapi('/api/song/lyric/v1', data);
 
-      final lyricDio = createDioForService(headers: {
-        'User-Agent':
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
-        'Origin': 'https://music.163.com',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      });
+      final lyricDio = createDioForService(
+        headers: {
+          'User-Agent':
+              'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
+          'Origin': 'https://music.163.com',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      );
 
       final response = await lyricDio.post(
         neteaseLyricEndpoint,
@@ -478,23 +498,28 @@ class WySource extends MusicPlatform {
       LeaderboardCategory(id: 'wy:60198', name: '美国Billboard榜', platform: 'wy'),
     ];
     // 统一：榜单封面 = 榜内首曲 artwork
-    final results = await Future.wait(base.map((c) async {
-      try {
-        final songs = await getLeaderboardSongs(c.id, limit: 1);
-        final art = songs.isNotEmpty ? songs.first.artwork : null;
-        var cover = (art != null && art.isNotEmpty) ? art : null;
-        cover = cover == null ? null : _normalizeArtwork(cover);
-        return c.copyWith(coverUrl: cover);
-      } catch (_) {
-        return c;
-      }
-    }));
+    final results = await Future.wait(
+      base.map((c) async {
+        try {
+          final songs = await getLeaderboardSongs(c.id, limit: 1);
+          final art = songs.isNotEmpty ? songs.first.artwork : null;
+          var cover = (art != null && art.isNotEmpty) ? art : null;
+          cover = cover == null ? null : _normalizeArtwork(cover);
+          return c.copyWith(coverUrl: cover);
+        } catch (_) {
+          return c;
+        }
+      }),
+    );
     return results;
   }
 
   @override
-  Future<List<MusicItem>> getLeaderboardSongs(String leaderboardId,
-      {int page = 1, int limit = 100}) async {
+  Future<List<MusicItem>> getLeaderboardSongs(
+    String leaderboardId, {
+    int page = 1,
+    int limit = 100,
+  }) async {
     try {
       final parts = leaderboardId.split(':');
       final id = parts.length == 2 ? parts[1] : leaderboardId;
@@ -525,8 +550,9 @@ class WySource extends MusicPlatform {
       Map<String, dynamic> playlistMap;
       if (playlistBody is String) {
         try {
-          playlistMap = (jsonDecode(playlistBody) as Map)
-              .map((k, v) => MapEntry(k.toString(), v));
+          playlistMap = (jsonDecode(playlistBody) as Map).map(
+            (k, v) => MapEntry(k.toString(), v),
+          );
         } catch (e) {
           return [];
         }
@@ -575,8 +601,9 @@ class WySource extends MusicPlatform {
       Map<String, dynamic> detailMap;
       if (detailBody is String) {
         try {
-          detailMap = (jsonDecode(detailBody) as Map)
-              .map((k, v) => MapEntry(k.toString(), v));
+          detailMap = (jsonDecode(detailBody) as Map).map(
+            (k, v) => MapEntry(k.toString(), v),
+          );
         } catch (e) {
           return [];
         }
@@ -604,7 +631,9 @@ class WySource extends MusicPlatform {
 
   /// 桌面版 musicDetail.js filterList - 解析 songs 和 privileges
   List<MusicItem> _filterLeaderboardTracks(
-      List<dynamic> songs, List<dynamic>? privileges) {
+    List<dynamic> songs,
+    List<dynamic>? privileges,
+  ) {
     final list = <MusicItem>[];
     for (var i = 0; i < songs.length; i++) {
       final item = songs[i] as Map<String, dynamic>;
@@ -645,18 +674,20 @@ class WySource extends MusicPlatform {
         }
       }
 
-      list.add(MusicItem(
-        id: id,
-        name: name,
-        singer: singer,
-        album: album,
-        duration: Duration(milliseconds: dt),
-        source: 'wy',
-        platform: 'wy',
-        songmid: id,
-        artwork: artwork,
-        meta: meta,
-      ));
+      list.add(
+        MusicItem(
+          id: id,
+          name: name,
+          singer: singer,
+          album: album,
+          duration: Duration(milliseconds: dt),
+          source: 'wy',
+          platform: 'wy',
+          songmid: id,
+          artwork: artwork,
+          meta: meta,
+        ),
+      );
     }
     return list;
   }

@@ -57,8 +57,11 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    container.listen(currentLyricLoadProvider, (_, __) {},
-        fireImmediately: true);
+    container.listen(
+      currentLyricLoadProvider,
+      (_, __) {},
+      fireImmediately: true,
+    );
     await pumpEventQueue();
     container.read(selectedMusicProvider.notifier).state = _music('A');
     await pumpEventQueue();
@@ -75,48 +78,54 @@ void main() {
     });
     addTearDown(notifier.dispose);
 
-    await notifier.select(MusicItem(
-      id: 'A',
-      name: 'A',
-      singer: 'artist',
-      source: 'custom',
-      platform: 'custom',
-    ));
-    await notifier.select(MusicItem(
-      id: 'A',
-      songmid: 'qq-mid',
-      name: 'A',
-      singer: 'artist',
-      source: 'custom',
-      platform: 'tx',
-    ));
+    await notifier.select(
+      MusicItem(
+        id: 'A',
+        name: 'A',
+        singer: 'artist',
+        source: 'custom',
+        platform: 'custom',
+      ),
+    );
+    await notifier.select(
+      MusicItem(
+        id: 'A',
+        songmid: 'qq-mid',
+        name: 'A',
+        singer: 'artist',
+        source: 'custom',
+        platform: 'tx',
+      ),
+    );
 
     expect(calls, 2);
     expect(notifier.state.lyrics.raw, 'tx');
   });
 
-  test('current error is state and retry starts a new successful generation',
-      () async {
-    final failure = StateError('current failure');
-    var calls = 0;
-    final notifier = LyricNotifier((_) async {
-      if (calls++ == 0) throw failure;
-      return _lyrics('retried');
-    });
-    addTearDown(notifier.dispose);
+  test(
+    'current error is state and retry starts a new successful generation',
+    () async {
+      final failure = StateError('current failure');
+      var calls = 0;
+      final notifier = LyricNotifier((_) async {
+        if (calls++ == 0) throw failure;
+        return _lyrics('retried');
+      });
+      addTearDown(notifier.dispose);
 
-    await notifier.select(_music('A'));
+      await notifier.select(_music('A'));
 
-    expect(notifier.state.lyrics.isEmpty, isTrue);
-    expect(notifier.state.isLoading, isFalse);
-    expect(notifier.state.error, same(failure));
+      expect(notifier.state.lyrics.isEmpty, isTrue);
+      expect(notifier.state.isLoading, isFalse);
+      expect(notifier.state.error, same(failure));
 
-    await notifier.retry();
+      await notifier.retry();
 
-    expect(calls, 2);
-    expect(notifier.state.lyrics.raw, 'retried');
-    expect(notifier.state.error, isNull);
-  });
+      expect(calls, 2);
+      expect(notifier.state.lyrics.raw, 'retried');
+      expect(notifier.state.error, isNull);
+    },
+  );
 
   test('stale success and error do not publish or escape their zone', () async {
     final failures = <Object>[];
@@ -147,71 +156,75 @@ void main() {
     expect(failures, isEmpty);
   });
 
-  test('disposed success and error do not publish or escape their zone',
-      () async {
-    final failures = <Object>[];
+  test(
+    'disposed success and error do not publish or escape their zone',
+    () async {
+      final failures = <Object>[];
 
-    await runZonedGuarded(() async {
-      final success = Completer<Lyrics>();
-      final error = Completer<Lyrics>();
-      final successNotifier = LyricNotifier((_) => success.future);
-      final errorNotifier = LyricNotifier((_) => error.future);
-      unawaited(successNotifier.select(_music('A')));
-      unawaited(errorNotifier.select(_music('B')));
-      successNotifier.dispose();
-      errorNotifier.dispose();
-      success.complete(_lyrics('A'));
-      error.completeError(StateError('disposed failure'));
-      await pumpEventQueue();
-    }, (failure, _) => failures.add(failure));
+      await runZonedGuarded(() async {
+        final success = Completer<Lyrics>();
+        final error = Completer<Lyrics>();
+        final successNotifier = LyricNotifier((_) => success.future);
+        final errorNotifier = LyricNotifier((_) => error.future);
+        unawaited(successNotifier.select(_music('A')));
+        unawaited(errorNotifier.select(_music('B')));
+        successNotifier.dispose();
+        errorNotifier.dispose();
+        success.complete(_lyrics('A'));
+        error.completeError(StateError('disposed failure'));
+        await pumpEventQueue();
+      }, (failure, _) => failures.add(failure));
 
-    expect(failures, isEmpty);
-  });
+      expect(failures, isEmpty);
+    },
+  );
 
-  test('provider listener publishes current error and retry succeeds safely',
-      () async {
-    final selectedMusicProvider = StateProvider<MusicItem?>((_) => _music('A'));
-    final failure = StateError('provider failure');
-    final escaped = <Object>[];
-    var calls = 0;
-    late ProviderContainer container;
-
-    await runZonedGuarded(() async {
-      container = ProviderContainer(
-        overrides: [
-          currentMusicProvider.overrideWith(
-            (ref) => ref.watch(selectedMusicProvider),
-          ),
-          lyricLoaderProvider.overrideWithValue((_) async {
-            if (calls++ == 0) throw failure;
-            return _lyrics('retried');
-          }),
-        ],
+  test(
+    'provider listener publishes current error and retry succeeds safely',
+    () async {
+      final selectedMusicProvider = StateProvider<MusicItem?>(
+        (_) => _music('A'),
       );
-      container.listen(currentLyricLoadProvider, (_, __) {},
-          fireImmediately: true);
-      await pumpEventQueue();
-    }, (error, _) => escaped.add(error));
-    addTearDown(container.dispose);
+      final failure = StateError('provider failure');
+      final escaped = <Object>[];
+      var calls = 0;
+      late ProviderContainer container;
 
-    expect(container.read(currentLyricLoadProvider).error, same(failure));
-    await container.read(currentLyricLoadProvider.notifier).retry();
-    expect(container.read(currentLyricLoadProvider).lyrics.raw, 'retried');
-    expect(container.read(currentLyricLoadProvider).error, isNull);
-    expect(calls, 2);
-    expect(escaped, isEmpty);
-  });
+      await runZonedGuarded(() async {
+        container = ProviderContainer(
+          overrides: [
+            currentMusicProvider.overrideWith(
+              (ref) => ref.watch(selectedMusicProvider),
+            ),
+            lyricLoaderProvider.overrideWithValue((_) async {
+              if (calls++ == 0) throw failure;
+              return _lyrics('retried');
+            }),
+          ],
+        );
+        container.listen(
+          currentLyricLoadProvider,
+          (_, __) {},
+          fireImmediately: true,
+        );
+        await pumpEventQueue();
+      }, (error, _) => escaped.add(error));
+      addTearDown(container.dispose);
+
+      expect(container.read(currentLyricLoadProvider).error, same(failure));
+      await container.read(currentLyricLoadProvider.notifier).retry();
+      expect(container.read(currentLyricLoadProvider).lyrics.raw, 'retried');
+      expect(container.read(currentLyricLoadProvider).error, isNull);
+      expect(calls, 2);
+      expect(escaped, isEmpty);
+    },
+  );
 }
 
-MusicItem _music(String id) => MusicItem(
-      id: id,
-      name: id,
-      singer: 'artist',
-      source: 'tx',
-      platform: 'tx',
-    );
+MusicItem _music(String id) =>
+    MusicItem(id: id, name: id, singer: 'artist', source: 'tx', platform: 'tx');
 
 Lyrics _lyrics(String value) => Lyrics(
-      raw: value,
-      lines: [LyricLine(time: Duration.zero, text: value)],
-    );
+  raw: value,
+  lines: [LyricLine(time: Duration.zero, text: value)],
+);

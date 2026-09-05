@@ -7,7 +7,7 @@ void main() {
       'sources': {
         'kw': {
           'musicUrl': true,
-          'qualitys': ['128k', '320k']
+          'qualitys': ['128k', '320k'],
         },
       },
     });

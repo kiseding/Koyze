@@ -15,7 +15,9 @@ void main() {
 
   test('leaves local file paths and invalid values unchanged', () {
     expect(
-        normalizeOutboundUrl('file:///tmp/song.mp3'), 'file:///tmp/song.mp3');
+      normalizeOutboundUrl('file:///tmp/song.mp3'),
+      'file:///tmp/song.mp3',
+    );
     expect(normalizeOutboundUrl('/tmp/song.mp3'), '/tmp/song.mp3');
     expect(normalizeOutboundUrl('not a url'), 'not a url');
   });
@@ -52,21 +54,23 @@ void main() {
       }
     });
 
-    test('rejects HTTP, credentials, missing hosts, and unsupported schemes',
-        () {
-      for (final value in [
-        'http://sync.example.com',
-        'https://user:pass@sync.example.com',
-        'https:///missing-host',
-        'ftp://sync.example.com',
-        'sync.example.com',
-      ]) {
-        expect(
-          () => validateHttpsServiceUrl(value),
-          throwsA(isA<ArgumentError>()),
-          reason: value,
-        );
-      }
-    });
+    test(
+      'rejects HTTP, credentials, missing hosts, and unsupported schemes',
+      () {
+        for (final value in [
+          'http://sync.example.com',
+          'https://user:pass@sync.example.com',
+          'https:///missing-host',
+          'ftp://sync.example.com',
+          'sync.example.com',
+        ]) {
+          expect(
+            () => validateHttpsServiceUrl(value),
+            throwsA(isA<ArgumentError>()),
+            reason: value,
+          );
+        }
+      },
+    );
   });
 }

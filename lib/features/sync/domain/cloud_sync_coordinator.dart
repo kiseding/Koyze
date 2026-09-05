@@ -242,9 +242,7 @@ final class CloudSyncCoordinator {
   }
 
   /// 同名同作者的不同 id 副本只保留最新一条（跨设备去重）。
-  static List<CustomSource> _dedupeSameNameAuthor(
-    List<CustomSource> sources,
-  ) {
+  static List<CustomSource> _dedupeSameNameAuthor(List<CustomSource> sources) {
     final byKey = <String, CustomSource>{};
     for (final s in sources) {
       final key = '${s.name}|${s.author}'.toLowerCase();
@@ -440,8 +438,8 @@ final class CloudSyncCoordinator {
 
   Future<({String hash, int revision})?> _readStateBaseline() async {
     final prefs = await SharedPreferences.getInstance();
-    final hash = prefs.getString('$_statePrefix\_hash');
-    final revision = prefs.getInt('$_statePrefix\_revision');
+    final hash = prefs.getString('${_statePrefix}_hash');
+    final revision = prefs.getInt('${_statePrefix}_revision');
     return hash == null || revision == null
         ? null
         : (hash: hash, revision: revision);
@@ -449,7 +447,7 @@ final class CloudSyncCoordinator {
 
   Future<void> _writeStateBaseline(String hash, int revision) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('$_statePrefix\_hash', hash);
-    await prefs.setInt('$_statePrefix\_revision', revision);
+    await prefs.setString('${_statePrefix}_hash', hash);
+    await prefs.setInt('${_statePrefix}_revision', revision);
   }
 }

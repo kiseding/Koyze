@@ -69,10 +69,8 @@ final recommendationProvider =
 
 class RecommendationNotifier
     extends StateNotifier<AsyncValue<List<RecommendedSong>>> {
-  RecommendationNotifier({
-    required Future<List<RecommendedSong>> Function() loader,
-  }) : _loader = loader,
-       super(const AsyncValue.loading()) {
+  RecommendationNotifier({required this._loader})
+    : super(const AsyncValue.loading()) {
     _ensureData();
   }
 

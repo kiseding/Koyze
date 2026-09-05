@@ -3,11 +3,12 @@ import 'dart:async';
 import 'fire_and_forget_observer.dart';
 
 typedef BeginScrub = Future<int> Function();
-typedef FinishScrub = Future<void> Function(
-  int generation,
-  Duration position, {
-  required bool resumeAfter,
-});
+typedef FinishScrub =
+    Future<void> Function(
+      int generation,
+      Duration position, {
+      required bool resumeAfter,
+    });
 typedef CancelScrub = Future<void> Function(int generation);
 typedef ScrubErrorHandler = AsyncErrorHandler;
 
@@ -27,14 +28,11 @@ final class ScrubSession {
   bool _disposed = false;
 
   ScrubSession({
-    required BeginScrub begin,
-    required FinishScrub finish,
-    required CancelScrub cancel,
+    required this._begin,
+    required this._finish,
+    required this._cancel,
     ScrubErrorHandler? onError,
-  })  : _begin = begin,
-        _finish = finish,
-        _cancel = cancel,
-        _observer = FireAndForgetObserver(onError: onError);
+  }) : _observer = FireAndForgetObserver(onError: onError);
 
   ScrubOperation begin() {
     final previous = _current;
@@ -82,12 +80,10 @@ final class ScrubSession {
   }
 
   Future<void> _cancelOperation(ScrubOperation operation) {
-    return operation._cancellation ??= _observer.observe(
-      () async {
-        final generation = await operation.generation;
-        await _cancel(generation);
-      }(),
-    );
+    return operation._cancellation ??= _observer.observe(() async {
+      final generation = await operation.generation;
+      await _cancel(generation);
+    }());
   }
 
   void _ignoreCancellation(ScrubOperation operation) {

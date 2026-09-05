@@ -79,9 +79,9 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
-              popUpAnimationStyle: AnimationStyle(
-                duration: const Duration(milliseconds: 280),
-                reverseDuration: const Duration(milliseconds: 150),
+              popUpAnimationStyle: const AnimationStyle(
+                duration: Duration(milliseconds: 280),
+                reverseDuration: Duration(milliseconds: 150),
                 curve: Curves.easeOutCubic,
                 reverseCurve: Curves.easeInCubic,
               ),
@@ -98,14 +98,14 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                     style: TextStyle(color: AppColors.onScaffold(context)),
                   ),
                 ),
-                PopupMenuItem(
+                const PopupMenuItem(
                   value: 'clear_completed',
                   child: Text(
                     '删除已完成下载',
                     style: TextStyle(color: AppColors.error),
                   ),
                 ),
-                PopupMenuItem(
+                const PopupMenuItem(
                   value: 'clear_failed',
                   child: Text(
                     '清理失败任务',
@@ -164,7 +164,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                             ),
                           )
                         : ListView.builder(
-                            padding: EdgeInsets.symmetric(
+                            padding: const EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 4,
                             ),
@@ -187,8 +187,8 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
     int downloaded,
   ) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.fill(context),
         border: Border.all(color: AppColors.cardBorder(context)),
@@ -353,7 +353,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                       shape: const StadiumBorder(),
                       padding: EdgeInsets.zero,
                     ),
-                    child: Text(
+                    child: const Text(
                       '删除已完成下载',
                       style: TextStyle(
                         fontSize: 12,
@@ -393,7 +393,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
     final activeCount = totalCount - completedCount;
     final tabs = ['进行中 ($activeCount)', '已完成 ($completedCount)', '全部'];
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: AppColors.cardBorder(context)),
@@ -456,8 +456,8 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
           : null,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: isDownloading ? AppColors.fill(context) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
@@ -570,7 +570,11 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
     final action = ref.read(downloadActionProvider);
     switch (task.status) {
       case DownloadStatus.completed:
-        return Icon(Icons.check_circle, color: AppColors.success, size: 18);
+        return const Icon(
+          Icons.check_circle,
+          color: AppColors.success,
+          size: 18,
+        );
       case DownloadStatus.downloading:
         return SizedBox(
           width: 18,
@@ -583,7 +587,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
         );
       case DownloadStatus.paused:
         return FxIconButton(
-          icon: Icon(
+          icon: const Icon(
             Icons.play_circle_filled,
             color: AppColors.success,
             size: 20,
@@ -602,7 +606,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
         return TextButton(
           onPressed: () => action('retry', task.id),
           style: TextButton.styleFrom(
-            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             side: BorderSide(color: AppColors.accentOf(context).withAlpha(77)),
@@ -709,7 +713,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               }
               Navigator.pop(ctx);
             },
-            child: Text('删除文件', style: TextStyle(color: AppColors.error)),
+            child: const Text('删除文件', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -752,7 +756,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               }
               Navigator.pop(ctx);
             },
-            child: Text('清理', style: TextStyle(color: AppColors.error)),
+            child: const Text('清理', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),

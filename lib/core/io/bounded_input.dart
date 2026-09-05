@@ -47,7 +47,10 @@ void validateJsonBudget(Object? value, JsonBudget budget) {
 
 void _validateJsonBudget(Object? value, JsonBudget budget, int depth) {
   if (depth > budget.maximumDepth) {
-    throw const InputLimitException('depth', 'JSON nesting exceeds maximumDepth');
+    throw const InputLimitException(
+      'depth',
+      'JSON nesting exceeds maximumDepth',
+    );
   }
   if (value is String) {
     if (value.length > budget.maximumStringLength) {

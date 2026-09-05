@@ -19,7 +19,7 @@ class EmptyWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -55,9 +55,12 @@ class EmptyWidget extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                   ),
-                  child: Text(actionText!, style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: Text(
+                    actionText!,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],

@@ -27,6 +27,25 @@ void main() {
     );
   }
 
+  test('default media policy rejects loopback destinations', () async {
+    final transport = SourceMediaTransport();
+
+    await expectLater(
+      transport.read(
+        'http://127.0.0.1/private.mp3',
+        headers: const {},
+        maximumBytes: 8,
+      ),
+      throwsA(
+        isA<SourceRequestPolicyException>().having(
+          (error) => error.code,
+          'code',
+          'blocked_address',
+        ),
+      ),
+    );
+  });
+
   test('rejects declared oversized media before creating a file', () async {
     final transport = client(
       (request, cancellation) async => SourceTransportResponse(

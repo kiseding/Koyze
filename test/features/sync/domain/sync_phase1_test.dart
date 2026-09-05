@@ -125,6 +125,34 @@ void main() {
     },
   );
 
+  test('fullResync resumes pulls from the applied snapshot cursor', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final api = _SnapshotCloudApi();
+    final cursor = SyncCursorStore(preferences: () async => prefs);
+    final service = await _configuredSnapshotService(api, prefs, cursor);
+
+    await service.fullResync();
+
+    expect(api.pullCursors, [41]);
+    expect(await cursor.read(), 44);
+  });
+
+  test(
+    'expired replay cursor automatically recovers through snapshot',
+    () async {
+      final prefs = await SharedPreferences.getInstance();
+      final api = _SnapshotCloudApi(expireFirstPull: true);
+      final cursor = SyncCursorStore(preferences: () async => prefs);
+      final service = await _configuredSnapshotService(api, prefs, cursor);
+
+      await service.pull();
+
+      expect(api.pullCursors, [0, 41]);
+      expect(api.snapshotCalls, 1);
+      expect(await cursor.read(), 44);
+    },
+  );
+
   test('state machine rejects skipping merge and sync phases', () {
     final machine = SyncStateMachine();
     const account = SyncAccount(
@@ -182,6 +210,82 @@ final class _PushOnlyCloudApi extends CloudApiClient {
   }
 }
 
+final class _SnapshotCloudApi extends CloudApiClient {
+  _SnapshotCloudApi({bool expireFirstPull = false})
+    : _expireNextPull = expireFirstPull;
+
+  final pullCursors = <int>[];
+  bool _expireNextPull;
+  int snapshotCalls = 0;
+
+  @override
+  bool get isLoggedIn => true;
+
+  @override
+  Future<Map<String, dynamic>> fetchSyncSnapshot() async {
+    snapshotCalls++;
+    return const {
+      'cursor': 41,
+      'playlists': [],
+      'settings': <String, dynamic>{},
+      'sources': [],
+      'ratings': <String, dynamic>{},
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> pullSyncEvents({required int cursor}) async {
+    pullCursors.add(cursor);
+    if (_expireNextPull) {
+      _expireNextPull = false;
+      final options = RequestOptions(path: '/api/sync/pull');
+      throw DioException(
+        requestOptions: options,
+        response: Response<Map<String, dynamic>>(
+          requestOptions: options,
+          statusCode: 409,
+          data: const {
+            'error': 'sync_cursor_expired',
+            'snapshotRequired': true,
+          },
+        ),
+      );
+    }
+    return const {'events': [], 'hasMore': false, 'cursor': 44};
+  }
+}
+
+Future<SyncPhase1Service> _configuredSnapshotService(
+  CloudApiClient api,
+  SharedPreferences prefs,
+  SyncCursorStore cursor,
+) async {
+  final sources = CustomSourceService(
+    storageLoader: () async => StorageService.instance,
+  );
+  await sources.init();
+  final playlists = PlaylistService(
+    repository: _FakePlaylistRepository(),
+    syncRecorder:
+        ({
+          required String eventType,
+          required String entityId,
+          Map<String, dynamic>? payload,
+        }) async {},
+  );
+  await playlists.init();
+  return SyncPhase1Service(
+      api: api,
+      identity: SyncIdentityStore(preferences: () async => prefs),
+      cursor: cursor,
+      outbox: SyncOutboxRepository(preferences: () async => prefs),
+    )
+    ..attachSources(sources)
+    ..attachPlaylists(playlists)
+    ..attachRatings(RatingStore(preferences: () async => prefs))
+    ..attachSettingApplier((key, value) async {});
+}
+
 // 自定义源同步回归：启用状态是设备本地偏好，同步不改变它。
 void syncSourceEnablementTests() {
   test(
@@ -191,25 +295,27 @@ void syncSourceEnablementTests() {
       final sourcesService = CustomSourceService(
         storageLoader: () async => StorageService.instance,
       );
-      final phase1 = SyncPhase1Service(
-        api: CloudApiClient(
-          dio: Dio(),
-          preferences: () async => prefs,
-        ),
-        identity: SyncIdentityStore(preferences: () async => prefs),
-        cursor: SyncCursorStore(preferences: () async => prefs),
-        outbox: SyncOutboxRepository(preferences: () async => prefs),
-      )
-        ..attachSources(sourcesService)
-        ..attachPlaylists(
-          PlaylistService(
-            repository: _FakePlaylistRepository(),
-            syncRecorder:
-                ({required String eventType, required String entityId, Map<String, dynamic>? payload}) async {},
-          ),
-        )
-        ..attachRatings(RatingStore(preferences: () async => prefs))
-        ..attachSettingApplier((key, value) async {});
+      final phase1 =
+          SyncPhase1Service(
+              api: CloudApiClient(dio: Dio(), preferences: () async => prefs),
+              identity: SyncIdentityStore(preferences: () async => prefs),
+              cursor: SyncCursorStore(preferences: () async => prefs),
+              outbox: SyncOutboxRepository(preferences: () async => prefs),
+            )
+            ..attachSources(sourcesService)
+            ..attachPlaylists(
+              PlaylistService(
+                repository: _FakePlaylistRepository(),
+                syncRecorder:
+                    ({
+                      required String eventType,
+                      required String entityId,
+                      Map<String, dynamic>? payload,
+                    }) async {},
+              ),
+            )
+            ..attachRatings(RatingStore(preferences: () async => prefs))
+            ..attachSettingApplier((key, value) async {});
 
       await sourcesService.init();
       final now = DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true);
@@ -252,9 +358,7 @@ void syncSourceEnablementTests() {
           'eventId': 'evt_a',
           'eventType': 'custom_source.upsert',
           'entityId': localA.id,
-          'payload': {
-            'source': localA.copyWith(isEnabled: true).toJson(),
-          },
+          'payload': {'source': localA.copyWith(isEnabled: true).toJson()},
           'createdAt': now.toIso8601String(),
         },
         {
@@ -276,9 +380,7 @@ void syncSourceEnablementTests() {
           'eventId': 'evt_d',
           'eventType': 'custom_source.upsert',
           'entityId': 'remote_d',
-          'payload': {
-            'source': _remoteSourceJson('remote_d', 'C'),
-          },
+          'payload': {'source': _remoteSourceJson('remote_d', 'C')},
           'createdAt': now.toIso8601String(),
         },
       ]);
@@ -303,8 +405,7 @@ void syncSourceEnablementTests() {
   );
 }
 
-String _sourceScript(String name) =>
-    '/*! @name $name */\nconst api = () => 1;';
+String _sourceScript(String name) => '/*! @name $name */\nconst api = () => 1;';
 
 Map<String, dynamic> _remoteSourceJson(String id, String name) {
   final now = DateTime.fromMillisecondsSinceEpoch(2000, isUtc: true);

@@ -125,9 +125,12 @@ void main() {
       final storage = StorageService.forTesting(
         await SharedPreferences.getInstance(),
       );
-      final dir = '${tempDir.path}/rescan-delete';
-      await Directory(dir).create(recursive: true);
-      final removed = File('$dir/removed.mp3');
+      final directory = Directory.fromUri(
+        tempDir.uri.resolve('rescan-delete/'),
+      );
+      await directory.create(recursive: true);
+      final dir = directory.path;
+      final removed = File.fromUri(directory.uri.resolve('removed.mp3'));
       await removed.writeAsBytes([0x49, 0x44, 0x33]);
       await storage.setStringList('local_music_dirs_v1', [dir]);
       await storage.setJsonList('local_music_index_v1', [
@@ -155,9 +158,12 @@ void main() {
         final storage = StorageService.forTesting(
           await SharedPreferences.getInstance(),
         );
-        final dir = '${tempDir.path}/rescan-change';
-        await Directory(dir).create(recursive: true);
-        final changed = File('$dir/changed.mp3');
+        final directory = Directory.fromUri(
+          tempDir.uri.resolve('rescan-change/'),
+        );
+        await directory.create(recursive: true);
+        final dir = directory.path;
+        final changed = File.fromUri(directory.uri.resolve('changed.mp3'));
         await changed.writeAsBytes([0x49, 0x44, 0x33]);
         final oldModified = DateTime(2026, 1, 1).toIso8601String();
         await storage.setStringList('local_music_dirs_v1', [dir]);
@@ -227,7 +233,7 @@ void main() {
       final storage = StorageService.forTesting(
         await SharedPreferences.getInstance(),
       );
-      final path = '${tempDir.path}/song.mp3';
+      final path = tempDir.uri.resolve('song.mp3').toFilePath();
       await File(path).writeAsBytes([0x49, 0x44, 0x33]);
       await storage.setJsonList('local_music_index_v1', [
         {
@@ -254,7 +260,7 @@ void main() {
       final songs = library.songs;
       expect(songs, hasLength(1));
       final song = songs.single;
-      expect(song.url, 'file://$path');
+      expect(song.url, Uri.file(path).toString());
       expect(song.platform, 'tx');
       expect(song.songmid, 'mid123');
       expect(song.hash, 'hash456');

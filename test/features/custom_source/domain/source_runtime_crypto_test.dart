@@ -15,11 +15,14 @@ void main() {
 
       final inputBytes = utf8.encode(data);
       final key = encrypt_lib.Key.fromUtf8(
-          keyText.padRight(16, '\x00').substring(0, 16));
-      final iv = encrypt_lib.IV
-          .fromUtf8(ivText.padRight(16, '\x00').substring(0, 16));
+        keyText.padRight(16, '\x00').substring(0, 16),
+      );
+      final iv = encrypt_lib.IV.fromUtf8(
+        ivText.padRight(16, '\x00').substring(0, 16),
+      );
       final encrypter = encrypt_lib.Encrypter(
-          encrypt_lib.AES(key, mode: encrypt_lib.AESMode.cbc));
+        encrypt_lib.AES(key, mode: encrypt_lib.AESMode.cbc),
+      );
 
       final encrypted = encrypter.encryptBytes(inputBytes, iv: iv);
 
@@ -34,7 +37,9 @@ void main() {
       const keyText = '0CoJUm6Qyw8W8jud';
 
       final inputBytes = utf8.encode(data);
-      final keyBytes = utf8.encode(keyText.padRight(16, '\x00').substring(0, 16));
+      final keyBytes = utf8.encode(
+        keyText.padRight(16, '\x00').substring(0, 16),
+      );
       final cipher = pc.ECBBlockCipher(pc.AESEngine())
         ..init(true, pc.KeyParameter(Uint8List.fromList(keyBytes)));
       final out = Uint8List(inputBytes.length);

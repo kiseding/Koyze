@@ -1,5 +1,6 @@
 @Tags(['live'])
 library;
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:koyze/core/music_source/platform/kw_source.dart';
@@ -31,10 +32,7 @@ void main() {
       'web_artistpic_short': '120/artist.jpg',
     }, 'kw');
 
-    expect(
-      item.artwork,
-      'https://img1.kuwo.cn/star/albumcover/120/album.jpg',
-    );
+    expect(item.artwork, 'https://img1.kuwo.cn/star/albumcover/120/album.jpg');
   });
 
   test('Kuwo search artwork falls back to a larger artist image', () {
@@ -48,10 +46,7 @@ void main() {
       'web_artistpic_short': '120/artist.jpg',
     }, 'kw');
 
-    expect(
-      item.artwork,
-      'https://img1.kuwo.cn/star/starheads/500/artist.jpg',
-    );
+    expect(item.artwork, 'https://img1.kuwo.cn/star/starheads/500/artist.jpg');
   });
 
   test('Kuwo direct artwork URLs are upgraded to HTTPS', () {
