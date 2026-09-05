@@ -192,6 +192,7 @@ class _FadingFrost extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
+              tileMode: TileMode.clamp,
               colors: down ? [solid, clear] : [clear, solid],
             ),
             borderRadius: radius,

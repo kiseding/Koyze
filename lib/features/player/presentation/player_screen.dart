@@ -1067,7 +1067,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           maxHeight: screenH,
                           child: Transform.scale(
                             scale: currentRect.width / screenW,
-                            child: sheetContent,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                _PlayerCoverBackdrop(
+                                  artwork: currentMusic.artwork,
+                                ),
+                                sheetContent,
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -1205,7 +1213,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               children: [
                 _StaggeredFade(
                   delay: 0.55,
-                  child: _buildAppBar(context, currentMusic),
+                  child: GlassSurface(
+                    style: AppGlassStyle.bar,
+                    fade: AppGlassFade.down,
+                    borderRadius: BorderRadius.zero,
+                    border: const Border(),
+                    child: _buildAppBar(context, currentMusic),
+                  ),
                 ),
                 Expanded(
                   child: PageView(
@@ -2608,6 +2622,43 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
 
 /// 播放器展开动画中的交错淡入：progress 超过 [delay] 后开始淡入。
 /// 封面/歌名/歌词/进度/按钮各自延迟，形成"各元素有自己的动作"的层次感。
+class _PlayerCoverBackdrop extends StatelessWidget {
+  const _PlayerCoverBackdrop({
+    required this.artwork,
+  });
+
+  final String? artwork;
+
+  @override
+  Widget build(BuildContext context) {
+    final dim = AppColors.isDark(context)
+        ? const Color(0x99000000)
+        : const Color(0x66FFFFFF);
+    return IgnorePointer(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
+          Transform.scale(
+            scale: 1.35,
+            child: artwork != null && artwork!.isNotEmpty
+                ? ArtworkImage(
+                    artwork!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  )
+                : const SizedBox.shrink(),
+          ),
+          BackdropFilter(
+            filter: AppGlass.filterFor(AppGlassStyle.regular),
+            child: ColoredBox(color: dim),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StaggeredFade extends StatelessWidget {
   const _StaggeredFade({required this.delay, required this.child});
 
