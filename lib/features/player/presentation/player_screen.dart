@@ -1016,6 +1016,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             screenW,
             dismissThreshold,
             artworkReveal,
+            chromeFade,
           ),
         );
         return Stack(
@@ -1049,33 +1050,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             ]
                           : const <BoxShadow>[],
                     ),
-                    child: Opacity(
-                      opacity: chromeFade,
-                      child: ClipRRect(
+                    child: ClipRRect(
                       borderRadius: BorderRadius.circular(16 * (1 - progress)),
-                      child: ColoredBox(
-                        color: sheetColor,
-                        child: OverflowBox(
-                          alignment: Alignment.center,
-                          minWidth: screenW,
-                          maxWidth: screenW,
-                          minHeight: screenH,
-                          maxHeight: screenH,
-                          child: Transform.scale(
-                            scale: currentRect.width / screenW,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                _PlayerCoverBackdrop(
-                                  artwork: currentMusic.artwork,
+                      child: OverflowBox(
+                        alignment: Alignment.center,
+                        minWidth: screenW,
+                        maxWidth: screenW,
+                        minHeight: screenH,
+                        maxHeight: screenH,
+                        child: Transform.scale(
+                          scale: currentRect.width / screenW,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              Opacity(
+                                opacity: chromeFade,
+                                child: ColoredBox(
+                                  color: sheetColor,
+                                  child: _PlayerCoverBackdrop(
+                                    artwork: currentMusic.artwork,
+                                  ),
                                 ),
-                                sheetContent,
-                              ],
-                            ),
+                              ),
+                              sheetContent,
+                            ],
                           ),
                         ),
                       ),
-                    ),
                     ),
                   ),
                 ),
@@ -1113,6 +1114,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     double screenW,
     double dismissThreshold,
     double artworkReveal,
+    double chromeFade,
   ) {
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -1208,9 +1210,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             },
             child: Column(
               children: [
-                _StaggeredFade(
-                  delay: 0.55,
-                  child: _buildAppBar(context, currentMusic),
+                Opacity(
+                  opacity: chromeFade,
+                  child: _StaggeredFade(
+                    delay: 0.55,
+                    child: _buildAppBar(context, currentMusic),
+                  ),
                 ),
                 Expanded(
                   child: PageView(
@@ -1230,6 +1235,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                               routeReveal: artworkReveal,
                             ),
                           ),
+                          Opacity(
+                            opacity: chromeFade,
+                            child: Column(
+                              children: [
                           _StaggeredFade(
                             delay: 0.2,
                             child: _buildSongInfo(currentMusic),
@@ -1260,18 +1269,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             ),
                           ),
                           _buildSourceQualityBar(currentMusic),
+                              ],
+                            ),
+                          ),
                           const SizedBox(height: 12),
                         ],
                       ),
                       Column(
                         children: [
                           const Expanded(child: LyricView(isFullScreen: true)),
-                          _StaggeredFade(
-                            delay: 0.55,
-                            child: _buildLyricMiniBar(
-                              currentMusic,
-                              playerService,
-                              isPlaying,
+                          Opacity(
+                            opacity: chromeFade,
+                            child: _StaggeredFade(
+                              delay: 0.55,
+                              child: _buildLyricMiniBar(
+                                currentMusic,
+                                playerService,
+                                isPlaying,
+                              ),
                             ),
                           ),
                         ],
