@@ -113,6 +113,7 @@ class GlassSurface extends StatelessWidget {
         : Padding(padding: padding!, child: child);
     final glass = ClipRRect(
       borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
       child: fade == AppGlassFade.none
           ? BackdropFilter(
               filter: _filter(sigma),
@@ -176,6 +177,7 @@ class _FadingFrost extends StatelessWidget {
     final solid = fill.withValues(alpha: 0.94);
     final clear = fill.withValues(alpha: 0);
     return Stack(
+      clipBehavior: Clip.hardEdge,
       children: [
         Positioned.fill(
           child: IgnorePointer(

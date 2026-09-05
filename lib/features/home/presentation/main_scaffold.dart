@@ -100,19 +100,6 @@ class _MainScaffoldState extends State<MainScaffold> {
                 ),
               ),
               Positioned(
-                left: 3,
-                right: 3,
-                bottom: miniBottom,
-                child: Transform.scale(
-                  alignment: Alignment.bottomCenter,
-                  scale: 1 + 0.035 * eased,
-                  child: Opacity(
-                    opacity: chromeOpacity,
-                    child: const MiniPlayer(floating: true, alwaysShow: true),
-                  ),
-                ),
-              ),
-              Positioned(
                 left: 0,
                 right: 0,
                 bottom: bottomClearance,
@@ -132,6 +119,19 @@ class _MainScaffoldState extends State<MainScaffold> {
                         }
                       },
                     ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 3,
+                right: 3,
+                bottom: miniBottom,
+                child: Transform.scale(
+                  alignment: Alignment.bottomCenter,
+                  scale: 1 + 0.035 * eased,
+                  child: Opacity(
+                    opacity: chromeOpacity,
+                    child: const MiniPlayer(floating: true, alwaysShow: true),
                   ),
                 ),
               ),
