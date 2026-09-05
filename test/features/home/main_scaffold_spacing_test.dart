@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('bottom chrome preserves mini-player shadow clearance', () {
+  test('bottom chrome stays plain and preserves mini-player clearance', () {
     final source = File(
       'lib/features/home/presentation/main_scaffold.dart',
     ).readAsStringSync();
@@ -22,8 +22,7 @@ void main() {
     expect(source, contains('bottom: miniBottom'));
     expect(source, contains('bottom: bottomClearance'));
     expect(source, contains('height: height + 16'));
-    expect(source, contains('height: height,'));
-    expect(source, contains('GlassSurface('));
-    expect(source, contains('style: AppGlassStyle.bar'));
+    expect(source, isNot(contains('GlassSurface(')));
+    expect(source, isNot(contains('AppGlassStyle.bar')));
   });
 }

@@ -6,7 +6,6 @@ import '../../../core/animations/micro_animations.dart';
 import '../../../core/motion/motion_tokens.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../player/presentation/widgets/mini_player.dart';
 
@@ -453,52 +452,34 @@ class _BottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: height + 16,
-      child: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: height,
-            child: GlassSurface(
-              style: AppGlassStyle.bar,
-              borderRadius: BorderRadius.zero,
-              border: const Border(),
-              child: const SizedBox.expand(),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottomSpacing),
+        child: Row(
+          children: [
+            _item(context, 0, Icons.home_outlined, Icons.home, '首页'),
+            _item(
+              context,
+              1,
+              Icons.leaderboard_outlined,
+              Icons.leaderboard,
+              '榜单',
             ),
-          ),
-          Positioned.fill(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: bottomSpacing),
-              child: Row(
-                children: [
-                  _item(context, 0, Icons.home_outlined, Icons.home, '首页'),
-                  _item(
-                    context,
-                    1,
-                    Icons.leaderboard_outlined,
-                    Icons.leaderboard,
-                    '榜单',
-                  ),
-                  _item(
-                    context,
-                    2,
-                    Icons.library_music_outlined,
-                    Icons.library_music,
-                    '歌单',
-                  ),
-                  _item(
-                    context,
-                    3,
-                    Icons.settings_outlined,
-                    Icons.settings,
-                    '设置',
-                  ),
-                ],
-              ),
+            _item(
+              context,
+              2,
+              Icons.library_music_outlined,
+              Icons.library_music,
+              '歌单',
             ),
-          ),
-        ],
+            _item(
+              context,
+              3,
+              Icons.settings_outlined,
+              Icons.settings,
+              '设置',
+            ),
+          ],
+        ),
       ),
     );
   }
