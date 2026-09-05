@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/widgets/pressable.dart';
+import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
@@ -86,7 +87,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         : ref.watch(playlistSongSearchProvider(_searchQuery));
     final songHits = songSearch?.valueOrNull ?? const <PlaylistSongMatch>[];
 
-    final scheme = Theme.of(context).colorScheme;
     final bodyItems = _bodyItems(
       songHits: songHits,
       filteredPlaylists: filteredPlaylists,
@@ -98,56 +98,24 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         backgroundColor: Colors.transparent,
         // 主壳已固定预留底部导航和迷你播放器；键盘直接覆盖它们，避免重复预留空白。
         resizeToAvoidBottomInset: false,
-        appBar: AppBar(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          surfaceTintColor: Colors.transparent,
-          scrolledUnderElevation: 0,
-          elevation: 0,
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: scheme.primary.withAlpha(40),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.music_note, color: scheme.primary, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '我的歌单',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: scheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            FxIconButton(
-              tooltip: '导入歌单',
-              icon: Icon(
-                Icons.playlist_add,
-                color: AppColors.onScaffold(context),
-                size: 24,
-              ),
-              onPressed: () => _showImportDialog(context, ref),
-            ),
-            FxIconButton(
-              tooltip: '新建歌单',
-              icon: Icon(
-                Icons.add,
-                color: AppColors.onScaffold(context),
-                size: 24,
-              ),
-              onPressed: () => _showCreateDialog(context, ref),
-            ),
-          ],
-        ),
-        // 搜索框固定在列表外，避免 ListView 子项重建导致输入法收起
         body: Column(
           children: [
+            FrostedTabHeader(
+              title: '歌单',
+              leadingIcon: Icons.library_music_rounded,
+              actions: [
+                FrostedHeaderButton(
+                  icon: Icons.playlist_add_rounded,
+                  semanticLabel: '导入歌单',
+                  onTap: () => _showImportDialog(context, ref),
+                ),
+                FrostedHeaderButton(
+                  icon: Icons.add_rounded,
+                  semanticLabel: '新建歌单',
+                  onTap: () => _showCreateDialog(context, ref),
+                ),
+              ],
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: TextField(

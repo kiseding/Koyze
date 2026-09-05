@@ -12,7 +12,7 @@ import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
-import '../../../core/widgets/gradient_bar_backgrounds.dart';
+import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/widgets/sleep_timer_sheet.dart';
 import 'settings_provider.dart';
@@ -82,30 +82,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        // 列表可滚动到栏内部（栏高度不变），顶栏磨砂才可见。
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          scrolledUnderElevation: 0,
-          elevation: 0,
-          // 顶栏整栏磨砂玻璃，无底部渐变透明。
-          flexibleSpace: GradientAppBarBackground(
-            background: Theme.of(context).scaffoldBackgroundColor,
-          ),
-          title: Text(
-            '设置',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-        ),
-        body: ListView(
-          padding: EdgeInsets.only(
-            top: MediaQuery.paddingOf(context).top + kToolbarHeight,
-          ),
+        body: Stack(
+          children: [
+            ListView(
+              padding: EdgeInsets.only(
+                top: FrostedTabHeader.extent(context),
+              ),
           children: [
             _buildSection(context, '同步', [
               _buildNavTile(
@@ -320,6 +302,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ]),
             const SizedBox(height: 40),
+          ],
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: FrostedTabHeader(
+                title: '设置',
+                leadingIcon: Icons.settings_rounded,
+              ),
+            ),
           ],
         ),
       ),

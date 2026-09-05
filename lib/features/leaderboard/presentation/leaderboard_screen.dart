@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/card_play_button.dart';
 import '../../../core/widgets/favorite_button.dart';
+import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../player/domain/music_item.dart';
@@ -147,9 +148,24 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                       top: 0,
                       left: 0,
                       right: 0,
-                      child: GradientAppBarBackground(
-                        background: Theme.of(context).scaffoldBackgroundColor,
-                        child: _buildHeader(context),
+                      child: FrostedTabHeader(
+                        title: '榜单',
+                        subtitle: '发现各平台正在热播的音乐',
+                        leadingIcon: Icons.leaderboard_rounded,
+                        actions: [
+                          FrostedHeaderButton(
+                            icon: Icons.tune_rounded,
+                            semanticLabel: '榜单设置',
+                            onTap: () => context.push('/leaderboard-settings'),
+                          ),
+                          FrostedHeaderButton(
+                            icon: Icons.refresh_rounded,
+                            semanticLabel: '刷新榜单',
+                            onTap: () => ref.invalidate(
+                              leaderboardCategoriesProvider,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -188,7 +204,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     return ListView.builder(
       padding: EdgeInsets.fromLTRB(
         12,
-        MediaQuery.paddingOf(context).top + 72,
+        FrostedTabHeader.extent(context),
         12,
         16,
       ),
@@ -254,99 +270,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                   : const SizedBox.shrink(),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        12,
-        MediaQuery.paddingOf(context).top + 12,
-        12,
-        12,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.amber.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.leaderboard_rounded,
-                    color: AppColors.amber,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '榜单',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.onScaffold(context),
-                      ),
-                    ),
-                    Text(
-                      '发现各平台正在热播的音乐',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.mutedText(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // 显示设置（平台/榜单勾选）
-          Pressable(
-            semanticLabel: '榜单设置',
-            selected: false,
-            onTap: () => context.push('/leaderboard-settings'),
-            child: Container(
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.miniBar(context),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.tune,
-                color: AppColors.secondaryText(context),
-                size: 20,
-              ),
-            ),
-          ),
-          Pressable(
-            semanticLabel: '刷新榜单',
-            selected: false,
-            onTap: () {
-              ref.invalidate(leaderboardCategoriesProvider);
-            },
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.miniBar(context),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.refresh,
-                color: AppColors.secondaryText(context),
-                size: 20,
-              ),
-            ),
-          ),
         ],
       ),
     );

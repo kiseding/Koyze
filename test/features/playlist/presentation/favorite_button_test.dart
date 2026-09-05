@@ -87,15 +87,12 @@ void main() {
     final source = File(
       'lib/features/leaderboard/presentation/leaderboard_screen.dart',
     ).readAsStringSync();
-    // 榜单 tab 标题栏悬浮且磨砂，列表可滚动到栏内部。
-    expect(source, contains('GradientAppBarBackground('));
-    expect(source, contains('child: _buildHeader(context)'));
+    expect(source, contains('FrostedTabHeader('));
+    expect(source, contains("title: '榜单'"));
+    expect(source, contains('FrostedTabHeader.extent(context)'));
     expect(source, contains('Positioned.fill('));
     expect(source, isNot(contains('fadeStart:')));
-    // 磨砂必须铺到屏幕顶（含灵动岛/状态栏），不能被 SafeArea 裁在栏下。
     expect(source, isNot(contains('body: SafeArea(')));
-    expect(source, contains('MediaQuery.paddingOf(context).top + 12'));
-    expect(source, contains('MediaQuery.paddingOf(context).top + 72'));
   });
 
   test('playlist detail rows embed favorite before overflow button', () {

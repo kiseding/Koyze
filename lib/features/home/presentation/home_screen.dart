@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/widgets/pressable.dart';
+import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/search_sheet.dart';
@@ -47,45 +48,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        // 底部安全区已由 MainScaffold（底栏+迷你栏）处理，避免双重留白
-        body: SafeArea(
-          bottom: false,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final isWide = width >= 720;
-              // 大屏内容居中，保持阅读宽度。
-              final contentWidth = isWide ? min(width * 0.82, 900.0) : width;
-              final columns = isWide ? 4 : 2;
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isWide = width >= 720;
+            final contentWidth = isWide ? min(width * 0.82, 900.0) : width;
+            final columns = isWide ? 4 : 2;
+            final headerExtent = FrostedTabHeader.extent(context);
 
-              return Center(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isWide ? 0 : 16,
-                    vertical: 12,
-                  ),
-                  child: SizedBox(
-                    width: contentWidth,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildHeader(context),
-                        const SizedBox(height: 14),
-                        _buildSearchBar(context),
-                        const SizedBox(height: 20),
-                        _buildRandomFavoriteCard(context, ref, favoriteCount),
-                        const SizedBox(height: 24),
-                        _buildQuickSectionTitle(context, '快捷功能'),
-                        const SizedBox(height: 12),
-                        _buildQuickGrid(context, ref, columns, quickIds),
-                        const SizedBox(height: 20),
-                      ],
+            return Stack(
+              children: [
+                Center(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      isWide ? 0 : 16,
+                      headerExtent + 8,
+                      isWide ? 0 : 16,
+                      12,
+                    ),
+                    child: SizedBox(
+                      width: contentWidth,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildSearchBar(context),
+                          const SizedBox(height: 20),
+                          _buildRandomFavoriteCard(
+                            context,
+                            ref,
+                            favoriteCount,
+                          ),
+                          const SizedBox(height: 24),
+                          _buildQuickSectionTitle(context, '快捷功能'),
+                          const SizedBox(height: 12),
+                          _buildQuickGrid(context, ref, columns, quickIds),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              );
-            },
-          ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: FrostedTabHeader(
+                    title: 'Koyze',
+                    subtitle: 'Enjoy Music',
+                    titleKey: _brandKey,
+                    actions: [
+                      FrostedHeaderButton(
+                        icon: Icons.tune_rounded,
+                        semanticLabel: '设置快捷功能',
+                        onTap: () => _showQuickSettings(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -99,54 +121,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       topInset = box.localToGlobal(Offset.zero).dy - 3;
     }
     showSearchSheet(context, topInset: topInset > 0 ? topInset : 0);
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Koyze',
-                key: _brandKey,
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.accentOf(context),
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Enjoy Music',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.mutedText(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Pressable(
-          semanticLabel: '设置快捷功能',
-          onTap: () => _showQuickSettings(context),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.miniBar(context),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              Icons.tune,
-              color: AppColors.secondaryText(context),
-              size: 20,
-            ),
-          ),
-        ),
-      ],
-    );
   }
 
   /// 搜索条占一行：点击弹出搜索弹窗（滑入动画，2/3 时弹输入法）。
