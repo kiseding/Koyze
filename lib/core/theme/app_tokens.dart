@@ -171,7 +171,10 @@ class _FadingFrost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final down = fade == AppGlassFade.down;
-    final alpha = fill.a;
+    // Cover the chrome end solidly so content is not readable through the
+    // title/status area; fade uniformly to clear toward the scrolling edge.
+    final solid = fill.withValues(alpha: 0.94);
+    final clear = fill.withValues(alpha: 0);
     return Stack(
       children: [
         Positioned.fill(
@@ -189,17 +192,7 @@ class _FadingFrost extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: down
-                  ? [
-                      fill,
-                      fill.withValues(alpha: alpha * 0.55),
-                      fill.withValues(alpha: 0),
-                    ]
-                  : [
-                      fill.withValues(alpha: 0),
-                      fill.withValues(alpha: alpha * 0.55),
-                      fill,
-                    ],
+              colors: down ? [solid, clear] : [clear, solid],
             ),
             borderRadius: radius,
             border: border,
