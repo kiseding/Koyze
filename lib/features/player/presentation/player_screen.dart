@@ -916,11 +916,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 _settleController.isAnimating ||
                 edgeDragActive);
         final closeT = 1 - progress;
-        // 收拢窗口：0~90% 保持原样，90~99% 渐变成迷你栏同款灰，
-        // 99% 后整层砍掉、由真实迷你栏接管。
-        final stripT = lyricCollapsing
-            ? ((closeT - 0.9) / 0.09).clamp(0.0, 1.0)
-            : 0.0;
         // 对称收起（卡片式）：矩形从全屏线性收向目标——封面页→迷你栏，
         // 歌词页→迷你栏歌词行同款长条；内容以矩形中心锚定并按宽度比
         // 等比缩放，上下从两侧对称裁剪（焦点 = 矩形中心）。
@@ -978,12 +973,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // overlay（飞行封面/播放按钮）只在"打开已完成"时让位正文；
         // 一旦进入关闭/手势驱动则全程可见（封面/按钮随进度完整归位）。
         final closing = animating || playerRouteDismissLocked;
-        // 关闭前 1%（progress 1.00→0.99）除封面/歌词外全部淡到全透明。
-        final chromeFade = ((progress - 0.99) / 0.01).clamp(0.0, 1.0);
-        // 歌词页关闭：内容在 90~99% 窗口内淡出，交棒给真实迷你栏。
-        final contentOpacity = lyricCollapsing
-            ? 1.0 - stripT
-            : (animating ? chromeFade : 1.0);
+        // 仅关闭时：前 1%（progress 1.00→0.99）除封面/歌词外全部淡到全透明。
+        // 打开（progress 上升）不做这个淡出。
+        final dismissing = closing && progress < 1;
+        final chromeFade = dismissing
+            ? ((progress - 0.99) / 0.01).clamp(0.0, 1.0)
+            : 1.0;
+        // 关闭时控件/磨砂/背景走 chromeFade；打开保持不透明。
+        final contentOpacity = 1.0;
         // 动效全程隐藏正文封面，只留飞行快照封面；progress=1 再交棒，
         // 避免全屏/迷你栏真封面与快照叠在一起。
         final artworkReveal = progress >= 1.0 ? 1.0 : 0.0;
@@ -1053,7 +1050,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           : const <BoxShadow>[],
                     ),
                     child: Opacity(
-                      opacity: lyricCollapsing ? 1.0 : chromeFade,
+                      opacity: chromeFade,
                       child: ClipRRect(
                       borderRadius: BorderRadius.circular(16 * (1 - progress)),
                       child: ColoredBox(

@@ -40,7 +40,7 @@ void main() {
     // 99% 后砍掉由真实迷你栏接管。
     expect(full, contains('_miniLyricRowRect(miniRect)'));
     expect(full, contains('final collapseTarget = lyricCollapsing'));
-    expect(full, contains('((closeT - 0.9) / 0.09).clamp(0.0, 1.0)'));
+    expect(full, contains('final dismissing = closing && progress < 1'));
     expect(full, contains('AppColors.miniBar(context)'));
     expect(full, contains('closeT >= 0.99'));
     expect(full, contains('else if (!lyricCollapsing)'));
