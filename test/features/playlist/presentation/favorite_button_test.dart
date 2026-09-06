@@ -34,7 +34,7 @@ void main() {
 
     expect(source, contains('favoriteSongsProvider'));
     expect(source, contains('isFavorite:'));
-    expect(source, contains('isFavorites ||'));
+    expect(source, contains('isFavorites'));
     expect(source, contains('isFavoriteMusic(song, favoriteSongs)'));
   });
 

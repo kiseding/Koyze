@@ -82,6 +82,9 @@ final playlistSongsPageProvider = FutureProvider.autoDispose
       if (request.playlistId == 'recent') {
         ref.watch(playlistRecentRevisionProvider);
       }
+      if (request.playlistId == 'favorites') {
+        ref.watch(playlistFavoritesRevisionProvider);
+      }
       return ref
           .read(playlistServiceProvider)
           .getSongsPage(
@@ -183,6 +186,32 @@ final toggleFavoriteProvider = Provider<Future<void> Function(MusicItem)>((
     }
   };
 });
+
+/// 立刻从当前收藏页拿掉/加回一首歌，不等分页 Future 重新加载。
+PlaylistSongPage applyOptimisticFavoritePage({
+  required PlaylistSongPage page,
+  required MusicItem song,
+  required bool favorited,
+}) {
+  if (favorited) {
+    if (page.songs.any((item) => item.isSameCatalogTrack(song))) return page;
+    return PlaylistSongPage(
+      total: page.total + 1,
+      offset: page.offset,
+      songs: [song, ...page.songs],
+    );
+  }
+  final kept = [
+    for (final item in page.songs)
+      if (!item.isSameCatalogTrack(song)) item,
+  ];
+  if (kept.length == page.songs.length) return page;
+  return PlaylistSongPage(
+    total: (page.total - (page.songs.length - kept.length)).clamp(0, 1 << 30),
+    offset: page.offset,
+    songs: kept,
+  );
+}
 
 // 添加歌曲到指定歌单
 final addSongToPlaylistProvider =

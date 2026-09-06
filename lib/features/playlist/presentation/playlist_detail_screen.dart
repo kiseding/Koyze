@@ -700,9 +700,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                               // 收藏按钮与更多按钮分开，留出呼吸感避免误触。
                               FavoriteButton(
                                 song: song,
-                                isFavorite:
-                                    isFavorites ||
-                                    isFavoriteMusic(song, favoriteSongs),
+                                isFavorite: isFavorites
+                                    ? true
+                                    : isFavoriteMusic(song, favoriteSongs),
                               ),
                               FxIconButton(
                                 tooltip: '更多操作',

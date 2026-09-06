@@ -50,6 +50,14 @@ void main() {
     },
   );
 
+  test('favorite playlist pages rebuild from the favorites revision stream', () {
+    final source = File(
+      'lib/features/playlist/presentation/playlist_provider.dart',
+    ).readAsStringSync();
+    expect(source, contains("request.playlistId == 'favorites'"));
+    expect(source, contains('playlistFavoritesRevisionProvider'));
+  });
+
   test(
     'favorite provider invalidates when replaceAll removes a favorite',
     () async {
@@ -225,6 +233,33 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(await service.getAllSongs('favorites'), isEmpty);
+  });
+
+  test('optimistic favorite page removes a matching catalog track immediately', () {
+    final stored = MusicItem(
+      id: '001',
+      name: 'Song',
+      singer: 'Singer',
+      source: 'custom_source',
+      platform: 'kw',
+      songmid: '001',
+    );
+    final visible = MusicItem(
+      id: '001',
+      name: 'Song',
+      singer: 'Singer',
+      source: 'kw',
+      platform: 'kw',
+      songmid: '001',
+    );
+    final page = PlaylistSongPage(total: 1, offset: 0, songs: [stored]);
+    final next = applyOptimisticFavoritePage(
+      page: page,
+      song: visible,
+      favorited: false,
+    );
+    expect(next.songs, isEmpty);
+    expect(next.total, 0);
   });
 }
 

@@ -77,27 +77,53 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
   Future<void> _toggle() async {
     if (_pending) return;
     final current = _currentFavorite;
+    final next = !current;
     setState(() {
       _pending = true;
-      _optimisticFavorite = !current;
+      _optimisticFavorite = next;
     });
+    _publishOptimisticPage(favorited: next);
     if (!reduceMotion(context)) unawaited(_controller.forward(from: 0));
     // Yield one frame so the heart animation/state paints before the potentially
     // expensive playlist persistence work begins.
     await Future<void>.delayed(Duration.zero);
     try {
       await ref.read(toggleFavoriteProvider)(widget.song);
+      if (!mounted) return;
+      setState(() => _pending = false);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _optimisticFavorite = current);
+      _publishOptimisticPage(favorited: current);
+      setState(() {
+        _pending = false;
+        _optimisticFavorite = current;
+      });
       showAppNotification('收藏失败: $error', type: AppNotificationType.error);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _pending = false;
-          _optimisticFavorite = null;
-        });
+    }
+  }
+
+  void _publishOptimisticPage({required bool favorited}) {
+    for (var pageIndex = 0; pageIndex < 8; pageIndex++) {
+      final request = PlaylistSongsPageRequest(
+        playlistId: 'favorites',
+        pageIndex: pageIndex,
+      );
+      final existing = ref.read(playlistSongsPageProvider(request)).valueOrNull;
+      if (existing == null) {
+        if (pageIndex == 0) continue;
+        break;
       }
+      final next = applyOptimisticFavoritePage(
+        page: existing,
+        song: widget.song,
+        favorited: favorited,
+      );
+      if (identical(next, existing) && next.songs.length == existing.songs.length) {
+        continue;
+      }
+      ref.read(playlistSongsPageProvider(request).notifier).state =
+          AsyncData(next);
+      if (!favorited) break;
     }
   }
 
