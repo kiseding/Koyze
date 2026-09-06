@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:koyze/core/theme/app_colors.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
+import 'package:koyze/features/playlist/data/playlist_repository.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import '../motion/motion_tokens.dart';
 import 'app_notification.dart';
@@ -90,6 +91,7 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
     try {
       await ref.read(toggleFavoriteProvider)(widget.song);
       if (!mounted) return;
+      ref.read(optimisticFavoritePageProvider.notifier).state = null;
       setState(() => _pending = false);
     } catch (error) {
       if (!mounted) return;
@@ -103,28 +105,30 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
   }
 
   void _publishOptimisticPage({required bool favorited}) {
-    for (var pageIndex = 0; pageIndex < 8; pageIndex++) {
-      final request = PlaylistSongsPageRequest(
-        playlistId: 'favorites',
-        pageIndex: pageIndex,
-      );
-      final existing = ref.read(playlistSongsPageProvider(request)).valueOrNull;
-      if (existing == null) {
-        if (pageIndex == 0) continue;
-        break;
+    PlaylistSongPage? existing = ref.read(optimisticFavoritePageProvider);
+    existing ??= () {
+      for (var pageIndex = 0; pageIndex < 8; pageIndex++) {
+        final page = ref
+            .read(
+              playlistSongsPageProvider(
+                PlaylistSongsPageRequest(
+                  playlistId: 'favorites',
+                  pageIndex: pageIndex,
+                ),
+              ),
+            )
+            .valueOrNull;
+        if (page != null) return page;
       }
-      final next = applyOptimisticFavoritePage(
-        page: existing,
-        song: widget.song,
-        favorited: favorited,
-      );
-      if (identical(next, existing) && next.songs.length == existing.songs.length) {
-        continue;
-      }
-      ref.read(playlistSongsPageProvider(request).notifier).state =
-          AsyncData(next);
-      if (!favorited) break;
-    }
+      return null;
+    }();
+    if (existing == null) return;
+    ref.read(optimisticFavoritePageProvider.notifier).state =
+        applyOptimisticFavoritePage(
+          page: existing,
+          song: widget.song,
+          favorited: favorited,
+        );
   }
 
   bool get _currentFavorite {

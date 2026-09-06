@@ -94,6 +94,10 @@ final playlistSongsPageProvider = FutureProvider.autoDispose
           );
     });
 
+/// Clicking the heart should drop the row before persistence finishes.
+final optimisticFavoritePageProvider =
+    StateProvider<PlaylistSongPage?>((ref) => null);
+
 final playlistSongSearchProvider = FutureProvider.autoDispose
     .family<List<PlaylistSongMatch>, String>((ref, query) {
       ref.watch(playlistRevisionProvider);

@@ -206,8 +206,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             ),
           )
         : null;
+    final optimisticFavorites = isFavorites
+        ? ref.watch(optimisticFavoritePageProvider)
+        : null;
+    final visibleSongsPage = optimisticFavorites == null
+        ? songsPage
+        : AsyncData(optimisticFavorites);
     final currentPageSongs =
-        songsPage?.valueOrNull?.songs ?? const <MusicItem>[];
+        visibleSongsPage?.valueOrNull?.songs ?? const <MusicItem>[];
     final currentPageIds = currentPageSongs
         .map((song) => song.identityKey)
         .toSet();
@@ -506,7 +512,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               )
             : _isEditing
             ? _buildEditableList(playlist)
-            : songsPage!.when(
+            : visibleSongsPage!.when(
                 skipLoadingOnRefresh: true,
                 data: (page) => _buildNormalList(
                   playerService,
