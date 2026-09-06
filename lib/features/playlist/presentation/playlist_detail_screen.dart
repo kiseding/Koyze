@@ -8,6 +8,7 @@ import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/page_navigation_bar.dart';
+import '../data/playlist_repository.dart';
 import '../domain/playlist.dart';
 import 'playlist_occurrence.dart';
 import 'playlist_provider.dart';
@@ -209,9 +210,21 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final optimisticFavorites = isFavorites
         ? ref.watch(optimisticFavoritePageProvider)
         : null;
-    final visibleSongsPage = optimisticFavorites == null
+    final visibleSongsPage = songsPage == null || optimisticFavorites == null
         ? songsPage
-        : AsyncData(optimisticFavorites);
+        : AsyncData(
+            PlaylistSongPage(
+              total: optimisticFavorites.total,
+              offset: songsPage.valueOrNull?.offset ?? optimisticFavorites.offset,
+              songs: [
+                for (final song in songsPage.valueOrNull?.songs ?? const <MusicItem>[])
+                  if (optimisticFavorites.songs.any(
+                    (item) => item.isSameCatalogTrack(song),
+                  ))
+                    song,
+              ],
+            ),
+          );
     final currentPageSongs =
         visibleSongsPage?.valueOrNull?.songs ?? const <MusicItem>[];
     final currentPageIds = currentPageSongs
@@ -613,6 +626,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         Positioned.fill(
           child: RepaintBoundary(
             child: ListView.builder(
+              key: PageStorageKey('playlist-${playlist.id}-${range.pageIndex}'),
               controller: _scrollController,
               itemExtent: 72,
               itemCount: songs.length,
