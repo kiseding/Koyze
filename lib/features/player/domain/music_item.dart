@@ -39,6 +39,39 @@ class MusicItem {
   String get identityKey =>
       musicIdentityKey(id: id, source: source, platform: platform);
 
+  String get _canonicalSongId {
+    final mid = songmid?.trim() ?? '';
+    return mid.isNotEmpty ? mid : id;
+  }
+
+  /// True when [token] refers to this song as a favorite/playlist member.
+  /// Accepts the canonical identity, a unique raw id, or a playlist item id.
+  bool matchesCollectionId(
+    String token, {
+    int Function(String id)? rawIdCount,
+  }) {
+    if (token.isEmpty) return false;
+    if (token == identityKey || token == playlistItemId) return true;
+    if (token != id && token != _canonicalSongId) return false;
+    return rawIdCount == null || rawIdCount(token) == 1;
+  }
+
+  /// Same catalog track, even if source/platform metadata drifted.
+  bool isSameCatalogTrack(MusicItem other) {
+    if (identityKey == other.identityKey) return true;
+    if (playlistItemId != null && playlistItemId == other.playlistItemId) {
+      return true;
+    }
+    final left = _canonicalSongId;
+    final right = other._canonicalSongId;
+    if (left.isEmpty || right.isEmpty || left != right) return false;
+    final sameSource =
+        source.trim().toLowerCase() == other.source.trim().toLowerCase();
+    final samePlatform =
+        platform.trim().toLowerCase() == other.platform.trim().toLowerCase();
+    return sameSource || samePlatform;
+  }
+
   MusicItem copyWith({
     String? id,
     String? name,

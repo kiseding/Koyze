@@ -596,9 +596,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }) {
     _centerInitialSong(range);
     // 页面级一次性读取收藏集合，行内直接查 Set，避免滚动时每行创建异步查询。
-    final favoriteIds = isFavorites
-        ? const <String>{}
-        : ref.watch(favoriteIdsProvider).valueOrNull ?? const <String>{};
+    final favoriteSongs = isFavorites
+        ? const <MusicItem>[]
+        : ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
     // 列表全屏可滚动到栏内部；顶部/底部预留栏空间，滚动时才进入渐变区。
     final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
@@ -702,7 +702,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 song: song,
                                 isFavorite:
                                     isFavorites ||
-                                    favoriteIds.contains(song.identityKey),
+                                    isFavoriteMusic(song, favoriteSongs),
                               ),
                               FxIconButton(
                                 tooltip: '更多操作',

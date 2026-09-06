@@ -206,7 +206,6 @@ final class CloudSyncCoordinator {
 
   /// 检测本地设置是否改过默认值（用户可能使用一段时间后才登录同步）
   static const _defaultSettings = {
-    'theme_mode': '0',
     'audio_quality': '1',
     'download_quality': '1',
     'wifi_only_download': 'true',

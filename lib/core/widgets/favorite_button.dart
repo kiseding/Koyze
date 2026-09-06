@@ -104,8 +104,13 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
   bool get _currentFavorite {
     final optimistic = _optimisticFavorite;
     if (optimistic != null) return optimistic;
-    return widget.isFavorite ??
-        ref
+    if (widget.isFavorite != null) return widget.isFavorite!;
+    final favorites =
+        ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
+    if (favorites.isNotEmpty) {
+      return isFavoriteMusic(widget.song, favorites);
+    }
+    return ref
             .watch(isSongFavoriteProvider(widget.song.identityKey))
             .valueOrNull ??
         false;

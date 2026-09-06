@@ -103,35 +103,61 @@ final hydratedPlaylistsProvider = FutureProvider<List<Playlist>>((ref) {
   return ref.read(playlistServiceProvider).getAllPlaylists();
 });
 
-Future<Set<String>> _loadFavoriteIds(Ref ref) async {
+Future<({Set<String> ids, List<MusicItem> songs})> _loadFavoriteState(
+  Ref ref,
+) async {
   ref.watch(playlistFavoritesRevisionProvider);
   final playlistService = ref.read(playlistServiceProvider);
   final favorites = playlistService.favorites;
-  if (favorites == null || favorites.songCount == 0) return const {};
+  if (favorites == null || favorites.songCount == 0) {
+    return (ids: const <String>{}, songs: const <MusicItem>[]);
+  }
   final songs = await playlistService.getAllSongs('favorites');
-  return {
-    for (final song in songs) song.identityKey,
-    // Legacy callers may still ask by raw song id; keep it in the same cached set
-    // so each visible FavoriteButton does not hit getAllSongs independently.
-    for (final song in songs) song.id,
-  };
+  final rawIdCounts = <String, int>{};
+  for (final song in songs) {
+    rawIdCounts.update(song.id, (count) => count + 1, ifAbsent: () => 1);
+  }
+  return (
+    ids: {
+      for (final song in songs) ...[
+        song.identityKey,
+        if (song.playlistItemId != null && song.playlistItemId!.isNotEmpty)
+          song.playlistItemId!,
+        if (rawIdCounts[song.id] == 1) song.id,
+      ],
+    },
+    songs: songs,
+  );
 }
 
 final isSongFavoriteProvider = FutureProvider.autoDispose.family<bool, String>((
   ref,
   songId,
 ) async {
-  final ids = await _loadFavoriteIds(ref);
-  if (ids.contains(songId)) return true;
-  final playlistService = ref.read(playlistServiceProvider);
-  return playlistService.isSongInPlaylist('favorites', songId);
+  final state = await _loadFavoriteState(ref);
+  if (state.ids.contains(songId)) return true;
+  return state.songs.any((song) => song.matchesCollectionId(songId));
 });
 
-/// 收藏 id 集合（identityKey）。供歌曲列表页面一次读取，
-/// 避免每个可见行单独创建异步收藏查询。
+/// 收藏 id 集合（identityKey / 唯一 raw id / playlistItemId）。
+/// 供歌曲列表页面一次读取，避免每个可见行单独创建异步收藏查询。
 final favoriteIdsProvider = FutureProvider<Set<String>>((ref) async {
-  return _loadFavoriteIds(ref);
+  return (await _loadFavoriteState(ref)).ids;
 });
+
+/// 完整收藏曲目。列表红心不能只比 identityKey：同步下来的条目
+/// 可能缺 platform / source，字符串对不上但仍是同一首歌。
+final favoriteSongsProvider = FutureProvider<List<MusicItem>>((ref) async {
+  return (await _loadFavoriteState(ref)).songs;
+});
+
+bool isFavoriteMusic(MusicItem song, List<MusicItem> favorites) {
+  return _isFavoriteSong(song, favorites);
+}
+
+bool _isFavoriteSong(MusicItem song, List<MusicItem> favorites) {
+  return favorites.any((item) => item.isSameCatalogTrack(song));
+}
 
 // 切换收藏状态
 final toggleFavoriteProvider = Provider<Future<void> Function(MusicItem)>((
@@ -139,12 +165,18 @@ final toggleFavoriteProvider = Provider<Future<void> Function(MusicItem)>((
 ) {
   return (MusicItem song) async {
     final playlistService = ref.read(playlistServiceProvider);
-    final ids = await ref.read(favoriteIdsProvider.future);
-    final isFavorite = ids.contains(song.identityKey) || ids.contains(song.id);
-    if (isFavorite) {
+    final favorites = await playlistService.getAllSongs('favorites');
+    MusicItem? matched;
+    for (final item in favorites) {
+      if (item.isSameCatalogTrack(song)) {
+        matched = item;
+        break;
+      }
+    }
+    if (matched != null) {
       await playlistService.removeSongFromPlaylist(
         'favorites',
-        song.identityKey,
+        matched.identityKey,
       );
     } else {
       await playlistService.addSongToPlaylist('favorites', song);

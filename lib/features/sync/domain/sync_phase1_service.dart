@@ -45,7 +45,7 @@ final class SyncReport {
             )
             .length,
         '评分': (await ratings.load()).length,
-        '设置': 6,
+        '设置': 5,
         '自定义音源': sources.sources.length,
       },
     );
@@ -424,7 +424,9 @@ final class SyncPhase1Service {
     final settings = snapshot['settings'];
     if (settings is Map) {
       for (final entry in settings.entries) {
-        await _settingApplier!(entry.key.toString(), entry.value.toString());
+        final key = entry.key.toString();
+        if (key == 'theme_mode') continue;
+        await _settingApplier!(key, entry.value.toString());
       }
     }
     final sources = snapshot['sources'];
@@ -670,7 +672,9 @@ final class SyncPhase1Service {
         if (_ratings != null) await _ratings!.applyRemoteRemove(entityId);
       case 'setting.set':
         final value = data['value']?.toString();
-        if (value != null) await _settingApplier!(entityId, value);
+        if (value != null && entityId != 'theme_mode') {
+          await _settingApplier!(entityId, value);
+        }
       case 'custom_source.upsert':
         final raw = data['source'];
         if (raw is Map) {

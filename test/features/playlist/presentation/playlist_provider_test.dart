@@ -186,6 +186,46 @@ void main() {
       contains(song.identityKey),
     );
   });
+
+  test('toggling a favorited song with drifted metadata unfavorites it', () async {
+    final stored = MusicItem(
+      id: '001',
+      name: 'Song',
+      singer: 'Singer',
+      source: 'custom_source',
+      platform: 'kw',
+      songmid: '001',
+    );
+    final visible = MusicItem(
+      id: '001',
+      name: 'Song',
+      singer: 'Singer',
+      source: 'kw',
+      platform: 'kw',
+      songmid: '001',
+    );
+    final initial = systemSnapshot();
+    final favorite = initial.playlists.first.copyWith(songs: [stored]);
+    final repository = MemoryPlaylistRepository(
+      PlaylistSnapshot(
+        schemaVersion: 1,
+        playlists: [favorite, ...initial.playlists.skip(1)],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [playlistRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    final service = container.read(playlistServiceProvider);
+    await service.init();
+
+    expect(isFavoriteMusic(visible, await service.getAllSongs('favorites')), isTrue);
+
+    await container.read(toggleFavoriteProvider)(visible);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(await service.getAllSongs('favorites'), isEmpty);
+  });
 }
 
 PlaylistSnapshot systemSnapshot() {

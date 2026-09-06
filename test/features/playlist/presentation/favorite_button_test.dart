@@ -32,10 +32,10 @@ void main() {
       'lib/features/playlist/presentation/playlist_detail_screen.dart',
     ).readAsStringSync();
 
-    expect(source, contains('favoriteIdsProvider'));
+    expect(source, contains('favoriteSongsProvider'));
     expect(source, contains('isFavorite:'));
     expect(source, contains('isFavorites ||'));
-    expect(source, contains('favoriteIds.contains(song.identityKey)'));
+    expect(source, contains('isFavoriteMusic(song, favoriteSongs)'));
   });
 
   test('playlist detail uses a frosted top bar and floating pagination', () {

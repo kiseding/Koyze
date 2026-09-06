@@ -717,8 +717,8 @@ class _LeaderboardSongRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 共享的收藏集合由 favoriteIdsProvider 缓存，行内直接查 Set。
-    final favoriteIds =
-        ref.watch(favoriteIdsProvider).valueOrNull ?? const <String>{};
+    final favoriteSongs =
+        ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
     final isPlaying = ref.watch(
       currentMusicProvider.select(
         (current) => current?.identityKey == song.identityKey,
@@ -816,7 +816,7 @@ class _LeaderboardSongRow extends ConsumerWidget {
                 ),
                 FavoriteButton(
                   song: song,
-                  isFavorite: favoriteIds.contains(song.identityKey),
+                  isFavorite: isFavoriteMusic(song, favoriteSongs),
                 ),
               ],
             ),

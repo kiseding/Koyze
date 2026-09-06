@@ -288,9 +288,14 @@ class PlaylistService {
       (current) {
         final index = _indexOf(current, playlistId);
         final existing = current[index];
-        if (existing.songs.any(
-          (item) => item.identityKey == song.identityKey,
-        )) {
+        if (playlistId == 'favorites' &&
+            existing.songs.any((item) => item.isSameCatalogTrack(song))) {
+          return (next: current, result: false, changed: false);
+        }
+        if (playlistId != 'favorites' &&
+            existing.songs.any(
+              (item) => item.identityKey == song.identityKey,
+            )) {
           return (next: current, result: false, changed: false);
         }
         final updated = existing.copyWith(
@@ -387,7 +392,16 @@ class PlaylistService {
           final matchesCanonical = requestedIds.contains(song.identityKey);
           final matchesUniqueLegacyId =
               requestedIds.contains(song.id) && rawIdCounts[song.id] == 1;
-          if (matchesItem || matchesCanonical || matchesUniqueLegacyId) {
+          final matchesCatalogId = requestedIds.any(
+            (token) => song.matchesCollectionId(
+              token,
+              rawIdCount: (id) => rawIdCounts[id] ?? 0,
+            ),
+          );
+          if (matchesItem ||
+              matchesCanonical ||
+              matchesUniqueLegacyId ||
+              matchesCatalogId) {
             removed++;
             removedSongDetails[song.identityKey] = song;
           } else {

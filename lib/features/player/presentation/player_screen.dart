@@ -2260,8 +2260,8 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
   }) {
     final queueItems = page.songs;
     // 页面级一次性读取收藏集合，避免滚动时每行创建异步查询。
-    final favoriteIds =
-        ref.watch(favoriteIdsProvider).valueOrNull ?? const <String>{};
+    final favoriteSongs =
+        ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
     _scrollToCurrentIfNeeded(
       _displayedPageIndex ?? range.pageIndex,
       currentIndex,
@@ -2325,7 +2325,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                     ),
                     trailing: FavoriteButton(
                       song: item,
-                      isFavorite: favoriteIds.contains(item.identityKey),
+                      isFavorite: isFavoriteMusic(item, favoriteSongs),
                     ),
                     onTap: loading
                         ? null

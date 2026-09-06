@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 
 import '../../../core/logging/app_log.dart';
@@ -62,9 +61,6 @@ final cloudSyncProvider =
       ref.read(syncPhase1ServiceProvider).onProgress = notifier.onProgress;
       ref.read(syncPhase1ServiceProvider).onLocalEventRecorded =
           notifier.localEventRecorded;
-      ref.listen(themeModeProvider, (_, next) {
-        notifier.settingChanged('theme_mode', next.index.toString());
-      });
       ref.listen(audioQualityProvider, (_, next) {
         notifier.settingChanged('audio_quality', next.index.toString());
       });
@@ -91,15 +87,6 @@ final cloudSyncProvider =
         value,
       ) async {
         switch (key) {
-          case 'theme_mode':
-            await ref
-                .read(themeModeProvider.notifier)
-                .setThemeMode(
-                  ThemeMode.values[(int.tryParse(value) ?? 0).clamp(
-                    0,
-                    ThemeMode.values.length - 1,
-                  )],
-                );
           case 'audio_quality':
             await ref
                 .read(audioQualityProvider.notifier)
@@ -194,8 +181,10 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
     );
   }
 
+  static const _localOnlySettings = {'theme_mode'};
+
   void settingChanged(String key, String value) {
-    if (_applyingRemote) return;
+    if (_applyingRemote || _localOnlySettings.contains(key)) return;
     unawaited(_phase1.recordSetting(key, value));
     localChanged();
   }

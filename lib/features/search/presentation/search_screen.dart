@@ -456,8 +456,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final results = searchState.items;
     final localMatches = searchState.localMatches;
     // 页面级一次性读取收藏集合，避免每个可见行创建异步收藏查询。
-    final favoriteIds =
-        ref.watch(favoriteIdsProvider).valueOrNull ?? const <String>{};
+    final favoriteSongs =
+        ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
     if (results.isEmpty && localMatches.isEmpty && !searchState.isLoading) {
       return Center(
         key: const ValueKey('search-empty'),
@@ -687,7 +687,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     children: [
                       FavoriteButton(
                         song: item,
-                        isFavorite: favoriteIds.contains(item.identityKey),
+                        isFavorite: isFavoriteMusic(item, favoriteSongs),
                       ),
                       FxIconButton(
                         tooltip: '更多操作',
