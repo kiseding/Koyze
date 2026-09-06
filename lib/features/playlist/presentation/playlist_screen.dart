@@ -117,7 +117,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               ],
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: TextField(
                 controller: _searchController,
                 focusNode: _searchFocus,
