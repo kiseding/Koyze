@@ -291,7 +291,6 @@ final class SyncPhase1Service {
     final firstSync =
         account.state == SyncAccountState.anonymous ||
         account.state == SyncAccountState.authenticated;
-    if (firstSync) await cursor.clear();
     if (account.state == SyncAccountState.anonymous) {
       account = await identity.setState(
         account,
@@ -562,7 +561,7 @@ final class SyncPhase1Service {
             : const <String, dynamic>{};
         final song = _song(data['song']);
         if (song != null &&
-            !songs.any((item) => item.identityKey == song.identityKey)) {
+            !songs.any((item) => item.isSameCatalogTrack(song))) {
           songs.insert(
             0,
             song.copyWith(
@@ -572,10 +571,16 @@ final class SyncPhase1Service {
           );
         }
       } else if (type == 'favorite.remove') {
+        final payload = event['payload'];
+        final data = payload is Map
+            ? Map<String, dynamic>.from(payload)
+            : const <String, dynamic>{};
+        final removed = _song(data['song']);
         final entityId = event['entityId']?.toString() ?? '';
         songs.removeWhere(
-          (song) =>
-              song.identityKey == entityId || song.playlistItemId == entityId,
+          (song) => removed != null
+              ? song.isSameCatalogTrack(removed)
+              : song.matchesCollectionId(entityId),
         );
       }
     }
@@ -610,7 +615,11 @@ final class SyncPhase1Service {
         }
       case 'favorite.remove':
         if (service == null) return;
-        await service.removeSongFromPlaylist('favorites', entityId);
+        final removed = _song(data['song']);
+        await service.removeSongFromPlaylist(
+          'favorites',
+          removed?.identityKey ?? entityId,
+        );
       case 'playlist.create':
         if (service == null) return;
         if (service.getPlaylist(entityId) == null) {

@@ -436,6 +436,7 @@ class PlaylistService {
             'playlistId': playlistId,
             'songId': songId,
             if (song != null) ...{
+              'song': song.toJson(),
               'source': song.source,
               'songmid': song.songmid ?? song.id,
             },

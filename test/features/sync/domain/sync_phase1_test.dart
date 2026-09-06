@@ -28,6 +28,7 @@ void main() {
       'lib/features/sync/domain/sync_phase1_service.dart',
     ).readAsStringSync();
     expect(source, contains('_bootstrapFromSnapshot()'));
+    expect(source, isNot(contains('if (firstSync) await cursor.clear();')));
     expect(
       source,
       contains('New devices should land on the compacted cloud state first'),
