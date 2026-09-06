@@ -133,16 +133,19 @@ export async function handleSyncSnapshot(request: Request, env: Env): Promise<Re
       ? (() => { try { return JSON.parse(row.metadata as string); } catch { return {}; } })()
       : {};
     const list = grouped.get(String(row.playlist_id)) ?? [];
+    const songmid = String(row.songmid ?? '');
+    const hash = String(row.hash ?? '');
     list.push({
-      id: row.id,
+      id: songmid || hash || String(row.playlist_item_id ?? row.id ?? ''),
       name: row.name,
       singer: row.singer,
       source: row.source,
-      songmid: row.songmid,
+      platform: row.source,
+      songmid,
       album: row.album_name,
       artwork: row.img,
       duration: Number.parseInt(String(row.interval ?? 0), 10) || 0,
-      hash: row.hash,
+      hash,
       playlistItemId: row.playlist_item_id,
       meta: metadata,
     });

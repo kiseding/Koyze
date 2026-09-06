@@ -28,6 +28,8 @@ void main() {
       'lib/features/sync/domain/sync_phase1_service.dart',
     ).readAsStringSync();
     expect(source, contains('_bootstrapFromSnapshot()'));
+    expect(source, contains('_snapshotSong'));
+    expect(source, contains('snapshotFavoriteCount == 0 && localFavoriteCount > 0'));
     expect(source, isNot(contains('if (firstSync) await cursor.clear();')));
     expect(
       source,

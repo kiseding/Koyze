@@ -11,6 +11,7 @@ import 'sync_event.dart';
 import '../../playlist/domain/playlist_service.dart';
 import '../../playlist/domain/playlist.dart';
 import '../../player/domain/music_item.dart';
+import '../presentation/cloud_playlist_merge.dart';
 import '../domain/rating_store.dart';
 import '../../custom_source/domain/custom_source.dart';
 import '../../custom_source/domain/custom_source_service.dart';
@@ -410,7 +411,7 @@ final class SyncPhase1Service {
       final map = Map<String, dynamic>.from(raw);
       final songs = (map['songs'] is List ? map['songs'] as List : const [])
           .whereType<Map>()
-          .map((song) => _song(Map<String, dynamic>.from(song)))
+          .map(_snapshotSong)
           .whereType<MusicItem>()
           .toList(growable: false);
       final id = map['id']?.toString() ?? '';
@@ -424,6 +425,15 @@ final class SyncPhase1Service {
           updatedAt: DateTime.now().toUtc(),
         ),
       );
+    }
+    final snapshotFavorites = playlists.where((playlist) => playlist.id == 'favorites');
+    final snapshotFavoriteCount = snapshotFavorites.fold<int>(
+      0,
+      (count, playlist) => count + playlist.songs.length,
+    );
+    final localFavoriteCount = service.favorites?.songCount ?? 0;
+    if (snapshotFavoriteCount == 0 && localFavoriteCount > 0) {
+      playlists.removeWhere((playlist) => playlist.id == 'favorites');
     }
     await service.withoutSyncRecording(
       () => service.replaceAll(playlists, syncable: false),
@@ -721,10 +731,42 @@ final class SyncPhase1Service {
 
   MusicItem? _song(dynamic raw) {
     if (raw is! Map) return null;
+    final map = Map<String, dynamic>.from(raw);
     try {
-      return MusicItem.fromJson(Map<String, dynamic>.from(raw));
+      return decodeCloudSong(map);
     } catch (_) {
-      return null;
+      try {
+        return MusicItem.fromJson(map);
+      } catch (_) {
+        return null;
+      }
     }
+  }
+
+  MusicItem? _snapshotSong(dynamic raw) {
+    if (raw is! Map) return null;
+    final map = Map<String, dynamic>.from(raw);
+    final songmid = map['songmid']?.toString() ?? '';
+    final hash = map['hash']?.toString() ?? '';
+    final rowId = map['id'];
+    if (songmid.isNotEmpty || hash.isNotEmpty) {
+      map['id'] = songmid.isNotEmpty ? songmid : hash;
+    } else if (rowId != null) {
+      map['id'] = rowId.toString();
+    }
+    if (map['platform'] == null && map['source'] != null) {
+      map['platform'] = map['source'];
+    }
+    if (map['artwork'] == null && map['img'] != null) {
+      map['artwork'] = map['img'];
+    }
+    if (map['album'] == null && map['albumName'] != null) {
+      map['album'] = map['albumName'];
+    }
+    final duration = map['duration'];
+    if (duration is String) {
+      map['duration'] = int.tryParse(duration) ?? 0;
+    }
+    return _song(map);
   }
 }
