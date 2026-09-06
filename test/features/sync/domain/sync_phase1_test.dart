@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,6 +22,17 @@ import 'package:koyze/core/storage/storage_service.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test('first sync bootstraps from a snapshot instead of replaying history', () {
+    final source = File(
+      'lib/features/sync/domain/sync_phase1_service.dart',
+    ).readAsStringSync();
+    expect(source, contains('_bootstrapFromSnapshot()'));
+    expect(
+      source,
+      contains('New devices should land on the compacted cloud state first'),
+    );
+  });
 
   test(
     'identity store creates stable anonymous and device identities',

@@ -311,13 +311,12 @@ final class SyncPhase1Service {
         account,
         force: cloudFavoriteCount < localFavoriteCount,
       );
-      final downloaded = <Map<String, dynamic>>[];
       onProgress?.call('检查云端数据');
       if (firstSync && status['hasCloudData'] == true) {
-        // Pull the complete event stream before uploading local anonymous
-        // changes. Missing local rows are not treated as deletions.
+        // New devices should land on the compacted cloud state first. Replaying
+        // the full favorite.add/remove history makes the list grow then shrink.
         onProgress?.call('下载云端数据');
-        downloaded.addAll(await _pullAll());
+        await _bootstrapFromSnapshot();
       }
       await identity.setState(account, SyncAccountState.syncing);
       onProgress?.call('上传本地变更');
@@ -332,7 +331,7 @@ final class SyncPhase1Service {
           )) {
         await identity.markFavoriteBaseline(accountId);
       }
-      downloaded.addAll(await _pullAll());
+      await _pullAll();
       await identity.markSynced(account);
       return SyncReport.fromCurrentState(
         deviceId: account.deviceId,
@@ -379,11 +378,20 @@ final class SyncPhase1Service {
 
   Future<void> fullResync() async {
     if (!api.isLoggedIn) return;
-    final snapshot = await api.fetchSyncSnapshot();
-    await _applySnapshot(snapshot);
-    await cursor.clear();
+    await _bootstrapFromSnapshot();
     await _pullAll();
     await identity.markSynced(await identity.load());
+  }
+
+  Future<void> _bootstrapFromSnapshot() async {
+    final snapshot = await api.fetchSyncSnapshot();
+    await _applySnapshot(snapshot);
+    final snapshotCursor = (snapshot['cursor'] as num?)?.toInt();
+    if (snapshotCursor != null && snapshotCursor >= 0) {
+      await cursor.write(snapshotCursor);
+    } else {
+      await cursor.clear();
+    }
   }
 
   Future<void> _applySnapshot(Map<String, dynamic> snapshot) async {
