@@ -60,10 +60,7 @@ jobs:
           test -f "$release/lib/libflutter_linux_gtk.so"
           test -d "$release/data/flutter_assets"
           find "$release" -type f -printf '%P\n'
-          if ! find "$release" -name '*quickjs*' -print | grep -q .; then
-            echo "QuickJS runtime is missing from the Linux bundle" >&2
-            exit 1
-          fi
+          test -f "$release/lib/libflutter_js_plugin.so"
           mkdir -p build/linux
           tar -C "$release" -czf build/linux/Koyze-Linux-x64.tar.gz .
 
