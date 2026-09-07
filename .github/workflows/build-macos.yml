@@ -1,0 +1,76 @@
+name: Build macOS app
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-macos:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Enable macOS desktop
+        run: flutter config --enable-macos-desktop
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze Dart and Flutter sources
+        run: flutter analyze --no-fatal-infos
+
+      - name: Validate cross-platform build configuration
+        run: flutter test test/build_configuration_test.dart
+
+      - name: Build macOS release
+        run: flutter build macos --release
+
+      - name: Package unsigned macOS app
+        run: |
+          set -euo pipefail
+          app="build/macos/Build/Products/Release/Koyze.app"
+          test -d "$app"
+          test -x "$app/Contents/MacOS/Koyze"
+          test -d "$app/Contents/Frameworks/FlutterMacOS.framework"
+          test -d "$app/Contents/Frameworks/App.framework"
+          mkdir -p build/macos
+          ditto -c -k --keepParent "$app" build/macos/Koyze-macOS.zip
+          unzip -t build/macos/Koyze-macOS.zip
+          unzip -Z1 build/macos/Koyze-macOS.zip | grep -q 'Koyze.app/Contents/MacOS/Koyze'
+          unzip -Z1 build/macos/Koyze-macOS.zip | grep -q 'Koyze.app/Contents/Info.plist'
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Koyze-macOS
+          path: build/macos/Koyze-macOS.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload macOS app to Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: build/macos/Koyze-macOS.zip

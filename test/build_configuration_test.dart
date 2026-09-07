@@ -11,7 +11,7 @@ void main() {
   });
 
   test('platform workflows use the same pinned Flutter patch release', () {
-    for (final platform in ['android', 'ios', 'windows']) {
+    for (final platform in ['android', 'ios', 'linux', 'macos', 'windows']) {
       final workflow = File(
         '.github/workflows/build-$platform.yml',
       ).readAsStringSync();
@@ -25,7 +25,7 @@ void main() {
   });
 
   test('official build workflow actions are pinned to full SHAs', () {
-    for (final platform in ['android', 'ios', 'windows']) {
+    for (final platform in ['android', 'ios', 'linux', 'macos', 'windows']) {
       final workflow = File(
         '.github/workflows/build-$platform.yml',
       ).readAsStringSync();
@@ -51,7 +51,7 @@ void main() {
   });
 
   test('build workflows use the reviewed Flutter action major', () {
-    for (final platform in ['android', 'ios', 'windows']) {
+    for (final platform in ['android', 'ios', 'linux', 'macos', 'windows']) {
       final workflow = File(
         '.github/workflows/build-$platform.yml',
       ).readAsStringSync();
@@ -124,6 +124,53 @@ void main() {
     expect(build, greaterThan(test));
     expect(workflow, contains('quickjs_c_bridge.dll'));
     expect(workflow, contains('Koyze-Windows-x64.zip'));
+  });
+
+  test('Linux CI validates and publishes a complete portable bundle', () {
+    final workflow = File(
+      '.github/workflows/build-linux.yml',
+    ).readAsStringSync();
+    final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
+    final test = workflow.indexOf(
+      'run: flutter test test/build_configuration_test.dart',
+    );
+    final build = workflow.indexOf('run: flutter build linux --release');
+
+    expect(analyze, greaterThanOrEqualTo(0));
+    expect(test, greaterThan(analyze));
+    expect(build, greaterThan(test));
+    expect(workflow, contains('libgtk-3-dev'));
+    expect(workflow, contains('libquickjs_c_bridge_plugin.so'));
+    expect(workflow, contains('Koyze-Linux-x64.tar.gz'));
+    expect(
+      File('linux/CMakeLists.txt').readAsStringSync(),
+      contains('APPLICATION_ID "com.koyze.app"'),
+    );
+  });
+
+  test('macOS CI validates and publishes an unsigned app archive', () {
+    final workflow = File(
+      '.github/workflows/build-macos.yml',
+    ).readAsStringSync();
+    final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
+    final test = workflow.indexOf(
+      'run: flutter test test/build_configuration_test.dart',
+    );
+    final build = workflow.indexOf('run: flutter build macos --release');
+
+    expect(analyze, greaterThanOrEqualTo(0));
+    expect(test, greaterThan(analyze));
+    expect(build, greaterThan(test));
+    expect(workflow, contains('Koyze.app'));
+    expect(workflow, contains('Koyze-macOS.zip'));
+    expect(
+      File('macos/Runner/Release.entitlements').readAsStringSync(),
+      contains('com.apple.security.network.client'),
+    );
+    expect(
+      File('macos/Runner/Configs/AppInfo.xcconfig').readAsStringSync(),
+      contains('PRODUCT_BUNDLE_IDENTIFIER = com.koyze.app'),
+    );
   });
 
   test('Windows playback skips silence keepalive and proxies headers', () {

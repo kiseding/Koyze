@@ -1,0 +1,79 @@
+name: Build Linux portable
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Linux desktop build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze Dart and Flutter sources
+        run: flutter analyze --no-fatal-infos
+
+      - name: Validate cross-platform build configuration
+        run: flutter test test/build_configuration_test.dart
+
+      - name: Build Linux release
+        run: flutter build linux --release
+
+      - name: Package portable application
+        run: |
+          set -euo pipefail
+          release="build/linux/x64/release/bundle"
+          test -x "$release/koyze"
+          test -f "$release/lib/libflutter_linux_gtk.so"
+          test -d "$release/data/flutter_assets"
+          test -n "$(find "$release" -name 'libquickjs_c_bridge_plugin.so' -print -quit)"
+          mkdir -p build/linux
+          tar -C "$release" -czf build/linux/Koyze-Linux-x64.tar.gz .
+
+      - name: Upload Linux portable archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Koyze-Linux-x64
+          path: build/linux/Koyze-Linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Linux archive to Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: build/linux/Koyze-Linux-x64.tar.gz
