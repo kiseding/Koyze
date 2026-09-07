@@ -141,7 +141,7 @@ void main() {
     expect(build, greaterThan(test));
     expect(workflow, contains('libgtk-3-dev'));
     expect(workflow, contains('libsecret-1-dev'));
-    expect(workflow, contains('libquickjs_c_bridge_plugin.so'));
+    expect(workflow, contains("find \"\$release\" -name '*quickjs*'"));
     expect(workflow, contains('Koyze-Linux-x64.tar.gz'));
     expect(
       File('linux/CMakeLists.txt').readAsStringSync(),
