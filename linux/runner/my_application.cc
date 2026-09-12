@@ -20,8 +20,17 @@ constexpr double kPortraitWidthPerHeight = 1206.0 / 2622.0;
 // 下限避免在高缩放比的小屏上把界面压得过窄。
 constexpr int kMinWindowHeight = 640;
 constexpr int kMaxWindowHeight = 960;
+// 内容宽度的下限（逻辑单位）。首页快捷功能卡片是「图标 + 标题/副标题 + 箭头」的
+// 横向布局，宽度再窄副标题就会被省略号截断（最长副标题 8 个汉字，11pt 下约 88pt）。
+constexpr int kMinWindowWidth = 420;
 // 取不到显示器信息时的退路，同样是 iPhone 17 的比例。
 constexpr int kFallbackWindowHeight = 900;
+
+// 宽度取 iPhone 17 的比例，但不低于 kMinWindowWidth。
+static int portrait_width_for(int height) {
+  const int scaled_width = static_cast<int>(height * kPortraitWidthPerHeight);
+  return scaled_width < kMinWindowWidth ? kMinWindowWidth : scaled_width;
+}
 
 // 默认按手机竖屏比例开窗：高度取显示器工作区高度的 90%（并夹在上下限之间），
 // 宽度按 iPhone 17 的比例换算。
@@ -50,8 +59,7 @@ static void set_default_window_size(GtkWindow* window) {
     height = kMaxWindowHeight;
   }
 
-  gtk_window_set_default_size(
-      window, static_cast<int>(height * kPortraitWidthPerHeight), height);
+  gtk_window_set_default_size(window, portrait_width_for(height), height);
 }
 
 // Called when first Flutter frame received.

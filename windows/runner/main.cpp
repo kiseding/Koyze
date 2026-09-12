@@ -15,8 +15,17 @@ constexpr double kPortraitWidthPerHeight = 1206.0 / 2622.0;
 // 下限避免在高缩放比的小屏上把界面压得过窄。
 constexpr int kMinWindowHeight = 640;
 constexpr int kMaxWindowHeight = 960;
+// 内容宽度的下限（逻辑单位）。首页快捷功能卡片是「图标 + 标题/副标题 + 箭头」的
+// 横向布局，宽度再窄副标题就会被省略号截断（最长副标题 8 个汉字，11pt 下约 88pt）。
+constexpr int kMinWindowWidth = 420;
 // 取不到显示器信息时的退路，同样是 iPhone 17 的比例。
 constexpr int kFallbackWindowHeight = 900;
+
+// 宽度取 iPhone 17 的比例，但不低于 kMinWindowWidth。
+int PortraitWidthFor(int height) {
+  const int scaled_width = static_cast<int>(height * kPortraitWidthPerHeight);
+  return scaled_width < kMinWindowWidth ? kMinWindowWidth : scaled_width;
+}
 
 // 默认按手机竖屏比例开窗：高度取显示器工作区高度的 90%（并夹在上下限之间），
 // 宽度按 iPhone 17 的比例换算。Win32Window::Create 会把这里返回的值乘上 DPI
@@ -29,10 +38,9 @@ Win32Window::Size DefaultWindowSize() {
   MONITORINFO monitor_info{};
   monitor_info.cbSize = static_cast<DWORD>(sizeof(monitor_info));
   if (monitor == nullptr || !::GetMonitorInfoW(monitor, &monitor_info)) {
-    const int fallback_width =
-        static_cast<int>(kFallbackWindowHeight * kPortraitWidthPerHeight);
-    return Win32Window::Size(static_cast<unsigned int>(fallback_width),
-                             static_cast<unsigned int>(kFallbackWindowHeight));
+    return Win32Window::Size(
+        static_cast<unsigned int>(PortraitWidthFor(kFallbackWindowHeight)),
+        static_cast<unsigned int>(kFallbackWindowHeight));
   }
 
   const RECT work_area = monitor_info.rcWork;
@@ -47,8 +55,7 @@ Win32Window::Size DefaultWindowSize() {
     height = kMaxWindowHeight;
   }
 
-  const int width = static_cast<int>(height * kPortraitWidthPerHeight);
-  return Win32Window::Size(static_cast<unsigned int>(width),
+  return Win32Window::Size(static_cast<unsigned int>(PortraitWidthFor(height)),
                            static_cast<unsigned int>(height));
 }
 
