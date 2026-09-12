@@ -492,9 +492,10 @@ void main() {
       r"\s+run: \|",
     );
     for (final platform in ['android', 'ios', 'linux', 'macos', 'windows']) {
+      // Windows CI checks out the workflow as CRLF; normalize before matching.
       final workflow = File(
         '.github/workflows/build-$platform.yml',
-      ).readAsStringSync();
+      ).readAsStringSync().replaceAll('\r\n', '\n');
 
       expect(guard.hasMatch(workflow), isTrue, reason: platform);
 
