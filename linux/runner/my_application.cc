@@ -14,6 +14,46 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+// iPhone 17 竖屏比例：1206 x 2622 像素。
+constexpr double kPortraitWidthPerHeight = 1206.0 / 2622.0;
+// 窗口高度的下限与上限（逻辑单位）。上限避免在大屏上开出一个过大的窗口，
+// 下限避免在高缩放比的小屏上把界面压得过窄。
+constexpr int kMinWindowHeight = 640;
+constexpr int kMaxWindowHeight = 960;
+// 取不到显示器信息时的退路，同样是 iPhone 17 的比例。
+constexpr int kFallbackWindowHeight = 900;
+
+// 默认按手机竖屏比例开窗：高度取显示器工作区高度的 90%（并夹在上下限之间），
+// 宽度按 iPhone 17 的比例换算。
+static void set_default_window_size(GtkWindow* window) {
+  int height = kFallbackWindowHeight;
+
+  GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(window));
+  if (display == nullptr) {
+    display = gdk_display_get_default();
+  }
+  if (display != nullptr) {
+    // 主显示器在 GDK 中固定为索引 0。
+    GdkMonitor* monitor = gdk_display_get_monitor(display, 0);
+    if (monitor != nullptr) {
+      GdkRectangle workarea = {0, 0, 0, 0};
+      gdk_monitor_get_workarea(monitor, &workarea);
+      if (workarea.height > 0) {
+        height = static_cast<int>(workarea.height * 0.9);
+      }
+    }
+  }
+
+  if (height < kMinWindowHeight) {
+    height = kMinWindowHeight;
+  } else if (height > kMaxWindowHeight) {
+    height = kMaxWindowHeight;
+  }
+
+  gtk_window_set_default_size(
+      window, static_cast<int>(height * kPortraitWidthPerHeight), height);
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
@@ -67,7 +107,7 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "Koyze");
   }
 
-  gtk_window_set_default_size(window, 1280, 720);
+  set_default_window_size(window);
   set_application_icon(window);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
