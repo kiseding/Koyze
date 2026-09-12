@@ -2,17 +2,28 @@ import Cocoa
 import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
-  // iPhone 17 竖屏比例：1206 x 2622 像素。
-  private static let portraitWidthPerHeight: CGFloat = 1206.0 / 2622.0
-  // 窗口高度的下限与上限（逻辑点）。上限避免在大屏上开出一个过大的窗口，
-  // 下限避免在高缩放比的小屏上把界面压得过窄。
-  private static let minContentHeight: CGFloat = 640
-  private static let maxContentHeight: CGFloat = 960
-  // 内容宽度的下限（逻辑点）。首页快捷功能卡片是「图标 + 标题/副标题 + 箭头」的
+  // 首页内容实测高度 549（含上下内边距）+ 底部 chrome 154（导航栏 38 + 迷你播放器 78
+  // + 各处间隙）= 703，低于这个高度首页就要滚动，所以它是默认窗口高度的硬下限。
+  // （实测方式见 test/home_content_height_test.dart。）
+  private static let homeContentHeight: CGFloat = 704
+  // 在内容下限之上再留出的呼吸余量。
+  private static let breathingRoom: CGFloat = 76
+  // 桌面端默认高度 = 首页内容下限 + 呼吸余量。按「刚好装下首页且不局促」定，
+  // 而不是按屏幕高度的百分比——百分比在高分辨率屏上会开出一个几乎顶满整屏的窗口。
+  private static let comfortableContentHeight: CGFloat =
+    homeContentHeight + breathingRoom
+  // 但小屏上不能顶满：最多占屏幕可用高度的这个比例，其余留给桌面。
+  private static let maxVisibleFrameFraction: CGFloat = 0.85
+  // 屏幕实在放不下时的保底高度；再矮就交给首页自身滚动。
+  private static let minContentHeight: CGFloat = 560
+  // 内容宽度下限（逻辑点）。首页快捷功能卡片是「图标 + 标题/副标题 + 箭头」的
   // 横向布局，宽度再窄副标题就会被省略号截断（最长副标题 8 个汉字，11pt 下约 88pt）。
   private static let minContentWidth: CGFloat = 420
-  // 取不到屏幕信息时的退路，同样是 iPhone 17 的比例。
-  private static let fallbackContentHeight: CGFloat = 900
+  // 标题栏 + 居中后上下留出的空隙。
+  private static let verticalChrome: CGFloat = 80
+  // iPhone 17 竖屏比例：1206 x 2622 像素。只有在屏幕足够高时才会用到；
+  // 多数情况宽度下限先一步生效，窗口会比手机略宽一点（仍是竖屏）。
+  private static let portraitWidthPerHeight: CGFloat = 1206.0 / 2622.0
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -24,17 +35,19 @@ class MainFlutterWindow: NSWindow {
     super.awakeFromNib()
   }
 
-  /// 默认按手机竖屏比例开窗：高度取屏幕可用高度的 90%（并夹在上下限之间），
-  /// 宽度按 iPhone 17 的比例换算。屏幕高度受限时宽度会触到下限，
-  /// 此时窗口会比手机略宽（仍是竖屏），换取界面文字完整显示。
+  /// 默认高度按首页内容定（见上方常数），窗口放不下时再按屏幕可用高度收缩。
+  /// setContentSize 收的就是内容区尺寸，所以这里不需要补偿标题栏。
   private func applyPortraitDefaultSize() {
-    var height = MainFlutterWindow.fallbackContentHeight
+    var height = MainFlutterWindow.comfortableContentHeight
 
     if let visibleFrame = (self.screen ?? NSScreen.main)?.visibleFrame {
-      height = min(
-        max((visibleFrame.height * 0.9).rounded(), MainFlutterWindow.minContentHeight),
-        MainFlutterWindow.maxContentHeight
-      )
+      // 三重约束取最小：舒适高度 / 屏幕可用高度占比上限 / 实际能放下的高度。
+      let proportional =
+        (visibleFrame.height * MainFlutterWindow.maxVisibleFrameFraction).rounded()
+      let maxHeight = visibleFrame.height - MainFlutterWindow.verticalChrome
+      height = min(height, proportional)
+      height = min(height, maxHeight)
+      height = max(height, MainFlutterWindow.minContentHeight)
     }
 
     let scaledWidth = (height * MainFlutterWindow.portraitWidthPerHeight).rounded()

@@ -14,28 +14,38 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
-// iPhone 17 竖屏比例：1206 x 2622 像素。
-constexpr double kPortraitWidthPerHeight = 1206.0 / 2622.0;
-// 窗口高度的下限与上限（逻辑单位）。上限避免在大屏上开出一个过大的窗口，
-// 下限避免在高缩放比的小屏上把界面压得过窄。
-constexpr int kMinWindowHeight = 640;
-constexpr int kMaxWindowHeight = 960;
-// 内容宽度的下限（逻辑单位）。首页快捷功能卡片是「图标 + 标题/副标题 + 箭头」的
+// 首页内容实测高度 549（含上下内边距）+ 底部 chrome 154（导航栏 38 + 迷你播放器 78
+// + 各处间隙）= 703，低于这个高度首页就要滚动，所以它是默认窗口高度的硬下限。
+// （实测方式见 test/home_content_height_test.dart。）
+constexpr int kHomeContentHeight = 704;
+// 在内容下限之上再留出的呼吸余量。
+constexpr int kBreathingRoom = 76;
+// 桌面端默认高度 = 首页内容下限 + 呼吸余量。按「刚好装下首页且不局促」定，
+// 而不是按屏幕高度的百分比——百分比在高分辨率屏上会开出一个几乎顶满整屏的窗口。
+constexpr int kComfortableContentHeight = kHomeContentHeight + kBreathingRoom;
+// 但小屏上不能顶满：最多占工作区高度的这个比例，其余留给桌面。
+constexpr double kMaxWorkAreaFraction = 0.85;
+// 屏幕实在放不下时的保底高度；再矮就交给首页自身滚动。
+constexpr int kMinContentHeight = 560;
+// 内容宽度下限（逻辑单位）。首页快捷功能卡片是「图标 + 标题/副标题 + 箭头」的
 // 横向布局，宽度再窄副标题就会被省略号截断（最长副标题 8 个汉字，11pt 下约 88pt）。
-constexpr int kMinWindowWidth = 420;
-// 取不到显示器信息时的退路，同样是 iPhone 17 的比例。
-constexpr int kFallbackWindowHeight = 900;
+constexpr int kMinContentWidth = 420;
+// 上下留出的空隙，避免窗口贴死工作区边缘（标题栏由窗口管理器额外占用）。
+constexpr int kVerticalClearance = 80;
+// iPhone 17 竖屏比例：1206 x 2622 像素。只有在屏幕足够高时才会用到；
+// 多数情况宽度下限先一步生效，窗口会比手机略宽一点（仍是竖屏）。
+constexpr double kPortraitWidthPerHeight = 1206.0 / 2622.0;
 
-// 宽度取 iPhone 17 的比例，但不低于 kMinWindowWidth。
+// 宽度取 iPhone 17 的比例，但不低于 kMinContentWidth。
 static int portrait_width_for(int height) {
   const int scaled_width = static_cast<int>(height * kPortraitWidthPerHeight);
-  return scaled_width < kMinWindowWidth ? kMinWindowWidth : scaled_width;
+  return scaled_width < kMinContentWidth ? kMinContentWidth : scaled_width;
 }
 
-// 默认按手机竖屏比例开窗：高度取显示器工作区高度的 90%（并夹在上下限之间），
-// 宽度按 iPhone 17 的比例换算。
+// 默认高度按首页内容定（见上方常数），窗口放不下时再按显示器工作区收缩。
+// gtk_window_set_default_size 收的是内容区尺寸，所以这里不需要补偿标题栏。
 static void set_default_window_size(GtkWindow* window) {
-  int height = kFallbackWindowHeight;
+  int height = kComfortableContentHeight;
 
   GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(window));
   if (display == nullptr) {
@@ -48,15 +58,21 @@ static void set_default_window_size(GtkWindow* window) {
       GdkRectangle workarea = {0, 0, 0, 0};
       gdk_monitor_get_workarea(monitor, &workarea);
       if (workarea.height > 0) {
-        height = static_cast<int>(workarea.height * 0.9);
+        // 三重约束取最小：舒适高度 / 工作区占比上限 / 实际能放下的高度。
+        const int max_height = workarea.height - kVerticalClearance;
+        height = static_cast<int>(workarea.height * kMaxWorkAreaFraction);
+        if (height > kComfortableContentHeight) {
+          height = kComfortableContentHeight;
+        }
+        if (height > max_height) {
+          height = max_height;
+        }
       }
     }
   }
 
-  if (height < kMinWindowHeight) {
-    height = kMinWindowHeight;
-  } else if (height > kMaxWindowHeight) {
-    height = kMaxWindowHeight;
+  if (height < kMinContentHeight) {
+    height = kMinContentHeight;
   }
 
   gtk_window_set_default_size(window, portrait_width_for(height), height);
