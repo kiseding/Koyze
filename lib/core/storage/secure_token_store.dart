@@ -67,17 +67,27 @@ final class FlutterSecureTokenStore implements SecureTokenStore {
   static const _ios = IOSOptions(
     accessibility: KeychainAccessibility.first_unlock_this_device,
   );
+
+  // macOS 默认走数据保护钥匙串，需要 keychain-access-groups 权限；
+  // 当前 adhoc 签名不携带该权限，会返回 -34018。
+  // 关闭后改用传统 login 钥匙串，无需开发者证书。
+  static const _macos = MacOsOptions(
+    useDataProtectionKeyChain: false,
+  );
+
   final FlutterSecureStorage _storage;
 
   @override
-  Future<String?> read(String key) => _storage.read(key: key, iOptions: _ios);
+  Future<String?> read(String key) =>
+      _storage.read(key: key, iOptions: _ios, mOptions: _macos);
 
   @override
   Future<void> write(String key, String value) =>
-      _storage.write(key: key, value: value, iOptions: _ios);
+      _storage.write(key: key, value: value, iOptions: _ios, mOptions: _macos);
 
   @override
-  Future<void> delete(String key) => _storage.delete(key: key, iOptions: _ios);
+  Future<void> delete(String key) =>
+      _storage.delete(key: key, iOptions: _ios, mOptions: _macos);
 }
 
 final class SecureTokenMigrationException implements Exception {
