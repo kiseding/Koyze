@@ -483,4 +483,30 @@ void main() {
 
     expect(widgetConfigurations, hasLength(3));
   });
+
+  test('build workflows gate a release tag on the pubspec version', () {
+    final guard = RegExp(
+      r"name: Verify release tag matches pubspec version\n"
+      r"\s+if: startsWith\(github\.ref, 'refs/tags/v'\)\n"
+      r"\s+shell: bash\n"
+      r"\s+run: \|",
+    );
+    for (final platform in ['android', 'ios', 'linux', 'macos', 'windows']) {
+      final workflow = File(
+        '.github/workflows/build-$platform.yml',
+      ).readAsStringSync();
+
+      expect(guard.hasMatch(workflow), isTrue, reason: platform);
+
+      final checkout = workflow.indexOf('name: Check out repository');
+      final verify = workflow.indexOf(
+        'name: Verify release tag matches pubspec version',
+      );
+      final flutter = workflow.indexOf('uses: subosito/flutter-action@v2');
+
+      expect(checkout, greaterThanOrEqualTo(0), reason: platform);
+      expect(verify, greaterThan(checkout), reason: platform);
+      expect(flutter, greaterThan(verify), reason: platform);
+    }
+  });
 }
