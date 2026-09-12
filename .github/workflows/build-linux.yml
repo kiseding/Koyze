@@ -61,6 +61,7 @@ jobs:
           test -d "$release/data/flutter_assets"
           find "$release" -type f -printf '%P\n'
           test -f "$release/lib/libflutter_js_plugin.so"
+          test -f "$release/data/app_icon.png"
           mkdir -p build/linux
           tar -C "$release" -czf build/linux/Koyze-Linux-x64.tar.gz .
 

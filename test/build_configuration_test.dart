@@ -142,6 +142,7 @@ void main() {
     expect(workflow, contains('libgtk-3-dev'));
     expect(workflow, contains('libsecret-1-dev'));
     expect(workflow, contains('libflutter_js_plugin.so'));
+    expect(workflow, contains('data/app_icon.png'));
     expect(workflow, contains('Koyze-Linux-x64.tar.gz'));
     expect(
       File('linux/CMakeLists.txt').readAsStringSync(),
@@ -425,6 +426,48 @@ void main() {
     // Source is launcher input only (not a Flutter asset). Do not recompress
     // artwork; still reject the previous uncompressed 860KB blow-up.
     expect(bytes.length, lessThan(256 * 1024));
+  });
+
+  test('macOS and Linux launcher icons use the mobile artwork', () {
+    final source = File('assets/icon/app_icon.png').readAsBytesSync();
+    expect(
+      File(
+        'macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
+      ).readAsBytesSync(),
+      source,
+    );
+    expect(
+      File('linux/runner/resources/app_icon.png').readAsBytesSync(),
+      source,
+    );
+
+    const macosSizes = {16, 32, 64, 128, 256, 512, 1024};
+    for (final size in macosSizes) {
+      final bytes = File(
+        'macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_$size.png',
+      ).readAsBytesSync();
+      expect(bytes[0], 0x89);
+      expect(bytes.sublist(1, 4), [0x50, 0x4e, 0x47]);
+      expect(
+        (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19],
+        size,
+      );
+      expect(
+        (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23],
+        size,
+      );
+    }
+
+    final linuxRunner = File(
+      'linux/runner/my_application.cc',
+    ).readAsStringSync();
+    expect(linuxRunner, contains('set_application_icon(window)'));
+    expect(linuxRunner, contains('gtk_window_set_icon_from_file'));
+    expect(linuxRunner, contains('data", "app_icon.png"'));
+
+    final cmake = File('linux/CMakeLists.txt').readAsStringSync();
+    expect(cmake, contains('runner/resources/app_icon.png'));
+    expect(cmake, contains('INSTALL_BUNDLE_DATA_DIR'));
   });
 
   test('Widget Extension inherits Flutter build name and number', () {
