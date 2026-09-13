@@ -42,7 +42,7 @@ class CustomSourceService {
   final List<CustomSource> _sources = [];
   final Map<String, CustomSourceEngine> _engines = {};
   final StreamController<int> _revisionController =
-      StreamController<int>.broadcast();
+      StreamController<int>.broadcast(sync: true);
   final SourceRequestSandbox _importSandbox;
   final StorageLoader? _storageLoader;
   final DateTime Function() _clock;
@@ -229,9 +229,7 @@ class CustomSourceService {
       for (final s in sources)
         if (seenIds.add(s.id)) s,
     ];
-    await _mutate<void>(
-      (current) => _SourceMutation(merged, null),
-    );
+    await _mutate<void>((current) => _SourceMutation(merged, null));
   }
 
   Future<void> addSource(CustomSource source) async {
@@ -282,10 +280,7 @@ class CustomSourceService {
       if (curIndex >= 0) {
         for (int i = 0; i < current.length; i++) {
           if (i == curIndex) {
-            current[i] = current[i].copyWith(
-              isEnabled: willEnable,
-              updatedAt: DateTime.now(),
-            );
+            current[i] = current[i].copyWith(isEnabled: willEnable);
           } else if (willEnable) {
             current[i] = current[i].copyWith(isEnabled: false);
           }

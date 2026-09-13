@@ -1300,7 +1300,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                             TextField(
                               controller: inputCtrl,
                               focusNode: inputFocus,
-                              keyboardType: TextInputType.url,
+                              keyboardType: desktopSafeKeyboardType(
+                                TextInputType.url,
+                              ),
                               textInputAction: TextInputAction.done,
                               autocorrect: false,
                               enabled: !busy,

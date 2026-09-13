@@ -1,7 +1,26 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+/// URL/email keyboard types on desktop swallow Shift for `;`/`:`, so typing
+/// `https://` becomes `https;//`. Keep a normal text keyboard there.
+TextInputType desktopSafeKeyboardType(TextInputType type) {
+  switch (defaultTargetPlatform) {
+    case TargetPlatform.windows:
+    case TargetPlatform.linux:
+    case TargetPlatform.macOS:
+      if (type == TextInputType.url || type == TextInputType.emailAddress) {
+        return TextInputType.text;
+      }
+      return type;
+    case TargetPlatform.android:
+    case TargetPlatform.iOS:
+    case TargetPlatform.fuchsia:
+      return type;
+  }
+}
 
 /// Requests focus for a text input and explicitly asks the platform IME to show.
 ///

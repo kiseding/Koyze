@@ -133,6 +133,8 @@ final class SyncPhase1Service {
   ) => _settingApplier = applier;
   void attachSources(CustomSourceService service) => _sources = service;
 
+  List<CustomSource> get sources => _sources?.sources ?? const [];
+
   final Uuid _uuid = const Uuid();
 
   Future<SyncAccount> account() => identity.load();
@@ -466,7 +468,9 @@ final class SyncPhase1Service {
         ),
       );
     }
-    final snapshotFavorites = playlists.where((playlist) => playlist.id == 'favorites');
+    final snapshotFavorites = playlists.where(
+      (playlist) => playlist.id == 'favorites',
+    );
     final snapshotFavoriteCount = snapshotFavorites.fold<int>(
       0,
       (count, playlist) => count + playlist.songs.length,
@@ -490,35 +494,38 @@ final class SyncPhase1Service {
     await service.withoutSyncRecording(
       () => service.replaceAll(playlists, syncable: false),
     );
-    final settings = snapshot['settings'];
-    if (settings is Map) {
-      for (final entry in settings.entries) {
-        final key = entry.key.toString();
-        if (key == 'theme_mode') continue;
-        await _settingApplier!(key, entry.value.toString());
+    onApplyingRemote?.call(true);
+    try {
+      final settings = snapshot['settings'];
+      if (settings is Map) {
+        for (final entry in settings.entries) {
+          final key = entry.key.toString();
+          if (key == 'theme_mode') continue;
+          await _settingApplier!(key, entry.value.toString());
+        }
       }
-    }
-    final sources = snapshot['sources'];
-    if (sources is List) {
-      // 快照同步也只同步"源定义"：本地已存在的源保留本地启用状态，
-      // 新增源默认禁用（启用状态是设备本地偏好）。
-      final existingById = {
-        for (final s in _sources!.sources) s.id: s,
-      };
-      await _sources!.replaceAllSources([
-        for (final raw in sources)
-          if (raw is Map)
-            () {
-              final remote = CustomSource.fromJson(
-                Map<String, dynamic>.from(raw),
-              );
-              final local = existingById[remote.id];
-              if (local != null) {
-                return remote.copyWith(isEnabled: local.isEnabled);
-              }
-              return remote.copyWith(isEnabled: false);
-            }(),
-      ]);
+      final sources = snapshot['sources'];
+      if (sources is List) {
+        // 快照同步也只同步"源定义"：本地已存在的源保留本地启用状态，
+        // 新增源默认禁用（启用状态是设备本地偏好）。
+        final existingById = {for (final s in _sources!.sources) s.id: s};
+        await _sources!.replaceAllSources([
+          for (final raw in sources)
+            if (raw is Map)
+              () {
+                final remote = CustomSource.fromJson(
+                  Map<String, dynamic>.from(raw),
+                );
+                final local = existingById[remote.id];
+                if (local != null) {
+                  return remote.copyWith(isEnabled: local.isEnabled);
+                }
+                return remote.copyWith(isEnabled: false);
+              }(),
+        ]);
+      }
+    } finally {
+      onApplyingRemote?.call(false);
     }
     final ratings = snapshot['ratings'];
     if (ratings is Map) {

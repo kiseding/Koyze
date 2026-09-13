@@ -517,7 +517,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                     controller: controller,
                     focusNode: inputFocus,
                     autofocus: true,
-                    keyboardType: TextInputType.url,
+                    keyboardType: desktopSafeKeyboardType(TextInputType.url),
                     textInputAction: TextInputAction.done,
                     autocorrect: false,
                     style: TextStyle(

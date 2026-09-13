@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 import '../../cloud/domain/cloud_api_client.dart';
 import 'cloud_sync_provider.dart';
+import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 
@@ -241,8 +242,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             : null,
                       ),
                       foregroundColor: WidgetStateProperty.resolveWith(
-                        (states) =>
-                            states.contains(WidgetState.selected)
+                        (states) => states.contains(WidgetState.selected)
                             ? AppColors.amber
                             : AppColors.mutedText(context),
                       ),
@@ -454,7 +454,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 child: TextField(
                   controller: ctrl,
                   focusNode: urlFocus,
-                  keyboardType: TextInputType.url,
+                  keyboardType: desktopSafeKeyboardType(TextInputType.url),
                   textInputAction: TextInputAction.done,
                   autocorrect: false,
                   enableInteractiveSelection: true,
@@ -633,7 +633,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             ),
                           ),
                           subtitle: Text(
-                            role == 'admin' ? '管理员 · id=${u['id']}' : '普通用户 · id=${u['id']}',
+                            role == 'admin'
+                                ? '管理员 · id=${u['id']}'
+                                : '普通用户 · id=${u['id']}',
                             style: TextStyle(
                               color: AppColors.mutedText(context),
                               fontSize: 12,

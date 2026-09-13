@@ -169,6 +169,9 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
 
   void onApplyingRemote(bool applying) {
     _applyingRemote = applying;
+    if (!applying) {
+      _knownSources = {for (final source in _phase1.sources) source.id: source};
+    }
   }
 
   void onProgress(String message) {
@@ -195,20 +198,24 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
 
   void sourcesChanged(List<CustomSource> sources) {
     final next = {for (final source in sources) source.id: source};
-    if (!_applyingRemote) {
-      for (final source in next.values) {
-        if (_knownSources[source.id]?.updatedAt != source.updatedAt) {
-          unawaited(_phase1.recordSource(source));
-        }
+    if (_applyingRemote) {
+      _knownSources = next;
+      return;
+    }
+    var changed = false;
+    for (final source in next.values) {
+      final known = _knownSources[source.id];
+      if (known == null || !known.sameSyncDefinition(source)) {
+        unawaited(_phase1.recordSource(source));
+        changed = true;
       }
-      for (final id in _knownSources.keys.where(
-        (id) => !next.containsKey(id),
-      )) {
-        unawaited(_phase1.recordSourceRemoval(id));
-      }
-      localChanged();
+    }
+    for (final id in _knownSources.keys.where((id) => !next.containsKey(id))) {
+      unawaited(_phase1.recordSourceRemoval(id));
+      changed = true;
     }
     _knownSources = next;
+    if (changed) localChanged();
   }
 
   void sessionChanged(bool loggedIn) {

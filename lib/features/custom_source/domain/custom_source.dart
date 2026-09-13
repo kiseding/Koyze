@@ -78,4 +78,14 @@ class CustomSource {
       isEnabled: json['isEnabled'] ?? true,
     );
   }
+
+  /// Fields that belong on the wire. Enablement and timestamps stay local.
+  bool sameSyncDefinition(CustomSource other) =>
+      id == other.id &&
+      name == other.name &&
+      description == other.description &&
+      version == other.version &&
+      author == other.author &&
+      homepage == other.homepage &&
+      script == other.script;
 }

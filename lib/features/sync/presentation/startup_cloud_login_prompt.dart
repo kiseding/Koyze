@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/auto_text_input.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 
 const startupCloudLoginPromptSeenKey = 'startup_cloud_login_prompt_seen';
@@ -162,7 +163,7 @@ class _StartupCloudLoginPageState
                   TextField(
                     controller: _serverCtrl,
                     focusNode: _serverFocus,
-                    keyboardType: TextInputType.url,
+                    keyboardType: desktopSafeKeyboardType(TextInputType.url),
                     textInputAction: TextInputAction.next,
                     autocorrect: false,
                     onSubmitted: (_) => _userFocus.requestFocus(),
