@@ -394,6 +394,51 @@ void main() {
     expect(handler.playbackState.value.playing, isTrue);
   });
 
+  test('card play keeps UI playing while the new source is still resolving',
+      () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+    await handler.setPlaylist(const [MediaItem(id: 'Old', title: 'Old')]);
+    expect(player.playing, isTrue);
+    expect(handler.playbackState.value.playing, isTrue);
+
+    final resolverStarted = Completer<void>();
+    final releaseResolver = Completer<void>();
+    handler.urlResolver = (id, [extras]) async {
+      if (id == 'New') {
+        resolverStarted.complete();
+        await releaseResolver.future;
+      }
+      return 'file:///tmp/$id.mp3';
+    };
+
+    final replacement = handler.setPlaylist(const [
+      MediaItem(id: 'New', title: 'New'),
+    ]);
+    await resolverStarted.future;
+
+    expect(player.playing, isFalse);
+    expect(handler.mediaItem.value?.id, 'New');
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.buffering,
+    );
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(handler.playbackState.value.controls, contains(MediaControl.pause));
+    expect(
+      handler.playbackState.value.controls,
+      isNot(contains(MediaControl.play)),
+    );
+
+    releaseResolver.complete();
+    await replacement;
+    expect(player.playing, isTrue);
+    expect(handler.playbackState.value.playing, isTrue);
+  });
+
   test('next keeps native audio session playing while resolving new source',
       () async {
     final player = _PlaybackStateAudioPlayer()

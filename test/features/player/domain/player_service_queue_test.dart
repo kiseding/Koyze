@@ -304,10 +304,58 @@ void main() {
       // The old track must already be silent before the new URL resolves.
       expect(player.pauseCalls, greaterThan(pausesBefore));
       expect(player.playing, isFalse);
+      // Mini-player / full-screen buttons read playbackState.playing, not the
+      // native engine. Card play must keep that flag true during resolve, or
+      // the buttons show "play" while the new track is about to start.
+      expect(handler.playbackState.value.playing, isTrue);
 
       releaseSlowResolver.complete();
       await replacement;
       expect(player.playing, isTrue);
+      expect(handler.playbackState.value.playing, isTrue);
+    },
+  );
+
+  test(
+    'togglePlay during card-play resolve pauses instead of starting again',
+    () async {
+      audioHandler = handler;
+      final service = PlayerService();
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      MediaItem item(String id, {required bool resolved}) => MediaItem(
+        id: id,
+        title: id,
+        extras: resolved
+            ? {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'}
+            : {'requestedQuality': '320k'},
+      );
+
+      await handler.setPlaylist([item('Old', resolved: true)]);
+      expect(player.playing, isTrue);
+      handler.urlResolver = (id, [extras]) async {
+        if (id == 'New') {
+          resolverStarted.complete();
+          await releaseResolver.future;
+        }
+        return 'file:///tmp/$id.mp3';
+      };
+
+      final replacement = handler.setPlaylist([item('New', resolved: false)]);
+      await resolverStarted.future;
+      expect(handler.playbackState.value.playing, isTrue);
+      expect(player.playing, isFalse);
+      final pausesBeforeToggle = player.pauseCalls;
+
+      await service.togglePlay();
+
+      expect(player.pauseCalls, greaterThanOrEqualTo(pausesBeforeToggle));
+      expect(handler.playbackState.value.playing, isFalse);
+
+      releaseResolver.complete();
+      await replacement;
+      expect(player.playing, isFalse);
+      expect(handler.playbackState.value.playing, isFalse);
     },
   );
 

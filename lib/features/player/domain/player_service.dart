@@ -225,12 +225,11 @@ class PlayerService {
 
   Future<void> togglePlay() async {
     unawaited(HapticFeedback.selectionClick());
-    if (audioHandler is LxAudioHandler) {
-      final handler = audioHandler as LxAudioHandler;
-      handler.player.playing ? await handler.pause() : await handler.play();
-    } else {
-      isPlaying ? await audioHandler.pause() : await audioHandler.play();
-    }
+    // Match the icon the UI is showing (playbackState.playing), not the native
+    // engine. Card play / skip pauses the engine while resolving a new URL but
+    // keeps the published state as playing; reading player.playing here would
+    // treat that as "paused" and call play() again.
+    isPlaying ? await audioHandler.pause() : await audioHandler.play();
   }
 
   void _notifyManualPlay(String songName) {

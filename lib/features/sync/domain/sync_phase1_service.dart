@@ -307,16 +307,27 @@ final class SyncPhase1Service {
           : (await _playlists!.getAllSongs('favorites')).length;
       final cloudFavoriteCount =
           (status['favoriteCount'] as num?)?.toInt() ?? 0;
+      final cloudHasFavorites = cloudFavoriteCount > 0;
+      onProgress?.call('检查云端数据');
+      if (firstSync && cloudHasFavorites) {
+        // Login-first only: cloud favorites win. Later incremental sync must
+        // not clear local or re-seed the discarded songs.
+        onProgress?.call('云端已有收藏，改用云端数据');
+        await _discardPendingFavoriteUploads(account);
+        await _clearLocalFavorites();
+      }
       await _ensureFavoriteBaseline(
         account,
-        force: cloudFavoriteCount < localFavoriteCount,
+        force: cloudFavoriteCount < localFavoriteCount &&
+            !(firstSync && cloudHasFavorites),
       );
-      onProgress?.call('检查云端数据');
       if (firstSync && status['hasCloudData'] == true) {
         // New devices should land on the compacted cloud state first. Replaying
         // the full favorite.add/remove history makes the list grow then shrink.
         onProgress?.call('下载云端数据');
-        await _bootstrapFromSnapshot();
+        await _bootstrapFromSnapshot(
+          preserveLocalFavoritesIfCloudEmpty: !cloudHasFavorites,
+        );
       }
       await identity.setState(account, SyncAccountState.syncing);
       onProgress?.call('上传本地变更');
@@ -376,6 +387,33 @@ final class SyncPhase1Service {
     if (favorites.isEmpty) await identity.markFavoriteBaseline(accountId);
   }
 
+  Future<void> _discardPendingFavoriteUploads(SyncAccount account) async {
+    final events = await outbox.load();
+    final discarded = [
+      for (final event in events)
+        if ((event.accountId == account.accountId || event.accountId == null) &&
+            (event.eventType == 'favorite.add' ||
+                event.eventType == 'favorite.remove'))
+          event.eventId,
+    ];
+    if (discarded.isEmpty) return;
+    await outbox.removeProcessed(discarded);
+  }
+
+  Future<void> _clearLocalFavorites() async {
+    final service = _playlists;
+    if (service == null) return;
+    await service.withoutSyncRecording(() async {
+      final playlists = [
+        for (final playlist in await service.getAllPlaylists())
+          playlist.id == 'favorites'
+              ? playlist.copyWith(songs: const [])
+              : playlist,
+      ];
+      await service.replaceAll(playlists, syncable: false);
+    });
+  }
+
   Future<void> fullResync() async {
     if (!api.isLoggedIn) return;
     await _bootstrapFromSnapshot();
@@ -383,9 +421,14 @@ final class SyncPhase1Service {
     await identity.markSynced(await identity.load());
   }
 
-  Future<void> _bootstrapFromSnapshot() async {
+  Future<void> _bootstrapFromSnapshot({
+    bool preserveLocalFavoritesIfCloudEmpty = false,
+  }) async {
     final snapshot = await api.fetchSyncSnapshot();
-    await _applySnapshot(snapshot);
+    await _applySnapshot(
+      snapshot,
+      preserveLocalFavoritesIfCloudEmpty: preserveLocalFavoritesIfCloudEmpty,
+    );
     final snapshotCursor = (snapshot['cursor'] as num?)?.toInt();
     if (snapshotCursor != null && snapshotCursor >= 0) {
       await cursor.write(snapshotCursor);
@@ -394,7 +437,10 @@ final class SyncPhase1Service {
     }
   }
 
-  Future<void> _applySnapshot(Map<String, dynamic> snapshot) async {
+  Future<void> _applySnapshot(
+    Map<String, dynamic> snapshot, {
+    bool preserveLocalFavoritesIfCloudEmpty = false,
+  }) async {
     final service = _playlists;
     if (service == null ||
         _ratings == null ||
@@ -432,8 +478,20 @@ final class SyncPhase1Service {
       (count, playlist) => count + playlist.songs.length,
     );
     final localFavoriteCount = service.favorites?.songCount ?? 0;
-    if (snapshotFavoriteCount == 0 && localFavoriteCount > 0) {
+    if (preserveLocalFavoritesIfCloudEmpty &&
+        snapshotFavoriteCount == 0 &&
+        localFavoriteCount > 0) {
+      // replaceAll rebuilds missing system playlists as empty, so omitting
+      // favorites would wipe the local list we still need to upload.
       playlists.removeWhere((playlist) => playlist.id == 'favorites');
+      final localFavorites = service.favorites;
+      if (localFavorites != null) {
+        playlists.add(
+          localFavorites.copyWith(
+            songs: await service.getAllSongs('favorites'),
+          ),
+        );
+      }
     }
     await service.withoutSyncRecording(
       () => service.replaceAll(playlists, syncable: false),

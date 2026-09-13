@@ -1657,6 +1657,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         transitionToken != null &&
         transitionToken == _commands.desiredSourceToken &&
         _commands.desiredPlayingIntent;
+    // Keep published playing=true during card-play / skip resolve, but do not
+    // lock processingState to buffering: engine events (ready/completed) must
+    // still surface while the new URL is resolving.
     final playing =
         playingOverride ?? (keepingNativeSession ? true : _player.playing);
     final publicationToken = ++_playbackPublicationToken;
@@ -1674,10 +1677,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           MediaAction.seekBackward,
         },
         processingState:
-            override ??
-            (keepingNativeSession
-                ? AudioProcessingState.buffering
-                : audioProcessingState(_player.processingState)),
+            override ?? audioProcessingState(_player.processingState),
         playing: playing,
         updatePosition: positionOverride ?? _player.position,
         bufferedPosition: _player.bufferedPosition,
@@ -1783,12 +1783,17 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (clearIntent) {
       _userIntentGeneration++;
       _userWantsPlay = false;
+      // Drop the card-play / skip overlay immediately so mini-player and
+      // full-screen buttons flip to play while an in-flight setPlaylist is
+      // still resolving the next URL.
+      _nativeTransitionSourceToken = null;
+      _publishPlaybackState(playingOverride: false);
     }
     final owner = clearIntent ? null : await _commands.pausePreservingIntent();
     if (_disposed) return null;
-    if (clearIntent) await _commands.recordExplicitPauseIntent();
+    if (clearIntent) unawaited(_commands.recordExplicitPauseIntent());
     if (_disposed) return null;
-    await super.pause();
+    await _player.pause();
     return owner;
   }
 
@@ -2704,6 +2709,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       occurrenceId: selectedOccurrenceId!,
       position: initialPosition,
     );
+    // Mark the session as "still playing" before the engine is halted, so a
+    // coordinator publish during resolve cannot flip mini/full-screen buttons
+    // back to the play icon.
+    if (playAfterLoad) {
+      _nativeTransitionSourceToken = sourceCommandToken;
+    }
     final halt = seamless ? null : await _haltCurrentPlayback();
     if (_disposed) return;
     final relocatedIndex = _indexOfOccurrence(selectedOccurrenceId);
@@ -2848,6 +2859,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // Keep system now-playing session alive during skip (lock screen / Control
       // Center). Publishing playing:false here stops iOS audio and looks stuck.
       final keepPlaying = seamless || _userWantsPlay;
+      if (keepPlaying) {
+        _nativeTransitionSourceToken = commandToken;
+      }
       mediaItem.add(item);
       queue.add(List.unmodifiable(_queue));
       final manualBufferingPublication = _publishPlaybackState(
@@ -3057,7 +3071,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         mediaItem.add(updatedItem);
         _publishPlaybackState(
           override: AudioProcessingState.buffering,
-          playingOverride: keepPlaying ? true : false,
+          playingOverride: (seamless || _userWantsPlay) ? true : false,
           positionOverride: initialPosition,
         );
         foregroundRequest.item = updatedItem;
@@ -3235,7 +3249,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             _publishPlaybackState();
           }
         }
-        if (!sourceInstallAttempted &&
+        if (_installedSourceOwnerToken != commandToken &&
+            _nativeTransitionSourceToken == commandToken) {
+          _nativeTransitionSourceToken = null;
+          _publishPlaybackState();
+        } else if (!sourceInstallAttempted &&
             !sourceTransitionFollows &&
             manualBufferingPublication == _playbackPublicationToken) {
           _publishPlaybackState();
@@ -3336,6 +3354,19 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       unawaited(_commands.clearPreservingPauseOwners());
     }
 
+    // Request the new source before silencing the old one, and keep the
+    // published playing flag true for the whole resolve window. Card play
+    // (setPlaylist from a list card) pauses the engine immediately; without
+    // this token, coordinator publishes would show the play icon on the mini
+    // bar / full-screen player while the new track is about to start.
+    final sourceCommandToken = _commands.requestSource(
+      occurrenceId: _occurrenceIdAt(safeIndex),
+      position: Duration.zero,
+    );
+    if (playWhenReady) {
+      _nativeTransitionSourceToken = sourceCommandToken;
+    }
+
     // Silence a currently audible track right away (including tracks started
     // from another list) instead of letting it play until the new URL
     // resolves. Fresh starts have nothing to silence and must not record an
@@ -3350,6 +3381,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       safeIndex,
       preserveUserIntent: true,
       provenance: provenance,
+      sourceCommandToken: sourceCommandToken,
       preservingPauseOwner: halt,
     );
 
