@@ -1793,7 +1793,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_disposed) return null;
     if (clearIntent) unawaited(_commands.recordExplicitPauseIntent());
     if (_disposed) return null;
-    await _player.pause();
+    // User-initiated pause must silence the engine immediately even if a
+    // source install is still in flight. Quality reload / scrub already pause
+    // once through pausePreservingIntent(); a second engine pause here would
+    // double-count and break "playing quality change pauses … resumes".
+    if (clearIntent) await _player.pause();
     return owner;
   }
 
