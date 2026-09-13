@@ -1,7 +1,7 @@
 name: koyze
 description: Koyze - 一个免费的音乐查找助手
 publish_to: 'none'
-version: 2.8.1+9
+version: 2.8.2+10
 
 environment:
   sdk: '>=3.12.0 <4.0.0'
