@@ -302,9 +302,6 @@ final class SyncPhase1Service {
     await identity.setState(account, SyncAccountState.merging);
     try {
       final status = await api.fetchSyncAccountStatus();
-      final localFavoriteCount = _playlists == null
-          ? 0
-          : (await _playlists!.getAllSongs('favorites')).length;
       final cloudFavoriteCount =
           (status['favoriteCount'] as num?)?.toInt() ?? 0;
       final cloudHasFavorites = cloudFavoriteCount > 0;
@@ -316,11 +313,11 @@ final class SyncPhase1Service {
         await _discardPendingFavoriteUploads(account);
         await _clearLocalFavorites();
       }
-      await _ensureFavoriteBaseline(
-        account,
-        force: cloudFavoriteCount < localFavoriteCount &&
-            !(firstSync && cloudHasFavorites),
-      );
+      // Seed the full local list only when this account has never established a
+      // favorite baseline (first login, empty cloud). Never re-queue every
+      // favorite just because localCount > cloudCount — starring one song
+      // would otherwise upload the entire list and stall the device.
+      await _ensureFavoriteBaseline(account);
       if (firstSync && status['hasCloudData'] == true) {
         // New devices should land on the compacted cloud state first. Replaying
         // the full favorite.add/remove history makes the list grow then shrink.
@@ -357,14 +354,11 @@ final class SyncPhase1Service {
     }
   }
 
-  Future<void> _ensureFavoriteBaseline(
-    SyncAccount account, {
-    bool force = false,
-  }) async {
+  Future<void> _ensureFavoriteBaseline(SyncAccount account) async {
     final accountId = account.accountId;
     final service = _playlists;
     if (accountId == null || service == null) return;
-    if (!force && await identity.hasFavoriteBaseline(accountId)) return;
+    if (await identity.hasFavoriteBaseline(accountId)) return;
     final favorites = await service.getAllSongs('favorites');
     for (final song in favorites) {
       final digest = sha256

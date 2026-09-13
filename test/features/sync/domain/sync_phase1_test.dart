@@ -37,6 +37,7 @@ void main() {
     expect(source, contains('_clearLocalFavorites'));
     expect(source, contains('preserveLocalFavoritesIfCloudEmpty'));
     expect(source, contains('firstSync && cloudHasFavorites'));
+    expect(source, isNot(contains('cloudFavoriteCount < localFavoriteCount')));
     expect(source, isNot(contains('if (firstSync) await cursor.clear();')));
     expect(
       source,
@@ -254,6 +255,56 @@ void main() {
       expect(
         harness.api.pushedEvents.map((event) => event['entityId']),
         contains(later.identityKey),
+      );
+    },
+  );
+
+  test(
+    'starring one song after login uploads only that favorite event',
+    () async {
+      final cloudA = _song('cloud-a', 'Cloud A');
+      final cloudB = _song('cloud-b', 'Cloud B');
+      final starred = _song('starred-1', 'Just Starred');
+      final harness = await _FirstLoginHarness.create(
+        localFavorites: [_song('stale-local', 'Stale')],
+        status: const {'hasCloudData': true, 'favoriteCount': 2},
+        snapshot: _favoriteSnapshot([cloudA, cloudB], cursor: 20),
+      );
+
+      await harness.phase1.sync();
+      expect(
+        (await harness.playlists.getAllSongs('favorites')).map(
+          (song) => song.id,
+        ),
+        ['cloud-a', 'cloud-b'],
+      );
+
+      harness.api.snapshotCalls = 0;
+      harness.api.pushedEvents.clear();
+      await harness.playlists.addSongToPlaylist('favorites', starred);
+      await harness.phase1.enqueue(
+        eventType: 'favorite.add',
+        entityId: starred.identityKey,
+        payload: {'playlistId': 'favorites', 'song': starred.toJson()},
+      );
+
+      await harness.phase1.sync();
+
+      final favoriteAdds = harness.api.pushedEvents
+          .where((event) => event['eventType'] == 'favorite.add')
+          .toList(growable: false);
+      expect(harness.api.snapshotCalls, 0);
+      expect(favoriteAdds, hasLength(1));
+      expect(favoriteAdds.single['entityId'], starred.identityKey);
+      expect(
+        favoriteAdds.single['eventId']?.toString(),
+        isNot(startsWith('evt_favbase_')),
+      );
+      expect(
+        (await harness.playlists.getAllSongs('favorites')).map(
+          (song) => song.id,
+        ),
+        ['starred-1', 'cloud-a', 'cloud-b'],
       );
     },
   );
