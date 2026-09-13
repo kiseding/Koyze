@@ -10,6 +10,18 @@ void main() {
     expect(pubspec, contains("flutter: '>=3.44.0'"));
   });
 
+  test('settings about row shows the pubspec version', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final version = RegExp(
+      r'^version:\s*([0-9.]+)',
+      multiLine: true,
+    ).firstMatch(pubspec)!.group(1)!;
+    final settings = File(
+      'lib/features/settings/presentation/settings_screen.dart',
+    ).readAsStringSync();
+    expect(settings, contains("name: '版本', value: 'v$version'"));
+  });
+
   test('platform workflows use the same pinned Flutter patch release', () {
     for (final platform in ['android', 'ios', 'linux', 'macos', 'windows']) {
       final workflow = File(
