@@ -37,6 +37,7 @@ void main() {
     );
     await handler.setPlaylist([item('A'), item('B')]);
     final loadsBefore = player.sourceLoadCalls;
+    final playStartsBefore = player.nativePlayStarts;
     prepares.clear();
 
     handler.debugEmitTrackCompleted();
@@ -46,6 +47,12 @@ void main() {
     expect(prepares.first, loadsBefore);
     expect(handler.mediaItem.value?.id, 'B');
     expect(player.playing, isTrue);
+    expect(
+      player.nativePlayStarts,
+      greaterThan(playStartsBefore),
+      reason: 'just_audio.play() is a no-op while playing; auto-next must '
+          'pause then play so the next track is actually audible',
+    );
   });
 
   test('duplicate completion advances only once', () async {
@@ -142,6 +149,7 @@ void main() {
         return 'file:///tmp/$id.mp3';
       };
       await handler.setPlaylist([item('A'), next]);
+      final playStartsBefore = player.nativePlayStarts;
 
       handler.debugEmitTrackCompleted();
       await resolverStarted.future;
@@ -157,6 +165,13 @@ void main() {
 
       expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'B');
       expect(player.playing, isTrue);
+      expect(
+        player.nativePlayStarts,
+        greaterThan(playStartsBefore),
+        reason:
+            'silence keepalive leaves playing=true; the real source must '
+            'restart native play instead of relying on a no-op play()',
+      );
     },
   );
 
@@ -217,6 +232,11 @@ void main() {
     expect(source, isNot(contains('_player.positionStream.listen')));
     expect(source, isNot(contains('_player.currentIndexStream.listen')));
     expect(source, isNot(contains("_onTrackCompleted('position-end')")));
+    expect(source, contains('restartPlayAfterSourceChange: true'));
+    expect(
+      source,
+      isNot(contains('restartPlayAfterSourceChange: Platform.isAndroid')),
+    );
   });
 
   test('seamless queue-item command remains available for background use', () {
@@ -285,6 +305,7 @@ class _CompletionAudioPlayer extends AudioPlayer {
   bool _playing = false;
   bool _shuffleModeEnabled = false;
   int sourceLoadCalls = 0;
+  int nativePlayStarts = 0;
   Completer<void>? _sourceLoadStarted;
   Completer<void>? _releaseSourceLoad;
   Completer<void>? _pauseStarted;
@@ -346,6 +367,9 @@ class _CompletionAudioPlayer extends AudioPlayer {
 
   @override
   Future<void> play() async {
+    // Mirror just_audio: play() is a no-op while playing is still true.
+    if (_playing) return;
+    nativePlayStarts++;
     _playing = true;
   }
 

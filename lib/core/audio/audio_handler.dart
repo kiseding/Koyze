@@ -847,7 +847,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           }
         },
         prepareForPlayback: _prepareForPlayback,
-        restartPlayAfterSourceChange: Platform.isAndroid,
+        // iOS keeps playing=true across completion and silence keepalive, so
+        // just_audio.play() would otherwise be a no-op and the next track
+        // advances without sound. Pause+play stays inside the coordinator;
+        // _publishPlaybackState still reports playing=true to Now Playing.
+        restartPlayAfterSourceChange: true,
       );
 
   AudioPlayer get player => _player;

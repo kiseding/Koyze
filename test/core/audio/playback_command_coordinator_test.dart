@@ -664,7 +664,6 @@ void main() {
       final coordinator = PlaybackCommandCoordinator(
         player,
         prepareForPlayback: () async => events.add('prepare'),
-        restartPlayAfterSourceChange: true,
       );
       addTearDown(player.dispose);
       await _install(coordinator);

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -101,13 +100,16 @@ class PlaybackCommandCoordinator {
     PlaybackMutationError? onError,
     PrepareForPlayback? prepareForPlayback,
     Duration sourceLoadTimeout = const Duration(seconds: 20),
-    bool? restartPlayAfterSourceChange,
+    // just_audio.play() is a no-op while playing is still true. After a
+    // completed/silence source change the native player can keep playing=true
+    // (especially on iOS), so the next track is installed but never becomes
+    // audible unless we pause then play again.
+    bool restartPlayAfterSourceChange = true,
   }) : _onStateChanged = onStateChanged,
        _onError = onError,
        _prepareForPlayback = prepareForPlayback,
        _sourceLoadTimeout = sourceLoadTimeout,
-       _restartPlayAfterSourceChange =
-           restartPlayAfterSourceChange ?? Platform.isAndroid;
+       _restartPlayAfterSourceChange = restartPlayAfterSourceChange;
 
   int get sourceToken => _sourceToken;
   int? get desiredSourceToken => _desiredSource?.token;
@@ -217,10 +219,12 @@ class PlaybackCommandCoordinator {
         // task so the caller moves on to installing the real source in the same
         // turn. Awaiting here would let the silence-play error land before that
         // install, which cancels the caller's recovery generation.
+        // Do not forceRestart here: pausing the keepalive while the next URL
+        // is still resolving can end the iOS background audio session.
         unawaited(
           _beginPlay(
             token,
-            forceRestart: _restartPlayAfterSourceChange,
+            forceRestart: false,
             skipWhenAlreadyPlaying: true,
           ),
         );
