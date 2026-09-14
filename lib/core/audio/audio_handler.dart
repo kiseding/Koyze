@@ -828,6 +828,17 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   static AudioPlayer _createDefaultPlayer() => AudioPlayer(
     handleInterruptions: false,
     useProxyForRequestHeaders: Platform.isWindows,
+    // iOS AVPlayer defaults to automaticallyWaitsToMinimizeStalling=YES:
+    // setting rate after a background source change only enters
+    // waitingToPlayAtSpecifiedRate, and iOS never schedules the buffering for
+    // a player that is not yet playing, so background auto-next stays muted
+    // in buffering forever. Disabling it makes the rate kick start playback
+    // immediately (trade-off: a slow stream may briefly stall).
+    audioLoadConfiguration: const AudioLoadConfiguration(
+      darwinLoadControl: DarwinLoadControl(
+        automaticallyWaitsToMinimizeStalling: false,
+      ),
+    ),
   );
 
   PlaybackCommandCoordinator _createCommandCoordinator(AudioPlayer player) =>

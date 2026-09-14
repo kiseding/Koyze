@@ -252,6 +252,20 @@ void main() {
     expect(source, contains('pauseInternal({bool clearIntent = true})'));
   });
 
+  test('default player starts darwin playback without waiting for buffer', () {
+    final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
+    expect(
+      source,
+      contains('automaticallyWaitsToMinimizeStalling: false'),
+    );
+    // The eager-start configuration must reach the player constructor, not
+    // sit on a detached factory nobody calls.
+    expect(
+      source,
+      contains('audioLoadConfiguration: const AudioLoadConfiguration('),
+    );
+  });
+
   test(
     'repeat is owned by completion policy rather than native source loop',
     () {
