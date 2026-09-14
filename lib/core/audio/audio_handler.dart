@@ -847,6 +847,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           }
         },
         prepareForPlayback: _prepareForPlayback,
+        restartPlayAfterSourceChange: Platform.isAndroid,
       );
 
   AudioPlayer get player => _player;
@@ -1449,93 +1450,130 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         playingOverride: true,
       );
     }
-    Future(() async {
-      try {
-        await _ensureLazyQueueAhead(1);
-        if (_isStale(gen) ||
-            !_commands.installedSourceIsAuthoritative ||
-            _installedPlaybackGeneration != gen ||
-            _installedMediaId != expectedId ||
-            _activeItemId != expectedId ||
-            _activeOccurrenceId != expectedOccurrence ||
-            (_usesLazyQueue
-                ? _indexOfOccurrence(expectedOccurrence) != _currentIndex
-                : _currentIndex != expectedIndex) ||
-            _currentIndex >= _queue.length ||
-            _occurrenceIdAt(_currentIndex) != expectedOccurrence ||
-            _queue[_currentIndex].id != expectedId ||
-            mediaItem.value?.id != expectedId ||
-            _userIntentGeneration != expectedIntentGeneration ||
-            !_userWantsPlay) {
-          return;
-        }
-        final shuffle =
-            !_usesLazyQueue &&
-            (_player.shuffleModeEnabled ||
-                playbackState.value.shuffleMode == AudioServiceShuffleMode.all);
-        final preparedShuffle = _preparedShuffleNextIndex;
-        final target =
-            shuffle &&
-                preparedShuffle != null &&
-                preparedShuffle >= 0 &&
-                preparedShuffle < _queue.length &&
-                preparedShuffle != _currentIndex
-            ? preparedShuffle
-            : completionQueueIndex(
-                currentIndex: _currentIndex,
-                queueLength: _queue.length,
-                repeatMode: playbackState.value.repeatMode,
-                shuffle: shuffle,
-              );
-        if (target < 0) {
-          if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all) {
-            _scheduleCompletionRecovery(
-              generation: gen,
-              occurrenceId: expectedOccurrence,
-              itemId: expectedId,
-            );
-            return;
-          }
-          _userWantsPlay = false;
-          await _commands.setDesiredPlayingPreservingIntent(false);
-          if (!_isStale(gen) &&
-              _activeOccurrenceId == expectedOccurrence &&
-              _activeItemId == expectedId &&
-              mediaItem.value?.id == expectedId) {
-            _publishPlaybackState(
-              override: AudioProcessingState.completed,
-              playingOverride: false,
-            );
-          }
-          return;
-        }
-        await _skipToNextInternal(
-          seamless: true,
+    unawaited(
+      // Keep the completion pass in its own event-loop task: starting it
+      // synchronously lets it overtake an in-flight play-error retry and skip a
+      // track that is still being recovered.
+      Future<void>(
+        () => _continueAfterTrackCompleted(
+          generation: gen,
+          expectedId: expectedId,
+          expectedIndex: expectedIndex,
+          expectedOccurrence: expectedOccurrence,
+          expectedIntentGeneration: expectedIntentGeneration,
           provenance: provenance,
-          targetIndex: target,
-        );
-        if (_playGeneration == gen &&
-            _player.processingState == ProcessingState.completed) {
+          mayContinue: mayContinue,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _continueAfterTrackCompleted({
+    required int generation,
+    required String expectedId,
+    required int expectedIndex,
+    required int expectedOccurrence,
+    required int expectedIntentGeneration,
+    required PlaybackStartProvenance provenance,
+    required bool mayContinue,
+  }) async {
+    try {
+      if (mayContinue) {
+        try {
+          await _prepareForPlayback?.call();
+        } catch (error, stackTrace) {
+          AppLog.instance.record(
+            'audio.session',
+            'session reactivation after completion failed: $error',
+            level: AppLogLevel.warning,
+            stackTrace: stackTrace,
+          );
+        }
+      }
+      await _ensureLazyQueueAhead(1);
+      if (_isStale(generation) ||
+          !_commands.installedSourceIsAuthoritative ||
+          _installedPlaybackGeneration != generation ||
+          _installedMediaId != expectedId ||
+          _activeItemId != expectedId ||
+          _activeOccurrenceId != expectedOccurrence ||
+          (_usesLazyQueue
+              ? _indexOfOccurrence(expectedOccurrence) != _currentIndex
+              : _currentIndex != expectedIndex) ||
+          _currentIndex >= _queue.length ||
+          _occurrenceIdAt(_currentIndex) != expectedOccurrence ||
+          _queue[_currentIndex].id != expectedId ||
+          mediaItem.value?.id != expectedId ||
+          _userIntentGeneration != expectedIntentGeneration ||
+          !_userWantsPlay) {
+        return;
+      }
+      final shuffle =
+          !_usesLazyQueue &&
+          (_player.shuffleModeEnabled ||
+              playbackState.value.shuffleMode == AudioServiceShuffleMode.all);
+      final preparedShuffle = _preparedShuffleNextIndex;
+      final target =
+          shuffle &&
+              preparedShuffle != null &&
+              preparedShuffle >= 0 &&
+              preparedShuffle < _queue.length &&
+              preparedShuffle != _currentIndex
+          ? preparedShuffle
+          : completionQueueIndex(
+              currentIndex: _currentIndex,
+              queueLength: _queue.length,
+              repeatMode: playbackState.value.repeatMode,
+              shuffle: shuffle,
+            );
+      if (target < 0) {
+        if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all) {
           _scheduleCompletionRecovery(
-            generation: gen,
+            generation: generation,
             occurrenceId: expectedOccurrence,
             itemId: expectedId,
           );
+          return;
         }
-      } catch (error, stackTrace) {
-        AppLog.instance.record(
-          'audio.autonext',
-          'auto-next failed generation=$gen item=$expectedId: $error',
-          level: AppLogLevel.error,
-          stackTrace: stackTrace,
-        );
+        _userWantsPlay = false;
+        await _commands.setDesiredPlayingPreservingIntent(false);
+        if (!_isStale(generation) &&
+            _activeOccurrenceId == expectedOccurrence &&
+            _activeItemId == expectedId &&
+            mediaItem.value?.id == expectedId) {
+          _publishPlaybackState(
+            override: AudioProcessingState.completed,
+            playingOverride: false,
+          );
+        }
+        return;
+      }
+      await _skipToNextInternal(
+        seamless: true,
+        provenance: provenance,
+        targetIndex: target,
+      );
+      if (_playGeneration == generation &&
+          _player.processingState == ProcessingState.completed) {
         _scheduleCompletionRecovery(
-          generation: gen,
+          generation: generation,
           occurrenceId: expectedOccurrence,
           itemId: expectedId,
         );
       }
-    });
+    } catch (error, stackTrace) {
+      AppLog.instance.record(
+        'audio.autonext',
+        'auto-next failed generation=$generation item=$expectedId: $error',
+        level: AppLogLevel.error,
+        stackTrace: stackTrace,
+      );
+      _scheduleCompletionRecovery(
+        generation: generation,
+        occurrenceId: expectedOccurrence,
+        itemId: expectedId,
+      );
+    }
   }
 
   void _scheduleCompletionRecovery({
@@ -3187,7 +3225,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               _discardCacheKey != null &&
               _badCacheRetriedOccurrenceIds.add(occurrenceId)) {
             final discardCacheKey = _discardCacheKey!;
-            final badKey = _foregroundCacheKey ??
+            final badKey =
+                _foregroundCacheKey ??
                 item.extras?['cacheKey']?.toString() ??
                 _cacheKeyFromLeasePath(stagedLease.path);
             if (badKey != null && badKey.isNotEmpty) {

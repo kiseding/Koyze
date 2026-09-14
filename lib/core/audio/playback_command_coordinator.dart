@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -92,6 +93,7 @@ class PlaybackCommandCoordinator {
   bool _stoppingAndWaiting = false;
   Object? _shutdownError;
   StackTrace? _shutdownStackTrace;
+  final bool _restartPlayAfterSourceChange;
 
   PlaybackCommandCoordinator(
     this._player, {
@@ -99,10 +101,13 @@ class PlaybackCommandCoordinator {
     PlaybackMutationError? onError,
     PrepareForPlayback? prepareForPlayback,
     Duration sourceLoadTimeout = const Duration(seconds: 20),
+    bool? restartPlayAfterSourceChange,
   }) : _onStateChanged = onStateChanged,
        _onError = onError,
        _prepareForPlayback = prepareForPlayback,
-       _sourceLoadTimeout = sourceLoadTimeout;
+       _sourceLoadTimeout = sourceLoadTimeout,
+       _restartPlayAfterSourceChange =
+           restartPlayAfterSourceChange ?? Platform.isAndroid;
 
   int get sourceToken => _sourceToken;
   int? get desiredSourceToken => _desiredSource?.token;
@@ -172,6 +177,15 @@ class PlaybackCommandCoordinator {
       await previous;
       if (_shutdown || _desiredSource?.token != token) return false;
       try {
+        if (_effectivePlaying) {
+          try {
+            await _prepareSession();
+          } catch (error, stackTrace) {
+            // Keep installing silence so the native player stays occupied;
+            // audible start below retries session activation.
+            _onError?.call('prepare', error, stackTrace);
+          }
+        }
         await _player
             .setAudioSource(source, initialPosition: Duration.zero)
             .timeout(_sourceLoadTimeout);
@@ -198,26 +212,18 @@ class PlaybackCommandCoordinator {
         return false;
       }
       _temporarySourceToken = token;
-      if (_effectivePlaying && !_player.playing) {
-        final playToken = ++_playCommandToken;
-        _activePlayCommandToken = playToken;
-        _playSourceTokens[playToken] = token;
-        try {
-          final prepareForPlayback = _prepareForPlayback;
-          if (prepareForPlayback != null) await prepareForPlayback();
-          final lifecycle = _player.play();
-          unawaited(
-            lifecycle.then(
-              (_) => _onPlayLifecycleComplete(playToken),
-              onError: (Object error, StackTrace stackTrace) {
-                _onPlayLifecycleError(playToken, error, stackTrace);
-              },
-            ),
-          );
-        } catch (error, stackTrace) {
-          _onPlayLifecycleError(playToken, error, stackTrace);
-          return false;
-        }
+      if (_effectivePlaying) {
+        // Fire-and-forget on purpose: the play command has to be issued in this
+        // task so the caller moves on to installing the real source in the same
+        // turn. Awaiting here would let the silence-play error land before that
+        // install, which cancels the caller's recovery generation.
+        unawaited(
+          _beginPlay(
+            token,
+            forceRestart: _restartPlayAfterSourceChange,
+            skipWhenAlreadyPlaying: true,
+          ),
+        );
       }
       _onStateChanged?.call();
       return true;
@@ -479,6 +485,60 @@ class PlaybackCommandCoordinator {
       _preservingPauseOwners.isEmpty &&
       !interruptionActive;
 
+  Future<void> _prepareSession() async {
+    final prepareForPlayback = _prepareForPlayback;
+    if (prepareForPlayback != null) await prepareForPlayback();
+  }
+
+  Future<void> _beginPlay(
+    int playableSourceToken, {
+    required bool forceRestart,
+    bool skipWhenAlreadyPlaying = false,
+  }) async {
+    final playToken = ++_playCommandToken;
+    _activePlayCommandToken = playToken;
+    _playSourceTokens[playToken] = playableSourceToken;
+    try {
+      if (!_effectivePlaying || !_ownsPlayLifecycle(playToken)) return;
+      final prepareForPlayback = _prepareForPlayback;
+      if (prepareForPlayback != null) {
+        // Activate the audio session before native playback. When no session
+        // hook is installed there is nothing to activate, and awaiting anyway
+        // would push play() one microtask past the caller's await point.
+        await prepareForPlayback();
+        if (!_effectivePlaying || !_ownsPlayLifecycle(playToken)) return;
+      }
+      if (_player.playing && forceRestart) {
+        _playEndReasons[playToken] = _PlayEndReason.pause;
+        await _player.pause();
+        _playEndReasons.remove(playToken);
+        if (!_effectivePlaying || !_ownsPlayLifecycle(playToken)) return;
+        await _prepareSession();
+        if (!_effectivePlaying || !_ownsPlayLifecycle(playToken)) return;
+      }
+      if (skipWhenAlreadyPlaying && _player.playing) {
+        // Installing a temporary source must not add a second play command on
+        // top of an already running native session.
+        _playSourceTokens.remove(playToken);
+        if (_activePlayCommandToken == playToken) {
+          _activePlayCommandToken = null;
+        }
+        return;
+      }
+      final lifecycle = _player.play();
+      unawaited(
+        lifecycle.then(
+          (_) => _onPlayLifecycleComplete(playToken),
+          onError: (Object error, StackTrace stackTrace) {
+            _onPlayLifecycleError(playToken, error, stackTrace);
+          },
+        ),
+      );
+    } catch (error, stackTrace) {
+      _onPlayLifecycleError(playToken, error, stackTrace);
+    }
+  }
+
   Future<void> _reconcile(int commandRevision) async {
     try {
       if (_desiredLoopMode != null && _desiredLoopMode != _appliedLoopMode) {
@@ -522,6 +582,13 @@ class PlaybackCommandCoordinator {
           desiredSource.source != null &&
           _failedSourceToken != desiredSource.token &&
           _installedSourceToken != desiredSource.token) {
+        if (_effectivePlaying) {
+          try {
+            await _prepareSession();
+          } catch (error, stackTrace) {
+            _onError?.call('prepare', error, stackTrace);
+          }
+        }
         try {
           final duration = await _player
               .setAudioSource(
@@ -610,25 +677,11 @@ class PlaybackCommandCoordinator {
         }
         if (_lastPlayAttemptRevision == _revision) return;
         _lastPlayAttemptRevision = _revision;
-        final playToken = ++_playCommandToken;
-        _activePlayCommandToken = playToken;
-        _playSourceTokens[playToken] = playableSourceToken;
-        try {
-          final prepareForPlayback = _prepareForPlayback;
-          if (prepareForPlayback != null) await prepareForPlayback();
-          final lifecycle = _player.play();
-          _notifyIfCurrent(commandRevision);
-          unawaited(
-            lifecycle.then(
-              (_) => _onPlayLifecycleComplete(playToken),
-              onError: (Object error, StackTrace stackTrace) {
-                _onPlayLifecycleError(playToken, error, stackTrace);
-              },
-            ),
-          );
-        } catch (error, stackTrace) {
-          _onPlayLifecycleError(playToken, error, stackTrace);
-        }
+        await _beginPlay(
+          playableSourceToken,
+          forceRestart: sourceChanged && _restartPlayAfterSourceChange,
+        );
+        _notifyIfCurrent(commandRevision);
       }
     } catch (error, stackTrace) {
       if (_stoppingAndWaiting) {

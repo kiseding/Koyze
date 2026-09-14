@@ -291,14 +291,23 @@ final class SyncPhase1Service {
   Future<SyncReport?> sync() async {
     if (!api.isLoggedIn) return null;
     var account = await identity.load();
-    final firstSync =
-        account.state == SyncAccountState.anonymous ||
-        account.state == SyncAccountState.authenticated;
+    final accountId = account.accountId ?? api.accountId ?? api.username;
+    var firstLoginCompleted =
+        accountId != null && await identity.hasCompletedFirstLogin(accountId);
+    if (!firstLoginCompleted &&
+        accountId != null &&
+        (account.state == SyncAccountState.synced ||
+            account.lastSyncAt != null)) {
+      // Existing installs already finished first login before this flag existed.
+      await identity.markFirstLoginCompleted(accountId);
+      firstLoginCompleted = true;
+    }
+    final firstSync = !firstLoginCompleted;
     if (account.state == SyncAccountState.anonymous) {
       account = await identity.setState(
         account,
         SyncAccountState.authenticated,
-        accountId: api.accountId ?? api.username,
+        accountId: accountId,
       );
     }
     await identity.setState(account, SyncAccountState.merging);
@@ -332,7 +341,6 @@ final class SyncPhase1Service {
       onProgress?.call('上传本地变更');
       await push();
       onProgress?.call('应用其他设备变更');
-      final accountId = account.accountId;
       if (accountId != null &&
           !(await outbox.load()).any(
             (event) =>
@@ -343,6 +351,9 @@ final class SyncPhase1Service {
       }
       await _pullAll();
       await identity.markSynced(account);
+      if (accountId != null) {
+        await identity.markFirstLoginCompleted(accountId);
+      }
       return SyncReport.fromCurrentState(
         deviceId: account.deviceId,
         playlists: _playlists!,

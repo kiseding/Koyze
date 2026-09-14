@@ -650,9 +650,43 @@ void main() {
       await coordinator.recordExplicitPlayIntent();
       await pumpEventQueue();
 
-      expect(activationAttempts, 2);
+      expect(activationAttempts, greaterThanOrEqualTo(2));
       expect(player.playing, isTrue);
       expect(player.calls.where((call) => call == 'source').length, 2);
+    },
+  );
+
+  test(
+    'completed source change reactivates session and restarts native play',
+    () async {
+      final player = _LifecycleAudioPlayer()..playNoOpIfAlreadyPlaying = true;
+      final events = <String>[];
+      final coordinator = PlaybackCommandCoordinator(
+        player,
+        prepareForPlayback: () async => events.add('prepare'),
+        restartPlayAfterSourceChange: true,
+      );
+      addTearDown(player.dispose);
+      await _install(coordinator);
+      await coordinator.recordExplicitPlayIntent();
+      player.completeWhileStillPlaying();
+      await pumpEventQueue();
+
+      events.clear();
+      player.calls.clear();
+      final next = coordinator.requestSource(
+        occurrenceId: 2,
+        position: Duration.zero,
+      );
+      await coordinator.commitSource(
+        next,
+        AudioSource.uri(Uri.parse('file:///tmp/B.mp3')),
+      );
+
+      expect(events, isNotEmpty);
+      expect(events.first, 'prepare');
+      expect(player.calls, containsAllInOrder(['source', 'pause', 'play']));
+      expect(player.playing, isTrue);
     },
   );
 
@@ -969,6 +1003,7 @@ class _LifecycleAudioPlayer extends AudioPlayer {
   Object? sourceInstallError;
   bool sourceInstallErrorAfterSet = false;
   bool hangNextSourceInstall = false;
+  bool playNoOpIfAlreadyPlaying = false;
   Duration? sourceDuration;
   final calls = <String>[];
 
@@ -1005,6 +1040,9 @@ class _LifecycleAudioPlayer extends AudioPlayer {
   Future<void> play() {
     calls.add('play');
     playCalls++;
+    if (playNoOpIfAlreadyPlaying && _playing) {
+      return Future<void>.value();
+    }
     _playing = true;
     _processingState = ProcessingState.ready;
     _playLifecycle = Completer<void>();
@@ -1038,6 +1076,11 @@ class _LifecycleAudioPlayer extends AudioPlayer {
 
   void completeNaturally() {
     _playing = false;
+    _processingState = ProcessingState.completed;
+    _completePlayLifecycle();
+  }
+
+  void completeWhileStillPlaying() {
     _processingState = ProcessingState.completed;
     _completePlayLifecycle();
   }

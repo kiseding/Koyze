@@ -12,6 +12,7 @@ import 'package:koyze/features/sync/domain/sync_account.dart';
 import 'package:koyze/features/sync/domain/sync_event.dart';
 import 'package:koyze/features/sync/domain/sync_phase1_service.dart';
 import 'package:koyze/features/sync/domain/sync_state_machine.dart';
+import 'package:koyze/features/sync/presentation/cloud_sync_provider.dart';
 import 'package:koyze/features/custom_source/domain/custom_source.dart';
 import 'package:koyze/features/custom_source/domain/custom_source_service.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
@@ -25,25 +26,31 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('first sync bootstraps from a snapshot instead of replaying history', () {
-    final source = File(
-      'lib/features/sync/domain/sync_phase1_service.dart',
-    ).readAsStringSync();
-    expect(source, contains('_bootstrapFromSnapshot()'));
-    expect(source, contains('_snapshotSong'));
-    expect(source, contains('snapshotFavoriteCount == 0 &&'));
-    expect(source, contains('localFavoriteCount > 0'));
-    expect(source, contains('_discardPendingFavoriteUploads'));
-    expect(source, contains('_clearLocalFavorites'));
-    expect(source, contains('preserveLocalFavoritesIfCloudEmpty'));
-    expect(source, contains('firstSync && cloudHasFavorites'));
-    expect(source, isNot(contains('cloudFavoriteCount < localFavoriteCount')));
-    expect(source, isNot(contains('if (firstSync) await cursor.clear();')));
-    expect(
-      source,
-      contains('New devices should land on the compacted cloud state first'),
-    );
-  });
+  test(
+    'first sync bootstraps from a snapshot instead of replaying history',
+    () {
+      final source = File(
+        'lib/features/sync/domain/sync_phase1_service.dart',
+      ).readAsStringSync();
+      expect(source, contains('_bootstrapFromSnapshot()'));
+      expect(source, contains('_snapshotSong'));
+      expect(source, contains('snapshotFavoriteCount == 0 &&'));
+      expect(source, contains('localFavoriteCount > 0'));
+      expect(source, contains('_discardPendingFavoriteUploads'));
+      expect(source, contains('_clearLocalFavorites'));
+      expect(source, contains('preserveLocalFavoritesIfCloudEmpty'));
+      expect(source, contains('firstSync && cloudHasFavorites'));
+      expect(
+        source,
+        isNot(contains('cloudFavoriteCount < localFavoriteCount')),
+      );
+      expect(source, isNot(contains('if (firstSync) await cursor.clear();')));
+      expect(
+        source,
+        contains('New devices should land on the compacted cloud state first'),
+      );
+    },
+  );
 
   test(
     'identity store creates stable anonymous and device identities',
@@ -61,6 +68,18 @@ void main() {
       expect(first.state, SyncAccountState.anonymous);
     },
   );
+
+  test('first login completion is remembered per account', () async {
+    final store = SyncIdentityStore(preferences: SharedPreferences.getInstance);
+    expect(await store.hasCompletedFirstLogin('acct_1'), isFalse);
+    await store.markFirstLoginCompleted('acct_1');
+    expect(await store.hasCompletedFirstLogin('acct_1'), isTrue);
+    expect(await store.hasCompletedFirstLogin('acct_2'), isFalse);
+
+    final account = await store.load();
+    await store.returnToAnonymous(account);
+    expect(await store.hasCompletedFirstLogin('acct_1'), isTrue);
+  });
 
   test('event round trip preserves payload and identity fields', () {
     final event = SyncEvent(
@@ -168,9 +187,9 @@ void main() {
       await harness.phase1.sync();
 
       expect(
-        (await harness.playlists.getAllSongs('favorites')).map(
-          (song) => song.id,
-        ),
+        (await harness.playlists.getAllSongs(
+          'favorites',
+        )).map((song) => song.id),
         ['cloud-1'],
       );
       expect(
@@ -198,9 +217,9 @@ void main() {
       await harness.phase1.sync();
 
       expect(
-        (await harness.playlists.getAllSongs('favorites')).map(
-          (song) => song.id,
-        ),
+        (await harness.playlists.getAllSongs(
+          'favorites',
+        )).map((song) => song.id),
         ['local-2'],
       );
       expect(
@@ -228,9 +247,9 @@ void main() {
 
       await harness.phase1.sync();
       expect(
-        (await harness.playlists.getAllSongs('favorites')).map(
-          (song) => song.id,
-        ),
+        (await harness.playlists.getAllSongs(
+          'favorites',
+        )).map((song) => song.id),
         ['cloud-3'],
       );
 
@@ -246,9 +265,9 @@ void main() {
       await harness.phase1.sync();
 
       expect(
-        (await harness.playlists.getAllSongs('favorites')).map(
-          (song) => song.id,
-        ),
+        (await harness.playlists.getAllSongs(
+          'favorites',
+        )).map((song) => song.id),
         ['local-3', 'cloud-3'],
       );
       expect(harness.api.snapshotCalls, 0);
@@ -273,9 +292,9 @@ void main() {
 
       await harness.phase1.sync();
       expect(
-        (await harness.playlists.getAllSongs('favorites')).map(
-          (song) => song.id,
-        ),
+        (await harness.playlists.getAllSongs(
+          'favorites',
+        )).map((song) => song.id),
         ['cloud-a', 'cloud-b'],
       );
 
@@ -301,13 +320,85 @@ void main() {
         isNot(startsWith('evt_favbase_')),
       );
       expect(
-        (await harness.playlists.getAllSongs('favorites')).map(
-          (song) => song.id,
-        ),
+        (await harness.playlists.getAllSongs(
+          'favorites',
+        )).map((song) => song.id),
         ['starred-1', 'cloud-a', 'cloud-b'],
       );
     },
   );
+
+  test(
+    'completed first login does not re-bootstrap after anonymous reset',
+    () async {
+      final cloud = _song('cloud-keep', 'Cloud Keep');
+      final later = _song('local-keep', 'Keep Local');
+      final harness = await _FirstLoginHarness.create(
+        localFavorites: [_song('stale-local', 'Stale')],
+        status: const {'hasCloudData': true, 'favoriteCount': 1},
+        snapshot: _favoriteSnapshot([cloud], cursor: 12),
+      );
+
+      await harness.phase1.sync();
+      expect(await harness.identity.hasCompletedFirstLogin('acct_1'), isTrue);
+      expect(
+        (await harness.playlists.getAllSongs(
+          'favorites',
+        )).map((song) => song.id),
+        ['cloud-keep'],
+      );
+
+      await harness.phase1.logout();
+      expect((await harness.identity.load()).state, SyncAccountState.anonymous);
+      expect(await harness.identity.hasCompletedFirstLogin('acct_1'), isTrue);
+
+      await harness.playlists.addSongToPlaylist('favorites', later);
+      harness.api.snapshotCalls = 0;
+      harness.api.pushedEvents.clear();
+      await harness.phase1.sync();
+
+      expect(harness.api.snapshotCalls, 0);
+      expect(
+        (await harness.playlists.getAllSongs(
+          'favorites',
+        )).map((song) => song.id),
+        containsAll(['cloud-keep', 'local-keep']),
+      );
+    },
+  );
+
+  test('unloaded session change does not wipe synced identity', () async {
+    final harness = await _FirstLoginHarness.create(
+      localFavorites: const [],
+      status: const {'hasCloudData': false, 'favoriteCount': 0},
+      snapshot: _favoriteSnapshot(const [], cursor: 0),
+    );
+    await harness.phase1.sync();
+    expect((await harness.identity.load()).state, SyncAccountState.synced);
+
+    final notifier = CloudSyncNotifier(
+      phase1: harness.phase1,
+      loggedIn: () => false,
+    );
+    notifier.sessionChanged(false, loaded: false);
+    await pumpEventQueue();
+    expect((await harness.identity.load()).state, SyncAccountState.synced);
+    expect((await harness.identity.load()).accountId, 'acct_1');
+
+    notifier.sessionChanged(false, loaded: true);
+    await pumpEventQueue();
+    expect((await harness.identity.load()).state, SyncAccountState.anonymous);
+    expect(await harness.identity.hasCompletedFirstLogin('acct_1'), isTrue);
+    notifier.dispose();
+  });
+
+  test('startup session listen ignores unloaded logout', () {
+    final source = File(
+      'lib/features/sync/presentation/cloud_sync_provider.dart',
+    ).readAsStringSync();
+    expect(source, contains('if (!next.loaded) return'));
+    expect(source, contains('notifier.sessionChanged(next.loggedIn)'));
+  });
 
   test('state machine rejects skipping merge and sync phases', () {
     final machine = SyncStateMachine();
@@ -375,25 +466,27 @@ void syncSourceEnablementTests() {
       final sourcesService = CustomSourceService(
         storageLoader: () async => StorageService.instance,
       );
-      final phase1 = SyncPhase1Service(
-        api: CloudApiClient(
-          dio: Dio(),
-          preferences: () async => prefs,
-        ),
-        identity: SyncIdentityStore(preferences: () async => prefs),
-        cursor: SyncCursorStore(preferences: () async => prefs),
-        outbox: SyncOutboxRepository(preferences: () async => prefs),
-      )
-        ..attachSources(sourcesService)
-        ..attachPlaylists(
-          PlaylistService(
-            repository: _FakePlaylistRepository(),
-            syncRecorder:
-                ({required String eventType, required String entityId, Map<String, dynamic>? payload}) async {},
-          ),
-        )
-        ..attachRatings(RatingStore(preferences: () async => prefs))
-        ..attachSettingApplier((key, value) async {});
+      final phase1 =
+          SyncPhase1Service(
+              api: CloudApiClient(dio: Dio(), preferences: () async => prefs),
+              identity: SyncIdentityStore(preferences: () async => prefs),
+              cursor: SyncCursorStore(preferences: () async => prefs),
+              outbox: SyncOutboxRepository(preferences: () async => prefs),
+            )
+            ..attachSources(sourcesService)
+            ..attachPlaylists(
+              PlaylistService(
+                repository: _FakePlaylistRepository(),
+                syncRecorder:
+                    ({
+                      required String eventType,
+                      required String entityId,
+                      Map<String, dynamic>? payload,
+                    }) async {},
+              ),
+            )
+            ..attachRatings(RatingStore(preferences: () async => prefs))
+            ..attachSettingApplier((key, value) async {});
 
       await sourcesService.init();
       final now = DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true);
@@ -436,9 +529,7 @@ void syncSourceEnablementTests() {
           'eventId': 'evt_a',
           'eventType': 'custom_source.upsert',
           'entityId': localA.id,
-          'payload': {
-            'source': localA.copyWith(isEnabled: true).toJson(),
-          },
+          'payload': {'source': localA.copyWith(isEnabled: true).toJson()},
           'createdAt': now.toIso8601String(),
         },
         {
@@ -460,9 +551,7 @@ void syncSourceEnablementTests() {
           'eventId': 'evt_d',
           'eventType': 'custom_source.upsert',
           'entityId': 'remote_d',
-          'payload': {
-            'source': _remoteSourceJson('remote_d', 'C'),
-          },
+          'payload': {'source': _remoteSourceJson('remote_d', 'C')},
           'createdAt': now.toIso8601String(),
         },
       ]);
@@ -487,8 +576,7 @@ void syncSourceEnablementTests() {
   );
 }
 
-String _sourceScript(String name) =>
-    '/*! @name $name */\nconst api = () => 1;';
+String _sourceScript(String name) => '/*! @name $name */\nconst api = () => 1;';
 
 Map<String, dynamic> _remoteSourceJson(String id, String name) {
   final now = DateTime.fromMillisecondsSinceEpoch(2000, isUtc: true);
@@ -594,12 +682,7 @@ final class _FirstLoginHarness {
               createdAt: now,
               updatedAt: now,
             ),
-            Playlist(
-              id: 'local',
-              name: '本地音乐',
-              createdAt: now,
-              updatedAt: now,
-            ),
+            Playlist(id: 'local', name: '本地音乐', createdAt: now, updatedAt: now),
           ],
         ),
       ),
@@ -612,16 +695,17 @@ final class _FirstLoginHarness {
       storageLoader: () async => StorageService.forTesting(prefs),
     );
     await sources.init();
-    final phase1 = SyncPhase1Service(
-      api: api,
-      identity: identity,
-      outbox: outbox,
-      cursor: SyncCursorStore(preferences: () async => prefs),
-    )
-      ..attachPlaylists(playlists)
-      ..attachRatings(RatingStore(preferences: () async => prefs))
-      ..attachSettingApplier((key, value) async {})
-      ..attachSources(sources);
+    final phase1 =
+        SyncPhase1Service(
+            api: api,
+            identity: identity,
+            outbox: outbox,
+            cursor: SyncCursorStore(preferences: () async => prefs),
+          )
+          ..attachPlaylists(playlists)
+          ..attachRatings(RatingStore(preferences: () async => prefs))
+          ..attachSettingApplier((key, value) async {})
+          ..attachSources(sources);
     return _FirstLoginHarness(
       api: api,
       phase1: phase1,

@@ -27,6 +27,27 @@ void main() {
     extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
   );
 
+  test('completion reactivates audio session before auto-next', () async {
+    await handler.dispose();
+    final prepares = <int>[];
+    player = _CompletionAudioPlayer();
+    handler = LxAudioHandler(
+      player: player,
+      prepareForPlayback: () async => prepares.add(player.sourceLoadCalls),
+    );
+    await handler.setPlaylist([item('A'), item('B')]);
+    final loadsBefore = player.sourceLoadCalls;
+    prepares.clear();
+
+    handler.debugEmitTrackCompleted();
+    await pumpEventQueue();
+
+    expect(prepares, isNotEmpty);
+    expect(prepares.first, loadsBefore);
+    expect(handler.mediaItem.value?.id, 'B');
+    expect(player.playing, isTrue);
+  });
+
   test('duplicate completion advances only once', () async {
     await handler.setPlaylist([item('A'), item('B'), item('C')]);
     final loadsBeforeCompletion = player.sourceLoadCalls;
@@ -223,44 +244,39 @@ void main() {
     },
   );
 
-  test(
-    'lock screen duration backfill only happens after source installation '
-    'completes and never replaces mediaItem mid-transaction',
-    () {
-      final source = File(
-        'lib/core/audio/audio_handler.dart',
-      ).readAsStringSync();
-      final backfill = source.substring(
-        source.indexOf('_publishKnownDurationIfChanged()'),
-        source.indexOf('/// 把 just_audio 解析出的真实时长回填'),
-      );
-      expect(backfill, contains('_publishKnownDurationIfChanged()'));
-      final method = source.substring(
-        source.indexOf('void _publishKnownDurationIfChanged()'),
-        source.indexOf('bool _ownsOutputRouteRecovery({'),
-      );
-      expect(
-        method,
-        contains('_commands.installedSourceIsAuthoritative'),
-        reason: '回填必须在源安装完成（authoritative）后才允许',
-      );
-      expect(
-        method,
-        contains('_installedPlaybackGeneration != _playGeneration'),
-        reason: '过期安装世代不得回填',
-      );
-      expect(
-        method,
-        contains('_installedMediaId != _activeItemId'),
-        reason: '媒体项必须与当前安装一致才允许回填',
-      );
-      expect(
-        method,
-        contains('mediaItem.add(updated)'),
-        reason: '回填必须同步发布媒体项，锁屏才能拿到新时长',
-      );
-    },
-  );
+  test('lock screen duration backfill only happens after source installation '
+      'completes and never replaces mediaItem mid-transaction', () {
+    final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
+    final backfill = source.substring(
+      source.indexOf('_publishKnownDurationIfChanged()'),
+      source.indexOf('/// 把 just_audio 解析出的真实时长回填'),
+    );
+    expect(backfill, contains('_publishKnownDurationIfChanged()'));
+    final method = source.substring(
+      source.indexOf('void _publishKnownDurationIfChanged()'),
+      source.indexOf('bool _ownsOutputRouteRecovery({'),
+    );
+    expect(
+      method,
+      contains('_commands.installedSourceIsAuthoritative'),
+      reason: '回填必须在源安装完成（authoritative）后才允许',
+    );
+    expect(
+      method,
+      contains('_installedPlaybackGeneration != _playGeneration'),
+      reason: '过期安装世代不得回填',
+    );
+    expect(
+      method,
+      contains('_installedMediaId != _activeItemId'),
+      reason: '媒体项必须与当前安装一致才允许回填',
+    );
+    expect(
+      method,
+      contains('mediaItem.add(updated)'),
+      reason: '回填必须同步发布媒体项，锁屏才能拿到新时长',
+    );
+  });
 }
 
 class _CompletionAudioPlayer extends AudioPlayer {

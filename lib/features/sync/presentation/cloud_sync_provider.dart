@@ -120,6 +120,9 @@ final cloudSyncProvider =
         }
       });
       ref.listen(cloudSessionProvider, (_, next) {
+        // Initial CloudSessionState is loaded:false/loggedIn:false. Treating
+        // that as logout wipes synced identity before the restored token lands.
+        if (!next.loaded) return;
         notifier.sessionChanged(next.loggedIn);
       }, fireImmediately: true);
       return notifier;
@@ -218,7 +221,8 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
     if (changed) localChanged();
   }
 
-  void sessionChanged(bool loggedIn) {
+  void sessionChanged(bool loggedIn, {bool loaded = true}) {
+    if (!loaded) return;
     final generation = ++_sessionGeneration;
     if (!loggedIn) {
       unawaited(
