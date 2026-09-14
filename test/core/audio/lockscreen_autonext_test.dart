@@ -37,7 +37,7 @@ void main() {
     );
     await handler.setPlaylist([item('A'), item('B')]);
     final loadsBefore = player.sourceLoadCalls;
-    final playStartsBefore = player.nativePlayStarts;
+    final rateRestoresBefore = player.nativeRateRestores;
     prepares.clear();
 
     handler.debugEmitTrackCompleted();
@@ -47,11 +47,12 @@ void main() {
     expect(prepares.first, loadsBefore);
     expect(handler.mediaItem.value?.id, 'B');
     expect(player.playing, isTrue);
+    expect(player.pauseCalls, 0);
     expect(
-      player.nativePlayStarts,
-      greaterThan(playStartsBefore),
-      reason: 'just_audio.play() is a no-op while playing; auto-next must '
-          'pause then play so the next track is actually audible',
+      player.nativeRateRestores,
+      greaterThan(rateRestoresBefore),
+      reason: 'iOS background pause ends the audio session; auto-next must '
+          'poke AVPlayer.rate via setSpeed instead of pause+play',
     );
   });
 
@@ -149,7 +150,7 @@ void main() {
         return 'file:///tmp/$id.mp3';
       };
       await handler.setPlaylist([item('A'), next]);
-      final playStartsBefore = player.nativePlayStarts;
+      final rateRestoresBefore = player.nativeRateRestores;
 
       handler.debugEmitTrackCompleted();
       await resolverStarted.future;
@@ -159,18 +160,20 @@ void main() {
       expect(player.playing, isTrue);
       expect(player.loadedSource, isA<SilenceAudioSource>());
       expect((player.loadedSource as SilenceAudioSource).tag.id, 'B');
+      expect(player.pauseCalls, 0);
 
       releaseResolver.complete();
       await pumpEventQueue();
 
       expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'B');
       expect(player.playing, isTrue);
+      expect(player.pauseCalls, 0);
       expect(
-        player.nativePlayStarts,
-        greaterThan(playStartsBefore),
+        player.nativeRateRestores,
+        greaterThan(rateRestoresBefore),
         reason:
             'silence keepalive leaves playing=true; the real source must '
-            'restart native play instead of relying on a no-op play()',
+            'restore AVPlayer.rate without pausing the iOS session',
       );
     },
   );
@@ -233,6 +236,7 @@ void main() {
     expect(source, isNot(contains('_player.currentIndexStream.listen')));
     expect(source, isNot(contains("_onTrackCompleted('position-end')")));
     expect(source, contains('restartPlayAfterSourceChange: true'));
+    expect(source, contains('pauseToRestartNativePlay: Platform.isAndroid'));
     expect(
       source,
       isNot(contains('restartPlayAfterSourceChange: Platform.isAndroid')),
@@ -306,6 +310,8 @@ class _CompletionAudioPlayer extends AudioPlayer {
   bool _shuffleModeEnabled = false;
   int sourceLoadCalls = 0;
   int nativePlayStarts = 0;
+  int nativeRateRestores = 0;
+  int pauseCalls = 0;
   Completer<void>? _sourceLoadStarted;
   Completer<void>? _releaseSourceLoad;
   Completer<void>? _pauseStarted;
@@ -374,7 +380,13 @@ class _CompletionAudioPlayer extends AudioPlayer {
   }
 
   @override
+  Future<void> setSpeed(double speed) async {
+    nativeRateRestores++;
+  }
+
+  @override
   Future<void> pause() async {
+    pauseCalls++;
     final started = _pauseStarted;
     final release = _releasePause;
     if (started != null && release != null) {

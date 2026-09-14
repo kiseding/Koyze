@@ -93,6 +93,7 @@ class PlaybackCommandCoordinator {
   Object? _shutdownError;
   StackTrace? _shutdownStackTrace;
   final bool _restartPlayAfterSourceChange;
+  final bool _pauseToRestartNativePlay;
 
   PlaybackCommandCoordinator(
     this._player, {
@@ -102,14 +103,17 @@ class PlaybackCommandCoordinator {
     Duration sourceLoadTimeout = const Duration(seconds: 20),
     // just_audio.play() is a no-op while playing is still true. After a
     // completed/silence source change the native player can keep playing=true
-    // (especially on iOS), so the next track is installed but never becomes
-    // audible unless we pause then play again.
+    // (especially on iOS). Kick native playback again, but never pause on iOS:
+    // a background pause ends the audio session and freezes the Dart isolate
+    // so the follow-up play() never reaches native.
     bool restartPlayAfterSourceChange = true,
+    bool pauseToRestartNativePlay = false,
   }) : _onStateChanged = onStateChanged,
        _onError = onError,
        _prepareForPlayback = prepareForPlayback,
        _sourceLoadTimeout = sourceLoadTimeout,
-       _restartPlayAfterSourceChange = restartPlayAfterSourceChange;
+       _restartPlayAfterSourceChange = restartPlayAfterSourceChange,
+       _pauseToRestartNativePlay = pauseToRestartNativePlay;
 
   int get sourceToken => _sourceToken;
   int? get desiredSourceToken => _desiredSource?.token;
@@ -513,12 +517,24 @@ class PlaybackCommandCoordinator {
         if (!_effectivePlaying || !_ownsPlayLifecycle(playToken)) return;
       }
       if (_player.playing && forceRestart) {
-        _playEndReasons[playToken] = _PlayEndReason.pause;
-        await _player.pause();
-        _playEndReasons.remove(playToken);
-        if (!_effectivePlaying || !_ownsPlayLifecycle(playToken)) return;
-        await _prepareSession();
-        if (!_effectivePlaying || !_ownsPlayLifecycle(playToken)) return;
+        if (_pauseToRestartNativePlay) {
+          _playEndReasons[playToken] = _PlayEndReason.pause;
+          await _player.pause();
+          _playEndReasons.remove(playToken);
+          if (!_effectivePlaying || !_ownsPlayLifecycle(playToken)) return;
+          await _prepareSession();
+          if (!_effectivePlaying || !_ownsPlayLifecycle(playToken)) return;
+        } else {
+          // iOS load: pauses AVPlayer but keeps _playing=YES, then restores
+          // rate. If that restore missed, setSpeed pokes AVPlayer.rate without
+          // leaving the background audio session.
+          try {
+            await _player.setSpeed(_player.speed);
+          } catch (error, stackTrace) {
+            _onError?.call('speed', error, stackTrace);
+          }
+          if (!_effectivePlaying || !_ownsPlayLifecycle(playToken)) return;
+        }
       }
       if (skipWhenAlreadyPlaying && _player.playing) {
         // Installing a temporary source must not add a second play command on

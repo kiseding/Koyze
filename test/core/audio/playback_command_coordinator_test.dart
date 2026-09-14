@@ -684,6 +684,36 @@ void main() {
 
       expect(events, isNotEmpty);
       expect(events.first, 'prepare');
+      expect(player.calls, containsAllInOrder(['source', 'speed', 'play']));
+      expect(player.calls, isNot(contains('pause')));
+      expect(player.playing, isTrue);
+    },
+  );
+
+  test(
+    'Android source change may pause then play to restart native playback',
+    () async {
+      final player = _LifecycleAudioPlayer()..playNoOpIfAlreadyPlaying = true;
+      final coordinator = PlaybackCommandCoordinator(
+        player,
+        pauseToRestartNativePlay: true,
+      );
+      addTearDown(player.dispose);
+      await _install(coordinator);
+      await coordinator.recordExplicitPlayIntent();
+      player.completeWhileStillPlaying();
+      await pumpEventQueue();
+
+      player.calls.clear();
+      final next = coordinator.requestSource(
+        occurrenceId: 2,
+        position: Duration.zero,
+      );
+      await coordinator.commitSource(
+        next,
+        AudioSource.uri(Uri.parse('file:///tmp/B.mp3')),
+      );
+
       expect(player.calls, containsAllInOrder(['source', 'pause', 'play']));
       expect(player.playing, isTrue);
     },
@@ -954,6 +984,9 @@ class _SerializedAudioPlayer extends AudioPlayer {
   Future<void> seek(Duration? position, {int? index}) => _mutate('seek', () {});
 
   @override
+  Future<void> setSpeed(double speed) => _mutate('speed', () {});
+
+  @override
   Future<void> pause() => _mutate('pause', () {
     pauseCalls++;
     _playing = false;
@@ -1046,6 +1079,11 @@ class _LifecycleAudioPlayer extends AudioPlayer {
     _processingState = ProcessingState.ready;
     _playLifecycle = Completer<void>();
     return _playLifecycle!.future;
+  }
+
+  @override
+  Future<void> setSpeed(double speed) async {
+    calls.add('speed');
   }
 
   @override

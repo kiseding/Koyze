@@ -848,10 +848,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         },
         prepareForPlayback: _prepareForPlayback,
         // iOS keeps playing=true across completion and silence keepalive, so
-        // just_audio.play() would otherwise be a no-op and the next track
-        // advances without sound. Pause+play stays inside the coordinator;
-        // _publishPlaybackState still reports playing=true to Now Playing.
+        // just_audio.play() would otherwise be a no-op. Kick native playback
+        // after the real source is installed. Pause+play is Android-only:
+        // pausing in the iOS background ends the audio session and freezes
+        // Dart, so play() never runs and the next track stays at 0:00.
         restartPlayAfterSourceChange: true,
+        pauseToRestartNativePlay: Platform.isAndroid,
       );
 
   AudioPlayer get player => _player;
