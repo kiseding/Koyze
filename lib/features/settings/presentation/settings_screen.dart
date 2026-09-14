@@ -289,7 +289,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ]),
             _buildSection(context, '关于', [
-              const _SettingRow(name: '版本', value: 'v2.8.3'),
+              const _SettingRow(name: '版本', value: 'v2.8.4'),
               _DeviceIdRow(
                 deviceId: ref.watch(settingsDeviceIdProvider).valueOrNull,
               ),
