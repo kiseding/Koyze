@@ -343,7 +343,10 @@ void main() {
 
   test('iOS host exposes Background App Refresh via fetch', () {
     final iosInfo = File('ios/Runner/Info.plist').readAsStringSync();
-    final appDelegate = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+    // Windows CI checks out Swift as CRLF; normalize before multiline contains().
+    final appDelegate = File('ios/Runner/AppDelegate.swift')
+        .readAsStringSync()
+        .replaceAll('\r\n', '\n');
 
     expect(iosInfo, contains('<string>fetch</string>'));
     expect(
