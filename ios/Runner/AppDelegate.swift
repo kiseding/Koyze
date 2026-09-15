@@ -32,7 +32,7 @@ import UniformTypeIdentifiers
     return super.responds(to: aSelector)
   }
 
-  @objc func application(
+  override func application(
     _ application: UIApplication,
     performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
   ) {

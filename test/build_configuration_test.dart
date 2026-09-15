@@ -356,6 +356,15 @@ void main() {
     );
     expect(
       appDelegate,
+      contains(
+        'override func application(\n'
+        '    _ application: UIApplication,\n'
+        '    performFetchWithCompletionHandler',
+      ),
+    );
+    expect(appDelegate, isNot(contains('@objc func application(')));
+    expect(
+      appDelegate,
       contains('#selector(application(_:performFetchWithCompletionHandler:))'),
     );
     expect(appDelegate, contains('completionHandler(.noData)'));
