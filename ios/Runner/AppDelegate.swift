@@ -13,7 +13,33 @@ import UniformTypeIdentifiers
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // audio 后台模式不会露出设置里的「后台 App 刷新」。声明 fetch 之后
+    // 还要把间隔降到系统允许的最小值，iOS 才会把 App 放进调度池。
+    application.setMinimumBackgroundFetchInterval(
+      UIApplication.backgroundFetchIntervalMinimum
+    )
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // FlutterAppDelegate hijacks responds(to:) for performFetch and only
+  // returns true when a plugin implements it. Without this override iOS
+  // never delivers background-fetch wakes, so Settings would show the
+  // toggle but the app would never actually refresh.
+  override func responds(to aSelector: Selector!) -> Bool {
+    if aSelector == #selector(application(_:performFetchWithCompletionHandler:)) {
+      return true
+    }
+    return super.responds(to: aSelector)
+  }
+
+  @objc func application(
+    _ application: UIApplication,
+    performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    // Fetch is declared so Settings shows Background App Refresh. Widget
+    // timelines already refresh from the app group while audio is active;
+    // this wake only needs to complete so iOS keeps scheduling the app.
+    completionHandler(.noData)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {

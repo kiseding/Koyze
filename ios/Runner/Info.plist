@@ -86,10 +86,12 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	
-	<!-- 后台播放 -->
+	<!-- 后台播放 + 系统「后台 App 刷新」。audio 只保后台出声，
+	     fetch 才会让设置里出现 Background App Refresh 开关。 -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>fetch</string>
 	</array>
 </dict>
 </plist>

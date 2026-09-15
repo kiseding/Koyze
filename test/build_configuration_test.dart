@@ -338,6 +338,27 @@ void main() {
     final iosInfo = File('ios/Runner/Info.plist').readAsStringSync();
     expect(iosInfo, contains('<key>UIBackgroundModes</key>'));
     expect(iosInfo, contains('<string>audio</string>'));
+    expect(iosInfo, contains('<string>fetch</string>'));
+  });
+
+  test('iOS host exposes Background App Refresh via fetch', () {
+    final iosInfo = File('ios/Runner/Info.plist').readAsStringSync();
+    final appDelegate = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+
+    expect(iosInfo, contains('<string>fetch</string>'));
+    expect(
+      appDelegate,
+      contains('setMinimumBackgroundFetchInterval'),
+    );
+    expect(
+      appDelegate,
+      contains('performFetchWithCompletionHandler'),
+    );
+    expect(
+      appDelegate,
+      contains('#selector(application(_:performFetchWithCompletionHandler:))'),
+    );
+    expect(appDelegate, contains('completionHandler(.noData)'));
   });
 
   test('Android host aligns the legacy flutter_js Kotlin target', () {
