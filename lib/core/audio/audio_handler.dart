@@ -1717,6 +1717,24 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // still surface while the new URL is resolving.
     final playing =
         playingOverride ?? (keepingNativeSession ? true : _player.playing);
+    // just_audio reports idle while swapping sources. audio_service treats a
+    // non-idle → idle transition as stopService, which clears
+    // MPNowPlayingInfoCenter and the Dynamic Island. Never leak engine idle
+    // while a current media item should still occupy the lock screen.
+    var processingState =
+        override ?? audioProcessingState(_player.processingState);
+    if (override == null &&
+        processingState == AudioProcessingState.idle &&
+        mediaItem.value != null) {
+      processingState = playing
+          ? AudioProcessingState.buffering
+          : AudioProcessingState.ready;
+      AppLog.instance.record(
+        'audio.state',
+        'suppressed engine idle playing=$playing '
+            'keepingNativeSession=$keepingNativeSession',
+      );
+    }
     final publicationToken = ++_playbackPublicationToken;
     playbackState.add(
       PlaybackState(
@@ -1731,8 +1749,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           MediaAction.seekForward,
           MediaAction.seekBackward,
         },
-        processingState:
-            override ?? audioProcessingState(_player.processingState),
+        processingState: processingState,
         playing: playing,
         updatePosition: positionOverride ?? _player.position,
         bufferedPosition: _player.bufferedPosition,

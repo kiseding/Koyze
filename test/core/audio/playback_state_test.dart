@@ -108,6 +108,96 @@ void main() {
     expect(state.controls, isNot(contains(MediaControl.play)));
   });
 
+  test('engine idle during playback publishes buffering, never idle', () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+    await handler.setPlaylist(const [
+      MediaItem(id: 'A', title: 'A'),
+      MediaItem(id: 'B', title: 'B'),
+    ]);
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(handler.mediaItem.value?.id, 'A');
+
+    player.emit(processingState: ProcessingState.idle, playing: true);
+    await pumpEventQueue();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.buffering,
+    );
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(handler.playbackState.value.controls, contains(MediaControl.pause));
+  });
+
+  test('engine idle after pause stays ready so lock screen is not torn down',
+      () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+    await handler.setPlaylist(const [MediaItem(id: 'A', title: 'A')]);
+    await handler.pause();
+    expect(handler.playbackState.value.playing, isFalse);
+
+    player.emit(processingState: ProcessingState.idle, playing: false);
+    await pumpEventQueue();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.ready,
+    );
+    expect(handler.playbackState.value.playing, isFalse);
+    expect(handler.mediaItem.value?.id, 'A');
+  });
+
+  test('skip-to-next suppresses engine idle while keepalive is installed',
+      () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    final resolverStarted = Completer<void>();
+    final releaseResolver = Completer<void>();
+    handler.urlResolver = (id, [extras]) async {
+      if (id == 'B') {
+        resolverStarted.complete();
+        await releaseResolver.future;
+      }
+      return 'file:///tmp/$id.mp3';
+    };
+    await handler.setPlaylist(const [
+      MediaItem(id: 'A', title: 'A'),
+      MediaItem(id: 'B', title: 'B'),
+    ]);
+
+    final navigation = handler.skipToNext();
+    await resolverStarted.future;
+    expect(player.loadedSource, isA<SilenceAudioSource>());
+    expect(handler.playbackState.value.playing, isTrue);
+
+    player.emit(processingState: ProcessingState.idle, playing: true);
+    await pumpEventQueue();
+
+    expect(
+      handler.playbackState.value.processingState,
+      AudioProcessingState.buffering,
+    );
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(handler.mediaItem.value?.id, 'B');
+
+    releaseResolver.complete();
+    await navigation;
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(
+      handler.playbackState.value.processingState,
+      isNot(AudioProcessingState.idle),
+    );
+  });
+
   test('expired remote queue url is re-resolved before source install',
       () async {
     final player = _PlaybackStateAudioPlayer();

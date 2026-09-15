@@ -266,6 +266,19 @@ void main() {
     );
   });
 
+  test('published playback state never leaks engine idle while media exists',
+      () {
+    final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
+    final publish = source.substring(
+      source.indexOf('int _publishPlaybackState('),
+      source.indexOf('Future<void> play() => _runPublicOperation<void>(_play'),
+    );
+    expect(publish, contains('suppressed engine idle'));
+    expect(publish, contains('mediaItem.value != null'));
+    expect(publish, contains('AudioProcessingState.buffering'));
+    expect(publish, contains('AudioProcessingState.ready'));
+  });
+
   test(
     'repeat is owned by completion policy rather than native source loop',
     () {
