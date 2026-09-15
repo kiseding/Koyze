@@ -454,6 +454,13 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   bool get _usesLazyQueue => _lazyQueueLoader != null;
 
+  /// Completion already continues when the in-memory window is a single item
+  /// but more tracks can still be pulled. Failure auto-skip must do the same:
+  /// radio / paged playlists often shrink to one remaining item, and a
+  /// `_queue.length > 1` guard would stall on an unplayable song.
+  bool get _canAdvanceAfterTrackFailure =>
+      _queue.length > 1 || _usesLazyQueue;
+
   /// Production wiring: cancel obsolete cache downloads on track switch.
   void attachPlaybackCache({
     Future<PlaybackCachePathClassification> Function(String path)?
@@ -1453,8 +1460,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _lastHandledCompletionGeneration = gen;
     debugPrint('[AudioHandler] track completed idx=$expectedIndex');
     final mayContinue =
-        _queue.length > 1 ||
-        _usesLazyQueue ||
+        _canAdvanceAfterTrackFailure ||
         playbackState.value.repeatMode == AudioServiceRepeatMode.one ||
         playbackState.value.repeatMode == AudioServiceRepeatMode.all ||
         playbackState.value.shuffleMode == AudioServiceShuffleMode.all;
@@ -3097,7 +3103,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           if (transactionIndex < 0) return;
           debugPrint('[AudioHandler] 无法获取播放链接: ${item.title} id=${item.id}');
           onError?.call('无法解析歌曲 "${item.title}" 的播放地址（源无效地址或本地缓存失败，已尝试降级音质）');
-          if (_queue.length > 1 && _currentIndex == transactionIndex) {
+          if (_canAdvanceAfterTrackFailure &&
+              _currentIndex == transactionIndex) {
             transactionIndex = activeItemIndex();
             if (transactionIndex >= 0 && _currentIndex == transactionIndex) {
               if (preservingPauseOwner != null) {
@@ -3303,7 +3310,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             }
           }
           onError?.call('播放歌曲 "${item.title}" 失败: $e');
-          if (_queue.length > 1) {
+          if (_canAdvanceAfterTrackFailure) {
             transactionIndex = activeItemIndex();
             if (transactionIndex >= 0 && _currentIndex == transactionIndex) {
               if (preservingPauseOwner != null) {

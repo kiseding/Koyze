@@ -739,6 +739,103 @@ void main() {
     expect(player.playing, isTrue);
   });
 
+  test('lazy queue null resolver skips even when the window has one item',
+      () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    final resolved = <String>[];
+    handler.urlResolver = (id, [extras]) async {
+      resolved.add(id);
+      if (id == 'A') return null;
+      return 'file:///tmp/$id.mp3';
+    };
+    handler.configureLazyQueue(
+      loadMore: (_) async => const [MediaItem(id: 'B', title: 'B')],
+      rebuildForShuffle: (current, shuffle, minimumItems) async => const [],
+    );
+
+    await handler.setPlaylist(const [MediaItem(id: 'A', title: 'A')]);
+
+    expect(resolved, ['A', 'B']);
+    expect(handler.mediaItem.value?.id, 'B');
+    expect(handler.currentQueueIndex, 1);
+    expect(player.playing, isTrue);
+    expect(handler.playbackState.value.playing, isTrue);
+  });
+
+  test(
+    'lazy queue source install failure skips even when the window has one item',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      player.failNextSourceInstall = true;
+      handler.configureLazyQueue(
+        loadMore: (_) async => const [
+          MediaItem(
+            id: 'B',
+            title: 'B',
+            extras: {'url': 'file:///tmp/B.mp3', 'requestedQuality': '320k'},
+          ),
+        ],
+        rebuildForShuffle: (current, shuffle, minimumItems) async => const [],
+      );
+
+      await handler.setPlaylist(const [
+        MediaItem(
+          id: 'A',
+          title: 'A',
+          extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+        ),
+      ]);
+
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(handler.currentQueueIndex, 1);
+      expect(player.playing, isTrue);
+      expect(handler.playbackState.value.playing, isTrue);
+    },
+  );
+
+  test(
+    'lazy queue playback stream error skips even when the window has one item',
+    () async {
+      final player = _PlaybackStateAudioPlayer()
+        ..sourceInstallProcessingState = ProcessingState.ready;
+      final handler = LxAudioHandler(player: player);
+      addTearDown(player.dispose);
+      handler.configureLazyQueue(
+        loadMore: (_) async => const [
+          MediaItem(
+            id: 'B',
+            title: 'B',
+            extras: {'url': 'file:///tmp/B.mp3', 'requestedQuality': '320k'},
+          ),
+        ],
+        rebuildForShuffle: (current, shuffle, minimumItems) async => const [],
+      );
+      await handler.setPlaylist(const [
+        MediaItem(
+          id: 'A',
+          title: 'A',
+          extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+        ),
+      ]);
+      expect(handler.mediaItem.value?.id, 'A');
+      expect(player.playing, isTrue);
+
+      player.emitPlaybackError(StateError('native stream failed'));
+      await pumpEventQueue();
+
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(handler.currentQueueIndex, 1);
+      expect(player.playing, isTrue);
+      expect(handler.playbackState.value.playing, isTrue);
+    },
+  );
+
   test('five failed tracks halt auto-skip until explicit next', () async {
     final player = _PlaybackStateAudioPlayer()
       ..sourceInstallProcessingState = ProcessingState.ready;
