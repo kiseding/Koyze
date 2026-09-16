@@ -13,6 +13,25 @@ Koyze 使用 Flutter 构建，将 QQ 音乐、酷我音乐、网易云音乐、�
 > [!IMPORTANT]
 > 本项目仅用于技术研究和个人学习。请遵守所在地法律、平台服务条款与内容版权要求，不要将它用于侵犯版权或绕过付费授权。
 
+## 界面预览
+
+以下截图取自应用实际界面，为手机竖屏（390 × 844）布局的深色主题。
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/01-home-dark.png" width="176" alt="首页"><br>首页</td>
+    <td align="center"><img src="docs/screenshots/02-settings.png" width="176" alt="设置"><br>设置</td>
+    <td align="center"><img src="docs/screenshots/03-playlist.png" width="176" alt="歌单"><br>歌单</td>
+    <td align="center"><img src="docs/screenshots/04-search.png" width="176" alt="搜索"><br>搜索</td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/05-download.png" width="176" alt="下载管理"><br>下载管理</td>
+    <td align="center"><img src="docs/screenshots/06-sync.png" width="176" alt="云同步"><br>云同步</td>
+    <td align="center"><img src="docs/screenshots/07-custom-source.png" width="176" alt="自定义源"><br>自定义源</td>
+    <td></td>
+  </tr>
+</table>
+
 ## 功能
 
 ### 搜索与音源
