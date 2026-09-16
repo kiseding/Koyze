@@ -14,6 +14,7 @@ final class SyncIdentityStore {
   static const _lastSyncKey = 'sync_last_sync_at';
   static const _favoriteBaselinePrefix = 'sync_favorite_baseline_v1_';
   static const _firstLoginPrefix = 'sync_first_login_completed_v1_';
+  static const _firstLoginUsedKey = 'sync_first_login_used_v1';
 
   final Future<SharedPreferences> Function() _preferences;
   final Uuid _uuid = const Uuid();
@@ -99,6 +100,15 @@ final class SyncIdentityStore {
       true,
     );
     if (!ok) throw StateError('Unable to persist first login completion');
+  }
+
+  Future<bool> hasUsedFirstLogin() async {
+    return (await _preferences()).getBool(_firstLoginUsedKey) == true;
+  }
+
+  Future<void> markFirstLoginUsed() async {
+    final ok = await (await _preferences()).setBool(_firstLoginUsedKey, true);
+    if (!ok) throw StateError('Unable to persist first login usage');
   }
 
   Future<String> _createAndStore(

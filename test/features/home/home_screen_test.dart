@@ -114,4 +114,17 @@ void main() {
     expect(settings, isNot(contains('Reorderable')));
     expect(settings, contains('hidePlatform'));
   });
+
+  test('tab container snaps when the route index changes mid-swipe', () {
+    final source = File(
+      'lib/features/home/presentation/main_scaffold.dart',
+    ).readAsStringSync();
+    expect(source, contains('_anim.stop()'));
+    expect(
+      source,
+      contains('oldWidget.currentIndex != widget.currentIndex'),
+    );
+    expect(source, isNot(contains('!_animating &&\n        !_dragging')));
+  });
 }
+

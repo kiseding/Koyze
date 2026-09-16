@@ -182,12 +182,14 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
   @override
   void didUpdateWidget(covariant SwipeBranchContainer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 外部 goBranch（点底栏）时重置手势状态
-    if (oldWidget.currentIndex != widget.currentIndex &&
-        !_animating &&
-        !_dragging) {
+    // Route/goBranch changes must snap even if a swipe animation is in flight.
+    // Otherwise the URI can move to /settings while the visible page stays home.
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      _anim.stop();
       _dx = 0;
       _transitionTargetIndex = null;
+      _animating = false;
+      _dragging = false;
     }
   }
 

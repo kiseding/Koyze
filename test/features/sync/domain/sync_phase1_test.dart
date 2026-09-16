@@ -79,6 +79,9 @@ void main() {
     final account = await store.load();
     await store.returnToAnonymous(account);
     expect(await store.hasCompletedFirstLogin('acct_1'), isTrue);
+    expect(await store.hasUsedFirstLogin(), isFalse);
+    await store.markFirstLoginUsed();
+    expect(await store.hasUsedFirstLogin(), isTrue);
   });
 
   test('event round trip preserves payload and identity fields', () {
@@ -367,6 +370,54 @@ void main() {
     },
   );
 
+  test(
+    'device-level first login used prevents bootstrap when account id changes',
+    () async {
+      final cloud = _song('cloud-keep', 'Cloud Keep');
+      final later = _song('local-keep', 'Keep Local');
+      final harness = await _FirstLoginHarness.create(
+        localFavorites: [_song('stale-local', 'Stale')],
+        status: const {'hasCloudData': true, 'favoriteCount': 1},
+        snapshot: _favoriteSnapshot([cloud], cursor: 12),
+      );
+
+      await harness.phase1.sync();
+      expect(await harness.identity.hasUsedFirstLogin(), isTrue);
+      await harness.phase1.logout();
+      await harness.playlists.addSongToPlaylist('favorites', later);
+      harness.api.resolvedAccountId = 'acct_2';
+      harness.api.snapshotCalls = 0;
+      await harness.phase1.sync();
+
+      expect(harness.api.snapshotCalls, 0);
+      expect(
+        (await harness.playlists.getAllSongs(
+          'favorites',
+        )).map((song) => song.id),
+        containsAll(['cloud-keep', 'local-keep']),
+      );
+    },
+  );
+
+  test('sync without account id does not treat as first login', () async {
+    final local = _song('keep-local', 'Keep Local');
+    final harness = await _FirstLoginHarness.create(
+      localFavorites: [local],
+      status: const {'hasCloudData': true, 'favoriteCount': 1},
+      snapshot: _favoriteSnapshot([_song('cloud-x', 'Cloud')], cursor: 4),
+      accountId: null,
+      username: null,
+    );
+
+    await harness.phase1.sync();
+
+    expect(harness.api.snapshotCalls, 0);
+    expect(
+      (await harness.playlists.getAllSongs('favorites')).map((song) => song.id),
+      ['keep-local'],
+    );
+  });
+
   test('unloaded session change does not wipe synced identity', () async {
     final harness = await _FirstLoginHarness.create(
       localFavorites: const [],
@@ -398,6 +449,8 @@ void main() {
     ).readAsStringSync();
     expect(source, contains('if (!next.loaded) return'));
     expect(source, contains('notifier.sessionChanged(next.loggedIn)'));
+    expect(source, contains('sourceService.init().then'));
+    expect(source, contains('if (!_sourcesReady)'));
   });
 
   test('state machine rejects skipping merge and sync phases', () {
@@ -661,6 +714,8 @@ final class _FirstLoginHarness {
     required List<MusicItem> localFavorites,
     required Map<String, dynamic> status,
     required Map<String, dynamic> snapshot,
+    String? accountId = 'acct_1',
+    String? username = 'user',
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true);
@@ -690,7 +745,12 @@ final class _FirstLoginHarness {
     await playlists.init();
     final identity = SyncIdentityStore(preferences: () async => prefs);
     final outbox = SyncOutboxRepository(preferences: () async => prefs);
-    final api = _FirstLoginCloudApi(status: status, snapshot: snapshot);
+    final api = _FirstLoginCloudApi(
+      status: status,
+      snapshot: snapshot,
+      resolvedAccountId: accountId,
+      resolvedUsername: username,
+    );
     final sources = CustomSourceService(
       storageLoader: () async => StorageService.forTesting(prefs),
     );
@@ -717,10 +777,17 @@ final class _FirstLoginHarness {
 }
 
 final class _FirstLoginCloudApi extends CloudApiClient {
-  _FirstLoginCloudApi({required this.status, required this.snapshot});
+  _FirstLoginCloudApi({
+    required this.status,
+    required this.snapshot,
+    this.resolvedAccountId = 'acct_1',
+    this.resolvedUsername = 'user',
+  });
 
   final Map<String, dynamic> status;
   final Map<String, dynamic> snapshot;
+  String? resolvedAccountId;
+  String? resolvedUsername;
   final pushedEvents = <Map<String, dynamic>>[];
   int snapshotCalls = 0;
 
@@ -728,10 +795,10 @@ final class _FirstLoginCloudApi extends CloudApiClient {
   bool get isLoggedIn => true;
 
   @override
-  String? get accountId => 'acct_1';
+  String? get accountId => resolvedAccountId;
 
   @override
-  String? get username => 'user';
+  String? get username => resolvedUsername;
 
   @override
   Future<Map<String, dynamic>> pushSyncEvents({

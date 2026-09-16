@@ -77,8 +77,16 @@ final cloudSyncProvider =
         notifier.settingChanged('default_search_platform', next);
       });
       final sourceService = ref.read(customSourceServiceProvider);
-      notifier.attachInitialSources(sourceService.sources);
       ref.read(syncPhase1ServiceProvider).attachSources(sourceService);
+      // init() is async. Attaching the still-empty in-memory list here would
+      // mark hydration complete, so the later disk load looks like brand-new
+      // sources and re-queues every custom source on each launch.
+      unawaited(
+        sourceService.init().then((_) {
+          if (!notifier.mounted) return;
+          notifier.attachInitialSources(sourceService.sources);
+        }),
+      );
       ref.listen(customSourceRevisionProvider, (_, __) {
         notifier.sourcesChanged(sourceService.sources);
       });
@@ -150,6 +158,7 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
   int _localGeneration = 0;
   int _conflictGeneration = 0;
   int _sessionGeneration = 0;
+  bool _sourcesReady = false;
   Map<String, CustomSource> _knownSources = const {};
   DateTime? _lastRemoteCheck;
 
@@ -197,10 +206,16 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
 
   void attachInitialSources(List<CustomSource> sources) {
     _knownSources = {for (final source in sources) source.id: source};
+    _sourcesReady = true;
   }
 
   void sourcesChanged(List<CustomSource> sources) {
     final next = {for (final source in sources) source.id: source};
+    if (!_sourcesReady) {
+      _knownSources = next;
+      _sourcesReady = true;
+      return;
+    }
     if (_applyingRemote) {
       _knownSources = next;
       return;

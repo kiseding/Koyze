@@ -292,8 +292,10 @@ final class SyncPhase1Service {
     if (!api.isLoggedIn) return null;
     var account = await identity.load();
     final accountId = account.accountId ?? api.accountId ?? api.username;
+    final deviceFirstLoginUsed = await identity.hasUsedFirstLogin();
     var firstLoginCompleted =
-        accountId != null && await identity.hasCompletedFirstLogin(accountId);
+        deviceFirstLoginUsed ||
+        (accountId != null && await identity.hasCompletedFirstLogin(accountId));
     if (!firstLoginCompleted &&
         accountId != null &&
         (account.state == SyncAccountState.synced ||
@@ -302,11 +304,20 @@ final class SyncPhase1Service {
       await identity.markFirstLoginCompleted(accountId);
       firstLoginCompleted = true;
     }
+    if (accountId == null) {
+      // A logged-in session without a stable identity must not bootstrap as a
+      // first login; that path can replace local favorites/sources.
+      firstLoginCompleted = true;
+    }
     final firstSync = !firstLoginCompleted;
-    if (account.state == SyncAccountState.anonymous) {
+    if (accountId != null &&
+        (account.accountId != accountId ||
+            account.state == SyncAccountState.anonymous)) {
       account = await identity.setState(
         account,
-        SyncAccountState.authenticated,
+        account.state == SyncAccountState.anonymous
+            ? SyncAccountState.authenticated
+            : account.state,
         accountId: accountId,
       );
     }
@@ -354,6 +365,7 @@ final class SyncPhase1Service {
       if (accountId != null) {
         await identity.markFirstLoginCompleted(accountId);
       }
+      await identity.markFirstLoginUsed();
       return SyncReport.fromCurrentState(
         deviceId: account.deviceId,
         playlists: _playlists!,

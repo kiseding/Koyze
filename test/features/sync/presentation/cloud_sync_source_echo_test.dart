@@ -62,6 +62,35 @@ void main() {
     },
   );
 
+  test(
+    'hydrating persisted sources without a prior attach does not enqueue upserts',
+    () async {
+      final harness = await _SourceSyncHarness.create();
+      final source = _source('src_boot', enabled: true);
+
+      harness.notifier.sourcesChanged([source]);
+      await harness.settle();
+
+      expect(await harness.phase1.pendingCount(), 0);
+      harness.notifier.dispose();
+    },
+  );
+
+  test('first user-created source after empty hydration is recorded', () async {
+    final harness = await _SourceSyncHarness.create();
+    final source = _source('src_new', enabled: true);
+    harness.notifier.attachInitialSources(const []);
+
+    harness.notifier.sourcesChanged([source]);
+    await harness.settle();
+
+    final pending = await harness.phase1.outbox.load();
+    expect(pending, hasLength(1));
+    expect(pending.single.eventType, 'custom_source.upsert');
+    expect(pending.single.entityId, 'src_new');
+    harness.notifier.dispose();
+  });
+
   test('editing a source definition still records an upsert', () async {
     final harness = await _SourceSyncHarness.create();
     final source = _source('src_1', enabled: true);

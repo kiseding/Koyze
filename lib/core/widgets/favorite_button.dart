@@ -70,6 +70,23 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
   ]).animate(_controller);
 
   @override
+  void didUpdateWidget(covariant FavoriteButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Fullscreen player reuses this State across skips. A leftover optimistic
+    // unfavorite would keep every later song hollow even when it is still saved.
+    if (!widget.song.isSameCatalogTrack(oldWidget.song)) {
+      _optimisticFavorite = null;
+      _pending = false;
+      return;
+    }
+    if (_optimisticFavorite != null &&
+        widget.isFavorite != null &&
+        widget.isFavorite == _optimisticFavorite) {
+      _optimisticFavorite = null;
+    }
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -131,9 +148,7 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
         );
   }
 
-  bool get _currentFavorite {
-    final optimistic = _optimisticFavorite;
-    if (optimistic != null) return optimistic;
+  bool get _resolvedFavorite {
     if (widget.isFavorite != null) return widget.isFavorite!;
     final favorites =
         ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
@@ -144,6 +159,13 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
             .watch(isSongFavoriteProvider(widget.song.identityKey))
             .valueOrNull ??
         false;
+  }
+
+  bool get _currentFavorite {
+    final resolved = _resolvedFavorite;
+    final optimistic = _optimisticFavorite;
+    if (optimistic != null && optimistic != resolved) return optimistic;
+    return resolved;
   }
 
   @override

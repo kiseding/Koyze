@@ -1,6 +1,13 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
+import 'package:koyze/features/playlist/data/playlist_repository.dart';
+import 'package:koyze/features/player/domain/music_item.dart';
+import 'package:koyze/core/widgets/favorite_button.dart';
 
 void main() {
   test('favorite button animates with scale on tap', () {
@@ -122,4 +129,79 @@ void main() {
     expect(source, contains("playlist.id != 'local'"));
     expect(source, contains('addAllSongsToFavorites'));
   });
+
+  test('favorite button drops leftover optimistic unfavorite on song change', () {
+    final source = File(
+      'lib/core/widgets/favorite_button.dart',
+    ).readAsStringSync();
+    expect(source, contains('didUpdateWidget'));
+    expect(source, contains('isSameCatalogTrack(oldWidget.song)'));
+    expect(source, contains('_optimisticFavorite = null'));
+    expect(source, contains('_resolvedFavorite'));
+
+    final player = File(
+      'lib/features/player/presentation/player_screen.dart',
+    ).readAsStringSync();
+    expect(player, contains("ValueKey<String>('player-fav-\${music.identityKey}')"));
+  });
+
+  testWidgets(
+    'unfavorite then skip does not keep later songs hollow',
+    (tester) async {
+      final first = MusicItem(
+        id: 'song-a',
+        name: 'Song A',
+        singer: 'Artist',
+        source: 'kw',
+        platform: 'kw',
+      );
+      final second = MusicItem(
+        id: 'song-b',
+        name: 'Song B',
+        singer: 'Artist',
+        source: 'kw',
+        platform: 'kw',
+      );
+      var song = first;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            toggleFavoriteProvider.overrideWithValue((_) async {}),
+            playlistSongsPageProvider.overrideWith((ref, request) async {
+              return PlaylistSongPage(total: 0, offset: 0, songs: const []);
+            }),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) {
+                  return Column(
+                    children: [
+                      FavoriteButton(song: song, isFavorite: true),
+                      TextButton(
+                        onPressed: () => setState(() => song = second),
+                        child: const Text('skip'),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      await tester.tap(find.byType(FavoriteButton));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+
+      await tester.tap(find.text('skip'));
+      await tester.pump();
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.byIcon(Icons.favorite_border), findsNothing);
+    },
+  );
 }

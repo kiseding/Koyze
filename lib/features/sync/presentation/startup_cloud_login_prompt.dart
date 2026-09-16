@@ -33,9 +33,22 @@ class _StartupCloudLoginPromptState
   Future<void> _loadGate() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    final seen = prefs.getBool(startupCloudLoginPromptSeenKey) == true;
-    final loggedIn = ref.read(cloudSessionProvider).loggedIn;
-    setState(() => _showLogin = !seen && !loggedIn);
+    var seen = prefs.getBool(startupCloudLoginPromptSeenKey) == true;
+    var session = ref.read(cloudSessionProvider);
+    if (!session.loaded) {
+      // Avoid treating a still-restoring session as logged-out first launch.
+      for (var i = 0; i < 40 && mounted && !session.loaded; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        session = ref.read(cloudSessionProvider);
+      }
+    }
+    if (!mounted) return;
+    if (session.loggedIn && !seen) {
+      await prefs.setBool(startupCloudLoginPromptSeenKey, true);
+      seen = true;
+    }
+    if (!mounted) return;
+    setState(() => _showLogin = !seen && !session.loggedIn);
   }
 
   Future<void> _finish({required bool completed}) async {

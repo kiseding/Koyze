@@ -1627,6 +1627,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
           FavoriteButton(
+            key: ValueKey<String>('player-fav-${music.identityKey}'),
             song: music,
             iconSize: 28,
             activeColor: AppColors.error,
