@@ -551,10 +551,11 @@ Rect _fullLyricPlayButtonRect(
   final safeBottom = MediaQuery.of(context).padding.bottom;
   const button = 64.0;
   const horizontalPaddingRight = 20.0;
-  const rowBottomPadding = 16.0;
-  const closeButtonHeight = 40.0;
+  // 与封面页控件行 bottom padding 16、音质行 14+18+4、底 spacer 12 对齐。
+  const playRowBottomPadding = 16.0;
+  const dismissSlotHeight = 48.0;
   final right = screenW - horizontalPaddingRight;
-  final bottom = screenH - safeBottom - closeButtonHeight - rowBottomPadding;
+  final bottom = screenH - safeBottom - dismissSlotHeight - playRowBottomPadding;
   return Rect.fromLTWH(right - button, bottom - button, button, button);
 }
 
@@ -1650,88 +1651,82 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
-  /// 全屏歌词页底部简约栏：歌名/歌手两行 | 播放键（整体下移 10px）
+  /// 全屏歌词页底部简约栏：歌名/歌手 | 播放键，下一行关闭箭头。
+  /// 与封面页同一条底栏对齐——播放键对控件行，箭头对「平台 · 音质」。
+  /// 外层 body 已有 SafeArea，这里不再套一层，否则整栏会被顶高一截。
   Widget _buildLyricMiniBar(
     MusicItem music,
     PlayerService playerService,
     bool isPlaying,
   ) {
-    return SafeArea(
-      top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 20, 16), // 整体下移 10px
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 歌词页关闭动效只保留播放按钮飞行，歌名不参与。
-                      Text(
-                        music.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.onScaffold(context),
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          height: 1.2,
-                        ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 20, 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 歌词页关闭动效只保留播放按钮飞行，歌名不参与。
+                    Text(
+                      music.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.onScaffold(context),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        music.singer,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.secondaryText(context),
-                          fontSize: 15,
-                          height: 1.2,
-                        ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      music.singer,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.secondaryText(context),
+                        fontSize: 15,
+                        height: 1.2,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 20),
-                PlayPulseButton(
-                  key: _lyricPlayKey,
-                  isPlaying: isPlaying,
-                  onPressed: playerService.togglePlay,
-                  size: 64,
-                  iconSize: 34,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 20),
+              PlayPulseButton(
+                key: _lyricPlayKey,
+                isPlaying: isPlaying,
+                onPressed: playerService.togglePlay,
+                size: 64,
+                iconSize: 34,
+              ),
+            ],
           ),
-          // 底部居中的低调关闭按钮：宽箭头、位置比播放键略低、不抢视觉。
-          // 有效触控范围加宽到约 2 倍（64×48，命中区由 Pressable 的
-          // GestureDetector 随 child 尺寸扩展）。
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Pressable(
-              semanticLabel: '收起播放器',
-              scale: 0.92,
-              onTap: () => _dismissPlayer(),
-              child: SizedBox(
-                width: 64,
-                height: 48,
-                child: Center(
-                  child: Icon(
-                    Icons.keyboard_arrow_down,
-                    color: AppColors.mutedText(context),
-                    size: 30,
-                  ),
-                ),
+        ),
+        // 与封面页「平台 · 音质」+ 底 spacer 同一条 48px 带，图标居中。
+        Pressable(
+          semanticLabel: '收起播放器',
+          scale: 0.92,
+          onTap: () => _dismissPlayer(),
+          child: SizedBox(
+            width: 64,
+            height: 48,
+            child: Center(
+              child: Icon(
+                Icons.keyboard_arrow_down,
+                color: AppColors.mutedText(context),
+                size: 30,
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
