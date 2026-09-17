@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  面向 Android、Windows 与 iOS 的跨平台音乐查找、播放和本地曲库管理工具。
+  面向 Android、Windows、iOS、Mac、Linux 的跨平台音乐查找、播放和本地曲库管理工具。
 </p>
 
 Koyze 使用 Flutter 构建，将 QQ 音乐、酷我音乐、网易云音乐、本地文件与自定义音源整合到同一套搜索和播放体验中。搜索、播放、下载、歌单和本地曲库均可在不登录、不部署服务端的情况下使用；Cloudflare Workers 后端只负责可选的账号与跨设备同步。
