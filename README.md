@@ -15,20 +15,18 @@ Koyze 使用 Flutter 构建，将 QQ 音乐、酷我音乐、网易云音乐、�
 
 ## 界面预览
 
-以下截图取自应用实际界面，为手机竖屏（390 × 844）布局的深色主题。
+以下截图取自 iPhone 16 模拟器中的实际界面，深色主题。
 
 <table>
   <tr>
-    <td align="center"><img src="docs/screenshots/01-home-dark.png" width="176" alt="首页"><br>首页</td>
-    <td align="center"><img src="docs/screenshots/02-settings.png" width="176" alt="设置"><br>设置</td>
+    <td align="center"><img src="docs/screenshots/01-home.png" width="176" alt="首页"><br>首页</td>
+    <td align="center"><img src="docs/screenshots/02-leaderboard.png" width="176" alt="榜单"><br>榜单</td>
     <td align="center"><img src="docs/screenshots/03-playlist.png" width="176" alt="歌单"><br>歌单</td>
-    <td align="center"><img src="docs/screenshots/04-search.png" width="176" alt="搜索"><br>搜索</td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/screenshots/05-download.png" width="176" alt="下载管理"><br>下载管理</td>
-    <td align="center"><img src="docs/screenshots/06-sync.png" width="176" alt="云同步"><br>云同步</td>
-    <td align="center"><img src="docs/screenshots/07-custom-source.png" width="176" alt="自定义源"><br>自定义源</td>
-    <td></td>
+    <td align="center"><img src="docs/screenshots/04-settings.png" width="176" alt="设置"><br>设置</td>
+    <td align="center"><img src="docs/screenshots/05-player.png" width="176" alt="播放器"><br>播放器</td>
+    <td align="center"><img src="docs/screenshots/06-lyrics.png" width="176" alt="歌词"><br>歌词</td>
   </tr>
 </table>
 
