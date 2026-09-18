@@ -20,6 +20,7 @@ import '../../search/presentation/search_provider.dart';
 import '../../playlist/data/playlist_repository.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../player/presentation/player_provider.dart';
+import '../../equalizer/presentation/equalizer_provider.dart';
 import '../../download/presentation/download_provider.dart';
 import '../domain/playlist_backup.dart';
 import 'app_log_screen.dart';
@@ -132,6 +133,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 '音质选择',
                 _getQualityName(audioQuality),
                 () => _showAudioQualityDialog(context, ref),
+              ),
+              _buildNavTile(
+                context,
+                ref,
+                '均衡器',
+                equalizerSubtitle(ref.watch(equalizerProvider)),
+                () => context.push('/equalizer'),
+                captureExpandOrigin: true,
               ),
               _buildNavTile(
                 context,

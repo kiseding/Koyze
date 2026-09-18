@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Android 13+ 播放通知/媒体控制需要动态申请通知权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 均衡器通过 android.media.audiofx.Equalizer 挂到播放会话上，属普通权限，
+         安装即授予、不弹窗。 -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <!-- 读取外部存储中的音频（本地音乐扫描）：Android 13+ 使用 READ_MEDIA_AUDIO，旧版使用 READ_EXTERNAL_STORAGE。 -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission

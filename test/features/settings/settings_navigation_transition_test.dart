@@ -15,6 +15,7 @@ void main() {
       '/local-music',
       '/custom-source',
       '/subsonic-settings',
+      '/equalizer',
       '/sync',
     ]) {
       expect(

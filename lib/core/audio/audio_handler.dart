@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../logging/app_log.dart';
+import 'equalizer_bridge.dart';
 import 'playback_cache_service.dart';
 import 'playback_command_coordinator.dart';
 import 'queue_index.dart';
@@ -333,7 +334,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   late AudioPlayer _player;
   late final BehaviorSubject<AudioPlayer> _playerSubject;
   late PlaybackCommandCoordinator _commands;
-  final AudioPlayer Function()? _replacementPlayerFactory;
+  /// 播放器重建时用的工厂；注入播放器时为 null（无法重建）。
+  AudioPlayer Function()? _replacementPlayerFactory;
+  late final EqualizerBridge _equalizer;
   final PrepareForPlayback? _prepareForPlayback;
   final Duration _outputRouteRecoveryTimeout;
   final Duration _resolveTimeout;
@@ -817,36 +820,48 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     Duration outputRouteRecoveryTimeout = const Duration(milliseconds: 1200),
     Duration resolveTimeout = _defaultResolveTimeout,
     bool? useSilenceKeepalive,
+    EqualizerBridge? equalizer,
   }) : assert(player == null || playerFactory == null),
-       _replacementPlayerFactory = player == null
-           ? (playerFactory ?? _createDefaultPlayer)
-           : null,
        _prepareForPlayback = prepareForPlayback,
        _useSilenceKeepalive = useSilenceKeepalive ?? !Platform.isWindows,
        _outputRouteRecoveryTimeout = outputRouteRecoveryTimeout,
        _resolveTimeout = resolveTimeout {
-    _player = player ?? (playerFactory ?? _createDefaultPlayer)();
+    // 均衡器必须在播放器之前就绪：音效只能经 AudioPipeline 在构造时注入，
+    // just_audio 不支持事后追加。
+    _equalizer = equalizer ?? createEqualizerBridge();
+    _replacementPlayerFactory = player == null
+        ? (playerFactory ?? _createPlayerWithEqualizer)
+        : null;
+    _player = player ?? (playerFactory ?? _createPlayerWithEqualizer)();
     _playerSubject = BehaviorSubject<AudioPlayer>.seeded(_player);
+    _equalizer.bindPlayer(_player);
     _commands = _createCommandCoordinator(_player);
     _publishPlaybackState();
     _init();
   }
 
-  static AudioPlayer _createDefaultPlayer() => AudioPlayer(
-    handleInterruptions: false,
-    useProxyForRequestHeaders: Platform.isWindows,
-    // iOS AVPlayer defaults to automaticallyWaitsToMinimizeStalling=YES:
-    // setting rate after a background source change only enters
-    // waitingToPlayAtSpecifiedRate, and iOS never schedules the buffering for
-    // a player that is not yet playing, so background auto-next stays muted
-    // in buffering forever. Disabling it makes the rate kick start playback
-    // immediately (trade-off: a slow stream may briefly stall).
-    audioLoadConfiguration: const AudioLoadConfiguration(
-      darwinLoadControl: DarwinLoadControl(
-        automaticallyWaitsToMinimizeStalling: false,
+  /// 默认播放器。均衡器音效在这里注入。
+  AudioPlayer _createPlayerWithEqualizer() {
+    final effects = _equalizer.createEffects();
+    return AudioPlayer(
+      handleInterruptions: false,
+      useProxyForRequestHeaders: Platform.isWindows,
+      // iOS AVPlayer defaults to automaticallyWaitsToMinimizeStalling=YES:
+      // setting rate after a background source change only enters
+      // waitingToPlayAtSpecifiedRate, and iOS never schedules the buffering for
+      // a player that is not yet playing, so background auto-next stays muted
+      // in buffering forever. Disabling it makes the rate kick start playback
+      // immediately (trade-off: a slow stream may briefly stall).
+      audioLoadConfiguration: const AudioLoadConfiguration(
+        darwinLoadControl: DarwinLoadControl(
+          automaticallyWaitsToMinimizeStalling: false,
+        ),
       ),
-    ),
-  );
+      audioPipeline: effects.isEmpty
+          ? null
+          : AudioPipeline(androidAudioEffects: effects),
+    );
+  }
 
   PlaybackCommandCoordinator _createCommandCoordinator(AudioPlayer player) =>
       PlaybackCommandCoordinator(
@@ -875,6 +890,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       );
 
   AudioPlayer get player => _player;
+
+  /// 均衡器桥。设置页与均衡器界面通过它读写频段增益。
+  EqualizerBridge get equalizer => _equalizer;
 
   Stream<AudioPlayer> get playerStream => _playerSubject.stream;
 
@@ -1352,6 +1370,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     _player = replacementFactory();
     _commands = _createCommandCoordinator(_player);
+    // 新播放器带的是新注入的均衡器音效，期望状态需要重新施加一次。
+    _equalizer.bindPlayer(_player);
     _init();
     _playerSubject.add(_player);
     _publishPlaybackState(
@@ -2739,6 +2759,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await cleanup(_releasePlaybackLeases);
     await cleanup(_drainLeaseReleases);
     await cleanup(_commands.stopAndWait);
+    await cleanup(_equalizer.dispose);
     await cleanup(_player.dispose);
     await cleanup(_playerSubject.close);
 
