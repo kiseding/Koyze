@@ -1,33 +1,144 @@
 PODS:
+  - audio_service (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - audio_session (0.0.1):
+    - Flutter
+  - connectivity_plus (0.0.1):
+    - Flutter
+  - DKImagePickerController/Core (4.3.9):
+    - DKImagePickerController/ImageDataManager
+    - DKImagePickerController/Resource
+  - DKImagePickerController/ImageDataManager (4.3.9)
+  - DKImagePickerController/PhotoGallery (4.3.9):
+    - DKImagePickerController/Core
+    - DKPhotoGallery
+  - DKImagePickerController/Resource (4.3.9)
+  - DKPhotoGallery (0.0.19):
+    - DKPhotoGallery/Core (= 0.0.19)
+    - DKPhotoGallery/Model (= 0.0.19)
+    - DKPhotoGallery/Preview (= 0.0.19)
+    - DKPhotoGallery/Resource (= 0.0.19)
+    - SDWebImage
+    - SwiftyGif
+  - DKPhotoGallery/Core (0.0.19):
+    - DKPhotoGallery/Model
+    - DKPhotoGallery/Preview
+    - SDWebImage
+    - SwiftyGif
+  - DKPhotoGallery/Model (0.0.19):
+    - SDWebImage
+    - SwiftyGif
+  - DKPhotoGallery/Preview (0.0.19):
+    - DKPhotoGallery/Model
+    - DKPhotoGallery/Resource
+    - SDWebImage
+    - SwiftyGif
+  - DKPhotoGallery/Resource (0.0.19):
+    - SDWebImage
+    - SwiftyGif
+  - file_picker (0.0.1):
+    - DKImagePickerController/PhotoGallery
+    - Flutter
   - Flutter (1.0.0)
+  - flutter_app_group_directory (0.0.1):
+    - Flutter
   - flutter_js (0.1.0):
     - Flutter
   - flutter_secure_storage (6.0.0):
     - Flutter
   - home_widget (0.0.1):
     - Flutter
+  - just_audio (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - live_activities (0.0.1):
+    - Flutter
+  - permission_handler_apple (9.4.8):
+    - Flutter
+  - SDWebImage (5.21.7):
+    - SDWebImage/Core (= 5.21.7)
+  - SDWebImage/Core (5.21.7)
+  - shared_preferences_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+  - sqflite_darwin (0.0.4):
+    - Flutter
+    - FlutterMacOS
+  - SwiftyGif (5.4.5)
 
 DEPENDENCIES:
+  - audio_service (from `.symlinks/plugins/audio_service/darwin`)
+  - audio_session (from `.symlinks/plugins/audio_session/ios`)
+  - connectivity_plus (from `.symlinks/plugins/connectivity_plus/ios`)
+  - file_picker (from `.symlinks/plugins/file_picker/ios`)
   - Flutter (from `Flutter`)
+  - flutter_app_group_directory (from `.symlinks/plugins/flutter_app_group_directory/ios`)
   - flutter_js (from `.symlinks/plugins/flutter_js/ios`)
   - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
   - home_widget (from `.symlinks/plugins/home_widget/ios`)
+  - just_audio (from `.symlinks/plugins/just_audio/darwin`)
+  - live_activities (from `.symlinks/plugins/live_activities/ios`)
+  - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
+  - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
+  - sqflite_darwin (from `.symlinks/plugins/sqflite_darwin/darwin`)
+
+SPEC REPOS:
+  trunk:
+    - DKImagePickerController
+    - DKPhotoGallery
+    - SDWebImage
+    - SwiftyGif
 
 EXTERNAL SOURCES:
+  audio_service:
+    :path: ".symlinks/plugins/audio_service/darwin"
+  audio_session:
+    :path: ".symlinks/plugins/audio_session/ios"
+  connectivity_plus:
+    :path: ".symlinks/plugins/connectivity_plus/ios"
+  file_picker:
+    :path: ".symlinks/plugins/file_picker/ios"
   Flutter:
     :path: Flutter
+  flutter_app_group_directory:
+    :path: ".symlinks/plugins/flutter_app_group_directory/ios"
   flutter_js:
     :path: ".symlinks/plugins/flutter_js/ios"
   flutter_secure_storage:
     :path: ".symlinks/plugins/flutter_secure_storage/ios"
   home_widget:
     :path: ".symlinks/plugins/home_widget/ios"
+  just_audio:
+    :path: ".symlinks/plugins/just_audio/darwin"
+  live_activities:
+    :path: ".symlinks/plugins/live_activities/ios"
+  permission_handler_apple:
+    :path: ".symlinks/plugins/permission_handler_apple/ios"
+  shared_preferences_foundation:
+    :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
+  sqflite_darwin:
+    :path: ".symlinks/plugins/sqflite_darwin/darwin"
 
 SPEC CHECKSUMS:
+  audio_service: aa99a6ba2ae7565996015322b0bb024e1d25c6fd
+  audio_session: 9bb7f6c970f21241b19f5a3658097ae459681ba0
+  connectivity_plus: cb623214f4e1f6ef8fe7403d580fdad517d2f7dd
+  DKImagePickerController: 946cec48c7873164274ecc4624d19e3da4c1ef3c
+  DKPhotoGallery: b3834fecb755ee09a593d7c9e389d8b5d6deed60
+  file_picker: a0560bc09d61de87f12d246fc47d2119e6ef37be
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  flutter_app_group_directory: 55b5362007d1c0cb45dc1dd1e94f67d615f45a6b
   flutter_js: 867813c1830e1d9b2c5d547cdb6f61801e2f2145
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
   home_widget: f169fc41fd807b4d46ab6615dc44d62adbf9f64f
+  just_audio: 4e391f57b79cad2b0674030a00453ca5ce817eed
+  live_activities: 4dfa736d0736e1c77866a2f9c056a76513cc9e7b
+  permission_handler_apple: 92d754bbaa7361d436db2d6c3c1c2a0fdcec462e
+  SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
+  shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
+  sqflite_darwin: 20b2a3a3b70e43edae938624ce550a3cbf66a3d0
+  SwiftyGif: 706c60cf65fa2bc5ee0313beece843c8eb8194d4
 
 PODFILE CHECKSUM: 9f8a72cdcee1679cfe83dcd39cdc0dc42eb4767f
 

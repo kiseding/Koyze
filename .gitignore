@@ -54,3 +54,14 @@ workers/.dev.vars
 # Development artifacts
 persistence-task-*.md
 lib/**/*.sh
+
+# Local CocoaPods gems (portable ruby). Never commit.
+.gems/
+
+# Local UI preview artifacts (golden screenshot gallery) and the sandbox-only
+# macOS launch scripts. Not part of the app; gallery_test.dart also triggers an
+# `invalid_use_of_visible_for_testing_member` analyzer warning that would fail
+# the `flutter analyze --no-fatal-infos` step in CI.
+tool/ui_preview/
+tool/run_macos_preview.sh
+tool/run_macos_preview.command

@@ -73,3 +73,8 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  config:
+    # Nested WorkBuddy/CodeBuddy sandboxes cannot resolve Swift packages
+    # (`sandbox-exec: sandbox_apply: Operation not permitted`). Force the
+    # existing CocoaPods path on iOS/macOS instead.
+    enable-swift-package-manager: false
