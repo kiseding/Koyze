@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../../features/player/domain/music_item.dart';
 import '../../features/custom_source/domain/custom_source_service.dart';
+import '../../features/subsonic/domain/subsonic_service.dart';
+import '../../features/subsonic/domain/subsonic_url.dart';
 import '../music_source/platform/built_in_source_manager.dart';
 import 'play_url_result.dart';
 import 'outbound_url.dart';
@@ -45,6 +47,7 @@ class MusicSourceService {
   final QualityResolver? _customQualityResolver;
   final CustomSourceQualityResolver? _customSourceQualityResolver;
   final QualityResolver? _builtInQualityResolver;
+  final SubsonicService? _subsonicService;
   final Duration playUrlResolutionTimeout;
   final Map<String, Future<({String url, String? type})?>> _customUrlRequests =
       {};
@@ -58,13 +61,15 @@ class MusicSourceService {
     CustomSourceQualityResolver? customSourceQualityResolver,
     QualityResolver? builtInQualityResolver,
     BuiltInSourceManager? builtInSources,
+    SubsonicService? subsonicService,
     this.playUrlResolutionTimeout = const Duration(seconds: 30),
   }) : _hasEnabledCustomSources = hasEnabledCustomSources,
        _enabledCustomSourceIds = enabledCustomSourceIds,
        _customQualityResolver = customQualityResolver,
        _customSourceQualityResolver = customSourceQualityResolver,
        _builtInSources = builtInSources ?? BuiltInSourceManager(),
-       _builtInQualityResolver = builtInQualityResolver;
+       _builtInQualityResolver = builtInQualityResolver,
+       _subsonicService = subsonicService;
 
   BuiltInSourceManager get builtInSources => _builtInSources;
 
@@ -294,6 +299,9 @@ class MusicSourceService {
     final resolvedQuality = preferredQuality.isEmpty
         ? '320k'
         : preferredQuality;
+    if (isSubsonicMusic(music.source, music.platform)) {
+      return _resolveSubsonicUrl(music, resolvedQuality);
+    }
     final songId = (music.songmid?.isNotEmpty == true)
         ? music.songmid!
         : (music.hash?.isNotEmpty == true ? music.hash! : music.id);
@@ -759,10 +767,48 @@ class MusicSourceService {
     return current;
   }
 
+  Future<PlayUrlResult?> _resolveSubsonicUrl(
+    MusicItem music,
+    String quality,
+  ) async {
+    final service = _subsonicService;
+    if (service == null) {
+      debugPrint('[getPlayUrl] Subsonic 服务未注入');
+      return null;
+    }
+    await service.init();
+    if (!service.isConnected) {
+      debugPrint('[getPlayUrl] 尚未连接自建音乐服务器');
+      return null;
+    }
+    final url = await service.getPlayUrl(music, quality: quality);
+    if (url == null || !isPlayableMediaUrl(url)) return null;
+    return PlayUrlResult(
+      url: normalizeMediaUrl(url),
+      requestedQuality: quality,
+      actualQuality: quality,
+      platform: 'subsonic',
+      songId: music.songmid ?? music.id,
+    );
+  }
+
   Future<String?> getLyric(MusicItem music) async {
     debugPrint(
       '[MusicSourceService] getLyric: platform=${music.platform}, source=${music.source}, songmid=${music.songmid}',
     );
+
+    final subsonic = _subsonicService;
+    if (isSubsonicMusic(music.source, music.platform)) {
+      if (subsonic == null) return null;
+      try {
+        await subsonic.init();
+        final lyric = await subsonic.getLyric(music);
+        if (lyric != null && lyric.isNotEmpty) return lyric;
+      } catch (error) {
+        debugPrint('[MusicSourceService] Subsonic 歌词失败: $error');
+      }
+      return null;
+    }
 
     final platform = music.platform.isNotEmpty ? music.platform : music.source;
     if (platform.isNotEmpty && platform != 'custom' && platform != 'test') {

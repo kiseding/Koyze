@@ -8,10 +8,15 @@ import '../../custom_source/presentation/custom_source_provider.dart';
 import '../../local_music/presentation/local_music_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
+import '../../subsonic/presentation/subsonic_provider.dart';
 
 final musicSourceServiceProvider = Provider<MusicSourceService>((ref) {
   final customSourceService = ref.watch(customSourceServiceProvider);
-  final service = MusicSourceService(customSourceService);
+  final subsonicService = ref.watch(subsonicServiceProvider);
+  final service = MusicSourceService(
+    customSourceService,
+    subsonicService: subsonicService,
+  );
   ref.onDispose(service.dispose);
   return service;
 });
@@ -26,6 +31,7 @@ class SearchSourceItem {
 
 // 桌面版固定的搜索平台列表
 final allSearchSourcesProvider = Provider<List<SearchSourceItem>>((ref) {
+  final connected = ref.watch(subsonicConnectedProvider);
   return [
     SearchSourceItem(id: 'all', name: '全网'),
     SearchSourceItem(id: 'tx', name: 'QQ'),
@@ -33,14 +39,25 @@ final allSearchSourcesProvider = Provider<List<SearchSourceItem>>((ref) {
     SearchSourceItem(id: 'wy', name: '网易'),
     SearchSourceItem(id: 'local', name: '本地'),
     SearchSourceItem(id: 'favorites', name: '收藏'),
+    if (connected) SearchSourceItem(id: 'subsonic', name: '自建'),
   ];
 });
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
-// 默认腾讯；设置页可改 defaultSearchPlatform 并同步到此
-final selectedSourceIdProvider = StateProvider<String>(
-  (ref) => ref.watch(defaultSearchPlatformProvider),
-);
+// 默认腾讯；设置页可改 defaultSearchPlatform 并同步到此。
+// 未连接自建服时不能停在 subsonic，否则搜索会打空源。
+final selectedSourceIdProvider = StateProvider<String>((ref) {
+  ref.listen<bool>(subsonicConnectedProvider, (previous, next) {
+    if (!next && ref.controller.state == 'subsonic') {
+      ref.controller.state = 'all';
+    }
+  });
+  final initial = ref.watch(defaultSearchPlatformProvider);
+  if (initial == 'subsonic' && !ref.read(subsonicConnectedProvider)) {
+    return 'all';
+  }
+  return initial;
+});
 
 // 搜索状态类
 class SearchState {
@@ -227,6 +244,19 @@ final searchStateProvider = StateNotifierProvider<SearchNotifier, SearchState>((
         final start = (page - 1) * 20;
         if (start >= matches.length) return const [];
         return matches.skip(start).take(20).toList();
+      }
+      if (sourceId == 'subsonic') {
+        final subsonic = ref.read(subsonicServiceProvider);
+        await subsonic.init();
+        if (!subsonic.isConnected) {
+          return service.search(
+            query,
+            customSourceId: 'all',
+            page: page,
+            type: 'music',
+          );
+        }
+        return subsonic.search(query, page: page, limit: 20);
       }
       return service.search(
         query,

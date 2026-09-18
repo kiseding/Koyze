@@ -55,7 +55,9 @@ void main() {
       'lib/features/playlist/presentation/playlist_screen.dart',
     ).readAsStringSync();
 
-    expect(RegExp(r'CardPlayButton\(').allMatches(source).length, 4);
+    expect(RegExp(r'CardPlayButton\(').allMatches(source).length, 5);
+    expect(source, contains('_BodySubsonicCard'));
+    expect(source, contains("context.push('/subsonic')"));
     expect(
       source,
       contains("import '../../../core/widgets/card_play_button.dart';"),

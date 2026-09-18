@@ -1,4 +1,5 @@
 import '../../../core/network/outbound_url.dart';
+import '../../subsonic/domain/subsonic_url.dart';
 
 class MusicItem {
   final String id;
@@ -166,7 +167,11 @@ class MusicItem {
     String platform,
     String? artwork,
   ) {
-    return artwork == null ? null : normalizeOutboundUrl(artwork);
+    if (artwork == null) return null;
+    if (isSubsonicMusic(source, platform)) {
+      return normalizeMediaUrl(artwork);
+    }
+    return normalizeOutboundUrl(artwork);
   }
 }
 

@@ -116,6 +116,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 () => context.push('/custom-source'),
                 captureExpandOrigin: true,
               ),
+              _buildNavTile(
+                context,
+                ref,
+                '自建音乐服务器',
+                '连接 Navidrome / Subsonic 兼容服务器',
+                () => context.push('/subsonic-settings'),
+                captureExpandOrigin: true,
+              ),
             ]),
             _buildSection(context, '播放', [
               _buildNavTile(

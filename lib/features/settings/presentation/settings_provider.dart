@@ -50,7 +50,7 @@ final autoResumePlaybackProvider =
       return AutoResumePlaybackNotifier();
     });
 
-/// 默认搜索平台：tx / kw / wy / local / favorites
+/// 默认搜索平台：tx / kw / wy / local / favorites / subsonic
 final defaultSearchPlatformProvider =
     StateNotifierProvider<DefaultSearchPlatformNotifier, String>((ref) {
       return DefaultSearchPlatformNotifier();
@@ -246,14 +246,28 @@ class DefaultSearchPlatformNotifier extends _PersistedSettingNotifier<String> {
     : super('tx', storage: storage) {
     _load((storage) {
       final value = storage.getString('default_search_platform');
-      return const {'tx', 'kw', 'wy', 'local', 'favorites'}.contains(value)
+      return const {
+            'tx',
+            'kw',
+            'wy',
+            'local',
+            'favorites',
+            'subsonic',
+          }.contains(value)
           ? value
           : null;
     });
   }
 
   Future<void> setPlatform(String platform) async {
-    if (!const {'tx', 'kw', 'wy', 'local', 'favorites'}.contains(platform)) {
+    if (!const {
+      'tx',
+      'kw',
+      'wy',
+      'local',
+      'favorites',
+      'subsonic',
+    }.contains(platform)) {
       return;
     }
     await _persist(

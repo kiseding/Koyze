@@ -57,6 +57,8 @@ String platformLabel(String p) {
       return '咪咕音乐';
     case 'local':
       return '本地音乐';
+    case 'subsonic':
+      return '自建服务器';
     default:
       return p.isEmpty ? '未知' : p;
   }

@@ -16,6 +16,8 @@ import '../../player/domain/music_item.dart';
 import 'playlist_provider.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../recommend/presentation/recommendation_provider.dart';
+import '../../subsonic/domain/subsonic_config.dart';
+import '../../subsonic/presentation/subsonic_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 
@@ -245,6 +247,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         const _BodyGap(12),
         const _BodyLocalCard(),
         const _BodyGap(12),
+        const _BodySubsonicCard(),
+        const _BodyGap(12),
         const _BodyRecentCard(),
         const _BodyGap(24),
         const _BodyHeader(title: '自定义歌单', trailing: true),
@@ -296,6 +300,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         recent,
         playerService,
       ),
+      _BodySubsonicCard() => _buildSubsonicCard(context, ref, playerService),
       _BodyGap(:final height) => SizedBox(height: height),
       _BodyHeader(:final title, :final trailing) => Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -754,6 +759,129 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildSubsonicCard(
+    BuildContext context,
+    WidgetRef ref,
+    dynamic _,
+  ) {
+    final connected = ref.watch(subsonicConnectedProvider);
+    final config = ref.watch(subsonicConfigProvider);
+    final playlistsAsync = connected
+        ? ref.watch(subsonicPlaylistsProvider)
+        : const AsyncValue<List<SubsonicPlaylistInfo>>.data([]);
+    final playlists = playlistsAsync.valueOrNull ?? const <SubsonicPlaylistInfo>[];
+    final songCount = playlists.fold<int>(0, (sum, item) => sum + item.songCount);
+    const pink = Colors.pink;
+    const onPink = Colors.white;
+    final subtitle = !connected
+        ? '连接 Navidrome / Subsonic'
+        : playlistsAsync.isLoading
+            ? '正在加载 ${config.hostLabel}'
+            : playlists.isEmpty
+                ? '已连接 ${config.hostLabel}'
+                : '${playlists.length} 个歌单 · $songCount 首';
+
+    return HoverFloat(
+      child: Pressable(
+        borderRadius: BorderRadius.circular(16),
+        captureExpandRect: true,
+        onTap: () => context.push('/subsonic'),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [pink.withAlpha(220), pink.withAlpha(120)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: onPink.withAlpha(40),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.cloud_queue_rounded,
+                  color: onPink,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '自建音乐库',
+                      style: TextStyle(
+                        color: onPink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: onPink.withAlpha(200),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              CardPlayButton(
+                color: onPink,
+                backgroundColor: onPink.withAlpha(40),
+                onPressed: !connected || songCount <= 0
+                    ? null
+                    : () => _playSubsonicLibrary(ref, playlists),
+                icon: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: onPink,
+                  size: 30,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _playSubsonicLibrary(
+    WidgetRef ref,
+    List<SubsonicPlaylistInfo> playlists,
+  ) async {
+    try {
+      final service = ref.read(subsonicServiceProvider);
+      final songs = <MusicItem>[];
+      for (final playlist in playlists) {
+        if (playlist.songCount <= 0) continue;
+        songs.addAll(await service.getPlaylistSongs(playlist.id));
+        if (songs.length >= 200) break;
+      }
+      if (songs.isEmpty) {
+        showAppNotification('服务器歌单是空的', type: AppNotificationType.info);
+        return;
+      }
+      await ref.read(playerServiceProvider).playPlaylist(
+            songs,
+            manualPlayName: songs.first.name,
+          );
+    } catch (error) {
+      if (!mounted) return;
+      showAppNotification('播放失败: $error', type: AppNotificationType.error);
+    }
   }
 
   Widget _buildPlaylistItem(
@@ -1666,6 +1794,10 @@ class _BodyLocalCard extends _PlaylistBodyItem {
 
 class _BodyRecentCard extends _PlaylistBodyItem {
   const _BodyRecentCard();
+}
+
+class _BodySubsonicCard extends _PlaylistBodyItem {
+  const _BodySubsonicCard();
 }
 
 class _BodyGap extends _PlaylistBodyItem {

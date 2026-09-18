@@ -273,9 +273,16 @@ bool _decodeBool(Object? raw, {required String field, required bool fallback}) {
 
 String _decodeSearchPlatform(Object? raw) {
   if (raw == null) return 'tx';
-  if (!const {'tx', 'kw', 'wy', 'local', 'favorites'}.contains(raw)) {
+  if (!const {
+    'tx',
+    'kw',
+    'wy',
+    'local',
+    'favorites',
+    'subsonic',
+  }.contains(raw)) {
     throw const FormatException(
-      'default_search_platform must be tx, kw, wy, local, or favorites',
+      'default_search_platform must be tx, kw, wy, local, favorites, or subsonic',
     );
   }
   return raw as String;

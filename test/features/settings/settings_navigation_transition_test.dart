@@ -14,6 +14,7 @@ void main() {
       '/download',
       '/local-music',
       '/custom-source',
+      '/subsonic-settings',
       '/sync',
     ]) {
       expect(

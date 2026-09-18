@@ -26,12 +26,18 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
-	<!-- ATS：允许明文 http 播放地址（部分音源返回 http 音频 CDN 地址） -->
+	<!-- ATS：允许明文 http 播放地址（部分音源返回 http 音频 CDN 地址）。
+	     NSAllowsLocalNetworking 仅放行局域网 HTTP，供自建 Subsonic / Navidrome
+	     的 ping、封面和 API；不开启全局 NSAllowsArbitraryLoads。 -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoadsForMedia</key>
 		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Koyze 需要访问局域网中的自建音乐服务器（Navidrome / Subsonic）</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

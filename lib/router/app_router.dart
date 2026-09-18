@@ -22,6 +22,9 @@ import '../features/stats/presentation/stats_screen.dart';
 import '../features/playlist/presentation/duplicate_screen.dart';
 import '../features/recommend/presentation/recommendation_screen.dart';
 import '../features/local_music/presentation/local_music_screen.dart';
+import '../features/subsonic/presentation/subsonic_library_screen.dart';
+import '../features/subsonic/presentation/subsonic_playlist_detail_screen.dart';
+import '../features/subsonic/presentation/subsonic_settings_screen.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<SwipeBranchContainerState> _swipeBranchKey =
@@ -244,6 +247,40 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const CustomSourceScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+      ),
+    ),
+    GoRoute(
+      path: '/subsonic-settings',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const SubsonicSettingsScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+        fullWidthSwipe: true,
+      ),
+    ),
+    GoRoute(
+      path: '/subsonic',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const SubsonicLibraryScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+      ),
+    ),
+    GoRoute(
+      path: '/subsonic/playlist/:id',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        SubsonicPlaylistDetailScreen(
+          playlistId: Uri.decodeComponent(state.pathParameters['id'] ?? ''),
+          playlistName: state.extra is String ? state.extra as String : null,
+        ),
         expandRect: consumeCardExpandRect(),
         expandSnapshot: consumeCardExpandSnapshot(),
       ),

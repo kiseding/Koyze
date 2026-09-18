@@ -15,6 +15,21 @@ void main() {
     expect(item.artwork, 'https://images.example.com/cover.jpg?size=300');
   });
 
+  test('MusicItem keeps Subsonic LAN artwork on HTTP', () {
+    const artwork =
+        'http://192.168.1.8:4533/rest/getCoverArt?id=al-1&size=300';
+    final item = MusicItem(
+      id: 'al-1',
+      name: 'Track',
+      singer: 'Artist',
+      source: 'subsonic',
+      platform: 'subsonic',
+      artwork: artwork,
+    );
+
+    expect(item.artwork, artwork);
+  });
+
   group('MusicItem', () {
     test('should create MusicItem with required fields', () {
       final music = MusicItem(
