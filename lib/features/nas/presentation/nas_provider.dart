@@ -42,6 +42,18 @@ final nasPlaylistsProvider =
       return service.getPlaylists();
     });
 
+final nasLibrarySongsProvider =
+    FutureProvider.autoDispose.family<List<MusicItem>, NasKind>((
+      ref,
+      kind,
+    ) async {
+      ref.watch(nasRevisionProvider(kind));
+      final service = ref.watch(nasServiceProvider(kind));
+      await service.init();
+      if (!service.isConnected) return const [];
+      return service.getLibrarySongs();
+    });
+
 class NasPlaylistSongsKey {
   const NasPlaylistSongsKey(this.kind, this.playlistId);
 

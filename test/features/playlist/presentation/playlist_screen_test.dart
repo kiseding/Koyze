@@ -59,6 +59,8 @@ void main() {
     expect(source, contains('_BodySubsonicCard'));
     expect(source, isNot(contains('_BodyNasCard')));
     expect(source, contains("context.push('/subsonic')"));
+    expect(source, contains('subsonicLibrarySongsProvider'));
+    expect(source, isNot(contains('subsonicPlaylistsProvider')));
     expect(
       source,
       contains("import '../../../core/widgets/card_play_button.dart';"),

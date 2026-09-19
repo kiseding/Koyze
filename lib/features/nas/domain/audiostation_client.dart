@@ -195,6 +195,34 @@ class AudioStationNasClient extends NasClient {
   }
 
   @override
+  Future<List<MusicItem>> getLibrarySongs(
+    NasConfig config,
+    NasSecrets secrets, {
+    int limit = 500,
+  }) async {
+    final cap = limit < 1 ? 500 : limit;
+    final data = await _cgi(
+      config,
+      path: '/webapi/AudioStation/song.cgi',
+      query: {
+        'api': 'SYNO.AudioStation.Song',
+        'method': 'list',
+        'version': 3,
+        'library': 'all',
+        'offset': 0,
+        'limit': cap,
+        'additional': 'song_tag,song_audio',
+      },
+      sid: secrets.token,
+    );
+    return asList(data['songs'])
+        .map((item) => parseSong(config, secrets, item))
+        .where((item) => item.id.isNotEmpty)
+        .take(cap)
+        .toList(growable: false);
+  }
+
+  @override
   Future<List<MusicItem>> search(
     NasConfig config,
     NasSecrets secrets,

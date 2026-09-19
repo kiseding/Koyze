@@ -189,6 +189,64 @@ class SubsonicClient {
         .toList(growable: false);
   }
 
+  static const librarySongLimit = 500;
+  static const libraryAlbumLimit = 100;
+
+  /// 浏览曲库歌曲（不依赖用户自建歌单）。
+  ///
+  /// 先拉最近专辑再展开曲目；没有专辑时退回 `getRandomSongs`。
+  Future<List<MusicItem>> getLibrarySongs(
+    SubsonicConfig config,
+    String password, {
+    int limit = librarySongLimit,
+  }) async {
+    final cap = limit < 1 ? librarySongLimit : limit;
+    final albums = await _request(config, password, 'getAlbumList2', {
+      'type': 'newest',
+      'size': '$libraryAlbumLimit',
+      'offset': '0',
+    });
+    final albumWrapper = albums['albumList2'] ?? albums['albumList'];
+    final albumRaw = albumWrapper is Map ? albumWrapper['album'] : null;
+    final albumIds = _asList(albumRaw)
+        .map((item) => item['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+
+    final songs = <MusicItem>[];
+    final seen = <String>{};
+    for (final albumId in albumIds) {
+      if (songs.length >= cap) break;
+      final payload = await _request(config, password, 'getAlbum', {
+        'id': albumId,
+      });
+      final wrapper = payload['album'];
+      final raw = wrapper is Map ? wrapper['song'] : null;
+      for (final item in _asList(raw)) {
+        final song = parseSong(config, password, item);
+        if (song.id.isEmpty || !seen.add(song.id)) continue;
+        songs.add(song);
+        if (songs.length >= cap) break;
+      }
+    }
+    if (songs.isNotEmpty) return List<MusicItem>.unmodifiable(songs);
+
+    try {
+      final random = await _request(config, password, 'getRandomSongs', {
+        'size': '$cap',
+      });
+      final wrapper = random['randomSongs'];
+      final raw = wrapper is Map ? wrapper['song'] : null;
+      return _asList(raw)
+          .map((item) => parseSong(config, password, item))
+          .where((item) => item.id.isNotEmpty)
+          .take(cap)
+          .toList(growable: false);
+    } on SubsonicApiException {
+      return const [];
+    }
+  }
+
   Future<List<MusicItem>> search(
     SubsonicConfig config,
     String password,

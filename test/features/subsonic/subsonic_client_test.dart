@@ -109,6 +109,85 @@ void main() {
     expect(result.openSubsonic, isTrue);
   });
 
+  test('library songs expand newest albums without using playlists', () async {
+    final seen = <String>[];
+    final client = SubsonicClient(
+      dio: _okDio((options) {
+        final path = options.uri.path;
+        seen.add(path);
+        if (path.endsWith('/getAlbumList2')) {
+          expect(options.uri.queryParameters['type'], 'newest');
+          return _ok({
+            'albumList2': {
+              'album': [
+                {'id': 'al-1', 'name': 'Album'},
+              ],
+            },
+          });
+        }
+        if (path.endsWith('/getAlbum')) {
+          expect(options.uri.queryParameters['id'], 'al-1');
+          return _ok({
+            'album': {
+              'song': [
+                {
+                  'id': '42',
+                  'title': 'Song',
+                  'artist': 'Artist',
+                  'album': 'Album',
+                  'duration': 180,
+                  'coverArt': 'al-42',
+                },
+              ],
+            },
+          });
+        }
+        fail('unexpected $path');
+      }),
+      saltGenerator: () => 'fixedsalt12',
+    );
+    addTearDown(client.dispose);
+    final songs = await client.getLibrarySongs(config, 'secret', limit: 20);
+    expect(songs, hasLength(1));
+    expect(songs.single.name, 'Song');
+    expect(songs.single.singer, 'Artist');
+    expect(songs.single.source, 'subsonic');
+    expect(seen.any((path) => path.endsWith('/getPlaylists')), isFalse);
+    expect(seen.any((path) => path.endsWith('/getRandomSongs')), isFalse);
+  });
+
+  test('library songs fall back to random songs when albums are empty', () async {
+    final client = SubsonicClient(
+      dio: _okDio((options) {
+        final path = options.uri.path;
+        if (path.endsWith('/getAlbumList2')) {
+          return _ok({'albumList2': <String, dynamic>{}});
+        }
+        if (path.endsWith('/getRandomSongs')) {
+          return _ok({
+            'randomSongs': {
+              'song': [
+                {
+                  'id': '99',
+                  'title': 'Random',
+                  'artist': 'Someone',
+                  'album': 'Misc',
+                  'duration': 90,
+                },
+              ],
+            },
+          });
+        }
+        fail('unexpected $path');
+      }),
+      saltGenerator: () => 'fixedsalt12',
+    );
+    addTearDown(client.dispose);
+    final songs = await client.getLibrarySongs(config, 'secret', limit: 20);
+    expect(songs.single.id, '99');
+    expect(songs.single.name, 'Random');
+  });
+
   test('client maps playlist songs and keeps LAN cover URL', () async {
     final client = SubsonicClient(
       dio: _okDio(

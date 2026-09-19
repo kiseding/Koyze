@@ -154,6 +154,47 @@ class PlexNasClient extends NasClient {
   }
 
   @override
+  Future<List<MusicItem>> getLibrarySongs(
+    NasConfig config,
+    NasSecrets secrets, {
+    int limit = 500,
+  }) async {
+    final cap = limit < 1 ? 500 : limit;
+    final sections = _container(
+      await _get('${config.baseUrl}/library/sections', token: secrets.token),
+    );
+    final musicKeys = asList(sections?['Directory'])
+        .where((item) => item['type']?.toString() == 'artist')
+        .map((item) => item['key']?.toString() ?? '')
+        .where((key) => key.isNotEmpty)
+        .toList(growable: false);
+    final songs = <MusicItem>[];
+    final seen = <String>{};
+    for (final key in musicKeys) {
+      if (songs.length >= cap) break;
+      final data = _container(
+        await _get(
+          '${config.baseUrl}/library/sections/$key/all',
+          token: secrets.token,
+          query: {
+            'type': 10,
+            'sort': 'addedAt:desc',
+            'X-Plex-Container-Start': 0,
+            'X-Plex-Container-Size': cap,
+          },
+        ),
+      );
+      for (final item in asList(data?['Metadata'])) {
+        final song = parseSong(config, secrets, item);
+        if (song.id.isEmpty || !seen.add(song.id)) continue;
+        songs.add(song);
+        if (songs.length >= cap) break;
+      }
+    }
+    return List<MusicItem>.unmodifiable(songs.take(cap));
+  }
+
+  @override
   Future<List<MusicItem>> search(
     NasConfig config,
     NasSecrets secrets,

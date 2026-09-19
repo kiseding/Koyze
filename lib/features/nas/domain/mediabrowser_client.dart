@@ -215,6 +215,36 @@ class MediaBrowserNasClient extends NasClient {
   }
 
   @override
+  Future<List<MusicItem>> getLibrarySongs(
+    NasConfig config,
+    NasSecrets secrets, {
+    int limit = 500,
+  }) async {
+    final cap = limit < 1 ? 500 : limit;
+    final data = asMap(
+      await _get(
+        config,
+        secrets,
+        '/Users/${_userId(config)}/Items',
+        query: {
+          'IncludeItemTypes': 'Audio',
+          'Recursive': 'true',
+          'SortBy': 'DateCreated,SortName',
+          'SortOrder': 'Descending',
+          'Fields': 'MediaSources,RunTimeTicks,AlbumArtist,Album',
+          'StartIndex': 0,
+          'Limit': cap,
+        },
+      ),
+    );
+    return asList(data?['Items'])
+        .map((item) => parseSong(config, secrets, item))
+        .where((item) => item.id.isNotEmpty)
+        .take(cap)
+        .toList(growable: false);
+  }
+
+  @override
   Future<List<MusicItem>> search(
     NasConfig config,
     NasSecrets secrets,

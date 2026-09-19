@@ -18,7 +18,6 @@ import '../../player/presentation/player_provider.dart';
 import '../../recommend/presentation/recommendation_provider.dart';
 import '../../nas/domain/nas_kind.dart';
 import '../../nas/presentation/nas_provider.dart';
-import '../../subsonic/domain/subsonic_config.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
@@ -776,13 +775,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final connected =
         subsonicConnected || nasConnected.values.any((value) => value);
     final config = ref.watch(subsonicConfigProvider);
-    final playlistsAsync = subsonicConnected
-        ? ref.watch(subsonicPlaylistsProvider)
-        : const AsyncValue<List<SubsonicPlaylistInfo>>.data([]);
-    final playlists =
-        playlistsAsync.valueOrNull ?? const <SubsonicPlaylistInfo>[];
-    final songCount =
-        playlists.fold<int>(0, (sum, item) => sum + item.songCount);
+    final songsAsync = subsonicConnected
+        ? ref.watch(subsonicLibrarySongsProvider)
+        : const AsyncValue<List<MusicItem>>.data([]);
+    final songs = songsAsync.valueOrNull ?? const <MusicItem>[];
+    final songCount = songs.length;
     const pink = Colors.pink;
     const onPink = Colors.white;
     final connectedLabels = <String>[
@@ -792,7 +789,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     ];
     final subtitle = !connected
         ? 'Navidrome / Emby / Plex / 群晖'
-        : subsonicConnected && playlistsAsync.isLoading
+        : subsonicConnected && songsAsync.isLoading
             ? '正在加载 ${config.hostLabel}'
             : connectedLabels.join(' · ');
 
@@ -857,7 +854,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 backgroundColor: onPink.withAlpha(40),
                 onPressed: !subsonicConnected || songCount <= 0
                     ? null
-                    : () => _playSubsonicLibrary(ref, playlists),
+                    : () => _playSubsonicLibrary(ref, songs),
                 icon: const Icon(
                   Icons.play_arrow_rounded,
                   color: onPink,
@@ -873,23 +870,20 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
 
   Future<void> _playSubsonicLibrary(
     WidgetRef ref,
-    List<SubsonicPlaylistInfo> playlists,
+    List<MusicItem> songs,
   ) async {
     try {
-      final service = ref.read(subsonicServiceProvider);
-      final songs = <MusicItem>[];
-      for (final playlist in playlists) {
-        if (playlist.songCount <= 0) continue;
-        songs.addAll(await service.getPlaylistSongs(playlist.id));
-        if (songs.length >= 200) break;
+      var queue = songs;
+      if (queue.isEmpty) {
+        queue = await ref.read(subsonicServiceProvider).getLibrarySongs();
       }
-      if (songs.isEmpty) {
-        showAppNotification('服务器歌单是空的', type: AppNotificationType.info);
+      if (queue.isEmpty) {
+        showAppNotification('服务器上还没有歌曲', type: AppNotificationType.info);
         return;
       }
       await ref.read(playerServiceProvider).playPlaylist(
-            songs,
-            manualPlayName: songs.first.name,
+            queue,
+            manualPlayName: queue.first.name,
           );
     } catch (error) {
       if (!mounted) return;

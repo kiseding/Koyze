@@ -50,6 +50,12 @@ abstract class NasClient {
     String playlistId,
   );
 
+  Future<List<MusicItem>> getLibrarySongs(
+    NasConfig config,
+    NasSecrets secrets, {
+    int limit = 500,
+  });
+
   Future<List<MusicItem>> search(
     NasConfig config,
     NasSecrets secrets,

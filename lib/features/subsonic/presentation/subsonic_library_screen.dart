@@ -4,12 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
-import '../../../core/widgets/card_play_button.dart';
+import '../../../core/widgets/artwork_image.dart';
+import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/fx_icon_button.dart';
-import '../../../core/widgets/pressable.dart';
 import '../../nas/domain/nas_kind.dart';
 import '../../nas/domain/self_hosted_kind.dart';
 import '../../nas/presentation/nas_provider.dart';
+import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import 'subsonic_provider.dart';
 
@@ -41,6 +42,15 @@ class _SubsonicLibraryScreenState
     }
   }
 
+  void _invalidateSongs() {
+    final nasKind = _kind.nasKind;
+    if (nasKind == null) {
+      ref.invalidate(subsonicLibrarySongsProvider);
+    } else {
+      ref.invalidate(nasLibrarySongsProvider(nasKind));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     _pickInitialKind();
@@ -52,27 +62,9 @@ class _SubsonicLibraryScreenState
     final configHost = nasKind == null
         ? ref.watch(subsonicConfigProvider).hostLabel
         : ref.watch(nasConfigProvider(nasKind)).hostLabel;
-    final AsyncValue<List<_LibraryPlaylist>> playlistsAsync = nasKind == null
-        ? ref.watch(subsonicPlaylistsProvider).whenData(
-            (playlists) => [
-              for (final playlist in playlists)
-                _LibraryPlaylist(
-                  id: playlist.id,
-                  name: playlist.name,
-                  songCount: playlist.songCount,
-                ),
-            ],
-          )
-        : ref.watch(nasPlaylistsProvider(nasKind)).whenData(
-            (playlists) => [
-              for (final playlist in playlists)
-                _LibraryPlaylist(
-                  id: playlist.id,
-                  name: playlist.name,
-                  songCount: playlist.songCount,
-                ),
-            ],
-          );
+    final songsAsync = nasKind == null
+        ? ref.watch(subsonicLibrarySongsProvider)
+        : ref.watch(nasLibrarySongsProvider(nasKind));
     final on = AppColors.onScaffold(context);
     final accent = AppColors.accentOf(context);
 
@@ -99,16 +91,25 @@ class _SubsonicLibraryScreenState
                 context.push('/subsonic-settings', extra: _kind),
           ),
           if (connected)
+            songsAsync.maybeWhen(
+              data: (songs) => songs.isEmpty
+                  ? const SizedBox.shrink()
+                  : FxIconButton(
+                      tooltip: '播放全部',
+                      icon: Icon(
+                        Icons.play_circle_fill,
+                        color: accent,
+                        size: 28,
+                      ),
+                      onPressed: () => _play(songs, 0),
+                    ),
+              orElse: () => const SizedBox.shrink(),
+            ),
+          if (connected)
             FxIconButton(
               tooltip: '刷新',
               icon: Icon(Icons.refresh, color: on),
-              onPressed: () {
-                if (nasKind == null) {
-                  ref.invalidate(subsonicPlaylistsProvider);
-                } else {
-                  ref.invalidate(nasPlaylistsProvider(nasKind));
-                }
-              },
+              onPressed: _invalidateSongs,
             ),
         ],
       ),
@@ -150,65 +151,78 @@ class _SubsonicLibraryScreenState
                     title: '尚未连接 ${_kind.title}',
                     subtitle: _kind.intro,
                     actionLabel: '去连接',
-                    onAction: () => context.push('/subsonic-settings', extra: _kind),
+                    onAction: () =>
+                        context.push('/subsonic-settings', extra: _kind),
                   )
-                : playlistsAsync.when(
+                : songsAsync.when(
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
                     error: (error, _) => _empty(
                       context,
                       icon: Icons.error_outline,
-                      title: '加载歌单失败',
+                      title: '加载歌曲失败',
                       subtitle: '$error',
                       actionLabel: '重试',
-                      onAction: () {
-                        if (nasKind == null) {
-                          ref.invalidate(subsonicPlaylistsProvider);
-                        } else {
-                          ref.invalidate(nasPlaylistsProvider(nasKind));
-                        }
-                      },
+                      onAction: _invalidateSongs,
                     ),
-                    data: (items) {
-                      if (items.isEmpty) {
+                    data: (songs) {
+                      if (songs.isEmpty) {
                         return _empty(
                           context,
                           icon: Icons.library_music_outlined,
-                          title: '服务器上还没有歌单',
+                          title: '服务器上还没有歌曲',
                           subtitle: '当前已连接 $configHost',
                           actionLabel: '刷新',
-                          onAction: () {
-                            if (nasKind == null) {
-                              ref.invalidate(subsonicPlaylistsProvider);
-                            } else {
-                              ref.invalidate(nasPlaylistsProvider(nasKind));
-                            }
-                          },
+                          onAction: _invalidateSongs,
                         );
                       }
-                      return ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                        itemCount: items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      return ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 32),
+                        itemCount: songs.length,
                         itemBuilder: (context, index) {
-                          final playlist = items[index];
-                          return _PlaylistTile(
-                            playlist: playlist,
-                            icon: _kind.icon,
-                            onOpen: () {
-                              if (nasKind == null) {
-                                context.push(
-                                  '/subsonic/playlist/${Uri.encodeComponent(playlist.id)}',
-                                  extra: playlist.name,
-                                );
-                              } else {
-                                context.push(
-                                  nasKind.playlistRoute(playlist.id),
-                                  extra: playlist.name,
-                                );
-                              }
-                            },
-                            onPlay: () => _playPlaylist(playlist),
+                          final song = songs[index];
+                          return ListTile(
+                            onTap: () => _play(songs, index),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 44,
+                                height: 44,
+                                child: song.artwork == null ||
+                                        song.artwork!.isEmpty
+                                    ? Icon(
+                                        Icons.music_note,
+                                        color: AppColors.mutedText(context),
+                                      )
+                                    : ArtworkImage(
+                                        song.artwork!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Icon(
+                                          Icons.music_note,
+                                          color: AppColors.mutedText(context),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            title: Text(
+                              song.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: on, fontSize: 14),
+                            ),
+                            subtitle: Text(
+                              [
+                                if (song.singer.trim().isNotEmpty) song.singer,
+                                if (song.album.trim().isNotEmpty) song.album,
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.mutedText(context),
+                                fontSize: 12,
+                              ),
+                            ),
+                            trailing: FavoriteButton(song: song),
                           );
                         },
                       );
@@ -220,23 +234,13 @@ class _SubsonicLibraryScreenState
     );
   }
 
-  Future<void> _playPlaylist(_LibraryPlaylist playlist) async {
+  Future<void> _play(List<MusicItem> songs, int index) async {
+    if (songs.isEmpty) return;
     try {
-      final nasKind = _kind.nasKind;
-      final songs = nasKind == null
-          ? await ref
-              .read(subsonicServiceProvider)
-              .getPlaylistSongs(playlist.id)
-          : await ref
-              .read(nasServiceProvider(nasKind))
-              .getPlaylistSongs(playlist.id);
-      if (songs.isEmpty) {
-        showAppNotification('歌单是空的', type: AppNotificationType.info);
-        return;
-      }
       await ref.read(playerServiceProvider).playPlaylist(
             songs,
-            manualPlayName: songs.first.name,
+            index: index,
+            manualPlayName: songs[index].name,
           );
     } catch (error) {
       showAppNotification('播放失败: $error', type: AppNotificationType.error);
@@ -277,96 +281,6 @@ class _SubsonicLibraryScreenState
             ),
             const SizedBox(height: 20),
             FilledButton(onPressed: onAction, child: Text(actionLabel)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LibraryPlaylist {
-  const _LibraryPlaylist({
-    required this.id,
-    required this.name,
-    required this.songCount,
-  });
-
-  final String id;
-  final String name;
-  final int songCount;
-}
-
-class _PlaylistTile extends StatelessWidget {
-  const _PlaylistTile({
-    required this.playlist,
-    required this.icon,
-    required this.onOpen,
-    required this.onPlay,
-  });
-
-  final _LibraryPlaylist playlist;
-  final IconData icon;
-  final VoidCallback onOpen;
-  final VoidCallback onPlay;
-
-  @override
-  Widget build(BuildContext context) {
-    final on = AppColors.onScaffold(context);
-    final muted = AppColors.mutedText(context);
-    return Pressable(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onOpen,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.fill(context),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.cardBorder(context)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0A84FF).withAlpha(30),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: const Color(0xFF0A84FF)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    playlist.name.isEmpty ? '未命名歌单' : playlist.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: on,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${playlist.songCount} 首歌曲',
-                    style: TextStyle(color: muted, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            CardPlayButton(
-              color: AppColors.accentOf(context),
-              backgroundColor: AppColors.accentOf(context).withAlpha(28),
-              onPressed: playlist.songCount > 0 ? onPlay : null,
-              icon: Icon(
-                Icons.play_arrow_rounded,
-                color: AppColors.accentOf(context),
-                size: 28,
-              ),
-            ),
           ],
         ),
       ),

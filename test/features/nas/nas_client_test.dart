@@ -314,4 +314,146 @@ void main() {
     expect(result!.platform, 'emby');
     expect(result.url, contains('http://192.168.1.8:8096/Audio/42/stream'));
   });
+
+  test('Emby library songs list Audio items without playlists', () async {
+    var sawAudio = false;
+    var sawPlaylist = false;
+    final client = EmbyNasClient(
+      dio: _okDio((options) {
+        if (options.path.endsWith('/Users/user-1/Items') &&
+            options.queryParameters['IncludeItemTypes'] == 'Audio') {
+          sawAudio = true;
+          expect(options.queryParameters['ParentId'], isNull);
+          return {
+            'Items': [
+              {
+                'Id': '42',
+                'Name': 'Song',
+                'AlbumArtist': 'Artist',
+                'Album': 'Album',
+                'RunTimeTicks': 1800000000,
+              },
+            ],
+          };
+        }
+        if (options.queryParameters['IncludeItemTypes'] == 'Playlist') {
+          sawPlaylist = true;
+        }
+        return {'Items': <dynamic>[]};
+      }),
+    );
+    addTearDown(client.dispose);
+    const config = NasConfig(
+      kind: NasKind.emby,
+      baseUrl: 'http://192.168.1.8:8096',
+      username: 'alice',
+      userId: 'user-1',
+    );
+    final songs = await client.getLibrarySongs(
+      config,
+      const NasSecrets(token: 'emby-token'),
+      limit: 20,
+    );
+    expect(sawAudio, isTrue);
+    expect(sawPlaylist, isFalse);
+    expect(songs.single.name, 'Song');
+    expect(songs.single.source, 'emby');
+  });
+
+  test('Plex library songs list tracks from artist sections', () async {
+    final client = PlexNasClient(
+      dio: _okDio((options) {
+        if (options.path.endsWith('/library/sections')) {
+          return {
+            'MediaContainer': {
+              'Directory': [
+                {'key': '3', 'type': 'artist'},
+              ],
+            },
+          };
+        }
+        if (options.path.contains('/library/sections/3/all')) {
+          expect(options.queryParameters['type'], 10);
+          return {
+            'MediaContainer': {
+              'Metadata': [
+                {
+                  'ratingKey': '99',
+                  'title': 'Track',
+                  'grandparentTitle': 'Artist',
+                  'parentTitle': 'Album',
+                  'duration': 180000,
+                },
+              ],
+            },
+          };
+        }
+        return {'MediaContainer': <String, dynamic>{}};
+      }),
+    );
+    addTearDown(client.dispose);
+    final songs = await client.getLibrarySongs(
+      const NasConfig(
+        kind: NasKind.plex,
+        baseUrl: 'http://192.168.1.8:32400',
+        username: '',
+      ),
+      const NasSecrets(token: 'plex-token'),
+      limit: 20,
+    );
+    expect(songs.single.id, '99');
+    expect(songs.single.name, 'Track');
+    expect(songs.single.singer, 'Artist');
+    expect(songs.single.source, 'plex');
+  });
+
+  test('Audio Station library songs list tracks without playlists', () async {
+    var sawSongList = false;
+    var sawPlaylist = false;
+    final client = AudioStationNasClient(
+      dio: _okDio((options) {
+        if (options.path.contains('song.cgi')) {
+          sawSongList = true;
+          expect(options.queryParameters['method']?.toString(), 'list');
+          return {
+            'success': true,
+            'data': {
+              'songs': [
+                {
+                  'id': 'song-1',
+                  'additional': {
+                    'song_tag': {
+                      'title': 'Song',
+                      'artist': 'Artist',
+                      'album': 'Album',
+                    },
+                    'song_audio': {'duration': 180},
+                  },
+                },
+              ],
+            },
+          };
+        }
+        if (options.path.contains('playlist.cgi')) {
+          sawPlaylist = true;
+        }
+        return {'success': true, 'data': {}};
+      }),
+    );
+    addTearDown(client.dispose);
+    final songs = await client.getLibrarySongs(
+      const NasConfig(
+        kind: NasKind.audiostation,
+        baseUrl: 'http://192.168.1.8:5000',
+        username: 'alice',
+      ),
+      const NasSecrets(token: 'sid-1'),
+      limit: 20,
+    );
+    expect(sawSongList, isTrue);
+    expect(sawPlaylist, isFalse);
+    expect(songs.single.id, 'song-1');
+    expect(songs.single.name, 'Song');
+    expect(songs.single.source, 'audiostation');
+  });
 }

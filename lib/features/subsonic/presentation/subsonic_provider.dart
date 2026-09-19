@@ -38,6 +38,15 @@ final subsonicPlaylistsProvider =
   return service.getPlaylists();
 });
 
+final subsonicLibrarySongsProvider =
+    FutureProvider.autoDispose<List<MusicItem>>((ref) async {
+  ref.watch(subsonicRevisionProvider);
+  final service = ref.watch(subsonicServiceProvider);
+  await service.init();
+  if (!service.isConnected) return const [];
+  return service.getLibrarySongs();
+});
+
 final subsonicPlaylistSongsProvider = FutureProvider.autoDispose
     .family<List<MusicItem>, String>((ref, playlistId) async {
   ref.watch(subsonicRevisionProvider);

@@ -124,6 +124,16 @@ class SubsonicService {
     );
   }
 
+  Future<List<MusicItem>> getLibrarySongs({int limit = 500}) async {
+    final session = await _session();
+    if (session == null) return const [];
+    return _client.getLibrarySongs(
+      session.config,
+      session.password,
+      limit: limit,
+    );
+  }
+
   Future<List<MusicItem>> search(
     String query, {
     int page = 1,
