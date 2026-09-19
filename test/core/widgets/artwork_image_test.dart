@@ -134,6 +134,50 @@ void main() {
     expect(client.closeCalls, 1);
   });
 
+  test('QQ 1000px artwork falls back to the 500px CDN rendition', () {
+    expect(
+      artworkFallbackUrls(
+        'https://y.gtimg.cn/music/photo_new/T002R1000x1000M000000MkMni19ClKG.jpg',
+      ),
+      [
+        'https://y.gtimg.cn/music/photo_new/T002R500x500M000000MkMni19ClKG.jpg',
+      ],
+    );
+    expect(
+      artworkFallbackUrls(
+        'https://y.gtimg.cn/music/photo_new/T002R500x500M000000MkMni19ClKG.jpg',
+      ),
+      isEmpty,
+    );
+    expect(
+      artworkFallbackUrls(
+        'https://nas.example.test/rest/getCoverArt?id=abc&size=300',
+      ),
+      isEmpty,
+    );
+  });
+
+  test('NetEase and Kuwo artwork keep lower-resolution fallbacks', () {
+    expect(
+      artworkFallbackUrls(
+        'https://p1.music.126.net/cover.jpg?param=1000y1000',
+      ),
+      containsAll([
+        'https://p1.music.126.net/cover.jpg?param=500y500',
+        'https://p1.music.126.net/cover.jpg',
+      ]),
+    );
+    expect(
+      artworkFallbackUrls(
+        'https://img1.kuwo.cn/star/albumcover/500/cover.jpg',
+      ),
+      containsAll([
+        'https://img1.kuwo.cn/star/albumcover/300/cover.jpg',
+        'https://img1.kuwo.cn/star/albumcover/120/cover.jpg',
+      ]),
+    );
+  });
+
   test('injected loader does not affect ArtworkNetworkImage equality', () {
     final a = ArtworkNetworkImage(
       qqUrl,

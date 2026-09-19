@@ -7,22 +7,37 @@ import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../local_music/domain/local_music_scraper.dart';
+import '../../local_music/presentation/local_music_provider.dart';
+import '../../local_music/presentation/scrape_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import '../domain/nas_kind.dart';
 import 'nas_provider.dart';
 
-class NasLibraryScreen extends ConsumerWidget {
+class NasLibraryScreen extends ConsumerStatefulWidget {
   const NasLibraryScreen({super.key, required this.kind});
 
   final NasKind kind;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NasLibraryScreen> createState() => _NasLibraryScreenState();
+}
+
+class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
+  bool _scraping = false;
+  int _scrapeDone = 0;
+  int _scrapeTotal = 0;
+
+  NasKind get kind => widget.kind;
+
+  @override
+  Widget build(BuildContext context) {
     final connected = ref.watch(nasConnectedProvider(kind));
     final config = ref.watch(nasConfigProvider(kind));
     final songsAsync = ref.watch(nasLibrarySongsProvider(kind));
     final on = AppColors.onScaffold(context);
+    final accent = AppColors.accentOf(context);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -53,10 +68,24 @@ class NasLibraryScreen extends ConsumerWidget {
                       tooltip: '播放全部',
                       icon: Icon(
                         Icons.play_circle_fill,
-                        color: AppColors.accentOf(context),
+                        color: accent,
                         size: 28,
                       ),
-                      onPressed: () => _play(ref, songs, 0),
+                      onPressed: () => _play(songs, 0),
+                    ),
+              orElse: () => const SizedBox.shrink(),
+            ),
+          if (connected)
+            songsAsync.maybeWhen(
+              data: (songs) => songs.isEmpty
+                  ? const SizedBox.shrink()
+                  : FxIconButton(
+                      tooltip: _scraping ? '正在刮削' : '刮削封面和歌词',
+                      icon: Icon(
+                        Icons.auto_fix_high_outlined,
+                        color: _scraping ? accent : on,
+                      ),
+                      onPressed: _scraping ? null : () => _scrape(songs),
                     ),
               orElse: () => const SizedBox.shrink(),
             ),
@@ -64,96 +93,165 @@ class NasLibraryScreen extends ConsumerWidget {
             FxIconButton(
               tooltip: '刷新',
               icon: Icon(Icons.refresh, color: on),
-              onPressed: () => ref.invalidate(nasLibrarySongsProvider(kind)),
+              onPressed: _scraping
+                  ? null
+                  : () => ref.invalidate(nasLibrarySongsProvider(kind)),
             ),
         ],
       ),
-      body: !connected
-          ? _empty(
-              context,
-              icon: Icons.cloud_off_outlined,
-              title: '尚未连接 ${kind.title}',
-              subtitle: kind.settingsSubtitle,
-              actionLabel: '去连接',
-              onAction: () => context.push(kind.settingsRoute),
-            )
-          : songsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => _empty(
-                context,
-                icon: Icons.error_outline,
-                title: '加载歌曲失败',
-                subtitle: '$error',
-                actionLabel: '重试',
-                onAction: () => ref.invalidate(nasLibrarySongsProvider(kind)),
+      body: Column(
+        children: [
+          if (_scraping)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  LinearProgressIndicator(
+                    value: _scrapeTotal == 0 ? null : _scrapeDone / _scrapeTotal,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '正在刮削 $_scrapeDone / $_scrapeTotal',
+                    style: TextStyle(
+                      color: AppColors.mutedText(context),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
-              data: (songs) {
-                if (songs.isEmpty) {
-                  return _empty(
-                    context,
-                    icon: Icons.library_music_outlined,
-                    title: '服务器上还没有歌曲',
-                    subtitle: '当前已连接 ${config.hostLabel}',
-                    actionLabel: '刷新',
-                    onAction: () =>
-                        ref.invalidate(nasLibrarySongsProvider(kind)),
-                  );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 32),
-                  itemCount: songs.length,
-                  itemBuilder: (context, index) {
-                    final song = songs[index];
-                    return ListTile(
-                      onTap: () => _play(ref, songs, index),
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: song.artwork == null || song.artwork!.isEmpty
-                              ? Icon(
-                                  Icons.music_note,
-                                  color: AppColors.mutedText(context),
-                                )
-                              : ArtworkImage(
-                                  song.artwork!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Icon(
-                                    Icons.music_note,
-                                    color: AppColors.mutedText(context),
-                                  ),
-                                ),
-                        ),
-                      ),
-                      title: Text(
-                        song.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: on, fontSize: 14),
-                      ),
-                      subtitle: Text(
-                        [
-                          if (song.singer.trim().isNotEmpty) song.singer,
-                          if (song.album.trim().isNotEmpty) song.album,
-                        ].join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.mutedText(context),
-                          fontSize: 12,
-                        ),
-                      ),
-                      trailing: FavoriteButton(song: song),
-                    );
-                  },
-                );
-              },
             ),
+          Expanded(
+            child: !connected
+                ? _empty(
+                    context,
+                    icon: Icons.cloud_off_outlined,
+                    title: '尚未连接 ${kind.title}',
+                    subtitle: kind.settingsSubtitle,
+                    actionLabel: '去连接',
+                    onAction: () => context.push(kind.settingsRoute),
+                  )
+                : songsAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (error, _) => _empty(
+                      context,
+                      icon: Icons.error_outline,
+                      title: '加载歌曲失败',
+                      subtitle: '$error',
+                      actionLabel: '重试',
+                      onAction: () =>
+                          ref.invalidate(nasLibrarySongsProvider(kind)),
+                    ),
+                    data: (songs) {
+                      if (songs.isEmpty) {
+                        return _empty(
+                          context,
+                          icon: Icons.library_music_outlined,
+                          title: '服务器上还没有歌曲',
+                          subtitle: '当前已连接 ${config.hostLabel}',
+                          actionLabel: '刷新',
+                          onAction: () =>
+                              ref.invalidate(nasLibrarySongsProvider(kind)),
+                        );
+                      }
+                      return ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 32),
+                        itemCount: songs.length,
+                        itemBuilder: (context, index) {
+                          final song = songs[index];
+                          return ListTile(
+                            onTap: () => _play(songs, index),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 44,
+                                height: 44,
+                                child: song.artwork == null ||
+                                        song.artwork!.isEmpty
+                                    ? Icon(
+                                        Icons.music_note,
+                                        color: AppColors.mutedText(context),
+                                      )
+                                    : ArtworkImage(
+                                        song.artwork!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Icon(
+                                          Icons.music_note,
+                                          color: AppColors.mutedText(context),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            title: Text(
+                              song.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: on, fontSize: 14),
+                            ),
+                            subtitle: Text(
+                              [
+                                if (song.singer.trim().isNotEmpty) song.singer,
+                                if (song.album.trim().isNotEmpty) song.album,
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.mutedText(context),
+                                fontSize: 12,
+                              ),
+                            ),
+                            trailing: FavoriteButton(song: song),
+                          );
+                        },
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
-  Future<void> _play(WidgetRef ref, List<MusicItem> songs, int index) async {
+  Future<void> _scrape(List<MusicItem> songs) async {
+    if (_scraping || songs.isEmpty) return;
+    setState(() {
+      _scraping = true;
+      _scrapeDone = 0;
+      _scrapeTotal = songs.length;
+    });
+    try {
+      final scraper = ref.read(localMusicScraperProvider);
+      final store = await ref.read(musicScrapeStoreProvider.future);
+      final matched = await scrapeMusicItems(
+        scraper: scraper,
+        store: store,
+        songs: songs,
+        onProgress: (done, total) {
+          if (!mounted) return;
+          setState(() {
+            _scrapeDone = done;
+            _scrapeTotal = total;
+          });
+        },
+      );
+      if (!mounted) return;
+      ref.read(scrapeRevisionProvider.notifier).state++;
+      ref.invalidate(nasLibrarySongsProvider(kind));
+      showAppNotification(
+        matched == 0
+            ? '没有匹配到在线封面或歌词'
+            : '已为 $matched / ${songs.length} 首匹配封面和歌词',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showAppNotification('刮削失败: $error', type: AppNotificationType.error);
+    } finally {
+      if (mounted) setState(() => _scraping = false);
+    }
+  }
+
+  Future<void> _play(List<MusicItem> songs, int index) async {
     if (songs.isEmpty) return;
     try {
       await ref.read(playerServiceProvider).playPlaylist(

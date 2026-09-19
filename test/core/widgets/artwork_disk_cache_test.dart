@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/widgets/artwork_disk_cache.dart';
 import 'package:koyze/core/widgets/artwork_image.dart';
@@ -54,4 +55,51 @@ void main() {
       );
     },
   );
+
+  test('QQ 1000px miss falls back to 500px and caches under the original URL',
+      () async {
+    final root = await Directory.systemTemp.createTemp('artwork_cache_');
+    addTearDown(() => root.delete(recursive: true));
+    const requested =
+        'https://y.gtimg.cn/music/photo_new/T002R1000x1000M000abc.jpg';
+    const fallback =
+        'https://y.gtimg.cn/music/photo_new/T002R500x500M000abc.jpg';
+    final loader = _UrlMapArtworkLoader({
+      requested: () => throw NetworkImageLoadException(
+            statusCode: 404,
+            uri: Uri.parse(requested),
+          ),
+      fallback: () => Uint8List.fromList([9, 8, 7, 6]),
+    });
+    final cache = ArtworkDiskCache(loader: loader, rootOverride: root.path);
+    await cache.ensureReady();
+
+    final file = await cache.ensureLocalFile(requested);
+    expect(file, isNotNull);
+    expect(await file!.readAsBytes(), [9, 8, 7, 6]);
+    expect(loader.urls, [requested, fallback]);
+    expect(await cache.bytesForUrl(requested), [9, 8, 7, 6]);
+  });
+}
+
+final class _UrlMapArtworkLoader extends ArtworkBytesLoader {
+  _UrlMapArtworkLoader(this.responses);
+
+  final Map<String, Uint8List Function()> responses;
+  final urls = <String>[];
+
+  @override
+  Future<Uint8List> load(
+    Uri uri,
+    Map<String, String> headers,
+    void Function(int, int?) onProgress,
+  ) async {
+    final key = uri.toString();
+    urls.add(key);
+    final response = responses[key];
+    if (response == null) {
+      throw StateError('unexpected artwork url $key');
+    }
+    return response();
+  }
 }

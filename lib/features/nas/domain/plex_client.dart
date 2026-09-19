@@ -265,16 +265,28 @@ class PlexNasClient extends NasClient {
     final media = asList(raw['Media']);
     String? partKey;
     String? streamId;
+    Object? bitRate;
+    Object? container;
+    Object? codec;
     if (media.isNotEmpty) {
-      final parts = asList(media.first['Part']);
+      final first = media.first;
+      bitRate = first['bitrate'] ?? first['bitRate'];
+      container = first['container'];
+      codec = first['audioCodec'];
+      final parts = asList(first['Part']);
       if (parts.isNotEmpty) {
         partKey = parts.first['key']?.toString();
+        bitRate ??= parts.first['bitrate'];
+        container ??= parts.first['container'];
         final streams = asList(parts.first['Stream']);
         for (final stream in streams) {
+          if (stream['streamType'] == 2) {
+            bitRate ??= stream['bitrate'];
+            codec ??= stream['codec'] ?? stream['audioCodec'];
+          }
           if (stream['streamType'] == 4 ||
               stream['format']?.toString().toLowerCase() == 'lrc') {
-            streamId = stream['id']?.toString();
-            break;
+            streamId ??= stream['id']?.toString();
           }
         }
       }
@@ -299,6 +311,9 @@ class PlexNasClient extends NasClient {
         'nasId': id,
         if (partKey != null) 'partKey': partKey,
         if (streamId != null) 'lyricStreamId': streamId,
+        if (bitRate != null) 'bitRate': bitRate,
+        if (container != null) 'container': container,
+        if (codec != null) 'codec': codec,
       },
     );
   }
@@ -318,10 +333,10 @@ class PlexNasClient extends NasClient {
     MusicItem music, {
     required String quality,
   }) {
+    final _ = quality;
     final token = secrets.token ?? '';
-    final bitrate = maxKbpsForQuality(quality);
     final partKey = music.meta?['partKey']?.toString();
-    if (bitrate == null && partKey != null && partKey.isNotEmpty) {
+    if (partKey != null && partKey.isNotEmpty) {
       final path = partKey.startsWith('/') ? partKey : '/$partKey';
       return '${config.baseUrl}$path?X-Plex-Token=$token&X-Plex-Platform=Web';
     }
@@ -329,11 +344,10 @@ class PlexNasClient extends NasClient {
     final session = DateTime.now().millisecondsSinceEpoch.toRadixString(16);
     final query = <String, String>{
       'path': '/library/metadata/$id',
-      'directPlay': bitrate == null ? '1' : '0',
+      'directPlay': '1',
       'session': session,
       'X-Plex-Token': token,
       'X-Plex-Platform': 'Web',
-      if (bitrate != null) 'musicBitrate': '${bitrate * 1000}',
     };
     final encoded = query.entries
         .map(

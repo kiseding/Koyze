@@ -27,7 +27,7 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
     final on = AppColors.onScaffold(context);
     final title = playlistName?.trim().isNotEmpty == true
         ? playlistName!
-        : '自建歌单';
+        : 'NAS 歌单';
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../local_music/presentation/scrape_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../domain/nas_config.dart';
 import '../domain/nas_kind.dart';
@@ -48,10 +49,11 @@ final nasLibrarySongsProvider =
       kind,
     ) async {
       ref.watch(nasRevisionProvider(kind));
+      ref.watch(scrapeRevisionProvider);
       final service = ref.watch(nasServiceProvider(kind));
       await service.init();
       if (!service.isConnected) return const [];
-      return service.getLibrarySongs();
+      return overlayScraped(ref, await service.getLibrarySongs());
     });
 
 class NasPlaylistSongsKey {
@@ -74,8 +76,12 @@ class NasPlaylistSongsKey {
 final nasPlaylistSongsProvider = FutureProvider.autoDispose
     .family<List<MusicItem>, NasPlaylistSongsKey>((ref, key) async {
       ref.watch(nasRevisionProvider(key.kind));
+      ref.watch(scrapeRevisionProvider);
       final service = ref.watch(nasServiceProvider(key.kind));
       await service.init();
       if (!service.isConnected || key.playlistId.isEmpty) return const [];
-      return service.getPlaylistSongs(key.playlistId);
+      return overlayScraped(
+        ref,
+        await service.getPlaylistSongs(key.playlistId),
+      );
     });

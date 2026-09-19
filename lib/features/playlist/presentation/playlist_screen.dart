@@ -782,16 +782,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final songCount = songs.length;
     const pink = Colors.pink;
     const onPink = Colors.white;
-    final connectedLabels = <String>[
-      if (subsonicConnected) 'Subsonic',
-      for (final kind in NasKind.values)
-        if (nasConnected[kind] == true) kind.shortSearchLabel,
-    ];
     final subtitle = !connected
         ? 'Navidrome / Emby / Plex / 群晖'
         : subsonicConnected && songsAsync.isLoading
             ? '正在加载 ${config.hostLabel}'
-            : connectedLabels.join(' · ');
+            : 'NAS';
 
     return HoverFloat(
       child: Pressable(
@@ -829,7 +824,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      '自建乐库',
+                      'NAS 乐库',
                       style: TextStyle(
                         color: onPink,
                         fontSize: 16,

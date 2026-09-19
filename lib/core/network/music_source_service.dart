@@ -788,7 +788,7 @@ class MusicSourceService {
     }
     await service.init();
     if (!service.isConnected) {
-      debugPrint('[getPlayUrl] 尚未连接自建音乐服务器');
+      debugPrint('[getPlayUrl] 尚未连接 NAS 音乐服务器');
       return null;
     }
     final url = await service.getPlayUrl(music, quality: quality);
@@ -796,7 +796,14 @@ class MusicSourceService {
     return PlayUrlResult(
       url: normalizeMediaUrl(url),
       requestedQuality: quality,
-      actualQuality: quality,
+      actualQuality: nasActualQuality(
+        requested: quality,
+        bitRate: music.meta?['bitRate'],
+        suffix: music.meta?['suffix'],
+        contentType: music.meta?['contentType'],
+        container: music.meta?['container'],
+        codec: music.meta?['codec'],
+      ),
       platform: 'subsonic',
       songId: music.songmid ?? music.id,
     );
@@ -822,7 +829,14 @@ class MusicSourceService {
     return PlayUrlResult(
       url: normalizeMediaUrl(url),
       requestedQuality: quality,
-      actualQuality: quality,
+      actualQuality: nasActualQuality(
+        requested: quality,
+        bitRate: music.meta?['bitRate'],
+        suffix: music.meta?['suffix'],
+        contentType: music.meta?['contentType'],
+        container: music.meta?['container'],
+        codec: music.meta?['codec'],
+      ),
       platform: kind.id,
       songId: music.songmid ?? music.id,
     );
@@ -835,28 +849,29 @@ class MusicSourceService {
 
     final subsonic = _subsonicService;
     if (isSubsonicMusic(music.source, music.platform)) {
-      if (subsonic == null) return null;
-      try {
-        await subsonic.init();
-        final lyric = await subsonic.getLyric(music);
-        if (lyric != null && lyric.isNotEmpty) return lyric;
-      } catch (error) {
-        debugPrint('[MusicSourceService] Subsonic 歌词失败: $error');
+      if (subsonic != null) {
+        try {
+          await subsonic.init();
+          final lyric = await subsonic.getLyric(music);
+          if (lyric != null && lyric.isNotEmpty) return lyric;
+        } catch (error) {
+          debugPrint('[MusicSourceService] Subsonic 歌词失败: $error');
+        }
       }
-      return null;
-    }
-    final nasKind = nasKindOf(music.source, music.platform);
-    if (nasKind != null) {
-      final nas = _nasServices[nasKind];
-      if (nas == null) return null;
-      try {
-        await nas.init();
-        final lyric = await nas.getLyric(music);
-        if (lyric != null && lyric.isNotEmpty) return lyric;
-      } catch (error) {
-        debugPrint('[MusicSourceService] ${nasKind.title} 歌词失败: $error');
+    } else {
+      final nasKind = nasKindOf(music.source, music.platform);
+      if (nasKind != null) {
+        final nas = _nasServices[nasKind];
+        if (nas != null) {
+          try {
+            await nas.init();
+            final lyric = await nas.getLyric(music);
+            if (lyric != null && lyric.isNotEmpty) return lyric;
+          } catch (error) {
+            debugPrint('[MusicSourceService] ${nasKind.title} 歌词失败: $error');
+          }
+        }
       }
-      return null;
     }
 
     final platform = music.platform.isNotEmpty ? music.platform : music.source;

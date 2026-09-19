@@ -28,18 +28,29 @@ void main() {
     }
   });
 
-  test('default search picker follows connected search sources', () {
-    final source = File(
+  test('default search picker includes self-hosted and nas sources', () {
+    final settings = File(
       'lib/features/settings/presentation/settings_screen.dart',
     ).readAsStringSync();
+    final search = File(
+      'lib/features/search/presentation/search_provider.dart',
+    ).readAsStringSync();
 
-    expect(source, contains('allSearchSourcesProvider'));
-    expect(source, contains('platformPickerDescription'));
-    expect(source, contains('platformPickerIcon'));
-    expect(source, contains("case 'subsonic':"));
-    expect(source, contains("case 'emby':"));
-    expect(source, contains("case 'audiostation':"));
-    expect(source, contains("return '自建乐库'"));
-    expect(source, isNot(contains('static const _options')));
+    expect(settings, contains('allSearchSourcesProvider'));
+    expect(settings, contains('platformPickerDescription'));
+    expect(settings, contains('platformPickerIcon'));
+    expect(settings, contains("case 'subsonic':"));
+    expect(settings, contains("return 'NAS 乐库'"));
+    expect(settings, isNot(contains("case 'emby':")));
+    expect(settings, isNot(contains('static const _options')));
+
+    expect(search, contains("SearchSourceItem(id: 'subsonic', name: 'NAS')"));
+    expect(search, contains('_searchConnectedNas'));
+    expect(search, isNot(contains('kind.shortSearchLabel')));
+    expect(search, isNot(contains('if (connected) SearchSourceItem')));
+    expect(
+      search,
+      isNot(contains('if (ref.watch(nasConnectedProvider(kind)))')),
+    );
   });
 }

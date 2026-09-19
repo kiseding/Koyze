@@ -22,6 +22,14 @@ const allowedSearchPlatforms = {
   ...nasSourceIds,
 };
 
+/// 对外搜索入口只有一条 NAS。旧备份 / 设置里的 emby 等 id 都归一到 `subsonic`。
+String canonicalSearchPlatform(String? value) {
+  final id = value?.trim() ?? '';
+  if (id.isEmpty) return 'tx';
+  if (nasSourceIds.contains(id)) return 'subsonic';
+  return allowedSearchPlatforms.contains(id) ? id : 'tx';
+}
+
 String validateNasServiceUrl(String value) => validateSubsonicServiceUrl(value);
 
 String nasHostLabel(String url) => subsonicHostLabel(url);

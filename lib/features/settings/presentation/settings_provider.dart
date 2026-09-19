@@ -247,7 +247,10 @@ class DefaultSearchPlatformNotifier extends _PersistedSettingNotifier<String> {
     : super('tx', storage: storage) {
     _load((storage) {
       final value = storage.getString('default_search_platform');
-      return allowedSearchPlatforms.contains(value) ? value : null;
+      if (value == null || !allowedSearchPlatforms.contains(value)) {
+        return null;
+      }
+      return canonicalSearchPlatform(value);
     });
   }
 
@@ -255,13 +258,14 @@ class DefaultSearchPlatformNotifier extends _PersistedSettingNotifier<String> {
     if (!allowedSearchPlatforms.contains(platform)) {
       return;
     }
+    final normalized = canonicalSearchPlatform(platform);
     await _persist(
-      platform,
-      (storage) => storage.setString('default_search_platform', platform),
+      normalized,
+      (storage) => storage.setString('default_search_platform', normalized),
     );
   }
 
   void applyCommitted(String platform) {
-    applyCommittedValue(platform);
+    applyCommittedValue(canonicalSearchPlatform(platform));
   }
 }

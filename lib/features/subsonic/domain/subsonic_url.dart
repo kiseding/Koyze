@@ -1,6 +1,6 @@
 import 'dart:io';
 
-/// 自建 Subsonic 兼容服（Navidrome / Airsonic / Gonic）的服务地址校验。
+/// NAS 上的 Subsonic 兼容服（Navidrome / Airsonic / Gonic）的服务地址校验。
 ///
 /// 与云同步入口不同：局域网常见明文 HTTP，不能强制 HTTPS。
 /// 禁止把账号密码写进 URL。

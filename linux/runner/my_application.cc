@@ -14,10 +14,10 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
-// 首页内容实测高度 549（含上下内边距）+ 底部 chrome 154（导航栏 38 + 迷你播放器 78
-// + 各处间隙）= 703，低于这个高度首页就要滚动，所以它是默认窗口高度的硬下限。
-// （实测方式见 test/home_content_height_test.dart。）
-constexpr int kHomeContentHeight = 704;
+// 首页内容实测高度 627（含上下内边距，云同步卡片默认开启）+ 底部 chrome 154
+// （导航栏 38 + 迷你播放器 78 + 各处间隙）= 781，低于这个高度首页就要滚动，
+// 所以它是默认窗口高度的硬下限。（实测方式见 test/home_content_height_test.dart。）
+constexpr int kHomeContentHeight = 782;
 // 在内容下限之上再留出的呼吸余量。
 constexpr int kBreathingRoom = 76;
 // 桌面端默认高度 = 首页内容下限 + 呼吸余量。按「刚好装下首页且不局促」定，

@@ -5,11 +5,17 @@ import 'package:koyze/features/local_music/domain/local_music_scraper.dart';
 import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
 import 'package:koyze/features/search/presentation/search_provider.dart';
 
+import 'scrape_provider.dart';
+
 final localMusicLibraryProvider = FutureProvider<LocalMusicLibrary>((
   ref,
 ) async {
   final storage = await StorageService.instance;
-  final library = LocalMusicLibrary(storage: storage);
+  final scrapeStore = await ref.watch(musicScrapeStoreProvider.future);
+  final library = LocalMusicLibrary(
+    storage: storage,
+    scrapeStore: scrapeStore,
+  );
   return library;
 });
 

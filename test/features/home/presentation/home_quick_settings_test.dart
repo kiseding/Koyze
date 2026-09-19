@@ -42,12 +42,29 @@ void main() {
     expect(notifier.state.enabled.length, disabledCount + 1);
   });
 
-  test('self-hosted library is a selectable quick feature', () {
+  test('self-hosted library is on by default and can be turned off', () {
     final feature = homeQuickFeatures.singleWhere(
       (item) => item.id == 'subsonic',
     );
-    expect(feature.title, '自建乐库');
+    expect(feature.title, 'NAS 乐库');
     expect(feature.route, '/subsonic');
-    expect(feature.enabledByDefault, isFalse);
+    expect(feature.enabledByDefault, isTrue);
+
+    final notifier = HomeQuickSettingsNotifier();
+    expect(notifier.state.enabled, contains('subsonic'));
+    notifier.setEnabled('subsonic', false);
+    expect(notifier.state.enabled, isNot(contains('subsonic')));
+  });
+
+  test('cloud sync is on by default and can be turned off', () {
+    final feature = homeQuickFeatures.singleWhere((item) => item.id == 'sync');
+    expect(feature.title, '云同步');
+    expect(feature.route, '/sync');
+    expect(feature.enabledByDefault, isTrue);
+
+    final notifier = HomeQuickSettingsNotifier();
+    expect(notifier.state.enabled, contains('sync'));
+    notifier.setEnabled('sync', false);
+    expect(notifier.state.enabled, isNot(contains('sync')));
   });
 }

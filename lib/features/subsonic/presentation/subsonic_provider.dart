@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../local_music/presentation/scrape_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../domain/subsonic_config.dart';
 import '../domain/subsonic_service.dart';
@@ -41,17 +42,19 @@ final subsonicPlaylistsProvider =
 final subsonicLibrarySongsProvider =
     FutureProvider.autoDispose<List<MusicItem>>((ref) async {
   ref.watch(subsonicRevisionProvider);
+  ref.watch(scrapeRevisionProvider);
   final service = ref.watch(subsonicServiceProvider);
   await service.init();
   if (!service.isConnected) return const [];
-  return service.getLibrarySongs();
+  return overlayScraped(ref, await service.getLibrarySongs());
 });
 
 final subsonicPlaylistSongsProvider = FutureProvider.autoDispose
     .family<List<MusicItem>, String>((ref, playlistId) async {
   ref.watch(subsonicRevisionProvider);
+  ref.watch(scrapeRevisionProvider);
   final service = ref.watch(subsonicServiceProvider);
   await service.init();
   if (!service.isConnected || playlistId.isEmpty) return const [];
-  return service.getPlaylistSongs(playlistId);
+  return overlayScraped(ref, await service.getPlaylistSongs(playlistId));
 });

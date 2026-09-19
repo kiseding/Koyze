@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'nas_kind.dart';
 
-/// 自建音乐服务器的对外类型。设置页和歌单库共用这一套，
+/// NAS 音乐服务器的对外类型。设置页和歌单库共用这一套，
 /// 主界面只保留一个入口 / 一张卡片。
 enum SelfHostedKind {
   subsonic,

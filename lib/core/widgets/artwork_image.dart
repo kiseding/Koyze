@@ -59,6 +59,41 @@ bool artworkNeedsBrowserClient(String url) {
   return artworkRequestHeaders(url).isNotEmpty;
 }
 
+/// Extra CDN renditions to try when [url] 404s or returns a tiny HTML error.
+///
+/// QQ album art often advertises `T002R1000x1000…jpg` but only the 500px
+/// file exists. Scraped NAS / Subsonic songs keep `platform=subsonic`, so
+/// platform-based artwork candidates never run for them.
+List<String> artworkFallbackUrls(String url) {
+  if (url.isEmpty) return const [];
+  final fallbacks = <String>[];
+  void add(String value) {
+    if (value.isNotEmpty && value != url && !fallbacks.contains(value)) {
+      fallbacks.add(value);
+    }
+  }
+
+  if (url.contains('R1000x1000') || url.contains('R800x800')) {
+    add(
+      url
+          .replaceAll('R1000x1000', 'R500x500')
+          .replaceAll('R800x800', 'R500x500'),
+    );
+  }
+
+  final lower = url.toLowerCase();
+  if (lower.contains('126.net') || lower.contains('music.163.com')) {
+    final bare = url.split('?').first;
+    add('$bare?param=500y500');
+    add(bare);
+  }
+  if (lower.contains('kuwo.cn') && url.contains('/500/')) {
+    add(url.replaceFirst('/500/', '/300/'));
+    add(url.replaceFirst('/500/', '/120/'));
+  }
+  return fallbacks;
+}
+
 class ArtworkLimitException implements Exception {
   ArtworkLimitException(this.message);
   final String message;
@@ -263,7 +298,6 @@ class ArtworkNetworkImage extends ImageProvider<ArtworkNetworkImage> {
     try {
       assert(key == this);
       final uri = Uri.parse(key.resolvedUrl);
-      final headers = artworkRequestHeaders(key.resolvedUrl);
       // 本地文件封面（本地音乐内嵌封面缓存）：直接读文件，不走网络/磁盘缓存。
       if (uri.scheme == 'file') {
         final file = File(uri.toFilePath());
@@ -278,26 +312,47 @@ class ArtworkNetworkImage extends ImageProvider<ArtworkNetworkImage> {
       Uint8List? bytes = await ArtworkDiskCache.instance.bytesForUrl(
         key.resolvedUrl,
       );
-      bytes ??= await key._loader.load(uri, headers, (cumulative, total) {
-        chunkEvents.add(
-          ImageChunkEvent(
-            cumulativeBytesLoaded: cumulative,
-            expectedTotalBytes: total,
-          ),
-        );
-      });
-      if (bytes.isNotEmpty) {
-        unawaited(ArtworkDiskCache.instance.put(key.resolvedUrl, bytes));
+      Object? lastError;
+      if (bytes == null) {
+        final candidates = <String>{
+          key.resolvedUrl,
+          ...artworkFallbackUrls(key.resolvedUrl),
+        };
+        for (final candidate in candidates) {
+          try {
+            final candidateUri = Uri.parse(candidate);
+            bytes = await key._loader.load(
+              candidateUri,
+              artworkRequestHeaders(candidate),
+              (cumulative, total) {
+                chunkEvents.add(
+                  ImageChunkEvent(
+                    cumulativeBytesLoaded: cumulative,
+                    expectedTotalBytes: total,
+                  ),
+                );
+              },
+            );
+            if (_isUsableArtwork(bytes)) {
+              unawaited(
+                ArtworkDiskCache.instance.put(key.resolvedUrl, bytes),
+              );
+              lastError = null;
+              break;
+            }
+            lastError = Exception(
+              'ArtworkNetworkImage got HTML instead of image: $candidateUri',
+            );
+            bytes = null;
+          } catch (error) {
+            lastError = error;
+            bytes = null;
+          }
+        }
       }
-
-      if (bytes.lengthInBytes == 0) {
-        throw Exception('ArtworkNetworkImage is an empty file: $uri');
-      }
-      // NetEase sometimes returns tiny HTML error pages with 200; reject them.
-      if (bytes.lengthInBytes < 200 &&
-          bytes.isNotEmpty &&
-          (bytes[0] == 0x3C /* < */ )) {
-        throw Exception('ArtworkNetworkImage got HTML instead of image: $uri');
+      if (bytes == null || bytes.lengthInBytes == 0) {
+        throw lastError ??
+            Exception('ArtworkNetworkImage is an empty file: $uri');
       }
 
       final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
@@ -310,6 +365,13 @@ class ArtworkNetworkImage extends ImageProvider<ArtworkNetworkImage> {
     } finally {
       chunkEvents.close();
     }
+  }
+
+  static bool _isUsableArtwork(Uint8List bytes) {
+    if (bytes.isEmpty) return false;
+    // NetEase sometimes returns tiny HTML error pages with 200; reject them.
+    if (bytes.lengthInBytes < 200 && bytes[0] == 0x3C /* < */) return false;
+    return true;
   }
 
   @override

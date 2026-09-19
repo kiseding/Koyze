@@ -143,21 +143,32 @@ class ArtworkDiskCache {
   }
 
   Future<File?> _downloadAndPut(String url) async {
-    try {
-      final resolved = normalizeOutboundUrl(url);
-      final uri = Uri.parse(resolved);
-      final headers = artworkRequestHeaders(resolved);
-      final bytes = await _loader.load(uri, headers, (_, __) {});
-      if (bytes.isEmpty) return null;
-      return put(resolved, bytes);
-    } catch (error) {
-      debugPrint(
-        '[ArtworkDiskCache] download failed url=$url '
-        'headers=${artworkRequestHeaders(url).keys.toList()} '
-        'error=$error',
-      );
-      return null;
+    final requested = normalizeOutboundUrl(url);
+    final candidates = <String>{
+      requested,
+      ...artworkFallbackUrls(requested),
+    };
+    Object? lastError;
+    for (final candidate in candidates) {
+      try {
+        final resolved = normalizeOutboundUrl(candidate);
+        final uri = Uri.parse(resolved);
+        final headers = artworkRequestHeaders(resolved);
+        final bytes = await _loader.load(uri, headers, (_, __) {});
+        if (bytes.isEmpty) continue;
+        // Cache under the originally requested URL so a 404ing 1000px
+        // scrape result still hits on the next lookup.
+        return put(requested, bytes);
+      } catch (error) {
+        lastError = error;
+      }
     }
+    debugPrint(
+      '[ArtworkDiskCache] download failed url=$url '
+      'headers=${artworkRequestHeaders(url).keys.toList()} '
+      'error=$lastError',
+    );
+    return null;
   }
 
   Future<Uri?> localArtUri(String? remoteUrl) async {

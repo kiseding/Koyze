@@ -244,7 +244,7 @@ class _SubsonicSettingsScreenState
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          '自建音乐服务器',
+          'NAS 音乐服务器',
           style: TextStyle(color: on, fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),

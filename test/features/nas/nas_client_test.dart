@@ -61,6 +61,12 @@ void main() {
     expect(isNasMusic('subsonic', 'subsonic'), isFalse);
     expect(nasKindOf('plex', null), NasKind.plex);
     expect(allowedSearchPlatforms, containsAll(['emby', 'subsonic', 'tx']));
+    expect(canonicalSearchPlatform('emby'), 'subsonic');
+    expect(canonicalSearchPlatform('jellyfin'), 'subsonic');
+    expect(canonicalSearchPlatform('plex'), 'subsonic');
+    expect(canonicalSearchPlatform('audiostation'), 'subsonic');
+    expect(canonicalSearchPlatform('subsonic'), 'subsonic');
+    expect(canonicalSearchPlatform('tx'), 'tx');
     expect(SelfHostedKind.fromNas(NasKind.emby), SelfHostedKind.emby);
     expect(SelfHostedKind.subsonic.nasKind, isNull);
     expect(SelfHostedKind.audiostation.chipLabel, '群晖');
@@ -455,5 +461,90 @@ void main() {
     expect(songs.single.id, 'song-1');
     expect(songs.single.name, 'Song');
     expect(songs.single.source, 'audiostation');
+  });
+
+  test('NAS parsers keep native bitrate and container in meta', () {
+    const embyConfig = NasConfig(
+      kind: NasKind.emby,
+      baseUrl: 'http://192.168.1.8:8096',
+      username: 'alice',
+      userId: 'user-1',
+    );
+    const plexConfig = NasConfig(
+      kind: NasKind.plex,
+      baseUrl: 'http://192.168.1.8:32400',
+      username: '',
+    );
+    const asConfig = NasConfig(
+      kind: NasKind.audiostation,
+      baseUrl: 'http://192.168.1.8:5000',
+      username: 'alice',
+    );
+    const secrets = NasSecrets(token: 'token');
+
+    final emby = EmbyNasClient();
+    addTearDown(emby.dispose);
+    final embySong = emby.parseSong(embyConfig, secrets, {
+      'Id': '42',
+      'Name': 'Song',
+      'AlbumArtist': 'Artist',
+      'MediaSources': [
+        {
+          'Id': 'src-1',
+          'Bitrate': 1411200,
+          'Container': 'flac',
+          'MediaStreams': [
+            {'Type': 'Audio', 'Codec': 'flac', 'BitRate': 1411200},
+          ],
+        },
+      ],
+    });
+    expect(embySong.meta?['bitRate'], 1411200);
+    expect(embySong.meta?['container'], 'flac');
+    expect(embySong.meta?['codec'], 'flac');
+
+    final plex = PlexNasClient();
+    addTearDown(plex.dispose);
+    final plexSong = plex.parseSong(plexConfig, secrets, {
+      'ratingKey': '99',
+      'title': 'Track',
+      'grandparentTitle': 'Artist',
+      'Media': [
+        {
+          'bitrate': 320,
+          'container': 'mp3',
+          'audioCodec': 'mp3',
+          'Part': [
+            {
+              'key': '/library/parts/1/file.mp3',
+              'Stream': [
+                {'streamType': 2, 'bitrate': 320, 'codec': 'mp3'},
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(plexSong.meta?['bitRate'], 320);
+    expect(plexSong.meta?['container'], 'mp3');
+    expect(plexSong.meta?['codec'], 'mp3');
+
+    final audioStation = AudioStationNasClient();
+    addTearDown(audioStation.dispose);
+    final asSong = audioStation.parseSong(asConfig, secrets, {
+      'id': 'song-1',
+      'additional': {
+        'song_tag': {'title': 'Song', 'artist': 'Artist'},
+        'song_audio': {
+          'duration': 180,
+          'bitrate': 192,
+          'codec': 'mp3',
+          'container': 'mp3',
+        },
+      },
+    });
+    expect(asSong.meta?['bitRate'], 192);
+    expect(asSong.meta?['codec'], 'mp3');
+    expect(asSong.meta?['container'], 'mp3');
   });
 }

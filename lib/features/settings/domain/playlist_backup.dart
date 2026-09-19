@@ -276,10 +276,10 @@ String _decodeSearchPlatform(Object? raw) {
   if (raw == null) return 'tx';
   if (raw is! String || !allowedSearchPlatforms.contains(raw)) {
     throw const FormatException(
-      'default_search_platform must be tx, kw, wy, local, favorites, subsonic, emby, jellyfin, plex, or audiostation',
+      'default_search_platform must be tx, kw, wy, local, favorites, or a NAS source',
     );
   }
-  return raw;
+  return canonicalSearchPlatform(raw);
 }
 
 final class BackupRestoreCoordinator {

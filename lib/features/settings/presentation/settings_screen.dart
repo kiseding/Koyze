@@ -26,7 +26,7 @@ import '../domain/playlist_backup.dart';
 import 'app_log_screen.dart';
 import '../../../core/widgets/fx_switch.dart';
 import '../../sync/data/sync_identity_store.dart';
-import '../../nas/domain/nas_kind.dart';
+import '../../nas/domain/nas_url.dart';
 
 final settingsDeviceIdProvider = FutureProvider<String>((ref) async {
   return (await SyncIdentityStore().load()).deviceId;
@@ -121,7 +121,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _buildNavTile(
                 context,
                 ref,
-                '自建音乐服务器',
+                'NAS 音乐服务器',
                 'Navidrome / Emby / Jellyfin / Plex / 群晖',
                 () => context.push('/subsonic-settings'),
                 captureExpandOrigin: true,
@@ -307,7 +307,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ]),
             _buildSection(context, '关于', [
-              const _SettingRow(name: '版本', value: 'v2.9.1'),
+              const _SettingRow(name: '版本', value: 'v2.9.2'),
               _DeviceIdRow(
                 deviceId: ref.watch(settingsDeviceIdProvider).valueOrNull,
               ),
@@ -938,13 +938,15 @@ class _DeviceIdRow extends StatelessWidget {
 
 /// 默认搜索平台选择弹窗：与"音质选择"弹窗同款视觉语言
 /// （圆角 24 卡片 + 图标块 + 勾选胶囊 + easeOutBack 入场）。
-/// 选项跟搜索源列表走，已连接的自建乐库 / NAS 会出现在这里。
+/// 选项跟搜索源列表走，NAS 乐库始终出现。
 class _PlatformPickerDialog extends ConsumerWidget {
   const _PlatformPickerDialog();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final current = ref.watch(defaultSearchPlatformProvider);
+    final current = canonicalSearchPlatform(
+      ref.watch(defaultSearchPlatformProvider),
+    );
     final accent = AppColors.accentOf(context);
     final options = [
       for (final source in ref.watch(allSearchSourcesProvider))
@@ -1012,11 +1014,12 @@ class _PlatformPickerDialog extends ConsumerWidget {
                             selected: current == id,
                             accent: accent,
                             onTap: () {
+                              final platform = canonicalSearchPlatform(id);
                               ref
                                   .read(defaultSearchPlatformProvider.notifier)
-                                  .setPlatform(id);
+                                  .setPlatform(platform);
                               ref.read(selectedSourceIdProvider.notifier).state =
-                                  id;
+                                  platform;
                               Navigator.pop(context);
                             },
                           );
@@ -1035,7 +1038,7 @@ class _PlatformPickerDialog extends ConsumerWidget {
 }
 
 String platformPickerDescription(String id) {
-  switch (id) {
+  switch (canonicalSearchPlatform(id)) {
     case 'tx':
       return '覆盖最全，默认优先';
     case 'kw':
@@ -1047,29 +1050,21 @@ String platformPickerDescription(String id) {
     case 'favorites':
       return '仅收藏夹内容';
     case 'subsonic':
-      return 'Navidrome / Subsonic 乐库';
-    case 'emby':
-      return 'Emby 音乐库';
-    case 'jellyfin':
-      return 'Jellyfin 音乐库';
-    case 'plex':
-      return 'Plex 音乐库';
-    case 'audiostation':
-      return '群晖 Audio Station';
+      return 'Navidrome / Emby / Jellyfin / Plex / 群晖';
     default:
       return '';
   }
 }
 
 IconData platformPickerIcon(String id) {
-  return switch (id) {
+  return switch (canonicalSearchPlatform(id)) {
     'tx' => Icons.music_note_rounded,
     'kw' => Icons.headphones_rounded,
     'wy' => Icons.cloud_rounded,
     'local' => Icons.folder_rounded,
     'favorites' => Icons.favorite_rounded,
     'subsonic' => Icons.cloud_queue_rounded,
-    _ => NasKind.tryParse(id)?.icon ?? Icons.dns_rounded,
+    _ => Icons.dns_rounded,
   };
 }
 
@@ -1349,7 +1344,7 @@ class _QualityOptionTile extends StatelessWidget {
 }
 
 String platformDisplayName(String id) {
-  switch (id) {
+  switch (canonicalSearchPlatform(id)) {
     case 'tx':
       return '腾讯 (QQ 音乐)';
     case 'kw':
@@ -1361,15 +1356,7 @@ String platformDisplayName(String id) {
     case 'favorites':
       return '收藏';
     case 'subsonic':
-      return '自建乐库';
-    case 'emby':
-      return 'Emby';
-    case 'jellyfin':
-      return 'Jellyfin';
-    case 'plex':
-      return 'Plex';
-    case 'audiostation':
-      return 'Audio Station';
+      return 'NAS 乐库';
     default:
       return id;
   }

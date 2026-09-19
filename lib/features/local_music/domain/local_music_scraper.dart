@@ -3,6 +3,7 @@ import 'package:koyze/features/player/domain/music_item.dart';
 
 import 'local_music_debug_log.dart';
 import 'local_music_scanner.dart';
+import 'music_scrape_store.dart';
 
 /// 刮削结果：本地文件路径 → 在线歌曲身份。
 class ScrapeIdentity {
@@ -89,15 +90,55 @@ class LocalMusicScraper {
   final MusicSourceService _musicSourceService;
 
   Future<ScrapeIdentity?> scrapeTrack(LocalTrack track) async {
-    final queries = queriesForTrack(track);
+    return _scrape(
+      queries: queriesForTrack(track),
+      matchTrack: track,
+      logLabel: LocalMusicDebugLog.track(track),
+    );
+  }
+
+  /// NAS / Subsonic 曲库刮削：用服务器给出的歌名、歌手、专辑、时长
+  /// 去内置平台匹配封面和歌词。不改播放源。
+  Future<ScrapeIdentity?> scrapeMusicItem(MusicItem song) async {
+    final track = trackForMusicItem(song);
+    return _scrape(
+      queries: queriesForTrack(track),
+      matchTrack: track,
+      logLabel:
+          'nas name=${LocalMusicDebugLog.quote(song.name)} '
+          'singer=${LocalMusicDebugLog.quote(song.singer)} '
+          'source=${song.source} id=${LocalMusicDebugLog.quote(song.id)}',
+    );
+  }
+
+  static LocalTrack trackForMusicItem(MusicItem song) {
+    return LocalTrack(
+      path: song.identityKey,
+      fileName: song.name,
+      extension: '',
+      size: 0,
+      modifiedAt: DateTime.fromMillisecondsSinceEpoch(0),
+      title: song.name,
+      artist: song.singer,
+      album: song.album,
+      duration: song.duration,
+      hasEmbeddedTags: true,
+    );
+  }
+
+  Future<ScrapeIdentity?> _scrape({
+    required List<LocalFilenameQuery> queries,
+    required LocalTrack matchTrack,
+    required String logLabel,
+  }) async {
     LocalMusicDebugLog.info(
       'scrape.track.start',
-      '${LocalMusicDebugLog.track(track)} queries=${_querySummary(queries)}',
+      '$logLabel queries=${_querySummary(queries)}',
     );
     if (queries.isEmpty) {
       LocalMusicDebugLog.warning(
         'scrape.track.skip',
-        'emptyQueries file=${LocalMusicDebugLog.quote(track.fileName)}',
+        'emptyQueries $logLabel',
       );
       return null;
     }
@@ -145,7 +186,7 @@ class LocalMusicScraper {
         final results = platformResults[index];
         final diagnostics = LocalMusicDebugLog.enabled ? <String>[] : null;
         final platformMatch = bestMatchForQueries(
-          track,
+          matchTrack,
           queries,
           results,
           onDebug: diagnostics == null
@@ -171,7 +212,7 @@ class LocalMusicScraper {
       if (match == null) {
         LocalMusicDebugLog.warning(
           'scrape.track.no_match',
-          LocalMusicDebugLog.track(track),
+          logLabel,
         );
         return null;
       }
@@ -256,7 +297,7 @@ class LocalMusicScraper {
     } catch (error, stackTrace) {
       LocalMusicDebugLog.error(
         'scrape.track.error',
-        '${LocalMusicDebugLog.track(track)} error=$error',
+        '$logLabel error=$error',
         stackTrace: stackTrace,
       );
       return null;
@@ -575,4 +616,39 @@ class LocalMusicScraper {
     }
     return candidates.where((value) => value.isNotEmpty).toList();
   }
+}
+
+/// 对任意歌曲跑在线刮削，结果写入 [MusicScrapeStore]。
+/// 本地文件和 NAS / Subsonic 都走这里；overlay 时不改播放身份。
+Future<int> scrapeMusicItems({
+  required LocalMusicScraper scraper,
+  required MusicScrapeStore store,
+  required List<MusicItem> songs,
+  void Function(int done, int total)? onProgress,
+  int concurrency = 5,
+}) async {
+  if (songs.isEmpty) return 0;
+  var next = 0;
+  var completed = 0;
+  final hits = List<bool>.filled(songs.length, false);
+  Future<void> worker() async {
+    while (true) {
+      final index = next++;
+      if (index >= songs.length) return;
+      final song = songs[index];
+      final identity = await scraper.scrapeMusicItem(song);
+      if (identity != null) {
+        await store.save(song.identityKey, identity.toJson());
+        hits[index] = true;
+      }
+      completed++;
+      onProgress?.call(completed, songs.length);
+    }
+  }
+
+  final workers = concurrency < 1
+      ? 1
+      : (concurrency > songs.length ? songs.length : concurrency);
+  await Future.wait(List.generate(workers, (_) => worker()));
+  return hits.where((hit) => hit).length;
 }

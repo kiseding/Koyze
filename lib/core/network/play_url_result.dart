@@ -58,15 +58,11 @@ String platformLabel(String p) {
     case 'local':
       return '本地音乐';
     case 'subsonic':
-      return '自建服务器';
     case 'emby':
-      return 'Emby';
     case 'jellyfin':
-      return 'Jellyfin';
     case 'plex':
-      return 'Plex';
     case 'audiostation':
-      return 'Audio Station';
+      return 'NAS';
     default:
       return p.isEmpty ? '未知' : p;
   }
@@ -110,6 +106,94 @@ String? normalizeScriptQuality(String? raw) {
   if (q.contains('320')) return '320k';
   if (q.contains('192')) return '192k';
   if (q.contains('128') || q == 'hq' || q == 'mp3') return '128k';
+  return null;
+}
+
+/// NAS / Subsonic 文件的实际音质。
+///
+/// 自建库按服务器给的码率和后缀显示，不要把设置里的 `320k`
+/// 当成已经播到的码率。流地址也直出原文件，不按在线源那套转码。
+String nasActualQuality({
+  required String requested,
+  Object? bitRate,
+  Object? suffix,
+  Object? contentType,
+  Object? container,
+  Object? codec,
+}) {
+  return nasNativeQuality(
+        bitRate: bitRate,
+        suffix: suffix,
+        contentType: contentType,
+        container: container,
+        codec: codec,
+      ) ??
+      requested;
+}
+
+String? nasNativeQuality({
+  Object? bitRate,
+  Object? suffix,
+  Object? contentType,
+  Object? container,
+  Object? codec,
+}) {
+  final fromContainer = _qualityFromContainer(
+    suffix: suffix,
+    contentType: contentType,
+    container: container,
+    codec: codec,
+  );
+  if (fromContainer == 'flac' ||
+      fromContainer == 'flac24bit' ||
+      fromContainer == 'hires') {
+    return fromContainer;
+  }
+  final fromBitRate = _qualityFromBitRate(bitRate);
+  return fromBitRate ?? fromContainer;
+}
+
+String? _qualityFromBitRate(Object? raw) {
+  if (raw == null) return null;
+  var value = raw is num ? raw.toDouble() : double.tryParse(raw.toString());
+  if (value == null || value <= 0) return null;
+  if (value >= 10000) value = value / 1000;
+  final kbps = value.round();
+  if (kbps >= 900) return 'flac';
+  if (kbps >= 280) return '320k';
+  if (kbps >= 160) return '192k';
+  if (kbps >= 96) return '128k';
+  return '128k';
+}
+
+String? _qualityFromContainer({
+  Object? suffix,
+  Object? contentType,
+  Object? container,
+  Object? codec,
+}) {
+  final blob = [
+    suffix,
+    contentType,
+    container,
+    codec,
+  ].where((value) => value != null).join(' ').toLowerCase();
+  if (blob.isEmpty) return null;
+  if (blob.contains('hires') ||
+      blob.contains('hi-res') ||
+      blob.contains('24bit') ||
+      blob.contains('dsd')) {
+    return 'flac24bit';
+  }
+  if (blob.contains('flac') ||
+      blob.contains('alac') ||
+      blob.contains('wav') ||
+      blob.contains('aiff') ||
+      blob.contains('ape') ||
+      blob.contains('tta') ||
+      blob.contains('tak')) {
+    return 'flac';
+  }
   return null;
 }
 

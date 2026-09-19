@@ -267,6 +267,9 @@ class AudioStationNasClient extends NasClient {
         ? (raw['additional'] as Map)['song_audio']
         : raw['audio']);
     final duration = asInt(audio?['duration']) ?? asInt(raw['duration']) ?? 0;
+    final bitRate = audio?['bitrate'] ?? audio?['bit_rate'] ?? raw['bitrate'];
+    final codec = audio?['codec'] ?? audio?['type'] ?? raw['type'];
+    final container = audio?['container'] ?? audio?['format'];
     return MusicItem(
       id: id,
       name: tag['title']?.toString() ?? raw['title']?.toString() ?? '',
@@ -278,7 +281,12 @@ class AudioStationNasClient extends NasClient {
       artwork: coverUrl(config, secrets, id),
       songmid: id,
       isPlayable: true,
-      meta: {'nasId': id},
+      meta: {
+        'nasId': id,
+        if (bitRate != null) 'bitRate': bitRate,
+        if (container != null) 'container': container,
+        if (codec != null) 'codec': codec,
+      },
     );
   }
 
@@ -294,13 +302,10 @@ class AudioStationNasClient extends NasClient {
     MusicItem music, {
     required String quality,
   }) {
+    final _ = quality;
     final id = music.songmid?.isNotEmpty == true ? music.songmid! : music.id;
     final sid = secrets.token ?? '';
-    final bitrate = maxKbpsForQuality(quality);
-    if (bitrate == null) {
-      return '${config.baseUrl}/webapi/AudioStation/stream.cgi?api=SYNO.AudioStation.Stream&method=stream&version=2&id=${Uri.encodeQueryComponent(id)}&_sid=${Uri.encodeQueryComponent(sid)}';
-    }
-    return '${config.baseUrl}/webapi/AudioStation/stream.cgi/0.mp3?api=SYNO.AudioStation.Stream&method=transcode&version=2&id=${Uri.encodeQueryComponent(id)}&format=mp3&_sid=${Uri.encodeQueryComponent(sid)}';
+    return '${config.baseUrl}/webapi/AudioStation/stream.cgi?api=SYNO.AudioStation.Stream&method=stream&version=2&id=${Uri.encodeQueryComponent(id)}&_sid=${Uri.encodeQueryComponent(sid)}';
   }
 
   @override

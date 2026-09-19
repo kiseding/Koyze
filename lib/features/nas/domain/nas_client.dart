@@ -128,24 +128,5 @@ abstract class NasClient {
     return null;
   }
 
-  int? maxBitRateForQuality(String quality) {
-    return switch (quality) {
-      '128k' => 128000,
-      '192k' => 192000,
-      '320k' => 320000,
-      'flac' || 'flac24bit' || 'hires' => null,
-      _ => 320000,
-    };
-  }
-
-  int? maxKbpsForQuality(String quality) {
-    return switch (quality) {
-      '128k' => 128,
-      '192k' => 192,
-      '320k' => 320,
-      'flac' || 'flac24bit' || 'hires' => null,
-      _ => 320,
-    };
-  }
 }
 

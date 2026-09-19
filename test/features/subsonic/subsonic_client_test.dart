@@ -220,7 +220,8 @@ void main() {
     addTearDown(client.dispose);
     final url = client.streamUrl(config, 'secret', '42', quality: '320k');
     expect(url.startsWith('http://192.168.1.8:4533/rest/stream?'), isTrue);
-    expect(url, contains('maxBitRate=320'));
+    expect(url, contains('format=raw'));
+    expect(url, isNot(contains('maxBitRate=')));
     expect(url, contains('id=42'));
   });
 
@@ -301,6 +302,68 @@ void main() {
     expect(result, isNotNull);
     expect(result!.platform, 'subsonic');
     expect(result.url, contains('http://192.168.1.8:4533/rest/stream'));
+  });
+
+  test('Subsonic parseSong keeps native bitrate in meta', () {
+    final client = SubsonicClient(saltGenerator: () => 'fixedsalt12');
+    addTearDown(client.dispose);
+    final song = client.parseSong(config, 'secret', {
+      'id': '42',
+      'title': 'Song',
+      'artist': 'Artist',
+      'suffix': 'mp3',
+      'contentType': 'audio/mpeg',
+      'bitRate': 192,
+    });
+    expect(song.meta?['bitRate'], 192);
+    expect(song.meta?['suffix'], 'mp3');
+    expect(song.meta?['contentType'], 'audio/mpeg');
+  });
+
+  test('MusicSourceService reports native Subsonic bitrate, not requested', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final store = SubsonicStore(
+      storage: () async => StorageService.forTesting(prefs),
+      tokenStore: _MemoryTokenStore(),
+    );
+    final client = SubsonicClient(
+      dio: _okDio((_) => _ok({'type': 'navidrome'})),
+      saltGenerator: () => 'fixedsalt12',
+    );
+    addTearDown(client.dispose);
+    final subsonic = SubsonicService(store: store, client: client);
+    addTearDown(subsonic.dispose);
+    await subsonic.connect(
+      baseUrl: 'http://192.168.1.8:4533',
+      username: 'alice',
+      password: 'secret',
+    );
+
+    final source = MusicSourceService(
+      CustomSourceService(),
+      subsonicService: subsonic,
+    );
+    addTearDown(source.dispose);
+    final result = await source.resolvePlayableUrl(
+      MusicItem(
+        id: '42',
+        name: 'Song',
+        singer: 'Artist',
+        source: 'subsonic',
+        platform: 'subsonic',
+        songmid: '42',
+        meta: {
+          'bitRate': 192,
+          'suffix': 'mp3',
+          'contentType': 'audio/mpeg',
+        },
+      ),
+      preferredQuality: '320k',
+    );
+    expect(result, isNotNull);
+    expect(result!.requestedQuality, '320k');
+    expect(result.actualQuality, '192k');
   });
 
   test('server URL infers HTTP for LAN hosts and HTTPS for domains', () {
@@ -465,7 +528,7 @@ void main() {
     );
   });
 
-  test('MusicSourceService does not leak Subsonic into built-in sources', () async {
+  test('MusicSourceService does not leak Subsonic into built-in play URLs', () async {
     SharedPreferences.setMockInitialValues({});
     final source = MusicSourceService(CustomSourceService());
     addTearDown(source.dispose);
@@ -480,19 +543,9 @@ void main() {
       ),
       preferredQuality: '320k',
     );
+    // 播放仍走 NAS / Subsonic。歌词在服务器没有时可以回退内置平台，
+    // 那是刮削路径，不在这条测例里。
     expect(result, isNull);
-    expect(
-      await source.getLyric(
-        MusicItem(
-          id: '42',
-          name: 'Song',
-          singer: 'Artist',
-          source: 'subsonic',
-          platform: 'subsonic',
-        ),
-      ),
-      isNull,
-    );
   });
 
   test('search skips empty queries and missing session', () async {

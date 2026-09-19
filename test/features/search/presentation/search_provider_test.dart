@@ -1,10 +1,35 @@
 import 'dart:async';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/search/presentation/search_provider.dart';
 
 void main() {
+  test('search sources expose a single NAS entry for all self-hosted servers', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+
+    final sources = container.read(allSearchSourcesProvider);
+    expect(
+      sources.map((source) => source.id).toList(),
+      [
+        'all',
+        'tx',
+        'kw',
+        'wy',
+        'local',
+        'favorites',
+        'subsonic',
+      ],
+    );
+    expect(sources.singleWhere((source) => source.id == 'subsonic').name, 'NAS');
+    expect(sources.map((source) => source.name), isNot(contains('Emby')));
+    expect(sources.map((source) => source.name), isNot(contains('Jellyfin')));
+    expect(sources.map((source) => source.name), isNot(contains('Plex')));
+    expect(sources.map((source) => source.name), isNot(contains('群晖')));
+  });
+
   test('late first-page result cannot overwrite a newer query', () async {
     final first = Completer<List<MusicItem>>();
     final second = Completer<List<MusicItem>>();

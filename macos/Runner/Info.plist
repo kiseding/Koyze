@@ -36,6 +36,6 @@
 		<true/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Koyze 需要访问局域网中的自建音乐服务器（Navidrome / Subsonic）</string>
+	<string>Koyze 需要访问局域网中的 NAS 音乐服务器（Navidrome / Subsonic / Emby / Jellyfin / Plex）</string>
 </dict>
 </plist>

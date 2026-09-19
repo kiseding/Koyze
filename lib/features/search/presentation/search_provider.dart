@@ -6,9 +6,11 @@ import '../../../core/storage/storage_service.dart';
 import '../../player/domain/music_item.dart';
 import '../../custom_source/presentation/custom_source_provider.dart';
 import '../../local_music/presentation/local_music_provider.dart';
+import '../../local_music/presentation/scrape_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../nas/domain/nas_kind.dart';
+import '../../nas/domain/nas_url.dart';
 import '../../nas/presentation/nas_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
 
@@ -35,9 +37,9 @@ class SearchSourceItem {
   SearchSourceItem({required this.id, required this.name});
 }
 
-// 桌面版固定的搜索平台列表
+// 搜索下拉 / 设置「默认搜索平台」共用这份列表。
+// 所有自建音乐服务器对外只有一条 NAS，未连接时搜索会回退到全网。
 final allSearchSourcesProvider = Provider<List<SearchSourceItem>>((ref) {
-  final connected = ref.watch(subsonicConnectedProvider);
   return [
     SearchSourceItem(id: 'all', name: '全网'),
     SearchSourceItem(id: 'tx', name: 'QQ'),
@@ -45,35 +47,33 @@ final allSearchSourcesProvider = Provider<List<SearchSourceItem>>((ref) {
     SearchSourceItem(id: 'wy', name: '网易'),
     SearchSourceItem(id: 'local', name: '本地'),
     SearchSourceItem(id: 'favorites', name: '收藏'),
-    if (connected) SearchSourceItem(id: 'subsonic', name: '自建'),
-    for (final kind in NasKind.values)
-      if (ref.watch(nasConnectedProvider(kind)))
-        SearchSourceItem(id: kind.id, name: kind.shortSearchLabel),
+    SearchSourceItem(id: 'subsonic', name: 'NAS'),
   ];
 });
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
 // 默认腾讯；设置页可改 defaultSearchPlatform 并同步到此。
-// 未连接自建服时不能停在 subsonic，否则搜索会打空源。
+// 未连接 NAS 时不能停在 subsonic，否则搜索会打空源。
 final selectedSourceIdProvider = StateProvider<String>((ref) {
-  ref.listen<bool>(subsonicConnectedProvider, (previous, next) {
-    if (!next && ref.controller.state == 'subsonic') {
+  void fallbackIfNasGone(bool connected) {
+    if (!connected &&
+        canonicalSearchPlatform(ref.controller.state) == 'subsonic') {
       ref.controller.state = 'all';
     }
+  }
+
+  ref.listen<bool>(subsonicConnectedProvider, (previous, next) {
+    fallbackIfNasGone(_anyNasConnected(ref));
   });
   for (final kind in NasKind.values) {
     ref.listen<bool>(nasConnectedProvider(kind), (previous, next) {
-      if (!next && ref.controller.state == kind.id) {
-        ref.controller.state = 'all';
-      }
+      fallbackIfNasGone(_anyNasConnected(ref));
     });
   }
-  final initial = ref.watch(defaultSearchPlatformProvider);
-  if (initial == 'subsonic' && !ref.read(subsonicConnectedProvider)) {
-    return 'all';
-  }
-  final nasKind = NasKind.tryParse(initial);
-  if (nasKind != null && !ref.read(nasConnectedProvider(nasKind))) {
+  final initial = canonicalSearchPlatform(
+    ref.watch(defaultSearchPlatformProvider),
+  );
+  if (initial == 'subsonic' && !_anyNasConnected(ref)) {
     return 'all';
   }
   return initial;
@@ -265,32 +265,8 @@ final searchStateProvider = StateNotifierProvider<SearchNotifier, SearchState>((
         if (start >= matches.length) return const [];
         return matches.skip(start).take(20).toList();
       }
-      if (sourceId == 'subsonic') {
-        final subsonic = ref.read(subsonicServiceProvider);
-        await subsonic.init();
-        if (!subsonic.isConnected) {
-          return service.search(
-            query,
-            customSourceId: 'all',
-            page: page,
-            type: 'music',
-          );
-        }
-        return subsonic.search(query, page: page, limit: 20);
-      }
-      final nasKind = NasKind.tryParse(sourceId);
-      if (nasKind != null) {
-        final nas = ref.read(nasServiceProvider(nasKind));
-        await nas.init();
-        if (!nas.isConnected) {
-          return service.search(
-            query,
-            customSourceId: 'all',
-            page: page,
-            type: 'music',
-          );
-        }
-        return nas.search(query, page: page, limit: 20);
+      if (sourceId == 'subsonic' || nasKindIds.contains(sourceId)) {
+        return _searchConnectedNas(ref, query, page, service);
       }
       return service.search(
         query,
@@ -303,6 +279,52 @@ final searchStateProvider = StateNotifierProvider<SearchNotifier, SearchState>((
     loadLocalMatches: _loadLocalMusicMatches(ref),
   );
 });
+
+bool _anyNasConnected(Ref ref) {
+  if (ref.read(subsonicConnectedProvider)) return true;
+  for (final kind in NasKind.values) {
+    if (ref.read(nasConnectedProvider(kind))) return true;
+  }
+  return false;
+}
+
+Future<List<MusicItem>> _searchConnectedNas(
+  Ref ref,
+  String query,
+  int page,
+  MusicSourceService service,
+) async {
+  final store = await ref.read(musicScrapeStoreProvider.future);
+  final results = <MusicItem>[];
+  final seen = <String>{};
+
+  Future<void> addAll(List<MusicItem> songs) async {
+    for (final song in store.overlayAll(songs)) {
+      if (seen.add(song.identityKey)) results.add(song);
+    }
+  }
+
+  final subsonic = ref.read(subsonicServiceProvider);
+  await subsonic.init();
+  if (subsonic.isConnected) {
+    await addAll(await subsonic.search(query, page: page, limit: 20));
+  }
+  for (final kind in NasKind.values) {
+    final nas = ref.read(nasServiceProvider(kind));
+    await nas.init();
+    if (!nas.isConnected) continue;
+    await addAll(await nas.search(query, page: page, limit: 20));
+  }
+  if (results.isEmpty) {
+    return service.search(
+      query,
+      customSourceId: 'all',
+      page: page,
+      type: 'music',
+    );
+  }
+  return results;
+}
 
 /// 本地补充结果：按标题、歌手或专辑模糊匹配。
 LocalMatchLoader _loadLocalMusicMatches(Ref ref) {

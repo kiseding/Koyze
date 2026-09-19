@@ -294,16 +294,27 @@ class MediaBrowserNasClient extends NasClient {
     final mediaSources = asList(raw['MediaSources']);
     String? mediaSourceId;
     int? lyricIndex;
+    Object? bitRate;
+    Object? container;
+    Object? codec;
     if (mediaSources.isNotEmpty) {
-      mediaSourceId = mediaSources.first['Id']?.toString();
-      final streams = asList(mediaSources.first['MediaStreams']);
+      final source = mediaSources.first;
+      mediaSourceId = source['Id']?.toString();
+      container = source['Container'];
+      bitRate = source['Bitrate'] ?? source['BitRate'];
+      final streams = asList(source['MediaStreams']);
       for (final stream in streams) {
         final type = stream['Type']?.toString();
-        final codec = stream['Codec']?.toString().toLowerCase();
+        final streamCodec = stream['Codec']?.toString().toLowerCase();
+        if (type == 'Audio') {
+          codec ??= stream['Codec'];
+          bitRate ??= stream['BitRate'] ?? stream['Bitrate'];
+        }
         if (type == 'Subtitle' &&
-            (codec == 'lrc' || codec == 'text' || codec == 'subrip')) {
+            (streamCodec == 'lrc' ||
+                streamCodec == 'text' ||
+                streamCodec == 'subrip')) {
           lyricIndex = asInt(stream['Index']);
-          break;
         }
       }
     }
@@ -322,6 +333,9 @@ class MediaBrowserNasClient extends NasClient {
         'nasId': id,
         if (mediaSourceId != null) 'mediaSourceId': mediaSourceId,
         if (lyricIndex != null) 'lyricIndex': lyricIndex,
+        if (bitRate != null) 'bitRate': bitRate,
+        if (container != null) 'container': container,
+        if (codec != null) 'codec': codec,
       },
     );
   }
@@ -338,14 +352,12 @@ class MediaBrowserNasClient extends NasClient {
     MusicItem music, {
     required String quality,
   }) {
+    final _ = quality;
     final id = music.songmid?.isNotEmpty == true ? music.songmid! : music.id;
     final token = secrets.token ?? '';
-    final bitrate = maxBitRateForQuality(quality);
     final query = <String, String>{
       'api_key': token,
-      if (bitrate == null) 'static': 'true',
-      if (bitrate != null) 'audioBitRate': '$bitrate',
-      if (bitrate != null) 'audioCodec': 'mp3',
+      'static': 'true',
     };
     final encoded = query.entries
         .map(

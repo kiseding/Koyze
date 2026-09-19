@@ -47,11 +47,12 @@ const homeQuickFeatures = <HomeQuickFeature>[
   ),
   HomeQuickFeature(
     id: 'subsonic',
-    title: '自建乐库',
-    subtitle: 'Navidrome / NAS 音乐库',
+    title: 'NAS 乐库',
+    subtitle: 'Navidrome / Emby / Plex / 群晖',
     icon: Icons.cloud_queue_rounded,
     route: '/subsonic',
     color: Colors.pink,
+    enabledByDefault: true,
   ),
   HomeQuickFeature(
     id: 'downloads',
@@ -152,6 +153,7 @@ const homeQuickFeatures = <HomeQuickFeature>[
     icon: Icons.cloud_sync_rounded,
     route: '/sync',
     color: Color(0xFF039BE5),
+    enabledByDefault: true,
   ),
   HomeQuickFeature(
     id: 'local_scan',

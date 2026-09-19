@@ -7,6 +7,9 @@ import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../local_music/domain/local_music_scraper.dart';
+import '../../local_music/presentation/local_music_provider.dart';
+import '../../local_music/presentation/scrape_provider.dart';
 import '../../nas/domain/nas_kind.dart';
 import '../../nas/domain/self_hosted_kind.dart';
 import '../../nas/presentation/nas_provider.dart';
@@ -26,6 +29,9 @@ class _SubsonicLibraryScreenState
     extends ConsumerState<SubsonicLibraryScreen> {
   SelfHostedKind _kind = SelfHostedKind.subsonic;
   bool _pickedInitial = false;
+  bool _scraping = false;
+  int _scrapeDone = 0;
+  int _scrapeTotal = 0;
 
   void _pickInitialKind() {
     if (_pickedInitial) return;
@@ -80,7 +86,7 @@ class _SubsonicLibraryScreenState
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          '自建音乐库',
+          'NAS 音乐库',
           style: TextStyle(color: on, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -106,10 +112,24 @@ class _SubsonicLibraryScreenState
               orElse: () => const SizedBox.shrink(),
             ),
           if (connected)
+            songsAsync.maybeWhen(
+              data: (songs) => songs.isEmpty
+                  ? const SizedBox.shrink()
+                  : FxIconButton(
+                      tooltip: _scraping ? '正在刮削' : '刮削封面和歌词',
+                      icon: Icon(
+                        Icons.auto_fix_high_outlined,
+                        color: _scraping ? accent : on,
+                      ),
+                      onPressed: _scraping ? null : () => _scrape(songs),
+                    ),
+              orElse: () => const SizedBox.shrink(),
+            ),
+          if (connected)
             FxIconButton(
               tooltip: '刷新',
               icon: Icon(Icons.refresh, color: on),
-              onPressed: _invalidateSongs,
+              onPressed: _scraping ? null : _invalidateSongs,
             ),
         ],
       ),
@@ -143,6 +163,28 @@ class _SubsonicLibraryScreenState
               ],
             ),
           ),
+          if (_scraping)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  LinearProgressIndicator(
+                    value: _scrapeTotal == 0
+                        ? null
+                        : _scrapeDone / _scrapeTotal,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '正在刮削 $_scrapeDone / $_scrapeTotal',
+                    style: TextStyle(
+                      color: AppColors.mutedText(context),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: !connected
                 ? _empty(
@@ -232,6 +274,44 @@ class _SubsonicLibraryScreenState
         ],
       ),
     );
+  }
+
+  Future<void> _scrape(List<MusicItem> songs) async {
+    if (_scraping || songs.isEmpty) return;
+    setState(() {
+      _scraping = true;
+      _scrapeDone = 0;
+      _scrapeTotal = songs.length;
+    });
+    try {
+      final scraper = ref.read(localMusicScraperProvider);
+      final store = await ref.read(musicScrapeStoreProvider.future);
+      final matched = await scrapeMusicItems(
+        scraper: scraper,
+        store: store,
+        songs: songs,
+        onProgress: (done, total) {
+          if (!mounted) return;
+          setState(() {
+            _scrapeDone = done;
+            _scrapeTotal = total;
+          });
+        },
+      );
+      if (!mounted) return;
+      ref.read(scrapeRevisionProvider.notifier).state++;
+      _invalidateSongs();
+      showAppNotification(
+        matched == 0
+            ? '没有匹配到在线封面或歌词'
+            : '已为 $matched / ${songs.length} 首匹配封面和歌词',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showAppNotification('刮削失败: $error', type: AppNotificationType.error);
+    } finally {
+      if (mounted) setState(() => _scraping = false);
+    }
   }
 
   Future<void> _play(List<MusicItem> songs, int index) async {

@@ -308,12 +308,16 @@ class SubsonicClient {
     String songId, {
     required String quality,
   }) {
-    final extra = <String, String>{'id': songId};
-    final bitrate = maxBitRateForQuality(quality);
-    if (bitrate != null) extra['maxBitRate'] = '$bitrate';
-    final format = streamFormatForQuality(quality);
-    if (format != null) extra['format'] = format;
-    return _restUrl(config, password, 'stream', extra: extra);
+    final _ = quality;
+    return _restUrl(
+      config,
+      password,
+      'stream',
+      extra: {
+        'id': songId,
+        'format': 'raw',
+      },
+    );
   }
 
   String coverArtUrl(
@@ -364,23 +368,6 @@ class SubsonicClient {
         if (raw['bitRate'] != null) 'bitRate': raw['bitRate'],
       },
     );
-  }
-
-  static int? maxBitRateForQuality(String quality) {
-    return switch (quality) {
-      '128k' => 128,
-      '192k' => 192,
-      '320k' => 320,
-      'flac' || 'flac24bit' || 'hires' => 0,
-      _ => 320,
-    };
-  }
-
-  static String? streamFormatForQuality(String quality) {
-    return switch (quality) {
-      'flac' || 'flac24bit' || 'hires' => 'raw',
-      _ => null,
-    };
   }
 
   SubsonicPlaylistInfo _parsePlaylistInfo(Map<String, dynamic> raw) {

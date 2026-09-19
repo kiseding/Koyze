@@ -14,7 +14,7 @@ import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 ///
 /// 这个值是在测试字体下量出来的；真机字体行高略有差异（通常多几 px），
 /// 由各平台的 breathingRoom 吸收。改动首页布局后重新跑本测试即可拿到新值。
-const int homeContentMinHeight = 549;
+const int homeContentMinHeight = 627;
 
 /// 底部 chrome 在桌面端占用的高度。来自
 /// `lib/features/home/presentation/main_scaffold.dart`：

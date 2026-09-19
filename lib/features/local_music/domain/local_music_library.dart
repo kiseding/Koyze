@@ -10,6 +10,7 @@ import 'package:koyze/features/player/domain/music_item.dart';
 import 'android_directory_access.dart';
 import 'local_music_debug_log.dart';
 import 'local_music_scanner.dart';
+import 'music_scrape_store.dart';
 import 'security_scoped_directory.dart';
 
 /// 持久化的本地音乐索引：目录 → 文件列表 → 元数据。
@@ -20,9 +21,11 @@ class LocalMusicLibrary {
   LocalMusicLibrary({
     required StorageService storage,
     LocalMusicScanner? scanner,
+    MusicScrapeStore? scrapeStore,
     // ignore: prefer_initializing_formals
   }) : _storage = storage,
-       _scanner = scanner ?? LocalMusicScanner();
+       _scanner = scanner ?? LocalMusicScanner(),
+       _scrapeStore = scrapeStore ?? MusicScrapeStore(storage: storage);
 
   static const _indexKey = 'local_music_index_v1';
   static const _dirsKey = 'local_music_dirs_v1';
@@ -32,6 +35,7 @@ class LocalMusicLibrary {
 
   final StorageService _storage;
   final LocalMusicScanner _scanner;
+  final MusicScrapeStore _scrapeStore;
 
   /// 内嵌封面缓存目录（懒加载）。
   Future<Directory>? _artworkDir;
@@ -44,9 +48,6 @@ class LocalMusicLibrary {
 
   /// 下载目录（自动纳入扫描，不可手动移除；null 表示未配置）。
   String? _downloadDirectory;
-
-  /// 文件路径 → 刮削到的在线身份。
-  final Map<String, Map<String, dynamic>> _scrapedIdentity = {};
 
   bool _initialized = false;
 
@@ -63,9 +64,7 @@ class LocalMusicLibrary {
   Map<String, Map<String, dynamic>> get files => Map.unmodifiable(_files);
 
   Map<String, dynamic>? scrapedIdentity(String path) =>
-      _scrapedIdentity[path] == null
-      ? null
-      : Map<String, dynamic>.unmodifiable(_scrapedIdentity[path]!);
+      _scrapeStore.identityOf(path);
 
   /// 解析出的全部本地歌曲（含刮削身份）。
   List<MusicItem> get songs => _files.values.map(_toMusicItem).toList();
@@ -76,17 +75,17 @@ class LocalMusicLibrary {
     _directories = _storage.getStringList(_dirsKey);
     _downloadDirectory = _storage.getString(_downloadDirKey);
     _loadIndex();
-    _loadScrapedIdentity();
+    await _scrapeStore.init();
     LocalMusicDebugLog.info(
       'library.init.loaded',
-      'directories=${_directories.length} downloadDir=${LocalMusicDebugLog.quote(_downloadDirectory)} mediaStore=$androidMediaStoreEnabled files=${_files.length} scraped=${_scrapedIdentity.length}',
+      'directories=${_directories.length} downloadDir=${LocalMusicDebugLog.quote(_downloadDirectory)} mediaStore=$androidMediaStoreEnabled files=${_files.length} scraped=${_scrapeStore.length}',
     );
     await SecurityScopedDirectory.restore();
     await _pruneMissingFiles();
     _initialized = true;
     LocalMusicDebugLog.info(
       'library.init.finish',
-      'files=${_files.length} scraped=${_scrapedIdentity.length}',
+      'files=${_files.length} scraped=${_scrapeStore.length}',
     );
   }
 
@@ -228,7 +227,7 @@ class LocalMusicLibrary {
       if (previous != null &&
           (previous['size'] != track.size ||
               previousModified != track.modifiedAt)) {
-        _scrapedIdentity.remove(track.path);
+        _scrapeStore.discard(track.path);
         invalidatedChanged++;
         LocalMusicDebugLog.warning(
           'library.platform_file_changed',
@@ -278,9 +277,9 @@ class LocalMusicLibrary {
     }
     for (final path in stalePaths) {
       _files.remove(path);
-      _scrapedIdentity.remove(path);
+      _scrapeStore.discard(path);
     }
-    await Future.wait([_persistIndex(), _persistScrapedIdentity()]);
+    await Future.wait([_persistIndex(), _scrapeStore.flush()]);
     LocalMusicDebugLog.info(
       'library.platform_scan.finish',
       'source=$source tracks=${tracks.length} invalidated=$invalidatedChanged stale=${stalePaths.length} files=${_files.length}',
@@ -336,16 +335,6 @@ class LocalMusicLibrary {
     }
   }
 
-  void _loadScrapedIdentity() {
-    _scrapedIdentity.clear();
-    for (final entry in _storage.getJsonList('local_music_scrape_v1')) {
-      final path = entry['path']?.toString();
-      if (path != null && path.isNotEmpty) {
-        _scrapedIdentity[path] = Map<String, dynamic>.from(entry);
-      }
-    }
-  }
-
   Future<void> _persistIndex() async {
     await _storage.setJsonList(
       _indexKey,
@@ -382,9 +371,9 @@ class LocalMusicLibrary {
     );
     for (final path in missing) {
       _files.remove(path);
-      _scrapedIdentity.remove(path);
+      _scrapeStore.discard(path);
     }
-    await _persistIndex();
+    await Future.wait([_persistIndex(), _scrapeStore.flush()]);
   }
 
   /// 添加扫描目录并增量扫描。
@@ -419,7 +408,7 @@ class LocalMusicLibrary {
             entry['modifiedAt']?.toString() ?? '',
           );
           if (entry['size'] != stat.size || indexedModified != stat.modified) {
-            _scrapedIdentity.remove(path);
+            _scrapeStore.discard(path);
             invalidatedChanged++;
             LocalMusicDebugLog.warning(
               'library.file_changed',
@@ -434,7 +423,7 @@ class LocalMusicLibrary {
           );
           return false;
         }
-        final identity = _scrapedIdentity[path];
+        final identity = _scrapeStore.identityOf(path);
         final hasLyrics = identity?['lyrics']?.toString().isNotEmpty == true;
         final hasArtwork = identity?['artwork']?.toString().isNotEmpty == true;
         // 歌词和封面分别刮削；不能因为已有歌词就跳过缺封面的文件。
@@ -497,9 +486,9 @@ class LocalMusicLibrary {
     }
     for (final path in stalePaths) {
       _files.remove(path);
-      _scrapedIdentity.remove(path);
+      _scrapeStore.discard(path);
     }
-    await _persistIndex();
+    await Future.wait([_persistIndex(), _scrapeStore.flush()]);
     LocalMusicDebugLog.info(
       'library.add_directory.finish',
       'directory=${LocalMusicDebugLog.quote(directoryPath)} parsed=${tracks.length} discovered=${discoveredPaths.length} skipped=$skippedUnchanged invalidated=$invalidatedChanged stale=${stalePaths.length} files=${_files.length}',
@@ -573,7 +562,7 @@ class LocalMusicLibrary {
     }
     LocalMusicDebugLog.info(
       'library.rescan_all.finish',
-      'added=$added files=${_files.length} scraped=${_scrapedIdentity.length}',
+      'added=$added files=${_files.length} scraped=${_scrapeStore.length}',
     );
     return added;
   }
@@ -640,7 +629,7 @@ class LocalMusicLibrary {
       'hasEmbeddedTags': false,
       if (artwork != null && artwork.isNotEmpty) 'artwork': artwork,
     };
-    _scrapedIdentity[path] = {
+    await _scrapeStore.save(path, {
       'platform': platform,
       'source': source,
       if (songmid != null && songmid.isNotEmpty) 'songmid': songmid,
@@ -649,12 +638,12 @@ class LocalMusicLibrary {
       'singer': artist,
       'album': album,
       if (artwork != null && artwork.isNotEmpty) 'artwork': artwork,
-    };
+    });
     LocalMusicDebugLog.info(
       'library.download_upsert.persist',
       'path=${LocalMusicDebugLog.quote(path)} file=${LocalMusicDebugLog.quote(fileName)} title=${LocalMusicDebugLog.quote(title)} artist=${LocalMusicDebugLog.quote(artist)} platform=$platform songmid=${LocalMusicDebugLog.quote(songmid)} hash=${LocalMusicDebugLog.quote(hash)} artwork=${LocalMusicDebugLog.present(artwork)}',
     );
-    await Future.wait([_persistIndex(), _persistScrapedIdentity()]);
+    await Future.wait([_persistIndex(), _scrapeStore.flush()]);
   }
 
   /// 移除目录及其索引（下载目录不可移除）。
@@ -667,11 +656,11 @@ class LocalMusicLibrary {
         ? directoryPath
         : '$directoryPath/';
     _files.removeWhere((path, _) => path.startsWith(prefix));
-    _scrapedIdentity.removeWhere((path, _) => path.startsWith(prefix));
+    _scrapeStore.discardWhere((path) => path.startsWith(prefix));
     await Future.wait([
       _persistDirectories(),
       _persistIndex(),
-      _persistScrapedIdentity(),
+      _scrapeStore.flush(),
     ]);
   }
 
@@ -689,7 +678,7 @@ class LocalMusicLibrary {
       'library.scrape_identity.apply.start',
       'path=${LocalMusicDebugLog.quote(path)} ${LocalMusicDebugLog.identity(identity)}',
     );
-    _scrapedIdentity[path] = Map<String, dynamic>.from(identity);
+    await _scrapeStore.save(path, identity);
     final current = _files[path];
     if (current != null) {
       final title = _nonEmptyString(identity['name']);
@@ -707,10 +696,10 @@ class LocalMusicLibrary {
         'library.scrape_identity.mirror_index',
         'path=${LocalMusicDebugLog.quote(path)} title=${LocalMusicDebugLog.quote(title)} artist=${LocalMusicDebugLog.quote(artist)} album=${LocalMusicDebugLog.quote(album)} artwork=${LocalMusicDebugLog.present(artwork)}',
       );
-      await Future.wait([_persistIndex(), _persistScrapedIdentity()]);
+      await Future.wait([_persistIndex(), _scrapeStore.flush()]);
       LocalMusicDebugLog.info(
         'library.scrape_identity.apply.finish',
-        'path=${LocalMusicDebugLog.quote(path)} mirrored=true scraped=${_scrapedIdentity.length}',
+        'path=${LocalMusicDebugLog.quote(path)} mirrored=true scraped=${_scrapeStore.length}',
       );
       return;
     }
@@ -718,10 +707,9 @@ class LocalMusicLibrary {
       'library.scrape_identity.no_index_entry',
       'path=${LocalMusicDebugLog.quote(path)}',
     );
-    await _persistScrapedIdentity();
     LocalMusicDebugLog.info(
       'library.scrape_identity.apply.finish',
-      'path=${LocalMusicDebugLog.quote(path)} mirrored=false scraped=${_scrapedIdentity.length}',
+      'path=${LocalMusicDebugLog.quote(path)} mirrored=false scraped=${_scrapeStore.length}',
     );
   }
 
@@ -747,7 +735,7 @@ class LocalMusicLibrary {
         skippedExisting++;
         continue;
       }
-      final identity = _scrapedIdentity[entry.key];
+      final identity = _scrapeStore.identityOf(entry.key);
       if (identity?['artwork']?.toString().isNotEmpty == true) {
         skippedExisting++;
         continue;
@@ -767,21 +755,12 @@ class LocalMusicLibrary {
     );
   }
 
-  Future<void> _persistScrapedIdentity() async {
-    await _storage.setJsonList(
-      'local_music_scrape_v1',
-      _scrapedIdentity.entries
-          .map((entry) => {'path': entry.key, ...entry.value})
-          .toList(),
-    );
-  }
-
   /// 将索引中的本地文件转为 MusicItem（双身份：本地 filePath + 在线 songmid/hash）。
   MusicItem _toMusicItem(Map<String, dynamic> entry) {
     final path = entry['path']!.toString();
     final contentUri = entry['contentUri']?.toString();
     final fileName = entry['fileName']?.toString() ?? '';
-    final identity = _scrapedIdentity[path];
+    final identity = _scrapeStore.identityOf(path);
     final songmid =
         identity?['songmid']?.toString() ?? entry['songmid']?.toString();
     final hash = identity?['hash']?.toString() ?? entry['hash']?.toString();
