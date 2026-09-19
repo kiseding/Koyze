@@ -29,6 +29,9 @@ void main() {
     expect(source, contains('ReorderableListView.builder'));
     expect(quick, contains('home_quick_features_v1'));
     expect(source, isNot(contains('Icons.dark_mode_outlined')));
+    expect(quick, contains("id: 'subsonic'"));
+    expect(quick, contains("title: '自建乐库'"));
+    expect(quick, contains("route: '/subsonic'"));
   });
 
   test('playlist labels custom playlists below recent card', () {

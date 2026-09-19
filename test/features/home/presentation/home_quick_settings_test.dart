@@ -42,4 +42,12 @@ void main() {
     expect(notifier.state.enabled.length, disabledCount + 1);
   });
 
+  test('self-hosted library is a selectable quick feature', () {
+    final feature = homeQuickFeatures.singleWhere(
+      (item) => item.id == 'subsonic',
+    );
+    expect(feature.title, '自建乐库');
+    expect(feature.route, '/subsonic');
+    expect(feature.enabledByDefault, isFalse);
+  });
 }

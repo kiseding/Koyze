@@ -832,7 +832,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      '自建音乐库',
+                      '自建乐库',
                       style: TextStyle(
                         color: onPink,
                         fontSize: 16,

@@ -27,4 +27,19 @@ void main() {
       );
     }
   });
+
+  test('default search picker follows connected search sources', () {
+    final source = File(
+      'lib/features/settings/presentation/settings_screen.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('allSearchSourcesProvider'));
+    expect(source, contains('platformPickerDescription'));
+    expect(source, contains('platformPickerIcon'));
+    expect(source, contains("case 'subsonic':"));
+    expect(source, contains("case 'emby':"));
+    expect(source, contains("case 'audiostation':"));
+    expect(source, contains("return '自建乐库'"));
+    expect(source, isNot(contains('static const _options')));
+  });
 }

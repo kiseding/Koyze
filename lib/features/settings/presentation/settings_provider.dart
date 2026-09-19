@@ -51,7 +51,7 @@ final autoResumePlaybackProvider =
       return AutoResumePlaybackNotifier();
     });
 
-/// 默认搜索平台：tx / kw / wy / local / favorites / subsonic
+/// 默认搜索平台：tx / kw / wy / local / favorites / subsonic / NAS
 final defaultSearchPlatformProvider =
     StateNotifierProvider<DefaultSearchPlatformNotifier, String>((ref) {
       return DefaultSearchPlatformNotifier();

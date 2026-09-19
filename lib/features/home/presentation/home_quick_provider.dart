@@ -46,6 +46,14 @@ const homeQuickFeatures = <HomeQuickFeature>[
     enabledByDefault: true,
   ),
   HomeQuickFeature(
+    id: 'subsonic',
+    title: '自建乐库',
+    subtitle: 'Navidrome / NAS 音乐库',
+    icon: Icons.cloud_queue_rounded,
+    route: '/subsonic',
+    color: Colors.pink,
+  ),
+  HomeQuickFeature(
     id: 'downloads',
     title: '下载管理',
     subtitle: '任务与进度',

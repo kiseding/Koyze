@@ -26,6 +26,7 @@ import '../domain/playlist_backup.dart';
 import 'app_log_screen.dart';
 import '../../../core/widgets/fx_switch.dart';
 import '../../sync/data/sync_identity_store.dart';
+import '../../nas/domain/nas_kind.dart';
 
 final settingsDeviceIdProvider = FutureProvider<String>((ref) async {
   return (await SyncIdentityStore().load()).deviceId;
@@ -937,21 +938,18 @@ class _DeviceIdRow extends StatelessWidget {
 
 /// 默认搜索平台选择弹窗：与"音质选择"弹窗同款视觉语言
 /// （圆角 24 卡片 + 图标块 + 勾选胶囊 + easeOutBack 入场）。
+/// 选项跟搜索源列表走，已连接的自建乐库 / NAS 会出现在这里。
 class _PlatformPickerDialog extends ConsumerWidget {
   const _PlatformPickerDialog();
-
-  static const _options = <String, (IconData, String)>{
-    'tx': (Icons.music_note_rounded, '腾讯 · QQ 音乐'),
-    'kw': (Icons.headphones_rounded, '酷我'),
-    'wy': (Icons.cloud_rounded, '网易云'),
-    'local': (Icons.folder_rounded, '本地音乐'),
-    'favorites': (Icons.favorite_rounded, '收藏夹'),
-  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final current = ref.watch(defaultSearchPlatformProvider);
     final accent = AppColors.accentOf(context);
+    final options = [
+      for (final source in ref.watch(allSearchSourcesProvider))
+        if (source.id != 'all') source,
+    ];
     return Center(
       child: Material(
         color: Colors.transparent,
@@ -969,52 +967,64 @@ class _PlatformPickerDialog extends ConsumerWidget {
                   offset: const Offset(0, 12),
                 ),
               ],
-              child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 8, 6),
-                child: Row(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: Text(
-                        '默认搜索平台',
-                        style: TextStyle(
-                          color: AppColors.onScaffold(context),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 8, 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '默认搜索平台',
+                              style: TextStyle(
+                                color: AppColors.onScaffold(context),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.close_rounded,
+                              color: AppColors.mutedText(context),
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
                       ),
                     ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.close_rounded,
-                        color: AppColors.mutedText(context),
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.only(bottom: 12),
+                        itemCount: options.length,
+                        itemBuilder: (context, index) {
+                          final id = options[index].id;
+                          return _PlatformOptionTile(
+                            name: platformDisplayName(id),
+                            icon: platformPickerIcon(id),
+                            description: platformPickerDescription(id),
+                            selected: current == id,
+                            accent: accent,
+                            onTap: () {
+                              ref
+                                  .read(defaultSearchPlatformProvider.notifier)
+                                  .setPlatform(id);
+                              ref.read(selectedSourceIdProvider.notifier).state =
+                                  id;
+                              Navigator.pop(context);
+                            },
+                          );
+                        },
                       ),
-                      onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
-              ),
-              for (final entry in _options.entries) ...[
-                _PlatformOptionTile(
-                  name: platformDisplayName(entry.key),
-                  icon: entry.value.$1,
-                  description: _platformDescription(entry.key),
-                  selected: current == entry.key,
-                  accent: accent,
-                  onTap: () {
-                    ref
-                        .read(defaultSearchPlatformProvider.notifier)
-                        .setPlatform(entry.key);
-                    ref.read(selectedSourceIdProvider.notifier).state =
-                        entry.key;
-                    Navigator.pop(context);
-                  },
-                ),
-              ],
-              const SizedBox(height: 12),
-            ],
               ),
             ),
           ),
@@ -1024,7 +1034,7 @@ class _PlatformPickerDialog extends ConsumerWidget {
   }
 }
 
-String _platformDescription(String id) {
+String platformPickerDescription(String id) {
   switch (id) {
     case 'tx':
       return '覆盖最全，默认优先';
@@ -1036,9 +1046,31 @@ String _platformDescription(String id) {
       return '仅本地已扫描歌曲';
     case 'favorites':
       return '仅收藏夹内容';
+    case 'subsonic':
+      return 'Navidrome / Subsonic 乐库';
+    case 'emby':
+      return 'Emby 音乐库';
+    case 'jellyfin':
+      return 'Jellyfin 音乐库';
+    case 'plex':
+      return 'Plex 音乐库';
+    case 'audiostation':
+      return '群晖 Audio Station';
     default:
       return '';
   }
+}
+
+IconData platformPickerIcon(String id) {
+  return switch (id) {
+    'tx' => Icons.music_note_rounded,
+    'kw' => Icons.headphones_rounded,
+    'wy' => Icons.cloud_rounded,
+    'local' => Icons.folder_rounded,
+    'favorites' => Icons.favorite_rounded,
+    'subsonic' => Icons.cloud_queue_rounded,
+    _ => NasKind.tryParse(id)?.icon ?? Icons.dns_rounded,
+  };
 }
 
 class _PlatformOptionTile extends StatelessWidget {
@@ -1329,7 +1361,7 @@ String platformDisplayName(String id) {
     case 'favorites':
       return '收藏';
     case 'subsonic':
-      return '自建服务器';
+      return '自建乐库';
     case 'emby':
       return 'Emby';
     case 'jellyfin':
