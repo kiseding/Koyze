@@ -1,4 +1,5 @@
 import '../../../core/network/outbound_url.dart';
+import '../../nas/domain/nas_url.dart';
 import '../../subsonic/domain/subsonic_url.dart';
 
 class MusicItem {
@@ -168,7 +169,7 @@ class MusicItem {
     String? artwork,
   ) {
     if (artwork == null) return null;
-    if (isSubsonicMusic(source, platform)) {
+    if (isSubsonicMusic(source, platform) || isNasMusic(source, platform)) {
       return normalizeMediaUrl(artwork);
     }
     return normalizeOutboundUrl(artwork);

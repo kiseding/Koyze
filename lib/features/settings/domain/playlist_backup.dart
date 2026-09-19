@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/io/bounded_input.dart';
 import '../../../core/storage/storage_service.dart';
+import '../../nas/domain/nas_url.dart';
 import '../../playlist/data/playlist_repository.dart';
 import '../../playlist/domain/playlist.dart';
 import '../../playlist/domain/playlist_service.dart';
@@ -273,19 +274,12 @@ bool _decodeBool(Object? raw, {required String field, required bool fallback}) {
 
 String _decodeSearchPlatform(Object? raw) {
   if (raw == null) return 'tx';
-  if (!const {
-    'tx',
-    'kw',
-    'wy',
-    'local',
-    'favorites',
-    'subsonic',
-  }.contains(raw)) {
+  if (raw is! String || !allowedSearchPlatforms.contains(raw)) {
     throw const FormatException(
-      'default_search_platform must be tx, kw, wy, local, favorites, or subsonic',
+      'default_search_platform must be tx, kw, wy, local, favorites, subsonic, emby, jellyfin, plex, or audiostation',
     );
   }
-  return raw as String;
+  return raw;
 }
 
 final class BackupRestoreCoordinator {

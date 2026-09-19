@@ -59,6 +59,14 @@ String platformLabel(String p) {
       return '本地音乐';
     case 'subsonic':
       return '自建服务器';
+    case 'emby':
+      return 'Emby';
+    case 'jellyfin':
+      return 'Jellyfin';
+    case 'plex':
+      return 'Plex';
+    case 'audiostation':
+      return 'Audio Station';
     default:
       return p.isEmpty ? '未知' : p;
   }

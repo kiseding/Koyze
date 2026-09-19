@@ -2,6 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../../features/player/domain/music_item.dart';
 import '../../features/custom_source/domain/custom_source_service.dart';
+import '../../features/nas/domain/nas_kind.dart';
+import '../../features/nas/domain/nas_service.dart';
+import '../../features/nas/domain/nas_url.dart';
 import '../../features/subsonic/domain/subsonic_service.dart';
 import '../../features/subsonic/domain/subsonic_url.dart';
 import '../music_source/platform/built_in_source_manager.dart';
@@ -48,6 +51,7 @@ class MusicSourceService {
   final CustomSourceQualityResolver? _customSourceQualityResolver;
   final QualityResolver? _builtInQualityResolver;
   final SubsonicService? _subsonicService;
+  final Map<NasKind, NasService> _nasServices;
   final Duration playUrlResolutionTimeout;
   final Map<String, Future<({String url, String? type})?>> _customUrlRequests =
       {};
@@ -62,6 +66,7 @@ class MusicSourceService {
     QualityResolver? builtInQualityResolver,
     BuiltInSourceManager? builtInSources,
     SubsonicService? subsonicService,
+    Map<NasKind, NasService>? nasServices,
     this.playUrlResolutionTimeout = const Duration(seconds: 30),
   }) : _hasEnabledCustomSources = hasEnabledCustomSources,
        _enabledCustomSourceIds = enabledCustomSourceIds,
@@ -69,7 +74,8 @@ class MusicSourceService {
        _customSourceQualityResolver = customSourceQualityResolver,
        _builtInSources = builtInSources ?? BuiltInSourceManager(),
        _builtInQualityResolver = builtInQualityResolver,
-       _subsonicService = subsonicService;
+       _subsonicService = subsonicService,
+       _nasServices = nasServices ?? const {};
 
   BuiltInSourceManager get builtInSources => _builtInSources;
 
@@ -301,6 +307,10 @@ class MusicSourceService {
         : preferredQuality;
     if (isSubsonicMusic(music.source, music.platform)) {
       return _resolveSubsonicUrl(music, resolvedQuality);
+    }
+    final nasKind = nasKindOf(music.source, music.platform);
+    if (nasKind != null) {
+      return _resolveNasUrl(nasKind, music, resolvedQuality);
     }
     final songId = (music.songmid?.isNotEmpty == true)
         ? music.songmid!
@@ -792,6 +802,32 @@ class MusicSourceService {
     );
   }
 
+  Future<PlayUrlResult?> _resolveNasUrl(
+    NasKind kind,
+    MusicItem music,
+    String quality,
+  ) async {
+    final service = _nasServices[kind];
+    if (service == null) {
+      debugPrint('[getPlayUrl] ${kind.title} 服务未注入');
+      return null;
+    }
+    await service.init();
+    if (!service.isConnected) {
+      debugPrint('[getPlayUrl] 尚未连接 ${kind.title}');
+      return null;
+    }
+    final url = await service.getPlayUrl(music, quality: quality);
+    if (url == null || !isPlayableMediaUrl(url)) return null;
+    return PlayUrlResult(
+      url: normalizeMediaUrl(url),
+      requestedQuality: quality,
+      actualQuality: quality,
+      platform: kind.id,
+      songId: music.songmid ?? music.id,
+    );
+  }
+
   Future<String?> getLyric(MusicItem music) async {
     debugPrint(
       '[MusicSourceService] getLyric: platform=${music.platform}, source=${music.source}, songmid=${music.songmid}',
@@ -806,6 +842,19 @@ class MusicSourceService {
         if (lyric != null && lyric.isNotEmpty) return lyric;
       } catch (error) {
         debugPrint('[MusicSourceService] Subsonic 歌词失败: $error');
+      }
+      return null;
+    }
+    final nasKind = nasKindOf(music.source, music.platform);
+    if (nasKind != null) {
+      final nas = _nasServices[nasKind];
+      if (nas == null) return null;
+      try {
+        await nas.init();
+        final lyric = await nas.getLyric(music);
+        if (lyric != null && lyric.isNotEmpty) return lyric;
+      } catch (error) {
+        debugPrint('[MusicSourceService] ${nasKind.title} 歌词失败: $error');
       }
       return null;
     }

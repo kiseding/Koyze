@@ -121,7 +121,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 context,
                 ref,
                 '自建音乐服务器',
-                '连接 Navidrome / Subsonic 兼容服务器',
+                'Navidrome / Emby / Jellyfin / Plex / 群晖',
                 () => context.push('/subsonic-settings'),
                 captureExpandOrigin: true,
               ),
@@ -1328,6 +1328,16 @@ String platformDisplayName(String id) {
       return '本地';
     case 'favorites':
       return '收藏';
+    case 'subsonic':
+      return '自建服务器';
+    case 'emby':
+      return 'Emby';
+    case 'jellyfin':
+      return 'Jellyfin';
+    case 'plex':
+      return 'Plex';
+    case 'audiostation':
+      return 'Audio Station';
     default:
       return id;
   }

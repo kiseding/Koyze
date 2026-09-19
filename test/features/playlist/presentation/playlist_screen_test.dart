@@ -57,6 +57,7 @@ void main() {
 
     expect(RegExp(r'CardPlayButton\(').allMatches(source).length, 5);
     expect(source, contains('_BodySubsonicCard'));
+    expect(source, isNot(contains('_BodyNasCard')));
     expect(source, contains("context.push('/subsonic')"));
     expect(
       source,

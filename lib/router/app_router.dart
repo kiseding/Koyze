@@ -23,6 +23,11 @@ import '../features/stats/presentation/stats_screen.dart';
 import '../features/playlist/presentation/duplicate_screen.dart';
 import '../features/recommend/presentation/recommendation_screen.dart';
 import '../features/local_music/presentation/local_music_screen.dart';
+import '../features/nas/domain/nas_kind.dart';
+import '../features/nas/domain/self_hosted_kind.dart';
+import '../features/nas/presentation/nas_library_screen.dart';
+import '../features/nas/presentation/nas_playlist_detail_screen.dart';
+import '../features/nas/presentation/nas_settings_screen.dart';
 import '../features/subsonic/presentation/subsonic_library_screen.dart';
 import '../features/subsonic/presentation/subsonic_playlist_detail_screen.dart';
 import '../features/subsonic/presentation/subsonic_settings_screen.dart';
@@ -267,7 +272,11 @@ final appRouter = GoRouter(
       parentNavigatorKey: rootNavigatorKey,
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
-        const SubsonicSettingsScreen(),
+        SubsonicSettingsScreen(
+          initialKind: state.extra is SelfHostedKind
+              ? state.extra as SelfHostedKind
+              : null,
+        ),
         expandRect: consumeCardExpandRect(),
         expandSnapshot: consumeCardExpandSnapshot(),
         fullWidthSwipe: true,
@@ -296,6 +305,47 @@ final appRouter = GoRouter(
         expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
+    ...[
+      for (final kind in NasKind.values) ...[
+        GoRoute(
+          path: kind.settingsRoute,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (context, state) => expandablePage(
+            state.pageKey,
+            NasSettingsScreen(kind: kind),
+            expandRect: consumeCardExpandRect(),
+            expandSnapshot: consumeCardExpandSnapshot(),
+            fullWidthSwipe: true,
+          ),
+        ),
+        GoRoute(
+          path: kind.routePrefix,
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (context, state) => expandablePage(
+            state.pageKey,
+            NasLibraryScreen(kind: kind),
+            expandRect: consumeCardExpandRect(),
+            expandSnapshot: consumeCardExpandSnapshot(),
+          ),
+        ),
+        GoRoute(
+          path: '${kind.routePrefix}/playlist/:id',
+          parentNavigatorKey: rootNavigatorKey,
+          pageBuilder: (context, state) => expandablePage(
+            state.pageKey,
+            NasPlaylistDetailScreen(
+              kind: kind,
+              playlistId: Uri.decodeComponent(state.pathParameters['id'] ?? ''),
+              playlistName: state.extra is String
+                  ? state.extra as String
+                  : null,
+            ),
+            expandRect: consumeCardExpandRect(),
+            expandSnapshot: consumeCardExpandSnapshot(),
+          ),
+        ),
+      ],
+    ],
     GoRoute(
       path: '/leaderboard-settings',
       parentNavigatorKey: rootNavigatorKey,

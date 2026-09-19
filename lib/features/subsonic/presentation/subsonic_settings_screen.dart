@@ -6,12 +6,19 @@ import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/fx_switch.dart';
+import '../../nas/domain/nas_config.dart';
+import '../../nas/domain/nas_kind.dart';
+import '../../nas/domain/nas_url.dart';
+import '../../nas/domain/self_hosted_kind.dart';
+import '../../nas/presentation/nas_provider.dart';
 import '../domain/subsonic_config.dart';
 import '../domain/subsonic_url.dart';
 import 'subsonic_provider.dart';
 
 class SubsonicSettingsScreen extends ConsumerStatefulWidget {
-  const SubsonicSettingsScreen({super.key});
+  const SubsonicSettingsScreen({super.key, this.initialKind});
+
+  final SelfHostedKind? initialKind;
 
   @override
   ConsumerState<SubsonicSettingsScreen> createState() =>
@@ -24,10 +31,13 @@ class _SubsonicSettingsScreenState
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _urlFocus = FocusNode();
+  late SelfHostedKind _kind =
+      widget.initialKind ?? SelfHostedKind.subsonic;
   bool _legacyAuth = false;
   bool _obscurePassword = true;
   bool _busy = false;
   bool _hydrated = false;
+  SelfHostedKind? _hydratedKind;
 
   @override
   void dispose() {
@@ -38,15 +48,42 @@ class _SubsonicSettingsScreenState
     super.dispose();
   }
 
-  void _hydrate(SubsonicConfig config) {
-    if (_hydrated) return;
+  void _selectKind(SelfHostedKind kind) {
+    if (kind == _kind) return;
+    setState(() {
+      _kind = kind;
+      _hydrated = false;
+      _passwordController.clear();
+    });
+  }
+
+  void _hydrateSubsonic(SubsonicConfig config) {
+    if (_hydrated && _hydratedKind == SelfHostedKind.subsonic) return;
     _hydrated = true;
+    _hydratedKind = SelfHostedKind.subsonic;
     _urlController.text = config.baseUrl;
     _usernameController.text = config.username;
     _legacyAuth = config.legacyAuth;
   }
 
+  void _hydrateNas(NasConfig config) {
+    if (_hydrated && _hydratedKind == _kind) return;
+    _hydrated = true;
+    _hydratedKind = _kind;
+    _urlController.text = config.baseUrl;
+    _usernameController.text = config.username;
+  }
+
   Future<void> _connect() async {
+    final nasKind = _kind.nasKind;
+    if (nasKind == null) {
+      await _connectSubsonic();
+    } else {
+      await _connectNas(nasKind);
+    }
+  }
+
+  Future<void> _connectSubsonic() async {
     final url = _urlController.text.trim();
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
@@ -98,13 +135,72 @@ class _SubsonicSettingsScreenState
     }
   }
 
+  Future<void> _connectNas(NasKind nasKind) async {
+    final url = _urlController.text.trim();
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
+    try {
+      validateNasServiceUrl(url);
+    } catch (error) {
+      showAppNotification(
+        error is ArgumentError ? error.message ?? '$error' : '$error',
+        type: AppNotificationType.error,
+      );
+      return;
+    }
+    if (nasKind != NasKind.plex && username.isEmpty) {
+      showAppNotification('请输入用户名', type: AppNotificationType.error);
+      return;
+    }
+    if (password.isEmpty) {
+      showAppNotification(
+        nasKind == NasKind.plex ? '请输入密码或 X-Plex-Token' : '请输入密码',
+        type: AppNotificationType.error,
+      );
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final result = await ref.read(nasServiceProvider(nasKind)).connect(
+            baseUrl: url,
+            username: username,
+            password: password,
+          );
+      if (!mounted) return;
+      if (result.ok) {
+        _passwordController.clear();
+        final type = result.serverType ?? nasKind.title;
+        final version = result.serverVersion;
+        showAppNotification(
+          version == null ? '已连接 $type' : '已连接 $type $version',
+          type: AppNotificationType.success,
+        );
+      } else {
+        showAppNotification(
+          result.error ?? '连接失败',
+          type: AppNotificationType.error,
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      showAppNotification('$error', type: AppNotificationType.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _disconnect() async {
     setState(() => _busy = true);
     try {
-      await ref.read(subsonicServiceProvider).disconnect();
+      final nasKind = _kind.nasKind;
+      if (nasKind == null) {
+        await ref.read(subsonicServiceProvider).disconnect();
+      } else {
+        await ref.read(nasServiceProvider(nasKind)).disconnect();
+      }
       if (!mounted) return;
       _passwordController.clear();
-      showAppNotification('已断开自建音乐服务器', type: AppNotificationType.info);
+      showAppNotification('已断开 ${_kind.title}', type: AppNotificationType.info);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -112,11 +208,29 @@ class _SubsonicSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final config = ref.watch(subsonicConfigProvider);
-    final connected = ref.watch(subsonicConnectedProvider);
-    _hydrate(config);
+    final nasKind = _kind.nasKind;
+    final subsonicConfig = ref.watch(subsonicConfigProvider);
+    final subsonicConnected = ref.watch(subsonicConnectedProvider);
+    final nasConfig = nasKind == null
+        ? null
+        : ref.watch(nasConfigProvider(nasKind));
+    final nasConnected =
+        nasKind == null ? false : ref.watch(nasConnectedProvider(nasKind));
+    if (nasKind == null) {
+      _hydrateSubsonic(subsonicConfig);
+    } else {
+      _hydrateNas(nasConfig!);
+    }
+    final connected = nasKind == null ? subsonicConnected : nasConnected;
+    final hostLabel = nasKind == null
+        ? subsonicConfig.hostLabel
+        : nasConfig!.hostLabel;
+    final username = nasKind == null
+        ? subsonicConfig.username
+        : nasConfig!.username;
     final on = AppColors.onScaffold(context);
     final muted = AppColors.mutedText(context);
+    final accent = AppColors.accentOf(context);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -137,8 +251,33 @@ class _SubsonicSettingsScreenState
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final kind in SelfHostedKind.values)
+                ChoiceChip(
+                  label: Text(kind.chipLabel),
+                  selected: _kind == kind,
+                  onSelected: _busy ? null : (_) => _selectKind(kind),
+                  selectedColor: accent.withAlpha(40),
+                  labelStyle: TextStyle(
+                    color: _kind == kind ? accent : on,
+                    fontSize: 13,
+                    fontWeight:
+                        _kind == kind ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                  side: BorderSide(
+                    color: _kind == kind ? accent : AppColors.cardBorder(context),
+                  ),
+                  backgroundColor: AppColors.miniBar(context),
+                  showCheckmark: false,
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
           Text(
-            '连接 Navidrome / Subsonic / Airsonic / Gonic 等兼容服务器。账号密码只保存在本机钥匙串，不会上传云端。',
+            _kind.intro,
             style: TextStyle(color: muted, fontSize: 13, height: 1.4),
           ),
           const SizedBox(height: 16),
@@ -152,26 +291,28 @@ class _SubsonicSettingsScreenState
               autocorrect: false,
               enableSuggestions: false,
               style: TextStyle(color: on, fontSize: 14),
-              decoration: _decoration(
-                hint: 'https://music.example.com 或 192.168.1.8:4533',
-              ),
+              decoration: _decoration(hint: _kind.urlHint),
             ),
           ),
           const SizedBox(height: 12),
           _field(
-            label: '用户名',
+            label: _kind == SelfHostedKind.plex ? '用户名（可留空）' : '用户名',
             child: TextField(
               controller: _usernameController,
               enabled: !_busy,
               autocorrect: false,
               enableSuggestions: false,
               style: TextStyle(color: on, fontSize: 14),
-              decoration: _decoration(hint: '服务器登录名'),
+              decoration: _decoration(
+                hint: _kind == SelfHostedKind.plex
+                    ? 'plex.tv 账号，留空则使用 Token'
+                    : '服务器登录名',
+              ),
             ),
           ),
           const SizedBox(height: 12),
           _field(
-            label: '密码',
+            label: _kind == SelfHostedKind.plex ? '密码 / Token' : '密码',
             child: TextField(
               controller: _passwordController,
               enabled: !_busy,
@@ -179,8 +320,13 @@ class _SubsonicSettingsScreenState
               autocorrect: false,
               enableSuggestions: false,
               style: TextStyle(color: on, fontSize: 14),
-              decoration: _decoration(hint: connected ? '已保存，重新连接时再输入' : '服务器密码')
-                  .copyWith(
+              decoration: _decoration(
+                hint: connected
+                    ? '已保存，重新连接时再输入'
+                    : _kind == SelfHostedKind.plex
+                    ? '密码或 X-Plex-Token'
+                    : '服务器密码',
+              ).copyWith(
                 suffixIcon: FxIconButton(
                   tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
                   icon: Icon(
@@ -196,40 +342,42 @@ class _SubsonicSettingsScreenState
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '旧版鉴权',
-                        style: TextStyle(
-                          color: on,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+          if (_kind == SelfHostedKind.subsonic) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '旧版鉴权',
+                          style: TextStyle(
+                            color: on,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '仅当 token 鉴权失败时开启，密码会以明文参数发送',
-                        style: TextStyle(color: muted, fontSize: 11),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          '仅当 token 鉴权失败时开启，密码会以明文参数发送',
+                          style: TextStyle(color: muted, fontSize: 11),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                FxSwitch(
-                  value: _legacyAuth,
-                  onChanged: _busy
-                      ? null
-                      : (value) => setState(() => _legacyAuth = value),
-                ),
-              ],
+                  FxSwitch(
+                    value: _legacyAuth,
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() => _legacyAuth = value),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 16),
           FilledButton(
             onPressed: _busy ? null : _connect,
@@ -249,7 +397,9 @@ class _SubsonicSettingsScreenState
             ),
             const SizedBox(height: 16),
             Text(
-              '当前：${config.hostLabel} · ${config.username}',
+              username.isEmpty
+                  ? '当前：${_kind.title} · $hostLabel'
+                  : '当前：${_kind.title} · $hostLabel · $username',
               style: TextStyle(color: muted, fontSize: 12),
             ),
           ],

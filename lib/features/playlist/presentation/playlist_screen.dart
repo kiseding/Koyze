@@ -16,6 +16,8 @@ import '../../player/domain/music_item.dart';
 import 'playlist_provider.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../recommend/presentation/recommendation_provider.dart';
+import '../../nas/domain/nas_kind.dart';
+import '../../nas/presentation/nas_provider.dart';
 import '../../subsonic/domain/subsonic_config.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
@@ -766,22 +768,33 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     WidgetRef ref,
     dynamic _,
   ) {
-    final connected = ref.watch(subsonicConnectedProvider);
+    final subsonicConnected = ref.watch(subsonicConnectedProvider);
+    final nasConnected = {
+      for (final kind in NasKind.values)
+        kind: ref.watch(nasConnectedProvider(kind)),
+    };
+    final connected =
+        subsonicConnected || nasConnected.values.any((value) => value);
     final config = ref.watch(subsonicConfigProvider);
-    final playlistsAsync = connected
+    final playlistsAsync = subsonicConnected
         ? ref.watch(subsonicPlaylistsProvider)
         : const AsyncValue<List<SubsonicPlaylistInfo>>.data([]);
-    final playlists = playlistsAsync.valueOrNull ?? const <SubsonicPlaylistInfo>[];
-    final songCount = playlists.fold<int>(0, (sum, item) => sum + item.songCount);
+    final playlists =
+        playlistsAsync.valueOrNull ?? const <SubsonicPlaylistInfo>[];
+    final songCount =
+        playlists.fold<int>(0, (sum, item) => sum + item.songCount);
     const pink = Colors.pink;
     const onPink = Colors.white;
+    final connectedLabels = <String>[
+      if (subsonicConnected) 'Subsonic',
+      for (final kind in NasKind.values)
+        if (nasConnected[kind] == true) kind.shortSearchLabel,
+    ];
     final subtitle = !connected
-        ? '连接 Navidrome / Subsonic'
-        : playlistsAsync.isLoading
+        ? 'Navidrome / Emby / Plex / 群晖'
+        : subsonicConnected && playlistsAsync.isLoading
             ? '正在加载 ${config.hostLabel}'
-            : playlists.isEmpty
-                ? '已连接 ${config.hostLabel}'
-                : '${playlists.length} 个歌单 · $songCount 首';
+            : connectedLabels.join(' · ');
 
     return HoverFloat(
       child: Pressable(
@@ -842,7 +855,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               CardPlayButton(
                 color: onPink,
                 backgroundColor: onPink.withAlpha(40),
-                onPressed: !connected || songCount <= 0
+                onPressed: !subsonicConnected || songCount <= 0
                     ? null
                     : () => _playSubsonicLibrary(ref, playlists),
                 icon: const Icon(

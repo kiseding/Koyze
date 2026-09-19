@@ -30,6 +30,21 @@ void main() {
     expect(item.artwork, artwork);
   });
 
+  test('MusicItem keeps Emby LAN artwork on HTTP', () {
+    const artwork =
+        'http://192.168.1.8:8096/Items/42/Images/Primary?maxHeight=300';
+    final item = MusicItem(
+      id: '42',
+      name: 'Track',
+      singer: 'Artist',
+      source: 'emby',
+      platform: 'emby',
+      artwork: artwork,
+    );
+
+    expect(item.artwork, artwork);
+  });
+
   group('MusicItem', () {
     test('should create MusicItem with required fields', () {
       final music = MusicItem(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/storage/storage_service.dart';
+import '../../nas/domain/nas_url.dart';
 
 // 音质选择
 enum AudioQualityOption {
@@ -246,28 +247,12 @@ class DefaultSearchPlatformNotifier extends _PersistedSettingNotifier<String> {
     : super('tx', storage: storage) {
     _load((storage) {
       final value = storage.getString('default_search_platform');
-      return const {
-            'tx',
-            'kw',
-            'wy',
-            'local',
-            'favorites',
-            'subsonic',
-          }.contains(value)
-          ? value
-          : null;
+      return allowedSearchPlatforms.contains(value) ? value : null;
     });
   }
 
   Future<void> setPlatform(String platform) async {
-    if (!const {
-      'tx',
-      'kw',
-      'wy',
-      'local',
-      'favorites',
-      'subsonic',
-    }.contains(platform)) {
+    if (!allowedSearchPlatforms.contains(platform)) {
       return;
     }
     await _persist(

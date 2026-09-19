@@ -8,14 +8,20 @@ import '../../custom_source/presentation/custom_source_provider.dart';
 import '../../local_music/presentation/local_music_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
+import '../../nas/domain/nas_kind.dart';
+import '../../nas/presentation/nas_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
 
 final musicSourceServiceProvider = Provider<MusicSourceService>((ref) {
   final customSourceService = ref.watch(customSourceServiceProvider);
   final subsonicService = ref.watch(subsonicServiceProvider);
+  final nasServices = {
+    for (final kind in NasKind.values) kind: ref.watch(nasServiceProvider(kind)),
+  };
   final service = MusicSourceService(
     customSourceService,
     subsonicService: subsonicService,
+    nasServices: nasServices,
   );
   ref.onDispose(service.dispose);
   return service;
@@ -40,6 +46,9 @@ final allSearchSourcesProvider = Provider<List<SearchSourceItem>>((ref) {
     SearchSourceItem(id: 'local', name: '本地'),
     SearchSourceItem(id: 'favorites', name: '收藏'),
     if (connected) SearchSourceItem(id: 'subsonic', name: '自建'),
+    for (final kind in NasKind.values)
+      if (ref.watch(nasConnectedProvider(kind)))
+        SearchSourceItem(id: kind.id, name: kind.shortSearchLabel),
   ];
 });
 
@@ -52,8 +61,19 @@ final selectedSourceIdProvider = StateProvider<String>((ref) {
       ref.controller.state = 'all';
     }
   });
+  for (final kind in NasKind.values) {
+    ref.listen<bool>(nasConnectedProvider(kind), (previous, next) {
+      if (!next && ref.controller.state == kind.id) {
+        ref.controller.state = 'all';
+      }
+    });
+  }
   final initial = ref.watch(defaultSearchPlatformProvider);
   if (initial == 'subsonic' && !ref.read(subsonicConnectedProvider)) {
+    return 'all';
+  }
+  final nasKind = NasKind.tryParse(initial);
+  if (nasKind != null && !ref.read(nasConnectedProvider(nasKind))) {
     return 'all';
   }
   return initial;
@@ -257,6 +277,20 @@ final searchStateProvider = StateNotifierProvider<SearchNotifier, SearchState>((
           );
         }
         return subsonic.search(query, page: page, limit: 20);
+      }
+      final nasKind = NasKind.tryParse(sourceId);
+      if (nasKind != null) {
+        final nas = ref.read(nasServiceProvider(nasKind));
+        await nas.init();
+        if (!nas.isConnected) {
+          return service.search(
+            query,
+            customSourceId: 'all',
+            page: page,
+            type: 'music',
+          );
+        }
+        return nas.search(query, page: page, limit: 20);
       }
       return service.search(
         query,

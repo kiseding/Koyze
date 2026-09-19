@@ -7,19 +7,74 @@ import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/card_play_button.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/pressable.dart';
+import '../../nas/domain/nas_kind.dart';
+import '../../nas/domain/self_hosted_kind.dart';
+import '../../nas/presentation/nas_provider.dart';
 import '../../player/presentation/player_provider.dart';
-import '../domain/subsonic_config.dart';
 import 'subsonic_provider.dart';
 
-class SubsonicLibraryScreen extends ConsumerWidget {
+class SubsonicLibraryScreen extends ConsumerStatefulWidget {
   const SubsonicLibraryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final connected = ref.watch(subsonicConnectedProvider);
-    final config = ref.watch(subsonicConfigProvider);
-    final playlistsAsync = ref.watch(subsonicPlaylistsProvider);
+  ConsumerState<SubsonicLibraryScreen> createState() =>
+      _SubsonicLibraryScreenState();
+}
+
+class _SubsonicLibraryScreenState
+    extends ConsumerState<SubsonicLibraryScreen> {
+  SelfHostedKind _kind = SelfHostedKind.subsonic;
+  bool _pickedInitial = false;
+
+  void _pickInitialKind() {
+    if (_pickedInitial) return;
+    _pickedInitial = true;
+    if (ref.read(subsonicConnectedProvider)) {
+      _kind = SelfHostedKind.subsonic;
+      return;
+    }
+    for (final kind in NasKind.values) {
+      if (ref.read(nasConnectedProvider(kind))) {
+        _kind = SelfHostedKind.fromNas(kind);
+        return;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _pickInitialKind();
+    final nasKind = _kind.nasKind;
+    final subsonicConnected = ref.watch(subsonicConnectedProvider);
+    final nasConnected =
+        nasKind == null ? false : ref.watch(nasConnectedProvider(nasKind));
+    final connected = nasKind == null ? subsonicConnected : nasConnected;
+    final configHost = nasKind == null
+        ? ref.watch(subsonicConfigProvider).hostLabel
+        : ref.watch(nasConfigProvider(nasKind)).hostLabel;
+    final AsyncValue<List<_LibraryPlaylist>> playlistsAsync = nasKind == null
+        ? ref.watch(subsonicPlaylistsProvider).whenData(
+            (playlists) => [
+              for (final playlist in playlists)
+                _LibraryPlaylist(
+                  id: playlist.id,
+                  name: playlist.name,
+                  songCount: playlist.songCount,
+                ),
+            ],
+          )
+        : ref.watch(nasPlaylistsProvider(nasKind)).whenData(
+            (playlists) => [
+              for (final playlist in playlists)
+                _LibraryPlaylist(
+                  id: playlist.id,
+                  name: playlist.name,
+                  songCount: playlist.songCount,
+                ),
+            ],
+          );
     final on = AppColors.onScaffold(context);
+    final accent = AppColors.accentOf(context);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -40,75 +95,141 @@ class SubsonicLibraryScreen extends ConsumerWidget {
           FxIconButton(
             tooltip: '连接设置',
             icon: Icon(Icons.settings_outlined, color: on),
-            onPressed: () => context.push('/subsonic-settings'),
+            onPressed: () =>
+                context.push('/subsonic-settings', extra: _kind),
           ),
           if (connected)
             FxIconButton(
               tooltip: '刷新',
               icon: Icon(Icons.refresh, color: on),
-              onPressed: () => ref.invalidate(subsonicPlaylistsProvider),
+              onPressed: () {
+                if (nasKind == null) {
+                  ref.invalidate(subsonicPlaylistsProvider);
+                } else {
+                  ref.invalidate(nasPlaylistsProvider(nasKind));
+                }
+              },
             ),
         ],
       ),
-      body: !connected
-          ? _empty(
-              context,
-              icon: Icons.cloud_off_outlined,
-              title: '尚未连接自建音乐服务器',
-              subtitle: '在设置里填写 Navidrome / Subsonic 地址后即可浏览服务器歌单',
-              actionLabel: '去连接',
-              onAction: () => context.push('/subsonic-settings'),
-            )
-          : playlistsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => _empty(
-                context,
-                icon: Icons.error_outline,
-                title: '加载歌单失败',
-                subtitle: '$error',
-                actionLabel: '重试',
-                onAction: () => ref.invalidate(subsonicPlaylistsProvider),
-              ),
-              data: (playlists) {
-                if (playlists.isEmpty) {
-                  return _empty(
-                    context,
-                    icon: Icons.library_music_outlined,
-                    title: '服务器上还没有歌单',
-                    subtitle: '当前已连接 ${config.hostLabel}',
-                    actionLabel: '刷新',
-                    onAction: () => ref.invalidate(subsonicPlaylistsProvider),
-                  );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                  itemCount: playlists.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final playlist = playlists[index];
-                    return _PlaylistTile(
-                      playlist: playlist,
-                      onOpen: () => context.push(
-                        '/subsonic/playlist/${Uri.encodeComponent(playlist.id)}',
-                        extra: playlist.name,
-                      ),
-                      onPlay: () => _playPlaylist(ref, playlist),
-                    );
-                  },
-                );
-              },
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final kind in SelfHostedKind.values)
+                  ChoiceChip(
+                    label: Text(kind.chipLabel),
+                    selected: _kind == kind,
+                    onSelected: (_) => setState(() => _kind = kind),
+                    selectedColor: accent.withAlpha(40),
+                    labelStyle: TextStyle(
+                      color: _kind == kind ? accent : on,
+                      fontSize: 13,
+                      fontWeight:
+                          _kind == kind ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                    side: BorderSide(
+                      color:
+                          _kind == kind ? accent : AppColors.cardBorder(context),
+                    ),
+                    backgroundColor: AppColors.miniBar(context),
+                    showCheckmark: false,
+                  ),
+              ],
             ),
+          ),
+          Expanded(
+            child: !connected
+                ? _empty(
+                    context,
+                    icon: Icons.cloud_off_outlined,
+                    title: '尚未连接 ${_kind.title}',
+                    subtitle: _kind.intro,
+                    actionLabel: '去连接',
+                    onAction: () => context.push('/subsonic-settings', extra: _kind),
+                  )
+                : playlistsAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (error, _) => _empty(
+                      context,
+                      icon: Icons.error_outline,
+                      title: '加载歌单失败',
+                      subtitle: '$error',
+                      actionLabel: '重试',
+                      onAction: () {
+                        if (nasKind == null) {
+                          ref.invalidate(subsonicPlaylistsProvider);
+                        } else {
+                          ref.invalidate(nasPlaylistsProvider(nasKind));
+                        }
+                      },
+                    ),
+                    data: (items) {
+                      if (items.isEmpty) {
+                        return _empty(
+                          context,
+                          icon: Icons.library_music_outlined,
+                          title: '服务器上还没有歌单',
+                          subtitle: '当前已连接 $configHost',
+                          actionLabel: '刷新',
+                          onAction: () {
+                            if (nasKind == null) {
+                              ref.invalidate(subsonicPlaylistsProvider);
+                            } else {
+                              ref.invalidate(nasPlaylistsProvider(nasKind));
+                            }
+                          },
+                        );
+                      }
+                      return ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+                        itemCount: items.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final playlist = items[index];
+                          return _PlaylistTile(
+                            playlist: playlist,
+                            icon: _kind.icon,
+                            onOpen: () {
+                              if (nasKind == null) {
+                                context.push(
+                                  '/subsonic/playlist/${Uri.encodeComponent(playlist.id)}',
+                                  extra: playlist.name,
+                                );
+                              } else {
+                                context.push(
+                                  nasKind.playlistRoute(playlist.id),
+                                  extra: playlist.name,
+                                );
+                              }
+                            },
+                            onPlay: () => _playPlaylist(playlist),
+                          );
+                        },
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
-  Future<void> _playPlaylist(
-    WidgetRef ref,
-    SubsonicPlaylistInfo playlist,
-  ) async {
+  Future<void> _playPlaylist(_LibraryPlaylist playlist) async {
     try {
-      final songs = await ref
-          .read(subsonicServiceProvider)
-          .getPlaylistSongs(playlist.id);
+      final nasKind = _kind.nasKind;
+      final songs = nasKind == null
+          ? await ref
+              .read(subsonicServiceProvider)
+              .getPlaylistSongs(playlist.id)
+          : await ref
+              .read(nasServiceProvider(nasKind))
+              .getPlaylistSongs(playlist.id);
       if (songs.isEmpty) {
         showAppNotification('歌单是空的', type: AppNotificationType.info);
         return;
@@ -163,14 +284,28 @@ class SubsonicLibraryScreen extends ConsumerWidget {
   }
 }
 
+class _LibraryPlaylist {
+  const _LibraryPlaylist({
+    required this.id,
+    required this.name,
+    required this.songCount,
+  });
+
+  final String id;
+  final String name;
+  final int songCount;
+}
+
 class _PlaylistTile extends StatelessWidget {
   const _PlaylistTile({
     required this.playlist,
+    required this.icon,
     required this.onOpen,
     required this.onPlay,
   });
 
-  final SubsonicPlaylistInfo playlist;
+  final _LibraryPlaylist playlist;
+  final IconData icon;
   final VoidCallback onOpen;
   final VoidCallback onPlay;
 
@@ -197,10 +332,7 @@ class _PlaylistTile extends StatelessWidget {
                 color: const Color(0xFF0A84FF).withAlpha(30),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(
-                Icons.cloud_queue_rounded,
-                color: Color(0xFF0A84FF),
-              ),
+              child: Icon(icon, color: const Color(0xFF0A84FF)),
             ),
             const SizedBox(width: 12),
             Expanded(
