@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/theme/app_colors.dart';
@@ -401,6 +402,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             type: AppNotificationType.success,
                           );
                         }
+                      case 'duplicates':
+                        await context.push('/duplicates');
                       case 'clear_favorites':
                         await _showClearFavoritesDialog(context, ref, playlist);
                       case 'edit':
@@ -502,6 +505,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                       PopupMenuItem(
                         value: 'delete',
                         child: Text('删除歌单', style: TextStyle(color: on)),
+                      ),
+                    if (playlist.id == 'favorites')
+                      PopupMenuItem(
+                        value: 'duplicates',
+                        child: Text('重复歌曲', style: TextStyle(color: on)),
                       ),
                     if (playlist.id == 'favorites' && playlist.songCount > 0)
                       const PopupMenuItem(

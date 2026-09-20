@@ -10,7 +10,6 @@ void main() {
 
     for (final route in [
       '/stats',
-      '/duplicates',
       '/download',
       '/local-music',
       '/custom-source',
@@ -26,6 +25,9 @@ void main() {
         reason: '$route must return to its settings tile',
       );
     }
+
+    expect(source, isNot(contains('重复歌曲')));
+    expect(source, isNot(contains('/duplicates')));
   });
 
   test('default search picker includes self-hosted and nas sources', () {

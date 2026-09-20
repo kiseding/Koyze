@@ -34,6 +34,8 @@ void main() {
         'lib/features/playlist/presentation/playlist_detail_screen.dart',
       ).readAsStringSync();
       expect(source, contains("case 'clear_favorites':"));
+      expect(source, contains("case 'duplicates':"));
+      expect(source, contains("context.push('/duplicates')"));
       expect(source, contains('清空收藏'));
       expect(source, contains('确认清空'));
       expect(source, contains('清空收藏？'));
@@ -42,9 +44,15 @@ void main() {
         source.indexOf('itemBuilder: (context) {'),
         source.indexOf('body: playlist.songCount == 0'),
       );
+      expect(itemBuilder, contains("value: 'duplicates'"));
+      expect(itemBuilder, contains('重复歌曲'));
+      expect(
+        itemBuilder.indexOf("value: 'duplicates'"),
+        greaterThan(itemBuilder.indexOf("value: 'sort_duration'")),
+      );
       expect(
         itemBuilder.indexOf("value: 'clear_favorites'"),
-        greaterThan(itemBuilder.indexOf("value: 'sort_duration'")),
+        greaterThan(itemBuilder.indexOf("value: 'duplicates'")),
       );
       expect(source, isNot(contains("case 'add_all_to_favorites':")));
       expect(source, isNot(contains('全部添加到收藏列表')));

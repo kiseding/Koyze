@@ -164,14 +164,6 @@ const homeQuickFeatures = <HomeQuickFeature>[
     color: Color(0xFF8E24AA),
   ),
   HomeQuickFeature(
-    id: 'duplicates',
-    title: '重复歌曲',
-    subtitle: '查找歌单重复项',
-    icon: Icons.content_copy_rounded,
-    route: '/duplicates',
-    color: Color(0xFF43A047),
-  ),
-  HomeQuickFeature(
     id: 'leaderboard_settings',
     title: '榜单设置',
     subtitle: '调整榜单显示内容',

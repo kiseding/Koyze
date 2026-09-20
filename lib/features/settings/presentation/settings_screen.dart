@@ -243,16 +243,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 },
               ),
             ]),
-            _buildSection(context, '歌单', [
-              _buildNavTile(
-                context,
-                ref,
-                '重复歌曲',
-                '检测并清理重复歌曲',
-                () => context.push('/duplicates'),
-                captureExpandOrigin: true,
-              ),
-            ]),
             _buildSection(context, '下载', [
               _buildNavTile(
                 context,
@@ -307,7 +297,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ]),
             _buildSection(context, '关于', [
-              const _SettingRow(name: '版本', value: 'v2.9.3'),
+              const _SettingRow(name: '版本', value: 'v2.9.4'),
               _DeviceIdRow(
                 deviceId: ref.watch(settingsDeviceIdProvider).valueOrNull,
               ),
