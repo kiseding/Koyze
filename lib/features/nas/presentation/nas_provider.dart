@@ -1,10 +1,61 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/storage/storage_service.dart';
 import '../../local_music/presentation/scrape_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../domain/nas_config.dart';
 import '../domain/nas_kind.dart';
 import '../domain/nas_service.dart';
+import '../domain/self_hosted_kind.dart';
+
+/// 设置页选中的自建乐库类型。库页只读这个值，不再自己切类型。
+const selfHostedKindStorageKey = 'self_hosted_kind_v1';
+
+final selfHostedKindStorageProvider = Provider<StorageLoader>(
+  (ref) => () => StorageService.instance,
+);
+
+final selfHostedKindProvider =
+    StateNotifierProvider<SelfHostedKindNotifier, SelfHostedKind>((ref) {
+      return SelfHostedKindNotifier(
+        storage: ref.watch(selfHostedKindStorageProvider),
+      );
+    });
+
+class SelfHostedKindNotifier extends StateNotifier<SelfHostedKind> {
+  SelfHostedKindNotifier({StorageLoader? storage})
+    : _storage = storage ?? (() => StorageService.instance),
+      super(SelfHostedKind.subsonic) {
+    _restored = _restore();
+  }
+
+  final StorageLoader _storage;
+  late final Future<void> _restored;
+
+  @visibleForTesting
+  Future<void> get restored => _restored;
+
+  Future<void> _restore() async {
+    try {
+      final raw = (await _storage()).getString(selfHostedKindStorageKey);
+      final parsed = SelfHostedKind.tryParse(raw);
+      if (parsed != null && mounted) state = parsed;
+    } catch (_) {
+      // 坏数据按默认 Subsonic 处理，不挡住进页。
+    }
+  }
+
+  Future<void> select(SelfHostedKind kind) async {
+    if (state == kind) return;
+    state = kind;
+    try {
+      await (await _storage()).setString(selfHostedKindStorageKey, kind.name);
+    } catch (_) {
+      // 写失败不影响当前这次切换。
+    }
+  }
+}
 
 final nasServiceProvider = Provider.family<NasService, NasKind>((ref, kind) {
   final service = NasService(kind: kind);

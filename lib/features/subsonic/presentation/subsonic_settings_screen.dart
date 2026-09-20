@@ -31,13 +31,21 @@ class _SubsonicSettingsScreenState
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _urlFocus = FocusNode();
-  late SelfHostedKind _kind =
-      widget.initialKind ?? SelfHostedKind.subsonic;
   bool _legacyAuth = false;
   bool _obscurePassword = true;
   bool _busy = false;
   bool _hydrated = false;
   SelfHostedKind? _hydratedKind;
+  SelfHostedKind? _seededKind;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _seedInitialKind();
+    });
+  }
 
   @override
   void dispose() {
@@ -48,13 +56,23 @@ class _SubsonicSettingsScreenState
     super.dispose();
   }
 
+  SelfHostedKind get _kind => ref.read(selfHostedKindProvider);
+
   void _selectKind(SelfHostedKind kind) {
     if (kind == _kind) return;
     setState(() {
-      _kind = kind;
       _hydrated = false;
       _passwordController.clear();
     });
+    ref.read(selfHostedKindProvider.notifier).select(kind);
+  }
+
+  void _seedInitialKind() {
+    final initial = widget.initialKind;
+    if (initial == null || _seededKind == initial) return;
+    _seededKind = initial;
+    if (ref.read(selfHostedKindProvider) == initial) return;
+    ref.read(selfHostedKindProvider.notifier).select(initial);
   }
 
   void _hydrateSubsonic(SubsonicConfig config) {
@@ -66,10 +84,10 @@ class _SubsonicSettingsScreenState
     _legacyAuth = config.legacyAuth;
   }
 
-  void _hydrateNas(NasConfig config) {
-    if (_hydrated && _hydratedKind == _kind) return;
+  void _hydrateNas(NasConfig config, SelfHostedKind kind) {
+    if (_hydrated && _hydratedKind == kind) return;
     _hydrated = true;
-    _hydratedKind = _kind;
+    _hydratedKind = kind;
     _urlController.text = config.baseUrl;
     _usernameController.text = config.username;
   }
@@ -192,7 +210,8 @@ class _SubsonicSettingsScreenState
   Future<void> _disconnect() async {
     setState(() => _busy = true);
     try {
-      final nasKind = _kind.nasKind;
+      final kind = _kind;
+      final nasKind = kind.nasKind;
       if (nasKind == null) {
         await ref.read(subsonicServiceProvider).disconnect();
       } else {
@@ -200,7 +219,7 @@ class _SubsonicSettingsScreenState
       }
       if (!mounted) return;
       _passwordController.clear();
-      showAppNotification('已断开 ${_kind.title}', type: AppNotificationType.info);
+      showAppNotification('已断开 ${kind.title}', type: AppNotificationType.info);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -208,7 +227,9 @@ class _SubsonicSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final nasKind = _kind.nasKind;
+    _seedInitialKind();
+    final kind = ref.watch(selfHostedKindProvider);
+    final nasKind = kind.nasKind;
     final subsonicConfig = ref.watch(subsonicConfigProvider);
     final subsonicConnected = ref.watch(subsonicConnectedProvider);
     final nasConfig = nasKind == null
@@ -219,7 +240,7 @@ class _SubsonicSettingsScreenState
     if (nasKind == null) {
       _hydrateSubsonic(subsonicConfig);
     } else {
-      _hydrateNas(nasConfig!);
+      _hydrateNas(nasConfig!, kind);
     }
     final connected = nasKind == null ? subsonicConnected : nasConnected;
     final hostLabel = nasKind == null
@@ -255,20 +276,22 @@ class _SubsonicSettingsScreenState
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final kind in SelfHostedKind.values)
+              for (final option in SelfHostedKind.values)
                 ChoiceChip(
-                  label: Text(kind.chipLabel),
-                  selected: _kind == kind,
-                  onSelected: _busy ? null : (_) => _selectKind(kind),
+                  label: Text(option.chipLabel),
+                  selected: kind == option,
+                  onSelected: _busy ? null : (_) => _selectKind(option),
                   selectedColor: accent.withAlpha(40),
                   labelStyle: TextStyle(
-                    color: _kind == kind ? accent : on,
+                    color: kind == option ? accent : on,
                     fontSize: 13,
                     fontWeight:
-                        _kind == kind ? FontWeight.w600 : FontWeight.w500,
+                        kind == option ? FontWeight.w600 : FontWeight.w500,
                   ),
                   side: BorderSide(
-                    color: _kind == kind ? accent : AppColors.cardBorder(context),
+                    color: kind == option
+                        ? accent
+                        : AppColors.cardBorder(context),
                   ),
                   backgroundColor: AppColors.miniBar(context),
                   showCheckmark: false,
@@ -277,7 +300,7 @@ class _SubsonicSettingsScreenState
           ),
           const SizedBox(height: 16),
           Text(
-            _kind.intro,
+            kind.intro,
             style: TextStyle(color: muted, fontSize: 13, height: 1.4),
           ),
           const SizedBox(height: 16),
@@ -291,12 +314,12 @@ class _SubsonicSettingsScreenState
               autocorrect: false,
               enableSuggestions: false,
               style: TextStyle(color: on, fontSize: 14),
-              decoration: _decoration(hint: _kind.urlHint),
+              decoration: _decoration(hint: kind.urlHint),
             ),
           ),
           const SizedBox(height: 12),
           _field(
-            label: _kind == SelfHostedKind.plex ? '用户名（可留空）' : '用户名',
+            label: kind == SelfHostedKind.plex ? '用户名（可留空）' : '用户名',
             child: TextField(
               controller: _usernameController,
               enabled: !_busy,
@@ -304,7 +327,7 @@ class _SubsonicSettingsScreenState
               enableSuggestions: false,
               style: TextStyle(color: on, fontSize: 14),
               decoration: _decoration(
-                hint: _kind == SelfHostedKind.plex
+                hint: kind == SelfHostedKind.plex
                     ? 'plex.tv 账号，留空则使用 Token'
                     : '服务器登录名',
               ),
@@ -312,7 +335,7 @@ class _SubsonicSettingsScreenState
           ),
           const SizedBox(height: 12),
           _field(
-            label: _kind == SelfHostedKind.plex ? '密码 / Token' : '密码',
+            label: kind == SelfHostedKind.plex ? '密码 / Token' : '密码',
             child: TextField(
               controller: _passwordController,
               enabled: !_busy,
@@ -323,7 +346,7 @@ class _SubsonicSettingsScreenState
               decoration: _decoration(
                 hint: connected
                     ? '已保存，重新连接时再输入'
-                    : _kind == SelfHostedKind.plex
+                    : kind == SelfHostedKind.plex
                     ? '密码或 X-Plex-Token'
                     : '服务器密码',
               ).copyWith(
@@ -342,7 +365,7 @@ class _SubsonicSettingsScreenState
               ),
             ),
           ),
-          if (_kind == SelfHostedKind.subsonic) ...[
+          if (kind == SelfHostedKind.subsonic) ...[
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
@@ -398,8 +421,8 @@ class _SubsonicSettingsScreenState
             const SizedBox(height: 16),
             Text(
               username.isEmpty
-                  ? '当前：${_kind.title} · $hostLabel'
-                  : '当前：${_kind.title} · $hostLabel · $username',
+                  ? '当前：${kind.title} · $hostLabel'
+                  : '当前：${kind.title} · $hostLabel · $username',
               style: TextStyle(color: muted, fontSize: 12),
             ),
           ],

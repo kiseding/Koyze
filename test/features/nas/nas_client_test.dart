@@ -72,6 +72,9 @@ void main() {
     expect(SelfHostedKind.audiostation.chipLabel, '群晖');
     expect(SelfHostedKind.emby.urlHint, '192.168.1.8:8096');
     expect(SelfHostedKind.values, hasLength(5));
+    expect(SelfHostedKind.tryParse('plex'), SelfHostedKind.plex);
+    expect(SelfHostedKind.tryParse('nope'), isNull);
+    expect(SelfHostedKind.tryParse(''), isNull);
   });
 
   test('Emby client authenticates and maps playlist songs', () async {

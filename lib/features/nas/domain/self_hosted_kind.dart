@@ -26,6 +26,14 @@ enum SelfHostedKind {
         NasKind.audiostation => audiostation,
       };
 
+  static SelfHostedKind? tryParse(String? value) {
+    if (value == null || value.isEmpty) return null;
+    for (final kind in SelfHostedKind.values) {
+      if (kind.name == value) return kind;
+    }
+    return null;
+  }
+
   String get chipLabel => switch (this) {
         subsonic => 'Subsonic',
         emby => 'Emby',
