@@ -65,8 +65,9 @@ ui.Image? consumeCardExpandSnapshot() {
 }
 
 /// 卡片拖拽关闭进度（0..1，1 = 完全收起成卡片）。
-/// EdgeSwipeDismiss 拖动时实时写入，_CardRevealTransition 据此让
-/// 矩形 morph 跟手收拢，松开后从当前位置继续播放关闭动效。
+/// 仅作为 [EdgeSwipeDismiss] 未绑定会话时的回退（播放器、单测）。
+/// 卡片展开页 / 整页右滑页必须用每条路由自己的 [_CardDismissSession]，
+/// 否则下层透明页会跟着上层的关闭进度一起收拢，看起来像卡死。
 final ValueNotifier<double> cardDismissProgress = ValueNotifier<double>(0);
 
 /// 卡片拖动手势的水平位移（0..屏宽）。拖动中卡片左缘跟随该值，
@@ -80,6 +81,35 @@ bool edgeDragActive = false;
 /// 拖拽/回弹动画接管期间，禁止路由动画继续参与过渡计算，
 /// 否则 Navigator 反向动画会把已收拢的卡片先弹回全屏再关闭。
 bool cardDismissLocked = false;
+
+/// 单条可展开路由的关闭会话。叠在透明卡片页上的设置页必须各用各的，
+/// 不能写进上面的全局 notifier。
+class _CardDismissSession {
+  final ValueNotifier<double> progress = ValueNotifier<double>(0);
+  final ValueNotifier<double> offset = ValueNotifier<double>(0);
+  bool locked = false;
+  bool dragActive = false;
+
+  void dispose() {
+    progress.dispose();
+    offset.dispose();
+  }
+}
+
+class _CardDismissScope extends InheritedWidget {
+  const _CardDismissScope({required this.session, required super.child});
+
+  final _CardDismissSession session;
+
+  static _CardDismissSession? maybeOf(BuildContext context) {
+    // 手势回调 / AnimatedBuilder 都可能读会话，不能用 dependOnInheritedWidget。
+    return context.getInheritedWidgetOfExactType<_CardDismissScope>()?.session;
+  }
+
+  @override
+  bool updateShouldNotify(_CardDismissScope oldWidget) =>
+      oldWidget.session != session;
+}
 
 /// 二级页统一转场：从卡片矩形展开（有矩形时），否则上滑 + 淡入。
 /// 页面级动画只允许出现在 PlayerScreen 内部，由 player_expand_test
@@ -110,6 +140,9 @@ CustomTransitionPage<Object?> expandablePage(
     ),
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final session = _CardDismissScope.maybeOf(context);
+      final dismissProgress = session?.progress ?? cardDismissProgress;
+      final dismissOffset = session?.offset ?? cardDismissOffset;
       final curved = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
@@ -129,20 +162,21 @@ CustomTransitionPage<Object?> expandablePage(
         transition = AnimatedBuilder(
           animation: Listenable.merge([
             curved,
-            cardDismissOffset,
-            cardDismissProgress,
+            dismissOffset,
+            dismissProgress,
           ]),
           builder: (context, child) {
             final width = MediaQuery.sizeOf(context).width;
+            final current = _CardDismissScope.maybeOf(context);
             final gestureDriven =
-                edgeDragActive ||
-                cardDismissLocked ||
-                cardDismissOffset.value > 0;
+                (current?.dragActive ?? edgeDragActive) ||
+                (current?.locked ?? cardDismissLocked) ||
+                (current?.offset ?? dismissOffset).value > 0;
             final dx = gestureDriven
-                ? cardDismissOffset.value
+                ? (current?.offset ?? dismissOffset).value
                 : width * (1 - curved.value);
             final t = gestureDriven
-                ? cardDismissProgress.value.clamp(0.0, 1.0)
+                ? (current?.progress ?? dismissProgress).value.clamp(0.0, 1.0)
                 : (1 - curved.value).clamp(0.0, 1.0);
             final scale = 1 - 0.10 * t;
             final radius = 34.0 * t;
@@ -175,10 +209,13 @@ CustomTransitionPage<Object?> expandablePage(
         );
       } else {
         transition = AnimatedBuilder(
-          animation: Listenable.merge([curved, cardDismissProgress]),
+          animation: Listenable.merge([curved, dismissProgress]),
           builder: (context, child) {
-            final reveal = cardDismissLocked || cardDismissProgress.value > 0
-                ? 1 - cardDismissProgress.value
+            final current = _CardDismissScope.maybeOf(context);
+            final progress = current?.progress ?? dismissProgress;
+            final reveal =
+                (current?.locked ?? cardDismissLocked) || progress.value > 0
+                ? 1 - progress.value
                 : curved.value;
             return Opacity(
               opacity: reveal,
@@ -194,9 +231,14 @@ CustomTransitionPage<Object?> expandablePage(
       return EdgeSwipeDismiss(
         child: transition,
         fullWidthSwipe: fullWidthSwipe,
-        // 收拢成型后锁定路由反向动画，pop 后不会弹回全屏再收一遍。
+        // 收拢成型后锁定本路由的反向动画，pop 后不会弹回全屏再收一遍。
         onDismissCommit: () {
-          cardDismissLocked = true;
+          final current = _CardDismissScope.maybeOf(context);
+          if (current != null) {
+            current.locked = true;
+          } else {
+            cardDismissLocked = true;
+          }
         },
       );
     },
@@ -226,6 +268,7 @@ class _CardExpandRoute extends PageRoute<Object?> {
   _CardExpandRoute({required _CardExpandPage page}) : super(settings: page);
 
   _CardExpandPage get _page => settings as _CardExpandPage;
+  final _CardDismissSession session = _CardDismissSession();
 
   @override
   bool get opaque => _page.opaque;
@@ -265,14 +308,30 @@ class _CardExpandRoute extends PageRoute<Object?> {
     Animation<double> animation,
     Animation<double> secondaryAnimation,
     Widget child,
-  ) => _page.transitionsBuilder(context, animation, secondaryAnimation, child);
+  ) => _CardDismissScope(
+    session: session,
+    child: Builder(
+      builder: (context) => _page.transitionsBuilder(
+        context,
+        animation,
+        secondaryAnimation,
+        child,
+      ),
+    ),
+  );
 
   @override
   bool didPop(Object? result) {
-    if (cardDismissLocked) {
+    if (session.locked) {
       controller?.reverseDuration = Duration.zero;
     }
     return super.didPop(result);
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    session.dispose();
   }
 }
 
@@ -320,8 +379,8 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   // 形态进度（0..1，1 = 完全收拢成卡片）：与位移_独立，
   // 松手收拢时页面一边滑回原位一边持续收拢成卡片，绝不先放大再退出。
   double _morph = 0;
-  late final ValueNotifier<double> _progress =
-      widget.progress ?? cardDismissProgress;
+  _CardDismissSession? _session;
+  late ValueNotifier<double> _progress;
   late final AnimationController _settleController;
   Animation<double>? _dragAnimation;
   Animation<double>? _morphAnimation;
@@ -329,6 +388,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   @override
   void initState() {
     super.initState();
+    _progress = widget.progress ?? cardDismissProgress;
     _settleController = AnimationController(vsync: this)
       ..addListener(() {
         final drag = _dragAnimation;
@@ -344,15 +404,31 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _session = _CardDismissScope.maybeOf(context);
+    if (widget.progress == null) {
+      _progress = _session?.progress ?? cardDismissProgress;
+    }
+  }
+
+  @override
   void dispose() {
     if (_progress.value != 0) {
       _progress.value = 0;
     }
-    cardDismissOffset.value = 0;
-    edgeDragActive = false;
-    // fullWidthSwipe 不经过 _CardRevealTransition.dispose；必须在这里清锁，
-    // 否则一次手势退出后后续按钮/手势退出都会被当成已收拢而跳过动画。
-    if (widget.fullWidthSwipe) cardDismissLocked = false;
+    final session = _session;
+    if (session != null) {
+      session.offset.value = 0;
+      session.dragActive = false;
+      if (widget.fullWidthSwipe) session.locked = false;
+    } else {
+      cardDismissOffset.value = 0;
+      edgeDragActive = false;
+      // fullWidthSwipe 不经过 _CardRevealTransition.dispose；必须在这里清锁，
+      // 否则一次手势退出后后续按钮/手势退出都会被当成已收拢而跳过动画。
+      if (widget.fullWidthSwipe) cardDismissLocked = false;
+    }
     _settleController.dispose();
     super.dispose();
   }
@@ -360,8 +436,33 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   // 把当前形态进度发布给过渡层（跟手驱动矩形 morph）。
   void _syncProgress() {
     _progress.value = widget.invertProgress ? 1 - _morph : _morph;
-    cardDismissOffset.value = _drag;
-    edgeDragActive = _drag > 0 || _morph > 0;
+    final dragging = _drag > 0 || _morph > 0;
+    final session = _session;
+    if (session != null) {
+      session.offset.value = _drag;
+      session.dragActive = dragging;
+    } else {
+      cardDismissOffset.value = _drag;
+      edgeDragActive = dragging;
+    }
+  }
+
+  void _setLocked(bool value) {
+    final session = _session;
+    if (session != null) {
+      session.locked = value;
+    } else {
+      cardDismissLocked = value;
+    }
+  }
+
+  void _setDragActive(bool value) {
+    final session = _session;
+    if (session != null) {
+      session.dragActive = value;
+    } else {
+      edgeDragActive = value;
+    }
   }
 
   void _settleTo({
@@ -462,7 +563,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
               behavior: HitTestBehavior.translucent,
               onHorizontalDragStart: (_) {
                 _settleController.stop();
-                edgeDragActive = true;
+                _setDragActive(true);
               },
               onHorizontalDragUpdate: (details) {
                 if (details.delta.dx <= 0 && _drag <= 0) return;
@@ -494,7 +595,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
                     targetMorph: 0,
                     duration: MotionDuration.micro,
                     onComplete: () {
-                      cardDismissLocked = false;
+                      _setLocked(false);
                     },
                   );
                 }
@@ -505,7 +606,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
                   targetMorph: 0,
                   duration: MotionDuration.micro,
                   onComplete: () {
-                    cardDismissLocked = false;
+                    _setLocked(false);
                   },
                 );
               },
@@ -534,11 +635,25 @@ class _CardRevealTransition extends StatefulWidget {
 }
 
 class _CardRevealTransitionState extends State<_CardRevealTransition> {
+  _CardDismissSession? _session;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _session = _CardDismissScope.maybeOf(context);
+  }
+
   @override
   void dispose() {
     cardExpandSourceHidden.value = false;
     cardExpandHiddenKey = null;
-    if (cardDismissLocked) {
+    final session = _session;
+    if (session != null) {
+      if (session.locked) {
+        session.locked = false;
+        session.progress.value = 0;
+      }
+    } else if (cardDismissLocked) {
       cardDismissLocked = false;
       cardDismissProgress.value = 0;
     }
@@ -554,19 +669,26 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
     final sourceRect = sourceTopLeft & widget.sourceGlobalRect.size;
     final targetRect = Offset.zero & MediaQuery.sizeOf(context);
     final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
+    final session = _CardDismissScope.maybeOf(context);
+    final dismissProgress = session?.progress ?? cardDismissProgress;
+    final dismissOffset = session?.offset ?? cardDismissOffset;
 
     return AnimatedBuilder(
       animation: Listenable.merge([
         widget.animation,
-        cardDismissProgress,
-        cardDismissOffset,
+        dismissProgress,
+        dismissOffset,
       ]),
       child: RepaintBoundary(child: widget.child),
       builder: (context, child) {
+        final current = _CardDismissScope.maybeOf(context);
+        final progress = current?.progress ?? dismissProgress;
+        final offset = current?.offset ?? dismissOffset;
+        final locked = current?.locked ?? cardDismissLocked;
         // 拖拽接管时用跟手的 dismiss 进度驱动矩形收拢，路由动画不参与，
         // 松开后从当前位置继续播放关闭动效。
-        final t = cardDismissLocked || cardDismissProgress.value > 0
-            ? cardDismissProgress.value
+        final t = locked || progress.value > 0
+            ? progress.value
             : 1 - widget.animation.value;
         // 窗口从源卡片矩形 lerp 到全屏：四边各自长到屏幕边。
         // 卡片界面元素跟着窗口一起移动，宽度按当前窗宽缩放；
@@ -576,8 +698,8 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         // 松手动画（已锁）线性归位到源卡片位置；
         // 无拖动的正常关闭（返回按钮/系统手势）直接归位到源位置，
         // 不能再往左缘飞。
-        final fingerX = cardDismissOffset.value;
-        final dragging = cardDismissLocked || cardDismissProgress.value > 0;
+        final fingerX = offset.value;
+        final dragging = locked || progress.value > 0;
         final dismissing =
             dragging || widget.animation.status == AnimationStatus.reverse;
         // 源卡片只在快照交接窗口隐藏；进入最后 1% 时先恢复源卡片，

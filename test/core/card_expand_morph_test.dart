@@ -30,5 +30,14 @@ void main() {
     final swipeIdx = source.indexOf('if (fullWidthSwipe)');
     expect(expandingIdx, greaterThan(0));
     expect(swipeIdx, greaterThan(expandingIdx));
+
+    // 每条路由自己的关闭会话：NAS 设置叠在乐库上时，不能共用全局
+    // cardDismissProgress，否则返回设置会把底下的乐库收成空层。
+    expect(source, contains('class _CardDismissSession'));
+    expect(source, contains('_CardDismissScope.maybeOf'));
+    expect(
+      source,
+      contains('getInheritedWidgetOfExactType<_CardDismissScope>()'),
+    );
   });
 }

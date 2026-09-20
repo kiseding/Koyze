@@ -442,6 +442,168 @@ void main() {
   );
 
   testWidgets(
+    'card library stays full screen even if leftover global dismiss progress remains',
+    (tester) async {
+      // 模拟上层设置页拖回后留下的全局进度。乐库必须用自己的会话，
+      // 不能据此收成空层，否则歌单会透出来、点击也被透明 barrier 吃掉。
+      cardDismissProgress.value = 1;
+      cardDismissLocked = true;
+      cardDismissOffset.value = 390;
+      edgeDragActive = true;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                Navigator.of(context).push<Object?>(
+                  expandablePage(
+                    const ValueKey('library-page'),
+                    const Center(child: Text('library-live')),
+                    expandRect: const Rect.fromLTWH(20, 400, 352, 80),
+                  ).createRoute(context),
+                );
+              },
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('library-live'), findsOneWidget);
+      final rect = tester.getRect(find.text('library-live'));
+      expect(rect.width, greaterThan(50));
+      expect(rect.height, greaterThan(10));
+    },
+  );
+
+  testWidgets(
+    'popping a full-width settings page does not collapse the library underneath',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                Navigator.of(context).push<Object?>(
+                  expandablePage(
+                    const ValueKey('library-page'),
+                    Scaffold(
+                      body: Column(
+                        children: [
+                          const Expanded(child: Center(child: Text('library-live'))),
+                          Builder(
+                            builder: (inner) => TextButton(
+                              onPressed: () {
+                                Navigator.of(inner).push<Object?>(
+                                  expandablePage(
+                                    const ValueKey('settings-page'),
+                                    const Scaffold(
+                                      body: Center(child: Text('settings-live')),
+                                    ),
+                                    fullWidthSwipe: true,
+                                  ).createRoute(inner),
+                                );
+                              },
+                              child: const Text('open-settings'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    expandRect: const Rect.fromLTWH(20, 400, 352, 80),
+                  ).createRoute(context),
+                );
+              },
+              child: const Text('open-library'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open-library'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('open-settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('settings-live'), findsOneWidget);
+
+      Navigator.of(tester.element(find.text('settings-live'))).pop();
+      await tester.pumpAndSettle();
+
+      expect(find.text('settings-live'), findsNothing);
+      expect(find.text('library-live'), findsOneWidget);
+      final rect = tester.getRect(find.text('library-live'));
+      expect(rect.width, greaterThan(50));
+      expect(rect.height, greaterThan(10));
+    },
+  );
+
+  testWidgets(
+    'dragging a full-width settings page does not shrink the library underneath',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                Navigator.of(context).push<Object?>(
+                  expandablePage(
+                    const ValueKey('library-page'),
+                    Scaffold(
+                      body: Column(
+                        children: [
+                          const Expanded(child: Center(child: Text('library-live'))),
+                          Builder(
+                            builder: (inner) => TextButton(
+                              onPressed: () {
+                                Navigator.of(inner).push<Object?>(
+                                  expandablePage(
+                                    const ValueKey('settings-page'),
+                                    const Center(child: Text('settings-live')),
+                                    fullWidthSwipe: true,
+                                  ).createRoute(inner),
+                                );
+                              },
+                              child: const Text('open-settings'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    expandRect: const Rect.fromLTWH(20, 400, 352, 80),
+                  ).createRoute(context),
+                );
+              },
+              child: const Text('open-library'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open-library'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('open-settings'));
+      await tester.pumpAndSettle();
+
+      final libraryBefore = tester.getRect(find.text('library-live'));
+      final gesture = await tester.startGesture(const Offset(200, 400));
+      await gesture.moveBy(const Offset(220, 0));
+      await tester.pump();
+
+      // 上层在拖，底下乐库必须仍是全屏，不能跟着全局进度收成卡片。
+      final libraryDuring = tester.getRect(find.text('library-live'));
+      expect(libraryDuring.width, closeTo(libraryBefore.width, 1));
+      expect(libraryDuring.height, closeTo(libraryBefore.height, 1));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.text('library-live'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'expandRect wins over fullWidthSwipe so shortcuts keep the card morph',
     (tester) async {
       const source = Rect.fromLTWH(20, 400, 120, 80);
