@@ -38,4 +38,30 @@ void main() {
     ]);
     expect(homeHeroCardOptions.map((item) => item.id).toSet().length, 5);
   });
+
+  test('play mode defaults to shuffle and is exclusive', () {
+    final notifier = HomeHeroPlayModeNotifier();
+    expect(notifier.state, HomeHeroPlayMode.shuffle);
+
+    notifier.select(HomeHeroPlayMode.sequential);
+    expect(notifier.state, HomeHeroPlayMode.sequential);
+    notifier.select(HomeHeroPlayMode.repeatOne);
+    expect(notifier.state, HomeHeroPlayMode.repeatOne);
+    expect(
+      HomeHeroPlayMode.values.where((mode) => mode == notifier.state).length,
+      1,
+    );
+  });
+
+  test('play mode tryParse accepts known ids only', () {
+    expect(HomeHeroPlayModeX.tryParse('shuffle'), HomeHeroPlayMode.shuffle);
+    expect(
+      HomeHeroPlayModeX.tryParse('sequential'),
+      HomeHeroPlayMode.sequential,
+    );
+    expect(HomeHeroPlayModeX.tryParse('repeatOne'), HomeHeroPlayMode.repeatOne);
+    expect(HomeHeroPlayModeX.tryParse('nope'), isNull);
+    expect(HomeHeroPlayModeX.tryParse(''), isNull);
+    expect(HomeHeroPlayModeX.tryParse(null), isNull);
+  });
 }

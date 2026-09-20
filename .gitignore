@@ -65,3 +65,6 @@ lib/**/*.sh
 tool/ui_preview/
 tool/run_macos_preview.sh
 tool/run_macos_preview.command
+
+# Local simulator screenshots, never commit.
+.tmp-ui/

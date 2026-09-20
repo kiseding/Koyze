@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import '../motion/motion_tokens.dart';
 import '../theme/app_tokens.dart';
@@ -7,6 +9,8 @@ import '../theme/app_tokens.dart';
 ///
 /// 默认铺磨砂玻璃。调用方若自己包了 [GlassSurface]（或需要完全透明），
 /// 传 [backgroundColor] = [Colors.transparent] 并设 [frosted] = false。
+///
+/// 高度上限避开状态栏 / 灵动岛：顶边至少留出 [padding.top] + [_topGap]。
 Future<T?> showKoyzeSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -16,6 +20,8 @@ Future<T?> showKoyzeSheet<T>({
   bool frosted = true,
 }) {
   final useGlass = frosted && backgroundColor != Colors.transparent;
+  // 必须用调用方 context：sheet 内部会 removeTop，padding.top 会变成 0。
+  final maxHeight = koyzeSheetMaxHeight(context);
   return showModalBottomSheet<T>(
     context: context,
     backgroundColor: Colors.transparent,
@@ -23,10 +29,12 @@ Future<T?> showKoyzeSheet<T>({
     isScrollControlled: isScrollControlled,
     enableDrag: enableDrag,
     requestFocus: false,
+    useSafeArea: true,
+    constraints: BoxConstraints(maxWidth: 640, maxHeight: maxHeight),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    sheetAnimationStyle: AnimationStyle(
+    sheetAnimationStyle: const AnimationStyle(
       duration: MotionDuration.normal,
       reverseDuration: MotionDuration.micro,
       curve: MotionCurve.easeOut,
@@ -53,3 +61,13 @@ Future<T?> showKoyzeSheet<T>({
     },
   );
 }
+
+/// 弹窗可用高度：屏幕高度减去状态栏（含灵动岛）再留一点空隙。
+/// [context] 必须是弹窗弹出之前的页面；sheet 内部 padding.top 会被清掉。
+double koyzeSheetMaxHeight(BuildContext context) {
+  final media = MediaQuery.of(context);
+  final topInset = max(media.padding.top, media.viewPadding.top);
+  return max(media.size.height - topInset - _topGap, 200);
+}
+
+const double _topGap = 16;

@@ -87,8 +87,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     actions: [
                       FrostedHeaderButton(
                         icon: Icons.tune_rounded,
-                        semanticLabel: '设置快捷功能',
-                        onTap: () => _showQuickSettings(context),
+                        semanticLabel: '设置首页大卡片',
+                        onTap: () => _showHeroCardSettings(context),
                       ),
                     ],
                   ),
@@ -143,13 +143,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildQuickSectionTitle(BuildContext context, String title) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w700,
-        color: AppColors.onScaffold(context),
-      ),
+    final titleStyle = TextStyle(
+      fontSize: 16,
+      fontWeight: FontWeight.w700,
+      color: AppColors.onScaffold(context),
+    );
+    return Row(
+      children: [
+        Text(title, style: titleStyle),
+        const Spacer(),
+        Pressable(
+          semanticLabel: '快捷功能设置',
+          onTap: () => _showQuickSettings(context),
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 10),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CustomPaint(
+                painter: _QuickEditPenPainter(
+                  color: AppColors.secondaryText(context),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -184,7 +204,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  Widget _sheetHeader(
+    BuildContext context, {
+    required String title,
+    required String closeLabel,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 12, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: AppColors.onScaffold(context),
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          FxIconButton(
+            tooltip: closeLabel,
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHeroCardSettings(BuildContext context) {
+    final maxHeight = koyzeSheetMaxHeight(context);
+    showKoyzeSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _sheetHeader(context, title: '首页大卡片设置', closeLabel: '关闭首页大卡片设置'),
+              const HomeHeroCardSettings(),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showQuickSettings(BuildContext context) {
+    final maxHeight = koyzeSheetMaxHeight(context);
     showKoyzeSheet(
       context: context,
       isScrollControlled: true,
@@ -195,35 +266,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final notifier = ref.read(homeQuickSettingsProvider.notifier);
           final order = settings.order;
           return ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.78,
-            ),
+            constraints: BoxConstraints(maxHeight: maxHeight),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '快捷功能设置',
-                          style: TextStyle(
-                            color: AppColors.onScaffold(context),
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      FxIconButton(
-                        tooltip: '关闭快捷功能设置',
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                ),
-                const HomeHeroCardSettings(),
+                _sheetHeader(context, title: '快捷功能设置', closeLabel: '关闭快捷功能设置'),
                 Flexible(
                   child: ReorderableListView.builder(
                     shrinkWrap: true,
@@ -387,4 +434,53 @@ class _QuickEntryCard extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 16pt 实心圆角铅笔，笔画体量贴近顶栏 [FrostedHeaderButton] 的 tune 图标。
+/// 高度锁在标题字号内，避免撑高「快捷功能」这一行。
+class _QuickEditPenPainter extends CustomPainter {
+  const _QuickEditPenPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final side = size.shortestSide;
+    canvas.save();
+    canvas.translate((size.width - side) / 2, (size.height - side) / 2);
+    canvas.scale(side / 24, side / 24);
+
+    final fill = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    final pencil = Path()..fillType = PathFillType.evenOdd;
+    pencil.moveTo(3.6, 21.0);
+    pencil.lineTo(4.0, 14.6);
+    pencil.lineTo(14.8, 3.8);
+    pencil.cubicTo(15.55, 3.05, 16.75, 3.05, 17.5, 3.8);
+    pencil.lineTo(20.2, 6.5);
+    pencil.cubicTo(20.95, 7.25, 20.95, 8.45, 20.2, 9.2);
+    pencil.lineTo(9.4, 20.0);
+    pencil.close();
+    // 笔尖三角缺口，16pt 下也能看出是笔而不是楔块。
+    pencil.moveTo(5.2, 19.15);
+    pencil.lineTo(5.45, 16.2);
+    pencil.lineTo(7.85, 18.85);
+    pencil.close();
+    // 笔杆箍：对角开一条缝，体量接近 tune 滑块的圆角横档。
+    pencil.moveTo(13.55, 6.35);
+    pencil.lineTo(17.65, 10.45);
+    pencil.lineTo(16.35, 11.75);
+    pencil.lineTo(12.25, 7.65);
+    pencil.close();
+    canvas.drawPath(pencil, fill);
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _QuickEditPenPainter oldDelegate) =>
+      oldDelegate.color != color;
 }

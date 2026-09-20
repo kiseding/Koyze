@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +13,7 @@ import '../../../core/widgets/pressable.dart';
 import '../../nas/domain/nas_kind.dart';
 import '../../nas/presentation/nas_provider.dart';
 import '../../player/domain/music_item.dart';
+import '../../player/domain/player_service.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../recommend/presentation/recommendation_provider.dart';
@@ -119,29 +121,91 @@ class HomeHeroCardNotifier extends StateNotifier<HomeHeroCardId> {
   }
 }
 
-/// 首页设置里的大卡片单选。
+/// 首页大卡片右侧按钮的播放方式（与播放页全局模式独立）。
+enum HomeHeroPlayMode { sequential, shuffle, repeatOne }
+
+extension HomeHeroPlayModeX on HomeHeroPlayMode {
+  static HomeHeroPlayMode? tryParse(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    for (final value in HomeHeroPlayMode.values) {
+      if (value.name == raw) return value;
+    }
+    return null;
+  }
+
+  String get title => switch (this) {
+    HomeHeroPlayMode.sequential => '顺序播放',
+    HomeHeroPlayMode.shuffle => '随机播放',
+    HomeHeroPlayMode.repeatOne => '单曲循环',
+  };
+
+  String get caption => switch (this) {
+    HomeHeroPlayMode.sequential => '从第一首按列表顺序播',
+    HomeHeroPlayMode.shuffle => '打乱顺序，从随机一首开始',
+    HomeHeroPlayMode.repeatOne => '只循环当前第一首',
+  };
+
+  IconData get icon => switch (this) {
+    HomeHeroPlayMode.sequential => Icons.trending_flat,
+    HomeHeroPlayMode.shuffle => Icons.shuffle,
+    HomeHeroPlayMode.repeatOne => Icons.repeat_one,
+  };
+}
+
+final homeHeroPlayModeProvider =
+    StateNotifierProvider<HomeHeroPlayModeNotifier, HomeHeroPlayMode>(
+      (ref) => HomeHeroPlayModeNotifier(),
+    );
+
+class HomeHeroPlayModeNotifier extends StateNotifier<HomeHeroPlayMode> {
+  HomeHeroPlayModeNotifier({StorageLoader? storage})
+    : _storage = storage ?? (() => StorageService.instance),
+      super(HomeHeroPlayMode.shuffle) {
+    _load();
+  }
+
+  static const _key = 'home_hero_play_mode_v1';
+  final StorageLoader _storage;
+  int _generation = 0;
+
+  Future<void> _load() async {
+    try {
+      final parsed = HomeHeroPlayModeX.tryParse(
+        (await _storage()).getString(_key),
+      );
+      if (parsed != null && parsed != state) state = parsed;
+    } catch (_) {}
+  }
+
+  void select(HomeHeroPlayMode mode) {
+    if (state == mode) return;
+    state = mode;
+    _persist();
+  }
+
+  Future<void> _persist() async {
+    final generation = ++_generation;
+    try {
+      final storage = await _storage();
+      if (generation != _generation) return;
+      await storage.setString(_key, state.name);
+    } catch (_) {}
+  }
+}
+
+/// 首页右上角「首页大卡片设置」弹层：选卡片 + 选播放模式。
 class HomeHeroCardSettings extends ConsumerWidget {
   const HomeHeroCardSettings({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(homeHeroCardProvider);
+    final playMode = ref.watch(homeHeroPlayModeProvider);
     final onSurface = AppColors.onScaffold(context);
     final muted = AppColors.mutedText(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 2),
-          child: Text(
-            '首页大卡片',
-            style: TextStyle(
-              color: onSurface,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
           child: Text(
@@ -187,15 +251,60 @@ class HomeHeroCardSettings extends ConsumerWidget {
             ),
           ),
         ),
-        Divider(height: 16, color: AppColors.cardBorder(context)),
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 2, 20, 6),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
           child: Text(
-            '快捷功能',
+            '右侧按钮播放模式',
             style: TextStyle(
               color: onSurface,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+          child: Text(
+            '只影响首页大卡片右侧按钮，和播放页模式互不影响',
+            style: TextStyle(color: muted, fontSize: 12),
+          ),
+        ),
+        Material(
+          color: Colors.transparent,
+          child: RadioGroup<HomeHeroPlayMode>(
+            groupValue: playMode,
+            onChanged: (value) {
+              if (value != null) {
+                ref.read(homeHeroPlayModeProvider.notifier).select(value);
+              }
+            },
+            child: Column(
+              children: [
+                for (final mode in HomeHeroPlayMode.values)
+                  ListTile(
+                    visualDensity: VisualDensity.compact,
+                    selected: playMode == mode,
+                    leading: Icon(mode.icon, color: onSurface, size: 22),
+                    title: Text(
+                      mode.title,
+                      style: TextStyle(
+                        color: playMode == mode ? onSurface : muted,
+                        fontSize: 15,
+                        fontWeight: playMode == mode
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: Text(
+                      mode.caption,
+                      style: TextStyle(color: muted, fontSize: 12),
+                    ),
+                    trailing: Radio<HomeHeroPlayMode>(value: mode),
+                    onTap: () => ref
+                        .read(homeHeroPlayModeProvider.notifier)
+                        .select(mode),
+                  ),
+              ],
             ),
           ),
         ),
@@ -212,7 +321,8 @@ class HomeHeroCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final id = ref.watch(homeHeroCardProvider);
     final spec = homeHeroCardOptions.firstWhere((item) => item.id == id);
-    final model = _resolve(context, ref, spec);
+    final playMode = ref.watch(homeHeroPlayModeProvider);
+    final model = _resolve(context, ref, spec, playMode);
     const onAccent = Colors.white;
     final color = model.color;
 
@@ -316,9 +426,11 @@ class HomeHeroCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     HomeHeroCardOption spec,
+    HomeHeroPlayMode playMode,
   ) {
     final color = spec.colorOf(context);
     final playlists = ref.watch(playlistsProvider);
+    final actionIcon = playMode.icon;
 
     switch (spec.id) {
       case HomeHeroCardId.favorites:
@@ -330,16 +442,16 @@ class HomeHeroCard extends ConsumerWidget {
             0;
         return _HeroModel(
           color: color,
-          subtitle: count == 0 ? '还没有收藏歌曲' : '点击查看，右侧随机播放',
+          subtitle: count == 0 ? '还没有收藏歌曲' : '点击查看，右侧${playMode.title}',
           count: count,
           canPlay: count > 0,
-          actionIcon: Icons.shuffle,
-          actionLabel: '随机播放收藏',
+          actionIcon: actionIcon,
+          actionLabel: '${playMode.title}收藏',
           onOpen: () => context.pushNamed(
             'playlistDetail',
             pathParameters: {'playlistId': 'favorites'},
           ),
-          onPlay: () => _playFavorites(context, ref),
+          onPlay: () => _playFavorites(context, ref, playMode),
         );
       case HomeHeroCardId.recommend:
         final recommendations =
@@ -350,17 +462,15 @@ class HomeHeroCard extends ConsumerWidget {
           subtitle: count > 0 ? '为你推荐 $count 首歌曲' : '收藏歌曲后为你推荐',
           count: count,
           canPlay: count > 0,
-          actionIcon: Icons.play_arrow_rounded,
-          actionLabel: '播放猜你喜欢',
+          actionIcon: actionIcon,
+          actionLabel: '${playMode.title}猜你喜欢',
           onOpen: () => context.push('/recommend'),
-          onPlay: () {
-            ref
-                .read(playerServiceProvider)
-                .playPlaylist(
-                  recommendations.map((item) => item.song).toList(),
-                  manualPlayName: recommendations.first.song.name,
-                );
-          },
+          onPlay: () => _playRecommend(
+            context,
+            ref,
+            recommendations.map((item) => item.song).toList(),
+            playMode,
+          ),
         );
       case HomeHeroCardId.local:
         final count =
@@ -374,13 +484,13 @@ class HomeHeroCard extends ConsumerWidget {
           subtitle: count == 0 ? '选择文件夹扫描设备歌曲' : '$count 首歌曲',
           count: count,
           canPlay: count > 0,
-          actionIcon: Icons.play_arrow_rounded,
-          actionLabel: '播放本地音乐',
+          actionIcon: actionIcon,
+          actionLabel: '${playMode.title}本地音乐',
           onOpen: () => context.pushNamed(
             'playlistDetail',
             pathParameters: {'playlistId': 'local'},
           ),
-          onPlay: () => _playPaged(context, ref, 'local', count),
+          onPlay: () => _playPaged(context, ref, 'local', count, playMode),
         );
       case HomeHeroCardId.nas:
         final subsonicConnected = ref.watch(subsonicConnectedProvider);
@@ -407,10 +517,10 @@ class HomeHeroCard extends ConsumerWidget {
           count: count,
           showCountInTitle: false,
           canPlay: subsonicConnected && count > 0,
-          actionIcon: Icons.play_arrow_rounded,
-          actionLabel: '播放 NAS 乐库',
+          actionIcon: actionIcon,
+          actionLabel: '${playMode.title} NAS 乐库',
           onOpen: () => context.push('/subsonic'),
-          onPlay: () => _playNas(context, ref, songs),
+          onPlay: () => _playNas(context, ref, songs, playMode),
         );
       case HomeHeroCardId.recent:
         final count =
@@ -424,18 +534,44 @@ class HomeHeroCard extends ConsumerWidget {
           subtitle: '$count 首歌曲',
           count: count,
           canPlay: count > 0,
-          actionIcon: Icons.play_arrow_rounded,
-          actionLabel: '播放最近播放',
+          actionIcon: actionIcon,
+          actionLabel: '${playMode.title}最近播放',
           onOpen: () => context.pushNamed(
             'playlistDetail',
             pathParameters: {'playlistId': 'recent'},
           ),
-          onPlay: () => _playPaged(context, ref, 'recent', count),
+          onPlay: () => _playPaged(context, ref, 'recent', count, playMode),
         );
     }
   }
 
-  Future<void> _playFavorites(BuildContext context, WidgetRef ref) async {
+  Future<void> _applyPlayMode(
+    PlayerService player,
+    HomeHeroPlayMode mode,
+  ) async {
+    switch (mode) {
+      case HomeHeroPlayMode.sequential:
+        await player.setRepeatMode(AudioServiceRepeatMode.none);
+        await player.setShuffleMode(false);
+      case HomeHeroPlayMode.shuffle:
+        await player.setRepeatMode(AudioServiceRepeatMode.none);
+        await player.setShuffleMode(true);
+      case HomeHeroPlayMode.repeatOne:
+        await player.setRepeatMode(AudioServiceRepeatMode.one);
+        await player.setShuffleMode(false);
+    }
+  }
+
+  int _startIndex(HomeHeroPlayMode mode, int count) {
+    if (count <= 0) return 0;
+    return mode == HomeHeroPlayMode.shuffle ? Random().nextInt(count) : 0;
+  }
+
+  Future<void> _playFavorites(
+    BuildContext context,
+    WidgetRef ref,
+    HomeHeroPlayMode mode,
+  ) async {
     try {
       final playlistService = ref.read(playlistServiceProvider);
       final favorites = playlistService.favorites;
@@ -445,10 +581,10 @@ class HomeHeroCard extends ConsumerWidget {
       }
       final songCount = favorites.songCount;
       final playerService = ref.read(playerServiceProvider);
-      await playerService.setShuffleMode(true);
+      await _applyPlayMode(playerService, mode);
       await playerService.playPagedPlaylist(
         songCount: songCount,
-        startIndex: Random().nextInt(songCount),
+        startIndex: _startIndex(mode, songCount),
         playlistId: 'favorites',
         manual: true,
         loadPage: (offset, limit) async {
@@ -462,7 +598,10 @@ class HomeHeroCard extends ConsumerWidget {
       );
     } catch (error) {
       if (!context.mounted) return;
-      showAppNotification('随机播放失败: $error', type: AppNotificationType.error);
+      showAppNotification(
+        '${mode.title}失败: $error',
+        type: AppNotificationType.error,
+      );
     }
   }
 
@@ -471,29 +610,52 @@ class HomeHeroCard extends ConsumerWidget {
     WidgetRef ref,
     String playlistId,
     int songCount,
+    HomeHeroPlayMode mode,
   ) async {
     if (songCount <= 0) return;
     try {
       final playlistService = ref.read(playlistServiceProvider);
-      await ref
-          .read(playerServiceProvider)
-          .playPagedPlaylist(
-            songCount: songCount,
-            startIndex: 0,
-            playlistId: playlistId,
-            manual: true,
-            loadPage: (offset, limit) async {
-              final page = await playlistService.getSongsPage(
-                playlistId,
-                offset: offset,
-                limit: limit,
-              );
-              return page.songs;
-            },
+      final playerService = ref.read(playerServiceProvider);
+      await _applyPlayMode(playerService, mode);
+      await playerService.playPagedPlaylist(
+        songCount: songCount,
+        startIndex: _startIndex(mode, songCount),
+        playlistId: playlistId,
+        manual: true,
+        loadPage: (offset, limit) async {
+          final page = await playlistService.getSongsPage(
+            playlistId,
+            offset: offset,
+            limit: limit,
           );
+          return page.songs;
+        },
+      );
     } catch (error) {
       if (!context.mounted) return;
       showAppNotification('加载歌曲失败: $error', type: AppNotificationType.error);
+    }
+  }
+
+  Future<void> _playRecommend(
+    BuildContext context,
+    WidgetRef ref,
+    List<MusicItem> songs,
+    HomeHeroPlayMode mode,
+  ) async {
+    if (songs.isEmpty) return;
+    try {
+      final playerService = ref.read(playerServiceProvider);
+      await _applyPlayMode(playerService, mode);
+      final index = _startIndex(mode, songs.length);
+      await playerService.playPlaylist(
+        songs,
+        index: index,
+        manualPlayName: songs[index].name,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      showAppNotification('播放失败: $error', type: AppNotificationType.error);
     }
   }
 
@@ -501,6 +663,7 @@ class HomeHeroCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     List<MusicItem> songs,
+    HomeHeroPlayMode mode,
   ) async {
     try {
       var queue = songs;
@@ -511,9 +674,14 @@ class HomeHeroCard extends ConsumerWidget {
         showAppNotification('服务器上还没有歌曲', type: AppNotificationType.info);
         return;
       }
-      await ref
-          .read(playerServiceProvider)
-          .playPlaylist(queue, manualPlayName: queue.first.name);
+      final playerService = ref.read(playerServiceProvider);
+      await _applyPlayMode(playerService, mode);
+      final index = _startIndex(mode, queue.length);
+      await playerService.playPlaylist(
+        queue,
+        index: index,
+        manualPlayName: queue[index].name,
+      );
     } catch (error) {
       if (!context.mounted) return;
       showAppNotification('播放失败: $error', type: AppNotificationType.error);

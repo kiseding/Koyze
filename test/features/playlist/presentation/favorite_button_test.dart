@@ -32,6 +32,9 @@ void main() {
     final source = File('lib/core/widgets/koyze_sheet.dart').readAsStringSync();
 
     expect(source, contains('requestFocus: false'));
+    expect(source, contains('useSafeArea: true'));
+    expect(source, contains('koyzeSheetMaxHeight'));
+    expect(source, contains('viewPadding.top'));
   });
 
   test('playlist detail rows pass the shared favorite id set', () {
