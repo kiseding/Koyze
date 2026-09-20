@@ -16,6 +16,48 @@ import 'motion/motion_tokens.dart';
 Rect? _cardExpandRect;
 ui.Image? _cardExpandSnapshot;
 
+/// go_router 每次改栈都会重跑 pageBuilder，[consumeCardExpandRect] 又是
+/// 一次性的。同一条路由（同一个 [Page.key]）必须记住第一次吃到的源矩形，
+/// 否则从叠在上面的设置页返回后会变成不透明普通页：卡片 morph 没了，
+/// 自绘右滑也没了（[_CardExpandRoute] 并没有 iOS 系统返回手势）。
+final Map<LocalKey, Rect> _expandRectByPage = <LocalKey, Rect>{};
+final Map<LocalKey, ui.Image> _expandSnapshotByPage = <LocalKey, ui.Image>{};
+
+Rect? _rememberExpandRect(LocalKey pageKey, Rect? consumed) {
+  if (consumed != null) {
+    _expandRectByPage[pageKey] = consumed;
+    return consumed;
+  }
+  return _expandRectByPage[pageKey];
+}
+
+ui.Image? _rememberExpandSnapshot(LocalKey pageKey, ui.Image? consumed) {
+  if (consumed != null) {
+    final previous = _expandSnapshotByPage[pageKey];
+    if (previous != null && !identical(previous, consumed)) {
+      previous.dispose();
+    }
+    _expandSnapshotByPage[pageKey] = consumed;
+    return consumed;
+  }
+  return _expandSnapshotByPage[pageKey];
+}
+
+void _forgetExpandOrigin(LocalKey pageKey) {
+  _expandRectByPage.remove(pageKey);
+  _expandSnapshotByPage.remove(pageKey)?.dispose();
+}
+
+/// 测试之间清掉按路由记住的展开原点，避免 key 撞车串数据。
+@visibleForTesting
+void debugResetCardExpandOrigins() {
+  _expandRectByPage.clear();
+  for (final image in _expandSnapshotByPage.values) {
+    image.dispose();
+  }
+  _expandSnapshotByPage.clear();
+}
+
 /// 当前参与转场的源卡片只在关闭后段隐藏，避免实时页面与源卡片快照重影。
 final ValueNotifier<bool> cardExpandSourceHidden = ValueNotifier<bool>(false);
 GlobalKey? cardExpandHiddenKey;
@@ -121,7 +163,11 @@ CustomTransitionPage<Object?> expandablePage(
   ui.Image? expandSnapshot,
   bool fullWidthSwipe = false,
 }) {
-  final expanding = expandRect != null;
+  expandRect = _rememberExpandRect(pageKey, expandRect);
+  expandSnapshot = _rememberExpandSnapshot(pageKey, expandSnapshot);
+  final sourceRect = expandRect;
+  final sourceSnapshot = expandSnapshot;
+  final expanding = sourceRect != null;
   return _CardExpandPage(
     key: pageKey,
     // 普通页（无卡片展开）保持不透明：iOS 上因此能启用系统级
@@ -154,8 +200,8 @@ CustomTransitionPage<Object?> expandablePage(
         // 范围，不能改成整页中心缩放——快捷卡半宽时那种缩放就是均匀放大。
         transition = _CardRevealTransition(
           animation: curved,
-          sourceGlobalRect: expandRect,
-          sourceSnapshot: expandSnapshot,
+          sourceGlobalRect: sourceRect,
+          sourceSnapshot: sourceSnapshot,
           child: child,
         );
       } else if (fullWidthSwipe) {
@@ -330,8 +376,10 @@ class _CardExpandRoute extends PageRoute<Object?> {
 
   @override
   void dispose() {
+    final key = _page.key;
     super.dispose();
     session.dispose();
+    if (key != null) _forgetExpandOrigin(key);
   }
 }
 
@@ -657,7 +705,6 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
       cardDismissLocked = false;
       cardDismissProgress.value = 0;
     }
-    widget.sourceSnapshot?.dispose();
     super.dispose();
   }
 

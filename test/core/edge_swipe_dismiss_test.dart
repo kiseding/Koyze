@@ -31,7 +31,10 @@ void main() {
     edgeDragActive = false;
     cardExpandSourceHidden.value = false;
     cardExpandHiddenKey = null;
+    debugResetCardExpandOrigins();
   });
+
+  tearDown(debugResetCardExpandOrigins);
 
   testWidgets('iOS plain page stays opaque so system back gesture works', (
     tester,
@@ -602,6 +605,100 @@ void main() {
       expect(find.text('library-live'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'rebuilding a card page without expandRect keeps morph and custom swipe',
+    (tester) async {
+      const source = Rect.fromLTWH(20, 400, 352, 80);
+      const pageKey = ValueKey('library-page');
+      var includeSettings = true;
+
+      libraryPage() => expandablePage(
+        pageKey,
+        const Scaffold(body: Center(child: Text('library-live'))),
+        expandRect: includeSettings ? source : null,
+      );
+
+      settingsPage() => expandablePage(
+        const ValueKey('settings-page'),
+        const Scaffold(body: Center(child: Text('settings-live'))),
+        fullWidthSwipe: true,
+      );
+
+      Widget app() {
+        return MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.iOS),
+          home: Navigator(
+            pages: [
+              const MaterialPage<void>(
+                key: ValueKey('home'),
+                child: SizedBox.shrink(),
+              ),
+              libraryPage(),
+              if (includeSettings) settingsPage(),
+            ],
+            onDidRemovePage: (page) {},
+          ),
+        );
+      }
+
+      await tester.pumpWidget(app());
+      await tester.pumpAndSettle();
+      expect(find.text('settings-live'), findsOneWidget);
+
+      // 模拟 go_router 从设置页 pop 后重跑 pageBuilder：矩形已被消费。
+      includeSettings = false;
+      await tester.pumpWidget(app());
+      await tester.pumpAndSettle();
+
+      expect(find.text('settings-live'), findsNothing);
+      expect(find.text('library-live'), findsOneWidget);
+      expect(libraryPage().opaque, isFalse);
+
+      final dragDetectors = tester.widgetList<GestureDetector>(
+        find.byType(GestureDetector),
+      );
+      expect(
+        dragDetectors.where(
+          (detector) => detector.onHorizontalDragUpdate != null,
+        ),
+        isNotEmpty,
+      );
+    },
+  );
+
+  testWidgets('disposing a card route forgets the expand origin', (
+    tester,
+  ) async {
+    const source = Rect.fromLTWH(20, 400, 352, 80);
+    const pageKey = ValueKey('library-page');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () {
+              Navigator.of(context).push<Object?>(
+                expandablePage(
+                  pageKey,
+                  const Center(child: Text('library-live')),
+                  expandRect: source,
+                ).createRoute(context),
+              );
+            },
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.text('library-live'))).pop();
+    await tester.pumpAndSettle();
+
+    final later = expandablePage(pageKey, const SizedBox());
+    expect(later.opaque, isTrue);
+  });
 
   testWidgets(
     'expandRect wins over fullWidthSwipe so shortcuts keep the card morph',

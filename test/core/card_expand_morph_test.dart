@@ -39,5 +39,11 @@ void main() {
       source,
       contains('getInheritedWidgetOfExactType<_CardDismissScope>()'),
     );
+
+    // go_router 重跑 pageBuilder 时必须按 Page.key 记住第一次的源矩形，
+    // 否则从设置页返回后乐库变成不透明页，右滑和卡片 morph 一起丢。
+    expect(source, contains('_expandRectByPage'));
+    expect(source, contains('_rememberExpandRect'));
+    expect(source, contains('_forgetExpandOrigin'));
   });
 }
