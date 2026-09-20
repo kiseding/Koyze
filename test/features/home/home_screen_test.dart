@@ -11,14 +11,27 @@ void main() {
       'lib/features/home/presentation/home_quick_provider.dart',
     ).readAsStringSync();
 
+    final hero = File(
+      'lib/features/home/presentation/home_hero_card.dart',
+    ).readAsStringSync();
+
     expect(source, contains('showSearchSheet'));
     expect(source, contains("title: 'Koyze'"));
     expect(source, contains('Icons.home_rounded'));
     expect(source, isNot(contains('免费的音乐查找助手')));
-    expect(source, contains('随机播放收藏'));
-    expect(source, contains('playPagedPlaylist'));
-    expect(source, contains('captureExpandRect: true'));
-    expect(source, contains('setShuffleMode(true)'));
+    expect(source, contains('HomeHeroCard'));
+    expect(source, contains('HomeHeroCardSettings'));
+    expect(hero, contains('homeHeroCardProvider'));
+    expect(hero, contains('随机播放收藏'));
+    expect(hero, contains('playPagedPlaylist'));
+    expect(hero, contains('captureExpandRect: true'));
+    expect(hero, contains('setShuffleMode(true)'));
+    expect(hero, contains("'收藏列表'"));
+    expect(hero, contains("'猜你喜欢'"));
+    expect(hero, contains("'本地音乐'"));
+    expect(hero, contains("'NAS 乐库'"));
+    expect(hero, contains("'最近播放'"));
+    expect(hero, contains('只能启用其中一张'));
     expect(source, contains('LayoutBuilder'));
     // 自定义源与云端同步已从快捷网格移除；主题用调色板图标区分睡眠定时。
     expect(source, isNot(contains("route: '/custom-source'")));
@@ -123,11 +136,7 @@ void main() {
       'lib/features/home/presentation/main_scaffold.dart',
     ).readAsStringSync();
     expect(source, contains('_anim.stop()'));
-    expect(
-      source,
-      contains('oldWidget.currentIndex != widget.currentIndex'),
-    );
+    expect(source, contains('oldWidget.currentIndex != widget.currentIndex'));
     expect(source, isNot(contains('!_animating &&\n        !_dragging')));
   });
 }
-

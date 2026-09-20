@@ -3,22 +3,19 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/animations/micro_animations.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/search_sheet.dart';
 import '../../../core/widgets/sleep_timer_sheet.dart';
-import '../../playlist/presentation/playlist_provider.dart';
-import '../../player/presentation/player_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
+import 'home_hero_card.dart';
 import 'home_quick_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/fx_switch.dart';
 
-/// 首页：搜索入口 + 快捷功能 + 随机播放收藏。
+/// 首页：搜索入口 + 可切换的歌单大卡片 + 快捷功能。
 /// 竖屏单列、大屏居中并自适应列数，底部导航由 MainScaffold 提供。
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -33,16 +30,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final playlists = ref.watch(playlistsProvider);
     final quickSettings = ref.watch(homeQuickSettingsProvider);
     final quickIds = [
       for (final id in quickSettings.order)
         if (quickSettings.enabled.contains(id)) id,
     ];
-    final favorites = playlists
-        .where((playlist) => playlist.id == 'favorites')
-        .firstOrNull;
-    final favoriteCount = favorites?.songCount ?? 0;
 
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
@@ -73,11 +65,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         children: [
                           _buildSearchBar(context),
                           const SizedBox(height: 20),
-                          _buildRandomFavoriteCard(
-                            context,
-                            ref,
-                            favoriteCount,
-                          ),
+                          const HomeHeroCard(),
                           const SizedBox(height: 24),
                           _buildQuickSectionTitle(context, '快捷功能'),
                           const SizedBox(height: 12),
@@ -154,145 +142,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  /// 一键随机播放收藏列表。
-  Widget _buildRandomFavoriteCard(
-    BuildContext context,
-    WidgetRef ref,
-    int favoriteCount,
-  ) {
-    final accent = AppColors.accentOf(context);
-    const onAccent = Colors.white;
-
-    return HoverFloat(
-      child: Pressable(
-        borderRadius: BorderRadius.circular(18),
-        captureExpandRect: true,
-        onTap: () => context.pushNamed(
-          'playlistDetail',
-          pathParameters: {'playlistId': 'favorites'},
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [accent.withAlpha(230), accent.withAlpha(120)],
-            ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withAlpha(50),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: onAccent.withAlpha(36),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(Icons.favorite, color: onAccent, size: 30),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Text(
-                          '收藏列表',
-                          style: TextStyle(
-                            color: onAccent,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (favoriteCount > 0) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            '($favoriteCount)',
-                            style: TextStyle(
-                              color: onAccent.withAlpha(210),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      favoriteCount == 0 ? '还没有收藏歌曲' : '点击查看，右侧随机播放',
-                      style: TextStyle(
-                        color: onAccent.withAlpha(210),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Pressable(
-                scale: 0.9,
-                semanticLabel: '随机播放收藏',
-                onTap: favoriteCount == 0
-                    ? null
-                    : () => _playRandomFavorites(ref),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: onAccent.withAlpha(40),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.shuffle, color: onAccent, size: 26),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _playRandomFavorites(WidgetRef ref) async {
-    try {
-      final playlistService = ref.read(playlistServiceProvider);
-      final favorites = playlistService.favorites;
-      if (favorites == null || favorites.songCount <= 0) {
-        showAppNotification('还没有收藏歌曲', type: AppNotificationType.info);
-        return;
-      }
-      final songCount = favorites.songCount;
-      final playerService = ref.read(playerServiceProvider);
-      // 惰性分页随机播放：不要求全量加载，大收藏列表也稳定。
-      await playerService.setShuffleMode(true);
-      await playerService.playPagedPlaylist(
-        songCount: songCount,
-        startIndex: Random().nextInt(songCount),
-        playlistId: 'favorites',
-        manual: true,
-        loadPage: (offset, limit) async {
-          final page = await playlistService.getSongsPage(
-            'favorites',
-            offset: offset,
-            limit: limit,
-          );
-          return page.songs;
-        },
-      );
-    } catch (error) {
-      if (!mounted) return;
-      showAppNotification('随机播放失败: $error', type: AppNotificationType.error);
-    }
-  }
-
   Widget _buildQuickSectionTitle(BuildContext context, String title) {
     return Text(
       title,
@@ -347,7 +196,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final order = settings.order;
           return ConstrainedBox(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 2 / 3,
+              maxHeight: MediaQuery.sizeOf(context).height * 0.78,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -374,6 +223,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ],
                   ),
                 ),
+                const HomeHeroCardSettings(),
                 Flexible(
                   child: ReorderableListView.builder(
                     shrinkWrap: true,

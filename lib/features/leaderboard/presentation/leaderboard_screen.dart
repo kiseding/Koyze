@@ -388,17 +388,17 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
               Positioned(
                 top: 10,
                 left: 10,
-                right: 68,
+                right: 10,
                 child: Text(
                   category.name,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 15,
+                    fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                    height: 1.2,
+                    letterSpacing: -0.2,
+                    height: 1.25,
                     shadows: [Shadow(color: Color(0x66000000), blurRadius: 8)],
                   ),
                 ),
