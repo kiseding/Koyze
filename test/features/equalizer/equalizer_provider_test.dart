@@ -14,8 +14,7 @@ Future<StorageService> _storageFrom(Map<String, Object> values) async {
   return StorageService.forTesting(await SharedPreferences.getInstance());
 }
 
-String _encoded(EqualizerSettings settings) =>
-    json.encode(settings.toJson());
+String _encoded(EqualizerSettings settings) => json.encode(settings.toJson());
 
 void main() {
   test('读取已保存的设置并施加到音频层', () async {
@@ -41,9 +40,9 @@ void main() {
     expect(notifier.state.settings.enabled, isTrue);
     expect(notifier.state.settings.presetId, 'bass');
     expect(notifier.state.layout, fiveBandLayout);
-    expect(notifier.state.gains, <double>[6, 4, 1, 0, 0]);
+    expect(notifier.state.gains, <double>[0, -1.5, -4, -5, -5.5]);
     expect(bridge.applies.single.enabled, isTrue);
-    expect(bridge.applies.single.gains, <double>[6, 4, 1, 0, 0]);
+    expect(bridge.applies.single.gains, <double>[0, -1.5, -4, -5, -5.5]);
   });
 
   test('没有保存过时使用默认值且不报错', () async {
@@ -80,9 +79,9 @@ void main() {
     expect(saved.enabled, isTrue);
     expect(saved.presetId, 'treble');
     // 高音增强在 5 段布局上采样出的增益。
-    expect(saved.gains, <double>[0, 0, 0, 4, 6]);
+    expect(saved.gains, <double>[-5.5, -5, -4, -1.5, 0]);
     expect(bridge.applies.last.enabled, isTrue);
-    expect(bridge.applies.last.gains, <double>[0, 0, 0, 4, 6]);
+    expect(bridge.applies.last.gains, <double>[-5.5, -5, -4, -1.5, 0]);
   });
 
   test('拖动频段会切换成自定义并保留其它频段', () async {
@@ -106,7 +105,7 @@ void main() {
 
     expect(notifier.state.settings.isCustom, isTrue);
     expect(notifier.state.settings.presetId, kCustomPresetId);
-    expect(notifier.state.gains, <double>[6, 7.5, 1, 0, 0]);
+    expect(notifier.state.gains, <double>[0, 7.5, -4, -5, -5.5]);
     expect(notifier.state.settings.presetLabel, '自定义');
   });
 
@@ -178,7 +177,7 @@ void main() {
     expect(notifier.state.layoutReady, isTrue);
     expect(notifier.state.effectiveLayout, tenBandLayout);
     expect(notifier.state.gains.length, 10);
-    expect(notifier.state.gains.first, closeTo(6, 0.5));
+    expect(notifier.state.gains.first, closeTo(0, 0.5));
   });
 
   test('平台不支持时不施加但仍保留设置', () async {

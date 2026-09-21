@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:koyze/core/audio/audio_handler.dart';
+import 'package:koyze/core/widgets/artwork_disk_cache.dart';
+import 'package:koyze/core/widgets/artwork_image.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/player/domain/player_service.dart';
 
@@ -106,8 +109,7 @@ void main() {
     },
   );
 
-  test(
-    'newer playlist invalidates an in-flight paged playlist load', () async {
+  test('newer playlist invalidates an in-flight paged playlist load', () async {
     audioHandler = handler;
     final service = PlayerService();
     final pageStarted = Completer<void>();
@@ -505,12 +507,7 @@ void main() {
         title: id,
         extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
       );
-      await handler.setPlaylist([
-        item('A'),
-        item('B'),
-        item('C'),
-        item('D'),
-      ]);
+      await handler.setPlaylist([item('A'), item('B'), item('C'), item('D')]);
       final playedIds = <String>[];
       String currentSourceId() =>
           (player.loadedSource as ProgressiveAudioSource).tag.id as String;
@@ -1099,6 +1096,51 @@ void main() {
       expect(player.playing, isFalse);
     },
   );
+
+  test(
+    'warmCurrentAndUpcomingArtwork caches covers for preloaded tracks',
+    () async {
+      final root = await Directory.systemTemp.createTemp('koyze-art-');
+      addTearDown(() => root.delete(recursive: true));
+      final loader = _MapArtworkLoader({
+        'https://p1.music.126.net/a.jpg': Uint8List.fromList([1, 2, 3, 4]),
+        'https://p1.music.126.net/b.jpg': Uint8List.fromList([5, 6, 7, 8]),
+        'https://p1.music.126.net/c.jpg': Uint8List.fromList([9, 8, 7, 6]),
+        'https://p1.music.126.net/d.jpg': Uint8List.fromList([4, 3, 2, 1]),
+      });
+      final cache = ArtworkDiskCache(loader: loader, rootOverride: root.path);
+      audioHandler = handler;
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      final service = PlayerService(artworkCache: cache);
+      MusicItem song(String id) => MusicItem(
+        id: id,
+        name: id,
+        singer: '',
+        source: 'test',
+        platform: 'wy',
+        artwork: 'https://p1.music.126.net/$id.jpg',
+      );
+
+      await service.playPlaylist([song('a'), song('b'), song('c'), song('d')]);
+      await service.warmCurrentAndUpcomingArtwork();
+
+      expect(handler.queueItems, hasLength(4));
+      for (final item in handler.queueItems) {
+        expect(item.artUri?.scheme, 'file');
+        expect(item.extras?['artCacheFile'], isNotEmpty);
+        expect(
+          File(item.extras!['artCacheFile'] as String).existsSync(),
+          isTrue,
+        );
+      }
+      expect(loader.urls.toSet(), {
+        'https://p1.music.126.net/a.jpg',
+        'https://p1.music.126.net/b.jpg',
+        'https://p1.music.126.net/c.jpg',
+        'https://p1.music.126.net/d.jpg',
+      });
+    },
+  );
 }
 
 class _RecordingAudioPlayer extends AudioPlayer {
@@ -1216,4 +1258,26 @@ class _RecordingAudioPlayer extends AudioPlayer {
 class _SourceLoadGate {
   final started = Completer<void>();
   final release = Completer<void>();
+}
+
+class _MapArtworkLoader extends ArtworkBytesLoader {
+  _MapArtworkLoader(this.responses);
+
+  final Map<String, Uint8List> responses;
+  final urls = <String>[];
+
+  @override
+  Future<Uint8List> load(
+    Uri uri,
+    Map<String, String> headers,
+    void Function(int, int?) onProgress,
+  ) async {
+    final key = uri.toString();
+    urls.add(key);
+    final bytes = responses[key];
+    if (bytes == null) {
+      throw StateError('unexpected artwork url $key');
+    }
+    return bytes;
+  }
 }

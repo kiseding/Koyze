@@ -242,6 +242,13 @@ class LockScreenSyncService {
       final file = await ArtworkDiskCache.instance.ensureLocalFile(url);
       if (!_syncCoordinator.owns(generation)) return;
       if (file == null || !await file.exists()) return;
+      final current = _handler.mediaItem.value;
+      if (current != null &&
+          (current.id == music.identityKey || current.id == music.id)) {
+        // Home widget uses the App Group copy; lock screen / Dynamic Island
+        // still need audio_service `artCacheFile` on the current MediaItem.
+        _handler.patchQueueArtUri(current.id, Uri.file(file.path));
+      }
       final bytes = await file.readAsBytes();
       if (!_syncCoordinator.owns(generation)) return;
       final directory = await FlutterAppGroupDirectory.getAppGroupDirectory(

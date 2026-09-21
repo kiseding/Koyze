@@ -311,11 +311,11 @@ class PlaybackStartProvenance {
 }
 
 class _PreloadRequest {
-  const _PreloadRequest(this.generation, this.occurrenceId, this.item);
+  _PreloadRequest(this.generation, this.occurrenceId, this.item);
 
   final int generation;
   final int occurrenceId;
-  final MediaItem item;
+  MediaItem item;
 
   String get mediaId => item.id;
 }
@@ -334,6 +334,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   late AudioPlayer _player;
   late final BehaviorSubject<AudioPlayer> _playerSubject;
   late PlaybackCommandCoordinator _commands;
+
   /// 播放器重建时用的工厂；注入播放器时为 null（无法重建）。
   AudioPlayer Function()? _replacementPlayerFactory;
   late final EqualizerBridge _equalizer;
@@ -461,8 +462,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// but more tracks can still be pulled. Failure auto-skip must do the same:
   /// radio / paged playlists often shrink to one remaining item, and a
   /// `_queue.length > 1` guard would stall on an unplayable song.
-  bool get _canAdvanceAfterTrackFailure =>
-      _queue.length > 1 || _usesLazyQueue;
+  bool get _canAdvanceAfterTrackFailure => _queue.length > 1 || _usesLazyQueue;
 
   /// Production wiring: cancel obsolete cache downloads on track switch.
   void attachPlaybackCache({
@@ -574,6 +574,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _trackLeaseRelease(resolution.leaseOrNull);
       return false;
     }
+    request.item = _queue[index];
     final previous = _pendingResolutions.remove(request.occurrenceId);
     final previousLease = previous?.leaseOrNull;
     if (previousLease != null &&
@@ -935,8 +936,23 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       ..addAll(nextOccurrences);
   }
 
+  void _retargetRequestItems(MediaItem from, MediaItem to) {
+    if (identical(from, to)) return;
+    final foreground = _foregroundResolutionRequest;
+    if (foreground != null && identical(foreground.item, from)) {
+      foreground.item = to;
+    }
+    for (final request in _preloadRequests.values) {
+      if (identical(request.item, from)) {
+        request.item = to;
+      }
+    }
+  }
+
   void _replaceQueueItem(int index, MediaItem item) {
+    final previous = _queue[index];
     _queue[index] = item;
+    _retargetRequestItems(previous, item);
   }
 
   /// 当前内部播放队列（供 urlResolver 按 id 查找 extras）
@@ -3156,6 +3172,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           final remote = le['remoteUrl']?.toString();
           final rq = le['requestedQuality']?.toString();
           final plat = le['platform']?.toString();
+          final art = le['artCacheFile']?.toString();
           if (aq != null && aq.isNotEmpty) baseExtras['actualQuality'] = aq;
           if (remote != null && remote.isNotEmpty) {
             baseExtras['remoteUrl'] = remote;
@@ -3164,6 +3181,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             baseExtras['requestedQuality'] = rq;
           }
           if (plat != null && plat.isNotEmpty) baseExtras['platform'] = plat;
+          if (art != null && art.isNotEmpty) baseExtras['artCacheFile'] = art;
         }
         final updatedItem = _queue[transactionIndex].copyWith(
           extras: baseExtras,
@@ -3705,34 +3723,72 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Also writes `extras['artCacheFile']` so iOS lock screen shows the cover:
   /// audio_service reads only a local file path from that key, never a remote
   /// artUri, so without it remote covers (e.g. NetEase) are missing on lock.
+  ///
+  /// Replacing a [MediaItem] must keep the foreground/preload request identity
+  /// in lockstep with the queue and [mediaItem]. Otherwise an in-flight URL
+  /// resolve or preload treats the cover patch as a stale occurrence.
   void patchQueueArtUri(String mediaId, Uri artUri) {
     if (_disposed) return;
     final filePath = artUri.scheme == 'file' ? artUri.toFilePath() : null;
-    var changed = false;
-    for (var i = 0; i < _queue.length; i++) {
-      if (_queue[i].id != mediaId) continue;
-      if (_queue[i].artUri == artUri) continue;
-      final extras = Map<String, dynamic>.from(_queue[i].extras ?? {});
+
+    bool needsArt(MediaItem item) {
+      if (item.artUri != artUri) return true;
+      final cached = item.extras?['artCacheFile'];
+      if (filePath != null) return cached != filePath;
+      return cached != null;
+    }
+
+    MediaItem withArt(MediaItem item) {
+      final extras = Map<String, dynamic>.from(item.extras ?? {});
       if (filePath != null) {
         extras['artCacheFile'] = filePath;
       } else {
         extras.remove('artCacheFile');
       }
-      _replaceQueueItem(i, _queue[i].copyWith(artUri: artUri, extras: extras));
+      return item.copyWith(artUri: artUri, extras: extras);
+    }
+
+    var changed = false;
+    for (var i = 0; i < _queue.length; i++) {
+      if (_queue[i].id != mediaId) continue;
+      final previous = _queue[i];
+      final current = mediaItem.value;
+      final liveCurrent =
+          i == _currentIndex && current != null && current.id == mediaId
+          ? current
+          : null;
+      if (!needsArt(previous) &&
+          !(liveCurrent != null && needsArt(liveCurrent))) {
+        continue;
+      }
+      final source = liveCurrent ?? previous;
+      final updated = withArt(source);
+      _replaceQueueItem(i, updated);
+      if (liveCurrent != null) {
+        _retargetRequestItems(liveCurrent, updated);
+      }
+      if (liveCurrent != null && !identical(mediaItem.value, updated)) {
+        mediaItem.add(updated);
+      }
       changed = true;
     }
-    if (!changed) return;
-    queue.add(List.unmodifiable(_queue));
-    final current = mediaItem.value;
-    if (current != null && current.id == mediaId && current.artUri != artUri) {
-      final currentExtras = Map<String, dynamic>.from(current.extras ?? {});
-      if (filePath != null) {
-        currentExtras['artCacheFile'] = filePath;
+
+    final live = mediaItem.value;
+    if (live != null && live.id == mediaId && needsArt(live)) {
+      final updated = withArt(live);
+      if (_currentIndex >= 0 &&
+          _currentIndex < _queue.length &&
+          identical(_queue[_currentIndex], live)) {
+        _replaceQueueItem(_currentIndex, updated);
       } else {
-        currentExtras.remove('artCacheFile');
+        _retargetRequestItems(live, updated);
       }
-      mediaItem.add(current.copyWith(artUri: artUri, extras: currentExtras));
+      if (!identical(mediaItem.value, updated)) {
+        mediaItem.add(updated);
+      }
+      changed = true;
     }
+    if (changed) queue.add(List.unmodifiable(_queue));
   }
 
   /// Applies metadata only if the exact queue occurrence still owns [index].

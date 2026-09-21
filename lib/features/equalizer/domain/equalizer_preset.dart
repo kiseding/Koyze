@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:koyze/core/audio/equalizer_gain.dart';
 
 /// 预设曲线上的一个控制点。
 @immutable
@@ -49,9 +50,12 @@ class EqualizerPreset {
   }
 
   /// 把曲线采样到给定的中心频率上，得到可直接施加的频段增益。
-  List<double> gainsFor(List<double> centerFrequencies) => <double>[
-    for (final frequency in centerFrequencies) gainAt(frequency),
-  ];
+  ///
+  /// 采样后再削峰：峰值对齐 0 dB，避免预设把整轨抬响后削波。
+  List<double> gainsFor(List<double> centerFrequencies) =>
+      normalizeEqualizerGains(<double>[
+        for (final frequency in centerFrequencies) gainAt(frequency),
+      ]);
 }
 
 /// 内置预设。顺序即界面展示顺序：前面是「原声」与常用风格，
@@ -74,8 +78,8 @@ const List<EqualizerPreset> equalizerPresets = <EqualizerPreset>[
     curve: <EqualizerControlPoint>[
       EqualizerControlPoint(60, 1),
       EqualizerControlPoint(230, 2),
-      EqualizerControlPoint(910, 1),
-      EqualizerControlPoint(3600, 2),
+      EqualizerControlPoint(910, 0),
+      EqualizerControlPoint(3600, 1.5),
       EqualizerControlPoint(14000, 1),
     ],
   ),
@@ -83,22 +87,22 @@ const List<EqualizerPreset> equalizerPresets = <EqualizerPreset>[
     id: 'rock',
     label: '摇滚',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 4),
-      EqualizerControlPoint(230, 2),
-      EqualizerControlPoint(910, -1),
-      EqualizerControlPoint(3600, 2),
-      EqualizerControlPoint(14000, 3),
+      EqualizerControlPoint(60, 3),
+      EqualizerControlPoint(230, 1),
+      EqualizerControlPoint(910, -2),
+      EqualizerControlPoint(3600, 1),
+      EqualizerControlPoint(14000, 2),
     ],
   ),
   EqualizerPreset(
     id: 'jazz',
     label: '爵士',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 3),
-      EqualizerControlPoint(230, 2),
-      EqualizerControlPoint(910, 0),
-      EqualizerControlPoint(3600, 2),
-      EqualizerControlPoint(14000, 3),
+      EqualizerControlPoint(60, 2),
+      EqualizerControlPoint(230, 1),
+      EqualizerControlPoint(910, -1),
+      EqualizerControlPoint(3600, 1),
+      EqualizerControlPoint(14000, 2),
     ],
   ),
   EqualizerPreset(
@@ -106,42 +110,42 @@ const List<EqualizerPreset> equalizerPresets = <EqualizerPreset>[
     label: '古典',
     curve: <EqualizerControlPoint>[
       EqualizerControlPoint(60, 0),
-      EqualizerControlPoint(230, 0),
-      EqualizerControlPoint(910, -1),
-      EqualizerControlPoint(3600, 2),
-      EqualizerControlPoint(14000, 4),
+      EqualizerControlPoint(230, -1),
+      EqualizerControlPoint(910, -2),
+      EqualizerControlPoint(3600, 1),
+      EqualizerControlPoint(14000, 3),
     ],
   ),
   EqualizerPreset(
     id: 'electronic',
     label: '电子',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 5),
-      EqualizerControlPoint(230, 3),
-      EqualizerControlPoint(910, -1),
-      EqualizerControlPoint(3600, 2),
-      EqualizerControlPoint(14000, 4),
+      EqualizerControlPoint(60, 4),
+      EqualizerControlPoint(230, 2),
+      EqualizerControlPoint(910, -2),
+      EqualizerControlPoint(3600, 1),
+      EqualizerControlPoint(14000, 3),
     ],
   ),
   EqualizerPreset(
     id: 'folk',
     label: '民谣',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 2),
-      EqualizerControlPoint(230, 1),
-      EqualizerControlPoint(910, 2),
-      EqualizerControlPoint(3600, 1),
-      EqualizerControlPoint(14000, 1),
+      EqualizerControlPoint(60, 1.5),
+      EqualizerControlPoint(230, 0.5),
+      EqualizerControlPoint(910, 1),
+      EqualizerControlPoint(3600, 0.5),
+      EqualizerControlPoint(14000, 0.5),
     ],
   ),
   EqualizerPreset(
     id: 'vocal',
     label: '人声',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, -2),
-      EqualizerControlPoint(230, 0),
-      EqualizerControlPoint(910, 4),
-      EqualizerControlPoint(3600, 3),
+      EqualizerControlPoint(60, -3),
+      EqualizerControlPoint(230, -1),
+      EqualizerControlPoint(910, 3),
+      EqualizerControlPoint(3600, 2),
       EqualizerControlPoint(14000, -1),
     ],
   ),
@@ -149,22 +153,22 @@ const List<EqualizerPreset> equalizerPresets = <EqualizerPreset>[
     id: 'bass',
     label: '低音增强',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 6),
-      EqualizerControlPoint(230, 4),
-      EqualizerControlPoint(910, 1),
-      EqualizerControlPoint(3600, 0),
-      EqualizerControlPoint(14000, 0),
+      EqualizerControlPoint(60, 4),
+      EqualizerControlPoint(230, 2.5),
+      EqualizerControlPoint(910, 0),
+      EqualizerControlPoint(3600, -1),
+      EqualizerControlPoint(14000, -1.5),
     ],
   ),
   EqualizerPreset(
     id: 'treble',
     label: '高音增强',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 0),
-      EqualizerControlPoint(230, 0),
+      EqualizerControlPoint(60, -1.5),
+      EqualizerControlPoint(230, -1),
       EqualizerControlPoint(910, 0),
-      EqualizerControlPoint(3600, 4),
-      EqualizerControlPoint(14000, 6),
+      EqualizerControlPoint(3600, 2.5),
+      EqualizerControlPoint(14000, 4),
     ],
   ),
 ];

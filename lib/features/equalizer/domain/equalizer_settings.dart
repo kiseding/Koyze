@@ -51,10 +51,14 @@ class EqualizerSettings {
 
   /// 按 [layout] 解析实际要施加的增益。
   ///
-  /// 段数一致时直接用保存值；不一致（例如换了设备或本机频段数变了）时
-  /// 回落到预设曲线重新采样，自定义预设无从回落则视为原声。
+  /// 命名预设始终按当前曲线重新采样（含削峰），这样旧版本存下来的
+  /// 正向增益不会继续把整轨抬响。自定义且段数一致时沿用保存值，
+  /// 段数对不上则视为原声。
   List<double> gainsFor(EqualizerBandLayout layout) {
-    if (gains.length == layout.bandCount) return gains;
+    if (isCustom) {
+      if (gains.length == layout.bandCount) return gains;
+      return List<double>.filled(layout.bandCount, 0);
+    }
     return gainsForPreset(presetId, layout.centerFrequencies);
   }
 
@@ -90,8 +94,7 @@ class EqualizerSettings {
       listEquals(other.gains, gains);
 
   @override
-  int get hashCode =>
-      Object.hash(enabled, presetId, Object.hashAll(gains));
+  int get hashCode => Object.hash(enabled, presetId, Object.hashAll(gains));
 }
 
 /// 按预设曲线采样出频段增益；未知预设（含自定义）视为原声。

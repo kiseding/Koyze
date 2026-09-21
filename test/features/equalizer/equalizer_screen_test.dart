@@ -50,7 +50,9 @@ void main() {
 
   testWidgets('支持的平台渲染全部预设与频段滑块', (tester) async {
     final storage = await _freshStorage();
-    await tester.pumpWidget(_app(FakeEqualizerBridge(layout: fiveBandLayout), storage));
+    await tester.pumpWidget(
+      _app(FakeEqualizerBridge(layout: fiveBandLayout), storage),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(Slider), findsNWidgets(5));
@@ -82,9 +84,9 @@ void main() {
     await tester.tap(find.text('低音增强'));
     await tester.pumpAndSettle();
 
-    expect(bridge.applies.last.gains, <double>[6, 4, 1, 0, 0]);
-    expect(find.text('+6'), findsOneWidget);
-    expect(find.text('+4'), findsOneWidget);
+    expect(bridge.applies.last.gains, <double>[0, -1.5, -4, -5, -5.5]);
+    expect(find.text('0'), findsWidgets);
+    expect(find.text('-1.5'), findsOneWidget);
     // 预设选择已落盘。
     expect(
       EqualizerSettings.fromJson(
@@ -148,7 +150,7 @@ void main() {
     await tester.pumpWidget(_app(bridge, storage));
     await tester.pumpAndSettle();
 
-    expect(find.text('+4'), findsOneWidget);
+    expect(find.text('-2'), findsWidgets);
 
     await tester.tap(find.text('重置'));
     await tester.pumpAndSettle();
@@ -165,7 +167,9 @@ void main() {
     final storage = await _storageSeeded(
       const EqualizerSettings(enabled: true, presetId: 'treble'),
     );
-    await tester.pumpWidget(_app(FakeEqualizerBridge(layout: tenBandLayout), storage));
+    await tester.pumpWidget(
+      _app(FakeEqualizerBridge(layout: tenBandLayout), storage),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(Slider), findsNWidgets(10));

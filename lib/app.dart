@@ -59,6 +59,7 @@ class LxMusicApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     ref.watch(playbackSessionRecorderProvider);
+    ref.watch(queueArtworkWarmerProvider);
     ref.watch(recentPlayRecorderProvider);
     ref.watch(playHistoryRecorderProvider);
     ref.watch(ratingServiceProvider);

@@ -34,6 +34,20 @@ final currentMediaItemProvider = StreamProvider<MediaItem?>((ref) {
   return audioHandler.mediaItem;
 });
 
+/// Keep iOS Now Playing artwork in lockstep with skip / auto-next. Playlist
+/// start only warms the first window; preloaded tracks otherwise publish a
+/// remote `artUri` without `artCacheFile`.
+final queueArtworkWarmerProvider = Provider<void>((ref) {
+  ref.listen<AsyncValue<MediaItem?>>(currentMediaItemProvider, (
+    previous,
+    next,
+  ) {
+    final nextId = next.value?.id;
+    if (nextId == null || previous?.value?.id == nextId) return;
+    unawaited(ref.read(playerServiceProvider).warmCurrentAndUpcomingArtwork());
+  }, fireImmediately: true);
+});
+
 // 转换 MediaItem 为项目通用的 MusicItem
 final currentMusicProvider = Provider<MusicItem?>((ref) {
   final mediaItem = ref.watch(currentMediaItemProvider).value;

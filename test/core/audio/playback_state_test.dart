@@ -1777,6 +1777,118 @@ void main() {
     expect(item!.artUri, local);
     expect(item.extras?['artCacheFile'], '/tmp/cache/art.png');
   });
+
+  test('patchQueueArtUri fills artCacheFile when artUri already matches',
+      () async {
+    final player = _PlaybackStateAudioPlayer();
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+    final local = Uri.file('/tmp/cache/art.png');
+    await handler.setPlaylist([
+      MediaItem(id: 'A', title: 'A', artUri: local),
+    ]);
+    await pumpEventQueue();
+
+    handler.patchQueueArtUri('A', local);
+
+    expect(handler.mediaItem.value?.artUri, local);
+    expect(handler.mediaItem.value?.extras?['artCacheFile'], '/tmp/cache/art.png');
+  });
+
+  test('patchQueueArtUri writes artCacheFile on an upcoming queue item',
+      () async {
+    final player = _PlaybackStateAudioPlayer();
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+    await handler.setPlaylist([
+      const MediaItem(id: 'A', title: 'A'),
+      MediaItem(
+        id: 'B',
+        title: 'B',
+        artUri: Uri.parse('https://p1.music.126.net/b.jpg'),
+      ),
+    ]);
+    await pumpEventQueue();
+
+    final local = Uri.file('/tmp/cache/b.jpg');
+    handler.patchQueueArtUri('B', local);
+
+    expect(handler.queueItems[1].artUri, local);
+    expect(handler.queueItems[1].extras?['artCacheFile'], '/tmp/cache/b.jpg');
+    expect(handler.mediaItem.value?.id, 'A');
+  });
+
+  test('patchQueueArtUri during load keeps foreground identity', () async {
+    final started = Completer<void>();
+    final release = Completer<void>();
+    final player = _PlaybackStateAudioPlayer();
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async {
+      if (!started.isCompleted) started.complete();
+      await release.future;
+      return 'file:///tmp/$id.mp3';
+    };
+
+    final loading = handler.setPlaylist([
+      MediaItem(
+        id: 'A',
+        title: 'A',
+        artUri: Uri.parse('https://p1.music.126.net/a.jpg'),
+      ),
+    ]);
+    await started.future;
+    handler.patchQueueArtUri('A', Uri.file('/tmp/cache/a.jpg'));
+    expect(handler.mediaItem.value?.extras?['artCacheFile'], '/tmp/cache/a.jpg');
+    release.complete();
+    await loading;
+    await pumpEventQueue();
+
+    expect(handler.mediaItem.value?.id, 'A');
+    expect(handler.mediaItem.value?.extras?['url'], 'file:///tmp/A.mp3');
+    expect(handler.mediaItem.value?.extras?['artCacheFile'], '/tmp/cache/a.jpg');
+    expect(player.sourceLoadCalls, greaterThan(0));
+  });
+
+  test('patchQueueArtUri during preload keeps preload identity', () async {
+    final preloadStarted = Completer<void>();
+    final releasePreload = Completer<void>();
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async {
+      if (extras?['_preloadRequestToken'] is int) {
+        if (!preloadStarted.isCompleted) preloadStarted.complete();
+        await releasePreload.future;
+        return 'https://cdn.example/$id.mp3';
+      }
+      return 'file:///tmp/$id.mp3';
+    };
+
+    await handler.setPlaylist([
+      const MediaItem(
+        id: 'A',
+        title: 'A',
+        extras: {'url': 'file:///tmp/A.mp3', 'requestedQuality': '320k'},
+      ),
+      MediaItem(
+        id: 'B',
+        title: 'B',
+        artUri: Uri.parse('https://p1.music.126.net/b.jpg'),
+      ),
+    ]);
+    await preloadStarted.future;
+    handler.patchQueueArtUri('B', Uri.file('/tmp/cache/b.jpg'));
+    releasePreload.complete();
+    await pumpEventQueue();
+
+    expect(handler.queueItems[1].extras?['url'], 'https://cdn.example/B.mp3');
+    expect(handler.queueItems[1].extras?['artCacheFile'], '/tmp/cache/b.jpg');
+    expect(handler.queueItems[1].artUri, Uri.file('/tmp/cache/b.jpg'));
+  });
 }
 
 class _PlaybackStateAudioPlayer extends AudioPlayer {

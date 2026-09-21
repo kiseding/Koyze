@@ -254,11 +254,52 @@ class PlayerService {
     );
   }
 
+  /// Re-warm lock-screen covers for the current track and the next few
+  /// preloaded items. iOS Now Playing / Dynamic Island only display a local
+  /// `artCacheFile`; remote NetEase URLs fail without Referer headers.
+  Future<void> warmCurrentAndUpcomingArtwork({int ahead = 3}) async {
+    if (audioHandler is! LxAudioHandler) return;
+    final handler = audioHandler as LxAudioHandler;
+    final items = handler.queueItems;
+    if (items.isEmpty) return;
+    final current = handler.currentQueueIndex;
+    final start = current < 0 ? 0 : current;
+    MusicItem? songAt(int i) {
+      if (i < 0 || i >= items.length) return null;
+      final extras = items[i].extras;
+      if (extras == null) return null;
+      try {
+        return MusicItem.fromJson(Map<String, dynamic>.from(extras));
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final songs = <MusicItem>[];
+    if (start > 0) {
+      final previous = songAt(start - 1);
+      if (previous != null) songs.add(previous);
+    }
+    final preferIndex = songs.length;
+    for (var i = start; i < items.length && (i - start) <= ahead; i++) {
+      final song = songAt(i);
+      if (song != null) songs.add(song);
+    }
+    if (songs.isEmpty) return;
+    await _warmArtForQueue(
+      songs,
+      preferIndex: preferIndex,
+      queueGeneration: _queueGeneration,
+      ahead: ahead,
+    );
+  }
+
   /// Download covers in background; patch file:// artUri for lock screen.
   Future<void> _warmArtForQueue(
     List<MusicItem> songs, {
     required int preferIndex,
     required int queueGeneration,
+    int ahead = 3,
   }) async {
     if (!ownsQueueReplacement(queueGeneration) ||
         songs.isEmpty ||
@@ -272,12 +313,22 @@ class PlayerService {
     }
 
     add(preferIndex);
-    add(preferIndex + 1);
+    for (var i = 1; i <= ahead; i++) {
+      add(preferIndex + i);
+    }
     add(preferIndex - 1);
     for (final i in order) {
       final song = songs[i];
       final remote = song.artwork;
       if (remote == null || remote.isEmpty) continue;
+      final alreadyCached = handler.queueItems.any((item) {
+        if (item.id != song.identityKey) return false;
+        final cached = item.extras?['artCacheFile']?.toString();
+        return item.artUri?.scheme == 'file' &&
+            cached != null &&
+            cached.isNotEmpty;
+      });
+      if (alreadyCached) continue;
       try {
         final local = await _artworkCache.localArtUri(remote);
         if (!ownsQueueReplacement(queueGeneration)) return;
