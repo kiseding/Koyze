@@ -1956,6 +1956,20 @@ class CustomSourceEngine {
       setHeaderIfMissing('Content-Type', 'application/json');
     }
 
+    // Native HttpClient.add requires bytes. Scripts usually POST JSON as a
+    // String (`JSON.stringify`); Map/List become a String above. Encode here
+    // so iOS pinned transport does not cast String as List<int>. Form bodies
+    // already set Content-Type above; only default JSON when none is present.
+    if (body is String) {
+      if (!hasHeader('content-type')) {
+        final trimmed = body.trimLeft();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          headers['Content-Type'] = 'application/json';
+        }
+      }
+      body = utf8.encode(body);
+    }
+
     if (options['formData'] != null) {
       final formData = _normalizeFormDataMap(options['formData']);
       if (formData != null) {

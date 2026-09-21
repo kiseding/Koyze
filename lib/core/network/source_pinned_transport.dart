@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
@@ -143,8 +145,9 @@ class SourcePinnedTransport {
       });
       // 与 curl 直连一致：显式禁用 gzip，部分音源 API 对 gzip 头拒答。
       httpRequest.headers.set('Accept-Encoding', 'identity');
-      if (request.body != null) {
-        httpRequest.add(request.body as List<int>);
+      final bodyBytes = encodeSourceRequestBody(request.body);
+      if (bodyBytes != null) {
+        httpRequest.add(bodyBytes);
       }
       final response = await httpRequest.close().timeout(request.timeout);
       final headers = <String, List<String>>{};
@@ -280,4 +283,18 @@ class SourcePinnedTransport {
 
   Never _throwCancelled() => throw const SourceRequestPolicyException(
       'cancelled', 'Source request was cancelled');
+}
+
+/// Native HttpClient.add only accepts bytes. LX scripts commonly POST JSON as
+/// a String (`JSON.stringify`); Map/List still arrive as Dart objects.
+List<int>? encodeSourceRequestBody(dynamic body) {
+  if (body == null) return null;
+  if (body is Uint8List) return body;
+  if (body is List<int>) return body;
+  if (body is String) return utf8.encode(body);
+  if (body is Map || body is List) return utf8.encode(json.encode(body));
+  throw const SourceRequestPolicyException(
+    'unsupported_body',
+    'Source request body must be bytes, a string, or JSON',
+  );
 }

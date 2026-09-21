@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -148,5 +150,29 @@ void main() {
     expect(attempts, 2);
     final socket = await task.socket;
     socket.destroy();
+  });
+
+  test('native executor encodes JSON string bodies as UTF-8 bytes', () {
+    const payload = '{"id":"347230","level":"standard"}';
+    expect(encodeSourceRequestBody(null), isNull);
+    expect(encodeSourceRequestBody(payload), utf8.encode(payload));
+    expect(
+      encodeSourceRequestBody({'id': '347230', 'level': 'standard'}),
+      utf8.encode(payload),
+    );
+    expect(
+      encodeSourceRequestBody(Uint8List.fromList([1, 2, 3])),
+      [1, 2, 3],
+    );
+    expect(
+      () => encodeSourceRequestBody(12),
+      throwsA(
+        isA<SourceRequestPolicyException>().having(
+          (error) => error.code,
+          'code',
+          'unsupported_body',
+        ),
+      ),
+    );
   });
 }

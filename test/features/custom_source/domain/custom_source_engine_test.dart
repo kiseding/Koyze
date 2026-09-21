@@ -62,6 +62,11 @@ void main() {
     expect(bridge, contains('_normalizeFormDataMap'));
     expect(
       bridge,
+      contains('so iOS pinned transport does not cast String as List<int>.'),
+    );
+    expect(bridge, contains('body = utf8.encode(body);'));
+    expect(
+      bridge,
       contains("const platforms = {'kw', 'tx', 'wy', 'kg', 'mg', 'local'}"),
     );
     expect(bridge, contains("return '';"));
