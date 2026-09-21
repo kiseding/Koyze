@@ -39,8 +39,10 @@ class PlaylistImportService {
   Future<ImportedPlaylist> import({
     required String input,
     String platformHint = 'tx',
+    void Function(int loaded, int total)? onProgress,
   }) async {
     final trimmed = input.trim();
+    final isRawId = _digitsOnly.hasMatch(trimmed);
     var source = '';
     var listId = '';
 
@@ -62,17 +64,22 @@ class PlaylistImportService {
         r'detail/(\d+)',
       ]);
     } else if (trimmed.contains('music.163.com') ||
-        trimmed.contains('163.com')) {
+        trimmed.contains('163.com') ||
+        trimmed.contains('163cn.tv')) {
       source = 'wy';
-      listId = _matchId(trimmed, [r'[?&]id=(\d+)', r'playlist/(\d+)']);
+      // 网易云分享出来的多是 163cn.tv 短链，本地取不到 ID，需要跟随跳转解析。
+      listId = isRawId ? trimmed : await _resolveWyId(trimmed);
     }
 
-    if (source.isEmpty && RegExp(r'^\d+$').hasMatch(trimmed)) {
+    if (source.isEmpty && isRawId) {
       source = platformHint;
       listId = trimmed;
     }
 
     if (source.isEmpty || listId.isEmpty) {
+      if (source == 'wy') {
+        throw Exception('无法识别网易云歌单链接，请粘贴完整分享链接或数字 ID');
+      }
       throw Exception('无法识别，请选择平台后输入歌单链接或 ID');
     }
 
@@ -82,10 +89,43 @@ class PlaylistImportService {
       case 'kw':
         return _importKw(listId);
       case 'wy':
-        return _importWy(listId);
+        return _importWy(listId, onProgress: onProgress);
       default:
         throw Exception('不支持的平台');
     }
+  }
+
+  /// 解析网易云歌单 ID：支持 163cn.tv 短链、music.163.com 链接与裸数字 ID。
+  Future<String> _resolveWyId(String input) async {
+    var text = input.trim();
+
+    // 163cn.tv 短链：不跟随跳转，直接读 Location，避免整链路重定向开销。
+    if (text.contains('163cn.tv')) {
+      try {
+        final resp = await _dio.get(
+          text,
+          options: Options(
+            followRedirects: false,
+            validateStatus: (s) => s != null && s < 400,
+          ),
+        );
+        final location = resp.headers.value('location');
+        if (location != null && location.trim().isNotEmpty) {
+          text = location.trim();
+        }
+      } catch (_) {
+        // 取不到 Location 时退回按原文匹配。
+      }
+    }
+
+    final id = _matchId(text, [
+      r'[?&]id=(\d+)',
+      r'playlist/(\d+)',
+      r'[?&]list=(\d+)',
+    ]);
+    if (id.isNotEmpty) return id;
+
+    return RegExp(r'^\d+$').hasMatch(text) ? text : '';
   }
 
   String _matchId(String input, List<String> patterns) {
@@ -253,122 +293,273 @@ class PlaylistImportService {
     );
   }
 
-  Future<ImportedPlaylist> _importWy(String id) async {
-    // 公开详情接口（部分环境可用）；失败再试 playlist/detail
-    try {
-      final resp = await _dio.get(
-        'https://music.163.com/api/playlist/detail',
-        queryParameters: {'id': id},
-        options: Options(
-          headers: {
-            'Referer': 'https://music.163.com/',
-            'Origin': 'https://music.163.com',
-          },
-        ),
-      );
-      final data = resp.data is String ? jsonDecode(resp.data) : resp.data;
-      if (data is Map && (data['code'] == 200 || data['result'] != null)) {
-        final pl = data['result'] ?? data['playlist'];
-        if (pl is Map) {
-          final tracks = pl['tracks'] as List? ?? [];
-          final songs = tracks
-              .map((t) {
-                final m = Map<String, dynamic>.from(t as Map);
-                final ar = (m['artists'] ?? m['ar']);
-                final singers = ar is List
-                    ? ar.map((a) => (a as Map)['name']).join('、')
-                    : '';
-                final al = m['album'] ?? m['al'];
-                final album = al is Map
-                    ? Map<String, dynamic>.from(al)
-                    : <String, dynamic>{};
-                final sid = '${m['id'] ?? ''}';
-                final dt = m['duration'] ?? m['dt'] ?? 0;
-                final sec = dt is int
-                    ? (dt > 10000 ? dt ~/ 1000 : dt)
-                    : int.tryParse('$dt') ?? 0;
-                return MusicItem(
-                  id: sid,
-                  name: (m['name'] ?? '').toString(),
-                  singer: singers,
-                  album: album['name']?.toString() ?? '',
-                  duration: Duration(seconds: sec),
-                  source: 'wy',
-                  platform: 'wy',
-                  songmid: sid,
-                  hash: sid,
-                  artwork: normalizeNeteaseArtwork(album['picUrl']),
-                  meta: {
-                    'source': 'wy',
-                    'songmid': sid,
-                    'types': ['320k', '128k'],
-                  },
-                );
-              })
-              .where((s) => s.songmid != null && s.songmid!.isNotEmpty)
-              .toList();
-          if (songs.isNotEmpty) {
-            return ImportedPlaylist(
-              name: (pl['name'] ?? '网易云歌单').toString(),
-              source: 'wy',
-              sourceId: id,
-              songs: songs,
-            );
-          }
-        }
-      }
-    } catch (_) {}
+  // ==================== 网易云歌单 ====================
+  // 方法参考 Suxiaoqinx/Netease_url：
+  //   1) POST music.163.com/api/v6/playlist/detail 取歌单元信息与完整 trackIds
+  //      （该接口的 tracks 只回前若干首，直接读 tracks 会漏歌）；
+  //   2) POST interface3.music.163.com/api/v3/song/detail，c 为 id 数组，100 首一批；
+  //   3) 按 trackIds 原顺序回填，保留重复曲目，并带上 privilege 版权信息。
 
-    // 备用：v3 playlist detail（可能只返回部分 tracks）
-    final resp2 = await _dio.get(
-      'https://music.163.com/api/v3/playlist/detail',
-      queryParameters: {'id': id, 'n': 1000},
-      options: Options(headers: {'Referer': 'https://music.163.com/'}),
-    );
-    final data2 = resp2.data is String ? jsonDecode(resp2.data) : resp2.data;
-    if (data2 is! Map || data2['playlist'] == null) {
-      throw Exception('获取网易云歌单失败');
+  static const wyPlaylistDetailUrl =
+      'https://music.163.com/api/v6/playlist/detail';
+  static const wySongDetailUrl =
+      'https://interface3.music.163.com/api/v3/song/detail';
+
+  /// 分批大小：批量详情接口对单次 id 数量敏感，100 首一批最稳。
+  static const wySongDetailBatchSize = 100;
+
+  /// 分批请求的并发度，兼顾大歌单耗时与对接口的礼貌。
+  static const _wySongDetailConcurrency = 3;
+
+  static const _wyUserAgent =
+      'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) '
+      'Safari/537.36 Chrome/91.0.4472.164 NeteaseMusicDesktop/2.10.2.200154';
+
+  static final _digitsOnly = RegExp(r'^\d+$');
+
+  static Map<String, String> get _wyHeaders => const {
+        'User-Agent': _wyUserAgent,
+        'Referer': 'https://music.163.com/',
+        'Origin': 'https://music.163.com',
+      };
+
+  Future<ImportedPlaylist> _importWy(
+    String id, {
+    void Function(int loaded, int total)? onProgress,
+  }) async {
+    final playlist = await _fetchWyPlaylist(id);
+
+    final trackIds = wyTrackIds(playlist);
+    if (trackIds.isEmpty) {
+      throw Exception('歌单为空或无法解析');
     }
-    final pl = Map<String, dynamic>.from(data2['playlist'] as Map);
-    final tracks = pl['tracks'] as List? ?? [];
-    final songs = tracks
-        .map((t) {
-          final m = Map<String, dynamic>.from(t as Map);
-          final ar = m['ar'] as List? ?? [];
-          final singers = ar.map((a) => (a as Map)['name']).join('、');
-          final al = m['al'] is Map
-              ? Map<String, dynamic>.from(m['al'])
-              : <String, dynamic>{};
-          final sid = '${m['id'] ?? ''}';
-          final dt = m['dt'] ?? 0;
-          final sec = dt is int ? dt ~/ 1000 : 0;
-          return MusicItem(
-            id: sid,
-            name: (m['name'] ?? '').toString(),
-            singer: singers,
-            album: al['name']?.toString() ?? '',
-            duration: Duration(seconds: sec),
-            source: 'wy',
-            platform: 'wy',
-            songmid: sid,
-            hash: sid,
-            artwork: normalizeNeteaseArtwork(al['picUrl']),
-            meta: {
-              'source': 'wy',
-              'songmid': sid,
-              'types': ['320k', '128k'],
-            },
-          );
-        })
-        .where((s) => s.songmid != null && s.songmid!.isNotEmpty)
-        .toList();
 
-    if (songs.isEmpty) throw Exception('歌单为空或无法解析');
+    final details = await _fetchWySongDetails(trackIds, onProgress: onProgress);
+    final songs = wySongsFromDetails(trackIds, details);
+    if (songs.isEmpty) {
+      throw Exception('歌单解析失败，歌单可能已私密或曲目全部不可用');
+    }
+
+    final name = '${playlist['name'] ?? ''}'.trim();
     return ImportedPlaylist(
-      name: (pl['name'] ?? '网易云歌单').toString(),
+      name: name.isEmpty ? '网易云歌单' : name,
       source: 'wy',
       sourceId: id,
       songs: songs,
     );
+  }
+
+  Future<Map<String, dynamic>> _fetchWyPlaylist(String id) async {
+    const failure = '获取网易云歌单失败，请确认歌单 ID 正确且歌单公开';
+
+    final resp = await _dio.post(
+      wyPlaylistDetailUrl,
+      data: {'id': id},
+      options: Options(
+        headers: _wyHeaders,
+        contentType: Headers.formUrlEncodedContentType,
+        responseType: ResponseType.plain,
+      ),
+    );
+
+    final raw = resp.data;
+    dynamic body = raw;
+    if (raw is String) {
+      try {
+        body = jsonDecode(raw);
+      } catch (_) {
+        throw Exception(failure);
+      }
+    }
+    if (body is! Map || body['code'] != 200 || body['playlist'] is! Map) {
+      throw Exception(failure);
+    }
+    return Map<String, dynamic>.from(body['playlist'] as Map);
+  }
+
+  /// 取出有序曲目 ID：优先官方 trackIds（完整列表），缺失时退回 tracks。
+  /// 返回顺序即歌单顺序，且保留同一首歌的多份拷贝。
+  static List<String> wyTrackIds(Map<String, dynamic> playlist) {
+    List<String> collect(dynamic source) {
+      final ids = <String>[];
+      if (source is! List) return ids;
+      for (final entry in source) {
+        final id = entry is Map ? '${entry['id'] ?? ''}' : '${entry ?? ''}';
+        if (_digitsOnly.hasMatch(id.trim())) ids.add(id.trim());
+      }
+      return ids;
+    }
+
+    final fromTrackIds = collect(playlist['trackIds']);
+    return fromTrackIds.isNotEmpty
+        ? fromTrackIds
+        : collect(playlist['tracks']);
+  }
+
+  Future<Map<String, Map<String, dynamic>>> _fetchWySongDetails(
+    List<String> ids, {
+    void Function(int loaded, int total)? onProgress,
+  }) async {
+    // 同一首歌可能有多份拷贝，请求前先去重，避免浪费批量配额。
+    final uniqueIds = <String>[];
+    final seen = <String>{};
+    for (final id in ids) {
+      if (seen.add(id)) uniqueIds.add(id);
+    }
+
+    final batches = <List<String>>[];
+    for (var i = 0; i < uniqueIds.length; i += wySongDetailBatchSize) {
+      batches.add(
+        uniqueIds.sublist(
+          i,
+          (i + wySongDetailBatchSize).clamp(0, uniqueIds.length),
+        ),
+      );
+    }
+
+    final total = uniqueIds.length;
+    var loaded = 0;
+    onProgress?.call(0, total);
+
+    final details = <String, Map<String, dynamic>>{};
+    var cursor = 0;
+    Future<void> worker() async {
+      while (cursor < batches.length) {
+        final batch = batches[cursor++];
+        try {
+          details.addAll(await _postWySongDetail(batch));
+        } catch (_) {
+          // 单批失败不影响其他批次，缺失曲目会在回填时被跳过。
+        }
+        loaded += batch.length;
+        onProgress?.call(loaded, total);
+      }
+    }
+
+    await Future.wait([
+      for (var i = 0; i < _wySongDetailConcurrency; i++) worker(),
+    ]);
+    return details;
+  }
+
+  Future<Map<String, Map<String, dynamic>>> _postWySongDetail(
+    List<String> ids,
+  ) async {
+    final payload = jsonEncode([
+      for (final id in ids) {'id': int.parse(id), 'v': 0},
+    ]);
+
+    final resp = await _dio.post(
+      wySongDetailUrl,
+      data: {'c': payload},
+      options: Options(
+        headers: _wyHeaders,
+        contentType: Headers.formUrlEncodedContentType,
+        responseType: ResponseType.plain,
+      ),
+    );
+
+    final raw = resp.data;
+    dynamic body = raw;
+    if (raw is String) {
+      try {
+        body = jsonDecode(raw);
+      } catch (_) {
+        return const {};
+      }
+    }
+    if (body is! Map || body['code'] != 200) return const {};
+    return wyDecodeSongDetail(Map<String, dynamic>.from(body));
+  }
+
+  /// 解析 api/v3/song/detail 响应为 id → 曲目，并把 privileges 按 id 合并进去。
+  static Map<String, Map<String, dynamic>> wyDecodeSongDetail(
+    Map<String, dynamic> body,
+  ) {
+    final privileges = <String, Map<String, dynamic>>{};
+    for (final entry in (body['privileges'] as List? ?? const [])) {
+      if (entry is! Map) continue;
+      final id = '${entry['id'] ?? ''}';
+      if (id.isNotEmpty) privileges[id] = Map<String, dynamic>.from(entry);
+    }
+
+    final details = <String, Map<String, dynamic>>{};
+    for (final entry in (body['songs'] as List? ?? const [])) {
+      if (entry is! Map) continue;
+      final id = '${entry['id'] ?? ''}';
+      if (id.isEmpty) continue;
+      final song = Map<String, dynamic>.from(entry);
+      final privilege = privileges[id];
+      if (privilege != null) song['privilege'] = privilege;
+      details[id] = song;
+    }
+    return details;
+  }
+
+  /// 按 [trackIds] 顺序组装曲目：保留同曲多份拷贝，跳过详情缺失的曲目。
+  static List<MusicItem> wySongsFromDetails(
+    List<String> trackIds,
+    Map<String, Map<String, dynamic>> details,
+  ) {
+    final songs = <MusicItem>[];
+    for (final id in trackIds) {
+      final detail = details[id];
+      if (detail == null) continue;
+      songs.add(wyToMusicItem(detail));
+    }
+    return songs;
+  }
+
+  /// 把网易云 song/detail 的原始条目转成 [MusicItem]。
+  /// 原始字段整体保留在 meta 中，自定义音源仍可读取 fee / privilege 等版权信息。
+  static MusicItem wyToMusicItem(Map<String, dynamic> song) {
+    final id = '${song['id'] ?? ''}';
+    final ar = song['ar'] as List? ?? const [];
+    final al = song['al'] is Map
+        ? Map<String, dynamic>.from(song['al'] as Map)
+        : <String, dynamic>{};
+    final dt = int.tryParse('${song['dt'] ?? 0}') ?? 0;
+    final privilege = song['privilege'] is Map
+        ? Map<String, dynamic>.from(song['privilege'] as Map)
+        : null;
+    final singers = ar
+        .map((a) => a is Map ? '${a['name'] ?? ''}'.trim() : '')
+        .where((s) => s.isNotEmpty)
+        .join('、');
+
+    final meta = Map<String, dynamic>.from(song)
+      ..['source'] = 'wy'
+      ..['songmid'] = id
+      ..['types'] = wyTypesFromPrivilege(privilege);
+
+    return MusicItem(
+      id: id,
+      name: '${song['name'] ?? ''}'.trim(),
+      singer: singers.isEmpty ? '未知歌手' : singers,
+      album: '${al['name'] ?? ''}'.trim(),
+      duration: Duration(milliseconds: dt),
+      source: 'wy',
+      platform: 'wy',
+      songmid: id,
+      hash: id,
+      artwork: normalizeNeteaseArtwork(al['picUrl']),
+      meta: meta,
+    );
+  }
+
+  /// 由 privilege 的 maxbr 推断曲目可获取的音质，供自定义音源与降级播放使用。
+  static List<String> wyTypesFromPrivilege(Map<String, dynamic>? privilege) {
+    if (privilege == null) return const ['320k', '128k'];
+
+    final maxbr = int.tryParse('${privilege['maxbr'] ?? 0}') ?? 0;
+    final playable = int.tryParse('${privilege['pl'] ?? 0}') ?? 0;
+    final br = maxbr > 0 ? maxbr : playable;
+
+    return [
+      if (br >= 1999000) 'flac24bit',
+      if (br >= 900000) 'flac',
+      if (br >= 320000) '320k',
+      '128k',
+    ];
   }
 }

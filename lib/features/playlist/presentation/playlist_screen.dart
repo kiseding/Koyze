@@ -1295,6 +1295,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     var platform = 'tx';
     var busy = false;
     String? error;
+    // 网易云歌单需要分批拉取曲目详情，展示进度避免用户以为卡住。
+    var progress = '';
 
     await showDialog(
       context: context,
@@ -1494,12 +1496,21 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                 setLocal(() {
                                   busy = true;
                                   error = null;
+                                  progress = '';
                                 });
                                 try {
                                   final imported = await PlaylistImportService()
                                       .import(
                                         input: input,
                                         platformHint: platform,
+                                        onProgress: (loaded, total) {
+                                          if (!ctx.mounted) return;
+                                          setLocal(() {
+                                            progress = total > 0
+                                                ? '$loaded/$total 首'
+                                                : '';
+                                          });
+                                        },
                                       );
                                   if (!ctx.mounted) return;
                                   final ok = await showDialog<bool>(
@@ -1587,7 +1598,13 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                 ),
                               )
                             : const Icon(Icons.auto_awesome_rounded),
-                        label: Text(busy ? '正在解析歌单…' : '解析歌单'),
+                        label: Text(
+                          busy
+                              ? (progress.isEmpty
+                                    ? '正在解析歌单…'
+                                    : '正在解析 $progress')
+                              : '解析歌单',
+                        ),
                       ),
                     ),
                   ],
