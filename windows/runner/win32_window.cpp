@@ -28,7 +28,7 @@ namespace {
 constexpr DWORD kDwmCornerRound = 2;
 
 void EnableImmersiveFrame(HWND window) {
-  // 1px 的底边距让 DWM 把客户区画进标题栏，同时去掉系统标题文字条。
+  // 1px 的底边距保留 DWM 阴影，同时不给系统标题栏留绘制区。
   const MARGINS margins = {0, 0, 0, 1};
   DwmExtendFrameIntoClientArea(window, &margins);
   const COLORREF border = DWMWA_COLOR_NONE;
@@ -36,6 +36,18 @@ void EnableImmersiveFrame(HWND window) {
   const DWORD corner = kDwmCornerRound;
   DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &corner,
                         sizeof(corner));
+}
+
+// WS_OVERLAPPEDWINDOW 自带 WS_CAPTION。只改客户区时，DWM 仍会在顶上画出
+// 系统标题文字和最小化/最大化/关闭。这里拆掉标题栏，保留可缩放边框。
+void RemoveNativeCaption(HWND window) {
+  LONG style = GetWindowLong(window, GWL_STYLE);
+  style &= ~WS_CAPTION;
+  style |= WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
+  SetWindowLong(window, GWL_STYLE, style);
+  SetWindowPos(window, nullptr, 0, 0, 0, 0,
+               SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
+                   SWP_FRAMECHANGED);
 }
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
@@ -278,6 +290,10 @@ Win32Window::MessageHandler(HWND hwnd,
       }
       return 0;
 
+    case WM_NCACTIVATE:
+      // -1 让系统不要在激活时把原生标题栏画回来。
+      return DefWindowProc(hwnd, message, wparam, -1);
+
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
       return 0;
@@ -401,6 +417,7 @@ void Win32Window::UpdateTheme(HWND const window) {
                           &enable_dark_mode, sizeof(enable_dark_mode));
   }
   EnableImmersiveFrame(window);
+  RemoveNativeCaption(window);
 }
 
 bool Win32Window::AddTrayIcon() {

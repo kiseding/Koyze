@@ -239,6 +239,8 @@ void main() {
     expect(runner, contains('WM_NCCALCSIZE'));
     expect(runner, contains('DwmExtendFrameIntoClientArea'));
     expect(runner, contains('DWMWA_COLOR_NONE'));
+    expect(runner, contains('style &= ~WS_CAPTION'));
+    expect(runner, contains('SWP_FRAMECHANGED'));
     expect(mainCpp, contains('kImmersiveCaptionHeight = 40'));
     expect(mainCpp, contains('kNonClientHeight = 16'));
     expect(channel, contains('startDragging'));
