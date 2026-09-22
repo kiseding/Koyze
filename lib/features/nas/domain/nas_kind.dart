@@ -89,4 +89,4 @@ enum NasKind {
 }
 
 const nasClientName = 'Koyze';
-const nasClientVersion = '2.9.8';
+const nasClientVersion = '2.9.9';
