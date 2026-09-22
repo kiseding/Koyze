@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'windows_caption_bar.dart';
+
 enum _WindowsCloseAction { tray, exit }
 
 class WindowsCloseHandler extends StatefulWidget {
@@ -42,6 +44,10 @@ class _WindowsCloseHandlerState extends State<WindowsCloseHandler> {
   }
 
   Future<void> _handleNativeCall(MethodCall call) async {
+    if (call.method == 'windowState') {
+      applyWindowsWindowState(call.arguments);
+      return;
+    }
     if (call.method != 'closeRequested' || _handlingClose) return;
     _handlingClose = true;
     try {

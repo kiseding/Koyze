@@ -29,10 +29,13 @@ constexpr int kMinContentWidth = 420;
 constexpr int kWindowOrigin = 10;
 constexpr int kBottomClearance = 20;
 // Win32Window::Create 收的是窗口外框尺寸，而 Dart 侧拿到的是客户区
-// （见 FlutterWindow::OnCreate 里的 GetClientArea）。WS_OVERLAPPEDWINDOW 的
-// 标题栏与可调边框在逻辑单位下近似恒定，这里补回去，让上面的常数真正表示内容区。
+// （见 FlutterWindow::OnCreate 里的 GetClientArea）。沉浸式标题栏把系统
+// 标题文字收进客户区，非客户区只剩可缩放边框，逻辑单位下近似恒定。
 constexpr int kNonClientWidth = 16;
-constexpr int kNonClientHeight = 39;
+constexpr int kNonClientHeight = 16;
+// 与 lib/core/windows/windows_caption_bar.dart 的 barHeight 一致。
+// 按钮画在客户区顶上，不占系统标题栏，所以要加进默认内容高度。
+constexpr int kImmersiveCaptionHeight = 40;
 // iPhone 17 竖屏比例：1206 x 2622 像素。只有在屏幕足够高时才会用到；
 // 多数情况宽度下限先一步生效，窗口会比手机略宽一点（仍是竖屏）。
 constexpr double kPortraitWidthPerHeight = 1206.0 / 2622.0;
@@ -51,7 +54,8 @@ Win32Window::Size OuterSizeFor(int content_height) {
   return Win32Window::Size(
       static_cast<unsigned int>(ContentWidthFor(content_height) +
                                 kNonClientWidth),
-      static_cast<unsigned int>(content_height + kNonClientHeight));
+      static_cast<unsigned int>(content_height + kImmersiveCaptionHeight +
+                                kNonClientHeight));
 }
 
 Win32Window::Size DefaultWindowSize() {
@@ -71,8 +75,9 @@ Win32Window::Size DefaultWindowSize() {
 
   // 外框高度 = 内容高度 + 非客户区，所以工作区里能容纳的内容高度要把上边距、
   // 底部留白和非客户区一并扣掉。
-  const int max_content_height =
-      work_height - kWindowOrigin - kBottomClearance - kNonClientHeight;
+  const int max_content_height = work_height - kWindowOrigin -
+                                 kBottomClearance - kNonClientHeight -
+                                 kImmersiveCaptionHeight;
 
   // 三重约束取最小：舒适高度 / 工作区占比上限 / 实际能放下的高度。
   int content_height =

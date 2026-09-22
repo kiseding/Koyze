@@ -9,6 +9,7 @@ import 'package:koyze/router/app_router.dart';
 import 'package:koyze/features/settings/presentation/settings_provider.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
 import 'package:koyze/features/stats/presentation/play_history_provider.dart';
+import 'package:koyze/core/windows/windows_caption_bar.dart';
 import 'package:koyze/core/windows/windows_close_handler.dart';
 import 'package:koyze/features/sync/presentation/cloud_sync_provider.dart';
 import 'package:koyze/features/sync/presentation/sync_phase1_provider.dart';
@@ -78,13 +79,15 @@ class LxMusicApp extends ConsumerWidget {
       themeAnimationDuration: const Duration(milliseconds: 300),
       themeAnimationCurve: Curves.easeOutCubic,
       routerConfig: appRouter,
-      builder: (context, child) => WindowsCloseHandler(
-        navigatorKey: rootNavigatorKey,
-        child: CloudSyncHost(
-          child: AppNotificationHost(
-            child: PlayerMessageListener(
-              child: StartupCloudLoginPrompt(
-                child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => WindowsCaptionFrame(
+        child: WindowsCloseHandler(
+          navigatorKey: rootNavigatorKey,
+          child: CloudSyncHost(
+            child: AppNotificationHost(
+              child: PlayerMessageListener(
+                child: StartupCloudLoginPrompt(
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           ),

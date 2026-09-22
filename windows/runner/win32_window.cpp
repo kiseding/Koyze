@@ -15,6 +15,28 @@ namespace {
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
+#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+#define DWMWA_WINDOW_CORNER_PREFERENCE 33
+#endif
+#ifndef DWMWA_BORDER_COLOR
+#define DWMWA_BORDER_COLOR 34
+#endif
+#ifndef DWMWA_COLOR_NONE
+#define DWMWA_COLOR_NONE 0xFFFFFFFE
+#endif
+
+constexpr DWORD kDwmCornerRound = 2;
+
+void EnableImmersiveFrame(HWND window) {
+  // 1px 的底边距让 DWM 把客户区画进标题栏，同时去掉系统标题文字条。
+  const MARGINS margins = {0, 0, 0, 1};
+  DwmExtendFrameIntoClientArea(window, &margins);
+  const COLORREF border = DWMWA_COLOR_NONE;
+  DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &border, sizeof(border));
+  const DWORD corner = kDwmCornerRound;
+  DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &corner,
+                        sizeof(corner));
+}
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 constexpr UINT kTrayIconMessage = WM_APP + 1;
@@ -259,6 +281,36 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
       return 0;
+
+    case WM_NCCALCSIZE: {
+      if (wparam != TRUE) {
+        break;
+      }
+      auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
+      if (IsZoomed(hwnd)) {
+        // 最大化时客户区必须停在工作区里，否则会盖住任务栏。
+        MONITORINFO monitor_info{};
+        monitor_info.cbSize = sizeof(monitor_info);
+        const HMONITOR monitor =
+            MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if (GetMonitorInfoW(monitor, &monitor_info)) {
+          params->rgrc[0] = monitor_info.rcWork;
+        }
+        return 0;
+      }
+      // 左右和下边保留可缩放边框；上边只留同样的边框，标题栏交给 Flutter。
+      const UINT dpi = GetDpiForWindow(hwnd);
+      const auto frame = [dpi](int metric) {
+        return GetSystemMetricsForDpi(metric, dpi);
+      };
+      const int frame_x = frame(SM_CXFRAME) + frame(SM_CXPADDEDBORDER);
+      const int frame_y = frame(SM_CYFRAME) + frame(SM_CXPADDEDBORDER);
+      params->rgrc[0].left += frame_x;
+      params->rgrc[0].right -= frame_x;
+      params->rgrc[0].top += frame_y;
+      params->rgrc[0].bottom -= frame_y;
+      return 0;
+    }
   }
 
   return DefWindowProc(window_handle_, message, wparam, lparam);
@@ -348,6 +400,7 @@ void Win32Window::UpdateTheme(HWND const window) {
     DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
                           &enable_dark_mode, sizeof(enable_dark_mode));
   }
+  EnableImmersiveFrame(window);
 }
 
 bool Win32Window::AddTrayIcon() {

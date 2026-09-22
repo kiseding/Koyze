@@ -40,6 +40,19 @@ bool FlutterWindow::OnCreate() {
         } else if (call.method_name() == "exitApplication") {
           result->Success();
           ExitApplication();
+        } else if (call.method_name() == "startDragging") {
+          ReleaseCapture();
+          SendMessage(GetHandle(), WM_NCLBUTTONDOWN, HTCAPTION, 0);
+          result->Success();
+        } else if (call.method_name() == "minimize") {
+          ShowWindow(GetHandle(), SW_MINIMIZE);
+          result->Success();
+        } else if (call.method_name() == "toggleMaximize") {
+          ShowWindow(GetHandle(), IsZoomed(GetHandle()) ? SW_RESTORE : SW_MAXIMIZE);
+          result->Success();
+        } else if (call.method_name() == "closeWindow") {
+          result->Success();
+          SendMessage(GetHandle(), WM_CLOSE, 0, 0);
         } else {
           result->NotImplemented();
         }
@@ -91,6 +104,13 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     if (result) {
       return *result;
     }
+  }
+
+  if (message == WM_SIZE && window_channel_) {
+    const bool maximized = wparam == SIZE_MAXIMIZED;
+    window_channel_->InvokeMethod(
+        "windowState",
+        std::make_unique<flutter::EncodableValue>(maximized));
   }
 
   switch (message) {

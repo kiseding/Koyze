@@ -222,6 +222,35 @@ void main() {
     expect(cmake, contains('PRIVATE "/utf-8"'));
   });
 
+  test('Windows title bar is an immersive client caption', () {
+    final runner = File('windows/runner/win32_window.cpp').readAsStringSync();
+    final mainCpp = File('windows/runner/main.cpp').readAsStringSync();
+    final channel = File(
+      'windows/runner/flutter_window.cpp',
+    ).readAsStringSync();
+    final bar = File(
+      'lib/core/windows/windows_caption_bar.dart',
+    ).readAsStringSync();
+    final app = File('lib/app.dart').readAsStringSync();
+    final close = File(
+      'lib/core/windows/windows_close_handler.dart',
+    ).readAsStringSync();
+
+    expect(runner, contains('WM_NCCALCSIZE'));
+    expect(runner, contains('DwmExtendFrameIntoClientArea'));
+    expect(runner, contains('DWMWA_COLOR_NONE'));
+    expect(mainCpp, contains('kImmersiveCaptionHeight = 40'));
+    expect(mainCpp, contains('kNonClientHeight = 16'));
+    expect(channel, contains('startDragging'));
+    expect(channel, contains('toggleMaximize'));
+    expect(channel, contains('closeWindow'));
+    expect(channel, contains('"windowState"'));
+    expect(bar, contains('barHeight = 40'));
+    expect(bar, contains('windowsCaptionMaximized'));
+    expect(app, contains('WindowsCaptionFrame'));
+    expect(close, contains('applyWindowsWindowState'));
+  });
+
   test('Android CI requires signing and publishes verified APKs and AAB', () {
     final workflow = File(
       '.github/workflows/build-android.yml',
@@ -344,19 +373,13 @@ void main() {
   test('iOS host exposes Background App Refresh via fetch', () {
     final iosInfo = File('ios/Runner/Info.plist').readAsStringSync();
     // Windows CI checks out Swift as CRLF; normalize before multiline contains().
-    final appDelegate = File('ios/Runner/AppDelegate.swift')
-        .readAsStringSync()
-        .replaceAll('\r\n', '\n');
+    final appDelegate = File(
+      'ios/Runner/AppDelegate.swift',
+    ).readAsStringSync().replaceAll('\r\n', '\n');
 
     expect(iosInfo, contains('<string>fetch</string>'));
-    expect(
-      appDelegate,
-      contains('setMinimumBackgroundFetchInterval'),
-    );
-    expect(
-      appDelegate,
-      contains('performFetchWithCompletionHandler'),
-    );
+    expect(appDelegate, contains('setMinimumBackgroundFetchInterval'));
+    expect(appDelegate, contains('performFetchWithCompletionHandler'));
     expect(
       appDelegate,
       contains(
