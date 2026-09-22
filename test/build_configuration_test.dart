@@ -239,7 +239,13 @@ void main() {
     expect(runner, contains('WM_NCCALCSIZE'));
     expect(runner, contains('DwmExtendFrameIntoClientArea'));
     expect(runner, contains('DWMWA_COLOR_NONE'));
-    expect(runner, contains('style &= ~WS_CAPTION'));
+    expect(
+      runner,
+      contains(
+        'style &= ~(WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX)',
+      ),
+    );
+    expect(runner, contains('case WM_ERASEBKGND:'));
     expect(runner, contains('SWP_FRAMECHANGED'));
     expect(runner, contains('kCornerRadiusDip = 24'));
     expect(runner, contains('CreateRoundRectRgn'));

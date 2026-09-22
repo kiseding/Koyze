@@ -68,7 +68,7 @@ class WindowsCaptionBar extends StatelessWidget {
           _CaptionButton(
             glyph: _CaptionGlyph.minimize,
             color: iconColor,
-            tooltip: '最小化',
+            label: '最小化',
             onPressed: () => _channel.invokeMethod<void>('minimize'),
           ),
           const SizedBox(width: 2),
@@ -80,7 +80,7 @@ class WindowsCaptionBar extends StatelessWidget {
                     ? _CaptionGlyph.restore
                     : _CaptionGlyph.maximize,
                 color: iconColor,
-                tooltip: maximized ? '还原' : '最大化',
+                label: maximized ? '还原' : '最大化',
                 onPressed: () => _channel.invokeMethod<void>('toggleMaximize'),
               );
             },
@@ -89,7 +89,7 @@ class WindowsCaptionBar extends StatelessWidget {
           _CaptionButton(
             glyph: _CaptionGlyph.close,
             color: iconColor,
-            tooltip: '关闭',
+            label: '关闭',
             close: true,
             onPressed: () => _channel.invokeMethod<void>('closeWindow'),
           ),
@@ -105,14 +105,14 @@ class _CaptionButton extends StatefulWidget {
   const _CaptionButton({
     required this.glyph,
     required this.color,
-    required this.tooltip,
+    required this.label,
     required this.onPressed,
     this.close = false,
   });
 
   final _CaptionGlyph glyph;
   final Color color;
-  final String tooltip;
+  final String label;
   final VoidCallback onPressed;
   final bool close;
 
@@ -127,15 +127,17 @@ class _CaptionButtonState extends State<_CaptionButton> {
   @override
   Widget build(BuildContext context) {
     final hovered = _hover || _pressed;
+    // 最小化/最大化不再铺灰底。那层灰底和系统标题按钮的悬停带叠在一起，
+    // 看起来就是一条灰条。关闭仍用红色，避免和普通悬停混在一起。
     final background = widget.close && hovered
         ? AppColors.error
-        : hovered
-        ? widget.color.withValues(alpha: 0.08)
         : Colors.transparent;
-    final iconColor = widget.close && hovered ? Colors.white : widget.color;
-    return Tooltip(
-      message: widget.tooltip,
-      waitDuration: const Duration(milliseconds: 400),
+    final iconColor = widget.close && hovered
+        ? Colors.white
+        : widget.color.withValues(alpha: hovered ? 0.55 : 1);
+    return Semantics(
+      button: true,
+      label: widget.label,
       child: MouseRegion(
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() {

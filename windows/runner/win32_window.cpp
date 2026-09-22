@@ -162,12 +162,14 @@ LRESULT CALLBACK ChildResizeProc(HWND hwnd,
   return DefWindowProcW(hwnd, message, wparam, lparam);
 }
 
-// WS_OVERLAPPEDWINDOW 自带 WS_CAPTION。只改客户区时，DWM 仍会在顶上画出
-// 系统标题文字和最小化/最大化/关闭。这里拆掉标题栏，保留可缩放边框。
+// WS_OVERLAPPEDWINDOW 自带标题栏。只去掉 WS_CAPTION 时，
+// WS_SYSMENU / WS_MINIMIZEBOX / WS_MAXIMIZEBOX 仍占着右上角那一块，
+// 鼠标移上去 DWM 会涂一条灰色悬停带。系统按钮改由 Flutter 绘制，
+// 这里把这块矩形也拆掉，只留可缩放边框。
 void RemoveNativeCaption(HWND window) {
   LONG style = GetWindowLong(window, GWL_STYLE);
-  style &= ~WS_CAPTION;
-  style |= WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU;
+  style &= ~(WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+  style |= WS_THICKFRAME;
   SetWindowLong(window, GWL_STYLE, style);
   SetWindowPos(window, nullptr, 0, 0, 0, 0,
                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
@@ -409,6 +411,10 @@ Win32Window::MessageHandler(HWND hwnd,
       ApplyRoundedCorners(hwnd);
       return 0;
     }
+
+    case WM_ERASEBKGND:
+      // 否则系统会用按钮灰把右上角标题按钮矩形填上。
+      return 1;
 
     case WM_NCPAINT:
       return 0;
