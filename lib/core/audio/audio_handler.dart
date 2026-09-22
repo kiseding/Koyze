@@ -479,12 +479,15 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   bool _forwardLoop(
     AudioServiceRepeatMode repeatMode, {
     required bool shuffle,
+    required bool loopAtEnd,
   }) {
     return shuffle ||
         repeatMode == AudioServiceRepeatMode.all ||
         repeatMode == AudioServiceRepeatMode.one ||
         repeatMode == AudioServiceRepeatMode.group ||
-        (_loopsInMemorySequential && repeatMode == AudioServiceRepeatMode.none);
+        (loopAtEnd &&
+            _loopsInMemorySequential &&
+            repeatMode == AudioServiceRepeatMode.none);
   }
 
   /// Production wiring: cancel obsolete cache downloads on track switch.
@@ -2310,14 +2313,21 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final provenance = _captureStartProvenance();
     _recordExplicitPlayIntent();
     unawaited(_commands.recordExplicitPlayIntent());
-    await _skipToNextInternal(seamless: seamless, provenance: provenance);
+    await _skipToNextInternal(
+      seamless: seamless,
+      provenance: provenance,
+      loopAtEnd: true,
+    );
   }
 
   /// Resolves the next/previous queue index, retrying once with an eager lazy
   /// refill when the current window cannot produce a target. Without the retry
   /// a shuffle→sequential rebuild that returns an empty tail (or an exhausted
   /// window with repeat=off) leaves prev/next permanently inert.
-  Future<int> _resolveSkipTarget({required bool forward}) async {
+  Future<int> _resolveSkipTarget({
+    required bool forward,
+    bool loopAtEnd = false,
+  }) async {
     final playback = playbackState.value;
     final shuffle =
         !_usesLazyQueue &&
@@ -2329,7 +2339,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           currentIndex: _currentIndex,
           queueLength: _queue.length,
           shuffle: shuffle,
-          loop: _forwardLoop(playback.repeatMode, shuffle: shuffle),
+          loop: _forwardLoop(
+            playback.repeatMode,
+            shuffle: shuffle,
+            loopAtEnd: loopAtEnd,
+          ),
         );
       }
       return previousQueueIndex(
@@ -2357,6 +2371,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     bool seamless = false,
     PlaybackStartProvenance? provenance,
     int? targetIndex,
+    bool loopAtEnd = false,
   }) async {
     if (_queue.isEmpty) return;
     // 队列内已有相邻曲目时立即切换（跟手）；仅当窗口见底才等待
@@ -2367,7 +2382,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     if (_queue.isEmpty) return;
 
-    final nextIndex = targetIndex ?? await _resolveSkipTarget(forward: true);
+    final nextIndex =
+        targetIndex ??
+        await _resolveSkipTarget(forward: true, loopAtEnd: loopAtEnd);
     if (nextIndex < 0) return;
     if (nextIndex >= _queue.length) return;
     final nextOccurrence = _occurrenceIdAt(nextIndex);
