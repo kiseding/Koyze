@@ -464,6 +464,29 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// `_queue.length > 1` guard would stall on an unplayable song.
   bool get _canAdvanceAfterTrackFailure => _queue.length > 1 || _usesLazyQueue;
 
+  /// 整表已在内存里的顺序播放：播完最后一首回到第一首。懒加载窗口不能
+  /// 按窗口下标回头，否则会重播窗口开头而不是歌单第一首；那种情况由
+  /// [PlayerService] 在取下一页时从头或重新随机补歌。
+  bool get _loopsInMemorySequential =>
+      !_usesLazyQueue &&
+      playbackState.value.repeatMode == AudioServiceRepeatMode.none;
+
+  AudioServiceRepeatMode _completionRepeatMode(AudioServiceRepeatMode mode) {
+    if (_loopsInMemorySequential) return AudioServiceRepeatMode.all;
+    return mode;
+  }
+
+  bool _forwardLoop(
+    AudioServiceRepeatMode repeatMode, {
+    required bool shuffle,
+  }) {
+    return shuffle ||
+        repeatMode == AudioServiceRepeatMode.all ||
+        repeatMode == AudioServiceRepeatMode.one ||
+        repeatMode == AudioServiceRepeatMode.group ||
+        (_loopsInMemorySequential && repeatMode == AudioServiceRepeatMode.none);
+  }
+
   /// Production wiring: cancel obsolete cache downloads on track switch.
   void attachPlaybackCache({
     Future<PlaybackCachePathClassification> Function(String path)?
@@ -1497,6 +1520,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     debugPrint('[AudioHandler] track completed idx=$expectedIndex');
     final mayContinue =
         _canAdvanceAfterTrackFailure ||
+        _loopsInMemorySequential ||
         playbackState.value.repeatMode == AudioServiceRepeatMode.one ||
         playbackState.value.repeatMode == AudioServiceRepeatMode.all ||
         playbackState.value.shuffleMode == AudioServiceShuffleMode.all;
@@ -1582,7 +1606,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           : completionQueueIndex(
               currentIndex: _currentIndex,
               queueLength: _queue.length,
-              repeatMode: playbackState.value.repeatMode,
+              repeatMode: _completionRepeatMode(playbackState.value.repeatMode),
               shuffle: shuffle,
             );
       if (target < 0) {
@@ -2305,10 +2329,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           currentIndex: _currentIndex,
           queueLength: _queue.length,
           shuffle: shuffle,
-          loop:
-              shuffle ||
-              playback.repeatMode == AudioServiceRepeatMode.all ||
-              playback.repeatMode == AudioServiceRepeatMode.one,
+          loop: _forwardLoop(playback.repeatMode, shuffle: shuffle),
         );
       }
       return previousQueueIndex(

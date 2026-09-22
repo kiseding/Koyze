@@ -101,7 +101,8 @@ class PlayerService {
   }
 
   /// Starts a large playlist without converting every saved song into a native
-  /// media queue. The shuffled order covers every global index exactly once.
+  /// media queue. A pass covers every global index once; when it ends, sequential
+  /// play restarts at the first song and shuffle starts another random pass.
   Future<void> playPagedPlaylist({
     required int songCount,
     required int startIndex,
@@ -149,13 +150,17 @@ class PlayerService {
         if (!ownsQueueReplacement(generation)) return const [];
         if (entries.isEmpty &&
             handler.playbackState.value.repeatMode !=
-                AudioServiceRepeatMode.none &&
-            handler.playbackState.value.repeatMode !=
                 AudioServiceRepeatMode.one) {
-          entries = await window.restartFromBeginning(
-            shuffle: shuffleEnabled,
-            count: minimumItems,
-          );
+          final shuffling =
+              shuffleEnabled ||
+              handler.playbackState.value.shuffleMode ==
+                  AudioServiceShuffleMode.all;
+          entries = shuffling
+              ? await window.continueShuffled(count: minimumItems)
+              : await window.restartFromBeginning(
+                  shuffle: false,
+                  count: minimumItems,
+                );
           if (!ownsQueueReplacement(generation)) return const [];
         }
         return mediaItems(entries);

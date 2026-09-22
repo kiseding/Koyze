@@ -1886,7 +1886,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       case PlayMode.repeatOne:
         return Icons.repeat_one;
       case PlayMode.sequential:
-        return Icons.trending_flat;
+        return Icons.repeat;
       case PlayMode.shuffle:
         return Icons.shuffle;
     }

@@ -9,11 +9,11 @@ final class LazyPlaylistOrder {
     required bool shuffle,
     Random? random,
   }) : _indices = _buildIndices(
-          length: length,
-          initialIndex: initialIndex,
-          shuffle: shuffle,
-          random: random ?? Random(),
-        );
+         length: length,
+         initialIndex: initialIndex,
+         shuffle: shuffle,
+         random: random ?? Random(),
+       );
 
   final List<int> _indices;
   int _cursor = 0;
@@ -61,9 +61,9 @@ final class LazyPlaylistWindow {
     this.pageSize = 100,
     this.maxCachedPages = 4,
     Random? random,
-  })  : assert(pageSize > 0),
-        assert(maxCachedPages > 0),
-        _random = random ?? Random() {
+  }) : assert(pageSize > 0),
+       assert(maxCachedPages > 0),
+       _random = random ?? Random() {
     _restart(
       initialIndex: initialIndex,
       shuffle: shuffle,
@@ -131,6 +131,18 @@ final class LazyPlaylistWindow {
     required int count,
   }) async {
     _restart(initialIndex: 0, shuffle: shuffle, includeCurrent: true);
+    return takeEntries(count);
+  }
+
+  /// 随机顺序走完后另开一轮，从一首不是刚播完的歌开始。
+  Future<List<LazyPlaylistEntry>> continueShuffled({required int count}) async {
+    if (length <= 0 || count <= 0) return const [];
+    var start = length == 1 ? 0 : _random.nextInt(length);
+    final last = _lastLoadedIndex;
+    if (length > 1 && last != null && start == last) {
+      start = (start + 1 + _random.nextInt(length - 1)) % length;
+    }
+    _restart(initialIndex: start, shuffle: true, includeCurrent: true);
     return takeEntries(count);
   }
 

@@ -109,6 +109,72 @@ void main() {
     },
   );
 
+  test(
+    'paged sequential play returns to the first song after the last',
+    () async {
+      audioHandler = handler;
+      final service = PlayerService();
+      MusicItem song(int i) => MusicItem(
+        id: 's$i',
+        name: 's$i',
+        singer: '',
+        source: 'test',
+        url: 'file:///tmp/s$i.mp3',
+      );
+      final songs = [for (var i = 0; i < 3; i++) song(i)];
+
+      await service.playPagedPlaylist(
+        songCount: songs.length,
+        startIndex: 0,
+        playlistId: 'wrap',
+        loadPage: (offset, limit) async =>
+            songs.sublist(offset, (offset + limit).clamp(0, songs.length)),
+      );
+      String bare(String? id) => id!.split(':').last;
+      expect(bare(handler.mediaItem.value?.id), 's0');
+
+      await handler.skipToNext();
+      await handler.skipToNext();
+      expect(bare(handler.mediaItem.value?.id), 's2');
+      await handler.skipToNext();
+
+      expect(bare(handler.mediaItem.value?.id), 's0');
+      expect(handler.queueItems.length, greaterThan(3));
+    },
+  );
+
+  test('paged shuffle keeps picking a song after the pass ends', () async {
+    audioHandler = handler;
+    final service = PlayerService();
+    MusicItem song(int i) => MusicItem(
+      id: 's$i',
+      name: 's$i',
+      singer: '',
+      source: 'test',
+      url: 'file:///tmp/s$i.mp3',
+    );
+    final songs = [for (var i = 0; i < 3; i++) song(i)];
+    await handler.setShuffleMode(AudioServiceShuffleMode.all);
+
+    await service.playPagedPlaylist(
+      songCount: songs.length,
+      startIndex: 0,
+      playlistId: 'shuffle-wrap',
+      loadPage: (offset, limit) async =>
+          songs.sublist(offset, (offset + limit).clamp(0, songs.length)),
+    );
+    final ids = <String>{};
+    for (var i = 0; i < 5; i++) {
+      ids.add(handler.mediaItem.value!.id.split(':').last);
+      await handler.skipToNext();
+    }
+
+    expect(handler.mediaItem.value!.id.split(':').last, startsWith('s'));
+    expect(ids, {'s0', 's1', 's2'});
+    expect(handler.queueItems.length, greaterThan(3));
+    expect(player.loadedSource, isA<ProgressiveAudioSource>());
+  });
+
   test('newer playlist invalidates an in-flight paged playlist load', () async {
     audioHandler = handler;
     final service = PlayerService();

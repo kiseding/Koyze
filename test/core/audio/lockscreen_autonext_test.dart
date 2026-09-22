@@ -51,7 +51,8 @@ void main() {
     expect(
       player.nativeRateRestores,
       greaterThan(rateRestoresBefore),
-      reason: 'iOS background pause ends the audio session; auto-next must '
+      reason:
+          'iOS background pause ends the audio session; auto-next must '
           'poke AVPlayer.rate via setSpeed instead of pause+play',
     );
   });
@@ -67,6 +68,23 @@ void main() {
     expect(handler.currentQueueIndex, 1);
     expect(handler.mediaItem.value?.id, 'B');
     expect(player.sourceLoadCalls, greaterThan(loadsBeforeCompletion));
+  });
+
+  test('sequential completion wraps from the last song to the first', () async {
+    await handler.setPlaylist([item('A'), item('B'), item('C')]);
+
+    player.emitCompleted();
+    await pumpEventQueue();
+    player.emitCompleted();
+    await pumpEventQueue();
+    expect(handler.mediaItem.value?.id, 'C');
+
+    player.emitCompleted();
+    await pumpEventQueue();
+
+    expect(handler.mediaItem.value?.id, 'A');
+    expect(handler.currentQueueIndex, 0);
+    expect(handler.playbackState.value.playing, isTrue);
   });
 
   test('lazy queue natural end does not stay buffering as playing', () async {
@@ -254,10 +272,7 @@ void main() {
 
   test('default player starts darwin playback without waiting for buffer', () {
     final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
-    expect(
-      source,
-      contains('automaticallyWaitsToMinimizeStalling: false'),
-    );
+    expect(source, contains('automaticallyWaitsToMinimizeStalling: false'));
     // The eager-start configuration must reach the player constructor, not
     // sit on a detached factory nobody calls.
     expect(
@@ -266,18 +281,24 @@ void main() {
     );
   });
 
-  test('published playback state never leaks engine idle while media exists',
-      () {
-    final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
-    final publish = source.substring(
-      source.indexOf('int _publishPlaybackState('),
-      source.indexOf('Future<void> play() => _runPublicOperation<void>(_play'),
-    );
-    expect(publish, contains('suppressed engine idle'));
-    expect(publish, contains('mediaItem.value != null'));
-    expect(publish, contains('AudioProcessingState.buffering'));
-    expect(publish, contains('AudioProcessingState.ready'));
-  });
+  test(
+    'published playback state never leaks engine idle while media exists',
+    () {
+      final source = File(
+        'lib/core/audio/audio_handler.dart',
+      ).readAsStringSync();
+      final publish = source.substring(
+        source.indexOf('int _publishPlaybackState('),
+        source.indexOf(
+          'Future<void> play() => _runPublicOperation<void>(_play',
+        ),
+      );
+      expect(publish, contains('suppressed engine idle'));
+      expect(publish, contains('mediaItem.value != null'));
+      expect(publish, contains('AudioProcessingState.buffering'));
+      expect(publish, contains('AudioProcessingState.ready'));
+    },
+  );
 
   test(
     'repeat is owned by completion policy rather than native source loop',

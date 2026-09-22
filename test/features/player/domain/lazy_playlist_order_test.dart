@@ -121,4 +121,33 @@ void main() {
       expect(next.map((entry) => entry.song.id), ['0', '1', '2']);
     },
   );
+
+  test(
+    'shuffled pass continues from another song instead of stopping',
+    () async {
+      final window = LazyPlaylistWindow(
+        length: 4,
+        initialIndex: 0,
+        shuffle: true,
+        random: Random(3),
+        loadPage: (offset, limit) async => List.generate(
+          limit,
+          (index) => MusicItem(
+            id: '${offset + index}',
+            name: 'Song ${offset + index}',
+            singer: 'Singer',
+            source: 'test',
+          ),
+        ),
+      );
+
+      final first = await window.takeEntries(4);
+      final more = await window.continueShuffled(count: 2);
+
+      expect(first, hasLength(4));
+      expect(more, hasLength(2));
+      expect(more.first.index, isNot(first.last.index));
+      expect(more.map((entry) => entry.index).toSet().length, 2);
+    },
+  );
 }

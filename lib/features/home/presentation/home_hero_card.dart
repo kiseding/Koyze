@@ -140,13 +140,13 @@ extension HomeHeroPlayModeX on HomeHeroPlayMode {
   };
 
   String get caption => switch (this) {
-    HomeHeroPlayMode.sequential => '从第一首按列表顺序播',
-    HomeHeroPlayMode.shuffle => '打乱顺序，从随机一首开始',
+    HomeHeroPlayMode.sequential => '按列表顺序播放，播完回到第一首',
+    HomeHeroPlayMode.shuffle => '打乱顺序，播完继续随机下一首',
     HomeHeroPlayMode.repeatOne => '只循环当前第一首',
   };
 
   IconData get icon => switch (this) {
-    HomeHeroPlayMode.sequential => Icons.trending_flat,
+    HomeHeroPlayMode.sequential => Icons.repeat,
     HomeHeroPlayMode.shuffle => Icons.shuffle,
     HomeHeroPlayMode.repeatOne => Icons.repeat_one,
   };

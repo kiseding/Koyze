@@ -14,7 +14,8 @@ void main() {
 
     expect(controls, contains('AnimatedSwitcher'));
     expect(controls, isNot(contains('AnimatedRotation')));
-    expect(source, contains('return Icons.trending_flat'));
+    expect(source, contains('return Icons.repeat;'));
+    expect(source, isNot(contains('return Icons.trending_flat')));
     expect(source, contains('return Icons.shuffle'));
   });
 }
