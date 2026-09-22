@@ -29,10 +29,10 @@ constexpr int kMinContentWidth = 420;
 constexpr int kWindowOrigin = 10;
 constexpr int kBottomClearance = 20;
 // Win32Window::Create 收的是窗口外框尺寸，而 Dart 侧拿到的是客户区
-// （见 FlutterWindow::OnCreate 里的 GetClientArea）。沉浸式标题栏把系统
-// 标题文字收进客户区，非客户区只剩可缩放边框，逻辑单位下近似恒定。
-constexpr int kNonClientWidth = 16;
-constexpr int kNonClientHeight = 16;
+// （见 FlutterWindow::OnCreate 里的 GetClientArea）。沉浸式窗口的客户区
+// 铺满外框，不再预留标题栏或一圈边框。
+constexpr int kNonClientWidth = 0;
+constexpr int kNonClientHeight = 0;
 // 与 lib/core/windows/windows_caption_bar.dart 的 barHeight 一致。
 // 按钮画在客户区顶上，不占系统标题栏，所以要加进默认内容高度。
 constexpr int kImmersiveCaptionHeight = 40;

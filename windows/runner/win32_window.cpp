@@ -2,6 +2,9 @@
 
 #include <dwmapi.h>
 #include <flutter_windows.h>
+#include <windowsx.h>
+
+#include <unordered_map>
 
 #include "resource.h"
 
@@ -26,16 +29,106 @@ namespace {
 #endif
 
 constexpr DWORD kDwmCornerRound = 2;
+constexpr int kCornerRadiusDip = 12;
+constexpr int kResizeBorderDip = 6;
+
+struct ChildHook {
+  WNDPROC original = nullptr;
+  HWND owner = nullptr;
+};
+
+std::unordered_map<HWND, ChildHook> g_child_hooks;
 
 void EnableImmersiveFrame(HWND window) {
-  // 1px 的底边距保留 DWM 阴影，同时不给系统标题栏留绘制区。
-  const MARGINS margins = {0, 0, 0, 1};
+  // 负边距把玻璃铺满客户区，避免 {0,0,0,1} 在底边留下一像素线。
+  const MARGINS margins = {-1, -1, -1, -1};
   DwmExtendFrameIntoClientArea(window, &margins);
   const COLORREF border = DWMWA_COLOR_NONE;
   DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &border, sizeof(border));
   const DWORD corner = kDwmCornerRound;
   DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &corner,
                         sizeof(corner));
+}
+
+// 去掉 WS_CAPTION 后，DWM 的圆角偏好经常不生效。用区域把四角裁圆。
+// 最大化时清掉区域，让窗口贴齐工作区。
+void ApplyRoundedCorners(HWND window) {
+  if (!window) {
+    return;
+  }
+  if (IsZoomed(window)) {
+    SetWindowRgn(window, nullptr, TRUE);
+    return;
+  }
+  RECT rect{};
+  if (!GetWindowRect(window, &rect)) {
+    return;
+  }
+  const int width = rect.right - rect.left;
+  const int height = rect.bottom - rect.top;
+  const int diameter = MulDiv(kCornerRadiusDip * 2, GetDpiForWindow(window), 96);
+  HRGN region =
+      CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter);
+  if (region) {
+    SetWindowRgn(window, region, TRUE);
+  }
+}
+
+LRESULT BorderHitTest(HWND hwnd, LPARAM lparam) {
+  if (!hwnd || IsZoomed(hwnd)) {
+    return HTCLIENT;
+  }
+  POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+  RECT window_rect{};
+  if (!GetWindowRect(hwnd, &window_rect)) {
+    return HTCLIENT;
+  }
+  const int border = MulDiv(kResizeBorderDip, GetDpiForWindow(hwnd), 96);
+  const bool left = pt.x < window_rect.left + border;
+  const bool right = pt.x >= window_rect.right - border;
+  const bool top = pt.y < window_rect.top + border;
+  const bool bottom = pt.y >= window_rect.bottom - border;
+  if (top && left) {
+    return HTTOPLEFT;
+  }
+  if (top && right) {
+    return HTTOPRIGHT;
+  }
+  if (bottom && left) {
+    return HTBOTTOMLEFT;
+  }
+  if (bottom && right) {
+    return HTBOTTOMRIGHT;
+  }
+  if (left) {
+    return HTLEFT;
+  }
+  if (right) {
+    return HTRIGHT;
+  }
+  if (top) {
+    return HTTOP;
+  }
+  if (bottom) {
+    return HTBOTTOM;
+  }
+  return HTCLIENT;
+}
+
+LRESULT CALLBACK ChildResizeProc(HWND hwnd,
+                                 UINT message,
+                                 WPARAM wparam,
+                                 LPARAM lparam) {
+  const auto found = g_child_hooks.find(hwnd);
+  if (found != g_child_hooks.end() && message == WM_NCHITTEST &&
+      BorderHitTest(found->second.owner, lparam) != HTCLIENT) {
+    return HTTRANSPARENT;
+  }
+  if (found != g_child_hooks.end() && found->second.original) {
+    return CallWindowProcW(found->second.original, hwnd, message, wparam,
+                           lparam);
+  }
+  return DefWindowProcW(hwnd, message, wparam, lparam);
 }
 
 // WS_OVERLAPPEDWINDOW 自带 WS_CAPTION。只改客户区时，DWM 仍会在顶上画出
@@ -48,6 +141,7 @@ void RemoveNativeCaption(HWND window) {
   SetWindowPos(window, nullptr, 0, 0, 0, 0,
                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE |
                    SWP_FRAMECHANGED);
+  ApplyRoundedCorners(window);
 }
 
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
@@ -281,8 +375,15 @@ Win32Window::MessageHandler(HWND hwnd,
         MoveWindow(child_content_, rect.left, rect.top, rect.right - rect.left,
                    rect.bottom - rect.top, TRUE);
       }
+      ApplyRoundedCorners(hwnd);
       return 0;
     }
+
+    case WM_NCPAINT:
+      return 0;
+
+    case WM_NCHITTEST:
+      return BorderHitTest(hwnd, lparam);
 
     case WM_ACTIVATE:
       if (child_content_ != nullptr) {
@@ -314,17 +415,7 @@ Win32Window::MessageHandler(HWND hwnd,
         }
         return 0;
       }
-      // 左右和下边保留可缩放边框；上边只留同样的边框，标题栏交给 Flutter。
-      const UINT dpi = GetDpiForWindow(hwnd);
-      const auto frame = [dpi](int metric) {
-        return GetSystemMetricsForDpi(metric, dpi);
-      };
-      const int frame_x = frame(SM_CXFRAME) + frame(SM_CXPADDEDBORDER);
-      const int frame_y = frame(SM_CYFRAME) + frame(SM_CXPADDEDBORDER);
-      params->rgrc[0].left += frame_x;
-      params->rgrc[0].right -= frame_x;
-      params->rgrc[0].top += frame_y;
-      params->rgrc[0].bottom -= frame_y;
+      // 客户区铺满窗口，不再留一圈非客户区细边。缩放靠 WM_NCHITTEST。
       return 0;
     }
   }
@@ -335,6 +426,16 @@ Win32Window::MessageHandler(HWND hwnd,
 void Win32Window::Destroy() {
   RemoveTrayIcon();
   OnDestroy();
+
+  if (child_content_) {
+    const auto found = g_child_hooks.find(child_content_);
+    if (found != g_child_hooks.end()) {
+      SetWindowLongPtrW(child_content_, GWLP_WNDPROC,
+                        reinterpret_cast<LONG_PTR>(found->second.original));
+      g_child_hooks.erase(found);
+    }
+    child_content_ = nullptr;
+  }
 
   if (window_handle_) {
     DestroyWindow(window_handle_);
@@ -353,6 +454,13 @@ Win32Window* Win32Window::GetThisFromHandle(HWND const window) noexcept {
 void Win32Window::SetChildContent(HWND content) {
   child_content_ = content;
   SetParent(content, window_handle_);
+  if (g_child_hooks.find(content) == g_child_hooks.end()) {
+    ChildHook hook;
+    hook.owner = window_handle_;
+    hook.original = reinterpret_cast<WNDPROC>(SetWindowLongPtrW(
+        content, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(ChildResizeProc)));
+    g_child_hooks.emplace(content, hook);
+  }
   RECT frame = GetClientArea();
 
   MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
