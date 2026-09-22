@@ -243,6 +243,8 @@ void main() {
     expect(runner, contains('SWP_FRAMECHANGED'));
     expect(runner, contains('CreateRoundRectRgn'));
     expect(runner, contains('HTTRANSPARENT'));
+    expect(runner, contains('WM_NCUAHDRAWCAPTION'));
+    expect(runner, contains('DWMWA_CAPTION_COLOR'));
     expect(mainCpp, contains('kImmersiveCaptionHeight = 40'));
     expect(mainCpp, contains('kNonClientHeight = 0'));
     expect(channel, contains('startDragging'));

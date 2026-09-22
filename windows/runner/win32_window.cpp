@@ -24,8 +24,18 @@ namespace {
 #ifndef DWMWA_BORDER_COLOR
 #define DWMWA_BORDER_COLOR 34
 #endif
+#ifndef DWMWA_CAPTION_COLOR
+#define DWMWA_CAPTION_COLOR 35
+#endif
 #ifndef DWMWA_COLOR_NONE
 #define DWMWA_COLOR_NONE 0xFFFFFFFE
+#endif
+// 未公开消息：DWM 用它们绘制标题按钮悬停时的灰色高亮带。
+#ifndef WM_NCUAHDRAWCAPTION
+#define WM_NCUAHDRAWCAPTION 0x00AE
+#endif
+#ifndef WM_NCUAHDRAWFRAME
+#define WM_NCUAHDRAWFRAME 0x00AF
 #endif
 
 constexpr DWORD kDwmCornerRound = 2;
@@ -45,6 +55,8 @@ void EnableImmersiveFrame(HWND window) {
   DwmExtendFrameIntoClientArea(window, &margins);
   const COLORREF border = DWMWA_COLOR_NONE;
   DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &border, sizeof(border));
+  const COLORREF caption = DWMWA_COLOR_NONE;
+  DwmSetWindowAttribute(window, DWMWA_CAPTION_COLOR, &caption, sizeof(caption));
   const DWORD corner = kDwmCornerRound;
   DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &corner,
                         sizeof(corner));
@@ -83,7 +95,15 @@ LRESULT BorderHitTest(HWND hwnd, LPARAM lparam) {
   if (!GetWindowRect(hwnd, &window_rect)) {
     return HTCLIENT;
   }
-  const int border = MulDiv(kResizeBorderDip, GetDpiForWindow(hwnd), 96);
+  const int dpi = GetDpiForWindow(hwnd);
+  // 右上角是自绘按钮。这里如果返回 HTTOP，DWM 会画出系统按钮的灰色悬停带。
+  const int button_band = MulDiv(140, dpi, 96);
+  const int caption_height = MulDiv(40, dpi, 96);
+  if (pt.x >= window_rect.right - button_band &&
+      pt.y < window_rect.top + caption_height) {
+    return HTCLIENT;
+  }
+  const int border = MulDiv(kResizeBorderDip, dpi, 96);
   const bool left = pt.x < window_rect.left + border;
   const bool right = pt.x >= window_rect.right - border;
   const bool top = pt.y < window_rect.top + border;
@@ -380,6 +400,10 @@ Win32Window::MessageHandler(HWND hwnd,
     }
 
     case WM_NCPAINT:
+      return 0;
+
+    case WM_NCUAHDRAWCAPTION:
+    case WM_NCUAHDRAWFRAME:
       return 0;
 
     case WM_NCHITTEST:
