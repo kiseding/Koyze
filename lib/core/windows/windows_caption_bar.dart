@@ -53,8 +53,9 @@ class WindowsCaptionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final iconColor = AppColors.onScaffold(context);
+    // 窗口圆角是 24。右上角按钮再往里收，避免被圆弧裁掉。
     return Padding(
-      padding: const EdgeInsets.only(top: 6, right: 10),
+      padding: const EdgeInsets.only(top: 8, right: 16),
       child: Row(
         children: [
           Expanded(

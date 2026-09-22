@@ -15,6 +15,12 @@ namespace {
 /// Redefined in case the developer's machine has a Windows SDK older than
 /// version 10.0.22000.0.
 /// See: https://docs.microsoft.com/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
+#ifndef DWMWA_NCRENDERING_POLICY
+#define DWMWA_NCRENDERING_POLICY 2
+#endif
+#ifndef DWMNCRP_DISABLED
+#define DWMNCRP_DISABLED 1
+#endif
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
@@ -39,7 +45,7 @@ namespace {
 #endif
 
 constexpr DWORD kDwmCornerRound = 2;
-constexpr int kCornerRadiusDip = 12;
+constexpr int kCornerRadiusDip = 24;
 constexpr int kResizeBorderDip = 6;
 
 struct ChildHook {
@@ -50,9 +56,13 @@ struct ChildHook {
 std::unordered_map<HWND, ChildHook> g_child_hooks;
 
 void EnableImmersiveFrame(HWND window) {
-  // 负边距把玻璃铺满客户区，避免 {0,0,0,1} 在底边留下一像素线。
-  const MARGINS margins = {-1, -1, -1, -1};
+  // 负边距会把整窗变成玻璃。鼠标停在右上角时，DWM 仍会在系统按钮的位置
+  // 涂一条灰色悬停带。边距清零，并关掉非客户区绘制。
+  const MARGINS margins = {0, 0, 0, 0};
   DwmExtendFrameIntoClientArea(window, &margins);
+  const DWORD nc_policy = DWMNCRP_DISABLED;
+  DwmSetWindowAttribute(window, DWMWA_NCRENDERING_POLICY, &nc_policy,
+                        sizeof(nc_policy));
   const COLORREF border = DWMWA_COLOR_NONE;
   DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &border, sizeof(border));
   const COLORREF caption = DWMWA_COLOR_NONE;
@@ -96,8 +106,9 @@ LRESULT BorderHitTest(HWND hwnd, LPARAM lparam) {
     return HTCLIENT;
   }
   const int dpi = GetDpiForWindow(hwnd);
-  // 右上角是自绘按钮。这里如果返回 HTTOP，DWM 会画出系统按钮的灰色悬停带。
-  const int button_band = MulDiv(140, dpi, 96);
+  // 右上角是自绘按钮，并且要比 24px 圆角再往里让一截。
+  // 这里如果返回 HTTOP，DWM 会画出系统按钮的灰色悬停带。
+  const int button_band = MulDiv(160, dpi, 96);
   const int caption_height = MulDiv(40, dpi, 96);
   if (pt.x >= window_rect.right - button_band &&
       pt.y < window_rect.top + caption_height) {
@@ -439,7 +450,8 @@ Win32Window::MessageHandler(HWND hwnd,
         }
         return 0;
       }
-      // 客户区铺满窗口，不再留一圈非客户区细边。缩放靠 WM_NCHITTEST。
+      // 盖住 Windows 在顶边悬停时画的一像素高亮。
+      params->rgrc[0].top -= 1;
       return 0;
     }
   }

@@ -241,10 +241,14 @@ void main() {
     expect(runner, contains('DWMWA_COLOR_NONE'));
     expect(runner, contains('style &= ~WS_CAPTION'));
     expect(runner, contains('SWP_FRAMECHANGED'));
+    expect(runner, contains('kCornerRadiusDip = 24'));
     expect(runner, contains('CreateRoundRectRgn'));
+    expect(bar, contains('EdgeInsets.only(top: 8, right: 16)'));
     expect(runner, contains('HTTRANSPARENT'));
     expect(runner, contains('WM_NCUAHDRAWCAPTION'));
     expect(runner, contains('DWMWA_CAPTION_COLOR'));
+    expect(runner, contains('DWMNCRP_DISABLED'));
+    expect(runner, contains('const MARGINS margins = {0, 0, 0, 0}'));
     expect(mainCpp, contains('kImmersiveCaptionHeight = 40'));
     expect(mainCpp, contains('kNonClientHeight = 0'));
     expect(channel, contains('startDragging'));
