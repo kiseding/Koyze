@@ -51,7 +51,8 @@ class EqualizerPreset {
 
   /// 把曲线采样到给定的中心频率上，得到可直接施加的频段增益。
   ///
-  /// 采样后再削峰：峰值对齐 0 dB，避免预设把整轨抬响后削波。
+  /// 采样后再做响度对齐：平均增益回到 0 dB 附近，峰值不超过安全天花板，
+  /// 这样开均衡器不会整首变小，也不会因叠峰削波。
   List<double> gainsFor(List<double> centerFrequencies) =>
       normalizeEqualizerGains(<double>[
         for (final frequency in centerFrequencies) gainAt(frequency),

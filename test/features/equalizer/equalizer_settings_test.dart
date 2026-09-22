@@ -58,11 +58,11 @@ void main() {
       }
     });
 
-    test('控制点处取到预设值，并按峰值对齐 0 dB', () {
+    test('控制点处取到预设值，并按平均响度对齐', () {
       final bass = equalizerPresetById('bass')!;
       expect(bass.gainAt(60), 4);
       expect(bass.gainAt(230), 2.5);
-      expect(bass.gainsFor(_fiveBands), <double>[0, -1.5, -4, -5, -5.5]);
+      expect(bass.gainsFor(_fiveBands), <double>[3, 1.5, -1, -2, -2.5]);
     });
 
     test('相邻控制点之间按对数频率线性插值', () {
@@ -99,9 +99,9 @@ void main() {
       expect(rock.gainsFor(_fiveBands).length, 5);
       expect(rock.gainsFor(_tenBands).length, 10);
       // 低频段在两种布局下取到的值应当接近（都落在 60Hz 控制点附近）。
-      // 采样后削峰：摇滚 60Hz 是峰值，施加值为 0 dB。
-      expect(rock.gainsFor(_fiveBands).first, closeTo(0, 0.5));
-      expect(rock.gainsFor(_tenBands).first, closeTo(0, 0.5));
+      // 响度对齐后摇滚低频大约 +2 dB，不再被整段压到 0 以下。
+      expect(rock.gainsFor(_fiveBands).first, closeTo(2, 0.5));
+      expect(rock.gainsFor(_tenBands).first, closeTo(2, 0.5));
     });
 
     test('未知 id 的标签回落到自定义', () {
@@ -138,8 +138,8 @@ void main() {
       );
       final gains = settings.gainsFor(_tenBandLayout);
       expect(gains.length, 10);
-      expect(gains.first, closeTo(0, 0.5));
-      expect(gains.last, closeTo(-5.5, 0.5));
+      expect(gains.first, closeTo(3, 0.5));
+      expect(gains.last, closeTo(-2.5, 0.5));
     });
 
     test('段数不一致且为自定义时视为原声', () {
@@ -200,11 +200,11 @@ void main() {
         gains: <double>[6, 4, 1, 0, 0],
       );
       expect(settings.gainsFor(_fiveBandLayout), <double>[
-        0,
-        -1.5,
-        -4,
-        -5,
-        -5.5,
+        3,
+        1.5,
+        -1,
+        -2,
+        -2.5,
       ]);
     });
   });

@@ -51,7 +51,7 @@ class EqualizerSettings {
 
   /// 按 [layout] 解析实际要施加的增益。
   ///
-  /// 命名预设始终按当前曲线重新采样（含削峰），这样旧版本存下来的
+  /// 命名预设始终按当前曲线重新采样（含响度对齐），这样旧版本存下来的
   /// 正向增益不会继续把整轨抬响。自定义且段数一致时沿用保存值，
   /// 段数对不上则视为原声。
   List<double> gainsFor(EqualizerBandLayout layout) {

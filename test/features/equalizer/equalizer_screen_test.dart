@@ -84,9 +84,9 @@ void main() {
     await tester.tap(find.text('低音增强'));
     await tester.pumpAndSettle();
 
-    expect(bridge.applies.last.gains, <double>[0, -1.5, -4, -5, -5.5]);
-    expect(find.text('0'), findsWidgets);
-    expect(find.text('-1.5'), findsOneWidget);
+    expect(bridge.applies.last.gains, <double>[3, 1.5, -1, -2, -2.5]);
+    expect(find.text('+3'), findsOneWidget);
+    expect(find.text('+1.5'), findsOneWidget);
     // 预设选择已落盘。
     expect(
       EqualizerSettings.fromJson(
@@ -150,7 +150,7 @@ void main() {
     await tester.pumpWidget(_app(bridge, storage));
     await tester.pumpAndSettle();
 
-    expect(find.text('-2'), findsWidgets);
+    expect(find.text('-3'), findsWidgets);
 
     await tester.tap(find.text('重置'));
     await tester.pumpAndSettle();
