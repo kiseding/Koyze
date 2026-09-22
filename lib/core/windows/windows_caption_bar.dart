@@ -53,56 +53,63 @@ class WindowsCaptionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final iconColor = AppColors.onScaffold(context);
-    return Row(
-      children: [
-        Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onPanStart: (_) => _channel.invokeMethod<void>('startDragging'),
-            onDoubleTap: () => _channel.invokeMethod<void>('toggleMaximize'),
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, right: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onPanStart: (_) => _channel.invokeMethod<void>('startDragging'),
+              onDoubleTap: () => _channel.invokeMethod<void>('toggleMaximize'),
+            ),
           ),
-        ),
-        _CaptionButton(
-          icon: Icons.remove_rounded,
-          color: iconColor,
-          tooltip: '最小化',
-          onPressed: () => _channel.invokeMethod<void>('minimize'),
-        ),
-        ValueListenableBuilder<bool>(
-          valueListenable: windowsCaptionMaximized,
-          builder: (context, maximized, _) {
-            return _CaptionButton(
-              icon: maximized
-                  ? Icons.filter_none_rounded
-                  : Icons.crop_din_rounded,
-              color: iconColor,
-              tooltip: maximized ? '还原' : '最大化',
-              onPressed: () => _channel.invokeMethod<void>('toggleMaximize'),
-            );
-          },
-        ),
-        _CaptionButton(
-          icon: Icons.close_rounded,
-          color: iconColor,
-          tooltip: '关闭',
-          close: true,
-          onPressed: () => _channel.invokeMethod<void>('closeWindow'),
-        ),
-      ],
+          _CaptionButton(
+            glyph: _CaptionGlyph.minimize,
+            color: iconColor,
+            tooltip: '最小化',
+            onPressed: () => _channel.invokeMethod<void>('minimize'),
+          ),
+          const SizedBox(width: 2),
+          ValueListenableBuilder<bool>(
+            valueListenable: windowsCaptionMaximized,
+            builder: (context, maximized, _) {
+              return _CaptionButton(
+                glyph: maximized
+                    ? _CaptionGlyph.restore
+                    : _CaptionGlyph.maximize,
+                color: iconColor,
+                tooltip: maximized ? '还原' : '最大化',
+                onPressed: () => _channel.invokeMethod<void>('toggleMaximize'),
+              );
+            },
+          ),
+          const SizedBox(width: 2),
+          _CaptionButton(
+            glyph: _CaptionGlyph.close,
+            color: iconColor,
+            tooltip: '关闭',
+            close: true,
+            onPressed: () => _channel.invokeMethod<void>('closeWindow'),
+          ),
+        ],
+      ),
     );
   }
 }
 
+enum _CaptionGlyph { minimize, maximize, restore, close }
+
 class _CaptionButton extends StatefulWidget {
   const _CaptionButton({
-    required this.icon,
+    required this.glyph,
     required this.color,
     required this.tooltip,
     required this.onPressed,
     this.close = false,
   });
 
-  final IconData icon;
+  final _CaptionGlyph glyph;
   final Color color;
   final String tooltip;
   final VoidCallback onPressed;
@@ -114,32 +121,124 @@ class _CaptionButton extends StatefulWidget {
 
 class _CaptionButtonState extends State<_CaptionButton> {
   bool _hover = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final background = widget.close && _hover
-        ? const Color(0xFFE81123)
-        : _hover
+    final hovered = _hover || _pressed;
+    final background = widget.close && hovered
+        ? AppColors.error
+        : hovered
         ? widget.color.withValues(alpha: 0.08)
         : Colors.transparent;
-    final iconColor = widget.close && _hover ? Colors.white : widget.color;
+    final iconColor = widget.close && hovered ? Colors.white : widget.color;
     return Tooltip(
       message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 400),
       child: MouseRegion(
         onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
+        onExit: (_) => setState(() {
+          _hover = false;
+          _pressed = false;
+        }),
         child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTapCancel: () => setState(() => _pressed = false),
           onTap: widget.onPressed,
-          child: SizedBox(
-            width: 46,
-            height: WindowsCaptionFrame.barHeight,
-            child: ColoredBox(
-              color: background,
-              child: Icon(widget.icon, size: 16, color: iconColor),
+          child: AnimatedScale(
+            scale: _pressed ? 0.92 : 1,
+            duration: const Duration(milliseconds: 110),
+            curve: Curves.easeOutCubic,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              curve: Curves.easeOutCubic,
+              width: 36,
+              height: 28,
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: CustomPaint(
+                painter: _CaptionGlyphPainter(
+                  glyph: widget.glyph,
+                  color: iconColor,
+                ),
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+class _CaptionGlyphPainter extends CustomPainter {
+  const _CaptionGlyphPainter({required this.glyph, required this.color});
+
+  final _CaptionGlyph glyph;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final center = Offset(size.width / 2, size.height / 2);
+    switch (glyph) {
+      case _CaptionGlyph.minimize:
+        canvas.drawLine(
+          center + const Offset(-5, 0),
+          center + const Offset(5, 0),
+          paint,
+        );
+      case _CaptionGlyph.maximize:
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: center, width: 10, height: 10),
+            const Radius.circular(2.2),
+          ),
+          paint,
+        );
+      case _CaptionGlyph.restore:
+        final back = RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: center + const Offset(1.6, -1.6),
+            width: 8,
+            height: 8,
+          ),
+          const Radius.circular(1.8),
+        );
+        final front = RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: center + const Offset(-1.6, 1.6),
+            width: 8,
+            height: 8,
+          ),
+          const Radius.circular(1.8),
+        );
+        canvas.drawRRect(back, paint);
+        canvas.drawRRect(front, paint);
+      case _CaptionGlyph.close:
+        canvas.drawLine(
+          center + const Offset(-4.2, -4.2),
+          center + const Offset(4.2, 4.2),
+          paint,
+        );
+        canvas.drawLine(
+          center + const Offset(4.2, -4.2),
+          center + const Offset(-4.2, 4.2),
+          paint,
+        );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CaptionGlyphPainter oldDelegate) {
+    return oldDelegate.glyph != glyph || oldDelegate.color != color;
   }
 }
