@@ -41,8 +41,45 @@ if (!wrangler.includes('compatibility_date = "2026-07-29"')) {
 if (!wrangler.includes('[observability.logs]') || !wrangler.includes('[observability.traces]')) {
   fail('sampled logs and traces are not configured');
 }
-const privacyMentions = project.match(/PrivacyInfo\.xcprivacy/g)?.length ?? 0;
-if (privacyMentions !== 3 || !project.includes('PrivacyInfo.xcprivacy in Resources')) {
+const privacyFileRefs = [
+  ...project.matchAll(
+    /^\t\t([A-F0-9]{24}) \/\* PrivacyInfo\.xcprivacy \*\/ = \{isa = PBXFileReference;[^\n]*path = PrivacyInfo\.xcprivacy;/gm,
+  ),
+];
+const privacyBuildFiles = [
+  ...project.matchAll(
+    /^\t\t([A-F0-9]{24}) \/\* PrivacyInfo\.xcprivacy in Resources \*\/ = \{isa = PBXBuildFile; fileRef = ([A-F0-9]{24}) \/\* PrivacyInfo\.xcprivacy \*\/; \};$/gm,
+  ),
+];
+const privacyGroupEntries = [
+  ...project.matchAll(/^\t\t\t\t([A-F0-9]{24}) \/\* PrivacyInfo\.xcprivacy \*\/,$/gm),
+];
+const runnerTarget = project.match(
+  /\/\* Runner \*\/ = \{\n\t\t\tisa = PBXNativeTarget;[\s\S]*?buildPhases = \(([\s\S]*?)\);[\s\S]*?\n\t\t\tname = Runner;/,
+);
+const runnerResourcesPhase = runnerTarget?.[1].match(/([A-F0-9]{24}) \/\* Resources \*/);
+const runnerResourcesBody = runnerResourcesPhase
+  ? project.match(
+      new RegExp(
+        `${runnerResourcesPhase[1]} /\\* Resources \\*/ = \\{[\\s\\S]*?files = \\(([\\s\\S]*?)\\);`,
+      ),
+    )
+  : null;
+const runnerPrivacyResources = runnerResourcesBody
+  ? [...runnerResourcesBody[1].matchAll(/([A-F0-9]{24}) \/\* PrivacyInfo\.xcprivacy in Resources \*/g)]
+  : [];
+const privacyFileId = privacyFileRefs[0]?.[1];
+const privacyBuildId = privacyBuildFiles[0]?.[1];
+if (
+  privacyFileRefs.length !== 1 ||
+  privacyBuildFiles.length !== 1 ||
+  privacyBuildFiles[0][2] !== privacyFileId ||
+  privacyGroupEntries.length !== 1 ||
+  privacyGroupEntries[0][1] !== privacyFileId ||
+  !runnerResourcesPhase ||
+  runnerPrivacyResources.length !== 1 ||
+  runnerPrivacyResources[0][1] !== privacyBuildId
+) {
   fail('PrivacyInfo.xcprivacy is not referenced once in file, group, and Runner resources');
 }
 if (/console\.(?:log|error|warn)\([^\n]*(?:Authorization|ADMIN_PASSWORD|TINYAPI_KEY|password|token)/i.test(runtimeSource)) {
