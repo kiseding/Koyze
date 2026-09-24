@@ -28,9 +28,9 @@ final class SourceMediaTransport {
   }) : _sandbox =
            sandbox ??
            SourceStreamSandbox(
-             // 播放流常来自自定义源返回的第三方 CDN：运营商 DNS 可能
-             // 解析出非公网地址（CGNAT），与自定义源同因放行。
-             policy: SourceRequestPolicy(allowNonPublicResolved: true),
+             // Media URLs are still subject to the same public-address policy;
+             // a CDN redirect or DNS result must never reach local networks.
+             policy: SourceRequestPolicy(),
              transport: SourcePinnedTransport().call,
            );
 

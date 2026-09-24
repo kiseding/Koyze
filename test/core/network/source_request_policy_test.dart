@@ -218,19 +218,25 @@ void main() {
       }
     });
 
-    test('keeps IPv4 and public addresses, drops blocked IPv6', () async {
-      final policy = policyWith({
-        'mixed.example': ['127.0.0.1', '93.184.216.34', '::1'],
-      });
+    test(
+      'rejects DNS results that mix public and non-public addresses',
+      () async {
+        final policy = policyWith({
+          'mixed.example': ['127.0.0.1', '93.184.216.34', '::1'],
+        });
 
-      final request = await policy.validate(
-        Uri.parse('https://mixed.example/a'),
-        {},
-      );
-
-      // IPv4 不再拦截；::1 仍被 IPv6 拦截。
-      expect(request.addresses.map((a) => a.address), ['93.184.216.34']);
-    });
+        await expectLater(
+          policy.validate(Uri.parse('https://mixed.example/a'), {}),
+          throwsA(
+            isA<SourceRequestPolicyException>().having(
+              (error) => error.code,
+              'code',
+              'blocked_address',
+            ),
+          ),
+        );
+      },
+    );
 
     test('prefers IPv4 when both public families are returned', () async {
       final ipv6 = InternetAddress('2606:2800:220:1:248:1893:25c8:1946');
@@ -638,7 +644,7 @@ void main() {
     );
 
     test(
-      'allows a redirect whose DNS contains a private IPv4 result',
+      'rejects a redirect whose DNS contains a private IPv4 result',
       () async {
         final policy = policyWith({
           'public.example': ['93.184.216.34'],
@@ -646,26 +652,25 @@ void main() {
         });
         final sandbox = SourceRequestSandbox(
           policy: policy,
-          transport: (request, cancellation) async {
-            final location = request.uri.path == '/start'
-                ? 'https://private.example/secret'
-                : null;
-            return SourceTransportResponse(
-              statusCode: location == null ? 200 : 302,
-              headers: {
-                if (location != null) 'location': [location],
-              },
-              body: const Stream.empty(),
-            );
-          },
+          transport: (request, cancellation) async => SourceTransportResponse(
+            statusCode: 302,
+            headers: const {
+              'location': ['https://private.example/secret'],
+            },
+            body: const Stream.empty(),
+          ),
         );
 
-        final response = await sandbox.request(
-          Uri.parse('https://public.example/start'),
-          {},
+        await expectLater(
+          sandbox.request(Uri.parse('https://public.example/start'), {}),
+          throwsA(
+            isA<SourceRequestPolicyException>().having(
+              (error) => error.code,
+              'code',
+              'blocked_address',
+            ),
+          ),
         );
-
-        expect(response.statusCode, 200);
       },
     );
 

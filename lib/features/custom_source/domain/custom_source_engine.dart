@@ -177,11 +177,10 @@ class CustomSourceEngine {
     SourceTransport? requestTransport,
   }) {
     _requestSandbox = SourceRequestSandbox(
-      // 自定义源是用户显式信任的第三方 API：DNS 全非公网时放行
-      // （运营商 CGNAT / 异常 DNS 会解析出内网地址，误杀正常源）。
-      policy:
-          requestPolicy ??
-          SourceRequestPolicy(allowNonPublicResolved: true),
+      // Custom scripts are never allowed to weaken the public-address policy.
+      // The constructor flag remains accepted for source compatibility, but
+      // SourceRequestPolicy now rejects mixed and non-public DNS answers.
+      policy: requestPolicy ?? SourceRequestPolicy(),
       transport: requestTransport ?? IOSSourceTransport().call,
       maximumRedirects: 10,
     );

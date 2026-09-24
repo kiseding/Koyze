@@ -3,8 +3,16 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/network/source_request_policy.dart';
+import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/custom_source/domain/custom_source_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+Future<StorageService> isolatedStorage([
+  Map<String, Object> values = const {},
+]) async {
+  SharedPreferences.setMockInitialValues(values);
+  return StorageService.forTesting(await SharedPreferences.getInstance());
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -135,6 +143,90 @@ void main() {
     expect(closed, 1);
   });
 
+  test(
+    'remote import stays disabled until the user explicitly enables it',
+    () async {
+      final sandbox = SourceRequestSandbox(
+        policy: SourceRequestPolicy(
+          resolve: (_) async => [InternetAddress('93.184.216.34')],
+        ),
+        transport: (request, cancellation) async => SourceTransportResponse(
+          statusCode: 200,
+          headers: const {},
+          body: Stream.value(
+            utf8.encode('''/*
+ * @name Remote source
+ * @author test
+ */'''),
+          ),
+        ),
+      );
+      final service = CustomSourceService(
+        importSandbox: sandbox,
+        storage: await isolatedStorage(),
+      );
+      await service.init();
+      addTearDown(service.dispose);
+
+      expect(
+        await service.importSourceFromUrl('https://source.example/source.js'),
+        isTrue,
+      );
+      expect(service.sources.single.isEnabled, isFalse);
+      expect(service.enabledSources, isEmpty);
+    },
+  );
+
+  test('remote replacement disables an already enabled source', () async {
+    final now = DateTime.utc(2026).toIso8601String();
+    final sandbox = SourceRequestSandbox(
+      policy: SourceRequestPolicy(
+        resolve: (_) async => [InternetAddress('93.184.216.34')],
+      ),
+      transport: (request, cancellation) async => SourceTransportResponse(
+        statusCode: 200,
+        headers: const {},
+        body: Stream.value(
+          utf8.encode('''/*
+ * @name Remote source
+ * @author test
+ */
+updated();'''),
+        ),
+      ),
+    );
+    final service = CustomSourceService(
+      importSandbox: sandbox,
+      storage: await isolatedStorage({
+        'custom_sources': jsonEncode([
+          {
+            'id': 'remote-source',
+            'name': 'Remote source',
+            'description': '',
+            'version': '1',
+            'author': 'test',
+            'script': '''/*
+ * @name Remote source
+ * @author test
+ */''',
+            'createdAt': now,
+            'updatedAt': now,
+            'isEnabled': true,
+          },
+        ]),
+      }),
+    );
+    await service.init();
+    addTearDown(service.dispose);
+
+    expect(
+      await service.importSourceFromUrl('https://source.example/source.js'),
+      isTrue,
+    );
+    expect(service.sources.single.id, 'remote-source');
+    expect(service.sources.single.isEnabled, isFalse);
+  });
+
   test('validateScript accepts obfuscated scripts with header comment', () {
     final service = CustomSourceService();
     addTearDown(service.dispose);
@@ -187,8 +279,7 @@ void main() {
   });
 
   test('ordinary imported scripts can be enabled', () async {
-    SharedPreferences.setMockInitialValues({});
-    final service = CustomSourceService();
+    final service = CustomSourceService(storage: await isolatedStorage());
     await service.init();
     addTearDown(service.dispose);
 
@@ -200,5 +291,22 @@ void main() {
     );
     expect(service.sources.single.isEnabled, isTrue);
     expect(service.enabledSources, hasLength(1));
+  });
+
+  test('ordinary imported scripts can be explicitly kept disabled', () async {
+    final service = CustomSourceService(storage: await isolatedStorage());
+    await service.init();
+    addTearDown(service.dispose);
+
+    expect(
+      await service.importLxMusicScript(
+        "/* @name Retained */\nlx.send('inited', {});",
+        autoEnable: false,
+        forceDisable: true,
+      ),
+      isTrue,
+    );
+    expect(service.sources.single.isEnabled, isFalse);
+    expect(service.enabledSources, isEmpty);
   });
 }

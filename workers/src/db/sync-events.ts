@@ -74,33 +74,57 @@ async function appendFavoriteBatch(
     `INSERT OR IGNORE INTO playlists (id, user_id, name, position)
      VALUES ('love', ?, '我喜欢', 0)`,
   ).bind(userId).run();
-  const eventStatements = events.map((event) => env.DB.prepare(
-    `INSERT OR IGNORE INTO sync_events
-     (user_id, event_id, device_id, local_user_id, event_type, entity_id,
-      payload, client_created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(
-    userId, event.eventId, event.deviceId, event.localUserId,
-    event.eventType, event.entityId, JSON.stringify(event.payload), event.createdAt,
-  ));
-  const songStatements = events.map((event) => {
-    const song = event.payload.song as Record<string, unknown>;
-    return env.DB.prepare(
-      `INSERT OR IGNORE INTO playlist_songs
-       (playlist_id, user_id, name, singer, source, songmid, album_name, img,
-        interval, hash, metadata, position, playlist_item_id)
-       VALUES ('love', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-         COALESCE((SELECT MAX(position) + 1 FROM playlist_songs WHERE playlist_id = 'love' AND user_id = ?), 0), ?)`,
+  const acceptedEventIds: string[] = [];
+  const eventSequences = new Map<string, number>();
+  for (const event of events) {
+    const result = await env.DB.prepare(
+      `INSERT OR IGNORE INTO sync_events
+       (user_id, event_id, device_id, local_user_id, event_type, entity_id,
+        payload, client_created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
-      userId, String(song.name ?? '').slice(0, 256), String(song.singer ?? '').slice(0, 256),
-      String(song.source ?? '').slice(0, 32), String(song.songmid ?? song.id ?? '').slice(0, 256),
-      String(song.album ?? song.albumName ?? '').slice(0, 256), String(song.artwork ?? song.img ?? '').slice(0, 512),
-      String(song.duration ?? 0), String(song.hash ?? '').slice(0, 256), JSON.stringify(song.meta ?? {}),
-      userId, event.entityId,
-    );
-  });
-  for (let index = 0; index < eventStatements.length; index += 100) {
-    await env.DB.batch([...eventStatements.slice(index, index + 100), ...songStatements.slice(index, index + 100)]);
+      userId, event.eventId, event.deviceId, event.localUserId,
+      event.eventType, event.entityId, JSON.stringify(event.payload), event.createdAt,
+    ).run();
+    if ((result.meta?.changes ?? 0) === 1) {
+      eventSequences.set(event.eventId, Number(result.meta.last_row_id));
+      acceptedEventIds.push(event.eventId);
+    } else {
+      const existing = await env.DB.prepare(
+        'SELECT event_id FROM sync_events WHERE user_id = ? AND event_id = ?',
+      ).bind(userId, event.eventId).first<{ event_id: string }>();
+      if (existing) acceptedEventIds.push(event.eventId);
+    }
+  }
+  if (eventSequences.size > 0) {
+    const fresh = events.filter((event) => eventSequences.has(event.eventId));
+    try {
+      const songStatements = fresh.map((event) => {
+        const song = event.payload.song as Record<string, unknown>;
+        const sequence = eventSequences.get(event.eventId)!;
+        return env.DB.prepare(
+          `INSERT OR IGNORE INTO playlist_songs
+           (playlist_id, user_id, name, singer, source, songmid, album_name, img,
+            interval, hash, metadata, position, playlist_item_id)
+           VALUES ('love', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          userId, String(song.name ?? '').slice(0, 256), String(song.singer ?? '').slice(0, 256),
+          String(song.source ?? '').slice(0, 32), String(song.songmid ?? song.id ?? '').slice(0, 256),
+          String(song.album ?? song.albumName ?? '').slice(0, 256), String(song.artwork ?? song.img ?? '').slice(0, 512),
+          String(song.duration ?? 0), String(song.hash ?? '').slice(0, 256), JSON.stringify(song.meta ?? {}),
+          sequence, event.entityId,
+        );
+      });
+      for (let index = 0; index < songStatements.length; index += 100) {
+        await env.DB.batch(songStatements.slice(index, index + 100));
+      }
+    } catch (error) {
+      for (const event of fresh) {
+        await env.DB.prepare('DELETE FROM sync_events WHERE user_id = ? AND event_id = ?')
+          .bind(userId, event.eventId).run();
+      }
+      throw error;
+    }
   }
   if (events[0]) {
     await env.DB.prepare(
@@ -109,7 +133,7 @@ async function appendFavoriteBatch(
        ON CONFLICT(user_id, device_id) DO UPDATE SET last_seen_at = datetime('now')`,
     ).bind(userId, events[0].deviceId, events[0].localUserId).run();
   }
-  return { acceptedEventIds: events.map((event) => event.eventId), cursor: await currentSyncCursor(env, userId) };
+  return { acceptedEventIds, cursor: await currentSyncCursor(env, userId) };
 }
 
 async function applySyncEvent(

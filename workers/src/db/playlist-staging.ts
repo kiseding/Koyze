@@ -124,6 +124,16 @@ export async function cleanupStage(env: Env, stageId: string, userId: number): P
   await env.DB.prepare('DELETE FROM playlists WHERE id = ? AND user_id = ?').bind(stageId, userId).run();
 }
 
+export async function cleanupExpiredStages(env: Env, olderThanMinutes = 60): Promise<number> {
+  const minutes = Math.max(1, Math.floor(olderThanMinutes));
+  const result = await env.DB.prepare(
+    `DELETE FROM playlists
+      WHERE id LIKE '__stage__:%'
+        AND created_at < datetime('now', '-' || ? || ' minutes')`,
+  ).bind(minutes).run();
+  return Number(result.meta?.changes ?? 0);
+}
+
 export async function writePlaylistAtomically(
   env: Env,
   target: PlaylistTarget,

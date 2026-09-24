@@ -2,13 +2,22 @@
 ///
 /// This heuristic is not a sandbox and must never authorize script execution.
 bool hasUnsafeSynchronousLoop(String script) {
-  final compact = script.replaceAll(RegExp(r'\s+'), '');
+  final compact = RegExp(r'\s+').hasMatch(script)
+      ? script.replaceAll(RegExp(r'\s+'), '')
+      : script;
   final code = _withoutCommentsAndStrings(
     script,
   ).replaceAll(RegExp(r'\s+'), '');
-  if (RegExp(r'while\(true\)\{').hasMatch(code) ||
-      RegExp(r'for\(;;\)\{').hasMatch(code) ||
-      RegExp(r'do\{[^{}]{0,400}\}while\(true\)').hasMatch(code)) {
+  // These conditions are statically truthy and do not depend on runtime
+  // input. Detect the common minified forms as well as `true` so they never
+  // reach a runtime that cannot interrupt synchronous JavaScript evaluation.
+  final alwaysTrueCondition =
+      r'(?:true|1|[1-9]\d*|-1|0x[1-9a-f][0-9a-f]*|!0|!!\[\]|\[\])';
+  if (RegExp('while\\($alwaysTrueCondition\\)').hasMatch(code) ||
+      RegExp(r'for\(;;\)').hasMatch(code) ||
+      RegExp(
+        'do\\{[^{}]{0,400}\\}while\\($alwaysTrueCondition\\)',
+      ).hasMatch(code)) {
     return true;
   }
   final recursive = RegExp(

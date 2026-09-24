@@ -464,7 +464,11 @@ class CustomSourceService {
     }
   }
 
-  Future<bool> importLxMusicScript(String script) async {
+  Future<bool> importLxMusicScript(
+    String script, {
+    bool autoEnable = true,
+    bool forceDisable = false,
+  }) async {
     if (_exceedsScriptByteLimit(script)) return false;
     if (!validateScript(script)) return false;
     try {
@@ -477,6 +481,8 @@ class CustomSourceService {
       return await _mutate<bool>((current) {
         final now = _clock();
         final shouldEnable =
+            !forceDisable &&
+            autoEnable &&
             !script_safety.hasUnsafeSynchronousLoop(script) &&
             !current.any((source) => source.isEnabled);
         final candidate = CustomSource(
@@ -488,7 +494,7 @@ class CustomSourceService {
           script: script,
           createdAt: now,
           updatedAt: now,
-          isEnabled: shouldEnable,
+          isEnabled: forceDisable ? false : shouldEnable,
         );
         final invalidated = <String>{};
         late final String targetId;
@@ -502,7 +508,7 @@ class CustomSourceService {
             version: version,
             script: script,
             updatedAt: now,
-            isEnabled: old.isEnabled || shouldEnable,
+            isEnabled: forceDisable ? false : old.isEnabled || shouldEnable,
           );
           targetId = old.id;
           invalidated.add(old.id);
@@ -554,10 +560,13 @@ class CustomSourceService {
           return utf8.decode(owned.bytes, allowMalformed: false);
         });
         if (script == null || !validateScript(script)) return false;
-        // Import validation only filters non-source content. Imported scripts
-        // are retained disabled because the current JS engine cannot enforce
-        // an execution deadline on every supported platform.
-        return await importLxMusicScript(script);
+        // Remote scripts remain disabled even when this is the first source,
+        // and replacing an existing source also requires explicit re-enable.
+        return await importLxMusicScript(
+          script,
+          autoEnable: false,
+          forceDisable: true,
+        );
       }().timeout(
         importTimeout,
         onTimeout: () {

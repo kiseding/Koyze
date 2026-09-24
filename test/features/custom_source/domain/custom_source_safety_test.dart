@@ -15,8 +15,13 @@ void main() {
     () async {
       final scripts = [
         'while (true) {}',
+        'while (1) {}',
+        'while (!![]) {}',
+        'while (-1) {}',
         'for (;;) {}',
+        'for (;;) spin();',
         'do {} while (true)',
+        'do {} while (!0)',
         'function a(){return a()} a()',
       ];
 
@@ -44,6 +49,15 @@ void main() {
       }
     },
   );
+
+  test('truthy loop text inside comments and strings is ignored', () {
+    expect(
+      hasUnsafeSynchronousLoop('''// while (1) {}
+        const text = 'for (;;) {}';
+        '''),
+      isFalse,
+    );
+  });
 
   test('ordinary scripts are not rejected by the safety preflight', () {
     expect(isCustomSourceExecutionSupported, isTrue);

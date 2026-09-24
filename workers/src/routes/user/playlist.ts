@@ -2,7 +2,7 @@ import { Env, jsonResponse, requireJsonContentType, readJsonBody } from '../../l
 import { getUserId } from '../../utils/auth';
 import { fetchAndRematch } from '../playlist-import';
 import type { SongInfo } from '../../utils/types';
-import { songIdentity, writePlaylistAtomically } from '../../db/playlist-staging';
+import { cleanupExpiredStages, songIdentity, writePlaylistAtomically } from '../../db/playlist-staging';
 import { advanceSyncRevision, getSyncRevision, requireSyncRevision } from '../../db/sync-state';
 
 // P1-4: D1 is now the single source of truth for love-list / playlists. KV
@@ -95,6 +95,11 @@ async function appendPlaylistSongsToD1(
 export async function handleUserPlaylist(request: Request, url: URL, env: Env, ctx: ExecutionContext): Promise<Response> {
   const userId = await getUserId(request, env);
   if (!userId) return jsonResponse({ error: '未登录' }, 401);
+  try {
+    await cleanupExpiredStages(env);
+  } catch (error) {
+    console.error('[playlist:stage-cleanup]', error);
+  }
   const startRevision = await getSyncRevision(env, userId);
 
   const loveList = await readLoveList(env, userId, ctx);

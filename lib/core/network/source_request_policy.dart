@@ -262,9 +262,8 @@ class SourceRequestPolicy {
   final SourceAddressResolver resolve;
   final int maximumResponseBytes;
 
-  /// 自定义源（用户自配的 LX 脚本）是用户显式信任的第三方 API：
-  /// 当 DNS 全部返回非公网地址（运营商 CGNAT / 异常 DNS）时放行，
-  /// 避免正常自定义源被误杀；内置源的请求仍保持严格 SSRF 防护。
+  /// Deprecated compatibility flag. Non-public destinations are always
+  /// rejected; user-provided scripts are not a network security boundary.
   final bool allowNonPublicResolved;
 
   SourceRequestPolicy({
@@ -325,16 +324,15 @@ class SourceRequestPolicy {
       );
     }
     final publicAddresses = addresses.where(_isPublic).toList(growable: false);
-    if (publicAddresses.isEmpty && !allowNonPublicResolved) {
+    if (publicAddresses.length != addresses.length || publicAddresses.isEmpty) {
       throw const SourceRequestPolicyException(
         'blocked_address',
-        'Destination is not public',
+        'Destination must resolve only to public addresses',
       );
     }
-    // 自定义源放行时仍按解析顺序连接（IPv4 优先）。
-    final orderedAddresses = [
-      ...(publicAddresses.isEmpty ? addresses : publicAddresses),
-    ]
+    // Always connect only to the validated public addresses. The compatibility
+    // flag is intentionally ignored so a caller cannot weaken SSRF checks.
+    final orderedAddresses = [...publicAddresses]
       ..sort((left, right) {
         if (left.type == right.type) return 0;
         return left.type == InternetAddressType.IPv4 ? -1 : 1;
