@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/theme/app_colors.dart';
@@ -67,7 +68,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           const SizedBox(height: 20),
                           const HomeHeroCard(),
                           const SizedBox(height: 24),
-                          _buildQuickSectionTitle(context, '快捷功能'),
+                          _buildQuickSectionTitle(context, S.of(context).shortcuts),
                           const SizedBox(height: 12),
                           _buildQuickGrid(context, ref, columns, quickIds),
                           const SizedBox(height: 20),
@@ -87,7 +88,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     actions: [
                       FrostedHeaderButton(
                         icon: Icons.tune_rounded,
-                        semanticLabel: '设置首页大卡片',
+                        semanticLabel: S.of(context).heroCardSettingsAction,
                         onTap: () => _showHeroCardSettings(context),
                       ),
                     ],
@@ -132,7 +133,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '搜索歌曲、歌手、歌单...',
+                S.of(context).searchSongsHint,
                 style: TextStyle(color: muted, fontSize: 15),
               ),
             ),
@@ -153,7 +154,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Text(title, style: titleStyle),
         const Spacer(),
         Pressable(
-          semanticLabel: '快捷功能设置',
+          semanticLabel: S.of(context).shortcutSettings,
           onTap: () => _showQuickSettings(context),
           borderRadius: BorderRadius.circular(6),
           child: Padding(
@@ -244,7 +245,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _sheetHeader(context, title: '首页大卡片设置', closeLabel: '关闭首页大卡片设置'),
+              _sheetHeader(
+                context,
+                title: S.of(context).heroCardSettings,
+                closeLabel: S.of(context).closeHeroCardSettings,
+              ),
               const HomeHeroCardSettings(),
               const SizedBox(height: 8),
             ],
@@ -270,7 +275,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _sheetHeader(context, title: '快捷功能设置', closeLabel: '关闭快捷功能设置'),
+                _sheetHeader(
+                  context,
+                  title: S.of(context).shortcutSettings,
+                  closeLabel: S.of(context).closeShortcutSettings,
+                ),
                 Flexible(
                   child: ReorderableListView.builder(
                     shrinkWrap: true,
@@ -286,7 +295,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         key: ValueKey(feature.id),
                         leading: Icon(feature.icon, color: feature.color),
                         title: Text(
-                          feature.title,
+                          S.of(context).quickTitle(feature.id),
                           style: TextStyle(
                             color: active
                                 ? AppColors.onScaffold(context)
@@ -294,7 +303,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                         ),
                         subtitle: Text(
-                          feature.subtitle,
+                          S.of(context).quickSubtitle(feature.id),
                           style: TextStyle(
                             color: AppColors.mutedText(context),
                             fontSize: 12,
@@ -403,7 +412,7 @@ class _QuickEntryCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  entry.title,
+                  S.of(context).quickTitle(entry.id),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -414,7 +423,7 @@ class _QuickEntryCard extends ConsumerWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  entry.subtitle,
+                  S.of(context).quickSubtitle(entry.id),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:koyze/l10n/app_strings.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -217,11 +218,13 @@ class _AppNotificationBanner extends StatelessWidget {
     final dark = AppColors.isDark(context);
     final shadowColor = Colors.black.withValues(alpha: dark ? 0.42 : 0.16);
 
+    final s = S.of(context);
+    final shown = localizeUserMessage(notification.message, s);
     final status = switch (notification.type) {
-      AppNotificationType.info => '提示',
-      AppNotificationType.success => '成功',
-      AppNotificationType.warning => '警告',
-      AppNotificationType.error => '错误',
+      AppNotificationType.info => s.notice,
+      AppNotificationType.success => s.success,
+      AppNotificationType.warning => s.warning,
+      AppNotificationType.error => s.error,
     };
 
     final tintedFill = Color.alphaBlend(
@@ -234,7 +237,7 @@ class _AppNotificationBanner extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       liveRegion: true,
-      label: '$status: ${notification.message}',
+      label: '$status: $shown',
       child: Container(
         margin: const EdgeInsets.fromLTRB(20, 10, 20, 0),
         constraints: const BoxConstraints(maxWidth: 420),
@@ -271,7 +274,7 @@ class _AppNotificationBanner extends StatelessWidget {
                 Flexible(
                   child: ExcludeSemantics(
                     child: Text(
-                      notification.message,
+                      shown,
                       maxLines: 4,
                       overflow: TextOverflow.fade,
                       style: TextStyle(
@@ -285,7 +288,7 @@ class _AppNotificationBanner extends StatelessWidget {
                   ),
                 ),
                 IconButton(
-                  tooltip: '关闭通知',
+                  tooltip: S.of(context).dismissNotification,
                   onPressed: onDismiss,
                   constraints: const BoxConstraints(
                     minWidth: 48,

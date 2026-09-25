@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:koyze/l10n/app_strings.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,7 +50,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          '听歌统计',
+          S.of(context).listeningStats,
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -86,12 +87,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           Icon(Icons.bar_chart, size: 56, color: AppColors.mutedText(context)),
           const SizedBox(height: 12),
           Text(
-            '暂无播放数据',
+            S.of(context).listeningStatsEmpty,
             style: TextStyle(color: AppColors.mutedText(context), fontSize: 14),
           ),
           const SizedBox(height: 4),
           Text(
-            '多听几首歌，这里会生成你的听歌报告',
+            S.of(context).listeningStatsEmptyHint,
             style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
           ),
         ],
@@ -123,13 +124,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   ) {
     return Row(
       children: [
-        _summaryCard('播放次数', '${summary.totalPlays}', summary.totalPlays),
+        _summaryCard(S.of(context).playCount, '${summary.totalPlays}', summary.totalPlays),
         const SizedBox(width: 10),
-        _summaryCard('听歌时长', _fmtDuration(summary.totalSec)),
+        _summaryCard(S.of(context).listenTime, _fmtDuration(summary.totalSec)),
         const SizedBox(width: 10),
-        _summaryCard('活跃天数', '${summary.activeDays}', summary.activeDays),
+        _summaryCard(S.of(context).activeDays, '${summary.activeDays}', summary.activeDays),
         const SizedBox(width: 10),
-        _summaryCard('单曲数', '${summary.uniqueSongs}', summary.uniqueSongs),
+        _summaryCard(S.of(context).trackCount, '${summary.uniqueSongs}', summary.uniqueSongs),
       ],
     );
   }
@@ -194,7 +195,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '每日播放',
+            S.of(context).dailyPlays,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -231,7 +232,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            '${days.length} 天 · 峰值 $maxCount 次',
+            S.of(context).dailyPeak(days.length, maxCount),
             style: TextStyle(fontSize: 10, color: AppColors.mutedText(context)),
           ),
         ],
@@ -273,10 +274,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   ),
                 ),
                 const Spacer(),
-                for (final (index, label) in const [
-                  (0, '歌曲'),
-                  (1, '艺术家'),
-                  (2, '专辑'),
+                for (final (index, label) in [
+                  (0, S.of(context).songs),
+                  (1, S.of(context).artists),
+                  (2, S.of(context).albums),
                 ]) ...[
                   if (index != 0) const SizedBox(width: 6),
                   ChoiceChip(
@@ -293,7 +294,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                '暂无数据',
+                S.of(context).noData,
                 style: TextStyle(
                   fontSize: 12,
                   color: AppColors.mutedText(context),
@@ -327,7 +328,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   ),
                 ),
                 subtitle: Text(
-                  '${item.subtitle} · ${item.playCount}次',
+                  S.of(context).statSubtitle(item.subtitle, item.playCount),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

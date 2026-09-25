@@ -50,9 +50,9 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('热搜榜'), findsOneWidget);
+    expect(find.text('Trending'), findsOneWidget);
     expect(find.text('热歌1'), findsOneWidget);
-    expect(find.text('搜索'), findsWidgets);
+    expect(find.text('Search'), findsWidgets);
   });
 
   testWidgets('search error exposes retry action', (tester) async {
@@ -79,8 +79,8 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
-    expect(find.text('重试'), findsOneWidget);
-    await tester.tap(find.text('重试'));
+    expect(find.text('Retry'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(attempts, 2);
   });
@@ -126,10 +126,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('稻香'), findsNWidgets(2));
-    expect(find.byTooltip('收藏'), findsOneWidget);
-    expect(find.byTooltip('更多操作'), findsOneWidget);
+    expect(find.byTooltip('Favorite'), findsOneWidget);
+    expect(find.byTooltip('More'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('收藏'));
+    await tester.tap(find.byTooltip('Favorite'));
     await tester.pumpAndSettle();
     expect(toggled, 1);
   });

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -106,7 +107,7 @@ class _StartupCloudLoginPageState
     final server = _serverCtrl.text.trim();
     final username = _userCtrl.text.trim();
     if (server.isEmpty || username.isEmpty || _passCtrl.text.isEmpty) {
-      setState(() => _error = '请填写服务器、用户名和密码');
+      setState(() => _error = S.of(context).fillServerLogin);
       return;
     }
     setState(() {
@@ -123,7 +124,7 @@ class _StartupCloudLoginPageState
       if (ok) {
         await widget.onDone();
       } else {
-        setState(() => _error = ref.read(cloudSessionProvider).error ?? '登录失败');
+        setState(() => _error = ref.read(cloudSessionProvider).error ?? S.of(context).loginFailed);
       }
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -154,7 +155,7 @@ class _StartupCloudLoginPageState
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    '欢迎使用 Koyze',
+                    S.of(context).welcome,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.onScaffold(context),
@@ -164,7 +165,7 @@ class _StartupCloudLoginPageState
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    '登录云端账号后，可跨设备同步收藏、歌单、设置和自定义音源。',
+                    S.of(context).welcomeBody,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.mutedText(context),
@@ -187,7 +188,7 @@ class _StartupCloudLoginPageState
                         ),
                     style: TextStyle(color: AppColors.onScaffold(context)),
                     decoration: _decoration(
-                      '服务器地址',
+                      S.of(context).serverAddress,
                       'https://your-worker.example',
                     ),
                   ),
@@ -203,7 +204,7 @@ class _StartupCloudLoginPageState
                           editableTextState: state,
                         ),
                     style: TextStyle(color: AppColors.onScaffold(context)),
-                    decoration: _decoration('用户名', '同步账号用户名'),
+                    decoration: _decoration(S.of(context).username, S.of(context).syncUsernameHint),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -220,7 +221,7 @@ class _StartupCloudLoginPageState
                           editableTextState: state,
                         ),
                     style: TextStyle(color: AppColors.onScaffold(context)),
-                    decoration: _decoration('密码', '同步账号密码'),
+                    decoration: _decoration(S.of(context).password, S.of(context).syncPasswordHint),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 10),
@@ -240,7 +241,7 @@ class _StartupCloudLoginPageState
                       _register ? Icons.person_add_alt_1 : Icons.login,
                     ),
                     label: Text(
-                      _busy ? '请稍候…' : (_register ? '注册并开始同步' : '登录并开始同步'),
+                      _busy ? S.of(context).pleaseWait : (_register ? S.of(context).registerAndSync : S.of(context).loginAndSync),
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: accent,
@@ -255,20 +256,20 @@ class _StartupCloudLoginPageState
                     onPressed: _busy
                         ? null
                         : () => setState(() => _register = !_register),
-                    child: Text(_register ? '已有账号，返回登录' : '还没有账号？注册一个'),
+                    child: Text(_register ? S.of(context).backToLogin : S.of(context).needAccount),
                   ),
                   const SizedBox(height: 6),
                   TextButton.icon(
                     onPressed: _busy ? null : () => widget.onDone(),
                     icon: const Icon(Icons.skip_next_rounded),
-                    label: const Text('跳过这一步'),
+                    label: Text(S.of(context).skipStep),
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.mutedText(context),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '跳过后不会影响本地播放；你之后可以随时在“设置 → 同步”添加账号。',
+                    S.of(context).skipStepHint,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.mutedText(context),

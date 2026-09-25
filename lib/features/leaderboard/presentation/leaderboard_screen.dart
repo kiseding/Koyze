@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../core/music_source/platform/music_platform.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/artwork_image.dart';
@@ -86,7 +87,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                '加载失败: $error',
+                                '${S.of(context).loadSongsFailed}: $error',
                                 style: TextStyle(
                                   color: AppColors.secondaryText(context),
                                 ),
@@ -96,7 +97,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                                 onPressed: () => ref.invalidate(
                                   leaderboardCategoriesProvider,
                                 ),
-                                child: const Text('重试'),
+                                child: Text(S.of(context).retry),
                               ),
                             ],
                           ),
@@ -105,7 +106,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                           if (categories.isEmpty) {
                             return Center(
                               child: Text(
-                                '暂无排行榜数据',
+                                S.of(context).noChartData,
                                 style: TextStyle(
                                   color: AppColors.mutedText(context),
                                 ),
@@ -125,7 +126,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                           if (visible.isEmpty) {
                             return Center(
                               child: Text(
-                                '已隐藏全部榜单\n点击右上角设置恢复',
+                                S.of(context).chartsHidden,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: AppColors.mutedText(context),
@@ -149,17 +150,17 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                       left: 0,
                       right: 0,
                       child: FrostedTabHeader(
-                        title: '榜单',
+                        title: S.of(context).charts,
                         leadingIcon: Icons.leaderboard_rounded,
                         actions: [
                           FrostedHeaderButton(
                             icon: Icons.tune_rounded,
-                            semanticLabel: '榜单设置',
+                            semanticLabel: S.of(context).chartSettings,
                             onTap: () => context.push('/leaderboard-settings'),
                           ),
                           FrostedHeaderButton(
                             icon: Icons.refresh_rounded,
-                            semanticLabel: '刷新榜单',
+                            semanticLabel: S.of(context).refreshCharts,
                             onTap: () => ref.invalidate(
                               leaderboardCategoriesProvider,
                             ),
@@ -280,7 +281,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     bool isLastOfBlock,
   ) {
     final platform = item.platformId ?? 'other';
-    final name = kLeaderboardPlatformNames[platform] ?? '其他';
+    final name = S.of(context).platformName(platform);
     final color = _platformColor(context, platform);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -312,7 +313,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
           ),
           const Spacer(),
           Text(
-            isLastOfBlock ? '榜单' : '精选',
+            isLastOfBlock ? S.of(context).charts : S.of(context).featured,
             style: TextStyle(fontSize: 11, color: color),
           ),
         ],
@@ -598,7 +599,9 @@ class _LeaderboardPlayButton extends ConsumerWidget {
     );
     return CardPlayButton(
       size: 60,
-      tooltip: isNowPlaying ? '正在播放 ${category.name}' : '播放 ${category.name}',
+      tooltip: isNowPlaying
+          ? S.of(context).nowPlayingNamed(category.name)
+          : S.of(context).playNamed(category.name),
       color: color,
       backgroundColor: isNowPlaying
           ? Colors.white.withValues(alpha: 0.32)
@@ -660,7 +663,7 @@ class LeaderboardDetailScreenById extends ConsumerWidget {
           ),
           error: (e, _) => Center(
             child: Text(
-              '加载失败: $e',
+              '${S.of(context).loadSongsFailed}: $e',
               style: TextStyle(color: AppColors.mutedText(context)),
             ),
           ),
@@ -668,7 +671,7 @@ class LeaderboardDetailScreenById extends ConsumerWidget {
             if (songs.isEmpty) {
               return Center(
                 child: Text(
-                  '暂无歌曲数据',
+                  S.of(context).noSongData,
                   style: TextStyle(color: AppColors.mutedText(context)),
                 ),
               );

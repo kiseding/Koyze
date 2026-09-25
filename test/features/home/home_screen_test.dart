@@ -34,8 +34,10 @@ void main() {
     expect(hero, contains("'本地音乐'"));
     expect(hero, contains("'NAS 乐库'"));
     expect(hero, contains("'最近播放'"));
-    expect(hero, contains('只能启用其中一张'));
-    expect(hero, contains('右侧按钮播放模式'));
+    final strings = File('lib/l10n/app_strings.dart').readAsStringSync();
+    expect(strings, contains('只能启用其中一张'));
+    expect(strings, contains('右侧按钮播放模式'));
+    expect(hero, contains('titleFor(S.of(context))'));
     expect(hero, contains('setShuffleMode'));
     expect(hero, contains('setRepeatMode'));
     expect(hero, contains('AudioServiceRepeatMode.one'));
@@ -46,8 +48,10 @@ void main() {
     expect(source, isNot(contains("route: '/sync'")));
     expect(quick, contains('Icons.palette_outlined'));
     expect(source, contains('homeQuickSettingsProvider'));
-    expect(source, contains("semanticLabel: '设置首页大卡片'"));
-    expect(source, contains("semanticLabel: '快捷功能设置'"));
+    expect(source, contains('semanticLabel: S.of(context).heroCardSettingsAction'));
+    expect(source, contains('semanticLabel: S.of(context).shortcutSettings'));
+    expect(strings, contains('设置首页大卡片'));
+    expect(strings, contains('快捷功能设置'));
     expect(source, contains('ReorderableListView.builder'));
     expect(quick, contains('home_quick_features_v1'));
     expect(source, isNot(contains('Icons.dark_mode_outlined')));
@@ -61,7 +65,7 @@ void main() {
       'lib/features/playlist/presentation/playlist_screen.dart',
     ).readAsStringSync();
 
-    expect(source, contains("_BodyHeader(title: '自定义歌单'"));
+    expect(source, contains('_BodyHeader(title: S.of(context).customPlaylists'));
   });
 
   test('search sheet has draggable handle and delays keyboard focus', () {

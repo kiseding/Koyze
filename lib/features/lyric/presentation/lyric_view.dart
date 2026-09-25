@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
@@ -142,9 +143,9 @@ class _LyricViewState extends ConsumerState<LyricView> {
     if (loadState.isLoading) {
       return _buildStatusState(
         icon: CircularProgressIndicator(strokeWidth: 2.5, color: accent),
-        title: '正在加载歌词',
+        title: S.of(context).lyricsLoading,
         message: currentMusic == null
-            ? '正在获取歌词内容'
+            ? S.of(context).fetchingLyrics
             : '${currentMusic.name} - ${currentMusic.singer}',
         primary: primary,
         muted: muted,
@@ -155,9 +156,9 @@ class _LyricViewState extends ConsumerState<LyricView> {
     if (loadState.error != null) {
       return _buildStatusState(
         icon: Icon(Icons.error_outline, size: 34, color: muted),
-        title: '歌词加载失败',
-        message: '请检查网络连接后重试',
-        actionLabel: '重试',
+        title: S.of(context).lyricsFailed,
+        message: S.of(context).checkNetwork,
+        actionLabel: S.of(context).retry,
         onAction: () => _retryLyric(currentMusic),
         primary: primary,
         muted: muted,
@@ -168,11 +169,11 @@ class _LyricViewState extends ConsumerState<LyricView> {
     if (lyrics.isEmpty) {
       return _buildStatusState(
         icon: Icon(Icons.music_note, size: 34, color: muted),
-        title: '暂无歌词',
+        title: S.of(context).lyricsEmpty,
         message: currentMusic != null
             ? '${currentMusic.name} - ${currentMusic.singer}'
-            : '该歌曲暂时没有可用的歌词文件',
-        actionLabel: '搜索歌词',
+            : S.of(context).lyricsUnavailable,
+        actionLabel: S.of(context).searchLyrics,
         onAction: () => _retryLyric(currentMusic),
         primary: primary,
         muted: muted,
@@ -302,7 +303,7 @@ class _LyricViewState extends ConsumerState<LyricView> {
         : (currentLineIndex + 1).clamp(0, lyrics.lines.length - 1);
 
     return Semantics(
-      label: '歌词',
+      label: S.of(context).lyrics,
       value: currentText,
       decreasedValue: previousIndex < 0
           ? null

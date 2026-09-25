@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/theme/app_colors.dart';
@@ -44,7 +45,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
-          '同步 / 云端账号',
+          S.of(context).syncTitle,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -57,11 +58,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             child: ListTile(
               leading: const Icon(Icons.dns_outlined, color: AppColors.amber),
               title: Text(
-                'Workers 服务器',
+                S.of(context).workersServer,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               subtitle: Text(
-                session.baseUrl ?? '未配置（例如 https://xxx.workers.dev）',
+                session.baseUrl ?? S.of(context).workersUnset,
                 style: TextStyle(
                   color: session.baseUrl != null
                       ? AppColors.mutedText(context)
@@ -88,13 +89,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     : AppColors.mutedText(context),
               ),
               title: Text(
-                session.loggedIn ? '已登录：${session.username}' : '未登录',
+                session.loggedIn ? S.of(context).loggedInAs(session.username ?? '') : S.of(context).notLoggedIn,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               subtitle: Text(
                 session.loggedIn
-                    ? '角色：${session.role ?? 'user'}'
-                    : '登录后可同步云端歌单',
+                    ? S.of(context).roleLine(session.role ?? 'user')
+                    : S.of(context).loginToSync,
                 style: TextStyle(
                   color: AppColors.mutedText(context),
                   fontSize: 12,
@@ -143,7 +144,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            ref.watch(cloudSyncProvider).message ?? '同步中…',
+                            ref.watch(cloudSyncProvider).message ?? S.of(context).syncing,
                             style: TextStyle(
                               color: AppColors.onScaffold(context),
                               fontSize: 13,
@@ -175,7 +176,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           const SizedBox(height: 24),
           if (session.loggedIn) ...[_buildLogout(), const SizedBox(height: 16)],
           Text(
-            '说明：在此配置并登录 workers 后端。搜歌/播放仍在本机完成，云端负责账号、歌单、设置与音源。',
+            S.of(context).syncExplainer,
             style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
           ),
         ],
@@ -220,16 +221,16 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: SegmentedButton<bool>(
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                         value: true,
-                        label: Text('登录'),
-                        icon: Icon(Icons.login_rounded, size: 18),
+                        label: Text(S.of(context).login),
+                        icon: const Icon(Icons.login_rounded, size: 18),
                       ),
                       ButtonSegment(
                         value: false,
-                        label: Text('注册'),
-                        icon: Icon(Icons.person_add_alt_1_rounded, size: 18),
+                        label: Text(S.of(context).register),
+                        icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
                       ),
                     ],
                     selected: {_isLoginMode},
@@ -264,7 +265,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   ),
               style: TextStyle(color: AppColors.onScaffold(context)),
               decoration: InputDecoration(
-                labelText: '用户名',
+                labelText: S.of(context).username,
                 prefixIcon: Icon(
                   Icons.person_outline_rounded,
                   color: AppColors.mutedText(context),
@@ -289,7 +290,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   ),
               style: TextStyle(color: AppColors.onScaffold(context)),
               decoration: InputDecoration(
-                labelText: '密码',
+                labelText: S.of(context).password,
                 prefixIcon: Icon(
                   Icons.lock_outline_rounded,
                   color: AppColors.mutedText(context),
@@ -319,7 +320,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                           : Icons.person_add_alt_1_rounded,
                       size: 18,
                     ),
-              label: Text(_busy ? '请稍候…' : (_isLoginMode ? '登录' : '注册')),
+              label: Text(_busy ? S.of(context).pleaseWait : (_isLoginMode ? S.of(context).login : S.of(context).register)),
             ),
           ],
         ),
@@ -333,7 +334,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          '事件同步',
+          S.of(context).eventSync,
           style: TextStyle(
             color: AppColors.secondaryText(context),
             fontSize: 13,
@@ -348,13 +349,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               color: Theme.of(context).colorScheme.primary,
             ),
             title: Text(
-              '立即同步',
+              S.of(context).syncNow,
               style: TextStyle(color: AppColors.onScaffold(context)),
             ),
             subtitle: Text(
               sync.phase == CloudSyncPhase.syncing
-                  ? '正在安全合并本地与云端事件…'
-                  : '只上传本地变更并拉取其他设备变更，不覆盖数据',
+                  ? S.of(context).mergingEvents
+                  : S.of(context).syncDoesNotOverwrite,
               style: TextStyle(
                 color: AppColors.mutedText(context),
                 fontSize: 12,
@@ -369,17 +370,17 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         ),
         const SizedBox(height: 10),
         Text(
-          sync.message ?? '数据保存在本地，网络恢复后自动同步',
+          sync.message ?? S.of(context).offlineUntilNetwork,
           style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
         ),
         if (sync.report case final report?) ...[
           const SizedBox(height: 8),
           Text(
-            '设备：${report.deviceId}',
+            S.of(context).deviceLine(report.deviceId),
             style: TextStyle(color: AppColors.mutedText(context), fontSize: 11),
           ),
           Text(
-            '时间：${report.completedAt.toLocal()}',
+            S.of(context).timeLine('${report.completedAt.toLocal()}'),
             style: TextStyle(color: AppColors.mutedText(context), fontSize: 11),
           ),
           Wrap(
@@ -398,9 +399,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     return _card(
       child: ListTile(
         leading: const Icon(Icons.logout, color: AppColors.error),
-        title: const Text('退出登录', style: TextStyle(color: AppColors.error)),
+        title: Text(S.of(context).logOut, style: TextStyle(color: AppColors.error)),
         subtitle: Text(
-          '退出后保留收藏、歌单、评分、播放历史、下载与缓存，仅清除登录状态',
+          S.of(context).logOutHint,
           style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
         ),
         onTap: _busy
@@ -408,7 +409,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             : () async {
                 await ref.read(cloudSessionProvider.notifier).logout();
                 if (!mounted) return;
-                setState(() => _message = '已退出登录');
+                setState(() => _message = S.of(context).loggedOut);
               },
       ),
     );
@@ -419,11 +420,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       child: ListTile(
         leading: const Icon(Icons.admin_panel_settings, color: AppColors.amber),
         title: Text(
-          '用户管理（管理员）',
+          S.of(context).userAdmin,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
         subtitle: Text(
-          '创建 / 删除 / 重置密码',
+          S.of(context).userAdminHint,
           style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
         ),
         trailing: Icon(
@@ -447,7 +448,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             return AlertDialog(
               backgroundColor: AppColors.dialogBg(context),
               title: Text(
-                'Workers 地址',
+                S.of(context).workersAddress,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               content: SingleChildScrollView(
@@ -473,12 +474,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: const Text('取消'),
+                  child: Text(S.of(context).cancel),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                  child: const Text(
-                    '保存',
+                  child: Text(
+                    S.of(context).save,
                     style: TextStyle(color: AppColors.amber),
                   ),
                 ),
@@ -494,11 +495,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         await ref.read(cloudSessionProvider.notifier).setBaseUrl(url);
         final alive = await _api.ping();
         if (!mounted) return;
-        setState(() => _message = alive ? '服务器可达' : '保存成功，但健康检查失败（部署后重试）');
+        setState(() => _message = alive ? S.of(context).serverReachable : S.of(context).savedHealthFailed);
       } on ArgumentError catch (error) {
         if (!mounted) return;
         setState(
-          () => _message = error.message?.toString() ?? '服务器地址必须使用 HTTPS',
+          () => _message = error.message?.toString() ?? S.of(context).httpsRequired,
         );
       }
     }
@@ -506,7 +507,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
   Future<void> _submitAuth() async {
     if ((ref.read(cloudSessionProvider).baseUrl ?? '').isEmpty) {
-      setState(() => _message = '请先填写服务器地址');
+      setState(() => _message = S.of(context).enterServerFirst);
       return;
     }
     setState(() {
@@ -521,7 +522,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     if (!mounted) return;
     setState(() {
       _busy = false;
-      _message = ok ? '登录成功' : (ref.read(cloudSessionProvider).error ?? '失败');
+      _message = ok ? S.of(context).loginSucceeded : (ref.read(cloudSessionProvider).error ?? S.of(context).failed);
     });
   }
 
@@ -534,10 +535,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       await ref.read(cloudSyncProvider.notifier).sync();
       if (!mounted) return;
       final sync = ref.read(cloudSyncProvider);
-      setState(() => _message = sync.message ?? '同步完成');
+      setState(() => _message = sync.message ?? S.of(context).syncFinished);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _message = '同步失败：$e');
+      setState(() => _message = S.of(context).syncFailed(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -577,7 +578,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            '用户列表',
+                            S.of(context).userList,
                             style: TextStyle(
                               color: AppColors.onScaffold(context),
                               fontSize: 17,
@@ -586,7 +587,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                           ),
                         ),
                         IconButton(
-                          tooltip: '关闭',
+                          tooltip: S.of(context).close,
                           icon: Icon(
                             Icons.close_rounded,
                             color: AppColors.mutedText(context),
@@ -634,15 +635,15 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                           ),
                           subtitle: Text(
                             role == 'admin'
-                                ? '管理员 · id=${u['id']}'
-                                : '普通用户 · id=${u['id']}',
+                                ? S.of(context).adminUser('${u['id']}')
+                                : S.of(context).normalUser('${u['id']}'),
                             style: TextStyle(
                               color: AppColors.mutedText(context),
                               fontSize: 12,
                             ),
                           ),
                           trailing: FxIconButton(
-                            tooltip: '删除 ${u['username']}',
+                            tooltip: S.of(context).deleteUser('${u['username']}'),
                             icon: const Icon(
                               Icons.delete_outline_rounded,
                               color: AppColors.error,
@@ -656,11 +657,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                 if (ctx.mounted) Navigator.pop(ctx);
                                 if (!mounted) return;
                                 setState(
-                                  () => _message = '已删除 ${u['username']}',
+                                  () => _message = S.of(context).deletedUser('${u['username']}'),
                                 );
                               } catch (e) {
                                 if (!mounted) return;
-                                setState(() => _message = '删除失败: $e');
+                                setState(() => _message = '${S.of(context).deleteFailed}: $e');
                               }
                             },
                           ),
@@ -689,7 +690,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                 return AlertDialog(
                                   backgroundColor: AppColors.dialogBg(context),
                                   title: Text(
-                                    '新建用户',
+                                    S.of(context).newUser,
                                     style: TextStyle(
                                       color: AppColors.onScaffold(context),
                                     ),
@@ -709,8 +710,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                               context,
                                             ),
                                           ),
-                                          decoration: const InputDecoration(
-                                            labelText: '用户名',
+                                          decoration: InputDecoration(
+                                            labelText: S.of(context).username,
                                           ),
                                         ),
                                         const SizedBox(height: 12),
@@ -728,8 +729,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                               context,
                                             ),
                                           ),
-                                          decoration: const InputDecoration(
-                                            labelText: '密码',
+                                          decoration: InputDecoration(
+                                            labelText: S.of(context).password,
                                           ),
                                         ),
                                       ],
@@ -738,15 +739,15 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                   actions: [
                                     TextButton(
                                       onPressed: () => Navigator.pop(d),
-                                      child: const Text('取消'),
+                                      child: Text(S.of(context).cancel),
                                     ),
                                     TextButton(
                                       onPressed: () => Navigator.pop(d, [
                                         u.text.trim(),
                                         p.text,
                                       ]),
-                                      child: const Text(
-                                        '创建',
+                                      child: Text(
+                                        S.of(context).create,
                                         style: TextStyle(
                                           color: AppColors.amber,
                                         ),
@@ -769,14 +770,14 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             );
                             if (ctx.mounted) Navigator.pop(ctx);
                             if (!mounted) return;
-                            setState(() => _message = '已创建用户');
+                            setState(() => _message = S.of(context).userCreated);
                           } catch (e) {
                             if (!mounted) return;
-                            setState(() => _message = '创建失败: $e');
+                            setState(() => _message = '${S.of(context).createFailed}: $e');
                           }
                         }
                       },
-                      child: const Text('新建用户'),
+                      child: Text(S.of(context).newUser),
                     ),
                   ),
                 ],
@@ -787,7 +788,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      setState(() => _message = '加载用户失败: $e');
+      setState(() => _message = S.of(context).usersLoadFailed(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

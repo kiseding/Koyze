@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
 
@@ -144,7 +145,7 @@ class _PlayPulseButtonState extends State<PlayPulseButton>
     final glowA = 0.28 * gPeak;
 
     final onActivate = disabled ? null : widget.onPressed;
-    final label = widget.semanticLabel ?? (widget.isPlaying ? '暂停' : '播放');
+    final label = widget.semanticLabel ?? (widget.isPlaying ? S.of(context).pause : S.of(context).play);
 
     final interactiveChild = GestureDetector(
       behavior: HitTestBehavior.opaque,

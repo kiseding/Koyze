@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/theme/app_colors.dart';
@@ -49,10 +50,10 @@ class _PlaylistPickerContentState
       await ref.read(addSongToPlaylistProvider)(playlistId, widget.song);
       if (!mounted) return;
       Navigator.pop(context);
-      showAppNotification('已添加到歌单', type: AppNotificationType.success);
+      showAppNotification(S.of(context).addedToPlaylist, type: AppNotificationType.success);
     } catch (error) {
       if (!mounted) return;
-      showAppNotification('添加失败: $error', type: AppNotificationType.error);
+      showAppNotification('${S.of(context).addFailed}: $error', type: AppNotificationType.error);
     }
   }
 
@@ -65,10 +66,10 @@ class _PlaylistPickerContentState
           .createPlaylist(name: name, songs: [widget.song]);
       if (!mounted) return;
       Navigator.pop(context);
-      showAppNotification('已创建歌单并添加', type: AppNotificationType.success);
+      showAppNotification(S.of(context).playlistCreatedAndAdded, type: AppNotificationType.success);
     } catch (error) {
       if (!mounted) return;
-      showAppNotification('创建失败: $error', type: AppNotificationType.error);
+      showAppNotification('${S.of(context).createFailed}: $error', type: AppNotificationType.error);
     }
   }
 
@@ -89,7 +90,7 @@ class _PlaylistPickerContentState
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '添加到歌单',
+                  S.of(context).addToPlaylist,
                   style: TextStyle(
                     color: AppColors.onScaffold(context),
                     fontSize: 18,
@@ -97,7 +98,7 @@ class _PlaylistPickerContentState
                   ),
                 ),
                 FxIconButton(
-                  tooltip: _showCreateField ? '收起新建歌单' : '新建歌单',
+                  tooltip: _showCreateField ? S.of(context).collapseNewPlaylist : S.of(context).newPlaylist,
                   icon: Icon(
                     Icons.add,
                     color: Theme.of(context).colorScheme.primary,
@@ -139,7 +140,7 @@ class _PlaylistPickerContentState
                               color: AppColors.onScaffold(context),
                             ),
                             decoration: InputDecoration(
-                              hintText: '新歌单名称',
+                              hintText: S.of(context).newPlaylistName,
                               hintStyle: TextStyle(
                                 color: AppColors.secondaryText(context),
                               ),
@@ -162,7 +163,7 @@ class _PlaylistPickerContentState
                         TextButton(
                           onPressed: _createAndAdd,
                           child: Text(
-                            '创建',
+                            S.of(context).create,
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.primary,
                             ),
@@ -188,11 +189,11 @@ class _PlaylistPickerContentState
                     : AppColors.secondaryText(context),
               ),
               title: Text(
-                playlist.name,
+                S.of(context).builtinPlaylistName(playlist.id, playlist.name),
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               subtitle: Text(
-                '${playlist.songCount} 首',
+                S.of(context).playlistSongCount(playlist.songCount),
                 style: TextStyle(
                   color: AppColors.secondaryText(context),
                   fontSize: 12,

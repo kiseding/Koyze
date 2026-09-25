@@ -52,9 +52,9 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('Checkbox('));
-    expect(source, contains('勾选要移除的'));
-    expect(source, contains('移除已选'));
-    expect(source, contains('按推荐勾选'));
+    expect(source, contains('duplicateGroup'));
+    expect(source, contains('removeSelected'));
+    expect(source, contains('selectRecommended'));
     expect(source, contains('_toggleSelected'));
     expect(source, isNot(contains('一键移除')));
     expect(source, isNot(contains('移除其余版本')));
@@ -96,9 +96,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('勾选要移除的'), findsOneWidget);
-    expect(find.text('推荐保留'), findsOneWidget);
-    expect(find.text('移除已选'), findsOneWidget);
+    expect(find.textContaining('select the ones to remove'), findsOneWidget);
+    expect(find.text('Keep'), findsOneWidget);
+    expect(find.text('Remove selected'), findsOneWidget);
     expect(find.text('一键移除'), findsNothing);
 
     final boxes = tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
@@ -140,12 +140,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('移除已选'));
+    await tester.tap(find.text('Remove selected'));
     await tester.pumpAndSettle();
 
     final remaining = await service.getAllSongs('favorites');
     expect(remaining.map((song) => song.id), ['wy']);
-    expect(find.text('收藏列表没有重复歌曲'), findsOneWidget);
+    expect(find.text('No duplicate songs in Favorites'), findsOneWidget);
   });
 }
 

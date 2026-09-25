@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../l10n/app_strings.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -46,6 +47,14 @@ class HomeHeroCardOption {
   final Color? color;
 
   Color colorOf(BuildContext context) => color ?? AppColors.accentOf(context);
+
+  String titleFor(S s) => switch (id) {
+    HomeHeroCardId.favorites => s.favorites,
+    HomeHeroCardId.recommend => s.forYou,
+    HomeHeroCardId.local => s.localMusic,
+    HomeHeroCardId.nas => s.nasLibrary,
+    HomeHeroCardId.recent => s.recentPlays,
+  };
 }
 
 const homeHeroCardOptions = <HomeHeroCardOption>[
@@ -133,16 +142,16 @@ extension HomeHeroPlayModeX on HomeHeroPlayMode {
     return null;
   }
 
-  String get title => switch (this) {
-    HomeHeroPlayMode.sequential => '顺序播放',
-    HomeHeroPlayMode.shuffle => '随机播放',
-    HomeHeroPlayMode.repeatOne => '单曲循环',
+  String titleFor(S s) => switch (this) {
+    HomeHeroPlayMode.sequential => s.playInOrder,
+    HomeHeroPlayMode.shuffle => s.shufflePlay,
+    HomeHeroPlayMode.repeatOne => s.repeatOne,
   };
 
-  String get caption => switch (this) {
-    HomeHeroPlayMode.sequential => '按列表顺序播放，播完回到第一首',
-    HomeHeroPlayMode.shuffle => '打乱顺序，播完继续随机下一首',
-    HomeHeroPlayMode.repeatOne => '只循环当前第一首',
+  String captionFor(S s) => switch (this) {
+    HomeHeroPlayMode.sequential => s.playInOrderHint,
+    HomeHeroPlayMode.shuffle => s.shufflePlayHint,
+    HomeHeroPlayMode.repeatOne => s.repeatOneHint,
   };
 
   IconData get icon => switch (this) {
@@ -209,7 +218,7 @@ class HomeHeroCardSettings extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
           child: Text(
-            '对应歌单页顶部五张卡片，只能启用其中一张',
+            S.of(context).heroCardHint,
             style: TextStyle(color: muted, fontSize: 12),
           ),
         ),
@@ -234,7 +243,7 @@ class HomeHeroCardSettings extends ConsumerWidget {
                       size: 22,
                     ),
                     title: Text(
-                      spec.title,
+                      spec.titleFor(S.of(context)),
                       style: TextStyle(
                         color: selected == spec.id ? onSurface : muted,
                         fontSize: 15,
@@ -254,7 +263,7 @@ class HomeHeroCardSettings extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
           child: Text(
-            '右侧按钮播放模式',
+            S.of(context).heroPlayMode,
             style: TextStyle(
               color: onSurface,
               fontSize: 13,
@@ -265,7 +274,7 @@ class HomeHeroCardSettings extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
           child: Text(
-            '只影响首页大卡片右侧按钮，和播放页模式互不影响',
+            S.of(context).heroPlayModeHint,
             style: TextStyle(color: muted, fontSize: 12),
           ),
         ),
@@ -286,7 +295,7 @@ class HomeHeroCardSettings extends ConsumerWidget {
                     selected: playMode == mode,
                     leading: Icon(mode.icon, color: onSurface, size: 22),
                     title: Text(
-                      mode.title,
+                      mode.titleFor(S.of(context)),
                       style: TextStyle(
                         color: playMode == mode ? onSurface : muted,
                         fontSize: 15,
@@ -296,7 +305,7 @@ class HomeHeroCardSettings extends ConsumerWidget {
                       ),
                     ),
                     subtitle: Text(
-                      mode.caption,
+                      mode.captionFor(S.of(context)),
                       style: TextStyle(color: muted, fontSize: 12),
                     ),
                     trailing: Radio<HomeHeroPlayMode>(value: mode),
@@ -330,7 +339,7 @@ class HomeHeroCard extends ConsumerWidget {
       child: Pressable(
         borderRadius: BorderRadius.circular(18),
         captureExpandRect: true,
-        semanticLabel: spec.title,
+        semanticLabel: spec.titleFor(S.of(context)),
         onTap: model.onOpen,
         child: Container(
           padding: const EdgeInsets.all(20),
@@ -369,7 +378,7 @@ class HomeHeroCard extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
-                          spec.title,
+                          spec.titleFor(S.of(context)),
                           style: const TextStyle(
                             color: onAccent,
                             fontSize: 17,
@@ -442,11 +451,16 @@ class HomeHeroCard extends ConsumerWidget {
             0;
         return _HeroModel(
           color: color,
-          subtitle: count == 0 ? '还没有收藏歌曲' : '点击查看，右侧${playMode.title}',
+          subtitle: count == 0
+              ? S.of(context).noFavoritesYet
+              : S.of(context).heroFavoritesHint(playMode.titleFor(S.of(context))),
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
-          actionLabel: '${playMode.title}收藏',
+          actionLabel: S.of(context).playAction(
+            playMode.titleFor(S.of(context)),
+            S.of(context).favorites,
+          ),
           onOpen: () => context.pushNamed(
             'playlistDetail',
             pathParameters: {'playlistId': 'favorites'},
@@ -459,11 +473,16 @@ class HomeHeroCard extends ConsumerWidget {
         final count = recommendations.length;
         return _HeroModel(
           color: color,
-          subtitle: count > 0 ? '为你推荐 $count 首歌曲' : '收藏歌曲后为你推荐',
+          subtitle: count > 0
+              ? S.of(context).recommendedSongs(count)
+              : S.of(context).recommendAfterFavorites,
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
-          actionLabel: '${playMode.title}猜你喜欢',
+          actionLabel: S.of(context).playAction(
+            playMode.titleFor(S.of(context)),
+            S.of(context).forYou,
+          ),
           onOpen: () => context.push('/recommend'),
           onPlay: () => _playRecommend(
             context,
@@ -481,11 +500,16 @@ class HomeHeroCard extends ConsumerWidget {
             0;
         return _HeroModel(
           color: color,
-          subtitle: count == 0 ? '选择文件夹扫描设备歌曲' : '$count 首歌曲',
+          subtitle: count == 0
+              ? S.of(context).chooseFolderToScan
+              : S.of(context).songCount(count),
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
-          actionLabel: '${playMode.title}本地音乐',
+          actionLabel: S.of(context).playAction(
+            playMode.titleFor(S.of(context)),
+            S.of(context).localMusic,
+          ),
           onOpen: () => context.pushNamed(
             'playlistDetail',
             pathParameters: {'playlistId': 'local'},
@@ -507,9 +531,9 @@ class HomeHeroCard extends ConsumerWidget {
         final count = songs.length;
         final config = ref.watch(subsonicConfigProvider);
         final subtitle = !connected
-            ? 'Navidrome / Emby / Plex / 群晖'
+            ? S.of(context).nasHosts
             : subsonicConnected && songsAsync.isLoading
-            ? '正在加载 ${config.hostLabel}'
+            ? S.of(context).loadingHost(config.hostLabel)
             : 'NAS';
         return _HeroModel(
           color: color,
@@ -518,7 +542,10 @@ class HomeHeroCard extends ConsumerWidget {
           showCountInTitle: false,
           canPlay: subsonicConnected && count > 0,
           actionIcon: actionIcon,
-          actionLabel: '${playMode.title} NAS 乐库',
+          actionLabel: S.of(context).playAction(
+            playMode.titleFor(S.of(context)),
+            S.of(context).nasLibrary,
+          ),
           onOpen: () => context.push('/subsonic'),
           onPlay: () => _playNas(context, ref, songs, playMode),
         );
@@ -531,11 +558,14 @@ class HomeHeroCard extends ConsumerWidget {
             0;
         return _HeroModel(
           color: color,
-          subtitle: '$count 首歌曲',
+          subtitle: S.of(context).songCount(count),
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
-          actionLabel: '${playMode.title}最近播放',
+          actionLabel: S.of(context).playAction(
+            playMode.titleFor(S.of(context)),
+            S.of(context).recentPlays,
+          ),
           onOpen: () => context.pushNamed(
             'playlistDetail',
             pathParameters: {'playlistId': 'recent'},
@@ -576,7 +606,10 @@ class HomeHeroCard extends ConsumerWidget {
       final playlistService = ref.read(playlistServiceProvider);
       final favorites = playlistService.favorites;
       if (favorites == null || favorites.songCount <= 0) {
-        showAppNotification('还没有收藏歌曲', type: AppNotificationType.info);
+        showAppNotification(
+          S.of(context).noFavoritesYet,
+          type: AppNotificationType.info,
+        );
         return;
       }
       final songCount = favorites.songCount;
@@ -599,7 +632,7 @@ class HomeHeroCard extends ConsumerWidget {
     } catch (error) {
       if (!context.mounted) return;
       showAppNotification(
-        '${mode.title}失败: $error',
+        S.of(context).actionFailed(mode.titleFor(S.of(context)), error),
         type: AppNotificationType.error,
       );
     }
@@ -633,7 +666,10 @@ class HomeHeroCard extends ConsumerWidget {
       );
     } catch (error) {
       if (!context.mounted) return;
-      showAppNotification('加载歌曲失败: $error', type: AppNotificationType.error);
+      showAppNotification(
+        '${S.of(context).loadSongsFailed}: $error',
+        type: AppNotificationType.error,
+      );
     }
   }
 
@@ -655,7 +691,10 @@ class HomeHeroCard extends ConsumerWidget {
       );
     } catch (error) {
       if (!context.mounted) return;
-      showAppNotification('播放失败: $error', type: AppNotificationType.error);
+      showAppNotification(
+        '${S.of(context).playFailed}: $error',
+        type: AppNotificationType.error,
+      );
     }
   }
 
@@ -671,7 +710,10 @@ class HomeHeroCard extends ConsumerWidget {
         queue = await ref.read(subsonicServiceProvider).getLibrarySongs();
       }
       if (queue.isEmpty) {
-        showAppNotification('服务器上还没有歌曲', type: AppNotificationType.info);
+        showAppNotification(
+          S.of(context).noSongsOnServer,
+          type: AppNotificationType.info,
+        );
         return;
       }
       final playerService = ref.read(playerServiceProvider);
@@ -684,7 +726,10 @@ class HomeHeroCard extends ConsumerWidget {
       );
     } catch (error) {
       if (!context.mounted) return;
-      showAppNotification('播放失败: $error', type: AppNotificationType.error);
+      showAppNotification(
+        '${S.of(context).playFailed}: $error',
+        type: AppNotificationType.error,
+      );
     }
   }
 }

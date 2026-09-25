@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/animations/micro_animations.dart';
@@ -44,12 +45,12 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
             background: Theme.of(context).scaffoldBackgroundColor,
           ),
           leading: FxIconButton(
-            tooltip: '返回',
+            tooltip: S.of(context).back,
             icon: Icon(Icons.arrow_back, color: AppColors.onScaffold(context)),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            '重复歌曲',
+            S.of(context).duplicateSongs,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -65,7 +66,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
           top: false,
           child: playlistsAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const Center(child: Text('加载失败')),
+            error: (_, __) => Center(child: Text(S.of(context).loadFailed)),
             data: (playlists) {
               final groups = _detectGroups(playlists);
               if (groups.isEmpty) {
@@ -80,7 +81,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '收藏列表没有重复歌曲',
+                        S.of(context).noDuplicateFavorites,
                         style: TextStyle(
                           color: AppColors.mutedText(context),
                           fontSize: 14,
@@ -120,7 +121,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
               ? null
               : () => setState(() => _userSelection = null),
           child: Text(
-            '按推荐勾选',
+            S.of(context).selectRecommended,
             style: TextStyle(color: AppColors.accentOf(context)),
           ),
         ),
@@ -129,7 +130,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
             ? null
             : () => _removeSongIds(selected.toList(growable: false)),
         icon: const Icon(Icons.delete_outline, size: 16),
-        label: Text(_removing ? '处理中…' : '移除已选'),
+        label: Text(_removing ? S.of(context).working : S.of(context).removeSelected),
         style: TextButton.styleFrom(
           foregroundColor: AppColors.accentOf(context),
         ),
@@ -192,7 +193,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
                       ),
                     ),
                     Text(
-                      '${group.artist} · ${group.count} 个版本 · 勾选要移除的',
+                      S.of(context).duplicateGroup(group.artist, group.count),
                       style: TextStyle(
                         fontSize: 12,
                         color: AppColors.mutedText(context),
@@ -202,7 +203,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
                 ),
               ),
               FxIconButton(
-                tooltip: '播放',
+                tooltip: S.of(context).play,
                 icon: Icon(
                   Icons.play_arrow,
                   size: 22,
@@ -229,7 +230,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
                     ? null
                     : () => _removeSongIds(groupSelected),
                 icon: const Icon(Icons.delete_outline, size: 16),
-                label: Text(_removing ? '处理中…' : '移除本组已选'),
+                label: Text(_removing ? S.of(context).working : S.of(context).removeGroupSelected),
               ),
             ),
         ],
@@ -285,7 +286,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
               ),
               if (isBest)
                 Text(
-                  '推荐保留',
+                  S.of(context).keepSuggested,
                   style: TextStyle(fontSize: 11, color: accent),
                 ),
             ],
@@ -298,7 +299,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
   String _songLabel(MusicItem song) {
     final platform = song.platform.toUpperCase();
     return '${song.name} · $platform'
-        '${(song.lyricsUrl?.isNotEmpty ?? false) ? ' · 有歌词' : ''}';
+        '${(song.lyricsUrl?.isNotEmpty ?? false) ? S.of(context).hasLyricsMark : ''}';
   }
 
   void _toggleSelected(MusicItem song, List<DuplicateGroup> groups) {
@@ -329,12 +330,12 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
         }
       });
       showAppNotification(
-        '已移除 $removed 处重复项',
+        S.of(context).removedDuplicates(removed),
         type: AppNotificationType.success,
       );
     } catch (e) {
       if (!mounted) return;
-      showAppNotification('移除失败: $e', type: AppNotificationType.error);
+      showAppNotification('${S.of(context).removeFailed}: $e', type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _removing = false);
     }

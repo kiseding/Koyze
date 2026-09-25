@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/audio/playback_cache_service.dart';
@@ -59,7 +60,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: Text(
-            '下载管理',
+            S.of(context).downloadsTitle,
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -94,21 +95,21 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                 PopupMenuItem(
                   value: 'pause_all',
                   child: Text(
-                    '暂停全部',
+                    S.of(context).pauseAll,
                     style: TextStyle(color: AppColors.onScaffold(context)),
                   ),
                 ),
                 PopupMenuItem(
                   value: 'clear_completed',
                   child: Text(
-                    '删除已完成下载',
+                    S.of(context).deleteFinishedDownloads,
                     style: TextStyle(color: AppColors.error),
                   ),
                 ),
                 PopupMenuItem(
                   value: 'clear_failed',
                   child: Text(
-                    '清理失败任务',
+                    S.of(context).clearFailedTasks,
                     style: TextStyle(color: AppColors.error),
                   ),
                 ),
@@ -128,7 +129,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '暂无下载任务',
+                      S.of(context).noDownloadTasks,
                       style: TextStyle(
                         color: AppColors.mutedText(context),
                         fontSize: 16,
@@ -156,7 +157,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                     child: filtered.isEmpty
                         ? Center(
                             child: Text(
-                              '暂无任务',
+                              S.of(context).noTasks,
                               style: TextStyle(
                                 color: AppColors.mutedText(context),
                                 fontSize: 14,
@@ -234,7 +235,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                         ),
                       ),
                     ),
-                    const TextSpan(text: ' 已完成'),
+                    TextSpan(text: ' ${S.of(context).done}'),
                   ],
                 ),
               ),
@@ -267,7 +268,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                     color: AppColors.onScaffold(context),
                   ),
                 ),
-                '下载速度',
+                S.of(context).downloadSpeed,
               ),
               const SizedBox(width: 24),
               _buildStatItem(
@@ -279,7 +280,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                     color: AppColors.onScaffold(context),
                   ),
                 ),
-                '已下载',
+                S.of(context).downloaded,
               ),
               const SizedBox(width: 24),
               _buildStatItem(
@@ -291,7 +292,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                     color: AppColors.onScaffold(context),
                   ),
                 ),
-                '已完成',
+                S.of(context).done,
               ),
             ],
           ),
@@ -330,7 +331,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                       color: AppColors.secondaryText(context),
                     ),
                     label: Text(
-                      '暂停全部',
+                      S.of(context).pauseAll,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -354,7 +355,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                       padding: EdgeInsets.zero,
                     ),
                     child: Text(
-                      '删除已完成下载',
+                      S.of(context).deleteFinishedDownloads,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -391,7 +392,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
 
   Widget _buildTabs(int completedCount, int totalCount) {
     final activeCount = totalCount - completedCount;
-    final tabs = ['进行中 ($activeCount)', '已完成 ($completedCount)', '全部'];
+    final tabs = [S.of(context).activeHeader(activeCount), S.of(context).finishedHeader(completedCount), S.of(context).all];
     return Container(
       padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
       decoration: BoxDecoration(
@@ -548,17 +549,17 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
       case DownloadStatus.downloading:
         final parts = [task.singer];
         if (quality.isNotEmpty) parts.add(quality);
-        parts.add('下载中 ${(task.progress * 100).toStringAsFixed(0)}%');
+        parts.add(S.of(context).downloadingPercent((task.progress * 100).toStringAsFixed(0)));
         return parts.join(' · ');
       case DownloadStatus.paused:
-        return '${task.singer} · 已暂停 ${(task.progress * 100).toStringAsFixed(0)}%';
+        return S.of(context).pausedPercent(task.singer, (task.progress * 100).toStringAsFixed(0));
       case DownloadStatus.pending:
         final parts = [task.singer];
         if (quality.isNotEmpty) parts.add(quality);
-        parts.add('等待中');
+        parts.add(S.of(context).waiting);
         return parts.join(' · ');
       case DownloadStatus.failed:
-        return task.errorMsg ?? '链接失效，下载失败';
+        return task.errorMsg ?? S.of(context).linkExpired;
     }
   }
 
@@ -612,7 +613,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
             foregroundColor: AppColors.accentOf(context),
           ),
           child: Text(
-            '重试',
+            S.of(context).retry,
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
@@ -686,18 +687,18 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
         backgroundColor: AppColors.dialogBg(context),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          '删除已完成下载',
+          S.of(context).deleteFinishedDownloads,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
         content: Text(
-          '确定要删除 ${completed.length} 个已完成记录及其音频文件吗？此操作不可撤销。',
+          S.of(context).deleteFinishedBody(completed.length),
           style: TextStyle(color: AppColors.mutedText(context)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
-              '取消',
+              S.of(context).cancel,
               style: TextStyle(color: AppColors.mutedText(context)),
             ),
           ),
@@ -709,7 +710,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               }
               Navigator.pop(ctx);
             },
-            child: Text('删除文件', style: TextStyle(color: AppColors.error)),
+            child: Text(S.of(context).deleteFiles, style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -729,18 +730,18 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
         backgroundColor: AppColors.dialogBg(context),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          '清理失败任务',
+          S.of(context).clearFailedTasks,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
         content: Text(
-          '确定要删除 ${failed.length} 个失败任务及其残留文件吗？',
+          S.of(context).clearFailedBody(failed.length),
           style: TextStyle(color: AppColors.mutedText(context)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
-              '取消',
+              S.of(context).cancel,
               style: TextStyle(color: AppColors.mutedText(context)),
             ),
           ),
@@ -752,7 +753,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               }
               Navigator.pop(ctx);
             },
-            child: Text('清理', style: TextStyle(color: AppColors.error)),
+            child: Text(S.of(context).clearFailedAction, style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),

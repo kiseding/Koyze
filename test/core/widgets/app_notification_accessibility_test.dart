@@ -23,7 +23,7 @@ void main() {
         .widgetList<Semantics>(find.byType(Semantics))
         .singleWhere((widget) => widget.properties.liveRegion == true);
     expect(liveRegion.properties.label, '错误: 无法收藏');
-    expect(find.byTooltip('关闭通知'), findsOneWidget);
+    expect(find.byTooltip('Dismiss'), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);

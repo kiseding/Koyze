@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import '../theme/app_colors.dart';
 
 class ErrorBoundary extends StatefulWidget {
@@ -82,7 +83,7 @@ class _DefaultErrorWidget extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              '出错了',
+              S.of(context).somethingWentWrong,
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -108,7 +109,7 @@ class _DefaultErrorWidget extends StatelessWidget {
                   ),
                   padding: EdgeInsets.symmetric(horizontal: 20),
                 ),
-                child: const Text('重试', style: TextStyle(fontWeight: FontWeight.w600)),
+                child: Text(S.of(context).retry, style: TextStyle(fontWeight: FontWeight.w600)),
               ),
             ),
           ],

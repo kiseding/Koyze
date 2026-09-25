@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/app_strings.dart';
 import '../motion/motion_tokens.dart';
 
 /// Compact play button with immediate, visible feedback for content cards.
@@ -11,7 +12,7 @@ class CardPlayButton extends StatefulWidget {
     required this.onPressed,
     required this.color,
     required this.backgroundColor,
-    this.tooltip = '播放全部',
+    this.tooltip,
     this.size = 48,
   });
 
@@ -19,7 +20,7 @@ class CardPlayButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final Color color;
   final Color backgroundColor;
-  final String tooltip;
+  final String? tooltip;
   final double size;
 
   @override
@@ -161,10 +162,13 @@ class _CardPlayButtonState extends State<CardPlayButton>
       child: Semantics(
         button: true,
         enabled: enabled,
-        label: widget.tooltip,
+        label: widget.tooltip ?? S.of(context).playAll,
         onTap: enabled ? _activate : null,
         child: ExcludeSemantics(
-          child: Tooltip(message: widget.tooltip, child: button),
+          child: Tooltip(
+            message: widget.tooltip ?? S.of(context).playAll,
+            child: button,
+          ),
         ),
       ),
     );

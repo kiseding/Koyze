@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -63,17 +64,17 @@ class _SubsonicLibraryScreenState
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: FxIconButton(
-          tooltip: '返回',
+          tooltip: S.of(context).back,
           icon: Icon(Icons.arrow_back, color: on),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'NAS 音乐库',
+          S.of(context).nasLibrary,
           style: TextStyle(color: on, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         actions: [
           FxIconButton(
-            tooltip: '连接设置',
+            tooltip: S.of(context).connectionSettings,
             icon: Icon(Icons.settings_outlined, color: on),
             onPressed: () =>
                 context.push('/subsonic-settings', extra: kind),
@@ -83,7 +84,7 @@ class _SubsonicLibraryScreenState
               data: (songs) => songs.isEmpty
                   ? const SizedBox.shrink()
                   : FxIconButton(
-                      tooltip: '播放全部',
+                      tooltip: S.of(context).playAll,
                       icon: Icon(
                         Icons.play_circle_fill,
                         color: accent,
@@ -98,7 +99,7 @@ class _SubsonicLibraryScreenState
               data: (songs) => songs.isEmpty
                   ? const SizedBox.shrink()
                   : FxIconButton(
-                      tooltip: _scraping ? '正在刮削' : '刮削封面和歌词',
+                      tooltip: _scraping ? S.of(context).scraping : S.of(context).scrapeArtworkLyrics,
                       icon: Icon(
                         Icons.auto_fix_high_outlined,
                         color: _scraping ? accent : on,
@@ -109,7 +110,7 @@ class _SubsonicLibraryScreenState
             ),
           if (connected)
             FxIconButton(
-              tooltip: '刷新',
+              tooltip: S.of(context).refresh,
               icon: Icon(Icons.refresh, color: on),
               onPressed: _scraping ? null : () => _invalidateSongs(kind),
             ),
@@ -130,7 +131,7 @@ class _SubsonicLibraryScreenState
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '正在刮削 $_scrapeDone / $_scrapeTotal',
+                    S.of(context).scrapingProgress(_scrapeDone, _scrapeTotal),
                     style: TextStyle(
                       color: AppColors.mutedText(context),
                       fontSize: 12,
@@ -144,9 +145,9 @@ class _SubsonicLibraryScreenState
                 ? _empty(
                     context,
                     icon: Icons.cloud_off_outlined,
-                    title: '尚未连接 ${kind.title}',
+                    title: S.of(context).notConnected(kind.title),
                     subtitle: kind.intro,
-                    actionLabel: '去连接',
+                    actionLabel: S.of(context).goConnect,
                     onAction: () =>
                         context.push('/subsonic-settings', extra: kind),
                   )
@@ -156,9 +157,9 @@ class _SubsonicLibraryScreenState
                     error: (error, _) => _empty(
                       context,
                       icon: Icons.error_outline,
-                      title: '加载歌曲失败',
+                      title: S.of(context).loadSongsFailed,
                       subtitle: '$error',
-                      actionLabel: '重试',
+                      actionLabel: S.of(context).retry,
                       onAction: () => _invalidateSongs(kind),
                     ),
                     data: (songs) {
@@ -166,9 +167,9 @@ class _SubsonicLibraryScreenState
                         return _empty(
                           context,
                           icon: Icons.library_music_outlined,
-                          title: '服务器上还没有歌曲',
-                          subtitle: '当前已连接 $configHost',
-                          actionLabel: '刷新',
+                          title: S.of(context).noSongsOnServer,
+                          subtitle: S.of(context).connectedHost(configHost),
+                          actionLabel: S.of(context).refresh,
                           onAction: () => _invalidateSongs(kind),
                         );
                       }
@@ -257,12 +258,12 @@ class _SubsonicLibraryScreenState
       _invalidateSongs(kind);
       showAppNotification(
         matched == 0
-            ? '没有匹配到在线封面或歌词'
-            : '已为 $matched / ${songs.length} 首匹配封面和歌词',
+            ? S.of(context).noOnlineMatch
+            : S.of(context).matchedSongs(matched, songs.length),
       );
     } catch (error) {
       if (!mounted) return;
-      showAppNotification('刮削失败: $error', type: AppNotificationType.error);
+      showAppNotification(S.of(context).scrapeFailed(error), type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _scraping = false);
     }
@@ -277,7 +278,7 @@ class _SubsonicLibraryScreenState
             manualPlayName: songs[index].name,
           );
     } catch (error) {
-      showAppNotification('播放失败: $error', type: AppNotificationType.error);
+      showAppNotification('${S.of(context).playFailed}: $error', type: AppNotificationType.error);
     }
   }
 

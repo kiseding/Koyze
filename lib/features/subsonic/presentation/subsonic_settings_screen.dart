@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -115,11 +116,11 @@ class _SubsonicSettingsScreenState
       return;
     }
     if (username.isEmpty) {
-      showAppNotification('请输入用户名', type: AppNotificationType.error);
+      showAppNotification(S.of(context).enterUsername, type: AppNotificationType.error);
       return;
     }
     if (password.isEmpty) {
-      showAppNotification('请输入密码', type: AppNotificationType.error);
+      showAppNotification(S.of(context).enterPassword, type: AppNotificationType.error);
       return;
     }
     setState(() => _busy = true);
@@ -136,12 +137,12 @@ class _SubsonicSettingsScreenState
         final type = result.serverType ?? 'Subsonic';
         final version = result.serverVersion;
         showAppNotification(
-          version == null ? '已连接 $type' : '已连接 $type $version',
+          S.of(context).connectedType(type, version),
           type: AppNotificationType.success,
         );
       } else {
         showAppNotification(
-          result.error ?? '连接失败',
+          result.error ?? S.of(context).connectFailed,
           type: AppNotificationType.error,
         );
       }
@@ -167,12 +168,12 @@ class _SubsonicSettingsScreenState
       return;
     }
     if (nasKind != NasKind.plex && username.isEmpty) {
-      showAppNotification('请输入用户名', type: AppNotificationType.error);
+      showAppNotification(S.of(context).enterUsername, type: AppNotificationType.error);
       return;
     }
     if (password.isEmpty) {
       showAppNotification(
-        nasKind == NasKind.plex ? '请输入密码或 X-Plex-Token' : '请输入密码',
+        nasKind == NasKind.plex ? S.of(context).enterPasswordOrToken : S.of(context).enterPassword,
         type: AppNotificationType.error,
       );
       return;
@@ -190,12 +191,12 @@ class _SubsonicSettingsScreenState
         final type = result.serverType ?? nasKind.title;
         final version = result.serverVersion;
         showAppNotification(
-          version == null ? '已连接 $type' : '已连接 $type $version',
+          S.of(context).connectedType(type, version),
           type: AppNotificationType.success,
         );
       } else {
         showAppNotification(
-          result.error ?? '连接失败',
+          result.error ?? S.of(context).connectFailed,
           type: AppNotificationType.error,
         );
       }
@@ -219,7 +220,7 @@ class _SubsonicSettingsScreenState
       }
       if (!mounted) return;
       _passwordController.clear();
-      showAppNotification('已断开 ${kind.title}', type: AppNotificationType.info);
+      showAppNotification(S.of(context).disconnected(kind.title), type: AppNotificationType.info);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -260,12 +261,12 @@ class _SubsonicSettingsScreenState
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: FxIconButton(
-          tooltip: '返回',
+          tooltip: S.of(context).back,
           icon: Icon(Icons.arrow_back, color: on),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'NAS 音乐服务器',
+          S.of(context).nasServerTitle,
           style: TextStyle(color: on, fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
@@ -305,7 +306,7 @@ class _SubsonicSettingsScreenState
           ),
           const SizedBox(height: 16),
           _field(
-            label: '服务器地址',
+            label: S.of(context).serverAddress,
             child: TextField(
               controller: _urlController,
               focusNode: _urlFocus,
@@ -319,7 +320,7 @@ class _SubsonicSettingsScreenState
           ),
           const SizedBox(height: 12),
           _field(
-            label: kind == SelfHostedKind.plex ? '用户名（可留空）' : '用户名',
+            label: kind == SelfHostedKind.plex ? S.of(context).usernameOptional : S.of(context).username,
             child: TextField(
               controller: _usernameController,
               enabled: !_busy,
@@ -328,14 +329,14 @@ class _SubsonicSettingsScreenState
               style: TextStyle(color: on, fontSize: 14),
               decoration: _decoration(
                 hint: kind == SelfHostedKind.plex
-                    ? 'plex.tv 账号，留空则使用 Token'
-                    : '服务器登录名',
+                    ? S.of(context).plexAccountHint
+                    : S.of(context).serverLoginName,
               ),
             ),
           ),
           const SizedBox(height: 12),
           _field(
-            label: kind == SelfHostedKind.plex ? '密码 / Token' : '密码',
+            label: kind == SelfHostedKind.plex ? S.of(context).passwordOrToken : S.of(context).password,
             child: TextField(
               controller: _passwordController,
               enabled: !_busy,
@@ -345,13 +346,13 @@ class _SubsonicSettingsScreenState
               style: TextStyle(color: on, fontSize: 14),
               decoration: _decoration(
                 hint: connected
-                    ? '已保存，重新连接时再输入'
+                    ? S.of(context).passwordSaved
                     : kind == SelfHostedKind.plex
-                    ? '密码或 X-Plex-Token'
-                    : '服务器密码',
+                    ? S.of(context).passwordOrPlexToken
+                    : S.of(context).serverPassword,
               ).copyWith(
                 suffixIcon: FxIconButton(
-                  tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
+                  tooltip: _obscurePassword ? S.of(context).showPassword : S.of(context).hidePassword,
                   icon: Icon(
                     _obscurePassword
                         ? Icons.visibility_outlined
@@ -376,7 +377,7 @@ class _SubsonicSettingsScreenState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '旧版鉴权',
+                          S.of(context).legacyAuth,
                           style: TextStyle(
                             color: on,
                             fontSize: 13,
@@ -385,7 +386,7 @@ class _SubsonicSettingsScreenState
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '仅当 token 鉴权失败时开启，密码会以明文参数发送',
+                          S.of(context).legacyAuthHint,
                           style: TextStyle(color: muted, fontSize: 11),
                         ),
                       ],
@@ -410,19 +411,21 @@ class _SubsonicSettingsScreenState
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Text(connected ? '重新连接' : '连接'),
+                : Text(connected ? S.of(context).reconnect : S.of(context).connect),
           ),
           if (connected) ...[
             const SizedBox(height: 8),
             OutlinedButton(
               onPressed: _busy ? null : _disconnect,
-              child: const Text('断开连接'),
+              child: Text(S.of(context).disconnect),
             ),
             const SizedBox(height: 16),
             Text(
-              username.isEmpty
-                  ? '当前：${kind.title} · $hostLabel'
-                  : '当前：${kind.title} · $hostLabel · $username',
+              S.of(context).currentConnection(
+                kind.title,
+                hostLabel,
+                username.isEmpty ? null : username,
+              ),
               style: TextStyle(color: muted, fontSize: 12),
             ),
           ],

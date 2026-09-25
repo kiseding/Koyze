@@ -52,13 +52,14 @@ void main() {
         player.substring(player.indexOf('class _PlayerProgress'));
     final miniProgress = mini.substring(mini.indexOf('class _MiniProgress'));
 
+    expect(playerProgress, contains('label: S.of(context).playbackProgress'));
+    expect(miniProgress, contains('label: S.of(context).playbackProgress'));
     for (final source in [playerProgress, miniProgress]) {
-      expect(source, contains("label: '播放进度'"));
       expect(source, contains('onIncrease:'));
       expect(source, contains('onDecrease:'));
       expect(source, contains('seekProvider'));
     }
-    expect(lyric, contains("label: '歌词'"));
+    expect(lyric, contains('label: S.of(context).lyrics'));
     expect(lyric, contains('selected: isCurrent'));
     expect(lyric, contains('onIncrease:'));
     expect(lyric, contains('onDecrease:'));

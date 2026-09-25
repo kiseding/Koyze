@@ -94,7 +94,7 @@ void main() {
     expect(find.text('Jellyfin'), findsNothing);
     expect(find.text('Plex'), findsNothing);
     expect(find.text('群晖'), findsNothing);
-    expect(find.text('去连接'), findsOneWidget);
+    expect(find.text('Connect'), findsOneWidget);
   });
 
   testWidgets('settings chips switch the kind used by the library', (

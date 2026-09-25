@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/artwork_image.dart';
@@ -83,7 +84,7 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
             ),
           ),
           leading: FxIconButton(
-            tooltip: '返回',
+            tooltip: S.of(context).back,
             icon: Icon(Icons.arrow_back, color: AppColors.onScaffold(context)),
             onPressed: () => Navigator.pop(context),
           ),
@@ -104,7 +105,7 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
                   size: 20,
                 ),
                 label: Text(
-                  '播放全部',
+                  S.of(context).playAll,
                   style: TextStyle(
                     color: AppColors.accentOf(context),
                     fontSize: 13,
@@ -130,7 +131,7 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '加载失败: $_error',
+                      '${S.of(context).loadFailed}: $_error',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
@@ -139,7 +140,7 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
                     const SizedBox(height: 12),
                     FilledButton.tonal(
                       onPressed: _loadDetail,
-                      child: const Text('重试'),
+                      child: Text(S.of(context).retry),
                     ),
                   ],
                 ),
@@ -147,7 +148,7 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
             : _songs.isEmpty
             ? Center(
                 child: Text(
-                  '歌单为空',
+                  S.of(context).playlistEmpty,
                   style: TextStyle(color: AppColors.mutedText(context)),
                 ),
               )

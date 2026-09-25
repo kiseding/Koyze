@@ -95,8 +95,8 @@ void main() {
       const Offset(-360, 0),
     );
     await tester.pumpAndSettle();
-    expect(find.text('歌词'), findsOneWidget);
-    expect(find.text('正在播放'), findsNothing);
+    expect(find.text('Lyrics'), findsOneWidget);
+    expect(find.text('Now playing'), findsNothing);
 
     // 模拟左缘右滑：progress 降到 0.5（lyricCollapsing 生效区间）。
     playerRouteProgress.value = 0.5;
@@ -108,9 +108,9 @@ void main() {
     // 封面页标题"正在播放"绝不能出现（出现即代表切回了全屏播放器）。
     // 守卫根因：两个结构不同的渲染分支会在 lyricCollapsing 翻转时
     // 销毁重建整棵子树，PageView 重新 attach 回退到第 0 页（封面页）。
-    expect(find.text('歌词'), findsOneWidget);
+    expect(find.text('Lyrics'), findsOneWidget);
     expect(find.byType(LyricView), findsOneWidget);
-    expect(find.text('正在播放'), findsNothing);
+    expect(find.text('Now playing'), findsNothing);
 
     edgeDragActive = false;
   });

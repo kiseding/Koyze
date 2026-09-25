@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/motion/motion_tokens.dart';
 import '../../../../core/player_route_progress.dart';
@@ -196,7 +197,7 @@ class _MiniProgress extends ConsumerWidget {
                       ),
                     );
                     return Semantics(
-                      label: '播放进度',
+                      label: S.of(context).playbackProgress,
                       slider: true,
                       enabled: duration > Duration.zero,
                       value: '${format(displayPos)} / ${format(duration)}',
@@ -395,8 +396,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     final trackBg = isDark ? const Color(0x33FFFFFF) : const Color(0x33000000);
     final timeColor = AppColors.mutedText(context);
 
-    final title = currentMusic?.name ?? '未在播放';
-    final fallbackSubtitle = currentMusic?.singer ?? '无歌词';
+    final title = currentMusic?.name ?? S.of(context).notPlaying;
+    final fallbackSubtitle = currentMusic?.singer ?? S.of(context).noLyrics;
 
     return Material(
       color: Colors.transparent,
@@ -440,7 +441,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                   children: [
                     Expanded(
                       child: Semantics(
-                        label: '打开正在播放',
+                        label: S.of(context).openNowPlaying,
                         button: true,
                         enabled: currentMusic != null,
                         child: InkWell(
@@ -546,7 +547,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           Pressable(
-                            semanticLabel: '上一首',
+                            semanticLabel: S.of(context).previous,
                             onTap: currentMusic == null
                                 ? null
                                 : () => playerService.previous(),
@@ -569,7 +570,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             mini: true,
                           ),
                           Pressable(
-                            semanticLabel: '下一首',
+                            semanticLabel: S.of(context).next,
                             onTap: currentMusic == null
                                 ? null
                                 : () => playerService.next(),

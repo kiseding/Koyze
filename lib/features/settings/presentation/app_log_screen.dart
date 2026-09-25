@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/logging/app_log.dart';
@@ -112,7 +113,7 @@ class _DiagnosticLogOverlayState extends State<_DiagnosticLogOverlay> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '诊断 ${entries.length}',
+                    S.of(context).diagnosticsCount(entries.length),
                     style: TextStyle(
                       color: AppColors.onScaffold(context),
                       fontSize: 12,
@@ -171,7 +172,7 @@ class _AppLogScreenState extends State<AppLogScreen> {
     if (text.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
-    showAppNotification('日志已复制', type: AppNotificationType.success);
+    showAppNotification(S.of(context).logCopied, type: AppNotificationType.success);
   }
 
   @override
@@ -184,27 +185,27 @@ class _AppLogScreenState extends State<AppLogScreen> {
         clipBehavior: Clip.antiAlias,
         child: Scaffold(
           appBar: AppBar(
-            title: const Text('实时诊断日志'),
+            title: Text(S.of(context).diagnosticsTitle),
             actions: [
               if (widget.onMinimize != null)
                 FxIconButton(
-                  tooltip: '最小化',
+                  tooltip: S.of(context).minimize,
                   onPressed: widget.onMinimize,
                   icon: const Icon(Icons.remove),
                 ),
               FxIconButton(
-                tooltip: '复制全部',
+                tooltip: S.of(context).copyAll,
                 onPressed: entries.isEmpty ? null : _copyLogs,
                 icon: const Icon(Icons.copy_all_outlined),
               ),
               if (widget.onClose != null)
                 FxIconButton(
-                  tooltip: '关闭诊断日志',
+                  tooltip: S.of(context).closeDiagnostics,
                   onPressed: widget.onClose,
                   icon: const Icon(Icons.close),
                 ),
               FxIconButton(
-                tooltip: '清空内存日志',
+                tooltip: S.of(context).clearMemoryLog,
                 onPressed: entries.isEmpty ? null : widget.log.clear,
                 icon: const Icon(Icons.delete_outline),
               ),
@@ -217,7 +218,7 @@ class _AppLogScreenState extends State<AppLogScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 9),
                 color: AppColors.fill(context),
                 child: Text(
-                  '仅保存在当前运行内存；关闭或重启应用后自动清空。',
+                  S.of(context).diagnosticsHint,
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.secondaryText(context),
@@ -228,7 +229,7 @@ class _AppLogScreenState extends State<AppLogScreen> {
                 child: entries.isEmpty
                     ? Center(
                         child: Text(
-                          '暂无日志',
+                          S.of(context).noLog,
                           style: TextStyle(color: AppColors.mutedText(context)),
                         ),
                       )

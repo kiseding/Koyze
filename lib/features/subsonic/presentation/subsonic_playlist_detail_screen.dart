@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -27,7 +28,7 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
     final on = AppColors.onScaffold(context);
     final title = playlistName?.trim().isNotEmpty == true
         ? playlistName!
-        : 'NAS 歌单';
+        : S.of(context).nasPlaylistTitle('NAS');
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -39,7 +40,7 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
           background: Theme.of(context).scaffoldBackgroundColor,
         ),
         leading: FxIconButton(
-          tooltip: '返回',
+          tooltip: S.of(context).back,
           icon: Icon(Icons.arrow_back, color: on),
           onPressed: () => Navigator.pop(context),
         ),
@@ -54,13 +55,13 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
             data: (songs) => songs.isEmpty
                 ? const SizedBox.shrink()
                 : FxIconButton(
-                    tooltip: '播放全部',
+                    tooltip: S.of(context).playAll,
                     icon: Icon(
                       Icons.play_circle_fill,
                       color: AppColors.accentOf(context),
                       size: 28,
                     ),
-                    onPressed: () => _play(ref, songs, 0),
+                    onPressed: () => _play(context, ref, songs, 0),
                   ),
             orElse: () => const SizedBox.shrink(),
           ),
@@ -72,7 +73,7 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
-              '加载失败: $error',
+              '${S.of(context).loadFailed}: $error',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.mutedText(context)),
             ),
@@ -82,7 +83,7 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
           if (songs.isEmpty) {
             return Center(
               child: Text(
-                '歌单是空的',
+                S.of(context).playlistEmptyNas,
                 style: TextStyle(color: AppColors.mutedText(context)),
               ),
             );
@@ -96,7 +97,7 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final song = songs[index];
               return ListTile(
-                onTap: () => _play(ref, songs, index),
+                onTap: () => _play(context, ref, songs, index),
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: SizedBox(
@@ -142,6 +143,7 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
   }
 
   Future<void> _play(
+    BuildContext context,
     WidgetRef ref,
     List<MusicItem> songs,
     int index,
@@ -153,7 +155,7 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
             manualPlayName: songs[index].name,
           );
     } catch (error) {
-      showAppNotification('播放失败: $error', type: AppNotificationType.error);
+      showAppNotification('${S.of(context).playFailed}: $error', type: AppNotificationType.error);
     }
   }
 }

@@ -13,7 +13,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: AppLogScreen(log: log)));
 
     expect(find.textContaining('route changed'), findsOneWidget);
-    expect(find.byTooltip('复制全部'), findsOneWidget);
+    expect(find.byTooltip('Copy all'), findsOneWidget);
     final copyButton = find.widgetWithIcon(IconButton, Icons.copy_all_outlined);
     expect(copyButton, findsOneWidget);
     expect(tester.widget<IconButton>(copyButton).onPressed, isNotNull);
@@ -36,18 +36,18 @@ void main() {
       await tester.tap(find.text('open'));
       await tester.pump();
       expect(AppLog.instance.isActive, isTrue);
-      expect(find.text('实时诊断日志'), findsOneWidget);
+      expect(find.text('Diagnostics'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('最小化'));
+      await tester.tap(find.byTooltip('Minimize'));
       await tester.pump();
-      expect(find.textContaining('诊断 '), findsOneWidget);
+      expect(find.textContaining('Log '), findsOneWidget);
       expect(AppLog.instance.isActive, isTrue);
 
-      await tester.tap(find.textContaining('诊断 '));
+      await tester.tap(find.textContaining('Log '));
       await tester.pump();
-      await tester.tap(find.byTooltip('关闭诊断日志'));
+      await tester.tap(find.byTooltip('Close diagnostics'));
       await tester.pump();
-      expect(find.text('实时诊断日志'), findsNothing);
+      expect(find.text('Diagnostics'), findsNothing);
       expect(AppLog.instance.isActive, isFalse);
     },
   );

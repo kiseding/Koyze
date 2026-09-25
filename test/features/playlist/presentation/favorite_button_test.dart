@@ -97,7 +97,7 @@ void main() {
       'lib/features/leaderboard/presentation/leaderboard_screen.dart',
     ).readAsStringSync();
     expect(source, contains('FrostedTabHeader('));
-    expect(source, contains("title: '榜单'"));
+    expect(source, contains('title: S.of(context).charts'));
     expect(source, contains('FrostedTabHeader.extent(context)'));
     expect(source, contains('Positioned.fill('));
     expect(source, isNot(contains('fadeStart:')));
@@ -128,7 +128,7 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains("playlist.id == 'local'"));
-    expect(source, contains('收藏所有'));
+    expect(source, contains('S.of(context).favoriteAll'));
     expect(source, contains("playlist.id != 'local'"));
     expect(source, contains('addAllSongsToFavorites'));
   });

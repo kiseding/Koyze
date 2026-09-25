@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/theme/app_colors.dart';
@@ -114,7 +115,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       if (!mounted || index < 0) return;
       setState(() => _setInitialFocusIndex(index));
     } catch (error) {
-      if (mounted) _showMutationError('定位歌曲失败', error);
+      if (mounted) _showMutationError(S.of(context).locateFailed, error);
     }
   }
 
@@ -177,13 +178,13 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             backgroundColor: Theme.of(context).scaffoldBackgroundColor,
             surfaceTintColor: Colors.transparent,
             title: Text(
-              '歌单',
+              S.of(context).playlists,
               style: TextStyle(color: AppColors.onScaffold(context)),
             ),
           ),
           body: Center(
             child: Text(
-              '歌单不存在',
+              S.of(context).playlistMissing,
               style: TextStyle(color: AppColors.mutedText(context)),
             ),
           ),
@@ -255,10 +256,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             children: [
               FxIconButton(
                 tooltip: isSelectionMode
-                    ? '退出多选'
+                    ? S.of(context).exitMultiSelect
                     : _isEditing
-                    ? '取消编辑'
-                    : '返回',
+                    ? S.of(context).cancelEdit
+                    : S.of(context).back,
                 icon: AnimatedIconSwitch(
                   icon: isSelectionMode
                       ? Icons.close
@@ -287,7 +288,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               ),
               if (isSelectionMode)
                 FxIconButton(
-                  tooltip: isAllFavoritesSelected ? '取消全选' : '全选',
+                  tooltip: isAllFavoritesSelected ? S.of(context).deselectAll : S.of(context).selectAll,
                   onPressed: _selectionBusy || currentPageSongs.isEmpty
                       ? null
                       : () => _toggleAllFavoriteSelection(
@@ -303,10 +304,13 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ),
           title: Text(
             isSelectionMode
-                ? '已选 ${_selectedFavoriteIds.length} 首'
+                ? S.of(context).selectedCount(_selectedFavoriteIds.length)
                 : _isEditing
-                ? '编辑歌单'
-                : '${playlist.name}（${playlist.songCount}首）',
+                ? S.of(context).editPlaylist
+                : S.of(context).playlistTitleCount(
+                    S.of(context).builtinPlaylistName(playlist.id, playlist.name),
+                    playlist.songCount,
+                  ),
             style: TextStyle(
               color: AppColors.onScaffold(context),
               fontSize: 18,
@@ -317,7 +321,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           actions: [
             if (isSelectionMode) ...[
               FxIconButton(
-                tooltip: '下载已选歌曲',
+                tooltip: S.of(context).downloadSelected,
                 onPressed: _selectionBusy
                     ? null
                     : () => _downloadSelectedFavorites(playlist),
@@ -327,7 +331,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 ),
               ),
               FxIconButton(
-                tooltip: '取消收藏已选歌曲',
+                tooltip: S.of(context).unfavoriteSelected,
                 onPressed: _selectionBusy
                     ? null
                     : () => _removeSelectedFavorites(playlist),
@@ -336,7 +340,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               ),
             ] else if (!_isEditing && playlist.songCount > 0)
               FxIconButton(
-                tooltip: '播放全部',
+                tooltip: S.of(context).playAll,
                 onPressed: () => _playSong(playerService, playlist, 0),
                 icon: Icon(
                   Icons.play_circle_fill,
@@ -358,11 +362,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         );
                     if (mounted) setState(() => _isEditing = false);
                   } catch (error) {
-                    _showMutationError('保存失败', error);
+                    _showMutationError(S.of(context).saveFailed, error);
                   }
                 },
                 child: Text(
-                  '保存',
+                  S.of(context).save,
                   style: TextStyle(color: AppColors.accentOf(context)),
                 ),
               )
@@ -398,7 +402,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             .addAllSongsToFavorites(playlist.id);
                         if (mounted) {
                           showAppNotification(
-                            added > 0 ? '已收藏 $added 首歌曲' : '歌曲已在收藏中',
+                            added > 0 ? S.of(context).favoritedSongs(added) : S.of(context).alreadyFavorited,
                             type: AppNotificationType.success,
                           );
                         }
@@ -463,7 +467,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         _showDeleteDialog(context, ref, playlist);
                     }
                   } catch (error) {
-                    _showMutationError('操作失败', error);
+                    _showMutationError(S.of(context).actionFailedShort, error);
                   }
                 },
                 itemBuilder: (context) {
@@ -471,52 +475,52 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   return [
                     PopupMenuItem(
                       value: 'play_all',
-                      child: Text('播放全部', style: TextStyle(color: on)),
+                      child: Text(S.of(context).playAll, style: TextStyle(color: on)),
                     ),
                     if (playlist.id == 'local')
                       PopupMenuItem(
                         value: 'favorite_all',
-                        child: Text('收藏所有', style: TextStyle(color: on)),
+                        child: Text(S.of(context).favoriteAll, style: TextStyle(color: on)),
                       ),
                     if (playlist.id != 'recent')
                       PopupMenuItem(
                         value: 'edit',
-                        child: Text('编辑信息', style: TextStyle(color: on)),
+                        child: Text(S.of(context).editInfo, style: TextStyle(color: on)),
                       ),
                     PopupMenuItem(
                       value: 'reorder',
-                      child: Text('手动排序', style: TextStyle(color: on)),
+                      child: Text(S.of(context).manualSort, style: TextStyle(color: on)),
                     ),
                     PopupMenuItem(
                       value: 'sort_name',
-                      child: Text('按歌名排序', style: TextStyle(color: on)),
+                      child: Text(S.of(context).sortByTitle, style: TextStyle(color: on)),
                     ),
                     PopupMenuItem(
                       value: 'sort_artist',
-                      child: Text('按歌手排序', style: TextStyle(color: on)),
+                      child: Text(S.of(context).sortByArtist, style: TextStyle(color: on)),
                     ),
                     PopupMenuItem(
                       value: 'sort_duration',
-                      child: Text('按时长排序', style: TextStyle(color: on)),
+                      child: Text(S.of(context).sortByDuration, style: TextStyle(color: on)),
                     ),
                     if (playlist.id != 'favorites' &&
                         playlist.id != 'recent' &&
                         playlist.id != 'local')
                       PopupMenuItem(
                         value: 'delete',
-                        child: Text('删除歌单', style: TextStyle(color: on)),
+                        child: Text(S.of(context).deletePlaylist, style: TextStyle(color: on)),
                       ),
                     if (playlist.id == 'favorites')
                       PopupMenuItem(
                         value: 'duplicates',
-                        child: Text('重复歌曲', style: TextStyle(color: on)),
+                        child: Text(S.of(context).duplicateSongs, style: TextStyle(color: on)),
                       ),
                     if (playlist.id == 'favorites' && playlist.songCount > 0)
-                      const PopupMenuItem(
+                      PopupMenuItem(
                         value: 'clear_favorites',
                         child: Text(
-                          '清空收藏',
-                          style: TextStyle(color: AppColors.error),
+                          S.of(context).clearFavorites,
+                          style: const TextStyle(color: AppColors.error),
                         ),
                       ),
                   ];
@@ -527,7 +531,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         body: playlist.songCount == 0
             ? Center(
                 child: Text(
-                  '暂无歌曲',
+                  S.of(context).noSongs,
                   style: TextStyle(color: AppColors.mutedText(context)),
                 ),
               )
@@ -545,7 +549,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   isSelectionMode: isSelectionMode,
                 ),
                 loading: () => _buildPageLoading(range),
-                error: (error, _) => Center(child: Text('加载歌曲失败: $error')),
+                error: (error, _) => Center(child: Text('${S.of(context).loadSongsFailed}: $error')),
               ),
       ),
     );
@@ -733,7 +737,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                     : isFavoriteMusic(song, favoriteSongs),
                               ),
                               FxIconButton(
-                                tooltip: '更多操作',
+                                tooltip: S.of(context).moreActions,
                                 icon: Icon(
                                   Icons.more_vert,
                                   color: AppColors.mutedText(context),
@@ -750,7 +754,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                             leading: const Icon(
                                               Icons.play_arrow,
                                             ),
-                                            title: const Text('播放'),
+                                            title: Text(S.of(context).play),
                                             onTap: () {
                                               Navigator.pop(ctx);
                                               _playSong(
@@ -764,7 +768,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                             leading: const Icon(
                                               Icons.delete_outline,
                                             ),
-                                            title: const Text('从歌单移除'),
+                                            title: Text(S.of(context).removeFromPlaylist),
                                             onTap: () async {
                                               try {
                                                 await ref
@@ -778,7 +782,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                               } catch (error) {
                                                 if (mounted) {
                                                   _showMutationError(
-                                                    '移除失败',
+                                                    S.of(context).removeFailed,
                                                     error,
                                                   );
                                                 }
@@ -875,13 +879,13 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       }
       if (!mounted) return;
       showAppNotification(
-        songs.isEmpty ? '没有可下载的已选歌曲' : '已添加 ${songs.length} 首到下载队列',
+        songs.isEmpty ? S.of(context).nothingSelectedToDownload : S.of(context).queuedDownloads(songs.length),
         type: songs.isEmpty
             ? AppNotificationType.info
             : AppNotificationType.success,
       );
     } catch (error) {
-      _showMutationError('添加下载失败', error);
+      _showMutationError(S.of(context).downloadFailed, error);
     } finally {
       if (mounted) setState(() => _selectionBusy = false);
     }
@@ -898,13 +902,13 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       if (!mounted) return;
       setState(() => _selectedFavoriteIds.removeAll(selectedIds));
       showAppNotification(
-        removed > 0 ? '已取消收藏 $removed 首歌曲' : '没有可取消收藏的已选歌曲',
+        removed > 0 ? S.of(context).unfavoritedSongs(removed) : S.of(context).nothingSelectedToUnfavorite,
         type: removed > 0
             ? AppNotificationType.success
             : AppNotificationType.info,
       );
     } catch (error) {
-      _showMutationError('取消收藏失败', error);
+      _showMutationError(S.of(context).unfavoriteFailed, error);
     } finally {
       if (mounted) setState(() => _selectionBusy = false);
     }
@@ -930,7 +934,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         },
       );
     } catch (error) {
-      _showMutationError('加载歌曲失败', error);
+      _showMutationError(S.of(context).loadSongsFailed, error);
     }
   }
 
@@ -958,7 +962,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         return AlertDialog(
           backgroundColor: AppColors.dialogBg(ctx),
           title: Text(
-            '编辑歌单',
+            S.of(context).editPlaylist,
             style: TextStyle(color: AppColors.onScaffold(ctx)),
           ),
           content: Column(
@@ -971,7 +975,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 onSubmitted: (_) => descFocus.requestFocus(),
                 style: TextStyle(color: AppColors.onScaffold(ctx)),
                 decoration: InputDecoration(
-                  hintText: '歌单名称',
+                  hintText: S.of(context).playlistName,
                   hintStyle: TextStyle(color: AppColors.mutedText(ctx)),
                 ),
               ),
@@ -981,7 +985,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 textInputAction: TextInputAction.done,
                 style: TextStyle(color: AppColors.onScaffold(ctx)),
                 decoration: InputDecoration(
-                  hintText: '描述',
+                  hintText: S.of(context).descriptionLabel,
                   hintStyle: TextStyle(color: AppColors.mutedText(ctx)),
                 ),
               ),
@@ -991,7 +995,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text(
-                '取消',
+                S.of(context).cancel,
                 style: TextStyle(color: AppColors.mutedText(ctx)),
               ),
             ),
@@ -1006,14 +1010,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         description: descController.text,
                       );
                 } catch (error) {
-                  if (mounted) _showMutationError('保存失败', error);
+                  if (mounted) _showMutationError(S.of(context).saveFailed, error);
                   return;
                 }
                 if (!ctx.mounted) return;
                 Navigator.pop(ctx);
               },
               child: Text(
-                '保存',
+                S.of(context).save,
                 style: TextStyle(color: AppColors.accentOf(ctx)),
               ),
             ),
@@ -1038,24 +1042,24 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
         title: Text(
-          '清空收藏？',
+          S.of(context).clearFavoritesTitle,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
         content: Text(
-          '将从收藏列表移除 ${playlist.songCount} 首歌曲，此操作不可撤销，但不会删除本地或歌单中的原歌曲。',
+          S.of(context).clearFavoritesBody(playlist.songCount),
           style: TextStyle(color: AppColors.secondaryText(context)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
-              '取消',
+              S.of(context).cancel,
               style: TextStyle(color: AppColors.mutedText(context)),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('确认清空', style: TextStyle(color: AppColors.error)),
+            child: Text(S.of(context).confirmClear, style: const TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -1079,11 +1083,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         );
       });
       showAppNotification(
-        removed > 0 ? '已取消收藏 $removed 首歌曲' : '收藏列表已为空',
+        removed > 0 ? S.of(context).unfavoritedSongs(removed) : S.of(context).favoritesAlreadyEmpty,
         type: AppNotificationType.success,
       );
     } catch (error) {
-      _showMutationError('取消收藏失败', error);
+      _showMutationError(S.of(context).unfavoriteFailed, error);
     }
   }
 
@@ -1097,18 +1101,18 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
         title: Text(
-          '删除歌单',
+          S.of(context).deletePlaylist,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
         content: Text(
-          '确定删除「${playlist.name}」？',
+          S.of(context).deletePlaylistConfirm(playlist.name),
           style: TextStyle(color: AppColors.secondaryText(context)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
-              '取消',
+              S.of(context).cancel,
               style: TextStyle(color: AppColors.mutedText(context)),
             ),
           ),
@@ -1119,14 +1123,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     .read(playlistServiceProvider)
                     .deletePlaylist(playlist.id);
               } catch (error) {
-                if (mounted) _showMutationError('删除失败', error);
+                if (mounted) _showMutationError(S.of(context).deleteFailed, error);
                 return;
               }
               if (!ctx.mounted || !context.mounted) return;
               Navigator.pop(ctx);
               Navigator.pop(context);
             },
-            child: const Text('删除', style: TextStyle(color: AppColors.error)),
+            child: Text(S.of(context).delete, style: const TextStyle(color: AppColors.error)),
           ),
         ],
       ),

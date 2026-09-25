@@ -39,13 +39,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('通过链接导入'));
+      await tester.tap(find.byTooltip('Import from a link'));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byType(TextField),
         'https://example.com/a.js',
       );
-      await tester.tap(find.text('导入'));
+      await tester.tap(find.text('Import'));
       await tester.pump();
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
@@ -54,7 +54,7 @@ void main() {
       await tester.pump();
 
       expect(tester.takeException(), isNull);
-      expect(find.text('导入成功'), findsNothing);
+      expect(find.text('Imported'), findsNothing);
     },
   );
 
@@ -75,11 +75,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('日志'));
+    await tester.tap(find.text('Log'));
     await tester.pumpAndSettle();
     expect(stream.listenCount, 1);
 
-    await tester.tap(find.text('关闭'));
+    await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
     expect(stream.cancelCount, 1);
   });

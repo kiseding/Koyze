@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:koyze/core/music_source/platform/music_platform.dart';
 import 'package:koyze/core/theme/app_colors.dart';
 import 'package:koyze/features/leaderboard/presentation/leaderboard_provider.dart';
-import 'package:koyze/features/leaderboard/presentation/leaderboard_screen.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/fx_switch.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
@@ -56,12 +56,12 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
             background: Theme.of(context).scaffoldBackgroundColor,
           ),
           leading: FxIconButton(
-            tooltip: '返回',
+            tooltip: S.of(context).back,
             icon: Icon(Icons.arrow_back, color: AppColors.onScaffold(context)),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            '榜单设置',
+            S.of(context).chartSettings,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -74,7 +74,7 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
                 ref.read(leaderboardLayoutProvider.notifier).restoreAll();
               },
               icon: const Icon(Icons.visibility_rounded, size: 17),
-              label: const Text('全部显示'),
+              label: Text(S.of(context).showAll),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.accentOf(context),
                 textStyle: const TextStyle(fontSize: 13),
@@ -86,7 +86,7 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Center(
             child: Text(
-              '加载失败: $error',
+              '${S.of(context).loadSongsFailed}: $error',
               style: TextStyle(color: AppColors.mutedText(context)),
             ),
           ),
@@ -94,7 +94,7 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
             if (categories.isEmpty) {
               return Center(
                 child: Text(
-                  '暂无排行榜数据',
+                  S.of(context).noChartData,
                   style: TextStyle(color: AppColors.mutedText(context)),
                 ),
               );
@@ -135,7 +135,7 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
     Map<String, bool> hiddenByKey,
     LeaderboardLayoutNotifier notifier,
   ) {
-    final name = kLeaderboardPlatformNames[platform] ?? '其他';
+    final name = S.of(context).platformName(platform);
     final color = _platformColor(context, platform);
     final platformKey = 'platform:$platform';
     final platformHidden = hiddenByKey[platformKey] ?? false;
@@ -180,7 +180,7 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
               ],
             ),
             subtitle: Text(
-              '${categories.length} 个榜单${platform == 'tx' ? ' · 默认优先' : ''}',
+              '${S.of(context).chartCount(categories.length)}${platform == 'tx' ? ' · ${S.of(context).defaultFirst}' : ''}',
               style: TextStyle(
                 fontSize: 12,
                 color: AppColors.mutedText(context),
@@ -204,7 +204,7 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 0, 0),
             child: Text(
-              '已隐藏，勾选「$name」后显示',
+              S.of(context).hiddenUntil(name),
               style: TextStyle(
                 fontSize: 12,
                 color: AppColors.mutedText(context),

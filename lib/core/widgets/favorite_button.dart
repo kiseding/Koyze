@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:koyze/core/theme/app_colors.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/playlist/data/playlist_repository.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
@@ -117,7 +118,10 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
         _pending = false;
         _optimisticFavorite = current;
       });
-      showAppNotification('收藏失败: $error', type: AppNotificationType.error);
+      showAppNotification(
+        '${S.of(context).favoriteFailed}: $error',
+        type: AppNotificationType.error,
+      );
     }
   }
 
@@ -175,7 +179,7 @@ class _FavoriteButtonState extends ConsumerState<FavoriteButton>
         ? widget.activeColor
         : AppColors.mutedText(context);
     return FxIconButton(
-      tooltip: isFavorite ? '取消收藏' : '收藏',
+      tooltip: isFavorite ? S.of(context).unfavorite : S.of(context).favorite,
       padding: const EdgeInsets.all(8),
       iconSize: widget.iconSize,
       onPressed: _pending ? null : _toggle,

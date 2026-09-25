@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../core/card_expand.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/player_route_progress.dart';
@@ -28,7 +29,6 @@ import '../../lyric/presentation/lyric_provider.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
 import 'widgets/player_volume_button.dart';
-import '../../../l10n/app_strings.dart';
 
 double _playbackQueueSheetInitialSize(BuildContext context, int itemCount) {
   final screenHeight = MediaQuery.sizeOf(context).height;
@@ -192,22 +192,26 @@ class _PlayerProgress extends ConsumerWidget {
     // 10Hz 进度更新只重绘进度条自身，避免波及整页（封面/阴影/遮罩）。
     return RepaintBoundary(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 13),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             SizedBox(
-              width: 36,
-              child: Text(
-                _formatPlayerDuration(displayPos),
-                style: TextStyle(
-                  color: AppColors.mutedText(context),
-                  fontSize: 11,
-                  fontFeatures: [FontFeature.tabularFigures()],
+              width: 58,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _formatPlayerDuration(displayPos),
+                  style: TextStyle(
+                    color: AppColors.mutedText(context),
+                    fontSize: 18,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 8),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -237,31 +241,34 @@ class _PlayerProgress extends ConsumerWidget {
                       onTapSeek(v, target);
                     },
                     child: SizedBox(
-                      height: 28,
+                      height: 45,
                       child: Center(
                         child: Stack(
                           clipBehavior: Clip.none,
                           children: [
                             Container(
-                              height: 10,
+                              height: 16,
                               decoration: BoxDecoration(
                                 color: AppColors.cardBorder(context),
-                                borderRadius: BorderRadius.circular(5),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                             ),
                             FractionallySizedBox(
                               widthFactor: ratio,
                               child: Container(
-                                height: 10,
+                                height: 16,
                                 decoration: BoxDecoration(
                                   color: AppColors.accentOf(context),
-                                  borderRadius: BorderRadius.circular(5),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
                             ),
                             Positioned(
-                              left: (width * ratio - 9).clamp(0.0, width - 18),
-                              top: -4,
+                              left: (width * ratio - 14).clamp(
+                                0.0,
+                                width - 28,
+                              ),
+                              top: -6,
                               child: AnimatedScale(
                                 scale: seeking ? 1.35 : 1.0,
                                 duration: motionDuration(
@@ -270,8 +277,8 @@ class _PlayerProgress extends ConsumerWidget {
                                 ),
                                 curve: MotionCurve.iosSpring,
                                 child: Container(
-                                  width: 18,
-                                  height: 18,
+                                  width: 28,
+                                  height: 28,
                                   decoration: BoxDecoration(
                                     color: AppColors.accentOf(context),
                                     shape: BoxShape.circle,
@@ -280,7 +287,7 @@ class _PlayerProgress extends ConsumerWidget {
                                         color: AppColors.accentOf(
                                           context,
                                         ).withAlpha(120),
-                                        blurRadius: 12,
+                                        blurRadius: 19,
                                       ),
                                     ],
                                   ),
@@ -293,7 +300,7 @@ class _PlayerProgress extends ConsumerWidget {
                     ),
                   );
                   return Semantics(
-                    label: '播放进度',
+                    label: S.of(context).playbackProgress,
                     slider: true,
                     enabled: duration > Duration.zero,
                     value:
@@ -316,16 +323,20 @@ class _PlayerProgress extends ConsumerWidget {
                 },
               ),
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 8),
             SizedBox(
-              width: 36,
-              child: Text(
-                _formatPlayerDuration(duration),
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                  color: AppColors.mutedText(context),
-                  fontSize: 11,
-                  fontFeatures: [FontFeature.tabularFigures()],
+              width: 58,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  _formatPlayerDuration(duration),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: AppColors.mutedText(context),
+                    fontSize: 18,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ),
@@ -865,7 +876,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
               SizedBox(height: 16),
               Text(
-                '暂无播放内容',
+                S.of(context).nothingPlaying,
                 style: TextStyle(color: AppColors.mutedText(context)),
               ),
             ],
@@ -1338,17 +1349,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     : correctQualityFromUrl(urlForQuality, requested)
               : null);
     final qualityText = actual != null
-        ? qualityLabel(actual)
-        : (isLocal ? '未知音质' : '解析中…');
+        ? S.of(context).qualityText(actual)
+        : (isLocal ? S.of(context).unknownQuality : S.of(context).resolvingQuality);
     // 纯透明底，整体下移 10px；点击收起全屏播放器
     return Padding(
       padding: const EdgeInsets.only(top: 14, bottom: 4),
       child: Pressable(
-        semanticLabel: '收起播放器',
+        semanticLabel: S.of(context).collapsePlayer,
         scale: 0.94,
         onTap: () => _dismissPlayer(),
         child: Text(
-          '${platformLabel(platform)} · $qualityText',
+          '${S.of(context).platformText(platform)} · $qualityText',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: AppColors.mutedText(context),
@@ -1386,7 +1397,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               style: AppGlassStyle.chrome,
               borderRadius: BorderRadius.circular(18),
               child: Pressable(
-                tooltip: _currentPage == 0 ? '收起播放器' : '返回封面',
+                tooltip: _currentPage == 0 ? S.of(context).collapsePlayer : S.of(context).backToArtwork,
                 scale: 0.9,
                 onTap: () {
                   if (_currentPage == 1) {
@@ -1429,7 +1440,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                _currentPage == 0 ? '正在播放' : '歌词',
+                _currentPage == 0 ? S.of(context).nowPlaying : S.of(context).lyrics,
                 style: TextStyle(
                   color: AppColors.mutedText(context),
                   fontSize: 12,
@@ -1441,7 +1452,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ],
           ),
           Pressable(
-            tooltip: '更多',
+            tooltip: S.of(context).more,
             scale: 0.9,
             onTap: () => _showMoreMenu(context, music),
             child: Padding(
@@ -1491,7 +1502,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           opacity: routeReveal,
           child: Center(
             child: Pressable(
-              semanticLabel: '打开歌词',
+              semanticLabel: S.of(context).openLyrics,
               onTap: _openLyricsPage,
               child: Container(
                 width: box,
@@ -1718,7 +1729,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ),
         // 与封面页「平台 · 音质」+ 底 spacer 同一条 48px 带，图标居中。
         Pressable(
-          semanticLabel: '收起播放器',
+          semanticLabel: S.of(context).collapsePlayer,
           scale: 0.92,
           onTap: () => _dismissPlayer(),
           child: SizedBox(
@@ -1801,7 +1812,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Pressable(
-            tooltip: '播放模式',
+            tooltip: S.of(context).playMode,
             scale: 0.9,
             onTap: () {
               final nextMode = _getNextPlayMode(playMode);
@@ -1829,7 +1840,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
           Pressable(
-            semanticLabel: '上一首',
+            semanticLabel: S.of(context).previous,
             onTap: playerService.previous,
             child: Padding(
               padding: EdgeInsets.all(8),
@@ -1848,7 +1859,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             iconSize: 34,
           ),
           Pressable(
-            semanticLabel: '下一首',
+            semanticLabel: S.of(context).next,
             onTap: playerService.next,
             child: Padding(
               padding: EdgeInsets.all(8),
@@ -1860,7 +1871,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
           ),
           Pressable(
-            tooltip: '播放队列',
+            tooltip: S.of(context).queue,
             scale: 0.9,
             onTap: () => _showPlaylist(context),
             child: Padding(
@@ -2027,7 +2038,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 color: AppColors.onScaffold(context),
               ),
               title: Text(
-                '收藏',
+                S.of(context).favorite,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               onTap: () async {
@@ -2037,7 +2048,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 } catch (error) {
                   if (!mounted) return;
                   showAppNotification(
-                    '收藏失败: $error',
+                    '${S.of(context).favoriteFailed}: $error',
                     type: AppNotificationType.error,
                   );
                 }
@@ -2049,7 +2060,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 color: AppColors.onScaffold(context),
               ),
               title: Text(
-                '不喜欢并跳过',
+                S.of(context).dislikeAndSkip,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               onTap: () async {
@@ -2061,13 +2072,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   await ref.read(playerServiceProvider).next();
                   if (!mounted) return;
                   showAppNotification(
-                    '已标记不喜欢，后续播放会自动跳过',
+                    S.of(context).dislikedNote,
                     type: AppNotificationType.success,
                   );
                 } catch (error) {
                   if (!mounted) return;
                   showAppNotification(
-                    '标记不喜欢失败: $error',
+                    '${S.of(context).dislikeFailed}: $error',
                     type: AppNotificationType.error,
                   );
                 }
@@ -2079,7 +2090,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 color: AppColors.onScaffold(context),
               ),
               title: Text(
-                '添加到歌单',
+                S.of(context).addToPlaylist,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               onTap: () {
@@ -2413,7 +2424,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '播放列表 (${range.itemCount})',
+                    S.of(context).queueTitle(range.itemCount),
                     style: TextStyle(
                       color: AppColors.onScaffold(context),
                       fontSize: 16,
@@ -2446,7 +2457,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
               error: (error, stackTrace) => Expanded(
                 child: Center(
                   child: Text(
-                    '完整列表加载失败，显示当前队列',
+                    S.of(context).queueLoadFailed,
                     style: TextStyle(color: AppColors.mutedText(context)),
                   ),
                 ),
@@ -2456,7 +2467,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                   return Expanded(
                     child: Center(
                       child: Text(
-                        '播放列表为空',
+                        S.of(context).queueEmpty,
                         style: TextStyle(color: AppColors.mutedText(context)),
                       ),
                     ),
@@ -2519,7 +2530,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '播放列表 (${widget.queue.length})',
+                  S.of(context).queueTitle(widget.queue.length),
                   style: TextStyle(
                     color: AppColors.onScaffold(context),
                     fontSize: 16,
@@ -2534,7 +2545,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
             Padding(
               padding: const EdgeInsets.all(32),
               child: Text(
-                fallbackReason == null ? '播放列表为空' : '完整列表加载失败，显示当前队列',
+                fallbackReason == null ? S.of(context).queueEmpty : S.of(context).queueLoadFailed,
                 style: TextStyle(
                   color: AppColors.mutedText(context),
                   fontSize: 14,

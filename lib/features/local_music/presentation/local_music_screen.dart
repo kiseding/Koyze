@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:koyze/l10n/app_strings.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -58,7 +59,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            '本地音乐设置',
+            S.of(context).localMusicSettings,
             style: TextStyle(
               fontSize: 18,
               color: AppColors.onScaffold(context),
@@ -66,7 +67,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           ),
           actions: [
             FxIconButton(
-              tooltip: '重新扫描',
+              tooltip: S.of(context).rescan,
               icon: Icon(
                 Icons.refresh,
                 color: AppColors.onScaffold(context),
@@ -86,8 +87,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
               child: Center(
                 child: Text(
                   songCount == 0
-                      ? '还没有本地歌曲\n添加文件夹或等待下载完成后自动扫描'
-                      : '已收录 $songCount 首本地歌曲\n前往「我的歌单 > 本地音乐」播放',
+                      ? S.of(context).noLocalSongs
+                      : S.of(context).localSongCount(songCount),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppColors.mutedText(context),
@@ -138,7 +139,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '本地音乐库',
+                        S.of(context).localLibraryTitle,
                         style: TextStyle(
                           color: AppColors.onScaffold(context),
                           fontSize: 16,
@@ -150,8 +151,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                         mediaStoreEnabled ||
                                 directories.isNotEmpty ||
                                 downloadDirectory != null
-                            ? 'MediaStore 可重扫，已配置 ${directories.length} 个目录'
-                            : '添加会打开系统文件夹选择器并授权访问',
+                            ? S.of(context).mediaStoreHint(directories.length)
+                            : S.of(context).folderPickerHint,
                         style: TextStyle(
                           color: AppColors.mutedText(context),
                           fontSize: 12,
@@ -170,7 +171,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                     minimumSize: const Size(0, 40),
                   ),
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('添加'),
+                  label: Text(S.of(context).add),
                 ),
               ],
             ),
@@ -184,7 +185,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Android MediaStore · 默认优先扫描',
+                      S.of(context).androidMediaStore,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -205,7 +206,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      '下载目录 · 自动收录\n$downloadDirectory',
+                      S.of(context).downloadFolder(downloadDirectory),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -250,7 +251,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                           ),
                           if (dir != downloadDirectory)
                             FxIconButton(
-                              tooltip: '移除',
+                              tooltip: S.of(context).remove,
                               icon: Icon(
                                 Icons.close,
                                 size: 16,
@@ -295,7 +296,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '注入tag（实验性）',
+                            S.of(context).writeTags,
                             style: TextStyle(
                               color: AppColors.onScaffold(context),
                               fontSize: 16,
@@ -304,7 +305,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '将歌名，歌手，专辑，封面等信息写入歌曲文件，需要读写权限',
+                            S.of(context).writeTagsHint,
                             style: TextStyle(
                               color: AppColors.mutedText(context),
                               fontSize: 12,
@@ -322,7 +323,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         minimumSize: const Size(0, 40),
                       ),
-                      child: const Text('开始'),
+                      child: Text(S.of(context).start),
                     ),
                   ],
                 ),
@@ -371,7 +372,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           'error=$error',
           stackTrace: stackTrace,
         );
-        if (mounted) _showError('选择音乐文件夹失败', error);
+        if (mounted) _showError(S.of(context).pickFolderFailed, error);
       }
       return;
     }
@@ -380,16 +381,16 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         final path = await SecurityScopedDirectory.select();
         if (path != null && mounted) await _scan(path);
       } catch (error) {
-        if (mounted) _showError('选择音乐文件夹失败', error);
+        if (mounted) _showError(S.of(context).pickFolderFailed, error);
       }
       return;
     }
     try {
-      final path = await FilePicker.getDirectoryPath(dialogTitle: '选择音乐文件夹');
+      final path = await FilePicker.getDirectoryPath(dialogTitle: S.of(context).chooseMusicFolder);
       if (path == null || !mounted) return;
       await _scan(path);
     } catch (error) {
-      if (mounted) _showError('选择文件夹失败', error);
+      if (mounted) _showError(S.of(context).chooseFolderFailed, error);
     }
   }
 
@@ -401,7 +402,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       _scraping = false;
       _scanned = 0;
       _total = 0;
-      _status = 'SAF 正在导入音乐文件夹…';
+      _status = S.of(context).safImporting;
     });
     LocalMusicDebugLog.info(
       'ui.android_saf.start',
@@ -415,7 +416,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           setState(() {
             _scanned = scanned;
             _total = total;
-            _status = 'SAF 正在导入 $_scanned / $_total';
+            _status = S.of(context).importingCount(_scanned, _total);
           });
         },
       );
@@ -431,7 +432,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           _scanning = false;
           _scraping = false;
         });
-        _showError('扫描 Android 音乐文件夹失败', error);
+        _showError(S.of(context).scanAndroidFailed, error);
       }
     }
   }
@@ -444,7 +445,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       _scraping = false;
       _scanned = 0;
       _total = 0;
-      _status = '正在通过 Android MediaStore 扫描本地音乐…';
+      _status = S.of(context).mediaStoreScanning;
     });
     LocalMusicDebugLog.info('ui.android_access.start', 'priority=MediaStore');
     Object? lastError;
@@ -459,7 +460,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
               setState(() {
                 _scanned = scanned;
                 _total = total;
-                _status = 'MediaStore 正在导入 $_scanned / $_total';
+                _status = S.of(context).mediaStoreImporting(_scanned, _total);
               });
             },
           );
@@ -471,7 +472,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
             await _finishAndroidScan(library);
             return;
           }
-          lastError = StateError('MediaStore 未返回音频');
+          lastError = StateError(S.of(context).mediaStoreEmpty);
         } catch (error, stackTrace) {
           lastError = error;
           LocalMusicDebugLog.warning(
@@ -484,7 +485,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
 
       if (!mounted) return;
       setState(() {
-        _status = 'MediaStore 不可用，正在尝试全部文件访问权限…';
+        _status = S.of(context).tryingAllFiles;
       });
       final allFilesGranted = await _requestAndroidAllFilesAccess();
       if (allFilesGranted) {
@@ -501,7 +502,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
               setState(() {
                 _scanned = scanned;
                 _total = total;
-                _status = '全部文件访问正在扫描 $_scanned / $_total';
+                _status = S.of(context).allFilesScanning(_scanned, _total);
               });
             },
           );
@@ -512,14 +513,14 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
 
       if (!mounted) return;
       setState(() {
-        _status = '全部文件访问不可用，正在打开 SAF 目录授权…';
+        _status = S.of(context).openingSaf;
       });
       final path = await AndroidDirectoryAccess.select();
       if (path != null && path.isNotEmpty) {
         await _scanAndroidSafDirectory(path);
         return;
       }
-      throw lastError ?? StateError('未获得可用的 Android 本地音乐访问权限');
+      throw lastError ?? StateError(S.of(context).androidAccessDenied);
     } catch (error, stackTrace) {
       LocalMusicDebugLog.error(
         'ui.android_access.error',
@@ -531,7 +532,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           _scanning = false;
           _scraping = false;
         });
-        _showError('Android 本地音乐授权失败', error);
+        _showError(S.of(context).androidAuthFailed, error);
       }
     }
   }
@@ -542,7 +543,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       _scanning = false;
       _scraping = true;
       _scanned = 0;
-      _status = '正在匹配在线歌曲（刮削）…';
+      _status = S.of(context).matchingOnline;
     });
     await _scrapeAndSync(library);
   }
@@ -585,7 +586,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       _scanning = true;
       _scanned = 0;
       _total = 0;
-      _status = '正在扫描 $directoryPath …';
+      _status = S.of(context).scanningPath(directoryPath);
     });
     LocalMusicDebugLog.info(
       'ui.scan.start',
@@ -599,7 +600,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           setState(() {
             _scanned = scanned;
             _total = total;
-            _status = '正在解析元数据 $_scanned / $_total';
+            _status = S.of(context).readingMetadata(_scanned, _total);
           });
         },
       );
@@ -612,7 +613,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         _scanning = false;
         _scraping = true;
         _scanned = 0;
-        _status = '正在匹配在线歌曲（刮削）…';
+        _status = S.of(context).matchingOnline;
       });
       await _scrapeAndSync(library);
     } catch (error, stackTrace) {
@@ -626,7 +627,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           _scanning = false;
           _scraping = false;
         });
-        _showError('扫描失败', error);
+        _showError(S.of(context).scanFailed, error);
       }
     }
   }
@@ -639,12 +640,12 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         await _scanAndroidPreferred();
         return;
       }
-      if (mounted) _showError('还没有配置本地音乐来源', StateError('empty'));
+      if (mounted) _showError(S.of(context).noLocalSources, StateError('empty'));
       return;
     }
     setState(() {
       _scanning = true;
-      _status = '正在重新扫描本地音乐来源…';
+      _status = S.of(context).rescanning;
     });
     LocalMusicDebugLog.info(
       'ui.rescan.start',
@@ -657,7 +658,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           setState(() {
             _scanned = scanned;
             _total = total;
-            _status = '正在解析元数据 $_scanned / $_total';
+            _status = S.of(context).readingMetadata(_scanned, _total);
           });
         },
       );
@@ -670,7 +671,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         _scanning = false;
         _scraping = true;
         _scanned = 0;
-        _status = '正在匹配在线歌曲（刮削）…';
+        _status = S.of(context).matchingOnline;
       });
       await _scrapeAndSync(library);
     } catch (error, stackTrace) {
@@ -684,7 +685,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           _scanning = false;
           _scraping = false;
         });
-        _showError('重新扫描失败', error);
+        _showError(S.of(context).rescanFailed, error);
       }
     }
   }
@@ -850,7 +851,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         setState(() {
           _scanned++;
           _total = songs.length;
-          _status = '正在刮削 $_scanned / $_total';
+          _status = S.of(context).scrapingCount(_scanned, _total);
         });
       }
     }
@@ -882,7 +883,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       });
       revision.state++;
       showAppNotification(
-        '本地音乐已更新（${songs.length} 首）',
+        S.of(context).localUpdated(songs.length),
         type: AppNotificationType.info,
       );
     } else {
@@ -895,7 +896,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     await _requestTagWritePermissions();
     final songs = library.songs;
     if (songs.isEmpty) {
-      if (mounted) _showError('没有可写入的本地歌曲', StateError('empty'));
+      if (mounted) _showError(S.of(context).noWritableSongs, StateError('empty'));
       return;
     }
     if (!mounted) return;
@@ -903,7 +904,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       _tagWriting = true;
       _scanned = 0;
       _total = songs.length;
-      _status = '正在尝试写回原文件标签…';
+      _status = S.of(context).writingTags;
     });
     var attempted = 0;
     var written = 0;
@@ -964,7 +965,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         if (!mounted) return;
         setState(() {
           _scanned = index + 1;
-          _status = '正在写回原文件标签 $_scanned / $_total';
+          _status = S.of(context).writingTagsCount(_scanned, _total);
         });
       }
       if (!mounted) return;
@@ -976,7 +977,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         'attempted=$attempted written=$written',
       );
       showAppNotification(
-        attempted == 0 ? '没有可写回的刮削标签' : '标签写回完成：成功 $written / $attempted',
+        attempted == 0 ? S.of(context).noTagsToWrite : S.of(context).tagsWritten(written, attempted),
         type: written == attempted && attempted > 0
             ? AppNotificationType.success
             : AppNotificationType.info,
@@ -991,7 +992,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         setState(() {
           _tagWriting = false;
         });
-        _showError('写回标签失败', error);
+        _showError(S.of(context).writeTagsFailed, error);
       }
     }
   }
@@ -1059,10 +1060,10 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       await playlistService.replaceLocalSongs(library.songs);
       ref.read(localMusicRevisionProvider.notifier).state++;
       if (mounted) {
-        showAppNotification('已移除文件夹', type: AppNotificationType.info);
+        showAppNotification(S.of(context).folderRemoved, type: AppNotificationType.info);
       }
     } catch (error) {
-      if (mounted) _showError('移除失败', error);
+      if (mounted) _showError(S.of(context).removeFailed, error);
     }
   }
 

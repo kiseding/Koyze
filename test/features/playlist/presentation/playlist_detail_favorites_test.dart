@@ -21,7 +21,11 @@ void main() {
     expect(more, contains('Dialog('));
     expect(more, contains('BorderRadius.circular(20)'));
     expect(more, contains('maxHeight: maxH'));
-    expect(more, contains('全部添加到收藏列表'));
+    expect(more, contains('S.of(context).addAllToFavorites'));
+    expect(
+      File('lib/l10n/app_strings.dart').readAsStringSync(),
+      contains('全部添加到收藏列表'),
+    );
     expect(more, contains('await ref'));
     expect(more, contains('.addAllSongsToFavorites(playlist.id)'));
     expect(more, isNot(contains('showModalBottomSheet')));
@@ -36,16 +40,16 @@ void main() {
       expect(source, contains("case 'clear_favorites':"));
       expect(source, contains("case 'duplicates':"));
       expect(source, contains("context.push('/duplicates')"));
-      expect(source, contains('清空收藏'));
-      expect(source, contains('确认清空'));
-      expect(source, contains('清空收藏？'));
+      expect(source, contains('S.of(context).clearFavorites'));
+      expect(source, contains('S.of(context).confirmClear'));
+      expect(source, contains('S.of(context).clearFavoritesTitle'));
       expect(source, isNot(contains('一键取消收藏')));
       final itemBuilder = source.substring(
         source.indexOf('itemBuilder: (context) {'),
         source.indexOf('body: playlist.songCount == 0'),
       );
       expect(itemBuilder, contains("value: 'duplicates'"));
-      expect(itemBuilder, contains('重复歌曲'));
+      expect(itemBuilder, contains('S.of(context).duplicateSongs'));
       expect(
         itemBuilder.indexOf("value: 'duplicates'"),
         greaterThan(itemBuilder.indexOf("value: 'sort_duration'")),
@@ -66,7 +70,7 @@ void main() {
 
     expect(source, contains('onLongPress: isFavorites'));
     expect(source, contains('_toggleFavoriteSelection(song)'));
-    expect(source, contains('已选 \${_selectedFavoriteIds.length} 首'));
+    expect(source, contains('S.of(context).selectedCount(_selectedFavoriteIds.length)'));
     expect(source, contains('_downloadSelectedFavorites'));
     expect(source, contains('_removeSelectedFavorites'));
     expect(source, contains('_toggleAllFavoriteSelection'));
@@ -82,7 +86,12 @@ void main() {
       source.indexOf('Future<List<MusicItem>> _selectedFavoriteSongs('),
     );
     expect(selectAllMethod, isNot(contains('getAllSongs')));
-    expect(source, contains("tooltip: isAllFavoritesSelected ? '取消全选' : '全选'"));
+    expect(
+      source,
+      contains(
+        'tooltip: isAllFavoritesSelected ? S.of(context).deselectAll : S.of(context).selectAll',
+      ),
+    );
     expect(source, contains('Icons.select_all'));
     expect(source, contains('Icons.deselect'));
     expect(
@@ -146,7 +155,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('歌单不存在'), findsOneWidget);
+      expect(find.text('Playlist not found'), findsOneWidget);
       expect(find.byIcon(Icons.more_vert), findsNothing);
     },
   );

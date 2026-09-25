@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:koyze/core/theme/app_colors.dart';
 import 'package:koyze/core/widgets/fx_icon_button.dart';
@@ -45,12 +46,12 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
             background: Theme.of(context).scaffoldBackgroundColor,
           ),
           leading: FxIconButton(
-            tooltip: '返回',
+            tooltip: S.of(context).back,
             icon: Icon(Icons.arrow_back, color: AppColors.onScaffold(context)),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
-            '均衡器',
+            S.of(context).equalizer,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -63,7 +64,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                   ? () => ref.read(equalizerProvider.notifier).resetToFlat()
                   : null,
               icon: const Icon(Icons.restart_alt_rounded, size: 17),
-              label: const Text('重置'),
+              label: Text(S.of(context).reset),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.accentOf(context),
                 textStyle: const TextStyle(fontSize: 13),
@@ -110,7 +111,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '均衡器',
+                    S.of(context).equalizer,
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -120,8 +121,8 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                   const SizedBox(height: 4),
                   Text(
                     state.supported
-                        ? '按频段调整播放音色，对所有音源生效'
-                        : '当前平台不可用',
+                        ? S.of(context).equalizerHint
+                        : S.of(context).unavailableOnPlatform,
                     style: TextStyle(
                       fontSize: 12.5,
                       color: AppColors.secondaryText(context),
@@ -161,7 +162,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '当前平台不支持均衡器',
+                    S.of(context).equalizerUnavailable,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -170,9 +171,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '均衡器需要播放引擎开放音频特效通道。iOS / macOS 的 '
-                    'AVPlayer 与 Windows 的 Media Foundation 都没有暴露这一层，'
-                    '因此暂时只在 Android 上生效。',
+                    S.of(context).equalizerUnavailableBody,
                     style: TextStyle(
                       fontSize: 12.5,
                       height: 1.5,
@@ -193,7 +192,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionTitle(text: '预设'),
+        _SectionTitle(text: S.of(context).presets),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
@@ -201,7 +200,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           children: [
             for (final preset in equalizerPresets)
               ChoiceChip(
-                label: Text(preset.label, style: const TextStyle(fontSize: 13)),
+                label: Text(S.of(context).presetName(preset.id), style: const TextStyle(fontSize: 13)),
                 selected: state.settings.presetId == preset.id,
                 onSelected: (_) => notifier.selectPreset(preset.id),
                 selectedColor: Theme.of(context).colorScheme.primaryContainer,
@@ -214,7 +213,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
             // 「自定义」不是可点的预设，只在手动拖过频段后作为状态提示出现。
             if (state.settings.isCustom)
               ChoiceChip(
-                label: const Text('自定义', style: TextStyle(fontSize: 13)),
+                label: Text(S.of(context).customPreset, style: TextStyle(fontSize: 13)),
                 selected: true,
                 onSelected: null,
                 selectedColor: Theme.of(context).colorScheme.primaryContainer,
@@ -258,7 +257,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              interactive ? '增益（dB）' : '开启均衡器后可调节',
+              interactive ? S.of(context).gainDb : S.of(context).enableEqualizerToAdjust,
               style: TextStyle(
                 fontSize: 11.5,
                 color: AppColors.mutedText(context),
@@ -276,8 +275,8 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
         '${layout.minDecibels.toStringAsFixed(0)} ~ '
         '${layout.maxDecibels.toStringAsFixed(0)} dB';
     final text = state.layoutReady
-        ? '已读取设备频段：${layout.bandCount} 段（$range）'
-        : '播放器尚未连接，暂按常见 5 段展示；开始播放后会自动读取设备频段';
+        ? S.of(context).bandsReady(layout.bandCount, range)
+        : S.of(context).bandsPending;
     return Text(
       text,
       style: TextStyle(

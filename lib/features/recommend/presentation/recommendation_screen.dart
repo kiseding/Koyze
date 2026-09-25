@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
@@ -22,7 +23,7 @@ class RecommendationScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          '猜你喜欢',
+          S.of(context).forYou,
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -107,7 +108,7 @@ class RecommendationScreen extends ConsumerWidget {
                               ),
                             ),
                             trailing: FxIconButton(
-                              tooltip: '播放 ${rec.song.name}',
+                              tooltip: S.of(context).playNamed(rec.song.name),
                               icon: const Icon(
                                 Icons.play_circle_outline,
                                 size: 24,
@@ -168,8 +169,8 @@ class RecommendationScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '根据你喜欢的音乐推荐',
+                Text(
+                  S.of(context).basedOnFavorites,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -178,7 +179,7 @@ class RecommendationScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '推荐 $count 首 · 持续更新',
+                  S.of(context).recommendUpdated(count),
                   style: TextStyle(
                     color: Colors.white.withAlpha(200),
                     fontSize: 12,
@@ -200,12 +201,12 @@ class RecommendationScreen extends ConsumerWidget {
           const Icon(Icons.auto_awesome, size: 56, color: kRecommendColor),
           const SizedBox(height: 12),
           Text(
-            '还没有推荐',
+            S.of(context).noRecommendations,
             style: TextStyle(color: AppColors.mutedText(context), fontSize: 14),
           ),
           const SizedBox(height: 4),
           Text(
-            '“收藏列表”满 100 首后，将随机取样推荐 30 首歌曲',
+            S.of(context).recommendationsNeedFavorites,
             style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
           ),
         ],
@@ -225,14 +226,14 @@ class RecommendationScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '推荐加载失败: $error',
+            '${S.of(context).loadFailed}: $error',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.secondaryText(context)),
           ),
           const SizedBox(height: 12),
           FilledButton.tonal(
             onPressed: () => ref.read(recommendationProvider.notifier).retry(),
-            child: const Text('重试'),
+            child: Text(S.of(context).retry),
           ),
         ],
       ),

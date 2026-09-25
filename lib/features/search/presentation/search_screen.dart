@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
@@ -171,7 +172,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               ),
                             ),
                             child: PopupMenuButton<String>(
-                              tooltip: '选择平台',
+                              tooltip: S.of(context).choosePlatform,
                               offset: const Offset(0, 8),
                               color: AppColors.dialogBg(context),
                               elevation: 10,
@@ -237,7 +238,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      current?.name ?? '平台',
+                                      current?.name ?? S.of(context).platform,
                                       style: TextStyle(
                                         color: primary,
                                         fontSize: 14,
@@ -283,7 +284,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                       height: 1.2,
                                     ),
                                     decoration: InputDecoration(
-                                      hintText: '搜索歌曲、歌单...',
+                                      hintText: S.of(context).searchFieldHint,
                                       hintStyle: TextStyle(
                                         color: muted,
                                         fontSize: 15,
@@ -303,7 +304,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                 ),
                                 if (_searchController.text.isNotEmpty)
                                   FxIconButton(
-                                    tooltip: '清除搜索内容',
+                                    tooltip: S.of(context).clearSearch,
                                     visualDensity: VisualDensity.compact,
                                     icon: Icon(
                                       Icons.clear,
@@ -352,9 +353,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: const Text(
-                                '搜索',
-                                style: TextStyle(
+                              child: Text(
+                                S.of(context).searchAction,
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14,
                                 ),
@@ -435,7 +436,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '搜索出错: ${searchState.error}',
+              S.of(context).searchFailed(searchState.error ?? ''),
               textAlign: TextAlign.center,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
@@ -444,7 +445,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               onPressed: () => ref
                   .read(searchStateProvider.notifier)
                   .search(searchState.query),
-              child: const Text('重试'),
+              child: Text(S.of(context).retry),
             ),
           ],
         ),
@@ -463,7 +464,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       return Center(
         key: const ValueKey('search-empty'),
         child: Text(
-          '无结果',
+          S.of(context).noResults,
           style: TextStyle(color: AppColors.mutedText(context)),
         ),
       );
@@ -497,7 +498,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '本地音乐',
+                    S.of(context).localMusic,
                     style: TextStyle(
                       color: AppColors.accentOf(context),
                       fontSize: 13,
@@ -519,7 +520,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Text(
-                      '网络音乐',
+                      S.of(context).onlineMusic,
                       style: TextStyle(
                         color: AppColors.mutedText(context),
                         fontSize: 13,
@@ -576,7 +577,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               style: TextStyle(color: AppColors.onScaffold(context)),
             ),
             subtitle: Text(
-              '${local.singer} · 本地',
+              S.of(context).localArtist(local.singer),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -603,7 +604,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       ),
                     )
                   : Text(
-                      '滑动加载更多',
+                      S.of(context).slideForMore,
                       style: TextStyle(
                         color: AppColors.mutedText(context),
                         fontSize: 12,
@@ -691,7 +692,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         isFavorite: isFavoriteMusic(item, favoriteSongs),
                       ),
                       FxIconButton(
-                        tooltip: '更多操作',
+                        tooltip: S.of(context).moreActions,
                         icon: Icon(
                           Icons.more_vert,
                           color: AppColors.mutedText(context),
@@ -730,7 +731,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           Row(
             children: [
               Text(
-                '搜索历史',
+                S.of(context).searchHistory,
                 style: TextStyle(
                   color: secondary,
                   fontWeight: FontWeight.w600,
@@ -742,7 +743,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 onPressed: () =>
                     ref.read(searchHistoryProvider.notifier).clear(),
                 child: Text(
-                  '清空',
+                  S.of(context).clearHistory,
                   style: TextStyle(color: accent, fontSize: 12),
                 ),
               ),
@@ -766,7 +767,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           const SizedBox(height: 20),
         ],
         Text(
-          '热搜榜',
+          S.of(context).hotSearch,
           style: TextStyle(
             color: secondary,
             fontWeight: FontWeight.w600,
@@ -777,7 +778,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         hotAsync.when(
           loading: () => Padding(
             padding: const EdgeInsets.all(16),
-            child: Text('加载中...', style: TextStyle(color: muted, fontSize: 13)),
+            child: Text(S.of(context).loadingEllipsis, style: TextStyle(color: muted, fontSize: 13)),
           ),
           error: (_, __) => const SizedBox.shrink(),
           data: (hots) => Column(
@@ -830,7 +831,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 color: AppColors.onScaffold(context),
               ),
               title: Text(
-                '立即播放',
+                S.of(context).playNow,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               onTap: () {
@@ -853,7 +854,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 color: AppColors.onScaffold(context),
               ),
               title: Text(
-                '添加到歌单',
+                S.of(context).addToPlaylist,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               onTap: () {
@@ -867,7 +868,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 color: AppColors.onScaffold(context),
               ),
               title: Text(
-                '收藏',
+                S.of(context).favorite,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               onTap: () async {
@@ -877,7 +878,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 } catch (error) {
                   if (!mounted) return;
                   showAppNotification(
-                    '收藏失败: $error',
+                    '${S.of(context).favoriteFailed}: $error',
                     type: AppNotificationType.error,
                   );
                 }
@@ -889,7 +890,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 color: AppColors.onScaffold(context),
               ),
               title: Text(
-                '下载',
+                S.of(context).download,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               onTap: () {

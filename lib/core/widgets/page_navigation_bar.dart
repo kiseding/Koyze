@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:koyze/l10n/app_strings.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import 'fx_icon_button.dart';
@@ -85,7 +86,7 @@ class PageNavigationBar extends StatelessWidget {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
       child: Text(
-        '第 ${pageIndex + 1} / $pageCount 页',
+        S.of(context).pagePosition(pageIndex + 1, pageCount),
         style: TextStyle(
           fontSize: 15,
           color: AppColors.secondaryText(context),
@@ -104,7 +105,7 @@ class PageNavigationBar extends StatelessWidget {
     return SizedBox.square(
       dimension: 48,
       child: FxIconButton(
-        tooltip: isPrevious ? '上一页' : '下一页',
+        tooltip: isPrevious ? S.of(context).previousPage : S.of(context).nextPage,
         onPressed: arrowEnabled
             ? () => onPageChanged(pageIndex + (isPrevious ? -1 : 1))
             : null,
@@ -125,7 +126,7 @@ class PageNavigationBar extends StatelessWidget {
       builder: (context) {
         final scheme = Theme.of(context).colorScheme;
         return AlertDialog(
-          title: const Text('选择页码'),
+          title: Text(S.of(context).choosePage),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 320, minWidth: 300),
             child: GridView.builder(
@@ -167,7 +168,7 @@ class PageNavigationBar extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
+              child: Text(S.of(context).cancel),
             ),
           ],
         );

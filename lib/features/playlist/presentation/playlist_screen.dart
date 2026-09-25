@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
@@ -104,17 +105,17 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         body: Column(
           children: [
             FrostedTabHeader(
-              title: '歌单',
+              title: S.of(context).playlists,
               leadingIcon: Icons.library_music_rounded,
               actions: [
                 FrostedHeaderButton(
                   icon: Icons.playlist_add_rounded,
-                  semanticLabel: '导入歌单',
+                  semanticLabel: S.of(context).importPlaylist,
                   onTap: () => _showImportDialog(context, ref),
                 ),
                 FrostedHeaderButton(
                   icon: Icons.add_rounded,
-                  semanticLabel: '新建歌单',
+                  semanticLabel: S.of(context).newPlaylist,
                   onTap: () => _showCreateDialog(context, ref),
                 ),
               ],
@@ -136,7 +137,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 },
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
-                  hintText: '在库中搜索歌曲/歌单',
+                  hintText: S.of(context).searchLibraryHint,
                   hintStyle: TextStyle(
                     color: AppColors.mutedText(context),
                     fontSize: 14,
@@ -149,7 +150,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   suffixIcon: _searchQuery.isEmpty
                       ? null
                       : FxIconButton(
-                          tooltip: '清除搜索内容',
+                          tooltip: S.of(context).clearSearch,
                           icon: Icon(
                             Icons.clear,
                             size: 18,
@@ -229,7 +230,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      showAppNotification('加载歌曲失败: $error', type: AppNotificationType.error);
+      showAppNotification('${S.of(context).loadSongsFailed}: $error', type: AppNotificationType.error);
     }
   }
 
@@ -252,7 +253,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         const _BodyGap(12),
         const _BodyRecentCard(),
         const _BodyGap(24),
-        const _BodyHeader(title: '自定义歌单', trailing: true),
+        _BodyHeader(title: S.of(context).customPlaylists, trailing: true),
         const _BodyGap(12),
         for (final playlist in filteredPlaylists) _BodyPlaylistItem(playlist),
       ];
@@ -260,13 +261,13 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final items = <_PlaylistBodyItem>[
       if (isLoading) const _BodyLoading(),
       if (songHits.isNotEmpty) ...[
-        _BodyHeader(title: '歌曲 (${songHits.length})', trailing: false),
+        _BodyHeader(title: S.of(context).songsHeader(songHits.length), trailing: false),
         const _BodyGap(8),
         for (final hit in songHits) _BodySongHitItem(hit),
         const _BodyGap(16),
       ],
       if (filteredPlaylists.isNotEmpty) ...[
-        _BodyHeader(title: '歌单 (${filteredPlaylists.length})', trailing: false),
+        _BodyHeader(title: S.of(context).playlistsHeader(filteredPlaylists.length), trailing: false),
         const _BodyGap(8),
         for (final playlist in filteredPlaylists) _BodyPlaylistItem(playlist),
       ],
@@ -316,7 +317,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           ),
           if (trailing)
             FxIconButton(
-              tooltip: '排序歌单',
+              tooltip: S.of(context).sortPlaylists,
               icon: Icon(
                 Icons.sort,
                 color: scheme.onSurface.withAlpha(120),
@@ -347,7 +348,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         padding: const EdgeInsets.symmetric(vertical: 32),
         child: Center(
           child: Text(
-            '未找到匹配的歌曲或歌单',
+            S.of(context).nothingMatched,
             style: TextStyle(color: scheme.onSurface.withAlpha(120)),
           ),
         ),
@@ -396,7 +397,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           style: TextStyle(color: AppColors.onScaffold(context), fontSize: 14),
         ),
         subtitle: Text(
-          '${song.singer} · ${playlist.name}',
+          '${song.singer} · ${S.of(context).builtinPlaylistName(playlist.id, playlist.name)}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
@@ -465,9 +466,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '收藏列表',
-                      style: TextStyle(
+                    Text(
+                      S.of(context).favorites,
+                      style: const TextStyle(
                         color: onAccent,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -475,7 +476,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$songCount 首歌曲',
+                      S.of(context).songCount(songCount),
                       style: TextStyle(
                         color: onAccent.withAlpha(200),
                         fontSize: 13,
@@ -554,9 +555,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '本地音乐',
-                      style: TextStyle(
+                    Text(
+                      S.of(context).localMusic,
+                      style: const TextStyle(
                         color: onPurple,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -564,7 +565,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      songCount == 0 ? '选择文件夹扫描设备歌曲' : '$songCount 首歌曲',
+                      songCount == 0 ? S.of(context).chooseFolderToScan : S.of(context).songCount(songCount),
                       style: TextStyle(
                         color: onPurple.withAlpha(200),
                         fontSize: 13,
@@ -640,7 +641,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '最近播放',
+                      S.of(context).recentPlays,
                       style: TextStyle(
                         color: onBlue,
                         fontSize: 16,
@@ -649,7 +650,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$songCount 首歌曲',
+                      S.of(context).songCount(songCount),
                       style: TextStyle(
                         color: onBlue.withAlpha(200),
                         fontSize: 13,
@@ -721,9 +722,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '猜你喜欢',
-                      style: TextStyle(
+                    Text(
+                      S.of(context).forYou,
+                      style: const TextStyle(
                         color: onOrange,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -731,7 +732,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      count > 0 ? '为你推荐 $count 首歌曲' : '收藏歌曲后为你推荐',
+                      count > 0 ? S.of(context).recommendedSongs(count) : S.of(context).recommendAfterFavorites,
                       style: TextStyle(
                         color: onOrange.withAlpha(200),
                         fontSize: 13,
@@ -783,9 +784,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     const pink = Colors.pink;
     const onPink = Colors.white;
     final subtitle = !connected
-        ? 'Navidrome / Emby / Plex / 群晖'
+        ? S.of(context).nasHosts
         : subsonicConnected && songsAsync.isLoading
-            ? '正在加载 ${config.hostLabel}'
+            ? S.of(context).loadingHost(config.hostLabel)
             : 'NAS';
 
     return HoverFloat(
@@ -823,9 +824,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'NAS 乐库',
-                      style: TextStyle(
+                    Text(
+                      S.of(context).nasLibrary,
+                      style: const TextStyle(
                         color: onPink,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -873,7 +874,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         queue = await ref.read(subsonicServiceProvider).getLibrarySongs();
       }
       if (queue.isEmpty) {
-        showAppNotification('服务器上还没有歌曲', type: AppNotificationType.info);
+        showAppNotification(S.of(context).noSongsOnServer, type: AppNotificationType.info);
         return;
       }
       await ref.read(playerServiceProvider).playPlaylist(
@@ -882,7 +883,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           );
     } catch (error) {
       if (!mounted) return;
-      showAppNotification('播放失败: $error', type: AppNotificationType.error);
+      showAppNotification('${S.of(context).playFailed}: $error', type: AppNotificationType.error);
     }
   }
 
@@ -937,7 +938,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    playlist.name,
+                    S.of(context).builtinPlaylistName(playlist.id, playlist.name),
                     style: TextStyle(
                       color: AppColors.onScaffold(context),
                       fontSize: 14,
@@ -948,7 +949,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${playlist.songCount} 首歌曲 · ${playlist.description ?? "私人"}',
+                    S.of(context).playlistMeta(playlist.songCount, playlist.description),
                     style: TextStyle(
                       color: AppColors.mutedText(context),
                       fontSize: 12,
@@ -998,7 +999,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-            '创建歌单',
+            S.of(context).createPlaylist,
             style: TextStyle(color: AppColors.onScaffold(dialogContext)),
           ),
           content: Column(
@@ -1011,7 +1012,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 onSubmitted: (_) => descFocus.requestFocus(),
                 style: TextStyle(color: AppColors.onScaffold(dialogContext)),
                 decoration: InputDecoration(
-                  hintText: '歌单名称',
+                  hintText: S.of(context).playlistName,
                   hintStyle: TextStyle(
                     color: AppColors.mutedText(dialogContext),
                   ),
@@ -1030,7 +1031,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 textInputAction: TextInputAction.done,
                 style: TextStyle(color: AppColors.onScaffold(dialogContext)),
                 decoration: InputDecoration(
-                  hintText: '描述（可选）',
+                  hintText: S.of(context).descriptionOptional,
                   hintStyle: TextStyle(
                     color: AppColors.mutedText(dialogContext),
                   ),
@@ -1048,7 +1049,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
-                '取消',
+                S.of(dialogContext).cancel,
                 style: TextStyle(color: AppColors.mutedText(dialogContext)),
               ),
             ),
@@ -1066,14 +1067,14 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   } catch (error) {
                     if (!dialogContext.mounted) return;
                     showAppNotification(
-                      '创建失败: $error',
+                      '${S.of(context).createFailed}: $error',
                       type: AppNotificationType.error,
                     );
                   }
                 }
               },
               child: Text(
-                '创建',
+                S.of(dialogContext).create,
                 style: TextStyle(color: AppColors.accentOf(dialogContext)),
               ),
             ),
@@ -1115,7 +1116,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-            '编辑歌单',
+            S.of(context).editPlaylist,
             style: TextStyle(color: AppColors.onScaffold(ctx)),
           ),
           content: Column(
@@ -1128,7 +1129,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 onSubmitted: (_) => descFocus.requestFocus(),
                 style: TextStyle(color: AppColors.onScaffold(ctx)),
                 decoration: InputDecoration(
-                  hintText: '歌单名称',
+                  hintText: S.of(context).playlistName,
                   hintStyle: TextStyle(color: AppColors.mutedText(ctx)),
                   filled: true,
                   fillColor: AppColors.fill2(ctx),
@@ -1145,7 +1146,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 textInputAction: TextInputAction.done,
                 style: TextStyle(color: AppColors.onScaffold(ctx)),
                 decoration: InputDecoration(
-                  hintText: '描述（可选）',
+                  hintText: S.of(context).descriptionOptional,
                   hintStyle: TextStyle(color: AppColors.mutedText(ctx)),
                   filled: true,
                   fillColor: AppColors.fill2(ctx),
@@ -1161,7 +1162,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text(
-                '取消',
+                S.of(ctx).cancel,
                 style: TextStyle(color: AppColors.mutedText(ctx)),
               ),
             ),
@@ -1182,14 +1183,14 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   } catch (error) {
                     if (!ctx.mounted) return;
                     showAppNotification(
-                      '保存失败: $error',
+                      '${S.of(context).saveFailed}: $error',
                       type: AppNotificationType.error,
                     );
                   }
                 }
               },
               child: Text(
-                '保存',
+                S.of(ctx).save,
                 style: TextStyle(color: AppColors.accentOf(ctx)),
               ),
             ),
@@ -1223,7 +1224,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                '排序方式',
+                S.of(context).sortBy,
                 style: TextStyle(
                   color: AppColors.onScaffold(context),
                   fontSize: 16,
@@ -1235,19 +1236,19 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               context,
               PlaylistSortMode.recent,
               Icons.access_time,
-              '最近添加',
+              S.of(context).recentlyAdded,
             ),
             _sortOption(
               context,
               PlaylistSortMode.name,
               Icons.sort_by_alpha,
-              '名称排序',
+              S.of(context).sortByName,
             ),
             _sortOption(
               context,
               PlaylistSortMode.songCount,
               Icons.music_note,
-              '歌曲数量',
+              S.of(context).sortByCount,
             ),
           ],
         ),
@@ -1349,27 +1350,27 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          const Expanded(
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  '导入歌单',
-                                  style: TextStyle(
+                                  S.of(context).importPlaylist,
+                                  style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                SizedBox(height: 2),
+                                const SizedBox(height: 2),
                                 Text(
-                                  '粘贴分享链接或输入歌单 ID',
-                                  style: TextStyle(fontSize: 12),
+                                  S.of(context).pastePlaylistLink,
+                                  style: const TextStyle(fontSize: 12),
                                 ),
                               ],
                             ),
                           ),
                           FxIconButton(
-                            tooltip: '关闭导入歌单',
+                            tooltip: S.of(context).closeImport,
                             onPressed: busy ? null : () => Navigator.pop(ctx),
                             icon: const Icon(Icons.close_rounded),
                           ),
@@ -1387,7 +1388,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              '来源平台',
+                              S.of(context).sourcePlatform,
                               style: TextStyle(
                                 color: AppColors.secondaryText(ctx),
                                 fontSize: 12,
@@ -1396,21 +1397,21 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                             ),
                             const SizedBox(height: 8),
                             SegmentedButton<String>(
-                              segments: const [
-                                ButtonSegment(
+                              segments: [
+                                const ButtonSegment(
                                   value: 'tx',
                                   label: Text('QQ'),
                                   icon: Icon(Icons.music_note_rounded),
                                 ),
                                 ButtonSegment(
                                   value: 'kw',
-                                  label: Text('酷我'),
-                                  icon: Icon(Icons.graphic_eq_rounded),
+                                  label: Text(S.of(context).kuwoShort),
+                                  icon: const Icon(Icons.graphic_eq_rounded),
                                 ),
                                 ButtonSegment(
                                   value: 'wy',
-                                  label: Text('网易'),
-                                  icon: Icon(Icons.album_rounded),
+                                  label: Text(S.of(context).neteaseShort),
+                                  icon: const Icon(Icons.album_rounded),
                                 ),
                               ],
                               selected: {platform},
@@ -1421,7 +1422,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                             ),
                             const SizedBox(height: 20),
                             Text(
-                              '歌单链接或 ID',
+                              S.of(context).playlistLinkOrId,
                               style: TextStyle(
                                 color: AppColors.secondaryText(ctx),
                                 fontSize: 12,
@@ -1443,11 +1444,10 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                               style: TextStyle(
                                 color: AppColors.onScaffold(ctx),
                               ),
-                              decoration: const InputDecoration(
-                                hintText:
-                                    '例如：https://y.qq.com/n/ryqq/playlist/123\n或直接输入数字 ID',
+                              decoration: InputDecoration(
+                                hintText: S.of(context).playlistLinkExample,
                                 alignLabelWithHint: true,
-                                prefixIcon: Icon(Icons.link_rounded),
+                                prefixIcon: const Icon(Icons.link_rounded),
                               ).applyDefaults(Theme.of(ctx).inputDecorationTheme),
                             ),
                             if (error != null) ...[
@@ -1490,7 +1490,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                             : () async {
                                 final input = inputCtrl.text.trim();
                                 if (input.isEmpty) {
-                                  setLocal(() => error = '请输入链接或 ID');
+                                  setLocal(() => error = S.of(context).enterLinkOrId);
                                   return;
                                 }
                                 setLocal(() {
@@ -1507,7 +1507,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                           if (!ctx.mounted) return;
                                           setLocal(() {
                                             progress = total > 0
-                                                ? '$loaded/$total 首'
+                                                ? S.of(context).importProgress(loaded, total)
                                                 : '';
                                           });
                                         },
@@ -1526,7 +1526,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                         ),
                                       ),
                                       content: Text(
-                                        '共 ${imported.songs.length} 首，确认导入到本地歌单？',
+                                        S.of(context).confirmImport(imported.songs.length),
                                         style: TextStyle(
                                           color: AppColors.mutedText(context),
                                         ),
@@ -1536,7 +1536,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                           onPressed: () =>
                                               Navigator.pop(c2, false),
                                           child: Text(
-                                            '取消',
+                                            S.of(context).cancel,
                                             style: TextStyle(
                                               color: AppColors.mutedText(
                                                 context,
@@ -1548,7 +1548,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                           onPressed: () =>
                                               Navigator.pop(c2, true),
                                           child: Text(
-                                            '导入',
+                                            S.of(context).importAction,
                                             style: TextStyle(
                                               color: AppColors.accentOf(
                                                 context,
@@ -1564,13 +1564,13 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                         .read(playlistServiceProvider)
                                         .createPlaylist(
                                           name: imported.name,
-                                          description: '导入自${imported.source}',
+                                          description: S.of(context).importedFrom(imported.source),
                                           songs: imported.songs,
                                         );
                                     if (ctx.mounted) Navigator.pop(ctx);
                                     if (context.mounted) {
                                       showAppNotification(
-                                        '已导入「${imported.name}」${imported.songs.length} 首',
+                                        S.of(context).importedResult(imported.name, imported.songs.length),
                                         type: AppNotificationType.success,
                                       );
                                     }
@@ -1601,9 +1601,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                         label: Text(
                           busy
                               ? (progress.isEmpty
-                                    ? '正在解析歌单…'
-                                    : '正在解析 $progress')
-                              : '解析歌单',
+                                    ? S.of(context).parsingPlaylist
+                                    : S.of(context).parsingProgress(progress))
+                              : S.of(context).parsePlaylist,
                         ),
                       ),
                     ),
@@ -1691,7 +1691,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            playlist.name,
+                            S.of(context).builtinPlaylistName(playlist.id, playlist.name),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -1719,7 +1719,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                           if (playlist.id != 'recent')
                             action(
                               icon: Icons.edit_outlined,
-                              label: '编辑歌单',
+                              label: S.of(context).editPlaylist,
                               onTap: () {
                                 Navigator.pop(dialogCtx);
                                 _showEditDialog(context, ref, playlist);
@@ -1729,7 +1729,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                               playlist.songCount > 0)
                             action(
                               icon: Icons.favorite_border_rounded,
-                              label: '全部添加到收藏列表',
+                              label: S.of(context).addAllToFavorites,
                               onTap: () async {
                                 final int added;
                                 try {
@@ -1739,7 +1739,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                 } catch (error) {
                                   if (!context.mounted) return;
                                   showAppNotification(
-                                    '添加失败: $error',
+                                    '${S.of(context).addFailed}: $error',
                                     type: AppNotificationType.error,
                                   );
                                   return;
@@ -1749,8 +1749,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                 if (!context.mounted) return;
                                 showAppNotification(
                                   added == 0
-                                      ? '所有歌曲已在收藏列表中'
-                                      : '已添加 $added 首到收藏列表',
+                                      ? S.of(context).alreadyInFavorites
+                                      : S.of(context).addedToFavorites(added),
                                   type: added == 0
                                       ? AppNotificationType.info
                                       : AppNotificationType.success,
@@ -1761,7 +1761,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                               playlist.id != 'recent')
                             action(
                               icon: Icons.delete_outline_rounded,
-                              label: '删除歌单',
+                              label: S.of(context).deletePlaylist,
                               destructive: true,
                               onTap: () async {
                                 try {
@@ -1771,7 +1771,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                 } catch (error) {
                                   if (!context.mounted) return;
                                   showAppNotification(
-                                    '删除失败: $error',
+                                    '${S.of(context).deleteFailed}: $error',
                                     type: AppNotificationType.error,
                                   );
                                   return;

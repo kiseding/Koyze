@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:koyze/l10n/app_strings.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,12 +38,12 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: FxIconButton(
-          tooltip: '返回',
+          tooltip: S.of(context).back,
           icon: Icon(Icons.arrow_back, color: AppColors.onScaffold(context)),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          '自定义源',
+          S.of(context).customSourcesTitle,
           style: TextStyle(
             color: AppColors.onScaffold(context),
             fontSize: 18,
@@ -52,7 +53,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
         actions: [
           FxIconButton(
             icon: Icon(Icons.file_open, color: AppColors.onScaffold(context)),
-            tooltip: '导入本地脚本',
+            tooltip: S.of(context).importLocalScript,
             onPressed: () => _pickAndImportFile(context, ref),
           ),
           FxIconButton(
@@ -60,17 +61,17 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
               Icons.cloud_download,
               color: AppColors.onScaffold(context),
             ),
-            tooltip: '通过链接导入',
+            tooltip: S.of(context).importFromLink,
             onPressed: () => _showUrlImportDialog(context, ref),
           ),
           FxIconButton(
             icon: Icon(Icons.add, color: AppColors.onScaffold(context)),
-            tooltip: '手动添加',
+            tooltip: S.of(context).addManually,
             onPressed: () => _showAddDialog(context, ref),
           ),
           FxIconButton(
             icon: Icon(Icons.link, color: AppColors.onScaffold(context)),
-            tooltip: '粘贴脚本',
+            tooltip: S.of(context).pasteScript,
             onPressed: () => _showImportDialog(context, ref),
           ),
         ],
@@ -87,7 +88,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '暂无自定义源',
+                    S.of(context).noCustomSources,
                     style: TextStyle(
                       color: AppColors.mutedText(context),
                       fontSize: 16,
@@ -95,7 +96,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '点击右上角 + 添加自定义源',
+                    S.of(context).addCustomSourceHint,
                     style: TextStyle(
                       color: AppColors.mutedText(context),
                       fontSize: 14,
@@ -192,7 +193,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                     if (!ok && mounted) {
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text('${source.name} 初始化失败，请检查脚本'),
+                          content: Text(S.of(context).sourceInitFailed(source.name)),
                           duration: const Duration(seconds: 3),
                         ),
                       );
@@ -219,22 +220,22 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
             children: [
               TextButton.icon(
                 icon: const Icon(Icons.terminal, size: 16),
-                label: const Text('日志'),
+                label: Text(S.of(context).log),
                 onPressed: () => _showLogDialog(context, ref, source),
               ),
               TextButton.icon(
                 icon: const Icon(Icons.edit, size: 16),
-                label: const Text('编辑'),
+                label: Text(S.of(context).edit),
                 onPressed: () => _showEditDialog(context, ref, source),
               ),
               TextButton.icon(
                 icon: const Icon(Icons.share, size: 16),
-                label: const Text('导出'),
+                label: Text(S.of(context).export),
                 onPressed: () => _showExportDialog(context, ref, source),
               ),
               TextButton.icon(
                 icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                label: const Text('删除', style: TextStyle(color: Colors.red)),
+                label: Text(S.of(context).delete, style: TextStyle(color: Colors.red)),
                 onPressed: () => _showDeleteDialog(context, ref, source),
               ),
             ],
@@ -265,7 +266,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
 
         if (context.mounted) {
           showAppNotification(
-            success ? '导入脚本成功' : '导入失败，脚本格式错误',
+            success ? S.of(context).importScriptOk : S.of(context).importScriptBad,
             type: success
                 ? AppNotificationType.success
                 : AppNotificationType.error,
@@ -274,7 +275,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
       }
     } catch (e) {
       if (context.mounted) {
-        showAppNotification('读取文件失败: $e', type: AppNotificationType.error);
+        showAppNotification(S.of(context).readFileFailed(e), type: AppNotificationType.error);
       }
     }
   }
@@ -297,7 +298,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
         return AlertDialog(
           backgroundColor: AppColors.dialogBg(dialogContext),
           title: Text(
-            '添加自定义源',
+            S.of(context).addCustomSource,
             style: TextStyle(color: AppColors.onScaffold(dialogContext)),
           ),
           content: SingleChildScrollView(
@@ -307,19 +308,19 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 _buildTextField(
                   dialogContext,
                   nameController,
-                  '源名称',
+                  S.of(context).sourceName,
                   focusNode: nameFocus,
                   autofocus: true,
                 ),
                 const SizedBox(height: 8),
-                _buildTextField(dialogContext, descController, '描述'),
+                _buildTextField(dialogContext, descController, S.of(context).descriptionLabel),
                 const SizedBox(height: 8),
-                _buildTextField(dialogContext, authorController, '作者'),
+                _buildTextField(dialogContext, authorController, S.of(context).author),
                 const SizedBox(height: 8),
                 _buildTextField(
                   dialogContext,
                   scriptController,
-                  '脚本',
+                  S.of(context).script,
                   maxLines: 10,
                 ),
               ],
@@ -329,7 +330,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
-                '取消',
+                S.of(context).cancel,
                 style: TextStyle(color: AppColors.mutedText(dialogContext)),
               ),
             ),
@@ -352,7 +353,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 }
               },
               child: Text(
-                '添加',
+                S.of(context).add,
                 style: TextStyle(color: AppColors.accentOf(dialogContext)),
               ),
             ),
@@ -390,7 +391,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
         return AlertDialog(
           backgroundColor: AppColors.dialogBg(dialogContext),
           title: Text(
-            '编辑自定义源',
+            S.of(context).editCustomSource,
             style: TextStyle(color: AppColors.onScaffold(dialogContext)),
           ),
           content: SingleChildScrollView(
@@ -400,19 +401,19 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 _buildTextField(
                   dialogContext,
                   nameController,
-                  '源名称',
+                  S.of(context).sourceName,
                   focusNode: nameFocus,
                   autofocus: true,
                 ),
                 const SizedBox(height: 8),
-                _buildTextField(dialogContext, descController, '描述'),
+                _buildTextField(dialogContext, descController, S.of(context).descriptionLabel),
                 const SizedBox(height: 8),
-                _buildTextField(dialogContext, authorController, '作者'),
+                _buildTextField(dialogContext, authorController, S.of(context).author),
                 const SizedBox(height: 8),
                 _buildTextField(
                   dialogContext,
                   scriptController,
-                  '脚本',
+                  S.of(context).script,
                   maxLines: 10,
                 ),
               ],
@@ -422,7 +423,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
-                '取消',
+                S.of(context).cancel,
                 style: TextStyle(color: AppColors.mutedText(dialogContext)),
               ),
             ),
@@ -438,7 +439,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 Navigator.pop(dialogContext);
               },
               child: Text(
-                '保存',
+                S.of(context).save,
                 style: TextStyle(color: AppColors.accentOf(dialogContext)),
               ),
             ),
@@ -474,7 +475,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
             Future<void> importUrl(String url) async {
               if (url.isEmpty || !url.startsWith('https://')) {
                 showAppNotification(
-                  '请输入有效的 HTTPS 链接',
+                  S.of(context).httpsLinkRequired,
                   type: AppNotificationType.error,
                 );
                 return;
@@ -488,7 +489,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
               setState(() => isLoading = false);
               Navigator.pop(dialogContext);
               showAppNotification(
-                success ? '导入成功' : '导入失败，请检查链接或脚本格式',
+                success ? S.of(context).importOk : S.of(context).importLinkBad,
                 type: success
                     ? AppNotificationType.success
                     : AppNotificationType.error,
@@ -498,7 +499,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
             return AlertDialog(
               backgroundColor: AppColors.dialogBg(dialogContext),
               title: Text(
-                '通过链接导入',
+                S.of(context).importFromLink,
                 style: TextStyle(color: AppColors.onScaffold(dialogContext)),
               ),
               content: Column(
@@ -506,7 +507,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '请输入脚本文件的直接下载链接',
+                    S.of(context).directDownloadHint,
                     style: TextStyle(
                       color: AppColors.mutedText(dialogContext),
                       fontSize: 12,
@@ -561,7 +562,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                       ? null
                       : () => Navigator.pop(dialogContext),
                   child: Text(
-                    '取消',
+                    S.of(context).cancel,
                     style: TextStyle(color: AppColors.mutedText(dialogContext)),
                   ),
                 ),
@@ -576,7 +577,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                           final url = content?.text?.trim() ?? '';
                           if (url.isEmpty) {
                             showAppNotification(
-                              '剪切板中没有链接',
+                              S.of(context).clipboardEmpty,
                               type: AppNotificationType.error,
                             );
                             return;
@@ -585,7 +586,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                           await importUrl(url);
                         },
                   child: Text(
-                    '剪切板',
+                    S.of(context).clipboard,
                     style: TextStyle(color: AppColors.accentOf(dialogContext)),
                   ),
                 ),
@@ -594,7 +595,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                       ? null
                       : () => importUrl(controller.text.trim()),
                   child: Text(
-                    '导入',
+                    S.of(context).importAction,
                     style: TextStyle(color: AppColors.accentOf(dialogContext)),
                   ),
                 ),
@@ -628,7 +629,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
           builder: (dialogContext, setState) => AlertDialog(
             backgroundColor: AppColors.dialogBg(dialogContext),
             title: Text(
-              '导入自定义源',
+              S.of(context).importCustomSource,
               style: TextStyle(color: AppColors.onScaffold(dialogContext)),
             ),
             content: Column(
@@ -636,7 +637,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '支持 LX Music 格式脚本',
+                  S.of(context).lxScriptHint,
                   style: TextStyle(
                     color: AppColors.mutedText(dialogContext),
                     fontSize: 12,
@@ -655,7 +656,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                   ),
                   maxLines: 10,
                   decoration: InputDecoration(
-                    hintText: '粘贴 LX Music 脚本或 JSON 配置...',
+                    hintText: S.of(context).pasteScriptHint,
                     hintStyle: TextStyle(
                       color: AppColors.mutedText(dialogContext),
                     ),
@@ -688,7 +689,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                     ? null
                     : () => Navigator.pop(dialogContext),
                 child: Text(
-                  '取消',
+                  S.of(context).cancel,
                   style: TextStyle(color: AppColors.mutedText(dialogContext)),
                 ),
               ),
@@ -716,14 +717,14 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                         setState(() => isLoading = false);
                         Navigator.pop(dialogContext);
                         showAppNotification(
-                          success ? '导入成功' : '导入失败，请检查脚本格式',
+                          success ? S.of(context).importOk : S.of(context).importFormatBad,
                           type: success
                               ? AppNotificationType.success
                               : AppNotificationType.error,
                         );
                       },
                 child: Text(
-                  '导入',
+                  S.of(context).importAction,
                   style: TextStyle(color: AppColors.accentOf(dialogContext)),
                 ),
               ),
@@ -749,7 +750,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
         title: Text(
-          '导出自定义源',
+          S.of(context).exportCustomSource,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
         content: SizedBox(
@@ -769,7 +770,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              '关闭',
+              S.of(context).close,
               style: TextStyle(color: AppColors.mutedText(context)),
             ),
           ),
@@ -788,18 +789,18 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
         title: Text(
-          '删除自定义源',
+          S.of(context).deleteCustomSource,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
         content: Text(
-          '确定要删除"${source.name}"吗？',
+          S.of(context).deleteSourceConfirm(source.name),
           style: TextStyle(color: AppColors.secondaryText(context)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              '取消',
+              S.of(context).cancel,
               style: TextStyle(color: AppColors.mutedText(context)),
             ),
           ),
@@ -808,7 +809,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
               ref.read(customSourcesProvider.notifier).deleteSource(source.id);
               Navigator.pop(context);
             },
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
+            child: Text(S.of(context).delete, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -888,7 +889,7 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
     if (buffer.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: buffer.toString()));
     if (!mounted) return;
-    showAppNotification('日志已复制', type: AppNotificationType.success);
+    showAppNotification(S.of(context).logCopied, type: AppNotificationType.success);
   }
 
   void _listenLogs() {
@@ -926,7 +927,7 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
           Icon(Icons.terminal, color: AppColors.onScaffold(context), size: 20),
           const SizedBox(width: 8),
           Text(
-            '${widget.source.name} 日志',
+            S.of(context).sourceLogTitle(widget.source.name),
             style: TextStyle(
               color: AppColors.onScaffold(context),
               fontSize: 16,
@@ -955,7 +956,7 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
         child: _logs.isEmpty
             ? Center(
                 child: Text(
-                  '暂无日志',
+                  S.of(context).noLog,
                   style: TextStyle(color: AppColors.mutedText(context)),
                 ),
               )
@@ -1009,7 +1010,7 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
             TextButton.icon(
               onPressed: _logs.isEmpty ? null : _copyLogs,
               icon: const Icon(Icons.copy, size: 16),
-              label: const Text('复制日志'),
+              label: Text(S.of(context).copyLog),
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.accentOf(context),
               ),
@@ -1018,7 +1019,7 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                '关闭',
+                S.of(context).close,
                 style: TextStyle(color: AppColors.mutedText(context)),
               ),
             ),

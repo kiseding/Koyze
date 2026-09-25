@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:koyze/l10n/app_strings.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
@@ -78,15 +79,15 @@ class _StartupStatusPage extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                failed ? '应用初始化失败' : '正在准备 Koyze',
+                failed ? S.of(context).startupFailed : S.of(context).preparingApp,
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Text(
                 failed
-                    ? '请重新打开应用；如果问题持续，请查看设置中的诊断日志。\n${state.error ?? ''}'
-                    : '正在加载本地数据和播放服务…',
+                    ? S.of(context).startupFailedHint('${state.error ?? ''}')
+                    : S.of(context).startupLoading,
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
@@ -98,7 +99,7 @@ class _StartupStatusPage extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: onRetry,
                   icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('重试启动'),
+                  label: Text(S.of(context).retryStartup),
                 ),
               ],
             ],

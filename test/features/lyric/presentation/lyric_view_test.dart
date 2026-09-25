@@ -16,8 +16,8 @@ void main() {
     await _pumpView(tester, (_) => pending.future);
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('正在加载歌词'), findsOneWidget);
-    expect(find.text('暂无歌词'), findsNothing);
+    expect(find.text('Loading lyrics'), findsOneWidget);
+    expect(find.text('No lyrics'), findsNothing);
   });
 
   testWidgets('shows safe actionable error without exposing exception details',
@@ -30,9 +30,9 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('歌词加载失败'), findsOneWidget);
-    expect(find.text('请检查网络连接后重试'), findsOneWidget);
-    expect(find.text('重试'), findsOneWidget);
+    expect(find.text('Could not load lyrics'), findsOneWidget);
+    expect(find.text('Check the connection and try again'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
     expect(find.textContaining('secret-token'), findsNothing);
     expect(find.textContaining('Authorization'), findsNothing);
   });
@@ -42,9 +42,9 @@ void main() {
     await _pumpView(tester, (_) async => Lyrics.empty());
     await tester.pump();
 
-    expect(find.text('暂无歌词'), findsOneWidget);
-    expect(find.text('搜索歌词'), findsOneWidget);
-    expect(find.text('歌词加载失败'), findsNothing);
+    expect(find.text('No lyrics'), findsOneWidget);
+    expect(find.text('Search lyrics'), findsOneWidget);
+    expect(find.text('Could not load lyrics'), findsNothing);
   });
 
   testWidgets('error retry starts the injected loader and renders its result',
@@ -59,17 +59,17 @@ void main() {
     });
     await tester.pump();
 
-    await tester.tap(find.text('重试'));
+    await tester.tap(find.text('Retry'));
     await tester.pump();
 
     expect(calls, 2);
-    expect(find.text('正在加载歌词'), findsOneWidget);
+    expect(find.text('Loading lyrics'), findsOneWidget);
 
     retried.complete(_lyrics('retry success'));
     await tester.pump();
 
     expect(find.text('retry success'), findsOneWidget);
-    expect(find.text('歌词加载失败'), findsNothing);
+    expect(find.text('Could not load lyrics'), findsNothing);
   });
 }
 

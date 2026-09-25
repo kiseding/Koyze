@@ -377,7 +377,11 @@ void main() {
     final localMusic = File(
       'lib/features/local_music/presentation/local_music_screen.dart',
     ).readAsStringSync();
-    expect(localMusic, contains('注入tag（实验性）'));
+    expect(localMusic, contains('writeTags'));
+    expect(
+      File('lib/l10n/app_strings.dart').readAsStringSync(),
+      contains('注入tag（实验性）'),
+    );
     final main = File('lib/main.dart').readAsStringSync();
     expect(main, contains('Permission.notification.request()'));
     expect(main, contains('androidStopForegroundOnPause: false'));
