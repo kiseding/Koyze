@@ -4,6 +4,7 @@ import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/motion/motion_tokens.dart';
+import '../../../l10n/app_strings.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/pressable.dart';
@@ -452,33 +453,34 @@ class _BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return SizedBox(
       height: height + 16,
       child: Padding(
         padding: EdgeInsets.only(bottom: bottomSpacing),
         child: Row(
           children: [
-            _item(context, 0, Icons.home_outlined, Icons.home, '首页'),
+            _item(context, 0, Icons.home_outlined, Icons.home, s.home),
             _item(
               context,
               1,
               Icons.leaderboard_outlined,
               Icons.leaderboard,
-              '榜单',
+              s.charts,
             ),
             _item(
               context,
               2,
               Icons.library_music_outlined,
               Icons.library_music,
-              '歌单',
+              s.playlists,
             ),
             _item(
               context,
               3,
               Icons.settings_outlined,
               Icons.settings,
-              '设置',
+              s.settings,
             ),
           ],
         ),

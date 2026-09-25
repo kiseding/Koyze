@@ -1,7 +1,7 @@
 name: koyze
 description: Koyze - 一个免费的音乐查找助手
 publish_to: 'none'
-version: 2.9.9+30
+version: 3.0.0+31
 
 environment:
   sdk: '>=3.12.0 <4.0.0'
@@ -9,6 +9,8 @@ environment:
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
   
   # 状态管理

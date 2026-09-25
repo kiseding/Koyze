@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_colors.dart';
 import 'app_notification.dart';
 import '../../features/player/presentation/player_provider.dart';
+import '../../l10n/app_strings.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 
 /// 睡眠定时弹窗（设置页与首页快捷入口共用）。
@@ -15,6 +16,7 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
       child: Consumer(
         builder: (context, ref, _) {
           final state = ref.watch(sleepTimerProvider);
+          final s = S.of(context);
           const options = [10, 15, 30, 60, 90];
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -42,7 +44,7 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        '睡眠定时',
+                        s.sleepTimer,
                         style: TextStyle(
                           color: AppColors.onScaffold(context),
                           fontSize: 14,
@@ -63,7 +65,7 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
                     color: AppColors.onScaffold(context),
                   ),
                   title: Text(
-                    '$minutes 分钟',
+                    s.minutes(minutes),
                     style: TextStyle(color: AppColors.onScaffold(context)),
                   ),
                   trailing:
@@ -77,7 +79,7 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
                         .read(sleepTimerProvider.notifier)
                         .startTimer(Duration(minutes: minutes));
                     showAppNotification(
-                      '$minutes 分钟后停止播放',
+                      s.stopsInMinutes(minutes),
                       type: AppNotificationType.success,
                     );
                   },
@@ -89,7 +91,7 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
                     color: AppColors.onScaffold(context),
                   ),
                   title: Text(
-                    '取消睡眠定时',
+                    s.cancelSleepTimer,
                     style: TextStyle(color: AppColors.onScaffold(context)),
                   ),
                   onTap: () {
@@ -106,17 +108,26 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
 }
 
 /// 睡眠定时状态文案。
-String sleepTimerSubtitle(SleepTimerState state) {
+String sleepTimerSubtitle(SleepTimerState state, {Locale? locale}) {
+  final en = locale?.languageCode == 'en';
   if (state case SleepTimerRunning(:final scheduledEndTime)) {
     final remaining = scheduledEndTime.difference(DateTime.now());
-    if (remaining <= Duration.zero) return '即将停止播放';
+    if (remaining <= Duration.zero) {
+      return en ? 'Stopping soon' : '即将停止播放';
+    }
     final minutes = remaining.inMinutes;
     final seconds = remaining.inSeconds.remainder(60);
-    if (minutes <= 0) return '$seconds 秒后停止播放';
-    return '$minutes 分$seconds 秒后停止播放';
+    if (minutes <= 0) {
+      return en ? 'Stops in $seconds s' : '$seconds 秒后停止播放';
+    }
+    return en
+        ? 'Stops in ${minutes}m ${seconds}s'
+        : '$minutes 分$seconds 秒后停止播放';
   }
-  if (state case SleepTimerFailed()) return '上次停止播放失败';
-  return '未开启';
+  if (state case SleepTimerFailed()) {
+    return en ? 'Last stop failed' : '上次停止播放失败';
+  }
+  return en ? 'Off' : '未开启';
 }
 
 /// 弹窗内每秒刷新倒计时，避免剩余时间停留在打开瞬间。
@@ -149,7 +160,7 @@ class _TickingSubtitleState extends State<_TickingSubtitle> {
   @override
   Widget build(BuildContext context) {
     return Text(
-      sleepTimerSubtitle(widget.state),
+      sleepTimerSubtitle(widget.state, locale: Localizations.localeOf(context)),
       style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
     );
   }

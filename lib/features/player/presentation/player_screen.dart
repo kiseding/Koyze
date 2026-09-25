@@ -27,6 +27,8 @@ import '../../lyric/presentation/lyric_view.dart';
 import '../../lyric/presentation/lyric_provider.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
+import 'widgets/player_volume_button.dart';
+import '../../../l10n/app_strings.dart';
 
 double _playbackQueueSheetInitialSize(BuildContext context, int itemCount) {
   final screenHeight = MediaQuery.sizeOf(context).height;
@@ -1602,20 +1604,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ),
           ),
+          const PlayerVolumeButton(),
           Pressable(
-            tooltip: '下载',
+            tooltip: S.of(context).download,
+            semanticLabel: S.of(context).download,
             scale: 0.9,
             onTap: () async {
               try {
                 await ref.read(downloadSongProvider)(music);
                 if (!mounted) return;
                 showAppNotification(
-                  '已添加到下载队列',
+                  S.of(context).addedToDownloads,
                   type: AppNotificationType.success,
                 );
               } catch (_) {
                 if (!mounted) return;
-                showAppNotification('添加下载失败', type: AppNotificationType.error);
+                showAppNotification(
+                  S.of(context).downloadFailed,
+                  type: AppNotificationType.error,
+                );
               }
             },
             child: Padding(
@@ -2086,7 +2093,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 color: AppColors.onScaffold(context),
               ),
               title: Text(
-                '下载',
+                S.of(context).download,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               onTap: () async {
@@ -2095,13 +2102,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   await ref.read(downloadSongProvider)(music);
                   if (!mounted) return;
                   showAppNotification(
-                    '已添加到下载队列',
+                    S.of(context).addedToDownloads,
                     type: AppNotificationType.success,
                   );
                 } catch (_) {
                   if (!mounted) return;
                   showAppNotification(
-                    '添加下载失败',
+                    S.of(context).downloadFailed,
                     type: AppNotificationType.error,
                   );
                 }

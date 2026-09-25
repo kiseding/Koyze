@@ -863,8 +863,23 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _playerSubject = BehaviorSubject<AudioPlayer>.seeded(_player);
     _equalizer.bindPlayer(_player);
     _commands = _createCommandCoordinator(_player);
+    _pushPlaybackVolume();
     _publishPlaybackState();
     _init();
+  }
+
+  double _playbackVolume = 1;
+
+  /// App-level loudness. Reapplied when the native player is rebuilt.
+  void applyPlaybackVolume(double volume) {
+    _playbackVolume = volume.clamp(0.0, 1.0).toDouble();
+    _pushPlaybackVolume();
+  }
+
+  void _pushPlaybackVolume() {
+    unawaited(
+      _player.setVolume(_playbackVolume).then<void>((_) {}, onError: (_, _) {}),
+    );
   }
 
   /// 默认播放器。均衡器音效在这里注入。
@@ -1414,6 +1429,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _commands = _createCommandCoordinator(_player);
     // 新播放器带的是新注入的均衡器音效，期望状态需要重新施加一次。
     _equalizer.bindPlayer(_player);
+    _pushPlaybackVolume();
     _init();
     _playerSubject.add(_player);
     _publishPlaybackState(

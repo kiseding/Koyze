@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:koyze/core/theme/app_theme.dart';
@@ -59,7 +60,9 @@ class LxMusicApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    final language = ref.watch(appLanguageProvider);
     ref.watch(playbackSessionRecorderProvider);
+    ref.watch(playbackVolumeBindingProvider);
     ref.watch(queueArtworkWarmerProvider);
     ref.watch(recentPlayRecorderProvider);
     ref.watch(playHistoryRecorderProvider);
@@ -76,6 +79,20 @@ class LxMusicApp extends ConsumerWidget {
       theme: AppTheme.lightTheme(),
       darkTheme: AppTheme.darkTheme(),
       themeMode: themeMode,
+      locale: language.materialLocale,
+      supportedLocales: AppLanguage.supportedLocales,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      localeResolutionCallback: (locale, supported) {
+        if (locale == null) return const Locale('zh');
+        for (final item in supported) {
+          if (item.languageCode == locale.languageCode) return item;
+        }
+        return const Locale('zh');
+      },
       themeAnimationDuration: const Duration(milliseconds: 300),
       themeAnimationCurve: Curves.easeOutCubic,
       routerConfig: appRouter,

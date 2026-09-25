@@ -309,6 +309,7 @@ final class BackupRestoreCoordinator {
     'local_music_download_dir_v1',
     'local_music_android_mediastore_enabled_v1',
     'custom_sources',
+    'app_language',
   };
 
   Future<void> restore(BackupData data) async {

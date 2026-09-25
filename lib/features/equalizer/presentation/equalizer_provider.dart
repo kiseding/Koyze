@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:koyze/core/audio/audio_handler.dart';
 import 'package:koyze/core/audio/equalizer_bridge.dart';
@@ -54,8 +55,7 @@ class EqualizerState {
 
   /// 界面实际使用的布局：真实布局没拿到时先按兜底布局展示，
   /// 这样用户不必先播放一首歌才能看到均衡器。
-  EqualizerBandLayout get effectiveLayout =>
-      layout ?? kFallbackEqualizerLayout;
+  EqualizerBandLayout get effectiveLayout => layout ?? kFallbackEqualizerLayout;
 
   /// 设备真实布局是否已就绪。
   bool get layoutReady => layout != null;
@@ -80,15 +80,37 @@ class EqualizerState {
 }
 
 /// 设置页副标题。
-String equalizerSubtitle(EqualizerState state) {
-  if (!state.supported) return '当前平台不支持';
-  if (!state.settings.enabled) return '未开启';
-  return '已开启 · ${state.settings.presetLabel}';
+String equalizerSubtitle(EqualizerState state, {Locale? locale}) {
+  final en = locale?.languageCode == 'en';
+  if (!state.supported) {
+    return en ? 'Not supported on this platform' : '当前平台不支持';
+  }
+  if (!state.settings.enabled) return en ? 'Off' : '未开启';
+  final preset = _presetSubtitle(state.settings.presetId, en: en);
+  return en ? 'On · $preset' : '已开启 · $preset';
+}
+
+String _presetSubtitle(String id, {required bool en}) {
+  if (!en) return equalizerPresetLabel(id);
+  return switch (id) {
+    'flat' => 'Flat',
+    'pop' => 'Pop',
+    'rock' => 'Rock',
+    'jazz' => 'Jazz',
+    'classical' => 'Classical',
+    'electronic' => 'Electronic',
+    'folk' => 'Folk',
+    'vocal' => 'Vocal',
+    'bass' => 'Bass boost',
+    'treble' => 'Treble boost',
+    _ => 'Custom',
+  };
 }
 
 /// 均衡器设置的读取入口，测试可替换。
 final equalizerStorageProvider = Provider<StorageLoader>(
-  (ref) => () => StorageService.instance,
+  (ref) =>
+      () => StorageService.instance,
 );
 
 final equalizerProvider =

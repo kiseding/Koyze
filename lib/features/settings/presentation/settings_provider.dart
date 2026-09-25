@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/audio/audio_handler.dart';
@@ -49,6 +51,18 @@ final wifiOnlyDownloadProvider =
 final autoResumePlaybackProvider =
     StateNotifierProvider<AutoResumePlaybackNotifier, bool>((ref) {
       return AutoResumePlaybackNotifier();
+    });
+
+/// UI language. `system` follows the device locale.
+final appLanguageProvider =
+    StateNotifierProvider<AppLanguageNotifier, AppLanguage>((ref) {
+      return AppLanguageNotifier();
+    });
+
+/// In-app playback loudness, 0 to 1. Independent of the system volume.
+final playbackVolumeProvider =
+    StateNotifierProvider<PlaybackVolumeNotifier, double>((ref) {
+      return PlaybackVolumeNotifier();
     });
 
 /// 默认搜索平台：tx / kw / wy / local / favorites / subsonic / NAS
@@ -267,5 +281,88 @@ class DefaultSearchPlatformNotifier extends _PersistedSettingNotifier<String> {
 
   void applyCommitted(String platform) {
     applyCommittedValue(canonicalSearchPlatform(platform));
+  }
+}
+
+enum AppLanguage {
+  system,
+  zh,
+  en;
+
+  static const supportedLocales = <Locale>[Locale('zh'), Locale('en')];
+
+  Locale? get materialLocale => switch (this) {
+    AppLanguage.system => null,
+    AppLanguage.zh => const Locale('zh'),
+    AppLanguage.en => const Locale('en'),
+  };
+
+  static AppLanguage parse(String? raw) => switch (raw) {
+    'zh' => AppLanguage.zh,
+    'en' => AppLanguage.en,
+    _ => AppLanguage.system,
+  };
+}
+
+class AppLanguageNotifier extends _PersistedSettingNotifier<AppLanguage> {
+  AppLanguageNotifier({StorageLoader? storage})
+    : super(AppLanguage.system, storage: storage) {
+    _load((storage) => AppLanguage.parse(storage.getString(_storageKey)));
+  }
+
+  static const String _storageKey = 'app_language';
+
+  Future<void> setLanguage(AppLanguage language) {
+    return _persist(
+      language,
+      (storage) => storage.setString(_storageKey, language.name),
+    );
+  }
+
+  void applyCommitted(AppLanguage language) {
+    applyCommittedValue(language);
+  }
+}
+
+class PlaybackVolumeNotifier extends _PersistedSettingNotifier<double> {
+  PlaybackVolumeNotifier({StorageLoader? storage})
+    : super(1, storage: storage) {
+    _load((storage) {
+      final value = storage.getDouble(_storageKey);
+      if (value == null) return null;
+      return value.clamp(0.0, 1.0).toDouble();
+    });
+  }
+
+  static const String _storageKey = 'playback_volume';
+
+  Timer? _persistTimer;
+  double? _pending;
+
+  void setVolume(double value) {
+    final clamped = value.clamp(0.0, 1.0).toDouble();
+    state = clamped;
+    _pending = clamped;
+    _persistTimer?.cancel();
+    _persistTimer = Timer(const Duration(milliseconds: 80), () {
+      final pending = _pending;
+      _pending = null;
+      if (pending == null) return;
+      unawaited(
+        _persist(pending, (storage) => storage.setDouble(_storageKey, pending)),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _persistTimer?.cancel();
+    final pending = _pending;
+    if (pending != null) {
+      unawaited(
+        _persist(pending, (storage) => storage.setDouble(_storageKey, pending)),
+      );
+    }
+    super.dispose();
   }
 }

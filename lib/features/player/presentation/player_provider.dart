@@ -8,6 +8,7 @@ import 'package:rxdart/rxdart.dart';
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/audio/playback_command_coordinator.dart';
 import '../../../core/storage/storage_service.dart';
+import '../../settings/presentation/settings_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../sync/presentation/sync_phase1_provider.dart';
 import '../domain/music_item.dart';
@@ -15,6 +16,16 @@ import '../domain/playback_session.dart';
 import '../domain/playback_session_store.dart';
 import '../domain/player_service.dart';
 import 'fire_and_forget_observer.dart';
+
+/// Keeps the native player loudness aligned with [playbackVolumeProvider].
+final playbackVolumeBindingProvider = Provider<void>((ref) {
+  ref.listen<double>(playbackVolumeProvider, (_, volume) {
+    final handler = audioHandler;
+    if (handler is LxAudioHandler) {
+      handler.applyPlaybackVolume(volume);
+    }
+  }, fireImmediately: true);
+});
 
 final playerServiceProvider = Provider<PlayerService>((ref) {
   return PlayerService(

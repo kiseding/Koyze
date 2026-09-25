@@ -25,6 +25,7 @@ import '../../download/presentation/download_provider.dart';
 import '../domain/playlist_backup.dart';
 import 'app_log_screen.dart';
 import '../../../core/widgets/fx_switch.dart';
+import '../../../l10n/app_strings.dart';
 import '../../sync/data/sync_identity_store.dart';
 import '../../nas/domain/nas_url.dart';
 
@@ -74,6 +75,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final audioQuality = ref.watch(audioQualityProvider);
+    final language = ref.watch(appLanguageProvider);
+    final s = S.of(context);
 
     final isDark =
         themeMode == ThemeMode.dark ||
@@ -87,237 +90,258 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         body: Stack(
           children: [
             ListView(
-              padding: EdgeInsets.only(
-                top: FrostedTabHeader.extent(context),
-              ),
-          children: [
-            _buildSection(context, '同步', [
-              _buildNavTile(
-                context,
-                ref,
-                '云端账号 / 歌单',
-                '同步收藏、歌单、设置与自定义音源',
-                () => context.push('/sync'),
-                captureExpandOrigin: true,
-              ),
-            ]),
-            _buildSection(context, '高级功能', [
-              _buildNavTile(
-                context,
-                ref,
-                '本地音乐目录',
-                '设置扫描目录、刷新本地歌曲与在线刮削',
-                () => context.push('/local-music'),
-                captureExpandOrigin: true,
-              ),
-              _buildNavTile(
-                context,
-                ref,
-                '自定义源',
-                '管理自定义音乐源',
-                () => context.push('/custom-source'),
-                captureExpandOrigin: true,
-              ),
-              _buildNavTile(
-                context,
-                ref,
-                'NAS 音乐服务器',
-                'Navidrome / Emby / Jellyfin / Plex / 群晖',
-                () => context.push('/subsonic-settings'),
-                captureExpandOrigin: true,
-              ),
-            ]),
-            _buildSection(context, '播放', [
-              _buildNavTile(
-                context,
-                ref,
-                '音质选择',
-                _getQualityName(audioQuality),
-                () => _showAudioQualityDialog(context, ref),
-              ),
-              _buildNavTile(
-                context,
-                ref,
-                '均衡器',
-                equalizerSubtitle(ref.watch(equalizerProvider)),
-                () => context.push('/equalizer'),
-                captureExpandOrigin: true,
-              ),
-              _buildNavTile(
-                context,
-                ref,
-                '睡眠定时',
-                sleepTimerSubtitle(ref.watch(sleepTimerProvider)),
-                () => _showSleepTimerMenu(context, ref),
-                trailing: ref.watch(sleepTimerProvider) is SleepTimerRunning
-                    ? TextButton(
-                        onPressed: () {
-                          ref.read(sleepTimerProvider.notifier).cancelTimer();
-                          showAppNotification(
-                            '已取消睡眠定时',
-                            type: AppNotificationType.success,
+              padding: EdgeInsets.only(top: FrostedTabHeader.extent(context)),
+              children: [
+                _buildSection(context, s.sync, [
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.cloudAccount,
+                    s.cloudAccountSubtitle,
+                    () => context.push('/sync'),
+                    captureExpandOrigin: true,
+                  ),
+                ]),
+                _buildSection(context, s.advanced, [
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.localLibrary,
+                    s.localLibrarySubtitle,
+                    () => context.push('/local-music'),
+                    captureExpandOrigin: true,
+                  ),
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.customSources,
+                    s.customSourcesSubtitle,
+                    () => context.push('/custom-source'),
+                    captureExpandOrigin: true,
+                  ),
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.nasServer,
+                    platformPickerDescription(
+                      'subsonic',
+                      locale: Localizations.localeOf(context),
+                    ),
+                    () => context.push('/subsonic-settings'),
+                    captureExpandOrigin: true,
+                  ),
+                ]),
+                _buildSection(context, s.playback, [
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.audioQuality,
+                    _getQualityName(audioQuality),
+                    () => _showAudioQualityDialog(context, ref),
+                  ),
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.equalizer,
+                    equalizerSubtitle(
+                      ref.watch(equalizerProvider),
+                      locale: Localizations.localeOf(context),
+                    ),
+                    () => context.push('/equalizer'),
+                    captureExpandOrigin: true,
+                  ),
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.sleepTimer,
+                    sleepTimerSubtitle(
+                      ref.watch(sleepTimerProvider),
+                      locale: Localizations.localeOf(context),
+                    ),
+                    () => _showSleepTimerMenu(context, ref),
+                    trailing: ref.watch(sleepTimerProvider) is SleepTimerRunning
+                        ? TextButton(
+                            onPressed: () {
+                              ref
+                                  .read(sleepTimerProvider.notifier)
+                                  .cancelTimer();
+                              showAppNotification(
+                                s.sleepTimerCancelled,
+                                type: AppNotificationType.success,
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              foregroundColor: AppColors.accentOf(context),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.timer_off_outlined, size: 16),
+                                const SizedBox(width: 4),
+                                Text(
+                                  s.cancel,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          )
+                        : null,
+                  ),
+                  _buildSwitchTile(
+                    context,
+                    ref,
+                    s.autoResume,
+                    s.autoResumeSubtitle,
+                    ref.watch(autoResumePlaybackProvider),
+                    (value) {
+                      ref
+                          .read(autoResumePlaybackProvider.notifier)
+                          .setAutoResume(value);
+                    },
+                  ),
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.defaultSearchPlatform,
+                    _platformName(ref.watch(defaultSearchPlatformProvider)),
+                    () => _showDefaultPlatformDialog(context, ref),
+                  ),
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.listeningStats,
+                    s.listeningStatsSubtitle,
+                    () => context.push('/stats'),
+                    captureExpandOrigin: true,
+                  ),
+                ]),
+                _buildSection(context, s.appearance, [
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.language,
+                    s.languageName(language),
+                    () => _showLanguageDialog(context),
+                  ),
+                  _buildSwitchTile(
+                    context,
+                    ref,
+                    s.darkMode,
+                    s.darkModeSubtitle,
+                    isDark && themeMode != ThemeMode.system,
+                    (value) {
+                      ref
+                          .read(themeModeProvider.notifier)
+                          .setThemeMode(
+                            value ? ThemeMode.dark : ThemeMode.light,
                           );
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          foregroundColor: AppColors.accentOf(context),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.timer_off_outlined, size: 16),
-                            SizedBox(width: 4),
-                            Text('取消', style: TextStyle(fontSize: 12)),
-                          ],
-                        ),
-                      )
-                    : null,
-              ),
-              _buildSwitchTile(
-                context,
-                ref,
-                '自动恢复播放',
-                '打开 App 时自动继续播放上次的歌曲',
-                ref.watch(autoResumePlaybackProvider),
-                (value) {
-                  ref
-                      .read(autoResumePlaybackProvider.notifier)
-                      .setAutoResume(value);
-                },
-              ),
-              _buildNavTile(
-                context,
-                ref,
-                '默认搜索平台',
-                _platformName(ref.watch(defaultSearchPlatformProvider)),
-                () => _showDefaultPlatformDialog(context, ref),
-              ),
-              _buildNavTile(
-                context,
-                ref,
-                '听歌统计',
-                '播放历史 · Top 排行 · 热力图',
-                () => context.push('/stats'),
-                captureExpandOrigin: true,
-              ),
-            ]),
-            _buildSection(context, '外观', [
-              _buildSwitchTile(
-                context,
-                ref,
-                '深色模式',
-                '使用深色主题',
-                isDark && themeMode != ThemeMode.system,
-                (value) {
-                  ref
-                      .read(themeModeProvider.notifier)
-                      .setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
-                },
-              ),
-              _buildSwitchTile(
-                context,
-                ref,
-                '跟随系统',
-                '自动切换亮色/深色主题',
-                themeMode == ThemeMode.system,
-                (value) {
-                  if (value) {
-                    ref
-                        .read(themeModeProvider.notifier)
-                        .setThemeMode(ThemeMode.system);
-                  } else {
-                    final darkNow =
-                        MediaQuery.platformBrightnessOf(context) ==
-                        Brightness.dark;
-                    ref
-                        .read(themeModeProvider.notifier)
-                        .setThemeMode(
-                          darkNow ? ThemeMode.dark : ThemeMode.light,
-                        );
-                  }
-                },
-              ),
-            ]),
-            _buildSection(context, '下载', [
-              _buildNavTile(
-                context,
-                ref,
-                '下载管理',
-                '查看和管理下载任务',
-                () => context.push('/download'),
-                captureExpandOrigin: true,
-              ),
-              _buildSwitchTile(
-                context,
-                ref,
-                '仅 WiFi 下载',
-                '仅在 WiFi 环境下下载歌曲',
-                ref.watch(wifiOnlyDownloadProvider),
-                (value) {
-                  ref
-                      .read(wifiOnlyDownloadProvider.notifier)
-                      .setWifiOnly(value);
-                  ref.read(setWifiOnlyDownloadProvider)(value);
-                },
-              ),
-              _buildNavTile(
-                context,
-                ref,
-                '下载音质',
-                _getQualityName(ref.watch(downloadQualityProvider)),
-                () => _showDownloadQualityDialog(context, ref),
-              ),
-            ]),
-            _buildSection(context, '数据', [
-              _buildNavTile(
-                context,
-                ref,
-                '备份数据',
-                '导出歌单、设置等数据到文件',
-                () => _backupData(context, ref),
-              ),
-              _buildNavTile(
-                context,
-                ref,
-                '恢复数据',
-                '从备份文件恢复数据',
-                () => _restoreData(context, ref),
-              ),
-              _buildNavTile(
-                context,
-                ref,
-                '清除缓存',
-                '清除歌曲播放缓存、封面缓存和临时文件',
-                () => _clearCache(context, ref),
-              ),
-            ]),
-            _buildSection(context, '关于', [
-              const _SettingRow(name: '版本', value: 'v2.9.9'),
-              _DeviceIdRow(
-                deviceId: ref.watch(settingsDeviceIdProvider).valueOrNull,
-              ),
-              _buildNavTile(
-                context,
-                ref,
-                '实时诊断日志',
-                '点开开始记录，最小化后继续记录（不保存）',
-                () => showDiagnosticLogOverlay(context),
-              ),
-            ]),
-            const SizedBox(height: 40),
-          ],
+                    },
+                  ),
+                  _buildSwitchTile(
+                    context,
+                    ref,
+                    s.followSystem,
+                    s.followSystemThemeSubtitle,
+                    themeMode == ThemeMode.system,
+                    (value) {
+                      if (value) {
+                        ref
+                            .read(themeModeProvider.notifier)
+                            .setThemeMode(ThemeMode.system);
+                      } else {
+                        final darkNow =
+                            MediaQuery.platformBrightnessOf(context) ==
+                            Brightness.dark;
+                        ref
+                            .read(themeModeProvider.notifier)
+                            .setThemeMode(
+                              darkNow ? ThemeMode.dark : ThemeMode.light,
+                            );
+                      }
+                    },
+                  ),
+                ]),
+                _buildSection(context, s.downloads, [
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.downloadManager,
+                    s.downloadManagerSubtitle,
+                    () => context.push('/download'),
+                    captureExpandOrigin: true,
+                  ),
+                  _buildSwitchTile(
+                    context,
+                    ref,
+                    s.wifiOnly,
+                    s.wifiOnlySubtitle,
+                    ref.watch(wifiOnlyDownloadProvider),
+                    (value) {
+                      ref
+                          .read(wifiOnlyDownloadProvider.notifier)
+                          .setWifiOnly(value);
+                      ref.read(setWifiOnlyDownloadProvider)(value);
+                    },
+                  ),
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.downloadQuality,
+                    _getQualityName(ref.watch(downloadQualityProvider)),
+                    () => _showDownloadQualityDialog(context, ref),
+                  ),
+                ]),
+                _buildSection(context, s.data, [
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.backup,
+                    s.backupSubtitle,
+                    () => _backupData(context, ref),
+                  ),
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.restore,
+                    s.restoreSubtitle,
+                    () => _restoreData(context, ref),
+                  ),
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.clearCache,
+                    s.clearCacheSubtitle,
+                    () => _clearCache(context, ref),
+                  ),
+                ]),
+                _buildSection(context, s.about, [
+                  _SettingRow(name: s.version, value: 'v3.0.0'),
+                  _DeviceIdRow(
+                    deviceId: ref.watch(settingsDeviceIdProvider).valueOrNull,
+                  ),
+                  _buildNavTile(
+                    context,
+                    ref,
+                    s.diagnostics,
+                    s.diagnosticsSubtitle,
+                    () => showDiagnosticLogOverlay(context),
+                  ),
+                ]),
+                const SizedBox(height: 40),
+              ],
             ),
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: FrostedTabHeader(
-                title: '设置',
+                title: s.settings,
                 leadingIcon: Icons.settings_rounded,
               ),
             ),
@@ -474,13 +498,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  String _getQualityName(AudioQualityOption quality) => qualityName(quality);
+  String _getQualityName(AudioQualityOption quality) =>
+      qualityName(quality, locale: Localizations.localeOf(context));
 
   void _showSleepTimerMenu(BuildContext context, WidgetRef ref) {
     showSleepTimerSheet(context, ref);
   }
 
-  String _platformName(String id) => platformDisplayName(id);
+  String _platformName(String id) =>
+      platformDisplayName(id, locale: Localizations.localeOf(context));
 
   void _showDefaultPlatformDialog(BuildContext context, WidgetRef ref) {
     // 与"音质选择"弹窗同一视觉语言：居中圆角卡片 + 图标块选项行。
@@ -511,12 +537,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  void _showLanguageDialog(BuildContext context) {
+    Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierDismissible: true,
+        barrierColor: Colors.black54,
+        transitionDuration: const Duration(milliseconds: 240),
+        reverseTransitionDuration: const Duration(milliseconds: 180),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const _LanguagePickerDialog(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutBack,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return FadeTransition(
+            opacity: Tween<double>(begin: 0, end: 1).animate(curved),
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.86, end: 1).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   void _showAudioQualityDialog(BuildContext context, WidgetRef ref) {
-    _showQualityDialog(context, ref, '选择音质', false);
+    _showQualityDialog(context, ref, S.of(context).chooseQuality, false);
   }
 
   void _showDownloadQualityDialog(BuildContext context, WidgetRef ref) {
-    _showQualityDialog(context, ref, '选择下载音质', true);
+    _showQualityDialog(context, ref, S.of(context).chooseDownloadQuality, true);
   }
 
   void _showQualityDialog(
@@ -586,13 +640,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           'local_music_download_dir_v1',
         ),
         'custom_sources': storage.getString('custom_sources'),
+        'app_language': storage.getString('app_language'),
       }..removeWhere((_, value) => value == null);
       final jsonStr = const JsonEncoder.withIndent('  ').convert(backup);
       final bytes = Uint8List.fromList(utf8.encode(jsonStr));
       final fileName =
           'koyze_backup_${DateTime.now().millisecondsSinceEpoch}.json';
       final savedPath = await FilePicker.saveFile(
-        dialogTitle: '导出 Koyze 备份',
+        dialogTitle: S.of(context).exportBackupTitle,
         fileName: fileName,
         type: FileType.custom,
         allowedExtensions: const ['json'],
@@ -605,13 +660,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       if (context.mounted) {
         showAppNotification(
-          '备份已导出到 $savedPath',
+          S.of(context).backupExported(savedPath),
           type: AppNotificationType.success,
         );
       }
     } catch (e) {
       if (context.mounted) {
-        showAppNotification('备份失败: $e', type: AppNotificationType.error);
+        showAppNotification(
+          S.of(context).backupFailed(e),
+          type: AppNotificationType.error,
+        );
       }
     }
   }
@@ -654,37 +712,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ref
               .read(defaultSearchPlatformProvider.notifier)
               .applyCommitted(data.defaultSearchPlatform);
+          final language = data.additionalSettings['app_language'];
+          if (language is String) {
+            ref
+                .read(appLanguageProvider.notifier)
+                .applyCommitted(AppLanguage.parse(language));
+          }
         },
       ).restore(data);
 
       if (context.mounted) {
-        showAppNotification('数据恢复成功', type: AppNotificationType.success);
+        showAppNotification(
+          S.of(context).restoreSucceeded,
+          type: AppNotificationType.success,
+        );
       }
     } catch (e) {
       if (context.mounted) {
-        showAppNotification('恢复失败: $e', type: AppNotificationType.error);
+        showAppNotification(
+          S.of(context).restoreFailed(e),
+          type: AppNotificationType.error,
+        );
       }
     }
   }
 
   Future<void> _clearCache(BuildContext context, WidgetRef ref) async {
     final selected = <AppCacheCategory>{...AppCacheCategory.values};
+    final copy = S.of(context);
     final choices =
         <({AppCacheCategory category, String title, String subtitle})>[
           (
             category: AppCacheCategory.playback,
-            title: '歌曲播放缓存',
-            subtitle: '自动缓存的歌曲文件，不包含手动下载的歌曲',
+            title: copy.playbackCache,
+            subtitle: copy.playbackCacheSubtitle,
           ),
           (
             category: AppCacheCategory.artwork,
-            title: '封面缓存',
-            subtitle: '专辑封面的磁盘和内存缓存',
+            title: copy.artworkCache,
+            subtitle: copy.artworkCacheSubtitle,
           ),
           (
             category: AppCacheCategory.temporaryFiles,
-            title: '临时文件',
-            subtitle: '系统临时目录中的中间文件',
+            title: copy.tempFiles,
+            subtitle: copy.tempFilesSubtitle,
           ),
         ];
     final confirmed = await showDialog<Set<AppCacheCategory>>(
@@ -703,7 +774,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               borderRadius: BorderRadius.circular(16),
             ),
             title: Text(
-              '选择要清除的内容',
+              copy.chooseCache,
               style: TextStyle(color: AppColors.onScaffold(context)),
             ),
             content: SingleChildScrollView(
@@ -717,7 +788,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     controlAffinity: ListTileControlAffinity.leading,
                     activeColor: AppColors.accentOf(context),
                     title: Text(
-                      '全选',
+                      copy.selectAll,
                       style: TextStyle(
                         color: AppColors.onScaffold(context),
                         fontWeight: FontWeight.w600,
@@ -764,7 +835,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      '手动下载的歌曲不会被删除；正在播放的歌曲缓存会安全保留。',
+                      copy.cacheKeepNote,
                       style: TextStyle(
                         color: AppColors.secondaryText(context),
                         fontSize: 12,
@@ -778,7 +849,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               TextButton(
                 onPressed: () => Navigator.pop(dialogContext),
                 child: Text(
-                  '取消',
+                  copy.cancel,
                   style: TextStyle(color: AppColors.mutedText(context)),
                 ),
               ),
@@ -790,7 +861,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         Set<AppCacheCategory>.of(selected),
                       ),
                 child: Text(
-                  '清除',
+                  copy.clear,
                   style: TextStyle(
                     color: selected.isEmpty
                         ? AppColors.mutedText(context)
@@ -817,13 +888,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (context.mounted) {
           final retained = summary.retainedPlaybackEntries;
           showAppNotification(
-            retained == 0 ? '所选缓存已清除' : '缓存已清除，$retained 个正在使用的歌曲缓存已安全保留',
+            retained == 0
+                ? S.of(context).cacheCleared
+                : S.of(context).cacheClearedRetained(retained),
             type: AppNotificationType.success,
           );
         }
       } catch (e) {
         if (context.mounted) {
-          showAppNotification('清除失败: $e', type: AppNotificationType.error);
+          showAppNotification(
+            S.of(context).clearFailed(e),
+            type: AppNotificationType.error,
+          );
         }
       }
     }
@@ -873,13 +949,13 @@ class _DeviceIdRow extends StatelessWidget {
     final raw = full?.replaceFirst('device_', '') ?? '';
     final short = raw.length > 12
         ? '${raw.substring(0, 8)}…${raw.substring(raw.length - 4)}'
-        : (raw.isEmpty ? '读取中…' : raw);
+        : (raw.isEmpty ? S.of(context).loading : raw);
     return InkWell(
       onTap: full == null
           ? null
           : () async {
               await Clipboard.setData(ClipboardData(text: full));
-              showAppNotification('完整设备 UUID 已复制');
+              showAppNotification(S.of(context).deviceUuidCopied);
             },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -887,7 +963,7 @@ class _DeviceIdRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '设备 UUID',
+              S.of(context).deviceUuid,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -972,7 +1048,7 @@ class _PlatformPickerDialog extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              '默认搜索平台',
+                              S.of(context).defaultSearchPlatform,
                               style: TextStyle(
                                 color: AppColors.onScaffold(context),
                                 fontSize: 18,
@@ -998,9 +1074,15 @@ class _PlatformPickerDialog extends ConsumerWidget {
                         itemBuilder: (context, index) {
                           final id = options[index].id;
                           return _PlatformOptionTile(
-                            name: platformDisplayName(id),
+                            name: platformDisplayName(
+                              id,
+                              locale: Localizations.localeOf(context),
+                            ),
                             icon: platformPickerIcon(id),
-                            description: platformPickerDescription(id),
+                            description: platformPickerDescription(
+                              id,
+                              locale: Localizations.localeOf(context),
+                            ),
                             selected: current == id,
                             accent: accent,
                             onTap: () {
@@ -1008,7 +1090,9 @@ class _PlatformPickerDialog extends ConsumerWidget {
                               ref
                                   .read(defaultSearchPlatformProvider.notifier)
                                   .setPlatform(platform);
-                              ref.read(selectedSourceIdProvider.notifier).state =
+                              ref
+                                      .read(selectedSourceIdProvider.notifier)
+                                      .state =
                                   platform;
                               Navigator.pop(context);
                             },
@@ -1024,25 +1108,6 @@ class _PlatformPickerDialog extends ConsumerWidget {
         ),
       ),
     );
-  }
-}
-
-String platformPickerDescription(String id) {
-  switch (canonicalSearchPlatform(id)) {
-    case 'tx':
-      return '覆盖最全，默认优先';
-    case 'kw':
-      return '酷我音乐源';
-    case 'wy':
-      return '网易云音乐源';
-    case 'local':
-      return '仅本地已扫描歌曲';
-    case 'favorites':
-      return '仅收藏夹内容';
-    case 'subsonic':
-      return 'Navidrome / Emby / Jellyfin / Plex / 群晖';
-    default:
-      return '';
   }
 }
 
@@ -1178,59 +1243,65 @@ class _QualityPickerDialog extends ConsumerWidget {
                 ),
               ],
               child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 8, 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: TextStyle(
-                          color: AppColors.onScaffold(context),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 8, 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              color: AppColors.onScaffold(context),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
-                      ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: AppColors.mutedText(context),
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.close_rounded,
-                        color: AppColors.mutedText(context),
+                  ),
+                  ...AudioQualityOption.values.map((quality) {
+                    final selected = currentQuality == quality;
+                    final accent = AppColors.accentOf(context);
+                    final meta = _qualityMeta(
+                      quality,
+                      locale: Localizations.localeOf(context),
+                    );
+                    return _QualityOptionTile(
+                      quality: quality,
+                      name: qualityName(
+                        quality,
+                        locale: Localizations.localeOf(context),
                       ),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-              ),
-              ...AudioQualityOption.values.map((quality) {
-                final selected = currentQuality == quality;
-                final accent = AppColors.accentOf(context);
-                final meta = _qualityMeta(quality);
-                return _QualityOptionTile(
-                  quality: quality,
-                  name: qualityName(quality),
-                  description: meta.$2,
-                  icon: meta.$1,
-                  selected: selected,
-                  accent: accent,
-                  onTap: () {
-                    if (isDownload) {
-                      ref
-                          .read(downloadQualityProvider.notifier)
-                          .setQuality(quality);
-                    } else {
-                      ref
-                          .read(audioQualityProvider.notifier)
-                          .setQuality(quality);
-                    }
-                    Navigator.pop(context);
-                  },
-                );
-              }),
-              const SizedBox(height: 12),
-            ],
+                      description: meta.$2,
+                      icon: meta.$1,
+                      selected: selected,
+                      accent: accent,
+                      onTap: () {
+                        if (isDownload) {
+                          ref
+                              .read(downloadQualityProvider.notifier)
+                              .setQuality(quality);
+                        } else {
+                          ref
+                              .read(audioQualityProvider.notifier)
+                              .setQuality(quality);
+                        }
+                        Navigator.pop(context);
+                      },
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                ],
               ),
             ),
           ),
@@ -1333,46 +1404,238 @@ class _QualityOptionTile extends StatelessWidget {
   }
 }
 
-String platformDisplayName(String id) {
+String platformDisplayName(String id, {Locale? locale}) {
+  final en = localeIsEnglish(locale);
   switch (canonicalSearchPlatform(id)) {
     case 'tx':
-      return '腾讯 (QQ 音乐)';
+      return en ? 'Tencent (QQ Music)' : '腾讯 (QQ 音乐)';
     case 'kw':
-      return '酷我';
+      return en ? 'Kuwo' : '酷我';
     case 'wy':
-      return '网易云';
+      return en ? 'NetEase' : '网易云';
     case 'local':
-      return '本地';
+      return en ? 'Local' : '本地';
     case 'favorites':
-      return '收藏';
+      return en ? 'Favorites' : '收藏';
     case 'subsonic':
-      return 'NAS 乐库';
+      return en ? 'NAS library' : 'NAS 乐库';
     default:
       return id;
   }
 }
 
-(IconData, String) _qualityMeta(AudioQualityOption quality) {
+String platformPickerDescription(String id, {Locale? locale}) {
+  final en = localeIsEnglish(locale);
+  switch (canonicalSearchPlatform(id)) {
+    case 'tx':
+      return en ? 'Broadest catalog, used first' : '覆盖最全，默认优先';
+    case 'kw':
+      return en ? 'Kuwo music source' : '酷我音乐源';
+    case 'wy':
+      return en ? 'NetEase Cloud Music source' : '网易云音乐源';
+    case 'local':
+      return en ? 'Only songs scanned on this device' : '仅本地已扫描歌曲';
+    case 'favorites':
+      return en ? 'Only favorited songs' : '仅收藏夹内容';
+    case 'subsonic':
+      return en
+          ? 'Navidrome / Emby / Jellyfin / Plex / Synology'
+          : 'Navidrome / Emby / Jellyfin / Plex / 群晖';
+    default:
+      return '';
+  }
+}
+
+(IconData, String) _qualityMeta(AudioQualityOption quality, {Locale? locale}) {
+  final en = localeIsEnglish(locale);
   return switch (quality) {
-    AudioQualityOption.low => (Icons.volume_down_outlined, '128kbps，节省流量'),
-    AudioQualityOption.high => (Icons.volume_up_outlined, '320kbps，兼顾音质与体积'),
-    AudioQualityOption.lossless => (Icons.audio_file_outlined, 'FLAC 无损'),
-    AudioQualityOption.lossless24 => (Icons.album_outlined, 'FLAC 24bit 臻品母带'),
-    AudioQualityOption.hires => (Icons.speed_outlined, 'Hi-Res 高解析'),
+    AudioQualityOption.low => (
+      Icons.volume_down_outlined,
+      en ? '128 kbps, uses less data' : '128kbps，节省流量',
+    ),
+    AudioQualityOption.high => (
+      Icons.volume_up_outlined,
+      en ? '320 kbps, quality and size' : '320kbps，兼顾音质与体积',
+    ),
+    AudioQualityOption.lossless => (
+      Icons.audio_file_outlined,
+      en ? 'FLAC lossless' : 'FLAC 无损',
+    ),
+    AudioQualityOption.lossless24 => (
+      Icons.album_outlined,
+      en ? 'FLAC 24-bit master' : 'FLAC 24bit 臻品母带',
+    ),
+    AudioQualityOption.hires => (
+      Icons.speed_outlined,
+      en ? 'Hi-Res' : 'Hi-Res 高解析',
+    ),
   };
 }
 
-String qualityName(AudioQualityOption quality) {
+String qualityName(AudioQualityOption quality, {Locale? locale}) {
+  final en = localeIsEnglish(locale);
   switch (quality) {
     case AudioQualityOption.low:
-      return '标准 (128kbps)';
+      return en ? 'Standard (128 kbps)' : '标准 (128kbps)';
     case AudioQualityOption.high:
-      return '超高品质 (320kbps)';
+      return en ? 'High (320 kbps)' : '超高品质 (320kbps)';
     case AudioQualityOption.lossless:
-      return '无损 (FLAC)';
+      return en ? 'Lossless (FLAC)' : '无损 (FLAC)';
     case AudioQualityOption.lossless24:
-      return '臻品母带 (FLAC 24bit)';
+      return en ? 'Master (FLAC 24-bit)' : '臻品母带 (FLAC 24bit)';
     case AudioQualityOption.hires:
       return 'Hi-Res';
+  }
+}
+
+class _LanguagePickerDialog extends ConsumerWidget {
+  const _LanguagePickerDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(appLanguageProvider);
+    final s = S.of(context);
+    final accent = AppColors.accentOf(context);
+    final options = <(AppLanguage, String, String)>[
+      (AppLanguage.system, s.followSystem, s.followSystemLanguageSubtitle),
+      (AppLanguage.zh, '简体中文', s.chineseInterface),
+      (AppLanguage.en, 'English', s.englishInterface),
+    ];
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: SizedBox(
+            width: 340,
+            child: GlassSurface(
+              style: AppGlassStyle.regular,
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 32,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 8, 6),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            s.language,
+                            style: TextStyle(
+                              color: AppColors.onScaffold(context),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: AppColors.mutedText(context),
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  for (final option in options)
+                    _LanguageOptionTile(
+                      name: option.$2,
+                      description: option.$3,
+                      selected: current == option.$1,
+                      accent: accent,
+                      onTap: () {
+                        ref
+                            .read(appLanguageProvider.notifier)
+                            .setLanguage(option.$1);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguageOptionTile extends StatelessWidget {
+  const _LanguageOptionTile({
+    required this.name,
+    required this.description,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String name;
+  final String description;
+  final bool selected;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: TextStyle(
+                      color: selected ? accent : AppColors.onScaffold(context),
+                      fontSize: 15,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: AppColors.mutedText(context),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AnimatedScale(
+              scale: selected ? 1 : 0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutBack,
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: accent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  size: 16,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
