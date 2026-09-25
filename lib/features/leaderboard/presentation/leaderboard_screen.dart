@@ -337,7 +337,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     final platform = category.platform ?? 'other';
     const radius = 18.0;
     return AspectRatio(
-      aspectRatio: 1,
+      // 高度是原来正方形的 2/3，封面按 cover 居中裁切。
+      aspectRatio: 3 / 2,
       child: Pressable(
         borderRadius: BorderRadius.circular(radius),
         captureExpandRect: true,
