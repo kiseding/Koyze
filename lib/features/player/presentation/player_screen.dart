@@ -200,12 +200,12 @@ class _PlayerProgress extends ConsumerWidget {
               width: 58,
               child: FittedBox(
                 fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
+                alignment: Alignment.centerRight,
                 child: Text(
                   _formatPlayerDuration(displayPos),
                   style: TextStyle(
                     color: AppColors.mutedText(context),
-                    fontSize: 18,
+                    fontSize: 16,
                     fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -328,13 +328,13 @@ class _PlayerProgress extends ConsumerWidget {
               width: 58,
               child: FittedBox(
                 fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
+                alignment: Alignment.centerLeft,
                 child: Text(
                   _formatPlayerDuration(duration),
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     color: AppColors.mutedText(context),
-                    fontSize: 18,
+                    fontSize: 16,
                     fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
