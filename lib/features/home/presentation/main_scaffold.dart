@@ -45,7 +45,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     // pixels than the compact iOS bar height to avoid overflowing downward.
     final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
     final navHeight = 36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
-    const miniHeight = 70.0;
+    const miniHeight = 66.0;
     const miniGap = 11.0;
     // 无系统底栏的安卓/Windows：用等效系统栏高度把导航栏整体上移，
     // 使图标列离屏幕底部的距离与 iOS 视觉一致（约 19px）。

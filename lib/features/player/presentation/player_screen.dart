@@ -907,7 +907,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
         final navHeight =
             36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
-        const miniHeight = 70.0;
+        const miniHeight = 66.0;
         const miniGap = 11.0;
         final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
         final miniBottom = bottomInset == 0

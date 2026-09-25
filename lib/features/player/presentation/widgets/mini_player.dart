@@ -38,7 +38,7 @@ class _MiniLyricText extends ConsumerWidget {
 
     return Text(
       subtitle,
-      style: TextStyle(fontSize: 15, color: color),
+      style: TextStyle(fontSize: 13, color: color),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
@@ -81,7 +81,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     return Material(
       color: Colors.transparent,
       child: SizedBox(
-        height: 70,
+        height: 66,
         child: GlassSurface(
           style: AppGlassStyle.bar,
           borderRadius: BorderRadius.circular(20),
@@ -113,8 +113,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                       child: Row(
                         children: [
                           Container(
-                            width: 56,
-                            height: 56,
+                            width: 50,
+                            height: 50,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(13),
                               color: surface,
@@ -181,7 +181,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                                 Text(
                                   title,
                                   style: TextStyle(
-                                    fontSize: 17,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w600,
                                     color: titleColor,
                                   ),
@@ -203,7 +203,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                   ),
                 ),
                 SizedBox(
-                  width: 172,
+                  width: 180,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -228,8 +228,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             ? null
                             : () => playerService.togglePlay(),
                         enabled: currentMusic != null,
-                        size: 48,
-                        iconSize: 30,
+                        size: 38,
+                        iconSize: 24,
                         mini: true,
                       ),
                       Pressable(
