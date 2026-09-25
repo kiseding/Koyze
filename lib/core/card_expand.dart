@@ -665,75 +665,6 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   }
 }
 
-/// 卡片展开是否已经停稳。停稳前页面不要挂实时磨砂：
-/// 模糊层跟着窗口每帧重采样，收藏列表从卡片长开时会卡。
-class CardExpandPhase extends StatefulWidget {
-  const CardExpandPhase({
-    super.key,
-    required this.animation,
-    required this.child,
-  });
-
-  final Animation<double> animation;
-  final Widget child;
-
-  static bool settledOf(BuildContext context) {
-    final scope = context
-        .dependOnInheritedWidgetOfExactType<_CardExpandSettled>();
-    return scope?.settled ?? true;
-  }
-
-  @override
-  State<CardExpandPhase> createState() => _CardExpandPhaseState();
-}
-
-class _CardExpandSettled extends InheritedWidget {
-  const _CardExpandSettled({required this.settled, required super.child});
-
-  final bool settled;
-
-  @override
-  bool updateShouldNotify(_CardExpandSettled oldWidget) =>
-      settled != oldWidget.settled;
-}
-
-class _CardExpandPhaseState extends State<CardExpandPhase> {
-  late bool _settled;
-
-  @override
-  void initState() {
-    super.initState();
-    _settled = widget.animation.status == AnimationStatus.completed;
-    widget.animation.addStatusListener(_onStatus);
-  }
-
-  @override
-  void didUpdateWidget(CardExpandPhase oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.animation == widget.animation) return;
-    oldWidget.animation.removeStatusListener(_onStatus);
-    widget.animation.addStatusListener(_onStatus);
-    _settled = widget.animation.status == AnimationStatus.completed;
-  }
-
-  void _onStatus(AnimationStatus status) {
-    final settled = status == AnimationStatus.completed;
-    if (settled == _settled || !mounted) return;
-    setState(() => _settled = settled);
-  }
-
-  @override
-  void dispose() {
-    widget.animation.removeStatusListener(_onStatus);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _CardExpandSettled(settled: _settled, child: widget.child);
-  }
-}
-
 class _CardRevealTransition extends StatefulWidget {
   const _CardRevealTransition({
     required this.animation,
@@ -789,139 +720,136 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
     final dismissProgress = session?.progress ?? cardDismissProgress;
     final dismissOffset = session?.offset ?? cardDismissOffset;
 
-    return CardExpandPhase(
-      animation: widget.animation,
-      child: AnimatedBuilder(
-        animation: Listenable.merge([
-          widget.animation,
-          dismissProgress,
-          dismissOffset,
-        ]),
-        child: RepaintBoundary(child: widget.child),
-        builder: (context, child) {
-          final current = _CardDismissScope.maybeOf(context);
-          final progress = current?.progress ?? dismissProgress;
-          final offset = current?.offset ?? dismissOffset;
-          final locked = current?.locked ?? cardDismissLocked;
-          // 拖拽接管时用跟手的 dismiss 进度驱动矩形收拢，路由动画不参与，
-          // 松开后从当前位置继续播放关闭动效。
-          final t = locked || progress.value > 0
-              ? progress.value
-              : 1 - widget.animation.value;
-          // 窗口从源卡片矩形 lerp 到全屏：四边各自长到屏幕边。
-          // 卡片界面元素跟着窗口一起移动，宽度按当前窗宽缩放；
-          // 高度用同一比例，避免半宽矮卡被窗高单独压扁。
-          var currentRect = Rect.lerp(sourceRect, targetRect, 1 - t)!;
-          // 跟手：拖动中卡片左缘 = 手指水平位移，手停卡停；
-          // 松手动画（已锁）线性归位到源卡片位置；
-          // 无拖动的正常关闭（返回按钮/系统手势）直接归位到源位置，
-          // 不能再往左缘飞。
-          final fingerX = offset.value;
-          final dragging = locked || progress.value > 0;
-          final dismissing =
-              dragging || widget.animation.status == AnimationStatus.reverse;
-          // 源卡片只在快照交接窗口隐藏；进入最后 1% 时先恢复源卡片，
-          // 再移除转场层，避免真实卡片接管后仍被全局状态隐藏。
-          final hideSource =
-              widget.sourceSnapshot != null &&
-              dismissing &&
-              t >= 0.87 &&
-              t < 0.99;
-          if (cardExpandSourceHidden.value != hideSource) {
-            cardExpandSourceHidden.value = hideSource;
-          }
-          if (dragging) {
-            currentRect = Rect.fromLTWH(
-              fingerX * (1 - t) + sourceRect.left * t,
-              currentRect.top,
-              currentRect.width,
-              currentRect.height,
-            );
-          }
-          // 收拢/拖拽关闭方向（dragging）：内容保持不透明、不浮现快照，
-          // 收拢矩形只是裁剪窗口——route 移除瞬间真实页面同像素接管，
-          // 不会出现"快照 vs 实时渲染"的亮度跳变。
-          // 展开方向保留原逻辑：内容淡出让快照盖住未长成的本体。
-          // 关闭 85%~95% 完成交接：实时页面淡出、源卡片快照淡入；
-          // 95%~99% 全程由快照沿矩形路径飞回，最后 1% 直接砍层。
-          final reveal = dismissing
-              ? ((0.95 - t) / 0.1).clamp(0.0, 1.0)
-              : ((1 - t) / 0.18).clamp(0.0, 1.0);
-          final snapshotOpacity = dismissing
-              ? ((t - 0.85) / 0.1).clamp(0.0, 1.0)
-              : ((t - 0.8) / 0.2).clamp(0.0, 1.0);
-          // 背景/表面圆角全程保持与源卡片一致（18），
-          // 动效行进中矩形扩张/收缩不改变圆角。
-          const radius = 18.0;
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        widget.animation,
+        dismissProgress,
+        dismissOffset,
+      ]),
+      child: RepaintBoundary(child: widget.child),
+      builder: (context, child) {
+        final current = _CardDismissScope.maybeOf(context);
+        final progress = current?.progress ?? dismissProgress;
+        final offset = current?.offset ?? dismissOffset;
+        final locked = current?.locked ?? cardDismissLocked;
+        // 拖拽接管时用跟手的 dismiss 进度驱动矩形收拢，路由动画不参与，
+        // 松开后从当前位置继续播放关闭动效。
+        final t = locked || progress.value > 0
+            ? progress.value
+            : 1 - widget.animation.value;
+        // 窗口从源卡片矩形 lerp 到全屏：四边各自长到屏幕边。
+        // 卡片界面元素跟着窗口一起移动，宽度按当前窗宽缩放；
+        // 高度用同一比例，避免半宽矮卡被窗高单独压扁。
+        var currentRect = Rect.lerp(sourceRect, targetRect, 1 - t)!;
+        // 跟手：拖动中卡片左缘 = 手指水平位移，手停卡停；
+        // 松手动画（已锁）线性归位到源卡片位置；
+        // 无拖动的正常关闭（返回按钮/系统手势）直接归位到源位置，
+        // 不能再往左缘飞。
+        final fingerX = offset.value;
+        final dragging = locked || progress.value > 0;
+        final dismissing =
+            dragging || widget.animation.status == AnimationStatus.reverse;
+        // 源卡片只在快照交接窗口隐藏；进入最后 1% 时先恢复源卡片，
+        // 再移除转场层，避免真实卡片接管后仍被全局状态隐藏。
+        final hideSource =
+            widget.sourceSnapshot != null &&
+            dismissing &&
+            t >= 0.87 &&
+            t < 0.99;
+        if (cardExpandSourceHidden.value != hideSource) {
+          cardExpandSourceHidden.value = hideSource;
+        }
+        if (dragging) {
+          currentRect = Rect.fromLTWH(
+            fingerX * (1 - t) + sourceRect.left * t,
+            currentRect.top,
+            currentRect.width,
+            currentRect.height,
+          );
+        }
+        // 收拢/拖拽关闭方向（dragging）：内容保持不透明、不浮现快照，
+        // 收拢矩形只是裁剪窗口——route 移除瞬间真实页面同像素接管，
+        // 不会出现"快照 vs 实时渲染"的亮度跳变。
+        // 展开方向保留原逻辑：内容淡出让快照盖住未长成的本体。
+        // 关闭 85%~95% 完成交接：实时页面淡出、源卡片快照淡入；
+        // 95%~99% 全程由快照沿矩形路径飞回，最后 1% 直接砍层。
+        final reveal = dismissing
+            ? ((0.95 - t) / 0.1).clamp(0.0, 1.0)
+            : ((1 - t) / 0.18).clamp(0.0, 1.0);
+        final snapshotOpacity = dismissing
+            ? ((t - 0.85) / 0.1).clamp(0.0, 1.0)
+            : ((t - 0.8) / 0.2).clamp(0.0, 1.0);
+        // 背景/表面圆角全程保持与源卡片一致（18），
+        // 动效行进中矩形扩张/收缩不改变圆角。
+        const radius = 18.0;
 
-          // 收拢完成（t 接近 1）时提前交棒：过渡层退场，真实页面直接接管，
-          // 避免末帧残留图层造成的亮度/内容跳变。
-          if (dismissing && t >= 0.99) {
-            return const SizedBox.shrink();
-          }
+        // 收拢完成（t 接近 1）时提前交棒：过渡层退场，真实页面直接接管，
+        // 避免末帧残留图层造成的亮度/内容跳变。
+        if (dismissing && t >= 0.99) {
+          return const SizedBox.shrink();
+        }
 
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned.fromRect(
-                rect: currentRect,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(radius),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fromRect(
+              rect: currentRect,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(radius),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Opacity(
+                      opacity: reveal,
+                      child: ColoredBox(color: backgroundColor),
+                    ),
+                    // 源卡片快照按窗宽等比放大，相对窗口居中：
+                    // 收起时上下左右一起走，而不是顶对齐从下往上收。
+                    if (widget.sourceSnapshot != null)
                       Opacity(
-                        opacity: reveal,
-                        child: ColoredBox(color: backgroundColor),
-                      ),
-                      // 源卡片快照按窗宽等比放大，相对窗口居中：
-                      // 收起时上下左右一起走，而不是顶对齐从下往上收。
-                      if (widget.sourceSnapshot != null)
-                        Opacity(
-                          opacity: snapshotOpacity,
-                          child: Transform.scale(
-                            alignment: Alignment.center,
-                            scale: currentRect.width / sourceRect.width,
-                            child: SizedBox(
-                              width: sourceRect.width,
-                              height: sourceRect.height,
-                              child: RawImage(
-                                image: widget.sourceSnapshot,
-                                fit: BoxFit.contain,
-                                filterQuality: FilterQuality.high,
-                              ),
-                            ),
-                          ),
-                        ),
-                      // 目的页按窗宽等比缩放，相对窗口居中：
-                      // 宽度跟着走，高度保持比例；收起时对称裁切。
-                      Opacity(
-                        opacity: reveal,
-                        child: OverflowBox(
+                        opacity: snapshotOpacity,
+                        child: Transform.scale(
                           alignment: Alignment.center,
-                          minWidth: targetRect.width,
-                          maxWidth: targetRect.width,
-                          minHeight: targetRect.height,
-                          maxHeight: targetRect.height,
-                          child: Transform.scale(
-                            alignment: Alignment.center,
-                            scale: currentRect.width / targetRect.width,
-                            child: SizedBox(
-                              width: targetRect.width,
-                              height: targetRect.height,
-                              child: child,
+                          scale: currentRect.width / sourceRect.width,
+                          child: SizedBox(
+                            width: sourceRect.width,
+                            height: sourceRect.height,
+                            child: RawImage(
+                              image: widget.sourceSnapshot,
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.high,
                             ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    // 目的页按窗宽等比缩放，相对窗口居中：
+                    // 宽度跟着走，高度保持比例；收起时对称裁切。
+                    Opacity(
+                      opacity: reveal,
+                      child: OverflowBox(
+                        alignment: Alignment.center,
+                        minWidth: targetRect.width,
+                        maxWidth: targetRect.width,
+                        minHeight: targetRect.height,
+                        maxHeight: targetRect.height,
+                        child: Transform.scale(
+                          alignment: Alignment.center,
+                          scale: currentRect.width / targetRect.width,
+                          child: SizedBox(
+                            width: targetRect.width,
+                            height: targetRect.height,
+                            child: child,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
