@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/animations/micro_animations.dart';
+import '../../../core/card_expand.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
@@ -20,6 +21,21 @@ import '../../player/presentation/player_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
+
+/// 卡片还在长开时用纯色顶栏。磨砂模糊放在不断变化的裁剪窗里，
+/// 每帧都要重算背景，打开收藏列表会明显掉帧。
+class _PlaylistDetailBarBackground extends StatelessWidget {
+  const _PlaylistDetailBarBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    final background = Theme.of(context).scaffoldBackgroundColor;
+    if (!CardExpandPhase.settledOf(context)) {
+      return ColoredBox(color: background);
+    }
+    return GradientAppBarBackground(background: background);
+  }
+}
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const PlaylistDetailScreen({
@@ -248,9 +264,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
           // 顶栏整栏磨砂玻璃，无底部渐变透明。
-          flexibleSpace: GradientAppBarBackground(
-            background: Theme.of(context).scaffoldBackgroundColor,
-          ),
+          flexibleSpace: const _PlaylistDetailBarBackground(),
           leading: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
