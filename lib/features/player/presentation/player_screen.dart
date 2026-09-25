@@ -205,7 +205,7 @@ class _PlayerProgress extends ConsumerWidget {
                   _formatPlayerDuration(displayPos),
                   style: TextStyle(
                     color: AppColors.mutedText(context),
-                    fontSize: 16,
+                    fontSize: 14,
                     fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -334,7 +334,7 @@ class _PlayerProgress extends ConsumerWidget {
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     color: AppColors.mutedText(context),
-                    fontSize: 16,
+                    fontSize: 14,
                     fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
