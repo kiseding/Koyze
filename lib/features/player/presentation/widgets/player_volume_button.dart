@@ -21,14 +21,20 @@ class _PlayerVolumeButtonState extends ConsumerState<PlayerVolumeButton>
     with SingleTickerProviderStateMixin {
   final OverlayPortalController _portal = OverlayPortalController();
   final LayerLink _link = LayerLink();
-  late final AnimationController _panel = AnimationController(
-    vsync: this,
-    duration: MotionDuration.normal,
-    reverseDuration: MotionDuration.micro,
-  );
+  late final AnimationController _panel;
   bool _open = false;
   int _sequence = 0;
   double? _unmuteLevel;
+
+  @override
+  void initState() {
+    super.initState();
+    _panel = AnimationController(
+      vsync: this,
+      duration: MotionDuration.normal,
+      reverseDuration: MotionDuration.micro,
+    );
+  }
 
   @override
   void dispose() {

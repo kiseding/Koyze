@@ -42,7 +42,7 @@ void main() {
     expect(settings, contains('platformPickerDescription'));
     expect(settings, contains('platformPickerIcon'));
     expect(settings, contains("case 'subsonic':"));
-    expect(settings, contains("return 'NAS 乐库'"));
+    expect(settings, contains("en ? 'NAS library' : 'NAS 乐库'"));
     expect(settings, isNot(contains("case 'emby':")));
     expect(settings, isNot(contains('static const _options')));
 

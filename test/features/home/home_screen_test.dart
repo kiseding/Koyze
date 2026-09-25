@@ -118,7 +118,11 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('Icons.leaderboard_outlined'));
-    expect(source, contains("'榜单'"));
+    expect(source, contains('s.charts'));
+    expect(
+      File('lib/l10n/app_strings.dart').readAsStringSync(),
+      contains("en ? 'Charts' : '榜单'"),
+    );
     expect(source, contains('BoxConstraints(minHeight: 48)'));
     expect(source, contains('(textScale - 1) * 20'));
   });

@@ -19,7 +19,9 @@ void main() {
     final settings = File(
       'lib/features/settings/presentation/settings_screen.dart',
     ).readAsStringSync();
-    expect(settings, contains("name: '版本', value: 'v$version'"));
+    final strings = File('lib/l10n/app_strings.dart').readAsStringSync();
+    expect(settings, contains("name: s.version, value: 'v$version'"));
+    expect(strings, contains("en ? 'Version' : '版本'"));
   });
 
   test('platform workflows use the same pinned Flutter patch release', () {
