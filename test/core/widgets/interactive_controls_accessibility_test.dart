@@ -44,10 +44,10 @@ void main() {
       ),
     );
 
-    final semantics = tester.getSemantics(find.bySemanticsLabel('暂停'));
+    final semantics = tester.getSemantics(find.bySemanticsLabel('Pause'));
     expect(semantics.flagsCollection.isButton, isTrue);
     expect(semantics.flagsCollection.isToggled, Tristate.isTrue);
-    await tester.tap(find.bySemanticsLabel('暂停'));
+    await tester.tap(find.bySemanticsLabel('Pause'));
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     expect(taps, 2);

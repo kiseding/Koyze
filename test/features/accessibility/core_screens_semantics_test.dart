@@ -30,11 +30,11 @@ void main() {
     );
 
     expect(
-      tester.getSize(find.byTooltip('上一页')).height,
+      tester.getSize(find.byTooltip('Previous page')).height,
       greaterThanOrEqualTo(48),
     );
     expect(
-      tester.getSize(find.byTooltip('下一页')).height,
+      tester.getSize(find.byTooltip('Next page')).height,
       greaterThanOrEqualTo(48),
     );
     expect(tester.takeException(), isNull);

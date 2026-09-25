@@ -7,10 +7,13 @@ void main() {
     final source = File(
       'lib/features/player/presentation/player_screen.dart',
     ).readAsStringSync();
+    final strings = File('lib/l10n/app_strings.dart').readAsStringSync();
     final controls = source.substring(
-      source.indexOf("tooltip: '播放模式'"),
-      source.indexOf("semanticLabel: '上一首'"),
+      source.indexOf('tooltip: S.of(context).playMode'),
+      source.indexOf('semanticLabel: S.of(context).previous'),
     );
+    expect(strings, contains("en ? 'Play mode' : '播放模式'"));
+    expect(strings, contains("en ? 'Previous' : '上一首'"));
 
     expect(controls, contains('AnimatedSwitcher'));
     expect(controls, isNot(contains('AnimatedRotation')));
