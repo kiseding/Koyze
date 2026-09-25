@@ -33,6 +33,13 @@ class FrostedTabHeader extends StatelessWidget {
     return MediaQuery.paddingOf(context).top + barHeight + extra;
   }
 
+  /// Equal side inset so the title stays centered and clear of the icon and actions.
+  static double _titleSideInset(bool hasLeading, int actionCount) {
+    final left = hasLeading ? 48.0 : 0.0;
+    final right = actionCount * 44.0;
+    return left > right ? left : right;
+  }
+
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
@@ -45,28 +52,42 @@ class FrostedTabHeader extends StatelessWidget {
           children: [
             SizedBox(
               height: 48,
-              child: Row(
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  if (leadingIcon != null) ...[
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: AppColors.accentOf(context).withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        leadingIcon,
-                        color: AppColors.accentOf(context),
-                        size: 20,
-                      ),
+                  Row(
+                    children: [
+                      if (leadingIcon != null) ...[
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: AppColors.accentOf(context).withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            leadingIcon,
+                            color: AppColors.accentOf(context),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      const Spacer(),
+                      for (final action in actions) ...[
+                        const SizedBox(width: 4),
+                        action,
+                      ],
+                    ],
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: _titleSideInset(leadingIcon != null, actions.length),
                     ),
-                    const SizedBox(width: 12),
-                  ],
-                  Expanded(
                     child: Text(
                       title,
                       key: titleKey,
+                      textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -78,10 +99,6 @@ class FrostedTabHeader extends StatelessWidget {
                       ),
                     ),
                   ),
-                  for (final action in actions) ...[
-                    const SizedBox(width: 4),
-                    action,
-                  ],
                 ],
               ),
             ),

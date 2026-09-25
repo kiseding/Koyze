@@ -10,233 +10,7 @@ import '../../../../core/widgets/pressable.dart';
 import '../../../../router/app_router.dart';
 import '../../../../core/widgets/play_pulse_button.dart';
 import '../player_provider.dart';
-import '../scrub_session.dart';
 import '../../../lyric/presentation/lyric_provider.dart';
-
-String _fmtMini(Duration d) {
-  final m = d.inMinutes.remainder(60).toString().padLeft(1, '0');
-  final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-  return '$m:$s';
-}
-
-class _MiniProgress extends ConsumerWidget {
-  final Duration duration;
-  final bool seeking;
-  final double seekValue;
-  final bool canSeek;
-  final bool showThumb;
-  final Color accent;
-  final Color trackBg;
-  final Color timeColor;
-  final void Function(double value) onDragStart;
-  final void Function(double value) onDragUpdate;
-  final Future<void> Function(Duration target) onSeekEnd;
-  final VoidCallback onSeekCancel;
-  final Future<void> Function(double value, Duration target) onTapSeek;
-
-  const _MiniProgress({
-    required this.duration,
-    required this.seeking,
-    required this.seekValue,
-    required this.canSeek,
-    required this.showThumb,
-    required this.accent,
-    required this.trackBg,
-    required this.timeColor,
-    required this.onDragStart,
-    required this.onDragUpdate,
-    required this.onSeekEnd,
-    required this.onSeekCancel,
-    required this.onTapSeek,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final position = ref.watch(positionProvider);
-    final totalMs = duration.inMilliseconds.toDouble();
-    final effectivePos = seeking
-        ? Duration(
-            milliseconds: (seekValue * (totalMs > 0 ? totalMs : 0)).round(),
-          )
-        : position;
-    final progress = totalMs > 0
-        ? (effectivePos.inMilliseconds / totalMs).clamp(0.0, 1.0)
-        : 0.0;
-    final displayPos = effectivePos;
-
-    Duration adjusted(Duration position, int deltaSeconds) {
-      final milliseconds = (position.inMilliseconds + deltaSeconds * 1000)
-          .clamp(0, duration.inMilliseconds);
-      return Duration(milliseconds: milliseconds);
-    }
-
-    String format(Duration d) {
-      final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-      final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-      return '$minutes:$seconds';
-    }
-
-    // 10Hz 进度更新只重绘迷你进度条，避免波及整个主壳页面。
-    return RepaintBoundary(
-      child: SizedBox(
-        height: 20,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 28,
-                child: Text(
-                  _fmtMini(displayPos),
-                  style: TextStyle(
-                    color: timeColor,
-                    fontSize: 10,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final w = constraints.maxWidth;
-                    final fillW = (w * progress).clamp(0.0, w);
-                    final interactiveTrack = GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onHorizontalDragStart: !canSeek
-                          ? null
-                          : (d) {
-                              onDragStart(
-                                (d.localPosition.dx / w).clamp(0.0, 1.0),
-                              );
-                            },
-                      onHorizontalDragUpdate: !canSeek
-                          ? null
-                          : (d) {
-                              onDragUpdate(
-                                (d.localPosition.dx / w).clamp(0.0, 1.0),
-                              );
-                            },
-                      onHorizontalDragEnd: !canSeek
-                          ? null
-                          : (_) {
-                              final target = Duration(
-                                milliseconds: (seekValue * totalMs).round(),
-                              );
-                              onSeekEnd(target);
-                            },
-                      onHorizontalDragCancel: !canSeek ? null : onSeekCancel,
-                      onTapUp: !canSeek
-                          ? null
-                          : (d) {
-                              final v = (d.localPosition.dx / w).clamp(
-                                0.0,
-                                1.0,
-                              );
-                              final target = Duration(
-                                milliseconds: (v * totalMs).round(),
-                              );
-                              onTapSeek(v, target);
-                            },
-                      child: SizedBox(
-                        height: 16,
-                        child: Stack(
-                          alignment: Alignment.centerLeft,
-                          clipBehavior: Clip.none,
-                          children: [
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              top: 6.5,
-                              child: Container(
-                                height: 3,
-                                decoration: BoxDecoration(
-                                  color: trackBg,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              left: 0,
-                              top: 6.5,
-                              child: Container(
-                                width: fillW,
-                                height: 3,
-                                decoration: BoxDecoration(
-                                  color: accent,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                            if (showThumb)
-                              Positioned(
-                                left: (fillW - 6).clamp(0.0, w - 12),
-                                top: 2,
-                                child: AnimatedScale(
-                                  scale: seeking ? 1.4 : 1.0,
-                                  duration: const Duration(milliseconds: 150),
-                                  curve: Curves.easeOutCubic,
-                                  child: Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: accent,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: accent.withAlpha(140),
-                                          blurRadius: 8,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                    return Semantics(
-                      label: S.of(context).playbackProgress,
-                      slider: true,
-                      enabled: duration > Duration.zero,
-                      value: '${format(displayPos)} / ${format(duration)}',
-                      increasedValue: format(adjusted(displayPos, 10)),
-                      decreasedValue: format(adjusted(displayPos, -10)),
-                      onIncrease: duration > Duration.zero
-                          ? () =>
-                                ref.read(seekProvider)(adjusted(displayPos, 10))
-                          : null,
-                      onDecrease: duration > Duration.zero
-                          ? () => ref.read(seekProvider)(
-                              adjusted(displayPos, -10),
-                            )
-                          : null,
-                      child: ExcludeSemantics(child: interactiveTrack),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 4),
-              SizedBox(
-                width: 28,
-                child: Text(
-                  _fmtMini(duration),
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    color: timeColor,
-                    fontSize: 10,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _MiniLyricText extends ConsumerWidget {
   final bool hasSong;
@@ -264,14 +38,14 @@ class _MiniLyricText extends ConsumerWidget {
 
     return Text(
       subtitle,
-      style: TextStyle(fontSize: 11, color: color),
+      style: TextStyle(fontSize: 15, color: color),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
   }
 }
 
-/// 迷你播放条：顶部时间 + 进度条（与全屏同逻辑）
+/// 迷你播放条。进度条去掉后，封面和控件按空出的高度等比放大。
 
 class MiniPlayer extends ConsumerStatefulWidget {
   final bool floating;
@@ -284,99 +58,10 @@ class MiniPlayer extends ConsumerStatefulWidget {
 }
 
 class _MiniPlayerState extends ConsumerState<MiniPlayer> {
-  late bool _seeking;
-  double _seekValue = 0;
-  bool _wasPlayingBeforeSeek = false;
-  late final ScrubSession _scrubSession;
-  ScrubOperation? _dragOperation;
-
-  @override
-  void initState() {
-    super.initState();
-    _scrubSession = ScrubSession(
-      begin: ref.read(beginScrubProvider),
-      finish: ref.read(finishScrubProvider),
-      cancel: ref.read(cancelScrubProvider),
-    );
-    _seeking = false;
-  }
-
-  void _cancelActiveScrub() {
-    final operation = _dragOperation;
-    _dragOperation = null;
-    final cancelledCurrent = operation != null
-        ? _scrubSession.cancel(operation)
-        : false;
-    if (cancelledCurrent) _seeking = false;
-  }
-
-  @override
-  void dispose() {
-    _dragOperation = null;
-    _scrubSession.dispose();
-    super.dispose();
-  }
-
-  void _beginSeek(double value, bool isPlayingValue) {
-    setState(() {
-      _seeking = true;
-      _wasPlayingBeforeSeek = isPlayingValue;
-      _seekValue = value;
-    });
-    _dragOperation = _scrubSession.begin();
-  }
-
-  void _updateSeek(double value) {
-    setState(() => _seekValue = value);
-  }
-
-  Future<void> _finishSeek(Duration target) async {
-    final operation = _dragOperation;
-    if (operation == null) return;
-    final mayClear = await _scrubSession.finish(
-      operation,
-      target,
-      resumeAfter: _wasPlayingBeforeSeek,
-    );
-    if (mounted && mayClear) {
-      if (identical(_dragOperation, operation)) {
-        _dragOperation = null;
-      }
-      setState(() => _seeking = false);
-    }
-  }
-
-  void _cancelSeek() {
-    _cancelActiveScrub();
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _tapSeek(
-    double value,
-    Duration target,
-    bool isPlayingValue,
-  ) async {
-    setState(() {
-      _seekValue = value;
-      _seeking = true;
-      _wasPlayingBeforeSeek = isPlayingValue;
-    });
-    final operation = _scrubSession.begin();
-    final mayClear = await _scrubSession.finish(
-      operation,
-      target,
-      resumeAfter: isPlayingValue,
-    );
-    if (mounted && mayClear) {
-      setState(() => _seeking = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final currentMusic = ref.watch(currentMusicProvider);
     final isPlaying = ref.watch(isPlayingProvider);
-    final duration = ref.watch(durationProvider);
     final playerService = ref.watch(playerServiceProvider);
     final isDark = AppColors.isDark(context);
 
@@ -384,17 +69,11 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
       return const SizedBox.shrink();
     }
 
-    final durationValue = duration.value ?? Duration.zero;
     final isPlayingValue = isPlaying.value ?? false;
-    final totalMs = durationValue.inMilliseconds.toDouble();
-    final canSeek = currentMusic != null && totalMs > 0;
 
     final titleColor = AppColors.onScaffold(context);
     final subColor = AppColors.secondaryText(context);
     final surface = AppColors.fill2(context);
-    final accent = AppColors.accentOf(context);
-    final trackBg = isDark ? const Color(0x33FFFFFF) : const Color(0x33000000);
-    final timeColor = AppColors.mutedText(context);
 
     final title = currentMusic?.name ?? S.of(context).notPlaying;
     final fallbackSubtitle = currentMusic?.singer ?? S.of(context).noLyrics;
@@ -402,10 +81,10 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     return Material(
       color: Colors.transparent,
       child: SizedBox(
-        height: 78,
+        height: 70,
         child: GlassSurface(
           style: AppGlassStyle.bar,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: widget.floating
               ? [
                   BoxShadow(
@@ -417,179 +96,158 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                   ),
                 ]
               : null,
-          child: Column(
-          children: [
-            _MiniProgress(
-              duration: durationValue,
-              seeking: _seeking,
-              seekValue: _seekValue,
-              canSeek: canSeek,
-              showThumb: currentMusic != null,
-              accent: accent,
-              trackBg: trackBg,
-              timeColor: timeColor,
-              onDragStart: (v) => _beginSeek(v, isPlayingValue),
-              onDragUpdate: _updateSeek,
-              onSeekEnd: _finishSeek,
-              onSeekCancel: _cancelSeek,
-              onTapSeek: (v, t) => _tapSeek(v, t, isPlayingValue),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 6, 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Semantics(
-                        label: S.of(context).openNowPlaying,
-                        button: true,
-                        enabled: currentMusic != null,
-                        child: InkWell(
-                          onTap: currentMusic != null
-                              ? () => pushPlayerRoute(context, hasSong: true)
-                              : null,
-                          borderRadius: BorderRadius.circular(10),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(10),
-                                  color: surface,
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                child: ValueListenableBuilder<double>(
-                                  valueListenable: playerRouteProgress,
-                                  builder: (context, progress, child) {
-                                    // 动效期间隐藏迷你栏真封面，只留飞行快照封面。
-                                    final hideCover = progress > 0 && progress < 1;
-                                    return Opacity(
-                                      opacity: hideCover ? 0 : 1,
-                                      child: child,
-                                    );
-                                  },
-                                  child: AnimatedSwitcher(
-                                    duration: motionDuration(
-                                      context,
-                                      MotionDuration.normal,
-                                    ),
-                                    switchInCurve: MotionCurve.easeOut,
-                                    switchOutCurve: MotionCurve.easeIn,
-                                    transitionBuilder: (child, animation) {
-                                      return FadeTransition(
-                                        opacity: animation,
-                                        child: ScaleTransition(
-                                          scale: Tween<double>(
-                                            begin: 0.94,
-                                            end: 1,
-                                          ).animate(animation),
-                                          child: child,
-                                        ),
-                                      );
-                                    },
-                                    child: KeyedSubtree(
-                                      key: ValueKey(currentMusic?.id),
-                                      child:
-                                          currentMusic?.artwork != null &&
-                                              currentMusic!.artwork!.isNotEmpty
-                                          ? ArtworkImage(
-                                              currentMusic.artwork!,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) => Icon(
-                                                Icons.music_note,
-                                                color: subColor,
-                                                size: 20,
-                                              ),
-                                            )
-                                          : Icon(
-                                              Icons.music_note,
-                                              color: subColor,
-                                              size: 20,
-                                            ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      title,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: titleColor,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    _MiniLyricText(
-                                      hasSong: currentMusic != null,
-                                      fallback: fallbackSubtitle,
-                                      color: subColor,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 128,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 2, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Semantics(
+                    label: S.of(context).openNowPlaying,
+                    button: true,
+                    enabled: currentMusic != null,
+                    child: InkWell(
+                      onTap: currentMusic != null
+                          ? () => pushPlayerRoute(context, hasSong: true)
+                          : null,
+                      borderRadius: BorderRadius.circular(13),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          Pressable(
-                            semanticLabel: S.of(context).previous,
-                            onTap: currentMusic == null
-                                ? null
-                                : () => playerService.previous(),
-                            child: Icon(
-                              Icons.skip_previous_rounded,
-                              size: 26,
-                              color: currentMusic == null
-                                  ? subColor
-                                  : titleColor,
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(13),
+                              color: surface,
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: ValueListenableBuilder<double>(
+                              valueListenable: playerRouteProgress,
+                              builder: (context, progress, child) {
+                                // 动效期间隐藏迷你栏真封面，只留飞行快照封面。
+                                final hideCover = progress > 0 && progress < 1;
+                                return Opacity(
+                                  opacity: hideCover ? 0 : 1,
+                                  child: child,
+                                );
+                              },
+                              child: AnimatedSwitcher(
+                                duration: motionDuration(
+                                  context,
+                                  MotionDuration.normal,
+                                ),
+                                switchInCurve: MotionCurve.easeOut,
+                                switchOutCurve: MotionCurve.easeIn,
+                                transitionBuilder: (child, animation) {
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: ScaleTransition(
+                                      scale: Tween<double>(
+                                        begin: 0.94,
+                                        end: 1,
+                                      ).animate(animation),
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                                child: KeyedSubtree(
+                                  key: ValueKey(currentMusic?.id),
+                                  child:
+                                      currentMusic?.artwork != null &&
+                                          currentMusic!.artwork!.isNotEmpty
+                                      ? ArtworkImage(
+                                          currentMusic.artwork!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Icon(
+                                            Icons.music_note,
+                                            color: subColor,
+                                            size: 27,
+                                          ),
+                                        )
+                                      : Icon(
+                                          Icons.music_note,
+                                          color: subColor,
+                                          size: 27,
+                                        ),
+                                ),
+                              ),
                             ),
                           ),
-                          PlayPulseButton(
-                            isPlaying: isPlayingValue,
-                            onPressed: currentMusic == null
-                                ? null
-                                : () => playerService.togglePlay(),
-                            enabled: currentMusic != null,
-                            size: 36,
-                            iconSize: 22,
-                            mini: true,
-                          ),
-                          Pressable(
-                            semanticLabel: S.of(context).next,
-                            onTap: currentMusic == null
-                                ? null
-                                : () => playerService.next(),
-                            child: Icon(
-                              Icons.skip_next_rounded,
-                              size: 26,
-                              color: currentMusic == null
-                                  ? subColor
-                                  : titleColor,
+                          const SizedBox(width: 13),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600,
+                                    color: titleColor,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 3),
+                                _MiniLyricText(
+                                  hasSong: currentMusic != null,
+                                  fallback: fallbackSubtitle,
+                                  color: subColor,
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                SizedBox(
+                  width: 172,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Pressable(
+                        semanticLabel: S.of(context).openLyrics,
+                        onTap: currentMusic == null
+                            ? null
+                            : () => pushPlayerRoute(
+                                context,
+                                hasSong: true,
+                                openLyrics: true,
+                              ),
+                        child: Icon(
+                          Icons.subject_rounded,
+                          size: 32,
+                          color: currentMusic == null ? subColor : titleColor,
+                        ),
+                      ),
+                      PlayPulseButton(
+                        isPlaying: isPlayingValue,
+                        onPressed: currentMusic == null
+                            ? null
+                            : () => playerService.togglePlay(),
+                        enabled: currentMusic != null,
+                        size: 48,
+                        iconSize: 30,
+                        mini: true,
+                      ),
+                      Pressable(
+                        semanticLabel: S.of(context).next,
+                        onTap: currentMusic == null
+                            ? null
+                            : () => playerService.next(),
+                        child: Icon(
+                          Icons.skip_next_rounded,
+                          size: 35,
+                          color: currentMusic == null ? subColor : titleColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
           ),
         ),
       ),

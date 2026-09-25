@@ -12,8 +12,8 @@ void main() {
       source.indexOf('class LeaderboardDetailScreenById'),
     );
 
-    expect(button, contains('return CardPlayButton('));
-    expect(button, contains('size: 60'));
+    expect(button, contains('CardPlayButton('));
+    expect(button, contains('size: diameter'));
     expect(button, contains('size: 40'));
     expect(button, contains('onPressed: onPressed'));
 

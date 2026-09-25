@@ -264,11 +264,8 @@ class _PlayerProgress extends ConsumerWidget {
                               ),
                             ),
                             Positioned(
-                              left: (width * ratio - 14).clamp(
-                                0.0,
-                                width - 28,
-                              ),
-                              top: -6,
+                              left: (width * ratio - 10).clamp(0.0, width - 20),
+                              top: -2,
                               child: AnimatedScale(
                                 scale: seeking ? 1.35 : 1.0,
                                 duration: motionDuration(
@@ -277,8 +274,8 @@ class _PlayerProgress extends ConsumerWidget {
                                 ),
                                 curve: MotionCurve.iosSpring,
                                 child: Container(
-                                  width: 28,
-                                  height: 28,
+                                  width: 20,
+                                  height: 20,
                                   decoration: BoxDecoration(
                                     color: AppColors.accentOf(context),
                                     shape: BoxShape.circle,
@@ -287,7 +284,7 @@ class _PlayerProgress extends ConsumerWidget {
                                         color: AppColors.accentOf(
                                           context,
                                         ).withAlpha(120),
-                                        blurRadius: 19,
+                                        blurRadius: 14,
                                       ),
                                     ],
                                   ),
@@ -568,7 +565,8 @@ Rect _fullLyricPlayButtonRect(
   const playRowBottomPadding = 16.0;
   const dismissSlotHeight = 48.0;
   final right = screenW - horizontalPaddingRight;
-  final bottom = screenH - safeBottom - dismissSlotHeight - playRowBottomPadding;
+  final bottom =
+      screenH - safeBottom - dismissSlotHeight - playRowBottomPadding;
   return Rect.fromLTWH(right - button, bottom - button, button, button);
 }
 
@@ -688,7 +686,9 @@ class _RoutePlayButtonMorphOverlay extends StatelessWidget {
 }
 
 class PlayerScreen extends ConsumerStatefulWidget {
-  const PlayerScreen({super.key});
+  const PlayerScreen({super.key, this.openLyrics = false});
+
+  final bool openLyrics;
 
   @override
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
@@ -732,7 +732,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
+    _currentPage = widget.openLyrics ? 1 : 0;
+    _pageController = PageController(initialPage: _currentPage);
     _scrubSession = ScrubSession(
       begin: ref.read(beginScrubProvider),
       finish: ref.read(finishScrubProvider),
@@ -906,7 +907,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
         final navHeight =
             36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
-        const miniHeight = 78.0;
+        const miniHeight = 70.0;
         const miniGap = 11.0;
         final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
         final miniBottom = bottomInset == 0
@@ -1254,36 +1255,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             opacity: chromeFade,
                             child: Column(
                               children: [
-                          _StaggeredFade(
-                            delay: 0.2,
-                            child: _buildSongInfo(currentMusic),
-                          ),
-                          _StaggeredFade(
-                            delay: 0.3,
-                            child: const _CurrentLyricLine(),
-                          ),
-                          _StaggeredFade(
-                            delay: 0.45,
-                            child: _PlayerProgress(
-                              duration: duration,
-                              seeking: _seeking,
-                              seekValue: _seekValue,
-                              onDragStart: _beginSeek,
-                              onDragUpdate: _updateSeek,
-                              onSeekEnd: _finishSeek,
-                              onSeekCancel: _cancelSeek,
-                              onTapSeek: _tapSeek,
-                            ),
-                          ),
-                          _StaggeredFade(
-                            delay: 0.5,
-                            child: _buildControls(
-                              playerService,
-                              isPlaying,
-                              playMode,
-                            ),
-                          ),
-                          _buildSourceQualityBar(currentMusic),
+                                _StaggeredFade(
+                                  delay: 0.2,
+                                  child: _buildSongInfo(currentMusic),
+                                ),
+                                _StaggeredFade(
+                                  delay: 0.3,
+                                  child: const _CurrentLyricLine(),
+                                ),
+                                _StaggeredFade(
+                                  delay: 0.45,
+                                  child: _PlayerProgress(
+                                    duration: duration,
+                                    seeking: _seeking,
+                                    seekValue: _seekValue,
+                                    onDragStart: _beginSeek,
+                                    onDragUpdate: _updateSeek,
+                                    onSeekEnd: _finishSeek,
+                                    onSeekCancel: _cancelSeek,
+                                    onTapSeek: _tapSeek,
+                                  ),
+                                ),
+                                _StaggeredFade(
+                                  delay: 0.5,
+                                  child: _buildControls(
+                                    playerService,
+                                    isPlaying,
+                                    playMode,
+                                  ),
+                                ),
+                                _buildSourceQualityBar(currentMusic),
                               ],
                             ),
                           ),
@@ -1350,7 +1351,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               : null);
     final qualityText = actual != null
         ? S.of(context).qualityText(actual)
-        : (isLocal ? S.of(context).unknownQuality : S.of(context).resolvingQuality);
+        : (isLocal
+              ? S.of(context).unknownQuality
+              : S.of(context).resolvingQuality);
     // 纯透明底，整体下移 10px；点击收起全屏播放器
     return Padding(
       padding: const EdgeInsets.only(top: 14, bottom: 4),
@@ -1397,7 +1400,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               style: AppGlassStyle.chrome,
               borderRadius: BorderRadius.circular(18),
               child: Pressable(
-                tooltip: _currentPage == 0 ? S.of(context).collapsePlayer : S.of(context).backToArtwork,
+                tooltip: _currentPage == 0
+                    ? S.of(context).collapsePlayer
+                    : S.of(context).backToArtwork,
                 scale: 0.9,
                 onTap: () {
                   if (_currentPage == 1) {
@@ -1440,7 +1445,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                _currentPage == 0 ? S.of(context).nowPlaying : S.of(context).lyrics,
+                _currentPage == 0
+                    ? S.of(context).nowPlaying
+                    : S.of(context).lyrics,
                 style: TextStyle(
                   color: AppColors.mutedText(context),
                   fontSize: 12,
@@ -1949,9 +1956,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           snap: true,
           builder: (context, scrollController) => GlassSurface(
             style: AppGlassStyle.regular,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(20),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             child: Material(
               color: Colors.transparent,
               child: _PlaybackQueueSheet(
@@ -2545,7 +2550,9 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
             Padding(
               padding: const EdgeInsets.all(32),
               child: Text(
-                fallbackReason == null ? S.of(context).queueEmpty : S.of(context).queueLoadFailed,
+                fallbackReason == null
+                    ? S.of(context).queueEmpty
+                    : S.of(context).queueLoadFailed,
                 style: TextStyle(
                   color: AppColors.mutedText(context),
                   fontSize: 14,
@@ -2644,10 +2651,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
 /// 播放器展开动画中的交错淡入：progress 超过 [delay] 后开始淡入。
 /// 封面/歌名/歌词/进度/按钮各自延迟，形成"各元素有自己的动作"的层次感。
 class _PlayerCoverBackdrop extends StatefulWidget {
-  const _PlayerCoverBackdrop({
-    required this.artwork,
-    required this.songId,
-  });
+  const _PlayerCoverBackdrop({required this.artwork, required this.songId});
 
   final String? artwork;
   final String? songId;
@@ -2750,10 +2754,7 @@ class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
         children: [
           ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
           if (!reduced && _previous != null)
-            FadeTransition(
-              opacity: ReverseAnimation(curved),
-              child: _previous,
-            ),
+            FadeTransition(opacity: ReverseAnimation(curved), child: _previous),
           if (reduced)
             _current
           else

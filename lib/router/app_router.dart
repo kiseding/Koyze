@@ -51,6 +51,7 @@ bool _isCurrentRoute(String path) =>
 Future<void> pushPlayerRoute(
   BuildContext context, {
   required bool hasSong,
+  bool openLyrics = false,
 }) async {
   if (!hasSong || _isCurrentRoute('/player') || _playerRoutePushInFlight) {
     return;
@@ -61,7 +62,7 @@ Future<void> pushPlayerRoute(
     _playerRoutePushInFlight = false;
   });
   try {
-    await context.push('/player');
+    await context.push(openLyrics ? '/player?lyrics=1' : '/player');
   } finally {
     _playerRoutePushTimeout?.cancel();
     _playerRoutePushTimeout = null;
@@ -223,7 +224,9 @@ final appRouter = GoRouter(
           progress: playerRouteProgress,
           invertProgress: true,
           onDismissCommit: _lockPlayerRouteDismiss,
-          child: const PlayerScreen(),
+          child: PlayerScreen(
+            openLyrics: state.uri.queryParameters['lyrics'] == '1',
+          ),
         ),
       ),
     ),

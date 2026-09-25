@@ -367,7 +367,13 @@ class HomeHeroCard extends ConsumerWidget {
                   color: onAccent.withAlpha(36),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(spec.icon, color: onAccent, size: 30),
+                child: Icon(
+                  spec.icon,
+                  color: spec.id == HomeHeroCardId.favorites
+                      ? const Color(0xFFFF3B30)
+                      : onAccent,
+                  size: 30,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(

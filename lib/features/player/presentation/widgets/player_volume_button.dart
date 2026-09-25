@@ -230,7 +230,7 @@ class _VolumePanel extends StatelessWidget {
                     volume <= 0.001
                         ? Icons.volume_off_rounded
                         : Icons.volume_mute_rounded,
-                    size: 20,
+                    size: 30,
                     color: AppColors.secondaryText(context),
                   ),
                 ),

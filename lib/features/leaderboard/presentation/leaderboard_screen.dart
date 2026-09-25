@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -157,13 +158,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                             icon: Icons.tune_rounded,
                             semanticLabel: S.of(context).chartSettings,
                             onTap: () => context.push('/leaderboard-settings'),
-                          ),
-                          FrostedHeaderButton(
-                            icon: Icons.refresh_rounded,
-                            semanticLabel: S.of(context).refreshCharts,
-                            onTap: () => ref.invalidate(
-                              leaderboardCategoriesProvider,
-                            ),
                           ),
                         ],
                       ),
@@ -409,7 +403,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                 bottom: 8,
                 child: _LeaderboardPlayButton(
                   category: category,
-                  color: Colors.white,
                   onPressed: () => _playLeaderboard(ref, category),
                 ),
               ),
@@ -581,12 +574,10 @@ class _NowPlayingSpinState extends State<_NowPlayingSpin>
 class _LeaderboardPlayButton extends ConsumerWidget {
   const _LeaderboardPlayButton({
     required this.category,
-    required this.color,
     required this.onPressed,
   });
 
   final LeaderboardCategory category;
-  final Color color;
   final VoidCallback onPressed;
 
   @override
@@ -597,21 +588,69 @@ class _LeaderboardPlayButton extends ConsumerWidget {
         return music != null && service.nowPlayingLeaderboardId == category.id;
       }),
     );
-    return CardPlayButton(
-      size: 60,
-      tooltip: isNowPlaying
-          ? S.of(context).nowPlayingNamed(category.name)
-          : S.of(context).playNamed(category.name),
-      color: color,
-      backgroundColor: isNowPlaying
-          ? Colors.white.withValues(alpha: 0.32)
-          : Colors.black.withValues(alpha: 0.38),
-      onPressed: onPressed,
-      icon: isNowPlaying
-          ? _NowPlayingSpin(
-              child: Icon(Icons.music_note, color: color, size: 36),
-            )
-          : Icon(Icons.play_arrow_rounded, color: color, size: 40),
+    // 浅色主题浅底深图标，深色主题深底浅图标。底色要透，封面颜色才出得来。
+    final isDark = AppColors.isDark(context);
+    final accent = AppColors.accentOf(context);
+    final background = isNowPlaying
+        ? accent
+        : (isDark ? AppColors.bg : Colors.white);
+    final iconColor = isNowPlaying
+        ? Colors.white
+        : (isDark ? AppColors.textPrimary : AppColors.lightText);
+    const diameter = 54.0;
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x47000000),
+            blurRadius: 14,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: SizedBox.square(
+        dimension: diameter,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            ClipOval(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: ColoredBox(
+                  color: background.withValues(
+                    alpha: isNowPlaying ? 0.88 : 0.34,
+                  ),
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+            CardPlayButton(
+              size: diameter,
+              tooltip: isNowPlaying
+                  ? S.of(context).nowPlayingNamed(category.name)
+                  : S.of(context).playNamed(category.name),
+              color: iconColor,
+              backgroundColor: Colors.transparent,
+              onPressed: onPressed,
+              icon: isNowPlaying
+                  ? const _NowPlayingSpin(
+                      child: Icon(
+                        Icons.music_note,
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                    )
+                  : Icon(
+                      Icons.play_arrow_rounded,
+                      color: iconColor,
+                      size: 40,
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

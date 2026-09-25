@@ -113,11 +113,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   semanticLabel: S.of(context).importPlaylist,
                   onTap: () => _showImportDialog(context, ref),
                 ),
-                FrostedHeaderButton(
-                  icon: Icons.add_rounded,
-                  semanticLabel: S.of(context).newPlaylist,
-                  onTap: () => _showCreateDialog(context, ref),
-                ),
               ],
             ),
             Padding(
@@ -316,14 +311,28 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             ),
           ),
           if (trailing)
-            FxIconButton(
-              tooltip: S.of(context).sortPlaylists,
-              icon: Icon(
-                Icons.sort,
-                color: scheme.onSurface.withAlpha(120),
-                size: 20,
-              ),
-              onPressed: () => _showSortMenu(context),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FxIconButton(
+                  tooltip: S.of(context).newPlaylist,
+                  icon: Icon(
+                    Icons.add_rounded,
+                    color: scheme.onSurface.withAlpha(120),
+                    size: 22,
+                  ),
+                  onPressed: () => _showCreateDialog(context, ref),
+                ),
+                FxIconButton(
+                  tooltip: S.of(context).sortPlaylists,
+                  icon: Icon(
+                    Icons.sort,
+                    color: scheme.onSurface.withAlpha(120),
+                    size: 20,
+                  ),
+                  onPressed: () => _showSortMenu(context),
+                ),
+              ],
             ),
         ],
       ),
@@ -457,7 +466,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 ),
                 child: const Icon(
                   Icons.favorite_rounded,
-                  color: onAccent,
+                  color: Color(0xFFFF3B30),
                   size: 28,
                 ),
               ),
@@ -477,6 +486,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     const SizedBox(height: 4),
                     Text(
                       S.of(context).songCount(songCount),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: onAccent.withAlpha(200),
                         fontSize: 13,
@@ -566,6 +578,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     const SizedBox(height: 4),
                     Text(
                       songCount == 0 ? S.of(context).chooseFolderToScan : S.of(context).songCount(songCount),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: onPurple.withAlpha(200),
                         fontSize: 13,
@@ -651,6 +666,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     const SizedBox(height: 4),
                     Text(
                       S.of(context).songCount(songCount),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: onBlue.withAlpha(200),
                         fontSize: 13,
@@ -733,6 +751,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     const SizedBox(height: 4),
                     Text(
                       count > 0 ? S.of(context).recommendedSongs(count) : S.of(context).recommendAfterFavorites,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: onOrange.withAlpha(200),
                         fontSize: 13,
@@ -836,6 +857,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     Text(
                       subtitle,
                       maxLines: 1,
+                      softWrap: false,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: onPink.withAlpha(200),
@@ -955,6 +977,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                       fontSize: 12,
                     ),
                     maxLines: 1,
+                    softWrap: false,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
