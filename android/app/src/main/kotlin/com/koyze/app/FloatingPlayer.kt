@@ -175,7 +175,7 @@ internal object FloatingPlayer {
             clipChildren = false
             clipToPadding = false
             background = GradientDrawable().apply {
-                cornerRadius = dp(host, 12).toFloat()
+                cornerRadius = dp(host, 20).toFloat()
                 setColor(Color.parseColor("#F01C1C1E"))
             }
             elevation = dp(host, 8).toFloat()
@@ -205,7 +205,7 @@ internal object FloatingPlayer {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
-            setPadding(0, 0, dp(host, 18), 0)
+            setPadding(0, 0, dp(host, 30), 0)
             text = " "
         }
         val title = TextView(host).apply {
@@ -214,7 +214,7 @@ internal object FloatingPlayer {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
-            setPadding(0, 0, dp(host, 18), 0)
+            setPadding(0, 0, dp(host, 30), 0)
         }
         val progress = ProgressBar(host, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1000
@@ -248,10 +248,21 @@ internal object FloatingPlayer {
             text = "×"
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            includeFontPadding = false
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#FF3B30"))
+            }
             setOnClickListener { dispatch("dismiss") }
         }
-        frame.addView(close, FrameLayout.LayoutParams(dp(host, 28), dp(host, 28), Gravity.TOP or Gravity.END))
+        frame.addView(
+            close,
+            FrameLayout.LayoutParams(dp(host, 36), dp(host, 36), Gravity.TOP or Gravity.END).apply {
+                topMargin = dp(host, 8)
+                marginEnd = dp(host, 8)
+            },
+        )
         installDrag(card)
         return frame
     }
@@ -261,9 +272,10 @@ internal object FloatingPlayer {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             clipChildren = false
+            setPadding(dp(host, 12), 0, dp(host, 12), 0)
         }
-        val skipSize = dp(host, 36)
-        val playSize = dp(host, 38)
+        val skipSize = dp(host, 42)
+        val playSize = dp(host, 44)
         fun addSkip(icon: Int, action: () -> Unit) {
             row.addView(
                 controlButton(host, icon, Color.WHITE, action),
@@ -279,7 +291,7 @@ internal object FloatingPlayer {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#1ED760"))
             }
-            setPadding(dp(host, 8), dp(host, 8), dp(host, 8), dp(host, 8))
+            setPadding(dp(host, 9), dp(host, 9), dp(host, 9), dp(host, 9))
             elevation = 0f
         }
         row.addView(playView, LinearLayout.LayoutParams(playSize, playSize))
@@ -304,7 +316,7 @@ internal object FloatingPlayer {
             setImageResource(icon)
             setColorFilter(tint)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(dp(host, 7), dp(host, 7), dp(host, 7), dp(host, 7))
+            setPadding(dp(host, 8), dp(host, 8), dp(host, 8), dp(host, 8))
             actions[this] = onClick
         }
     }
