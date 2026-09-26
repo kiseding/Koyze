@@ -53,6 +53,12 @@ final autoResumePlaybackProvider =
       return AutoResumePlaybackNotifier();
     });
 
+/// Android overlay player. Off until the user enables it.
+final androidFloatingPlayerProvider =
+    StateNotifierProvider<AndroidFloatingPlayerNotifier, bool>((ref) {
+      return AndroidFloatingPlayerNotifier();
+    });
+
 /// UI language. `system` follows the device locale.
 final appLanguageProvider =
     StateNotifierProvider<AppLanguageNotifier, AppLanguage>((ref) {
@@ -253,6 +259,20 @@ class AutoResumePlaybackNotifier extends _PersistedSettingNotifier<bool> {
 
   void applyCommitted(bool value) {
     applyCommittedValue(value);
+  }
+}
+
+class AndroidFloatingPlayerNotifier extends _PersistedSettingNotifier<bool> {
+  AndroidFloatingPlayerNotifier({StorageLoader? storage})
+    : super(false, storage: storage) {
+    _load((storage) => storage.getBool('android_floating_player'));
+  }
+
+  Future<void> setEnabled(bool value) async {
+    await _persist(
+      value,
+      (storage) => storage.setBool('android_floating_player', value),
+    );
   }
 }
 

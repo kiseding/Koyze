@@ -5,6 +5,7 @@ import '../../../l10n/app_strings.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
+import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
@@ -96,6 +97,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       filteredPlaylists: filteredPlaylists,
       isLoading: songSearch?.isLoading ?? false,
     );
+    final isLandscapeShell = RootShellLayout.usesSideNavigationOf(context);
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
@@ -104,17 +106,30 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         resizeToAvoidBottomInset: false,
         body: Column(
           children: [
-            FrostedTabHeader(
-              title: S.of(context).playlists,
-              leadingIcon: Icons.library_music_rounded,
-              actions: [
-                FrostedHeaderButton(
-                  icon: Icons.playlist_add_rounded,
-                  semanticLabel: S.of(context).importPlaylist,
-                  onTap: () => _showImportDialog(context, ref),
-                ),
-              ],
-            ),
+            if (isLandscapeShell)
+              RootHeaderPublisher(
+                index: 2,
+                title: S.of(context).playlists,
+                actions: [
+                  FrostedHeaderButton(
+                    icon: Icons.playlist_add_rounded,
+                    semanticLabel: S.of(context).importPlaylist,
+                    onTap: () => _showImportDialog(context, ref),
+                  ),
+                ],
+              )
+            else
+              FrostedTabHeader(
+                title: S.of(context).playlists,
+                leadingIcon: Icons.library_music_rounded,
+                actions: [
+                  FrostedHeaderButton(
+                    icon: Icons.playlist_add_rounded,
+                    semanticLabel: S.of(context).importPlaylist,
+                    onTap: () => _showImportDialog(context, ref),
+                  ),
+                ],
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: TextField(
@@ -225,7 +240,10 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      showAppNotification('${S.of(context).loadSongsFailed}: $error', type: AppNotificationType.error);
+      showAppNotification(
+        '${S.of(context).loadSongsFailed}: $error',
+        type: AppNotificationType.error,
+      );
     }
   }
 
@@ -256,13 +274,19 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final items = <_PlaylistBodyItem>[
       if (isLoading) const _BodyLoading(),
       if (songHits.isNotEmpty) ...[
-        _BodyHeader(title: S.of(context).songsHeader(songHits.length), trailing: false),
+        _BodyHeader(
+          title: S.of(context).songsHeader(songHits.length),
+          trailing: false,
+        ),
         const _BodyGap(8),
         for (final hit in songHits) _BodySongHitItem(hit),
         const _BodyGap(16),
       ],
       if (filteredPlaylists.isNotEmpty) ...[
-        _BodyHeader(title: S.of(context).playlistsHeader(filteredPlaylists.length), trailing: false),
+        _BodyHeader(
+          title: S.of(context).playlistsHeader(filteredPlaylists.length),
+          trailing: false,
+        ),
         const _BodyGap(8),
         for (final playlist in filteredPlaylists) _BodyPlaylistItem(playlist),
       ],
@@ -578,7 +602,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      songCount == 0 ? S.of(context).chooseFolderToScan : S.of(context).songCount(songCount),
+                      songCount == 0
+                          ? S.of(context).chooseFolderToScan
+                          : S.of(context).songCount(songCount),
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
@@ -751,7 +777,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      count > 0 ? S.of(context).recommendedSongs(count) : S.of(context).recommendAfterFavorites,
+                      count > 0
+                          ? S.of(context).recommendedSongs(count)
+                          : S.of(context).recommendAfterFavorites,
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
@@ -785,11 +813,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     );
   }
 
-  Widget _buildSubsonicCard(
-    BuildContext context,
-    WidgetRef ref,
-    dynamic _,
-  ) {
+  Widget _buildSubsonicCard(BuildContext context, WidgetRef ref, dynamic _) {
     final subsonicConnected = ref.watch(subsonicConnectedProvider);
     final nasConnected = {
       for (final kind in NasKind.values)
@@ -808,8 +832,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final subtitle = !connected
         ? S.of(context).nasHosts
         : subsonicConnected && songsAsync.isLoading
-            ? S.of(context).loadingHost(config.hostLabel)
-            : 'NAS';
+        ? S.of(context).loadingHost(config.hostLabel)
+        : 'NAS';
 
     return HoverFloat(
       child: Pressable(
@@ -897,16 +921,21 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         queue = await ref.read(subsonicServiceProvider).getLibrarySongs();
       }
       if (queue.isEmpty) {
-        showAppNotification(S.of(context).noSongsOnServer, type: AppNotificationType.info);
+        showAppNotification(
+          S.of(context).noSongsOnServer,
+          type: AppNotificationType.info,
+        );
         return;
       }
-      await ref.read(playerServiceProvider).playPlaylist(
-            queue,
-            manualPlayName: queue.first.name,
-          );
+      await ref
+          .read(playerServiceProvider)
+          .playPlaylist(queue, manualPlayName: queue.first.name);
     } catch (error) {
       if (!mounted) return;
-      showAppNotification('${S.of(context).playFailed}: $error', type: AppNotificationType.error);
+      showAppNotification(
+        '${S.of(context).playFailed}: $error',
+        type: AppNotificationType.error,
+      );
     }
   }
 
@@ -961,7 +990,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    S.of(context).builtinPlaylistName(playlist.id, playlist.name),
+                    S
+                        .of(context)
+                        .builtinPlaylistName(playlist.id, playlist.name),
                     style: TextStyle(
                       color: AppColors.onScaffold(context),
                       fontSize: 14,
@@ -972,7 +1003,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    S.of(context).playlistMeta(playlist.songCount, playlist.description),
+                    S
+                        .of(context)
+                        .playlistMeta(playlist.songCount, playlist.description),
                     style: TextStyle(
                       color: AppColors.mutedText(context),
                       fontSize: 12,
@@ -1468,11 +1501,14 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                               style: TextStyle(
                                 color: AppColors.onScaffold(ctx),
                               ),
-                              decoration: InputDecoration(
-                                hintText: S.of(context).playlistLinkExample,
-                                alignLabelWithHint: true,
-                                prefixIcon: const Icon(Icons.link_rounded),
-                              ).applyDefaults(Theme.of(ctx).inputDecorationTheme),
+                              decoration:
+                                  InputDecoration(
+                                    hintText: S.of(context).playlistLinkExample,
+                                    alignLabelWithHint: true,
+                                    prefixIcon: const Icon(Icons.link_rounded),
+                                  ).applyDefaults(
+                                    Theme.of(ctx).inputDecorationTheme,
+                                  ),
                             ),
                             if (error != null) ...[
                               const SizedBox(height: 12),
@@ -1514,7 +1550,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                             : () async {
                                 final input = inputCtrl.text.trim();
                                 if (input.isEmpty) {
-                                  setLocal(() => error = S.of(context).enterLinkOrId);
+                                  setLocal(
+                                    () => error = S.of(context).enterLinkOrId,
+                                  );
                                   return;
                                 }
                                 setLocal(() {
@@ -1531,7 +1569,12 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                           if (!ctx.mounted) return;
                                           setLocal(() {
                                             progress = total > 0
-                                                ? S.of(context).importProgress(loaded, total)
+                                                ? S
+                                                      .of(context)
+                                                      .importProgress(
+                                                        loaded,
+                                                        total,
+                                                      )
                                                 : '';
                                           });
                                         },
@@ -1550,7 +1593,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                         ),
                                       ),
                                       content: Text(
-                                        S.of(context).confirmImport(imported.songs.length),
+                                        S
+                                            .of(context)
+                                            .confirmImport(
+                                              imported.songs.length,
+                                            ),
                                         style: TextStyle(
                                           color: AppColors.mutedText(context),
                                         ),
@@ -1588,13 +1635,20 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                         .read(playlistServiceProvider)
                                         .createPlaylist(
                                           name: imported.name,
-                                          description: S.of(context).importedFrom(imported.source),
+                                          description: S
+                                              .of(context)
+                                              .importedFrom(imported.source),
                                           songs: imported.songs,
                                         );
                                     if (ctx.mounted) Navigator.pop(ctx);
                                     if (context.mounted) {
                                       showAppNotification(
-                                        S.of(context).importedResult(imported.name, imported.songs.length),
+                                        S
+                                            .of(context)
+                                            .importedResult(
+                                              imported.name,
+                                              imported.songs.length,
+                                            ),
                                         type: AppNotificationType.success,
                                       );
                                     }
@@ -1715,7 +1769,12 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            S.of(context).builtinPlaylistName(playlist.id, playlist.name),
+                            S
+                                .of(context)
+                                .builtinPlaylistName(
+                                  playlist.id,
+                                  playlist.name,
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

@@ -45,6 +45,13 @@ class S {
   String get autoResume => en ? 'Resume on launch' : '自动恢复播放';
   String get autoResumeSubtitle =>
       en ? 'Continue the last song when the app opens' : '打开 App 时自动继续播放上次的歌曲';
+  String get floatingPlayer => en ? 'Floating player' : '悬浮窗';
+  String get floatingPlayerSubtitle => en
+      ? 'Show cover, lyrics, progress, and playback controls over other apps'
+      : '离开应用后显示封面、歌词、进度和播放控制';
+  String get floatingPlayerPermission => en
+      ? 'Allow display over other apps, then return to Koyze'
+      : '请允许显示在其他应用上层，然后返回 Koyze';
   String get defaultSearchPlatform => en ? 'Default search source' : '默认搜索平台';
   String get listeningStats => en ? 'Listening stats' : '听歌统计';
   String get listeningStatsSubtitle =>
@@ -153,8 +160,7 @@ class S {
   String get searchSongsHint =>
       en ? 'Songs, artists, playlists...' : '搜索歌曲、歌手、歌单...';
   String get heroCardSettings => en ? 'Home card' : '首页大卡片设置';
-  String get heroCardSettingsAction =>
-      en ? 'Home card settings' : '设置首页大卡片';
+  String get heroCardSettingsAction => en ? 'Home card settings' : '设置首页大卡片';
   String get closeHeroCardSettings =>
       en ? 'Close home card settings' : '关闭首页大卡片设置';
   String get heroCardHint => en
@@ -172,9 +178,8 @@ class S {
   String get playInOrder => en ? 'In order' : '顺序播放';
   String get shufflePlay => en ? 'Shuffle' : '随机播放';
   String get repeatOne => en ? 'Repeat one' : '单曲循环';
-  String get playInOrderHint => en
-      ? 'Play the list in order, then start over'
-      : '按列表顺序播放，播完回到第一首';
+  String get playInOrderHint =>
+      en ? 'Play the list in order, then start over' : '按列表顺序播放，播完回到第一首';
   String get shufflePlayHint =>
       en ? 'Shuffle, then keep picking at random' : '打乱顺序，播完继续随机下一首';
   String get repeatOneHint => en ? 'Repeat the current song' : '只循环当前第一首';
@@ -190,15 +195,15 @@ class S {
   String songCount(int count) => en ? '$count songs' : '$count 首歌曲';
   String get chooseFolderToScan =>
       en ? 'Choose a folder to scan this device' : '选择文件夹扫描设备歌曲';
-  String get nasHosts =>
-      en ? 'Navidrome / Emby / Plex / Synology' : 'Navidrome / Emby / Plex / 群晖';
+  String get nasHosts => en
+      ? 'Navidrome / Emby / Plex / Synology'
+      : 'Navidrome / Emby / Plex / 群晖';
   String loadingHost(String host) => en ? 'Loading $host' : '正在加载 $host';
   String actionFailed(String action, Object error) =>
       en ? '$action failed: $error' : '$action失败: $error';
   String get loadSongsFailed => en ? 'Could not load songs' : '加载歌曲失败';
   String get playFailed => en ? 'Playback failed' : '播放失败';
-  String get noSongsOnServer =>
-      en ? 'No songs on the server yet' : '服务器上还没有歌曲';
+  String get noSongsOnServer => en ? 'No songs on the server yet' : '服务器上还没有歌曲';
   String failedWith(String label, Object error) =>
       en ? '$label: $error' : '$label: $error';
 
@@ -282,9 +287,8 @@ class S {
   String get back => en ? 'Back' : '返回';
   String chartCount(int count) => en ? '$count charts' : '$count 个榜单';
   String get defaultFirst => en ? 'Shown first' : '默认优先';
-  String hiddenUntil(String name) => en
-      ? 'Hidden until you turn on “$name”'
-      : '已隐藏，勾选「$name」后显示';
+  String hiddenUntil(String name) =>
+      en ? 'Hidden until you turn on “$name”' : '已隐藏，勾选「$name」后显示';
 
   String get importPlaylist => en ? 'Import playlist' : '导入歌单';
   String get newPlaylist => en ? 'New playlist' : '新建歌单';
@@ -330,9 +334,8 @@ class S {
   String get importAction => en ? 'Import' : '导入';
   String importedFrom(String source) =>
       en ? 'Imported from $source' : '导入自$source';
-  String importedResult(String name, int count) => en
-      ? 'Imported “$name”, $count songs'
-      : '已导入「$name」$count 首';
+  String importedResult(String name, int count) =>
+      en ? 'Imported “$name”, $count songs' : '已导入「$name」$count 首';
   String get parsingPlaylist => en ? 'Reading playlist…' : '正在解析歌单…';
   String parsingProgress(String progress) =>
       en ? 'Reading $progress' : '正在解析 $progress';
@@ -389,9 +392,8 @@ class S {
       : '已标记不喜欢，后续播放会自动跳过';
   String get dislikeFailed => en ? 'Could not mark dislike' : '标记不喜欢失败';
   String queueTitle(int count) => en ? 'Queue ($count)' : '播放列表 ($count)';
-  String get queueLoadFailed => en
-      ? 'Full list failed. Showing the current queue.'
-      : '完整列表加载失败，显示当前队列';
+  String get queueLoadFailed =>
+      en ? 'Full list failed. Showing the current queue.' : '完整列表加载失败，显示当前队列';
   String get queueEmpty => en ? 'Queue is empty' : '播放列表为空';
 
   String get playlistMissing => en ? 'Playlist not found' : '歌单不存在';
@@ -410,7 +412,8 @@ class S {
     _ => storedName,
   };
   String get downloadSelected => en ? 'Download selected' : '下载已选歌曲';
-  String get unfavoriteSelected => en ? 'Remove selected from Favorites' : '取消收藏已选歌曲';
+  String get unfavoriteSelected =>
+      en ? 'Remove selected from Favorites' : '取消收藏已选歌曲';
   String get playAll => en ? 'Play all' : '播放全部';
   String favoritedSongs(int count) =>
       en ? 'Added $count songs to Favorites' : '已收藏 $count 首歌曲';
@@ -435,9 +438,8 @@ class S {
       en ? 'Added $count songs to downloads' : '已添加 $count 首到下载队列';
   String unfavoritedSongs(int count) =>
       en ? 'Removed $count songs from Favorites' : '已取消收藏 $count 首歌曲';
-  String get nothingSelectedToUnfavorite => en
-      ? 'No selected songs to remove from Favorites'
-      : '没有可取消收藏的已选歌曲';
+  String get nothingSelectedToUnfavorite =>
+      en ? 'No selected songs to remove from Favorites' : '没有可取消收藏的已选歌曲';
   String get unfavoriteFailed =>
       en ? 'Could not remove from Favorites' : '取消收藏失败';
   String get descriptionLabel => en ? 'Description' : '描述';
@@ -446,7 +448,8 @@ class S {
       ? 'Remove $count songs from Favorites. This cannot be undone, and it does not delete the original files or playlist songs.'
       : '将从收藏列表移除 $count 首歌曲，此操作不可撤销，但不会删除本地或歌单中的原歌曲。';
   String get confirmClear => en ? 'Clear' : '确认清空';
-  String get favoritesAlreadyEmpty => en ? 'Favorites is already empty' : '收藏列表已为空';
+  String get favoritesAlreadyEmpty =>
+      en ? 'Favorites is already empty' : '收藏列表已为空';
   String deletePlaylistConfirm(String name) =>
       en ? 'Delete “$name”?' : '确定删除「$name」？';
   String get delete => en ? 'Delete' : '删除';
@@ -541,17 +544,15 @@ class S {
   String get equalizerUnavailableBody => en
       ? 'The equalizer needs an audio-effects channel. AVPlayer on iOS and macOS, and Media Foundation on Windows, do not expose one, so it currently works on Android only.'
       : '均衡器需要播放引擎开放音频特效通道。iOS / macOS 的 AVPlayer 与 Windows 的 Media Foundation 都没有暴露这一层，因此暂时只在 Android 上生效。';
-  String get equalizerHint => en
-      ? 'Adjust the tone for every source'
-      : '按频段调整播放音色，对所有音源生效';
+  String get equalizerHint =>
+      en ? 'Adjust the tone for every source' : '按频段调整播放音色，对所有音源生效';
   String get unavailableOnPlatform =>
       en ? 'Not available on this platform' : '当前平台不可用';
   String get gainDb => en ? 'Gain (dB)' : '增益（dB）';
   String get enableEqualizerToAdjust =>
       en ? 'Turn the equalizer on to adjust' : '开启均衡器后可调节';
-  String bandsReady(int count, String range) => en
-      ? 'Device bands: $count ($range)'
-      : '已读取设备频段：$count 段（$range）';
+  String bandsReady(int count, String range) =>
+      en ? 'Device bands: $count ($range)' : '已读取设备频段：$count 段（$range）';
   String get bandsPending => en
       ? 'Player not connected. Showing a typical 5-band layout until playback starts.'
       : '播放器尚未连接，暂按常见 5 段展示；开始播放后会自动读取设备频段';
@@ -567,9 +568,8 @@ class S {
   String mediaStoreHint(int count) => en
       ? 'MediaStore can rescan. $count folders saved'
       : 'MediaStore 可重扫，已配置 $count 个目录';
-  String get folderPickerHint => en
-      ? 'Add opens the system folder picker'
-      : '添加会打开系统文件夹选择器并授权访问';
+  String get folderPickerHint =>
+      en ? 'Add opens the system folder picker' : '添加会打开系统文件夹选择器并授权访问';
   String get androidMediaStore =>
       en ? 'Android MediaStore · scanned first' : 'Android MediaStore · 默认优先扫描';
   String downloadFolder(String path) =>
@@ -582,7 +582,8 @@ class S {
       en ? 'Could not choose a music folder' : '选择音乐文件夹失败';
   String get chooseMusicFolder => en ? 'Choose a music folder' : '选择音乐文件夹';
   String get chooseFolderFailed => en ? 'Could not choose a folder' : '选择文件夹失败';
-  String get safImporting => en ? 'Importing the music folder…' : 'SAF 正在导入音乐文件夹…';
+  String get safImporting =>
+      en ? 'Importing the music folder…' : 'SAF 正在导入音乐文件夹…';
   String importingCount(int done, int total) =>
       en ? 'Importing $done / $total' : 'SAF 正在导入 $done / $total';
   String get scanAndroidFailed =>
@@ -592,7 +593,8 @@ class S {
       : '正在通过 Android MediaStore 扫描本地音乐…';
   String mediaStoreImporting(int done, int total) =>
       en ? 'MediaStore $done / $total' : 'MediaStore 正在导入 $done / $total';
-  String get mediaStoreEmpty => en ? 'MediaStore returned no audio' : 'MediaStore 未返回音频';
+  String get mediaStoreEmpty =>
+      en ? 'MediaStore returned no audio' : 'MediaStore 未返回音频';
   String get tryingAllFiles => en
       ? 'MediaStore is unavailable. Trying all-files access…'
       : 'MediaStore 不可用，正在尝试全部文件访问权限…';
@@ -601,13 +603,11 @@ class S {
   String get openingSaf => en
       ? 'All-files access is unavailable. Opening folder access…'
       : '全部文件访问不可用，正在打开 SAF 目录授权…';
-  String get androidAccessDenied => en
-      ? 'Android music access was not granted'
-      : '未获得可用的 Android 本地音乐访问权限';
+  String get androidAccessDenied =>
+      en ? 'Android music access was not granted' : '未获得可用的 Android 本地音乐访问权限';
   String get androidAuthFailed =>
       en ? 'Android music access failed' : 'Android 本地音乐授权失败';
-  String get matchingOnline =>
-      en ? 'Matching online songs…' : '正在匹配在线歌曲（刮削）…';
+  String get matchingOnline => en ? 'Matching online songs…' : '正在匹配在线歌曲（刮削）…';
   String scanningPath(String path) => en ? 'Scanning $path…' : '正在扫描 $path …';
   String readingMetadata(int done, int total) =>
       en ? 'Reading tags $done / $total' : '正在解析元数据 $done / $total';
@@ -621,7 +621,8 @@ class S {
   String localUpdated(int count) =>
       en ? 'Local music updated ($count songs)' : '本地音乐已更新（$count 首）';
   String get noWritableSongs => en ? 'No local songs to write' : '没有可写入的本地歌曲';
-  String get writingTags => en ? 'Writing tags back to the files…' : '正在尝试写回原文件标签…';
+  String get writingTags =>
+      en ? 'Writing tags back to the files…' : '正在尝试写回原文件标签…';
   String writingTagsCount(int done, int total) =>
       en ? 'Writing tags $done / $total' : '正在写回原文件标签 $done / $total';
   String get noTagsToWrite => en ? 'No tags to write back' : '没有可写回的刮削标签';
@@ -679,19 +680,18 @@ class S {
   String duplicateGroup(String artist, int count) => en
       ? '$artist · $count versions · select the ones to remove'
       : '$artist · $count 个版本 · 勾选要移除的';
-  String get removeGroupSelected => en ? 'Remove selected in this group' : '移除本组已选';
+  String get removeGroupSelected =>
+      en ? 'Remove selected in this group' : '移除本组已选';
   String get keepSuggested => en ? 'Keep' : '推荐保留';
   String get hasLyricsMark => en ? ' · Lyrics' : ' · 有歌词';
   String removedDuplicates(int count) =>
       en ? 'Removed $count duplicates' : '已移除 $count 处重复项';
   String get addedToPlaylist => en ? 'Added to playlist' : '已添加到歌单';
-  String get playlistCreatedAndAdded =>
-      en ? 'Playlist created' : '已创建歌单并添加';
+  String get playlistCreatedAndAdded => en ? 'Playlist created' : '已创建歌单并添加';
   String get collapseNewPlaylist => en ? 'Hide new playlist' : '收起新建歌单';
   String get newPlaylistName => en ? 'New playlist name' : '新歌单名称';
   String playlistSongCount(int count) => en ? '$count songs' : '$count 首';
-  String get basedOnFavorites =>
-      en ? 'Based on music you like' : '根据你喜欢的音乐推荐';
+  String get basedOnFavorites => en ? 'Based on music you like' : '根据你喜欢的音乐推荐';
   String recommendUpdated(int count) =>
       en ? '$count songs · keeps updating' : '推荐 $count 首 · 持续更新';
   String get noRecommendations => en ? 'No recommendations yet' : '还没有推荐';
@@ -705,15 +705,18 @@ class S {
   String get scrapeArtworkLyrics => en ? 'Match artwork and lyrics' : '刮削封面和歌词';
   String scrapingProgress(int done, int total) =>
       en ? 'Matching $done / $total' : '正在刮削 $done / $total';
-  String notConnected(String name) => en ? '$name is not connected' : '尚未连接 $name';
+  String notConnected(String name) =>
+      en ? '$name is not connected' : '尚未连接 $name';
   String get goConnect => en ? 'Connect' : '去连接';
-  String connectedHost(String host) => en ? 'Connected to $host' : '当前已连接 $host';
+  String connectedHost(String host) =>
+      en ? 'Connected to $host' : '当前已连接 $host';
   String get noOnlineMatch =>
       en ? 'No online artwork or lyrics matched' : '没有匹配到在线封面或歌词';
   String matchedSongs(int matched, int total) => en
       ? 'Matched artwork and lyrics for $matched / $total songs'
       : '已为 $matched / $total 首匹配封面和歌词';
-  String scrapeFailed(Object error) => en ? 'Match failed: $error' : '刮削失败: $error';
+  String scrapeFailed(Object error) =>
+      en ? 'Match failed: $error' : '刮削失败: $error';
   String nasPlaylistTitle(String name) => en ? '$name playlist' : '$name 歌单';
   String get welcome => en ? 'Welcome to Koyze' : '欢迎使用 Koyze';
   String get welcomeBody => en
@@ -735,8 +738,9 @@ class S {
   String get loginFailed => en ? 'Could not log in' : '登录失败';
   String get syncTitle => en ? 'Sync' : '同步 / 云端账号';
   String get workersServer => en ? 'Workers server' : 'Workers 服务器';
-  String get workersUnset =>
-      en ? 'Not set (for example https://xxx.workers.dev)' : '未配置（例如 https://xxx.workers.dev）';
+  String get workersUnset => en
+      ? 'Not set (for example https://xxx.workers.dev)'
+      : '未配置（例如 https://xxx.workers.dev）';
   String loggedInAs(String name) => en ? 'Signed in: $name' : '已登录：$name';
   String get notLoggedIn => en ? 'Not signed in' : '未登录';
   String roleLine(String role) => en ? 'Role: $role' : '角色：$role';
@@ -753,8 +757,9 @@ class S {
   String get syncDoesNotOverwrite => en
       ? 'Uploads local changes and downloads other devices. Nothing is overwritten.'
       : '只上传本地变更并拉取其他设备变更，不覆盖数据';
-  String get offlineUntilNetwork =>
-      en ? 'Saved on this device. Syncs when the network returns.' : '数据保存在本地，网络恢复后自动同步';
+  String get offlineUntilNetwork => en
+      ? 'Saved on this device. Syncs when the network returns.'
+      : '数据保存在本地，网络恢复后自动同步';
   String deviceLine(String id) => en ? 'Device: $id' : '设备：$id';
   String timeLine(String time) => en ? 'Time: $time' : '时间：$time';
   String get logOut => en ? 'Log out' : '退出登录';
@@ -763,7 +768,8 @@ class S {
       : '退出后保留收藏、歌单、评分、播放历史、下载与缓存，仅清除登录状态';
   String get loggedOut => en ? 'Logged out' : '已退出登录';
   String get userAdmin => en ? 'Users (admin)' : '用户管理（管理员）';
-  String get userAdminHint => en ? 'Create, delete, or reset passwords' : '创建 / 删除 / 重置密码';
+  String get userAdminHint =>
+      en ? 'Create, delete, or reset passwords' : '创建 / 删除 / 重置密码';
   String get workersAddress => en ? 'Workers address' : 'Workers 地址';
   String get serverReachable => en ? 'Server is reachable' : '服务器可达';
   String get savedHealthFailed => en
@@ -771,7 +777,8 @@ class S {
       : '保存成功，但健康检查失败（部署后重试）';
   String get httpsRequired =>
       en ? 'The server address must use HTTPS' : '服务器地址必须使用 HTTPS';
-  String get enterServerFirst => en ? 'Enter the server address first' : '请先填写服务器地址';
+  String get enterServerFirst =>
+      en ? 'Enter the server address first' : '请先填写服务器地址';
   String get loginSucceeded => en ? 'Signed in' : '登录成功';
   String get failed => en ? 'Failed' : '失败';
   String get syncFinished => en ? 'Sync finished' : '同步完成';
@@ -793,9 +800,8 @@ class S {
   String get noCustomSources => en ? 'No custom sources' : '暂无自定义源';
   String get addCustomSourceHint =>
       en ? 'Use + to add a custom source' : '点击右上角 + 添加自定义源';
-  String sourceInitFailed(String name) => en
-      ? '$name failed to start. Check the script.'
-      : '$name 初始化失败，请检查脚本';
+  String sourceInitFailed(String name) =>
+      en ? '$name failed to start. Check the script.' : '$name 初始化失败，请检查脚本';
   String get importScriptOk => en ? 'Script imported' : '导入脚本成功';
   String get importScriptBad =>
       en ? 'Import failed. The script format is wrong.' : '导入失败，脚本格式错误';
@@ -809,15 +815,15 @@ class S {
   String get httpsLinkRequired =>
       en ? 'Enter a valid HTTPS link' : '请输入有效的 HTTPS 链接';
   String get importOk => en ? 'Imported' : '导入成功';
-  String get importLinkBad => en
-      ? 'Import failed. Check the link or the script.'
-      : '导入失败，请检查链接或脚本格式';
+  String get importLinkBad =>
+      en ? 'Import failed. Check the link or the script.' : '导入失败，请检查链接或脚本格式';
   String get directDownloadHint =>
       en ? 'Paste a direct link to the script file' : '请输入脚本文件的直接下载链接';
   String get clipboardEmpty => en ? 'The clipboard has no link' : '剪切板中没有链接';
   String get clipboard => en ? 'Clipboard' : '剪切板';
   String get importCustomSource => en ? 'Import a custom source' : '导入自定义源';
-  String get lxScriptHint => en ? 'LX Music scripts are supported' : '支持 LX Music 格式脚本';
+  String get lxScriptHint =>
+      en ? 'LX Music scripts are supported' : '支持 LX Music 格式脚本';
   String get pasteScriptHint =>
       en ? 'Paste an LX Music script or JSON…' : '粘贴 LX Music 脚本或 JSON 配置...';
   String get importFormatBad =>
@@ -838,11 +844,13 @@ class S {
       ? (en ? 'Connected to $type' : '已连接 $type')
       : (en ? 'Connected to $type $version' : '已连接 $type $version');
   String get connectFailed => en ? 'Could not connect' : '连接失败';
-  String disconnected(String name) => en ? 'Disconnected from $name' : '已断开 $name';
+  String disconnected(String name) =>
+      en ? 'Disconnected from $name' : '已断开 $name';
   String get nasServerTitle => en ? 'NAS music server' : 'NAS 音乐服务器';
   String get usernameOptional => en ? 'Username (optional)' : '用户名（可留空）';
-  String get plexAccountHint =>
-      en ? 'plex.tv account. Leave empty to use a token.' : 'plex.tv 账号，留空则使用 Token';
+  String get plexAccountHint => en
+      ? 'plex.tv account. Leave empty to use a token.'
+      : 'plex.tv 账号，留空则使用 Token';
   String get serverLoginName => en ? 'Server username' : '服务器登录名';
   String get passwordOrToken => en ? 'Password / token' : '密码 / Token';
   String get passwordSaved =>
@@ -861,7 +869,9 @@ class S {
   String currentConnection(String title, String host, String? username) =>
       username == null
       ? (en ? 'Current: $title · $host' : '当前：$title · $host')
-      : (en ? 'Current: $title · $host · $username' : '当前：$title · $host · $username');
+      : (en
+            ? 'Current: $title · $host · $username'
+            : '当前：$title · $host · $username');
   String get diagnosticsTitle => en ? 'Diagnostics' : '实时诊断日志';
   String diagnosticsCount(int count) => en ? 'Log $count' : '诊断 $count';
   String get minimize => en ? 'Minimize' : '最小化';
@@ -878,7 +888,8 @@ class S {
   String get autoplayNextFailed => en
       ? 'Could not play the next song. Open Koyze and try again.'
       : '自动播放下一首失败，请返回应用重试';
-  String get reloadingSong => en ? 'Playback failed. Reloading.' : '播放歌曲失败，正在重新加载';
+  String get reloadingSong =>
+      en ? 'Playback failed. Reloading.' : '播放歌曲失败，正在重新加载';
   String get tryingNextSong =>
       en ? 'Playback failed. Trying the next song.' : '播放歌曲失败，正在尝试下一首';
   String unresolvedUrl(String title) => en

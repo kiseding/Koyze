@@ -14,11 +14,13 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/storage/storage_service.dart';
+import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/widgets/sleep_timer_sheet.dart';
 import 'settings_provider.dart';
 import '../../search/presentation/search_provider.dart';
 import '../../playlist/data/playlist_repository.dart';
 import '../../playlist/presentation/playlist_provider.dart';
+import '../../player/platform/android_floating_player.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
 import '../../download/presentation/download_provider.dart';
@@ -71,6 +73,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
+  Future<void> _setFloatingPlayer(
+    BuildContext context,
+    WidgetRef ref,
+    bool value,
+  ) async {
+    if (!value) {
+      await ref.read(androidFloatingPlayerProvider.notifier).setEnabled(false);
+      return;
+    }
+    const player = AndroidFloatingPlayer();
+    if (await player.canDrawOverlays()) {
+      await ref.read(androidFloatingPlayerProvider.notifier).setEnabled(true);
+      return;
+    }
+    await player.requestPermission();
+    if (!context.mounted) return;
+    showAppNotification(S.of(context).floatingPlayerPermission);
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
@@ -83,6 +104,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         (themeMode == ThemeMode.system &&
             MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
+    final isLandscapeShell = RootShellLayout.usesSideNavigationOf(context);
+
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
@@ -90,7 +113,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         body: Stack(
           children: [
             ListView(
-              padding: EdgeInsets.only(top: FrostedTabHeader.extent(context)),
+              padding: EdgeInsets.only(
+                top: isLandscapeShell ? 0 : FrostedTabHeader.extent(context),
+              ),
               children: [
                 _buildSection(context, s.sync, [
                   _buildNavTile(
@@ -205,6 +230,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           .setAutoResume(value);
                     },
                   ),
+                  if (androidFloatingPlayerSupported)
+                    _buildSwitchTile(
+                      context,
+                      ref,
+                      s.floatingPlayer,
+                      s.floatingPlayerSubtitle,
+                      ref.watch(androidFloatingPlayerProvider),
+                      (value) => _setFloatingPlayer(context, ref, value),
+                    ),
                   _buildNavTile(
                     context,
                     ref,
@@ -336,15 +370,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 40),
               ],
             ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: FrostedTabHeader(
-                title: s.settings,
-                leadingIcon: Icons.settings_rounded,
+            if (isLandscapeShell)
+              RootHeaderPublisher(index: 3, title: s.settings)
+            else
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: FrostedTabHeader(
+                  title: s.settings,
+                  leadingIcon: Icons.settings_rounded,
+                ),
               ),
-            ),
           ],
         ),
       ),

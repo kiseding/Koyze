@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -8,9 +9,9 @@ import '../../../l10n/app_strings.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/pressable.dart';
+import '../../../core/widgets/root_shell_layout.dart';
 import '../../player/presentation/widgets/mini_player.dart';
 
-/// 主壳：底栏 + 迷你播放器；分支内容由 [SwipeBranchContainer] 提供。
 class MainScaffold extends StatefulWidget {
   final StatefulNavigationShell navigationShell;
   final ValueChanged<int>? onBranchTap;
@@ -29,11 +30,24 @@ class _MainScaffoldState extends State<MainScaffold> {
   // 上一帧 progress：判定方向——下滑/关闭（progress 下降）时 chrome
   // 全程立即显示，迷你栏绝不"消失一下"；打开（上升）保留退场窗口。
   double _prevProgress = 0;
+  final _pageHeaders = RootHeaderController();
+
+  @override
+  void dispose() {
+    _pageHeaders.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final navigationShell = widget.navigationShell;
     final media = MediaQuery.of(context);
+    final usesSideNavigation = shouldUseSideNavigation(
+      size: media.size,
+      orientation: media.orientation,
+      platform: defaultTargetPlatform,
+      isWeb: kIsWeb,
+    );
     // `padding` can exclude an overlaid system bar on edge-to-edge platforms.
     // Keep the existing iOS layout, while using the larger stable inset when
     // Flutter reports one through `viewPadding`.
@@ -41,24 +55,48 @@ class _MainScaffoldState extends State<MainScaffold> {
         ? media.padding.bottom
         : media.viewPadding.bottom;
     final bottomSpacing = bottomInset == 0 ? 2.0 : 0.0;
-    // Without a system bottom inset, the icon/text column needs a few more
-    // pixels than the compact iOS bar height to avoid overflowing downward.
     final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
     final navHeight = 36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
     const miniHeight = 66.0;
     const miniGap = 11.0;
-    // 无系统底栏的安卓/Windows：用等效系统栏高度把导航栏整体上移，
-    // 使图标列离屏幕底部的距离与 iOS 视觉一致（约 19px）。
+    final sideRailWidth = sideNavigationWidth(
+      enabled: usesSideNavigation,
+      padding: media.padding,
+      viewPadding: media.viewPadding,
+    );
+    final leadingInset = media.padding.left > media.viewPadding.left
+        ? media.padding.left
+        : media.viewPadding.left;
+    final topInset = media.padding.top > media.viewPadding.top
+        ? media.padding.top
+        : media.viewPadding.top;
+    final trailingInset = media.padding.right > media.viewPadding.right
+        ? media.padding.right
+        : media.viewPadding.right;
+    // Landscape content must clear the rounded screen corner, not only the
+    // reported inset. Pages add their own small padding inside this gutter.
+    final contentRightInset = usesSideNavigation
+        ? (trailingInset > 20 ? trailingInset : 20.0)
+        : 0.0;
+    // The side layout has no bottom tab bar, so only reserve space for the
+    // mini-player and a small breathing room below it.
     final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
-    // 迷你播放器定位在导航栏容器顶（navHeight+16+clearance）之上 miniGap。
-    final miniBottom = bottomInset == 0
+    final miniBottom = usesSideNavigation
+        ? (bottomInset == 0 ? 8.0 : 6.0)
+        : bottomInset == 0
         ? navHeight + 16 + bottomClearance + miniGap
         : navHeight + miniGap;
     final selectedIndex = navigationShell.currentIndex;
-    // 壳层布局必须与键盘无关：任何 keyboardOpen 时改 padding/挪 chrome
-    // 都会在 iOS 首次聚焦时触发布局抖动 → 输入法秒关。
-    // 键盘盖住底栏即可；内容区始终预留 chrome 高度。
-    final chromeBottom = miniBottom + miniHeight;
+    final chromeBottom =
+        miniBottom + miniHeight + (usesSideNavigation ? 8.0 : 0.0);
+
+    void onBranchTap(int index) {
+      if (widget.onBranchTap != null) {
+        widget.onBranchTap!(index);
+      } else {
+        widget.navigationShell.goBranch(index);
+      }
+    }
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -66,14 +104,6 @@ class _MainScaffoldState extends State<MainScaffold> {
       body: ValueListenableBuilder<double>(
         valueListenable: playerRouteProgress,
         builder: (context, progress, _) {
-          // 全屏播放器展开时：底栏向下挤出屏幕、Tab 内容向上挤出屏幕、
-          // 迷你栏向上扩张渐隐，营造"从迷你栏展开"的联动感。
-          // 透明播放器路由只在前景 currentRect 内绘制。若底层主壳在
-          // 前 90% 转场中先上移/消失，未覆盖区域会露出 Navigator/Scaffold
-          // 底色，视觉上就是不分深浅色都会闪一下的全屏浅色幕。
-          // 所以底层 chrome 保持到播放器几乎全屏后，再在最后 8% 快速退场。
-          // 方向感知：下滑/关闭（progress 下降）时 chrome 全程立即显示，
-          // 迷你栏绝不"消失一下"；打开（上升）保留最后 8% 退场窗口。
           final descending = progress < _prevProgress;
           _prevProgress = progress;
           final visibleProgress = descending || progress <= 0.92
@@ -85,57 +115,99 @@ class _MainScaffoldState extends State<MainScaffold> {
           final chromeOpacity = 1 - visibleProgress;
           final navPush = miniBottom + miniHeight;
           final tabPush = chromeBottom * 0.6;
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: Opacity(
-                  opacity: chromeOpacity,
-                  child: Transform.translate(
-                    offset: Offset(0, -tabPush * eased),
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: chromeBottom),
-                      child: navigationShell,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: bottomClearance,
-                child: Opacity(
-                  opacity: chromeOpacity,
-                  child: Transform.translate(
-                    offset: Offset(0, navPush * eased),
-                    child: _BottomNav(
-                      height: navHeight,
-                      bottomSpacing: bottomSpacing,
-                      selectedIndex: selectedIndex,
-                      onTap: (i) {
-                        if (widget.onBranchTap != null) {
-                          widget.onBranchTap!(i);
-                        } else {
-                          widget.navigationShell.goBranch(i);
-                        }
-                      },
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 3,
-                right: 3,
-                bottom: miniBottom,
-                child: Transform.scale(
-                  alignment: Alignment.bottomCenter,
-                  scale: 1 + 0.035 * eased,
+          final shell = RootShellLayout(
+            usesSideNavigation: usesSideNavigation,
+            child: navigationShell,
+          );
+
+          return RootHeaderScope(
+            controller: _pageHeaders,
+            child: Stack(
+              children: [
+                Positioned.fill(
                   child: Opacity(
                     opacity: chromeOpacity,
-                    child: const MiniPlayer(floating: true, alwaysShow: true),
+                    child: Transform.translate(
+                      offset: Offset(0, -tabPush * eased),
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: usesSideNavigation ? sideRailWidth : 0,
+                          right: contentRightInset,
+                          bottom: chromeBottom,
+                        ),
+                        child: shell,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
+                if (usesSideNavigation)
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: sideRailWidth,
+                    child: Opacity(
+                      opacity: chromeOpacity,
+                      child: Transform.translate(
+                        offset: Offset(-sideRailWidth * eased, 0),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.fill(context),
+                            border: Border(
+                              right: BorderSide(
+                                color: AppColors.cardBorder(context),
+                              ),
+                            ),
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              left: leadingInset,
+                              top: topInset,
+                              bottom: bottomInset,
+                            ),
+                            child: _SideNav(
+                              selectedIndex: selectedIndex,
+                              headers: _pageHeaders,
+                              onTap: onBranchTap,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (!usesSideNavigation)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: bottomClearance,
+                    child: Opacity(
+                      opacity: chromeOpacity,
+                      child: Transform.translate(
+                        offset: Offset(0, navPush * eased),
+                        child: _BottomNav(
+                          height: navHeight,
+                          bottomSpacing: bottomSpacing,
+                          selectedIndex: selectedIndex,
+                          onTap: onBranchTap,
+                        ),
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  left: usesSideNavigation ? sideRailWidth + 8 : 3,
+                  right: usesSideNavigation ? contentRightInset : 3,
+                  bottom: miniBottom,
+                  child: Transform.scale(
+                    alignment: Alignment.bottomCenter,
+                    scale: 1 + 0.035 * eased,
+                    child: Opacity(
+                      opacity: chromeOpacity,
+                      child: const MiniPlayer(floating: true, alwaysShow: true),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -435,6 +507,157 @@ class _EditableAwareHorizontalDragGestureRecognizer
       return;
     }
     super.addAllowedPointer(event);
+  }
+}
+
+class _SideNav extends StatelessWidget {
+  final int selectedIndex;
+  final RootHeaderController headers;
+  final ValueChanged<int> onTap;
+
+  const _SideNav({
+    required this.selectedIndex,
+    required this.headers,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    return Column(
+      children: [
+        ListenableBuilder(
+          listenable: headers,
+          builder: (context, _) {
+            const slotHeight = 44.0;
+            const topPadding = 22.0;
+            const bottomPadding = 12.0;
+            final header = headers.headerFor(selectedIndex);
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(
+                14,
+                topPadding,
+                8,
+                bottomPadding,
+              ),
+              child: SizedBox(
+                height: slotHeight,
+                child: header == null
+                    ? const SizedBox.expand()
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              header.title,
+                              key: header.titleKey,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.3,
+                                color: AppColors.onScaffold(context),
+                              ),
+                            ),
+                          ),
+                          ...header.actions,
+                        ],
+                      ),
+              ),
+            );
+          },
+        ),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _item(context, 0, Icons.home_outlined, Icons.home, s.home),
+              _item(
+                context,
+                1,
+                Icons.leaderboard_outlined,
+                Icons.leaderboard,
+                s.charts,
+              ),
+              _item(
+                context,
+                2,
+                Icons.library_music_outlined,
+                Icons.library_music,
+                s.playlists,
+              ),
+              _item(
+                context,
+                3,
+                Icons.settings_outlined,
+                Icons.settings,
+                s.settings,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _item(
+    BuildContext context,
+    int index,
+    IconData icon,
+    IconData activeIcon,
+    String label,
+  ) {
+    final isSelected = index == selectedIndex;
+    final accent = Theme.of(context).colorScheme.primary;
+    final isDark = AppColors.isDark(context);
+    final muted = isDark ? const Color(0xE6FFFFFF) : const Color(0xE6000000);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: SizedBox(
+        height: 48,
+        child: Pressable(
+          semanticLabel: label,
+          selected: isSelected,
+          onTap: () => onTap(index),
+          scale: 0.96,
+          borderRadius: BorderRadius.circular(12),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? accent.withValues(alpha: 0.14)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                children: [
+                  AnimatedIconSwitch(
+                    icon: isSelected ? activeIcon : icon,
+                    keyValue: isSelected ? activeIcon : icon,
+                    size: 22,
+                    color: isSelected ? accent : muted,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isSelected ? accent : muted,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

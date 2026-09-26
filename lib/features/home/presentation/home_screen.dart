@@ -7,6 +7,7 @@ import '../../../l10n/app_strings.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/widgets/search_sheet.dart';
 import '../../../core/widgets/sleep_timer_sheet.dart';
 import '../../settings/presentation/settings_provider.dart';
@@ -47,7 +48,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             final isWide = width >= 720;
             final contentWidth = isWide ? min(width * 0.82, 900.0) : width;
             final columns = isWide ? 4 : 2;
-            final headerExtent = FrostedTabHeader.extent(context);
+            final isLandscapeShell = RootShellLayout.usesSideNavigationOf(
+              context,
+            );
+            final headerExtent = isLandscapeShell
+                ? 0.0
+                : FrostedTabHeader.extent(context);
 
             return Stack(
               children: [
@@ -55,7 +61,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
                       isWide ? 0 : 16,
-                      headerExtent + 8,
+                      headerExtent == 0 ? 16 : headerExtent + 8,
                       isWide ? 0 : 16,
                       12,
                     ),
@@ -68,7 +74,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           const SizedBox(height: 20),
                           const HomeHeroCard(),
                           const SizedBox(height: 24),
-                          _buildQuickSectionTitle(context, S.of(context).shortcuts),
+                          _buildQuickSectionTitle(
+                            context,
+                            S.of(context).shortcuts,
+                          ),
                           const SizedBox(height: 12),
                           _buildQuickGrid(context, ref, columns, quickIds),
                           const SizedBox(height: 20),
@@ -77,14 +86,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                 ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: FrostedTabHeader(
+                if (isLandscapeShell)
+                  RootHeaderPublisher(
+                    index: 0,
                     title: 'Koyze',
                     titleKey: _brandKey,
-                    leadingIcon: Icons.home_rounded,
                     actions: [
                       FrostedHeaderButton(
                         icon: Icons.tune_rounded,
@@ -92,8 +98,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         onTap: () => _showHeroCardSettings(context),
                       ),
                     ],
+                  )
+                else
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: FrostedTabHeader(
+                      title: 'Koyze',
+                      titleKey: _brandKey,
+                      leadingIcon: Icons.home_rounded,
+                      actions: [
+                        FrostedHeaderButton(
+                          icon: Icons.tune_rounded,
+                          semanticLabel: S.of(context).heroCardSettingsAction,
+                          onTap: () => _showHeroCardSettings(context),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
               ],
             );
           },

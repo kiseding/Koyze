@@ -1,7 +1,9 @@
 package com.koyze.app
 
 import android.content.ContentUris
+import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.database.Cursor
 import android.media.MediaMetadataRetriever
 import android.net.Uri
@@ -17,8 +19,29 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URLDecoder
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 class MainActivity : AudioServiceActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(contextWithCompactDensity(newBase))
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        applyCompactDensity(this)
+        super.onCreate(savedInstanceState)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyCompactDensity(this)
+    }
+
+    override fun onDestroy() {
+        FloatingPlayer.hide()
+        super.onDestroy()
+    }
+
     private val channelName = "koyze/android_file_access"
     private val prefsName = "koyze_android_file_access"
     private val treeUriKey = "tree_uri"
@@ -28,6 +51,7 @@ class MainActivity : AudioServiceActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        FloatingPlayer.attach(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -506,4 +530,45 @@ class MainActivity : AudioServiceActivity() {
         val document = DocumentsContract.buildDocumentUriUsingTree(tree, current)
         return contentResolver.openInputStream(document)?.use { it.readBytes() }
     }
+}
+
+internal fun compactHighResolutionScale(shortestPx: Float, density: Float): Float {
+    if (density <= 0f || shortestPx < 700f) return 1f
+    val logicalShortest = shortestPx / density
+    if (logicalShortest < 640f || density > 1.6f) return 1f
+    val scale = min(logicalShortest / 520f, 2.2f)
+    return if (scale <= 1.05f) 1f else scale
+}
+
+private fun contextWithCompactDensity(base: Context): Context {
+    val metrics = base.resources.displayMetrics
+    val shortestPx = min(metrics.widthPixels, metrics.heightPixels).toFloat()
+    val scale = compactHighResolutionScale(shortestPx, metrics.density)
+    if (scale <= 1f) return base
+    val targetDensity = metrics.density * scale
+    val config = Configuration(base.resources.configuration)
+    config.densityDpi = (targetDensity * 160f).roundToInt()
+    config.screenWidthDp = (metrics.widthPixels / targetDensity).roundToInt()
+    config.screenHeightDp = (metrics.heightPixels / targetDensity).roundToInt()
+    config.smallestScreenWidthDp = (shortestPx / targetDensity).roundToInt()
+    return base.createConfigurationContext(config)
+}
+
+private fun applyCompactDensity(context: Context) {
+    val resources = context.resources
+    val metrics = resources.displayMetrics
+    val shortestPx = min(metrics.widthPixels, metrics.heightPixels).toFloat()
+    val scale = compactHighResolutionScale(shortestPx, metrics.density)
+    if (scale <= 1f) return
+    val targetDensity = metrics.density * scale
+    val config = resources.configuration
+    metrics.density = targetDensity
+    metrics.scaledDensity = targetDensity * config.fontScale
+    metrics.densityDpi = (targetDensity * 160f).roundToInt()
+    config.densityDpi = metrics.densityDpi
+    config.screenWidthDp = (metrics.widthPixels / targetDensity).roundToInt()
+    config.screenHeightDp = (metrics.heightPixels / targetDensity).roundToInt()
+    config.smallestScreenWidthDp = (shortestPx / targetDensity).roundToInt()
+    @Suppress("DEPRECATION")
+    resources.updateConfiguration(config, metrics)
 }

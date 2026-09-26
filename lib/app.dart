@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:koyze/core/theme/app_theme.dart';
 import 'package:koyze/core/widgets/app_notification.dart';
+import 'package:koyze/core/widgets/compact_high_resolution_scale.dart';
 import 'package:koyze/router/app_router.dart';
 import 'package:koyze/features/settings/presentation/settings_provider.dart';
+import 'package:koyze/features/player/platform/android_floating_player.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
 import 'package:koyze/features/stats/presentation/play_history_provider.dart';
 import 'package:koyze/core/windows/windows_caption_bar.dart';
@@ -96,14 +98,18 @@ class LxMusicApp extends ConsumerWidget {
       themeAnimationDuration: const Duration(milliseconds: 300),
       themeAnimationCurve: Curves.easeOutCubic,
       routerConfig: appRouter,
-      builder: (context, child) => WindowsCaptionFrame(
-        child: WindowsCloseHandler(
-          navigatorKey: rootNavigatorKey,
-          child: CloudSyncHost(
-            child: AppNotificationHost(
-              child: PlayerMessageListener(
-                child: StartupCloudLoginPrompt(
-                  child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => CompactHighResolutionFrame(
+        child: WindowsCaptionFrame(
+          child: WindowsCloseHandler(
+            navigatorKey: rootNavigatorKey,
+            child: CloudSyncHost(
+              child: AppNotificationHost(
+                child: PlayerMessageListener(
+                  child: AndroidFloatingPlayerHost(
+                    child: StartupCloudLoginPrompt(
+                      child: child ?? const SizedBox.shrink(),
+                    ),
+                  ),
                 ),
               ),
             ),

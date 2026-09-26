@@ -12,6 +12,7 @@ import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/card_play_button.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
+import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../player/domain/music_item.dart';
@@ -46,6 +47,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       categoryByKey['category:${category.id}'] = category;
     }
 
+    final isLandscapeShell = RootShellLayout.usesSideNavigationOf(context);
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
@@ -140,28 +142,48 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                             visible,
                             categoryByKey,
                             contentWidth,
+                            isLandscapeShell,
                           );
                         },
                       ),
                     ),
-                    // 标题栏悬浮铺到屏幕顶（含状态栏/灵动岛），整栏磨砂玻璃；
-                    // 列表可滚动到栏内部，磨砂才可见。
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: FrostedTabHeader(
-                        title: S.of(context).charts,
-                        leadingIcon: Icons.leaderboard_rounded,
-                        actions: [
-                          FrostedHeaderButton(
-                            icon: Icons.tune_rounded,
-                            semanticLabel: S.of(context).chartSettings,
-                            onTap: () => context.push('/leaderboard-settings'),
-                          ),
-                        ],
+                    if (isLandscapeShell)
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        width: 0,
+                        height: 0,
+                        child: RootHeaderPublisher(
+                          index: 1,
+                          title: S.of(context).charts,
+                          actions: [
+                            FrostedHeaderButton(
+                              icon: Icons.tune_rounded,
+                              semanticLabel: S.of(context).chartSettings,
+                              onTap: () =>
+                                  context.push('/leaderboard-settings'),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: FrostedTabHeader(
+                          title: S.of(context).charts,
+                          leadingIcon: Icons.leaderboard_rounded,
+                          actions: [
+                            FrostedHeaderButton(
+                              icon: Icons.tune_rounded,
+                              semanticLabel: S.of(context).chartSettings,
+                              onTap: () =>
+                                  context.push('/leaderboard-settings'),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -192,13 +214,14 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     List<LeaderboardLayoutItem> visible,
     Map<String, LeaderboardCategory> categoryByKey,
     double contentWidth,
+    bool isLandscapeShell,
   ) {
     final columns = _columnsFor(contentWidth);
     final rows = _packLeaderboardRows(visible, columns);
     return ListView.builder(
       padding: EdgeInsets.fromLTRB(
         12,
-        FrostedTabHeader.extent(context),
+        isLandscapeShell ? 12 : FrostedTabHeader.extent(context),
         12,
         16,
       ),
@@ -643,11 +666,7 @@ class _LeaderboardPlayButton extends ConsumerWidget {
                         size: 36,
                       ),
                     )
-                  : Icon(
-                      Icons.play_arrow_rounded,
-                      color: iconColor,
-                      size: 40,
-                    ),
+                  : Icon(Icons.play_arrow_rounded, color: iconColor, size: 40),
             ),
           ],
         ),

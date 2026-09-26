@@ -922,8 +922,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           miniHeight,
         );
         final fullRect = Offset.zero & Size(screenW, screenH);
+        final portraitLyrics = _currentPage == 1 && screenW <= screenH;
         final lyricCollapsing =
-            _currentPage == 1 &&
+            portraitLyrics &&
             (progress < 1 ||
                 playerRouteDismissLocked ||
                 _draggingDown ||
@@ -965,7 +966,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // 播放键 morph：打开时从迷你栏按钮起飞到当前页按钮位（控件栏/歌词页），
         // 关闭/拖动时反向**跟手归位**回迷你栏按钮——按钮随滑动进度实时
         // 缩小并移向迷你栏，松手后从当前位置继续，直到被迷你栏接管。
-        final playButtonTarget = _currentPage == 1
+        final playButtonTarget = portraitLyrics
             ? lyricTargetRect
             : controlsTargetRect;
         // 播放按钮不跟随整体进度隐没：保持原位置不动，直到动效进入
@@ -1097,7 +1098,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
               ),
-            if (_currentPage == 0)
+            if (_currentPage == 0 || screenW > screenH)
               _RouteArtworkMorphOverlay(
                 rect: artworkMorphRect,
                 progress: progress,
@@ -1234,81 +1235,92 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
                 Expanded(
-                  child: PageView(
-                    controller: _pageController,
-                    onPageChanged: (index) =>
-                        setState(() => _currentPage = index),
-                    // 不缓存相邻页：封面/歌词互斥，页面切换无动画干扰。
-                    allowImplicitScrolling: false,
-                    children: [
-                      Column(
-                        children: [
-                          const SizedBox(height: 12),
-                          Expanded(
-                            child: _buildArtwork(
-                              currentMusic.artwork,
-                              songId: currentMusic.id,
-                              routeReveal: artworkReveal,
-                            ),
-                          ),
-                          Opacity(
-                            opacity: chromeFade,
-                            child: Column(
-                              children: [
-                                _StaggeredFade(
-                                  delay: 0.2,
-                                  child: _buildSongInfo(currentMusic),
-                                ),
-                                _StaggeredFade(
-                                  delay: 0.3,
-                                  child: const _CurrentLyricLine(),
-                                ),
-                                _StaggeredFade(
-                                  delay: 0.45,
-                                  child: _PlayerProgress(
-                                    duration: duration,
-                                    seeking: _seeking,
-                                    seekValue: _seekValue,
-                                    onDragStart: _beginSeek,
-                                    onDragUpdate: _updateSeek,
-                                    onSeekEnd: _finishSeek,
-                                    onSeekCancel: _cancelSeek,
-                                    onTapSeek: _tapSeek,
+                  child: screenW > screenH
+                      ? Row(
+                          children: [
+                            Expanded(
+                              flex: 6,
+                              child: PageView(
+                                controller: _pageController,
+                                onPageChanged: (index) =>
+                                    setState(() => _currentPage = index),
+                                allowImplicitScrolling: false,
+                                children: [
+                                  _buildArtwork(
+                                    currentMusic.artwork,
+                                    songId: currentMusic.id,
+                                    routeReveal: artworkReveal,
+                                    fill: true,
                                   ),
-                                ),
-                                _StaggeredFade(
-                                  delay: 0.5,
-                                  child: _buildControls(
-                                    playerService,
-                                    isPlaying,
-                                    playMode,
+                                  const Padding(
+                                    padding: EdgeInsets.fromLTRB(8, 4, 12, 8),
+                                    child: LyricView(isFullScreen: true),
                                   ),
-                                ),
-                                _buildSourceQualityBar(currentMusic),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                      ),
-                      Column(
-                        children: [
-                          const Expanded(child: LyricView(isFullScreen: true)),
-                          Opacity(
-                            opacity: chromeFade,
-                            child: _StaggeredFade(
-                              delay: 0.55,
-                              child: _buildLyricMiniBar(
-                                currentMusic,
-                                playerService,
-                                isPlaying,
+                                ],
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                            Expanded(
+                              flex: 5,
+                              child: _buildNowPlayingDetails(
+                                currentMusic: currentMusic,
+                                playerService: playerService,
+                                isPlaying: isPlaying,
+                                playMode: playMode,
+                                duration: duration,
+                                chromeFade: chromeFade,
+                                compact: true,
+                              ),
+                            ),
+                          ],
+                        )
+                      : PageView(
+                          controller: _pageController,
+                          onPageChanged: (index) =>
+                              setState(() => _currentPage = index),
+                          // 不缓存相邻页：封面/歌词互斥，页面切换无动画干扰。
+                          allowImplicitScrolling: false,
+                          children: [
+                            Column(
+                              children: [
+                                const SizedBox(height: 12),
+                                Expanded(
+                                  child: _buildArtwork(
+                                    currentMusic.artwork,
+                                    songId: currentMusic.id,
+                                    routeReveal: artworkReveal,
+                                  ),
+                                ),
+                                _buildNowPlayingDetails(
+                                  currentMusic: currentMusic,
+                                  playerService: playerService,
+                                  isPlaying: isPlaying,
+                                  playMode: playMode,
+                                  duration: duration,
+                                  chromeFade: chromeFade,
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                            ),
+                            Column(
+                              children: [
+                                const Expanded(
+                                  child: LyricView(isFullScreen: true),
+                                ),
+                                Opacity(
+                                  opacity: chromeFade,
+                                  child: _StaggeredFade(
+                                    delay: 0.55,
+                                    child: _buildLyricMiniBar(
+                                      currentMusic,
+                                      playerService,
+                                      isPlaying,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                 ),
               ],
             ),
@@ -1495,16 +1507,73 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  Widget _buildNowPlayingDetails({
+    required MusicItem currentMusic,
+    required PlayerService playerService,
+    required bool isPlaying,
+    required PlayMode playMode,
+    required Duration duration,
+    required double chromeFade,
+    bool compact = false,
+  }) {
+    return Opacity(
+      opacity: chromeFade,
+      child: Column(
+        mainAxisAlignment: compact
+            ? MainAxisAlignment.center
+            : MainAxisAlignment.start,
+        children: [
+          _StaggeredFade(
+            delay: 0.2,
+            child: _buildSongInfo(currentMusic, compact: compact),
+          ),
+          _StaggeredFade(delay: 0.3, child: const _CurrentLyricLine()),
+          _StaggeredFade(
+            delay: 0.45,
+            child: _PlayerProgress(
+              duration: duration,
+              seeking: _seeking,
+              seekValue: _seekValue,
+              onDragStart: _beginSeek,
+              onDragUpdate: _updateSeek,
+              onSeekEnd: _finishSeek,
+              onSeekCancel: _cancelSeek,
+              onTapSeek: _tapSeek,
+            ),
+          ),
+          _StaggeredFade(
+            delay: 0.5,
+            child: _buildControls(
+              playerService,
+              isPlaying,
+              playMode,
+              compact: compact,
+            ),
+          ),
+          _buildSourceQualityBar(currentMusic),
+        ],
+      ),
+    );
+  }
+
   Widget _buildArtwork(
     String? artwork, {
     String? songId,
     double routeReveal = 1,
+    bool fill = false,
   }) {
-    // 与歌名行同宽：左右 32，对齐歌名左侧到心形右侧区域
+    // 竖屏与歌名行同宽；横屏则在左侧区域内尽量铺满。
     return LayoutBuilder(
       builder: (context, constraints) {
-        final side = (constraints.maxWidth - 64).clamp(240.0, 420.0);
-        final box = side.clamp(0.0, constraints.maxHeight - 8);
+        final widthBudget = constraints.maxWidth - (fill ? 20 : 64);
+        final heightBudget = constraints.maxHeight - (fill ? 20 : 8);
+        final side = fill
+            ? (widthBudget < heightBudget ? widthBudget : heightBudget).clamp(
+                0.0,
+                double.infinity,
+              )
+            : (constraints.maxWidth - 64).clamp(240.0, 420.0);
+        final box = fill ? side : side.clamp(0.0, constraints.maxHeight - 8);
         return Opacity(
           opacity: routeReveal,
           child: Center(
@@ -1514,7 +1583,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               child: Container(
                 width: box,
                 height: box,
-                margin: const EdgeInsets.symmetric(horizontal: 32),
+                margin: EdgeInsets.symmetric(horizontal: fill ? 8 : 32),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(22),
                   boxShadow: [
@@ -1553,9 +1622,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  Widget _buildSongInfo(MusicItem music) {
+  Widget _buildSongInfo(MusicItem music, {bool compact = false}) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 16 : 32,
+        vertical: compact ? 8 : 24,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -1811,10 +1883,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Widget _buildControls(
     PlayerService playerService,
     bool isPlaying,
-    PlayMode playMode,
-  ) {
+    PlayMode playMode, {
+    bool compact = false,
+  }) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 32,
+        vertical: compact ? 4 : 16,
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
