@@ -269,7 +269,7 @@ void main() {
     expect(close, contains('applyWindowsWindowState'));
   });
 
-  test('Android CI requires signing and publishes verified APKs and AAB', () {
+  test('Android CI requires signing and publishes verified APKs', () {
     final workflow = File(
       '.github/workflows/build-android.yml',
     ).readAsStringSync();
@@ -289,15 +289,15 @@ void main() {
     expect(workflow, contains('Koyze-\${version}-\${abi}.apk'));
     expect(workflow, contains('for apk in build/android-release/*.apk'));
     expect(workflow, contains('Koyze-Android-APKs'));
-    expect(workflow, contains('flutter build appbundle --release'));
-    expect(workflow, contains('for aab in build/android-release/*.aab'));
-    expect(workflow, contains('Koyze-Android-AAB'));
+    expect(workflow, isNot(contains('flutter build appbundle')));
+    expect(workflow, isNot(contains('.aab')));
+    expect(workflow, isNot(contains('Koyze-Android-AAB')));
     expect(workflow, contains('ANDROID_KEYSTORE_BASE64'));
     expect(workflow, isNot(contains('ANDROID_KEYSTORE_BASE64 !=')));
     expect(workflow, contains('Verify Android release signatures'));
     expect(workflow, contains('apksigner" verify'));
     expect(workflow, contains('zipalign" -c -P 16 -v 4'));
-    expect(workflow, contains('jarsigner -verify -certs'));
+    expect(workflow, isNot(contains('jarsigner')));
   });
 
   test('Android Gradle prefers GCS Maven Central to avoid CI 429s', () {

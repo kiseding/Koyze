@@ -99,10 +99,8 @@ jobs:
           keytool -list -keystore android/app/release.jks \
             -storepass "$ANDROID_STORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
 
-      - name: Build Android release APKs and app bundle
-        run: |
-          flutter build apk --release --split-per-abi
-          flutter build appbundle --release
+      - name: Build Android release APKs
+        run: flutter build apk --release --split-per-abi
 
       - name: Rename APKs with app name and version
         run: |
@@ -114,16 +112,11 @@ jobs:
             dst="build/android-release/Koyze-${version}-${abi}.apk"
             cp "$src" "$dst"
           done
-          cp build/app/outputs/bundle/release/app-release.aab \
-            "build/android-release/Koyze-${version}.aab"
 
       - name: Validate APKs
         run: |
           for apk in build/android-release/*.apk; do
             test -s "$apk"
-          done
-          for aab in build/android-release/*.aab; do
-            test -s "$aab"
           done
 
       - name: Verify Android release signatures and alignment
@@ -134,21 +127,12 @@ jobs:
             "$build_tools/apksigner" verify --verbose --print-certs "$apk"
             "$build_tools/zipalign" -c -P 16 -v 4 "$apk"
           done
-          jarsigner -verify -certs build/android-release/*.aab
 
       - name: Upload Android APKs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Koyze-Android-APKs
           path: build/android-release/*.apk
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload Android app bundle
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: Koyze-Android-AAB
-          path: build/android-release/*.aab
           if-no-files-found: error
           retention-days: 7
 
