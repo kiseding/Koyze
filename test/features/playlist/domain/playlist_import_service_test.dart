@@ -21,7 +21,7 @@ void main() {
       PlaylistImportService.kwArtwork({
         'web_albumpic_short': '120/abc/def.jpg',
       }),
-      'https://img1.kuwo.cn/star/albumcover/120/abc/def.jpg',
+      'https://img1.kuwo.cn/star/albumcover/500/abc/def.jpg',
     );
     expect(
       PlaylistImportService.kwArtwork({
