@@ -1566,16 +1566,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     double routeReveal = 1,
     bool fill = false,
   }) {
-    // 竖屏与歌名行同宽；横屏则在左侧区域内尽量铺满。
+    // 竖屏与歌名行同宽；横屏留出边距，封面约为可铺区域的 80%。
     return LayoutBuilder(
       builder: (context, constraints) {
         final widthBudget = constraints.maxWidth - (fill ? 20 : 64);
         final heightBudget = constraints.maxHeight - (fill ? 20 : 8);
+        final fitted = (widthBudget < heightBudget ? widthBudget : heightBudget)
+            .clamp(0.0, double.infinity);
         final side = fill
-            ? (widthBudget < heightBudget ? widthBudget : heightBudget).clamp(
-                0.0,
-                double.infinity,
-              )
+            ? fitted * 0.8
             : (constraints.maxWidth - 64).clamp(240.0, 420.0);
         final box = fill ? side : side.clamp(0.0, constraints.maxHeight - 8);
         return Opacity(
