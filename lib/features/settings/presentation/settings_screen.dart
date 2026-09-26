@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../core/card_expand.dart';
+import '../../../core/motion/motion_tokens.dart';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -577,8 +578,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         opaque: false,
         barrierDismissible: true,
         barrierColor: Colors.black54,
-        transitionDuration: const Duration(milliseconds: 240),
-        reverseTransitionDuration: const Duration(milliseconds: 180),
+        transitionDuration: effectsDuration(const Duration(milliseconds: 240)),
+        reverseTransitionDuration: effectsDuration(
+          const Duration(milliseconds: 180),
+        ),
         pageBuilder: (context, animation, secondaryAnimation) =>
             const _PlatformPickerDialog(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -605,8 +608,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         opaque: false,
         barrierDismissible: true,
         barrierColor: Colors.black54,
-        transitionDuration: const Duration(milliseconds: 240),
-        reverseTransitionDuration: const Duration(milliseconds: 180),
+        transitionDuration: effectsDuration(const Duration(milliseconds: 240)),
+        reverseTransitionDuration: effectsDuration(
+          const Duration(milliseconds: 180),
+        ),
         pageBuilder: (context, animation, secondaryAnimation) =>
             const _LanguagePickerDialog(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -646,8 +651,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         opaque: false,
         barrierDismissible: true,
         barrierColor: Colors.black54,
-        transitionDuration: const Duration(milliseconds: 240),
-        reverseTransitionDuration: const Duration(milliseconds: 180),
+        transitionDuration: effectsDuration(const Duration(milliseconds: 240)),
+        reverseTransitionDuration: effectsDuration(
+          const Duration(milliseconds: 180),
+        ),
         pageBuilder: (context, animation, secondaryAnimation) =>
             _QualityPickerDialog(title: title, isDownload: isDownload),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {

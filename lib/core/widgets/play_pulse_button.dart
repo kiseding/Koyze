@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter/services.dart';
+import '../performance/low_memory.dart';
 import '../theme/app_colors.dart';
 
 /// 播放/暂停：lx2cf 风格
@@ -79,6 +80,11 @@ class _PlayPulseButtonState extends State<PlayPulseButton>
   }
 
   Future<void> _runPlayOn() async {
+    if (LowMemory.active) {
+      _scale = 1;
+      if (mounted) setState(() {});
+      return;
+    }
     _scaleCtrl.stop();
     _scaleCtrl.duration = const Duration(milliseconds: 350);
     _scaleAnim = TweenSequence<double>([
@@ -96,6 +102,11 @@ class _PlayPulseButtonState extends State<PlayPulseButton>
   }
 
   Future<void> _runPlayOff() async {
+    if (LowMemory.active) {
+      _scale = 1;
+      if (mounted) setState(() {});
+      return;
+    }
     _scaleCtrl.stop();
     _scaleCtrl.duration = const Duration(milliseconds: 250);
     _scaleAnim = TweenSequence<double>([
@@ -145,7 +156,9 @@ class _PlayPulseButtonState extends State<PlayPulseButton>
     final glowA = 0.28 * gPeak;
 
     final onActivate = disabled ? null : widget.onPressed;
-    final label = widget.semanticLabel ?? (widget.isPlaying ? S.of(context).pause : S.of(context).play);
+    final label =
+        widget.semanticLabel ??
+        (widget.isPlaying ? S.of(context).pause : S.of(context).play);
 
     final interactiveChild = GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -153,7 +166,7 @@ class _PlayPulseButtonState extends State<PlayPulseButton>
           ? null
           : (_) {
               _focusNode.requestFocus();
-              _pressCtrl.forward();
+              if (!LowMemory.active) _pressCtrl.forward();
             },
       onTapUp: disabled
           ? null

@@ -458,10 +458,12 @@ class _PlayerTransitionRoute extends PageRoute<void> {
   bool get allowSnapshotting => false;
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 220);
+  Duration get transitionDuration =>
+      effectsDuration(const Duration(milliseconds: 220));
 
   @override
-  Duration get reverseTransitionDuration => MotionDuration.playerReverse;
+  Duration get reverseTransitionDuration =>
+      effectsDuration(MotionDuration.playerReverse);
 
   /// 拖拽/左缘手势已把界面收拢到位后再 pop：反向动画清零，路由与屏障
   /// 立即移除，迷你栏无需等一段不可见的过渡时间才能点击。

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/animations/micro_animations.dart';
+import '../../../core/motion/motion_tokens.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
@@ -217,9 +218,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         : AsyncData(
             PlaylistSongPage(
               total: optimisticFavorites.total,
-              offset: songsPage.valueOrNull?.offset ?? optimisticFavorites.offset,
+              offset:
+                  songsPage.valueOrNull?.offset ?? optimisticFavorites.offset,
               songs: [
-                for (final song in songsPage.valueOrNull?.songs ?? const <MusicItem>[])
+                for (final song
+                    in songsPage.valueOrNull?.songs ?? const <MusicItem>[])
                   if (optimisticFavorites.songs.any(
                     (item) => item.isSameCatalogTrack(song),
                   ))
@@ -288,7 +291,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               ),
               if (isSelectionMode)
                 FxIconButton(
-                  tooltip: isAllFavoritesSelected ? S.of(context).deselectAll : S.of(context).selectAll,
+                  tooltip: isAllFavoritesSelected
+                      ? S.of(context).deselectAll
+                      : S.of(context).selectAll,
                   onPressed: _selectionBusy || currentPageSongs.isEmpty
                       ? null
                       : () => _toggleAllFavoriteSelection(
@@ -307,10 +312,14 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 ? S.of(context).selectedCount(_selectedFavoriteIds.length)
                 : _isEditing
                 ? S.of(context).editPlaylist
-                : S.of(context).playlistTitleCount(
-                    S.of(context).builtinPlaylistName(playlist.id, playlist.name),
-                    playlist.songCount,
-                  ),
+                : S
+                      .of(context)
+                      .playlistTitleCount(
+                        S
+                            .of(context)
+                            .builtinPlaylistName(playlist.id, playlist.name),
+                        playlist.songCount,
+                      ),
             style: TextStyle(
               color: AppColors.onScaffold(context),
               fontSize: 18,
@@ -383,9 +392,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 offset: const Offset(0, 8),
-                popUpAnimationStyle: const AnimationStyle(
-                  duration: Duration(milliseconds: 280),
-                  reverseDuration: Duration(milliseconds: 150),
+                popUpAnimationStyle: effectsAnimationStyle(
+                  duration: const Duration(milliseconds: 280),
+                  reverseDuration: const Duration(milliseconds: 150),
                   curve: Curves.easeOutCubic,
                   reverseCurve: Curves.easeInCubic,
                 ),
@@ -402,7 +411,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             .addAllSongsToFavorites(playlist.id);
                         if (mounted) {
                           showAppNotification(
-                            added > 0 ? S.of(context).favoritedSongs(added) : S.of(context).alreadyFavorited,
+                            added > 0
+                                ? S.of(context).favoritedSongs(added)
+                                : S.of(context).alreadyFavorited,
                             type: AppNotificationType.success,
                           );
                         }
@@ -475,45 +486,72 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   return [
                     PopupMenuItem(
                       value: 'play_all',
-                      child: Text(S.of(context).playAll, style: TextStyle(color: on)),
+                      child: Text(
+                        S.of(context).playAll,
+                        style: TextStyle(color: on),
+                      ),
                     ),
                     if (playlist.id == 'local')
                       PopupMenuItem(
                         value: 'favorite_all',
-                        child: Text(S.of(context).favoriteAll, style: TextStyle(color: on)),
+                        child: Text(
+                          S.of(context).favoriteAll,
+                          style: TextStyle(color: on),
+                        ),
                       ),
                     if (playlist.id != 'recent')
                       PopupMenuItem(
                         value: 'edit',
-                        child: Text(S.of(context).editInfo, style: TextStyle(color: on)),
+                        child: Text(
+                          S.of(context).editInfo,
+                          style: TextStyle(color: on),
+                        ),
                       ),
                     PopupMenuItem(
                       value: 'reorder',
-                      child: Text(S.of(context).manualSort, style: TextStyle(color: on)),
+                      child: Text(
+                        S.of(context).manualSort,
+                        style: TextStyle(color: on),
+                      ),
                     ),
                     PopupMenuItem(
                       value: 'sort_name',
-                      child: Text(S.of(context).sortByTitle, style: TextStyle(color: on)),
+                      child: Text(
+                        S.of(context).sortByTitle,
+                        style: TextStyle(color: on),
+                      ),
                     ),
                     PopupMenuItem(
                       value: 'sort_artist',
-                      child: Text(S.of(context).sortByArtist, style: TextStyle(color: on)),
+                      child: Text(
+                        S.of(context).sortByArtist,
+                        style: TextStyle(color: on),
+                      ),
                     ),
                     PopupMenuItem(
                       value: 'sort_duration',
-                      child: Text(S.of(context).sortByDuration, style: TextStyle(color: on)),
+                      child: Text(
+                        S.of(context).sortByDuration,
+                        style: TextStyle(color: on),
+                      ),
                     ),
                     if (playlist.id != 'favorites' &&
                         playlist.id != 'recent' &&
                         playlist.id != 'local')
                       PopupMenuItem(
                         value: 'delete',
-                        child: Text(S.of(context).deletePlaylist, style: TextStyle(color: on)),
+                        child: Text(
+                          S.of(context).deletePlaylist,
+                          style: TextStyle(color: on),
+                        ),
                       ),
                     if (playlist.id == 'favorites')
                       PopupMenuItem(
                         value: 'duplicates',
-                        child: Text(S.of(context).duplicateSongs, style: TextStyle(color: on)),
+                        child: Text(
+                          S.of(context).duplicateSongs,
+                          style: TextStyle(color: on),
+                        ),
                       ),
                     if (playlist.id == 'favorites' && playlist.songCount > 0)
                       PopupMenuItem(
@@ -549,7 +587,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   isSelectionMode: isSelectionMode,
                 ),
                 loading: () => _buildPageLoading(range),
-                error: (error, _) => Center(child: Text('${S.of(context).loadSongsFailed}: $error')),
+                error: (error, _) => Center(
+                  child: Text('${S.of(context).loadSongsFailed}: $error'),
+                ),
               ),
       ),
     );
@@ -768,7 +808,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                             leading: const Icon(
                                               Icons.delete_outline,
                                             ),
-                                            title: Text(S.of(context).removeFromPlaylist),
+                                            title: Text(
+                                              S.of(context).removeFromPlaylist,
+                                            ),
                                             onTap: () async {
                                               try {
                                                 await ref
@@ -879,7 +921,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       }
       if (!mounted) return;
       showAppNotification(
-        songs.isEmpty ? S.of(context).nothingSelectedToDownload : S.of(context).queuedDownloads(songs.length),
+        songs.isEmpty
+            ? S.of(context).nothingSelectedToDownload
+            : S.of(context).queuedDownloads(songs.length),
         type: songs.isEmpty
             ? AppNotificationType.info
             : AppNotificationType.success,
@@ -902,7 +946,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       if (!mounted) return;
       setState(() => _selectedFavoriteIds.removeAll(selectedIds));
       showAppNotification(
-        removed > 0 ? S.of(context).unfavoritedSongs(removed) : S.of(context).nothingSelectedToUnfavorite,
+        removed > 0
+            ? S.of(context).unfavoritedSongs(removed)
+            : S.of(context).nothingSelectedToUnfavorite,
         type: removed > 0
             ? AppNotificationType.success
             : AppNotificationType.info,
@@ -948,6 +994,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     var keyboardRequested = false;
 
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (ctx) {
         if (!keyboardRequested) {
@@ -1010,7 +1057,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         description: descController.text,
                       );
                 } catch (error) {
-                  if (mounted) _showMutationError(S.of(context).saveFailed, error);
+                  if (mounted)
+                    _showMutationError(S.of(context).saveFailed, error);
                   return;
                 }
                 if (!ctx.mounted) return;
@@ -1038,6 +1086,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     Playlist playlist,
   ) async {
     final confirmed = await showDialog<bool>(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
@@ -1059,7 +1108,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(S.of(context).confirmClear, style: const TextStyle(color: AppColors.error)),
+            child: Text(
+              S.of(context).confirmClear,
+              style: const TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -1083,7 +1135,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         );
       });
       showAppNotification(
-        removed > 0 ? S.of(context).unfavoritedSongs(removed) : S.of(context).favoritesAlreadyEmpty,
+        removed > 0
+            ? S.of(context).unfavoritedSongs(removed)
+            : S.of(context).favoritesAlreadyEmpty,
         type: AppNotificationType.success,
       );
     } catch (error) {
@@ -1097,6 +1151,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     Playlist playlist,
   ) {
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
@@ -1123,14 +1178,18 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     .read(playlistServiceProvider)
                     .deletePlaylist(playlist.id);
               } catch (error) {
-                if (mounted) _showMutationError(S.of(context).deleteFailed, error);
+                if (mounted)
+                  _showMutationError(S.of(context).deleteFailed, error);
                 return;
               }
               if (!ctx.mounted || !context.mounted) return;
               Navigator.pop(ctx);
               Navigator.pop(context);
             },
-            child: Text(S.of(context).delete, style: const TextStyle(color: AppColors.error)),
+            child: Text(
+              S.of(context).delete,
+              style: const TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),

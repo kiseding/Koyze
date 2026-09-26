@@ -41,6 +41,25 @@ bool reduceMotion(BuildContext context) {
 Duration motionDuration(BuildContext context, Duration duration) =>
     reduceMotion(context) ? Duration.zero : duration;
 
+/// Route and menu transitions have no [BuildContext] when their duration is
+/// read. The effects switch is enough there.
+Duration effectsDuration(Duration duration) =>
+    LowMemory.active ? Duration.zero : duration;
+
+AnimationStyle effectsAnimationStyle({
+  Duration duration = MotionDuration.normal,
+  Duration reverseDuration = MotionDuration.micro,
+  Curve curve = MotionCurve.easeOut,
+  Curve reverseCurve = MotionCurve.easeIn,
+}) {
+  return AnimationStyle(
+    duration: effectsDuration(duration),
+    reverseDuration: effectsDuration(reverseDuration),
+    curve: curve,
+    reverseCurve: reverseCurve,
+  );
+}
+
 class MotionCurve {
   const MotionCurve._();
 

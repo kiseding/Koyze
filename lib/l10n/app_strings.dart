@@ -58,8 +58,8 @@ class S {
       : '使用横屏布局。手机还会锁定为横屏方向';
   String get simplifyEffects => en ? 'Reduce effects' : '关闭特效';
   String get simplifyEffectsSubtitle => en
-      ? 'Turn off frosted glass, transparency, and most motion. On by default at 4GB or less'
-      : '关闭磨砂玻璃、透明和大部分动效。内存不超过 4GB 时默认开启';
+      ? 'Turn off frosted glass, transparency, and motion. On by default at 4GB or less'
+      : '关闭磨砂玻璃、透明和动效。内存不超过 4GB 时默认开启';
   String get defaultSearchPlatform => en ? 'Default search source' : '默认搜索平台';
   String get listeningStats => en ? 'Listening stats' : '听歌统计';
   String get listeningStatsSubtitle =>

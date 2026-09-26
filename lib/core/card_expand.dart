@@ -178,11 +178,11 @@ CustomTransitionPage<Object?> expandablePage(
     barrierDismissible: expanding,
     barrierColor: Colors.transparent,
     // 卡片容器转场比普通页面快 100ms，打开/关闭使用同一组节奏。
-    transitionDuration: Duration(
-      milliseconds: MotionDuration.container.inMilliseconds - 100,
+    transitionDuration: effectsDuration(
+      Duration(milliseconds: MotionDuration.container.inMilliseconds - 100),
     ),
-    reverseTransitionDuration: Duration(
-      milliseconds: MotionDuration.normal.inMilliseconds - 100,
+    reverseTransitionDuration: effectsDuration(
+      Duration(milliseconds: MotionDuration.normal.inMilliseconds - 100),
     ),
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {

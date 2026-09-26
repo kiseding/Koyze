@@ -97,6 +97,11 @@ class _LyricViewState extends ConsumerState<LyricView> {
     final target = rawOffset.clamp(0.0, position.maxScrollExtent);
 
     _programmaticScroll = true;
+    if (reduceMotion(context)) {
+      _scrollController.jumpTo(target);
+      _programmaticScroll = false;
+      return;
+    }
     _scrollController
         .animateTo(
           target,

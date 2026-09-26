@@ -34,16 +34,11 @@ Future<T?> showKoyzeSheet<T>({
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    sheetAnimationStyle: const AnimationStyle(
-      duration: MotionDuration.normal,
-      reverseDuration: MotionDuration.micro,
-      curve: MotionCurve.easeOut,
-      reverseCurve: MotionCurve.easeIn,
-    ),
+    sheetAnimationStyle: effectsAnimationStyle(),
     builder: (context) {
       final content = TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: 1),
-        duration: MotionDuration.normal,
+        duration: motionDuration(context, MotionDuration.normal),
         curve: MotionCurve.easeOut,
         builder: (context, t, child) => Transform.scale(
           scale: 1 - 0.02 * (1 - t),

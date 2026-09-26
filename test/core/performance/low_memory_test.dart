@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:koyze/core/motion/motion_tokens.dart';
 import 'package:koyze/core/performance/low_memory.dart';
 
 void main() {
@@ -26,5 +28,19 @@ void main() {
       resolveSimplifyEffects(lowMemoryDevice: false, stored: true),
       isTrue,
     );
+  });
+
+  test('the effects switch removes explicit transition time', () {
+    LowMemory.active = false;
+    addTearDown(() => LowMemory.active = false);
+    expect(
+      effectsDuration(const Duration(milliseconds: 220)),
+      const Duration(milliseconds: 220),
+    );
+    LowMemory.active = true;
+    expect(effectsDuration(const Duration(milliseconds: 220)), Duration.zero);
+    final style = effectsAnimationStyle();
+    expect(style.duration, Duration.zero);
+    expect(style.reverseDuration, Duration.zero);
   });
 }

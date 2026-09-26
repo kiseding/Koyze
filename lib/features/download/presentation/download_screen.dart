@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/animations/micro_animations.dart';
+import '../../../core/motion/motion_tokens.dart';
 import '../../../core/audio/playback_cache_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../player/presentation/player_provider.dart';
@@ -81,7 +82,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
-              popUpAnimationStyle: AnimationStyle(
+              popUpAnimationStyle: effectsAnimationStyle(
                 duration: const Duration(milliseconds: 280),
                 reverseDuration: const Duration(milliseconds: 150),
                 curve: Curves.easeOutCubic,
@@ -393,7 +394,11 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
 
   Widget _buildTabs(int completedCount, int totalCount) {
     final activeCount = totalCount - completedCount;
-    final tabs = [S.of(context).activeHeader(activeCount), S.of(context).finishedHeader(completedCount), S.of(context).all];
+    final tabs = [
+      S.of(context).activeHeader(activeCount),
+      S.of(context).finishedHeader(completedCount),
+      S.of(context).all,
+    ];
     return Container(
       padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
       decoration: BoxDecoration(
@@ -550,10 +555,19 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
       case DownloadStatus.downloading:
         final parts = [task.singer];
         if (quality.isNotEmpty) parts.add(quality);
-        parts.add(S.of(context).downloadingPercent((task.progress * 100).toStringAsFixed(0)));
+        parts.add(
+          S
+              .of(context)
+              .downloadingPercent((task.progress * 100).toStringAsFixed(0)),
+        );
         return parts.join(' · ');
       case DownloadStatus.paused:
-        return S.of(context).pausedPercent(task.singer, (task.progress * 100).toStringAsFixed(0));
+        return S
+            .of(context)
+            .pausedPercent(
+              task.singer,
+              (task.progress * 100).toStringAsFixed(0),
+            );
       case DownloadStatus.pending:
         final parts = [task.singer];
         if (quality.isNotEmpty) parts.add(quality);
@@ -683,6 +697,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
     if (completed.isEmpty) return;
 
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
@@ -711,7 +726,10 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               }
               Navigator.pop(ctx);
             },
-            child: Text(S.of(context).deleteFiles, style: TextStyle(color: AppColors.error)),
+            child: Text(
+              S.of(context).deleteFiles,
+              style: TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -726,6 +744,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
     if (failed.isEmpty) return;
 
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
@@ -754,7 +773,10 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               }
               Navigator.pop(ctx);
             },
-            child: Text(S.of(context).clearFailedAction, style: TextStyle(color: AppColors.error)),
+            child: Text(
+              S.of(context).clearFailedAction,
+              style: TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),

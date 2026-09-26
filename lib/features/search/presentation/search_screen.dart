@@ -624,9 +624,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               if (isSonglist) {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => SongListDetailScreen(songList: item),
-                  ),
+                  reduceMotion(context)
+                      ? PageRouteBuilder<void>(
+                          transitionDuration: Duration.zero,
+                          reverseTransitionDuration: Duration.zero,
+                          pageBuilder: (_, _, _) =>
+                              SongListDetailScreen(songList: item),
+                        )
+                      : MaterialPageRoute<void>(
+                          builder: (_) => SongListDetailScreen(songList: item),
+                        ),
                 );
               } else {
                 final playable = results.where((e) => e.isPlayable).toList();
@@ -779,7 +786,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         hotAsync.when(
           loading: () => Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(S.of(context).loadingEllipsis, style: TextStyle(color: muted, fontSize: 13)),
+            child: Text(
+              S.of(context).loadingEllipsis,
+              style: TextStyle(color: muted, fontSize: 13),
+            ),
           ),
           error: (_, __) => const SizedBox.shrink(),
           data: (hots) => Column(

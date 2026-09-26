@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
 import '../../../core/io/bounded_input.dart';
+import '../../../core/motion/motion_tokens.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/auto_text_input.dart';
@@ -194,7 +195,9 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                     if (!ok && mounted) {
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text(S.of(context).sourceInitFailed(source.name)),
+                          content: Text(
+                            S.of(context).sourceInitFailed(source.name),
+                          ),
                           duration: const Duration(seconds: 3),
                         ),
                       );
@@ -236,7 +239,10 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
               ),
               TextButton.icon(
                 icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                label: Text(S.of(context).delete, style: TextStyle(color: Colors.red)),
+                label: Text(
+                  S.of(context).delete,
+                  style: TextStyle(color: Colors.red),
+                ),
                 onPressed: () => _showDeleteDialog(context, ref, source),
               ),
             ],
@@ -267,7 +273,9 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
 
         if (context.mounted) {
           showAppNotification(
-            success ? S.of(context).importScriptOk : S.of(context).importScriptBad,
+            success
+                ? S.of(context).importScriptOk
+                : S.of(context).importScriptBad,
             type: success
                 ? AppNotificationType.success
                 : AppNotificationType.error,
@@ -276,7 +284,10 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
       }
     } catch (e) {
       if (context.mounted) {
-        showAppNotification(S.of(context).readFileFailed(e), type: AppNotificationType.error);
+        showAppNotification(
+          S.of(context).readFileFailed(e),
+          type: AppNotificationType.error,
+        );
       }
     }
   }
@@ -290,6 +301,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     var keyboardRequested = false;
 
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (dialogContext) {
         if (!keyboardRequested) {
@@ -314,9 +326,17 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                   autofocus: true,
                 ),
                 const SizedBox(height: 8),
-                _buildTextField(dialogContext, descController, S.of(context).descriptionLabel),
+                _buildTextField(
+                  dialogContext,
+                  descController,
+                  S.of(context).descriptionLabel,
+                ),
                 const SizedBox(height: 8),
-                _buildTextField(dialogContext, authorController, S.of(context).author),
+                _buildTextField(
+                  dialogContext,
+                  authorController,
+                  S.of(context).author,
+                ),
                 const SizedBox(height: 8),
                 _buildTextField(
                   dialogContext,
@@ -383,6 +403,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     var keyboardRequested = false;
 
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (dialogContext) {
         if (!keyboardRequested) {
@@ -407,9 +428,17 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                   autofocus: true,
                 ),
                 const SizedBox(height: 8),
-                _buildTextField(dialogContext, descController, S.of(context).descriptionLabel),
+                _buildTextField(
+                  dialogContext,
+                  descController,
+                  S.of(context).descriptionLabel,
+                ),
                 const SizedBox(height: 8),
-                _buildTextField(dialogContext, authorController, S.of(context).author),
+                _buildTextField(
+                  dialogContext,
+                  authorController,
+                  S.of(context).author,
+                ),
                 const SizedBox(height: 8),
                 _buildTextField(
                   dialogContext,
@@ -464,6 +493,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     bool isLoading = false;
 
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: pageContext,
       barrierDismissible: true,
       builder: (dialogContext) {
@@ -619,6 +649,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     bool isLoading = false;
 
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: pageContext,
       barrierDismissible: true,
       builder: (dialogContext) {
@@ -718,7 +749,9 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                         setState(() => isLoading = false);
                         Navigator.pop(dialogContext);
                         showAppNotification(
-                          success ? S.of(context).importOk : S.of(context).importFormatBad,
+                          success
+                              ? S.of(context).importOk
+                              : S.of(context).importFormatBad,
                           type: success
                               ? AppNotificationType.success
                               : AppNotificationType.error,
@@ -747,6 +780,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     final jsonStr = const JsonEncoder.withIndent('  ').convert(source.toJson());
 
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
@@ -786,6 +820,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     CustomSource source,
   ) {
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.dialogBg(context),
@@ -810,7 +845,10 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
               ref.read(customSourcesProvider.notifier).deleteSource(source.id);
               Navigator.pop(context);
             },
-            child: Text(S.of(context).delete, style: TextStyle(color: Colors.red)),
+            child: Text(
+              S.of(context).delete,
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
@@ -823,6 +861,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     CustomSource source,
   ) {
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (context) => _LogConsole(source: source),
     );
@@ -890,7 +929,10 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
     if (buffer.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: buffer.toString()));
     if (!mounted) return;
-    showAppNotification(S.of(context).logCopied, type: AppNotificationType.success);
+    showAppNotification(
+      S.of(context).logCopied,
+      type: AppNotificationType.success,
+    );
   }
 
   void _listenLogs() {
@@ -903,11 +945,17 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
           });
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted || !_scrollController.hasClients) return;
-            _scrollController.animateTo(
-              _scrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOut,
-            );
+            if (reduceMotion(context)) {
+              _scrollController.jumpTo(
+                _scrollController.position.maxScrollExtent,
+              );
+            } else {
+              _scrollController.animateTo(
+                _scrollController.position.maxScrollExtent,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+              );
+            }
           });
         });
   }

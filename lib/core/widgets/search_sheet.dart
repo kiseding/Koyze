@@ -24,11 +24,9 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
     requestFocus: false,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black45,
-    sheetAnimationStyle: AnimationStyle(
+    sheetAnimationStyle: effectsAnimationStyle(
       duration: MotionDuration.container,
       reverseDuration: Duration.zero,
-      curve: MotionCurve.easeOut,
-      reverseCurve: MotionCurve.easeIn,
     ),
     builder: (context) => _SearchSheet(height: height),
   );
@@ -75,7 +73,7 @@ class _SearchSheetState extends State<_SearchSheet>
   Future<void> _animateSettle(double from, double to, Duration duration) {
     _settleFrom = from;
     _settleTo = to;
-    _settle.duration = duration;
+    _settle.duration = motionDuration(context, duration);
     return _settle.forward(from: 0);
   }
 
@@ -168,9 +166,7 @@ class _SearchSheetState extends State<_SearchSheet>
           height: widget.height,
           child: GlassSurface(
             style: AppGlassStyle.regular,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(20),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.18),
@@ -180,39 +176,39 @@ class _SearchSheetState extends State<_SearchSheet>
             ],
             child: Column(
               children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onVerticalDragStart: (_) {
-                  if (_dismissStarted) return;
-                  if (_settle.isAnimating) _settle.stop();
-                },
-                onVerticalDragUpdate: _onDragUpdate,
-                onVerticalDragEnd: _onDragEnd,
-                child: Container(
-                  width: double.infinity,
-                  height: 28,
-                  alignment: Alignment.topCenter,
-                  padding: const EdgeInsets.only(top: 10),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onVerticalDragStart: (_) {
+                    if (_dismissStarted) return;
+                    if (_settle.isAnimating) _settle.stop();
+                  },
+                  onVerticalDragUpdate: _onDragUpdate,
+                  onVerticalDragEnd: _onDragEnd,
                   child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.28),
-                      borderRadius: BorderRadius.circular(2),
+                    width: double.infinity,
+                    height: 28,
+                    alignment: Alignment.topCenter,
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.28),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Expanded(
-                child: SearchScreen(
-                  embedded: true,
-                  autofocusDelay: _focusDelay(),
-                  canAutofocus: () => !_dismissStarted,
+                Expanded(
+                  child: SearchScreen(
+                    embedded: true,
+                    autofocusDelay: _focusDelay(),
+                    canAutofocus: () => !_dismissStarted,
+                  ),
                 ),
-              ),
-            ],
+              ],
             ),
           ),
         ),

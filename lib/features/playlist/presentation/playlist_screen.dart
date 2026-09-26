@@ -24,6 +24,7 @@ import '../../subsonic/presentation/subsonic_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/loading_widget.dart';
+import '../../../core/motion/motion_tokens.dart';
 
 enum PlaylistSortMode { recent, name, songCount }
 
@@ -1045,6 +1046,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     var keyboardRequested = false;
 
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (dialogContext) {
         if (!keyboardRequested) {
@@ -1162,6 +1164,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     var keyboardRequested = false;
 
     showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       builder: (ctx) {
         if (!keyboardRequested) {
@@ -1363,6 +1366,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     var progress = '';
 
     await showDialog(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
@@ -1587,6 +1591,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                       );
                                   if (!ctx.mounted) return;
                                   final ok = await showDialog<bool>(
+                                    animationStyle: effectsAnimationStyle(),
                                     context: ctx,
                                     builder: (c2) => AlertDialog(
                                       backgroundColor: AppColors.dialogBg(
@@ -1677,9 +1682,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: AppLoadingIndicator(
-                                  strokeWidth: 2,
-                                ),
+                                child: AppLoadingIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.auto_awesome_rounded),
                         label: Text(
@@ -1714,6 +1717,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final maxW = media.size.width.clamp(280.0, 420.0);
 
     showDialog<void>(
+      animationStyle: effectsAnimationStyle(),
       context: context,
       barrierDismissible: true,
       builder: (dialogCtx) {
