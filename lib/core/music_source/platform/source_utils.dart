@@ -65,7 +65,7 @@ String normalizeKuwoArtwork(Map<String, dynamic> item) {
   if (albumPath.isNotEmpty) {
     return albumPath.startsWith('http')
         ? normalizeNeteaseArtwork(albumPath)
-        : 'https://img1.kuwo.cn/star/albumcover/$albumPath';
+        : 'https://img1.kuwo.cn/star/albumcover/${albumPath.replaceFirst(RegExp(r'^120/'), '500/')}';
   }
 
   final artistPath = item['web_artistpic_short']?.toString().trim() ?? '';

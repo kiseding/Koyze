@@ -33,7 +33,7 @@ void main() {
 
     expect(
       item.artwork,
-      'https://img1.kuwo.cn/star/albumcover/120/album.jpg',
+      'https://img1.kuwo.cn/star/albumcover/500/album.jpg',
     );
   });
 

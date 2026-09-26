@@ -27,7 +27,8 @@ class TxSource extends MusicPlatform {
       {int page = 1, int limit = 20}) async {
     try {
       final response = await _dio.get(
-        'https://c.y.qq.com/soso/fcgi-bin/client_search_cp',
+        'https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp',
+        options: Options(headers: {'Referer': 'https://y.qq.com/'}),
         queryParameters: {
           'w': keyword,
           'format': 'json',
@@ -37,6 +38,7 @@ class TxSource extends MusicPlatform {
           'aggr': '1',
           'lossless': '1',
           'platform': 'h5',
+          'g_tk': '5381',
         },
       ).timeout(const Duration(seconds: 10));
 
