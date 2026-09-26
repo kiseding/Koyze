@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/audio/audio_handler.dart';
+import '../../../core/performance/low_memory.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../nas/domain/nas_url.dart';
@@ -63,6 +64,12 @@ final androidFloatingPlayerProvider =
 final forceLandscapeProvider =
     StateNotifierProvider<ForceLandscapeNotifier, bool>((ref) {
       return ForceLandscapeNotifier();
+    });
+
+/// Skip frosted glass, transparency, and most motion. Defaults on at 4GB.
+final simplifyEffectsProvider =
+    StateNotifierProvider<SimplifyEffectsNotifier, bool>((ref) {
+      return SimplifyEffectsNotifier();
     });
 
 /// UI language. `system` follows the device locale.
@@ -293,6 +300,32 @@ class ForceLandscapeNotifier extends _PersistedSettingNotifier<bool> {
       value,
       (storage) => storage.setBool('force_landscape', value),
     );
+  }
+}
+
+class SimplifyEffectsNotifier extends _PersistedSettingNotifier<bool> {
+  SimplifyEffectsNotifier({StorageLoader? storage})
+    : super(LowMemory.active, storage: storage) {
+    _load((storage) {
+      final stored = storage.getBool('simplify_effects');
+      if (stored == null) return null;
+      LowMemory.active = stored;
+      return stored;
+    });
+  }
+
+  Future<void> setEnabled(bool value) async {
+    final previous = LowMemory.active;
+    LowMemory.active = value;
+    try {
+      await _persist(
+        value,
+        (storage) => storage.setBool('simplify_effects', value),
+      );
+    } catch (_) {
+      LowMemory.active = previous;
+      rethrow;
+    }
   }
 }
 

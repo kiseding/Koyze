@@ -4,14 +4,19 @@ import 'dart:io';
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 
-/// Devices at or below this much physical RAM skip frosted glass, translucent
-/// chrome, and motion. The fullscreen cover blur, the Android floating player,
-/// and loading indicators stay.
+/// Devices at or below this much physical RAM default to simplified effects.
+/// The fullscreen cover blur, the Android floating player, and loading
+/// indicators stay. A saved settings choice overrides this default.
 const lowMemoryLimitBytes = 4 * 1024 * 1024 * 1024;
 
 bool isLowMemoryDevice(int? totalBytes) {
   if (totalBytes == null || totalBytes <= 0) return false;
   return totalBytes <= lowMemoryLimitBytes;
+}
+
+/// `stored` is the user's switch. When it is unset, follow device memory.
+bool resolveSimplifyEffects({required bool lowMemoryDevice, bool? stored}) {
+  return stored ?? lowMemoryDevice;
 }
 
 abstract final class LowMemory {

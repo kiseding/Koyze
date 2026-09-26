@@ -243,6 +243,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           .setEnabled(value);
                     },
                   ),
+                  _buildSwitchTile(
+                    context,
+                    ref,
+                    s.simplifyEffects,
+                    s.simplifyEffectsSubtitle,
+                    ref.watch(simplifyEffectsProvider),
+                    (value) {
+                      ref
+                          .read(simplifyEffectsProvider.notifier)
+                          .setEnabled(value);
+                    },
+                  ),
                   if (androidFloatingPlayerSupported)
                     _buildSwitchTile(
                       context,
