@@ -116,7 +116,7 @@ internal object FloatingPlayer {
         val manager = host.getSystemService(WindowManager::class.java) ?: return false
         val view = buildView(host)
         val layoutParams = WindowManager.LayoutParams(
-            dp(host, 344),
+            dp(host, 328),
             WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -130,7 +130,7 @@ internal object FloatingPlayer {
             android.graphics.PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            val width = dp(host, 344)
+            val width = dp(host, 328)
             x = ((host.resources.displayMetrics.widthPixels - width) / 2).coerceAtLeast(0)
             y = dp(host, 48)
         }
@@ -190,7 +190,7 @@ internal object FloatingPlayer {
             outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
         }
         artworkView = artwork
-        val coverSize = dp(host, 100)
+        val coverSize = dp(host, 108)
         card.addView(artwork, LinearLayout.LayoutParams(coverSize, coverSize))
 
         val column = LinearLayout(host).apply {
@@ -205,7 +205,7 @@ internal object FloatingPlayer {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
-            setPadding(0, 0, dp(host, 22), 0)
+            setPadding(0, 0, dp(host, 18), 0)
             text = " "
         }
         val title = TextView(host).apply {
@@ -214,7 +214,7 @@ internal object FloatingPlayer {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
-            setPadding(0, 0, dp(host, 22), 0)
+            setPadding(0, 0, dp(host, 18), 0)
         }
         val progress = ProgressBar(host, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1000
@@ -230,19 +230,16 @@ internal object FloatingPlayer {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = dp(host, 2) })
-        column.addView(View(host), LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f,
-        ))
+        column.addView(flexibleGap(host))
         column.addView(progress, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(host, 3),
-        ).apply { marginEnd = dp(host, 4) })
+            dp(host, 4),
+        ))
+        column.addView(flexibleGap(host))
         column.addView(controlRow(host), LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = dp(host, 6) })
+        ))
         card.addView(column, LinearLayout.LayoutParams(0, coverSize, 1f))
 
         val frame = FrameLayout(host).apply { clipChildren = false }
@@ -251,10 +248,10 @@ internal object FloatingPlayer {
             text = "×"
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
             setOnClickListener { dispatch("dismiss") }
         }
-        frame.addView(close, FrameLayout.LayoutParams(dp(host, 32), dp(host, 32), Gravity.TOP or Gravity.END))
+        frame.addView(close, FrameLayout.LayoutParams(dp(host, 28), dp(host, 28), Gravity.TOP or Gravity.END))
         installDrag(card)
         return frame
     }
@@ -262,22 +259,22 @@ internal object FloatingPlayer {
     private fun controlRow(host: Activity): View {
         val row = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
+            gravity = Gravity.CENTER_VERTICAL
             clipChildren = false
         }
-        val skipSize = dp(host, 40)
-        val playSize = dp(host, 40)
-        fun addButton(icon: Int, tint: Int, action: () -> Unit): ImageView {
-            val button = controlButton(host, icon, tint, action)
-            row.addView(button, LinearLayout.LayoutParams(skipSize, skipSize))
-            return button
+        val skipSize = dp(host, 36)
+        val playSize = dp(host, 38)
+        fun addSkip(icon: Int, action: () -> Unit) {
+            row.addView(
+                controlButton(host, icon, Color.WHITE, action),
+                LinearLayout.LayoutParams(skipSize, skipSize),
+            )
         }
-        addButton(R.drawable.ic_float_previous, Color.WHITE) { dispatch("previous") }
-        playView = addButton(R.drawable.ic_float_play, Color.BLACK) { dispatch("toggle") }.apply {
-            layoutParams = LinearLayout.LayoutParams(playSize, playSize).apply {
-                marginStart = dp(host, 6)
-                marginEnd = dp(host, 6)
-            }
+        addSkip(R.drawable.ic_float_previous) { dispatch("previous") }
+        row.addView(flexibleGap(host))
+        playView = controlButton(host, R.drawable.ic_float_play, Color.BLACK) {
+            dispatch("toggle")
+        }.apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#1ED760"))
@@ -285,8 +282,16 @@ internal object FloatingPlayer {
             setPadding(dp(host, 8), dp(host, 8), dp(host, 8), dp(host, 8))
             elevation = 0f
         }
-        addButton(R.drawable.ic_float_next, Color.WHITE) { dispatch("next") }
+        row.addView(playView, LinearLayout.LayoutParams(playSize, playSize))
+        row.addView(flexibleGap(host))
+        addSkip(R.drawable.ic_float_next) { dispatch("next") }
         return row
+    }
+
+    private fun flexibleGap(host: Activity): View {
+        return View(host).apply {
+            layoutParams = LinearLayout.LayoutParams(0, 0, 1f)
+        }
     }
 
     private fun controlButton(
@@ -299,7 +304,7 @@ internal object FloatingPlayer {
             setImageResource(icon)
             setColorFilter(tint)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(dp(host, 8), dp(host, 8), dp(host, 8), dp(host, 8))
+            setPadding(dp(host, 7), dp(host, 7), dp(host, 7), dp(host, 7))
             actions[this] = onClick
         }
     }
