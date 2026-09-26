@@ -9,6 +9,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.text.TextUtils
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -115,7 +116,7 @@ internal object FloatingPlayer {
         val manager = host.getSystemService(WindowManager::class.java) ?: return false
         val view = buildView(host)
         val layoutParams = WindowManager.LayoutParams(
-            dp(host, 336),
+            dp(host, 320),
             WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -129,7 +130,7 @@ internal object FloatingPlayer {
             android.graphics.PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            val width = dp(host, 336)
+            val width = dp(host, 320)
             x = ((host.resources.displayMetrics.widthPixels - width) / 2).coerceAtLeast(0)
             y = dp(host, 48)
         }
@@ -170,10 +171,11 @@ internal object FloatingPlayer {
         val card = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(host, 12), dp(host, 9), dp(host, 6), dp(host, 9))
-            clipChildren = true
+            setPadding(dp(host, 12), dp(host, 12), dp(host, 8), dp(host, 12))
+            clipChildren = false
+            clipToPadding = false
             background = GradientDrawable().apply {
-                cornerRadius = dp(host, 33).toFloat()
+                cornerRadius = dp(host, 28).toFloat()
                 setColor(Color.parseColor("#F01C1C1E"))
             }
             elevation = dp(host, 8).toFloat()
@@ -181,34 +183,39 @@ internal object FloatingPlayer {
         val artwork = ImageView(host).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
-                cornerRadius = dp(host, 24).toFloat()
+                cornerRadius = dp(host, 18).toFloat()
                 setColor(Color.parseColor("#33FFFFFF"))
             }
             clipToOutline = true
             outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
         }
         artworkView = artwork
-        val coverSize = dp(host, 92)
+        val coverSize = dp(host, 76)
         card.addView(artwork, LinearLayout.LayoutParams(coverSize, coverSize))
 
         val column = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
+            clipChildren = false
             setPadding(dp(host, 12), 0, 0, 0)
         }
         val lyric = TextView(host).apply {
             setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             typeface = Typeface.DEFAULT_BOLD
             maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
+            setPadding(0, 0, dp(host, 22), 0)
             text = " "
         }
         val title = TextView(host).apply {
             setTextColor(Color.parseColor("#B3FFFFFF"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
+            setPadding(0, 0, dp(host, 22), 0)
         }
         val progress = ProgressBar(host, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1000
@@ -223,27 +230,34 @@ internal object FloatingPlayer {
         column.addView(title, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = dp(host, 3) })
+        ).apply { topMargin = dp(host, 2) })
         column.addView(progress, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(host, 5),
-        ).apply { topMargin = dp(host, 6) })
+            dp(host, 3),
+        ).apply {
+            topMargin = dp(host, 8)
+            marginEnd = dp(host, 4)
+        })
         column.addView(controlRow(host), LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
-            dp(host, 30),
-        ).apply { topMargin = dp(host, 3) })
-        card.addView(column, LinearLayout.LayoutParams(0, coverSize, 1f))
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = dp(host, 8) })
+        card.addView(column, LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f,
+        ))
 
-        val frame = FrameLayout(host)
+        val frame = FrameLayout(host).apply { clipChildren = false }
         frame.addView(card)
         val close = TextView(host).apply {
             text = "×"
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
             setOnClickListener { dispatch("dismiss") }
         }
-        frame.addView(close, FrameLayout.LayoutParams(dp(host, 42), dp(host, 42), Gravity.TOP or Gravity.END))
+        frame.addView(close, FrameLayout.LayoutParams(dp(host, 32), dp(host, 32), Gravity.TOP or Gravity.END))
         installDrag(card)
         return frame
     }
@@ -252,23 +266,27 @@ internal object FloatingPlayer {
         val row = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            clipChildren = false
         }
-        val buttonWidth = dp(host, 42)
-        val buttonHeight = dp(host, 30)
+        val skipSize = dp(host, 44)
+        val playSize = dp(host, 46)
         fun addButton(icon: Int, tint: Int, action: () -> Unit): ImageView {
             val button = controlButton(host, icon, tint, action)
-            row.addView(button, LinearLayout.LayoutParams(buttonWidth, buttonHeight))
+            row.addView(button, LinearLayout.LayoutParams(skipSize, skipSize))
             return button
         }
         addButton(R.drawable.ic_float_previous, Color.WHITE) { dispatch("previous") }
         playView = addButton(R.drawable.ic_float_play, Color.BLACK) { dispatch("toggle") }.apply {
-            layoutParams = LinearLayout.LayoutParams(buttonHeight, buttonHeight)
+            layoutParams = LinearLayout.LayoutParams(playSize, playSize).apply {
+                marginStart = dp(host, 6)
+                marginEnd = dp(host, 6)
+            }
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#1ED760"))
             }
-            setPadding(dp(host, 6), dp(host, 6), dp(host, 6), dp(host, 6))
-            elevation = dp(host, 3).toFloat()
+            setPadding(dp(host, 9), dp(host, 9), dp(host, 9), dp(host, 9))
+            elevation = 0f
         }
         addButton(R.drawable.ic_float_next, Color.WHITE) { dispatch("next") }
         return row
@@ -283,8 +301,8 @@ internal object FloatingPlayer {
         return ImageView(host).apply {
             setImageResource(icon)
             setColorFilter(tint)
-            scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setPadding(dp(host, 8), dp(host, 6), dp(host, 8), dp(host, 6))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(dp(host, 8), dp(host, 8), dp(host, 8), dp(host, 8))
             actions[this] = onClick
         }
     }
