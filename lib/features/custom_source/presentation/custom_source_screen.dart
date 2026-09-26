@@ -16,6 +16,7 @@ import '../domain/source_script_validation.dart';
 import 'custom_source_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/fx_switch.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 class CustomSourceScreen extends ConsumerStatefulWidget {
   const CustomSourceScreen({super.key});
@@ -164,7 +165,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                     child: SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: AppLoadingIndicator(strokeWidth: 2),
                     ),
                   ),
                 )
@@ -547,7 +548,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                       child: SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(
+                        child: AppLoadingIndicator(
                           strokeWidth: 2,
                           color: AppColors.accentOf(dialogContext),
                         ),
@@ -674,7 +675,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                     child: SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(
+                      child: AppLoadingIndicator(
                         strokeWidth: 2,
                         color: AppColors.accentOf(dialogContext),
                       ),

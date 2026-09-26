@@ -8,6 +8,7 @@ import '../../player/presentation/player_provider.dart';
 import '../../search/presentation/search_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 class SongListDetailScreen extends ConsumerStatefulWidget {
   final MusicItem songList;
@@ -119,7 +120,7 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
                 child: SizedBox(
                   width: 24,
                   height: 24,
-                  child: CircularProgressIndicator(
+                  child: AppLoadingIndicator(
                     strokeWidth: 2,
                     color: AppColors.accentOf(context),
                   ),

@@ -8,6 +8,7 @@ import '../presentation/lyric_provider.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../../../core/motion/motion_tokens.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 String _formatLyricTime(Duration duration) {
   final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -142,7 +143,7 @@ class _LyricViewState extends ConsumerState<LyricView> {
 
     if (loadState.isLoading) {
       return _buildStatusState(
-        icon: CircularProgressIndicator(strokeWidth: 2.5, color: accent),
+        icon: AppLoadingIndicator(strokeWidth: 2.5, color: accent),
         title: S.of(context).lyricsLoading,
         message: currentMusic == null
             ? S.of(context).fetchingLyrics

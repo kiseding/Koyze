@@ -7,6 +7,7 @@ import 'package:koyze/core/widgets/fx_switch.dart';
 import 'package:koyze/core/widgets/gradient_bar_backgrounds.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_preset.dart';
 import 'package:koyze/features/equalizer/presentation/equalizer_provider.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 /// 均衡器。频段数由设备决定（Android 上常见 5 段，也有 10 段实现），
 /// 所以这里一律按播放器上报的布局渲染。
@@ -73,7 +74,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           ],
         ),
         body: state.loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: AppLoadingIndicator())
             : ListView(
                 padding: EdgeInsets.fromLTRB(
                   16,

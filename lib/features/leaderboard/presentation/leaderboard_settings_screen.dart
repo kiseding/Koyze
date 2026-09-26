@@ -7,6 +7,7 @@ import '../../../l10n/app_strings.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/fx_switch.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 /// 榜单设置：勾选显示哪些平台与榜单。
 /// 平台未勾选时，其所属榜单不可勾选（自动隐藏并禁用）。
@@ -83,7 +84,7 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
           ],
         ),
         body: categoriesAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: AppLoadingIndicator()),
           error: (error, _) => Center(
             child: Text(
               '${S.of(context).loadSongsFailed}: $error',

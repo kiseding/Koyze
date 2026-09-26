@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../performance/low_memory.dart';
 import 'app_colors.dart';
 
 /// iOS-style frosted glass. Matches system materials more closely than a
@@ -33,7 +34,10 @@ abstract final class AppGlass {
     AppGlassStyle.chrome => blurChrome,
   };
 
-  static Color fill(BuildContext context, {AppGlassStyle style = AppGlassStyle.regular}) {
+  static Color fill(
+    BuildContext context, {
+    AppGlassStyle style = AppGlassStyle.regular,
+  }) {
     final isDark = AppColors.isDark(context);
     final alpha = switch (style) {
       AppGlassStyle.bar => isDark ? 0.72 : 0.78,
@@ -70,10 +74,26 @@ abstract final class AppGlass {
     const r = 0.2126, g = 0.7152, b = 0.0722;
     final ir = 1 - s;
     return <double>[
-      ir * r + s, ir * g,     ir * b,     0, 0,
-      ir * r,     ir * g + s, ir * b,     0, 0,
-      ir * r,     ir * g,     ir * b + s, 0, 0,
-      0,          0,          0,          1, 0,
+      ir * r + s,
+      ir * g,
+      ir * b,
+      0,
+      0,
+      ir * r,
+      ir * g + s,
+      ir * b,
+      0,
+      0,
+      ir * r,
+      ir * g,
+      ir * b + s,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
     ];
   }
 }
@@ -115,6 +135,25 @@ class GlassSurface extends StatelessWidget {
     final content = padding == null
         ? child
         : Padding(padding: padding!, child: child);
+    if (LowMemory.active) {
+      final surface = AppColors.card(context);
+      final opaque = color == null || color!.a >= 1
+          ? (color ?? surface)
+          : Color.alphaBlend(color!, surface);
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: opaque,
+          borderRadius: radius,
+          border: side,
+          boxShadow: boxShadow,
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: content,
+        ),
+      );
+    }
     final glass = ClipRRect(
       borderRadius: radius,
       clipBehavior: Clip.antiAlias,

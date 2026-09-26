@@ -15,6 +15,7 @@ import '../../nas/presentation/nas_provider.dart';
 import '../domain/subsonic_config.dart';
 import '../domain/subsonic_url.dart';
 import 'subsonic_provider.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 class SubsonicSettingsScreen extends ConsumerStatefulWidget {
   const SubsonicSettingsScreen({super.key, this.initialKind});
@@ -409,7 +410,7 @@ class _SubsonicSettingsScreenState
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: AppLoadingIndicator(strokeWidth: 2),
                   )
                 : Text(connected ? S.of(context).reconnect : S.of(context).connect),
           ),

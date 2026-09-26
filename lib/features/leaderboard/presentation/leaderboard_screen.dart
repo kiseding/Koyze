@@ -19,6 +19,7 @@ import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import 'leaderboard_provider.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 const Map<String, String> kLeaderboardPlatformNames = {
   'tx': 'QQ音乐',
@@ -71,7 +72,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                           child: SizedBox(
                             width: 24,
                             height: 24,
-                            child: CircularProgressIndicator(
+                            child: AppLoadingIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
                                 AppColors.amber,
@@ -716,7 +717,7 @@ class LeaderboardDetailScreenById extends ConsumerWidget {
         ),
         body: songsAsync.when(
           loading: () => Center(
-            child: CircularProgressIndicator(
+            child: AppLoadingIndicator(
               color: AppColors.accentOf(context),
             ),
           ),

@@ -11,6 +11,7 @@ import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import 'subsonic_provider.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 class SubsonicPlaylistDetailScreen extends ConsumerWidget {
   const SubsonicPlaylistDetailScreen({
@@ -68,7 +69,7 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
         ],
       ),
       body: songsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppLoadingIndicator()),
         error: (error, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),

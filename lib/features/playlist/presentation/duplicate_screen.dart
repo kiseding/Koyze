@@ -12,6 +12,7 @@ import '../domain/playlist.dart';
 import 'playlist_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 class DuplicateScreen extends ConsumerStatefulWidget {
   const DuplicateScreen({super.key});
@@ -65,7 +66,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
         body: SafeArea(
           top: false,
           child: playlistsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: AppLoadingIndicator()),
             error: (_, __) => Center(child: Text(S.of(context).loadFailed)),
             data: (playlists) {
               final groups = _detectGroups(playlists);

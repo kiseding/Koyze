@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../performance/low_memory.dart';
+
 /// 全局 Motion Design Tokens。
 /// 所有页面/组件动画统一引用这里，禁止各页面自造 Duration/Curve。
 class MotionDuration {
@@ -30,6 +32,7 @@ class MotionDuration {
 /// Central reduced-motion policy for widgets that cannot rely on implicit
 /// animations being disabled by the framework.
 bool reduceMotion(BuildContext context) {
+  if (LowMemory.active) return true;
   final media = MediaQuery.maybeOf(context);
   return media?.disableAnimations == true ||
       media?.accessibleNavigation == true;

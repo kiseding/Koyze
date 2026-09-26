@@ -16,6 +16,7 @@ import '../../nas/presentation/nas_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import 'subsonic_provider.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 class SubsonicLibraryScreen extends ConsumerStatefulWidget {
   const SubsonicLibraryScreen({super.key});
@@ -153,7 +154,7 @@ class _SubsonicLibraryScreenState
                   )
                 : songsAsync.when(
                     loading: () =>
-                        const Center(child: CircularProgressIndicator()),
+                        const Center(child: AppLoadingIndicator()),
                     error: (error, _) => _empty(
                       context,
                       icon: Icons.error_outline,

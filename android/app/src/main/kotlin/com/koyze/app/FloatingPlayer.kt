@@ -258,7 +258,7 @@ internal object FloatingPlayer {
             gravity = Gravity.CENTER
             includeFontPadding = false
             typeface = Typeface.DEFAULT_BOLD
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#FF3B30"))
@@ -269,7 +269,7 @@ internal object FloatingPlayer {
         }
         frame.addView(
             close,
-            FrameLayout.LayoutParams(dp(host, 46), dp(host, 46), Gravity.TOP or Gravity.END).apply {
+            FrameLayout.LayoutParams(dp(host, 40), dp(host, 40), Gravity.TOP or Gravity.END).apply {
                 topMargin = dp(host, 4)
                 marginEnd = dp(host, 4)
             },
@@ -286,7 +286,7 @@ internal object FloatingPlayer {
             clipChildren = false
             setPadding(dp(host, 12), 0, dp(host, 12), 0)
         }
-        val skipSize = dp(host, 42)
+        val skipSize = dp(host, 48)
         val playSize = dp(host, 44)
         fun addSkip(icon: Int, action: () -> Unit) {
             val button = controlButton(host, icon, Color.WHITE, action)

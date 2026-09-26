@@ -10,6 +10,7 @@ import '../domain/nas_config.dart';
 import '../domain/nas_kind.dart';
 import '../domain/nas_url.dart';
 import 'nas_provider.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 class NasSettingsScreen extends ConsumerStatefulWidget {
   const NasSettingsScreen({super.key, required this.kind});
@@ -212,7 +213,7 @@ class _NasSettingsScreenState extends ConsumerState<NasSettingsScreen> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: AppLoadingIndicator(strokeWidth: 2),
                   )
                 : Text(connected ? S.of(context).reconnect : S.of(context).connect),
           ),

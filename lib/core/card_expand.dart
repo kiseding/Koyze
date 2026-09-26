@@ -206,11 +206,7 @@ CustomTransitionPage<Object?> expandablePage(
         );
       } else if (fullWidthSwipe) {
         transition = AnimatedBuilder(
-          animation: Listenable.merge([
-            curved,
-            dismissOffset,
-            dismissProgress,
-          ]),
+          animation: Listenable.merge([curved, dismissOffset, dismissProgress]),
           builder: (context, child) {
             final width = MediaQuery.sizeOf(context).width;
             final current = _CardDismissScope.maybeOf(context);
@@ -522,7 +518,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   }) {
     _settleController
       ..stop()
-      ..duration = duration;
+      ..duration = motionDuration(context, duration);
     final curved = CurvedAnimation(
       parent: _settleController,
       // 归位/收拢带 spring 手感，与全屏播放器动效同一曲线族。

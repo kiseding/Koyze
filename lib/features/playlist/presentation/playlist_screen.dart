@@ -23,6 +23,7 @@ import '../../nas/presentation/nas_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 enum PlaylistSortMode { recent, name, songCount }
 
@@ -380,7 +381,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       ),
       _BodyLoading() => const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: AppLoadingIndicator()),
       ),
       _BodyEmptyResult() => Padding(
         padding: const EdgeInsets.symmetric(vertical: 32),
@@ -1676,7 +1677,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(
+                                child: AppLoadingIndicator(
                                   strokeWidth: 2,
                                 ),
                               )

@@ -8,6 +8,7 @@ import 'package:koyze/core/audio/audio_handler.dart';
 import 'package:koyze/core/audio/audio_runtime.dart';
 import 'package:koyze/core/audio/playback_cache_service.dart';
 import 'package:koyze/core/logging/app_log.dart';
+import 'package:koyze/core/performance/low_memory.dart';
 import 'package:koyze/core/network/music_source_service.dart';
 import 'package:koyze/core/storage/cache_maintenance_service.dart';
 import 'package:koyze/core/storage/portable_mode.dart';
@@ -73,6 +74,7 @@ Future<void> _bootstrap(
 Future<void> _bootstrapUnsafe(
   ValueNotifier<StartupBootstrapState> bootstrapStatus,
 ) async {
+  await LowMemory.detect();
   await PortableMode.initialize();
   final portableRoot = PortableMode.root;
   if (portableRoot != null) {

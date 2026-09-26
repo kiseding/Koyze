@@ -30,6 +30,7 @@ import '../../settings/presentation/settings_provider.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
 import 'widgets/player_volume_button.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 double _playbackQueueSheetInitialSize(BuildContext context, int itemCount) {
   final screenHeight = MediaQuery.sizeOf(context).height;
@@ -766,7 +767,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _settleComplete = null;
       return;
     }
-    _settleController.duration = duration;
+    _settleController.duration = motionDuration(context, duration);
     _settleController
         .forward(from: 0)
         .orCancel
@@ -2525,7 +2526,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                 final page = _displayedPage;
                 if (page == null) {
                   return const Expanded(
-                    child: Center(child: CircularProgressIndicator()),
+                    child: Center(child: AppLoadingIndicator()),
                   );
                 }
                 final displayedIndex = _displayedPageIndex ?? range.pageIndex;

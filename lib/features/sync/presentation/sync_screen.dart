@@ -9,6 +9,7 @@ import 'cloud_sync_provider.dart';
 import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 /// 同步页：对接 workers 云端（账号 + 歌单），不再强制首次启动登录。
 class SyncScreen extends ConsumerStatefulWidget {
@@ -139,7 +140,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                          child: AppLoadingIndicator(strokeWidth: 2.2),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -312,7 +313,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: AppLoadingIndicator(strokeWidth: 2),
                     )
                   : Icon(
                       _isLoginMode

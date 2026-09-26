@@ -8,6 +8,7 @@ import '../../player/presentation/player_provider.dart';
 import '../domain/download_task.dart';
 import 'download_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 class DownloadScreen extends ConsumerStatefulWidget {
   const DownloadScreen({super.key});
@@ -576,7 +577,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
         return SizedBox(
           width: 18,
           height: 18,
-          child: CircularProgressIndicator(
+          child: AppLoadingIndicator(
             value: task.progress,
             strokeWidth: 2,
             color: AppColors.amber,

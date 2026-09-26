@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:koyze/core/performance/low_memory.dart';
 import 'package:koyze/core/theme/app_theme.dart';
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/core/widgets/compact_high_resolution_scale.dart';
@@ -96,20 +97,24 @@ class LxMusicApp extends ConsumerWidget {
         }
         return const Locale('zh');
       },
-      themeAnimationDuration: const Duration(milliseconds: 300),
+      themeAnimationDuration: LowMemory.active
+          ? Duration.zero
+          : const Duration(milliseconds: 300),
       themeAnimationCurve: Curves.easeOutCubic,
       routerConfig: appRouter,
-      builder: (context, child) => CompactHighResolutionFrame(
-        child: WindowsCaptionFrame(
-          child: WindowsCloseHandler(
-            navigatorKey: rootNavigatorKey,
-            child: CloudSyncHost(
-              child: AppNotificationHost(
-                child: PlayerMessageListener(
-                  child: AndroidFloatingPlayerHost(
-                    child: ForceLandscapeBinding(
-                      child: StartupCloudLoginPrompt(
-                        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) {
+        final framed = CompactHighResolutionFrame(
+          child: WindowsCaptionFrame(
+            child: WindowsCloseHandler(
+              navigatorKey: rootNavigatorKey,
+              child: CloudSyncHost(
+                child: AppNotificationHost(
+                  child: PlayerMessageListener(
+                    child: AndroidFloatingPlayerHost(
+                      child: ForceLandscapeBinding(
+                        child: StartupCloudLoginPrompt(
+                          child: child ?? const SizedBox.shrink(),
+                        ),
                       ),
                     ),
                   ),
@@ -117,8 +122,13 @@ class LxMusicApp extends ConsumerWidget {
               ),
             ),
           ),
-        ),
-      ),
+        );
+        if (!LowMemory.active) return framed;
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: framed,
+        );
+      },
     );
   }
 }

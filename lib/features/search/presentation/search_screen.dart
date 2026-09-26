@@ -19,6 +19,7 @@ import 'package:animations/animations.dart';
 import '../../../core/motion/motion_tokens.dart';
 import '../../../core/motion/list_entrance.dart';
 import '../../../core/widgets/koyze_sheet.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({
@@ -420,7 +421,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         child: SizedBox(
           width: 24,
           height: 24,
-          child: CircularProgressIndicator(
+          child: AppLoadingIndicator(
             strokeWidth: 2,
             valueColor: AlwaysStoppedAnimation<Color>(
               AppColors.accentOf(context),
@@ -596,7 +597,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ? SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(
+                      child: AppLoadingIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(
                           AppColors.accentOf(context),

@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../player/presentation/player_provider.dart';
 import 'recommendation_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 const Color kRecommendColor = Color(0xFFFF8F1F);
 
@@ -36,7 +37,7 @@ class RecommendationScreen extends ConsumerWidget {
         child: recommendationsAsync.when(
           skipLoadingOnReload: true,
           skipLoadingOnRefresh: true,
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: AppLoadingIndicator()),
           error: (error, _) => _buildError(context, ref, error),
           data: (recommendations) => recommendations.isEmpty
               ? _buildEmpty(context)

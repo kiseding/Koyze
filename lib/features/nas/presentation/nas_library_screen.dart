@@ -15,6 +15,7 @@ import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import '../domain/nas_kind.dart';
 import 'nas_provider.dart';
+import '../../../core/widgets/loading_widget.dart';
 
 class NasLibraryScreen extends ConsumerStatefulWidget {
   const NasLibraryScreen({super.key, required this.kind});
@@ -134,7 +135,7 @@ class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
                   )
                 : songsAsync.when(
                     loading: () =>
-                        const Center(child: CircularProgressIndicator()),
+                        const Center(child: AppLoadingIndicator()),
                     error: (error, _) => _empty(
                       context,
                       icon: Icons.error_outline,
