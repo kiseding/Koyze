@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/animations/micro_animations.dart';
@@ -11,8 +12,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../player/presentation/widgets/mini_player.dart';
+import '../../settings/presentation/settings_provider.dart';
 
-class MainScaffold extends StatefulWidget {
+class MainScaffold extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
   final ValueChanged<int>? onBranchTap;
 
@@ -23,10 +25,10 @@ class MainScaffold extends StatefulWidget {
   });
 
   @override
-  State<MainScaffold> createState() => _MainScaffoldState();
+  ConsumerState<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends State<MainScaffold> {
+class _MainScaffoldState extends ConsumerState<MainScaffold> {
   // 上一帧 progress：判定方向——下滑/关闭（progress 下降）时 chrome
   // 全程立即显示，迷你栏绝不"消失一下"；打开（上升）保留退场窗口。
   double _prevProgress = 0;
@@ -47,6 +49,7 @@ class _MainScaffoldState extends State<MainScaffold> {
       orientation: media.orientation,
       platform: defaultTargetPlatform,
       isWeb: kIsWeb,
+      forceLandscape: ref.watch(forceLandscapeProvider),
     );
     // `padding` can exclude an overlaid system bar on edge-to-edge platforms.
     // Keep the existing iOS layout, while using the larger stable inset when

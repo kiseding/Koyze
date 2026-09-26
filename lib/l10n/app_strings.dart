@@ -52,6 +52,10 @@ class S {
   String get floatingPlayerPermission => en
       ? 'Allow display over other apps, then return to Koyze'
       : '请允许显示在其他应用上层，然后返回 Koyze';
+  String get forceLandscape => en ? 'Force landscape' : '强制横屏';
+  String get forceLandscapeSubtitle => en
+      ? 'Use the landscape layout. Phones also stay in landscape'
+      : '使用横屏布局。手机还会锁定为横屏方向';
   String get defaultSearchPlatform => en ? 'Default search source' : '默认搜索平台';
   String get listeningStats => en ? 'Listening stats' : '听歌统计';
   String get listeningStatsSubtitle =>

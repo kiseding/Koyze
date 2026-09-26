@@ -8,6 +8,7 @@ import 'package:koyze/core/theme/app_theme.dart';
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/core/widgets/compact_high_resolution_scale.dart';
 import 'package:koyze/router/app_router.dart';
+import 'package:koyze/features/settings/presentation/force_landscape_binding.dart';
 import 'package:koyze/features/settings/presentation/settings_provider.dart';
 import 'package:koyze/features/player/platform/android_floating_player.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
@@ -106,8 +107,10 @@ class LxMusicApp extends ConsumerWidget {
               child: AppNotificationHost(
                 child: PlayerMessageListener(
                   child: AndroidFloatingPlayerHost(
-                    child: StartupCloudLoginPrompt(
-                      child: child ?? const SizedBox.shrink(),
+                    child: ForceLandscapeBinding(
+                      child: StartupCloudLoginPrompt(
+                        child: child ?? const SizedBox.shrink(),
+                      ),
                     ),
                   ),
                 ),

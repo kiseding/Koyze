@@ -26,6 +26,7 @@ import '../../playlist/data/playlist_repository.dart';
 import '../../download/presentation/download_provider.dart';
 import '../../lyric/presentation/lyric_view.dart';
 import '../../lyric/presentation/lyric_provider.dart';
+import '../../settings/presentation/settings_provider.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
 import 'widgets/player_volume_button.dart';
@@ -890,6 +891,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     final screenH = MediaQuery.of(context).size.height;
     final screenW = MediaQuery.of(context).size.width;
+    final landscape = ref.watch(forceLandscapeProvider) || screenW > screenH;
     final dismissThreshold = screenH * 0.4; // 超过 2/5 关闭
     _dragDistance = screenH * 0.42; // 拖动跟手 morph 的满程距离
 
@@ -922,7 +924,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           miniHeight,
         );
         final fullRect = Offset.zero & Size(screenW, screenH);
-        final portraitLyrics = _currentPage == 1 && screenW <= screenH;
+        final portraitLyrics = _currentPage == 1 && !landscape;
         final lyricCollapsing =
             portraitLyrics &&
             (progress < 1 ||
@@ -1030,6 +1032,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             duration,
             screenH,
             screenW,
+            landscape,
             dismissThreshold,
             artworkReveal,
             chromeFade,
@@ -1098,7 +1101,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
               ),
-            if (_currentPage == 0 || screenW > screenH)
+            if (_currentPage == 0 || landscape)
               _RouteArtworkMorphOverlay(
                 rect: artworkMorphRect,
                 progress: progress,
@@ -1129,6 +1132,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     Duration duration,
     double screenH,
     double screenW,
+    bool landscape,
     double dismissThreshold,
     double artworkReveal,
     double chromeFade,
@@ -1235,7 +1239,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
                 Expanded(
-                  child: screenW > screenH
+                  child: landscape
                       ? Row(
                           children: [
                             Expanded(

@@ -230,6 +230,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           .setAutoResume(value);
                     },
                   ),
+                  _buildSwitchTile(
+                    context,
+                    ref,
+                    s.forceLandscape,
+                    s.forceLandscapeSubtitle,
+                    ref.watch(forceLandscapeProvider),
+                    (value) {
+                      ref
+                          .read(forceLandscapeProvider.notifier)
+                          .setEnabled(value);
+                    },
+                  ),
                   if (androidFloatingPlayerSupported)
                     _buildSwitchTile(
                       context,

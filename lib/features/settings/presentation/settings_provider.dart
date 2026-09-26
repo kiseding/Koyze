@@ -59,6 +59,12 @@ final androidFloatingPlayerProvider =
       return AndroidFloatingPlayerNotifier();
     });
 
+/// Force the landscape shell and player layout. Phones also lock orientation.
+final forceLandscapeProvider =
+    StateNotifierProvider<ForceLandscapeNotifier, bool>((ref) {
+      return ForceLandscapeNotifier();
+    });
+
 /// UI language. `system` follows the device locale.
 final appLanguageProvider =
     StateNotifierProvider<AppLanguageNotifier, AppLanguage>((ref) {
@@ -272,6 +278,20 @@ class AndroidFloatingPlayerNotifier extends _PersistedSettingNotifier<bool> {
     await _persist(
       value,
       (storage) => storage.setBool('android_floating_player', value),
+    );
+  }
+}
+
+class ForceLandscapeNotifier extends _PersistedSettingNotifier<bool> {
+  ForceLandscapeNotifier({StorageLoader? storage})
+    : super(false, storage: storage) {
+    _load((storage) => storage.getBool('force_landscape'));
+  }
+
+  Future<void> setEnabled(bool value) async {
+    await _persist(
+      value,
+      (storage) => storage.setBool('force_landscape', value),
     );
   }
 }

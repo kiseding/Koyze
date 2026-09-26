@@ -5,7 +5,9 @@ bool shouldUseSideNavigation({
   required Orientation orientation,
   required TargetPlatform platform,
   required bool isWeb,
+  bool forceLandscape = false,
 }) {
+  if (forceLandscape) return true;
   final isDesktop =
       !isWeb &&
       {

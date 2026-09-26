@@ -15,6 +15,16 @@ void main() {
     );
     expect(
       shouldUseSideNavigation(
+        size: const Size(390, 844),
+        orientation: Orientation.portrait,
+        platform: TargetPlatform.windows,
+        isWeb: false,
+        forceLandscape: true,
+      ),
+      isTrue,
+    );
+    expect(
+      shouldUseSideNavigation(
         size: const Size(844, 390),
         orientation: Orientation.landscape,
         platform: TargetPlatform.iOS,
