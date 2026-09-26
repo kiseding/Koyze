@@ -116,7 +116,7 @@ internal object FloatingPlayer {
         val manager = host.getSystemService(WindowManager::class.java) ?: return false
         val view = buildView(host)
         val layoutParams = WindowManager.LayoutParams(
-            dp(host, 320),
+            dp(host, 344),
             WindowManager.LayoutParams.WRAP_CONTENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -130,7 +130,7 @@ internal object FloatingPlayer {
             android.graphics.PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            val width = dp(host, 320)
+            val width = dp(host, 344)
             x = ((host.resources.displayMetrics.widthPixels - width) / 2).coerceAtLeast(0)
             y = dp(host, 48)
         }
@@ -171,11 +171,11 @@ internal object FloatingPlayer {
         val card = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(host, 12), dp(host, 12), dp(host, 8), dp(host, 12))
+            setPadding(dp(host, 12), dp(host, 12), dp(host, 12), dp(host, 12))
             clipChildren = false
             clipToPadding = false
             background = GradientDrawable().apply {
-                cornerRadius = dp(host, 28).toFloat()
+                cornerRadius = dp(host, 12).toFloat()
                 setColor(Color.parseColor("#F01C1C1E"))
             }
             elevation = dp(host, 8).toFloat()
@@ -183,19 +183,18 @@ internal object FloatingPlayer {
         val artwork = ImageView(host).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
-                cornerRadius = dp(host, 18).toFloat()
+                cornerRadius = dp(host, 12).toFloat()
                 setColor(Color.parseColor("#33FFFFFF"))
             }
             clipToOutline = true
             outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
         }
         artworkView = artwork
-        val coverSize = dp(host, 76)
+        val coverSize = dp(host, 100)
         card.addView(artwork, LinearLayout.LayoutParams(coverSize, coverSize))
 
         val column = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
             clipChildren = false
             setPadding(dp(host, 12), 0, 0, 0)
         }
@@ -231,22 +230,20 @@ internal object FloatingPlayer {
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = dp(host, 2) })
+        column.addView(View(host), LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f,
+        ))
         column.addView(progress, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             dp(host, 3),
-        ).apply {
-            topMargin = dp(host, 8)
-            marginEnd = dp(host, 4)
-        })
+        ).apply { marginEnd = dp(host, 4) })
         column.addView(controlRow(host), LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = dp(host, 8) })
-        card.addView(column, LinearLayout.LayoutParams(
-            0,
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            1f,
-        ))
+        ).apply { topMargin = dp(host, 6) })
+        card.addView(column, LinearLayout.LayoutParams(0, coverSize, 1f))
 
         val frame = FrameLayout(host).apply { clipChildren = false }
         frame.addView(card)
@@ -268,8 +265,8 @@ internal object FloatingPlayer {
             gravity = Gravity.CENTER
             clipChildren = false
         }
-        val skipSize = dp(host, 44)
-        val playSize = dp(host, 46)
+        val skipSize = dp(host, 40)
+        val playSize = dp(host, 40)
         fun addButton(icon: Int, tint: Int, action: () -> Unit): ImageView {
             val button = controlButton(host, icon, tint, action)
             row.addView(button, LinearLayout.LayoutParams(skipSize, skipSize))
@@ -285,7 +282,7 @@ internal object FloatingPlayer {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#1ED760"))
             }
-            setPadding(dp(host, 9), dp(host, 9), dp(host, 9), dp(host, 9))
+            setPadding(dp(host, 8), dp(host, 8), dp(host, 8), dp(host, 8))
             elevation = 0f
         }
         addButton(R.drawable.ic_float_next, Color.WHITE) { dispatch("next") }
