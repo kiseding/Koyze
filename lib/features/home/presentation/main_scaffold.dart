@@ -198,8 +198,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                     ),
                   ),
                 Positioned(
-                  left: usesSideNavigation ? sideRailWidth + 8 : 3,
-                  right: usesSideNavigation ? contentRightInset : 3,
+                  // Settings option cards are inset 16pt from the content
+                  // edges. The landscape mini player uses the same edges.
+                  left: usesSideNavigation ? sideRailWidth + 16 : 3,
+                  right: usesSideNavigation ? contentRightInset + 16 : 3,
                   bottom: miniBottom,
                   child: Transform.scale(
                     alignment: Alignment.bottomCenter,
