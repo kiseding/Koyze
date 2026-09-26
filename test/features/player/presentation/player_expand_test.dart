@@ -18,7 +18,13 @@ void main() {
     expect(full, contains('_fullArtworkRect('));
     expect(full, contains('_RouteArtworkMorphOverlay'));
     expect(full, contains('_RoutePlayButtonMorphOverlay'));
-    expect(full, contains('final playButtonTarget = _currentPage == 1'));
+    expect(
+      full,
+      contains(
+        'final portraitLyrics = _currentPage == 1 && screenW <= screenH',
+      ),
+    );
+    expect(full, contains('final playButtonTarget = portraitLyrics'));
     expect(
       full,
       contains('final btnMorphT = (progress / 0.35).clamp(0.0, 1.0)'),
@@ -46,13 +52,10 @@ void main() {
     expect(full, contains('else if (!lyricCollapsing)'));
     expect(full, contains('Theme.of(context).scaffoldBackgroundColor'));
     expect(full, contains('color: Colors.transparent'));
-    expect(full, contains('if (_currentPage == 0)'));
+    expect(full, contains('if (_currentPage == 0 || screenW > screenH)'));
     expect(full, contains('artworkReveal'));
     expect(full, contains('progress >= 1.0 ? 1.0 : 0.0'));
-    expect(
-      full,
-      isNot(contains('((progress - 0.74) / 0.22).clamp(0.0, 1.0)')),
-    );
+    expect(full, isNot(contains('((progress - 0.74) / 0.22).clamp(0.0, 1.0)')));
     expect(full, contains('OverflowBox'));
     expect(full, contains('ClipRRect'));
     expect(full, contains('playerRouteProgress'));
@@ -197,12 +200,7 @@ void main() {
       expect(full, contains('GlassSurface('));
       expect(full, contains('Material('));
       expect(full, contains('color: Colors.transparent'));
-      expect(
-        full,
-        contains(
-          'borderRadius: const BorderRadius.vertical(',
-        ),
-      );
+      expect(full, contains('borderRadius: const BorderRadius.vertical('));
       expect(full, contains('final pageContext = context'));
       expect(full, contains('showPlaylistPicker(context: pageContext'));
     },
