@@ -43,10 +43,15 @@ class RootShellLayout extends InheritedWidget {
   const RootShellLayout({
     super.key,
     required this.usesSideNavigation,
+    this.obscuredBottom = 0,
     required super.child,
   });
 
   final bool usesSideNavigation;
+
+  /// Space covered by the floating mini player. Scrollables add this so the
+  /// last item can clear the bar, while the page background continues behind it.
+  final double obscuredBottom;
 
   static bool usesSideNavigationOf(BuildContext context) {
     return context
@@ -55,9 +60,17 @@ class RootShellLayout extends InheritedWidget {
         false;
   }
 
+  static double obscuredBottomOf(BuildContext context) {
+    return context
+            .dependOnInheritedWidgetOfExactType<RootShellLayout>()
+            ?.obscuredBottom ??
+        0;
+  }
+
   @override
   bool updateShouldNotify(RootShellLayout oldWidget) {
-    return usesSideNavigation != oldWidget.usesSideNavigation;
+    return usesSideNavigation != oldWidget.usesSideNavigation ||
+        obscuredBottom != oldWidget.obscuredBottom;
   }
 }
 

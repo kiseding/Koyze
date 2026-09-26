@@ -115,6 +115,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ListView(
               padding: EdgeInsets.only(
                 top: isLandscapeShell ? 0 : FrostedTabHeader.extent(context),
+                bottom: RootShellLayout.obscuredBottomOf(context),
               ),
               children: [
                 _buildSection(context, s.sync, [

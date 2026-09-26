@@ -186,7 +186,12 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             ),
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  0,
+                  16,
+                  RootShellLayout.obscuredBottomOf(context),
+                ),
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
                 itemCount: bodyItems.length,

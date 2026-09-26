@@ -223,7 +223,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         12,
         isLandscapeShell ? 12 : FrostedTabHeader.extent(context),
         12,
-        16,
+        16 + RootShellLayout.obscuredBottomOf(context),
       ),
       cacheExtent: 520,
       itemCount: rows.length,

@@ -63,7 +63,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       isWide ? 0 : 16,
                       headerExtent == 0 ? 16 : headerExtent + 8,
                       isWide ? 0 : 16,
-                      12,
+                      12 + RootShellLayout.obscuredBottomOf(context),
                     ),
                     child: SizedBox(
                       width: contentWidth,

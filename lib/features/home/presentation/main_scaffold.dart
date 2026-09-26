@@ -120,6 +120,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           final tabPush = chromeBottom * 0.6;
           final shell = RootShellLayout(
             usesSideNavigation: usesSideNavigation,
+            obscuredBottom: usesSideNavigation ? chromeBottom : 0,
             child: navigationShell,
           );
 
@@ -136,7 +137,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                         padding: EdgeInsets.only(
                           left: usesSideNavigation ? sideRailWidth : 0,
                           right: contentRightInset,
-                          bottom: chromeBottom,
+                          bottom: usesSideNavigation ? 0 : chromeBottom,
                         ),
                         child: shell,
                       ),
