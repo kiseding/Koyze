@@ -14,6 +14,17 @@ const androidFloatingPlayerChannel = MethodChannel('koyze/floating_player');
 bool get androidFloatingPlayerSupported =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
+bool floatingPlayerFollowsDarkTheme({
+  required ThemeMode mode,
+  required Brightness platformBrightness,
+}) {
+  return switch (mode) {
+    ThemeMode.dark => true,
+    ThemeMode.light => false,
+    ThemeMode.system => platformBrightness == Brightness.dark,
+  };
+}
+
 bool shouldShowAndroidFloatingPlayer({
   required bool enabled,
   required bool permissionGranted,
@@ -107,6 +118,12 @@ class _AndroidFloatingPlayerHostState
     ref.listenManual(playerPositionProvider, (_, _) => _sync());
     ref.listenManual(durationProvider, (_, _) => _sync());
     ref.listenManual(playbackStateProvider, (_, _) => _sync(immediate: true));
+    ref.listenManual(themeModeProvider, (_, _) => _sync(immediate: true));
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    _sync(immediate: true);
   }
 
   @override
@@ -221,6 +238,10 @@ class _AndroidFloatingPlayerHostState
       'durationMs': duration.inMilliseconds,
       'playing': playing,
       'artwork': music.artwork ?? '',
+      'dark': floatingPlayerFollowsDarkTheme(
+        mode: ref.read(themeModeProvider),
+        platformBrightness: MediaQuery.platformBrightnessOf(context),
+      ),
     });
   }
 

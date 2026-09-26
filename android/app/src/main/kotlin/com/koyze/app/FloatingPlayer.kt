@@ -45,6 +45,8 @@ internal object FloatingPlayer {
     private var titleView: TextView? = null
     private var progressView: ProgressBar? = null
     private var playView: ImageView? = null
+    private var cardView: LinearLayout? = null
+    private val skipViews = ArrayList<ImageView>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val loader = Executors.newSingleThreadExecutor()
     private val artworkGeneration = AtomicInteger()
@@ -89,6 +91,8 @@ internal object FloatingPlayer {
         titleView = null
         progressView = null
         playView = null
+        cardView = null
+        skipViews.clear()
         windowManager = null
         artworkUrl = null
     }
@@ -151,6 +155,7 @@ internal object FloatingPlayer {
         val duration = (payload["durationMs"] as? Number)?.toInt() ?: 0
         val playing = payload["playing"] == true
         val artwork = payload["artwork"]?.toString()
+        applyTheme(payload["dark"] != false)
         lyricView?.text = title.ifBlank { lyric }
         titleView?.text = if (title.isBlank()) "" else lyric
         progressView?.apply {
@@ -168,6 +173,7 @@ internal object FloatingPlayer {
 
     private fun buildView(host: Activity): View {
         actions.clear()
+        skipViews.clear()
         val card = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -179,7 +185,9 @@ internal object FloatingPlayer {
                 setColor(Color.parseColor("#F01C1C1E"))
             }
             elevation = dp(host, 8).toFloat()
+            alpha = 0.5f
         }
+        cardView = card
         val artwork = ImageView(host).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
@@ -205,7 +213,7 @@ internal object FloatingPlayer {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
-            setPadding(0, 0, dp(host, 30), 0)
+            setPadding(0, 0, dp(host, 40), 0)
             text = " "
         }
         val title = TextView(host).apply {
@@ -214,7 +222,7 @@ internal object FloatingPlayer {
             maxLines = 1
             ellipsize = TextUtils.TruncateAt.END
             includeFontPadding = false
-            setPadding(0, 0, dp(host, 30), 0)
+            setPadding(0, 0, dp(host, 40), 0)
         }
         val progress = ProgressBar(host, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1000
@@ -249,20 +257,24 @@ internal object FloatingPlayer {
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             includeFontPadding = false
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+            typeface = Typeface.DEFAULT_BOLD
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#FF3B30"))
+                setStroke(dp(host, 3), Color.WHITE)
             }
+            elevation = dp(host, 10).toFloat()
             setOnClickListener { dispatch("dismiss") }
         }
         frame.addView(
             close,
-            FrameLayout.LayoutParams(dp(host, 36), dp(host, 36), Gravity.TOP or Gravity.END).apply {
-                topMargin = dp(host, 8)
-                marginEnd = dp(host, 8)
+            FrameLayout.LayoutParams(dp(host, 46), dp(host, 46), Gravity.TOP or Gravity.END).apply {
+                topMargin = dp(host, 4)
+                marginEnd = dp(host, 4)
             },
         )
+        applyTheme(true)
         installDrag(card)
         return frame
     }
@@ -277,10 +289,9 @@ internal object FloatingPlayer {
         val skipSize = dp(host, 42)
         val playSize = dp(host, 44)
         fun addSkip(icon: Int, action: () -> Unit) {
-            row.addView(
-                controlButton(host, icon, Color.WHITE, action),
-                LinearLayout.LayoutParams(skipSize, skipSize),
-            )
+            val button = controlButton(host, icon, Color.WHITE, action)
+            skipViews += button
+            row.addView(button, LinearLayout.LayoutParams(skipSize, skipSize))
         }
         addSkip(R.drawable.ic_float_previous) { dispatch("previous") }
         row.addView(flexibleGap(host))
@@ -298,6 +309,24 @@ internal object FloatingPlayer {
         row.addView(flexibleGap(host))
         addSkip(R.drawable.ic_float_next) { dispatch("next") }
         return row
+    }
+
+    private fun applyTheme(dark: Boolean) {
+        val surface = if (dark) Color.parseColor("#1C1C1E") else Color.WHITE
+        val onSurface = if (dark) Color.WHITE else Color.BLACK
+        val muted = if (dark) Color.parseColor("#B3FFFFFF") else Color.parseColor("#993C3C43")
+        val accent = if (dark) Color.parseColor("#1ED760") else Color.parseColor("#1DB954")
+        val track = if (dark) Color.parseColor("#33FFFFFF") else Color.parseColor("#33000000")
+        (cardView?.background as? GradientDrawable)?.setColor(surface)
+        (artworkView?.background as? GradientDrawable)?.setColor(
+            if (dark) Color.parseColor("#33FFFFFF") else Color.parseColor("#14000000"),
+        )
+        lyricView?.setTextColor(onSurface)
+        titleView?.setTextColor(muted)
+        progressView?.progressTintList = ColorStateList.valueOf(onSurface)
+        progressView?.progressBackgroundTintList = ColorStateList.valueOf(track)
+        skipViews.forEach { it.setColorFilter(onSurface) }
+        (playView?.background as? GradientDrawable)?.setColor(accent)
     }
 
     private fun flexibleGap(host: Activity): View {
