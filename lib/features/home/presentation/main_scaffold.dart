@@ -513,6 +513,9 @@ class _EditableAwareHorizontalDragGestureRecognizer
   }
 }
 
+const _sideNavItemOuterPadding = 8.0;
+const _sideNavItemInnerPadding = 10.0;
+
 class _SideNav extends StatelessWidget {
   final int selectedIndex;
   final RootHeaderController headers;
@@ -538,7 +541,7 @@ class _SideNav extends StatelessWidget {
             final header = headers.headerFor(selectedIndex);
             return Padding(
               padding: const EdgeInsets.fromLTRB(
-                14,
+                _sideNavItemOuterPadding + _sideNavItemInnerPadding,
                 topPadding,
                 8,
                 bottomPadding,
@@ -615,7 +618,10 @@ class _SideNav extends StatelessWidget {
     final isDark = AppColors.isDark(context);
     final muted = isDark ? const Color(0xE6FFFFFF) : const Color(0xE6000000);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: _sideNavItemOuterPadding,
+        vertical: 2,
+      ),
       child: SizedBox(
         height: 48,
         child: Pressable(
@@ -632,7 +638,9 @@ class _SideNav extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(
+                horizontal: _sideNavItemInnerPadding,
+              ),
               child: Row(
                 children: [
                   AnimatedIconSwitch(
