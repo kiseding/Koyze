@@ -500,58 +500,6 @@ class _PlayerTransitionRoute extends PageRoute<void> {
       curve: Curves.easeOutCubic,
       reverseCurve: Curves.easeInCubic,
     );
-    return _PlayerRouteProgressBridge(animation: curved, child: child);
+    return PlayerRouteProgressBridge(animation: curved, child: child);
   }
-}
-
-/// 把全屏播放器路由过渡进度同步给主壳（底栏挤出 / Tab 上移 / 迷你栏扩张）。
-class _PlayerRouteProgressBridge extends StatefulWidget {
-  const _PlayerRouteProgressBridge({
-    required this.animation,
-    required this.child,
-  });
-
-  final Animation<double> animation;
-  final Widget child;
-
-  @override
-  State<_PlayerRouteProgressBridge> createState() =>
-      _PlayerRouteProgressBridgeState();
-}
-
-class _PlayerRouteProgressBridgeState
-    extends State<_PlayerRouteProgressBridge> {
-  @override
-  void initState() {
-    super.initState();
-    widget.animation.addListener(_sync);
-  }
-
-  @override
-  void didUpdateWidget(covariant _PlayerRouteProgressBridge oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.animation != widget.animation) {
-      oldWidget.animation.removeListener(_sync);
-      widget.animation.addListener(_sync);
-    }
-  }
-
-  void _sync() {
-    if (playerRouteDismissLocked) return;
-    // 曲线整形只在"路由自动动画"这一端做（CurvedAnimation 已套
-    // easeOutCubic，与手势 settle 同曲线同时长）；拖动/左缘等手动
-    // 驱动直接写值，播放器线性消费，保证跟手无固定路径。
-    playerRouteProgress.value = widget.animation.value;
-  }
-
-  @override
-  void dispose() {
-    widget.animation.removeListener(_sync);
-    playerRouteDismissLocked = false;
-    playerRouteProgress.value = 0;
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
 }
