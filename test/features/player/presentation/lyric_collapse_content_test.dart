@@ -112,7 +112,7 @@ void main() {
     edgeDragActive = false;
   });
 
-  testWidgets('landscape player stays opaque when route progress is stuck', (
+  testWidgets('landscape dismiss follows a stuck route progress', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(900, 400);
@@ -125,8 +125,8 @@ void main() {
     playerRouteDismissLocked = true;
     await tester.pumpWidget(harness());
     await tester.pump();
-    // The new route must clear stale close state, while a stuck route progress
-    // and a stale edge flag must still leave the landscape body visible.
+    // Closing must keep following the gesture. A stuck progress of 0 fades the
+    // landscape chrome instead of forcing an opaque player over the mini bar.
     playerRouteProgress.value = 0;
     edgeDragActive = true;
     await tester.pump();
@@ -136,15 +136,6 @@ void main() {
         .ancestor(of: find.text('测试歌曲名称'), matching: find.byType(Opacity))
         .evaluate()
         .map((element) => (element.widget as Opacity).opacity);
-    expect(opacities, isNot(contains(0)));
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is ColoredBox &&
-            (widget.color == const Color(0x73FFFFFF) ||
-                widget.color == const Color(0x8A000000)),
-      ),
-      findsNothing,
-    );
+    expect(opacities, contains(0));
   });
 }
