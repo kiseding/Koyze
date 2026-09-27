@@ -685,7 +685,7 @@ class _SideNav extends ConsumerWidget {
     final isDark = AppColors.isDark(context);
     final muted = isDark ? const Color(0xC7FFFFFF) : const Color(0xC7000000);
     return Padding(
-      padding: EdgeInsets.fromLTRB(compact ? 0 : 2, 0, compact ? 0 : 8, 0),
+      padding: EdgeInsets.fromLTRB(compact ? 0 : 2, 0, 8, 0),
       child: SizedBox(
         height: compact ? 32 : _sideNavShortcutExtent,
         child: DecoratedBox(

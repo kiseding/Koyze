@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../player/presentation/player_provider.dart';
 import '../domain/download_task.dart';
 import 'download_provider.dart';
+import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/loading_widget.dart';
 
@@ -166,11 +167,12 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                               ),
                             ),
                           )
-                        : ListView.builder(
+                        : AdaptiveSongList.builder(
                             padding: EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 4,
                             ),
+                            landscapeItemExtent: 156,
                             itemCount: filtered.length,
                             itemBuilder: (context, index) =>
                                 _buildTaskItem(context, ref, filtered[index]),

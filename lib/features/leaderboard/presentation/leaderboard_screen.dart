@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/music_source/platform/music_platform.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/card_play_button.dart';
 import '../../../core/widgets/favorite_button.dart';
@@ -717,9 +718,7 @@ class LeaderboardDetailScreenById extends ConsumerWidget {
         ),
         body: songsAsync.when(
           loading: () => Center(
-            child: AppLoadingIndicator(
-              color: AppColors.accentOf(context),
-            ),
+            child: AppLoadingIndicator(color: AppColors.accentOf(context)),
           ),
           error: (e, _) => Center(
             child: Text(
@@ -736,8 +735,9 @@ class LeaderboardDetailScreenById extends ConsumerWidget {
                 ),
               );
             }
-            return ListView.builder(
+            return AdaptiveSongList.builder(
               cacheExtent: 420,
+              landscapeItemExtent: 82,
               padding: EdgeInsets.only(
                 top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
                 left: 16,

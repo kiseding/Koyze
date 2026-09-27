@@ -10,6 +10,7 @@ import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/favorite_button.dart';
+import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/page_navigation_bar.dart';
 import '../data/playlist_repository.dart';
 import '../domain/playlist.dart';
@@ -675,10 +676,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       children: [
         Positioned.fill(
           child: RepaintBoundary(
-            child: ListView.builder(
+            child: AdaptiveSongList.builder(
               key: PageStorageKey('playlist-${playlist.id}-${range.pageIndex}'),
               controller: _scrollController,
               itemExtent: 72,
+              landscapeItemExtent: 80,
               itemCount: songs.length,
               padding: EdgeInsets.only(
                 top: topInset,

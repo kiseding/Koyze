@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
@@ -153,13 +154,14 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
                   style: TextStyle(color: AppColors.mutedText(context)),
                 ),
               )
-            : ListView.builder(
+            : AdaptiveSongList.builder(
                 padding: EdgeInsets.only(
                   top: MediaQuery.paddingOf(context).top + kToolbarHeight,
                   bottom: 16,
                   left: 16,
                   right: 16,
                 ),
+                landscapeItemExtent: 88,
                 itemCount: _songs.length,
                 itemBuilder: (context, index) {
                   final song = _songs[index];

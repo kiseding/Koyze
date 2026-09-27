@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/favorite_button.dart';
@@ -26,8 +27,7 @@ class SubsonicLibraryScreen extends ConsumerStatefulWidget {
       _SubsonicLibraryScreenState();
 }
 
-class _SubsonicLibraryScreenState
-    extends ConsumerState<SubsonicLibraryScreen> {
+class _SubsonicLibraryScreenState extends ConsumerState<SubsonicLibraryScreen> {
   bool _scraping = false;
   int _scrapeDone = 0;
   int _scrapeTotal = 0;
@@ -46,8 +46,9 @@ class _SubsonicLibraryScreenState
     final kind = ref.watch(selfHostedKindProvider);
     final nasKind = kind.nasKind;
     final subsonicConnected = ref.watch(subsonicConnectedProvider);
-    final nasConnected =
-        nasKind == null ? false : ref.watch(nasConnectedProvider(nasKind));
+    final nasConnected = nasKind == null
+        ? false
+        : ref.watch(nasConnectedProvider(nasKind));
     final connected = nasKind == null ? subsonicConnected : nasConnected;
     final configHost = nasKind == null
         ? ref.watch(subsonicConfigProvider).hostLabel
@@ -71,14 +72,17 @@ class _SubsonicLibraryScreenState
         ),
         title: Text(
           S.of(context).nasLibrary,
-          style: TextStyle(color: on, fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: on,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         actions: [
           FxIconButton(
             tooltip: S.of(context).connectionSettings,
             icon: Icon(Icons.settings_outlined, color: on),
-            onPressed: () =>
-                context.push('/subsonic-settings', extra: kind),
+            onPressed: () => context.push('/subsonic-settings', extra: kind),
           ),
           if (connected)
             songsAsync.maybeWhen(
@@ -100,7 +104,9 @@ class _SubsonicLibraryScreenState
               data: (songs) => songs.isEmpty
                   ? const SizedBox.shrink()
                   : FxIconButton(
-                      tooltip: _scraping ? S.of(context).scraping : S.of(context).scrapeArtworkLyrics,
+                      tooltip: _scraping
+                          ? S.of(context).scraping
+                          : S.of(context).scrapeArtworkLyrics,
                       icon: Icon(
                         Icons.auto_fix_high_outlined,
                         color: _scraping ? accent : on,
@@ -153,8 +159,7 @@ class _SubsonicLibraryScreenState
                         context.push('/subsonic-settings', extra: kind),
                   )
                 : songsAsync.when(
-                    loading: () =>
-                        const Center(child: AppLoadingIndicator()),
+                    loading: () => const Center(child: AppLoadingIndicator()),
                     error: (error, _) => _empty(
                       context,
                       icon: Icons.error_outline,
@@ -174,8 +179,9 @@ class _SubsonicLibraryScreenState
                           onAction: () => _invalidateSongs(kind),
                         );
                       }
-                      return ListView.builder(
+                      return AdaptiveSongList.builder(
                         padding: const EdgeInsets.fromLTRB(8, 0, 8, 32),
+                        landscapeItemExtent: 82,
                         itemCount: songs.length,
                         itemBuilder: (context, index) {
                           final song = songs[index];
@@ -186,7 +192,8 @@ class _SubsonicLibraryScreenState
                               child: SizedBox(
                                 width: 44,
                                 height: 44,
-                                child: song.artwork == null ||
+                                child:
+                                    song.artwork == null ||
                                         song.artwork!.isEmpty
                                     ? Icon(
                                         Icons.music_note,
@@ -264,7 +271,10 @@ class _SubsonicLibraryScreenState
       );
     } catch (error) {
       if (!mounted) return;
-      showAppNotification(S.of(context).scrapeFailed(error), type: AppNotificationType.error);
+      showAppNotification(
+        S.of(context).scrapeFailed(error),
+        type: AppNotificationType.error,
+      );
     } finally {
       if (mounted) setState(() => _scraping = false);
     }
@@ -273,13 +283,14 @@ class _SubsonicLibraryScreenState
   Future<void> _play(List<MusicItem> songs, int index) async {
     if (songs.isEmpty) return;
     try {
-      await ref.read(playerServiceProvider).playPlaylist(
-            songs,
-            index: index,
-            manualPlayName: songs[index].name,
-          );
+      await ref
+          .read(playerServiceProvider)
+          .playPlaylist(songs, index: index, manualPlayName: songs[index].name);
     } catch (error) {
-      showAppNotification('${S.of(context).playFailed}: $error', type: AppNotificationType.error);
+      showAppNotification(
+        '${S.of(context).playFailed}: $error',
+        type: AppNotificationType.error,
+      );
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/favorite_button.dart';
@@ -54,7 +55,11 @@ class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
         ),
         title: Text(
           kind.libraryTitle,
-          style: TextStyle(color: on, fontSize: 18, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: on,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         actions: [
           FxIconButton(
@@ -82,7 +87,9 @@ class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
               data: (songs) => songs.isEmpty
                   ? const SizedBox.shrink()
                   : FxIconButton(
-                      tooltip: _scraping ? S.of(context).scraping : S.of(context).scrapeArtworkLyrics,
+                      tooltip: _scraping
+                          ? S.of(context).scraping
+                          : S.of(context).scrapeArtworkLyrics,
                       icon: Icon(
                         Icons.auto_fix_high_outlined,
                         color: _scraping ? accent : on,
@@ -110,7 +117,9 @@ class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   LinearProgressIndicator(
-                    value: _scrapeTotal == 0 ? null : _scrapeDone / _scrapeTotal,
+                    value: _scrapeTotal == 0
+                        ? null
+                        : _scrapeDone / _scrapeTotal,
                   ),
                   const SizedBox(height: 6),
                   Text(
@@ -134,8 +143,7 @@ class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
                     onAction: () => context.push(kind.settingsRoute),
                   )
                 : songsAsync.when(
-                    loading: () =>
-                        const Center(child: AppLoadingIndicator()),
+                    loading: () => const Center(child: AppLoadingIndicator()),
                     error: (error, _) => _empty(
                       context,
                       icon: Icons.error_outline,
@@ -151,14 +159,17 @@ class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
                           context,
                           icon: Icons.library_music_outlined,
                           title: S.of(context).noSongsOnServer,
-                          subtitle: S.of(context).connectedHost(config.hostLabel),
+                          subtitle: S
+                              .of(context)
+                              .connectedHost(config.hostLabel),
                           actionLabel: S.of(context).refresh,
                           onAction: () =>
                               ref.invalidate(nasLibrarySongsProvider(kind)),
                         );
                       }
-                      return ListView.builder(
+                      return AdaptiveSongList.builder(
                         padding: const EdgeInsets.fromLTRB(8, 8, 8, 32),
+                        landscapeItemExtent: 82,
                         itemCount: songs.length,
                         itemBuilder: (context, index) {
                           final song = songs[index];
@@ -169,7 +180,8 @@ class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
                               child: SizedBox(
                                 width: 44,
                                 height: 44,
-                                child: song.artwork == null ||
+                                child:
+                                    song.artwork == null ||
                                         song.artwork!.isEmpty
                                     ? Icon(
                                         Icons.music_note,
@@ -247,7 +259,10 @@ class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
       );
     } catch (error) {
       if (!mounted) return;
-      showAppNotification(S.of(context).scrapeFailed(error), type: AppNotificationType.error);
+      showAppNotification(
+        S.of(context).scrapeFailed(error),
+        type: AppNotificationType.error,
+      );
     } finally {
       if (mounted) setState(() => _scraping = false);
     }
@@ -256,13 +271,14 @@ class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
   Future<void> _play(List<MusicItem> songs, int index) async {
     if (songs.isEmpty) return;
     try {
-      await ref.read(playerServiceProvider).playPlaylist(
-            songs,
-            index: index,
-            manualPlayName: songs[index].name,
-          );
+      await ref
+          .read(playerServiceProvider)
+          .playPlaylist(songs, index: index, manualPlayName: songs[index].name);
     } catch (error) {
-      showAppNotification('${S.of(context).playFailed}: $error', type: AppNotificationType.error);
+      showAppNotification(
+        '${S.of(context).playFailed}: $error',
+        type: AppNotificationType.error,
+      );
     }
   }
 

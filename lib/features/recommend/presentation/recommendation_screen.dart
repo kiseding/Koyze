@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../player/presentation/player_provider.dart';
 import 'recommendation_provider.dart';
+import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/loading_widget.dart';
 
@@ -41,155 +42,91 @@ class RecommendationScreen extends ConsumerWidget {
           error: (error, _) => _buildError(context, ref, error),
           data: (recommendations) => recommendations.isEmpty
               ? _buildEmpty(context)
-              : Column(
-                  children: [
-                    _buildHeader(context, recommendations.length),
-                    Expanded(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                        itemCount: recommendations.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 4),
-                        itemBuilder: (context, index) {
-                          final rec = recommendations[index];
-                          return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            leading: SizedBox(
-                              width: 28,
-                              child: Consumer(
-                                builder: (context, ref, _) {
-                                  final isPlaying = ref.watch(
-                                    currentMusicProvider.select(
-                                      (current) =>
-                                          current?.identityKey ==
-                                          rec.song.identityKey,
-                                    ),
-                                  );
-                                  if (isPlaying) {
-                                    return Icon(
-                                      Icons.play_arrow,
-                                      size: 22,
-                                      color: AppColors.accentOf(context),
-                                    );
-                                  }
-                                  return Text(
-                                    '${index + 1}',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: index < 3
-                                          ? kRecommendColor
-                                          : AppColors.mutedText(context),
-                                    ),
-                                  );
-                                },
+              : AdaptiveSongList.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                  landscapeItemExtent: 76,
+                  itemCount: recommendations.length,
+                  itemBuilder: (context, index) {
+                    final rec = recommendations[index];
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      leading: SizedBox(
+                        width: 28,
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final isPlaying = ref.watch(
+                              currentMusicProvider.select(
+                                (current) =>
+                                    current?.identityKey ==
+                                    rec.song.identityKey,
                               ),
-                            ),
-                            title: Text(
-                              rec.song.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            );
+                            if (isPlaying) {
+                              return Icon(
+                                Icons.play_arrow,
+                                size: 22,
+                                color: AppColors.accentOf(context),
+                              );
+                            }
+                            return Text(
+                              '${index + 1}',
+                              textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 14,
-                                color: AppColors.onScaffold(context),
+                                fontWeight: FontWeight.w800,
+                                color: index < 3
+                                    ? kRecommendColor
+                                    : AppColors.mutedText(context),
                               ),
-                            ),
-                            subtitle: Text(
-                              rec.reasons.isEmpty
-                                  ? rec.song.singer
-                                  : '${rec.song.singer} · ${rec.reasons.join('、')}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.mutedText(context),
-                              ),
-                            ),
-                            trailing: FxIconButton(
-                              tooltip: S.of(context).playNamed(rec.song.name),
-                              icon: const Icon(
-                                Icons.play_circle_outline,
-                                size: 24,
-                                color: kRecommendColor,
-                              ),
-                              onPressed: () => playProvider.playPlaylist(
-                                recommendations.map((r) => r.song).toList(),
-                                index: index,
-                                manualPlayName:
-                                    recommendations[index].song.name,
-                              ),
-                            ),
-                            onTap: () => playProvider.playPlaylist(
-                              recommendations.map((r) => r.song).toList(),
-                              index: index,
-                              manualPlayName: recommendations[index].song.name,
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  ],
+                      title: Text(
+                        rec.song.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.onScaffold(context),
+                        ),
+                      ),
+                      subtitle: Text(
+                        rec.reasons.isEmpty
+                            ? rec.song.singer
+                            : '${rec.song.singer} · ${rec.reasons.join('、')}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.mutedText(context),
+                        ),
+                      ),
+                      trailing: FxIconButton(
+                        tooltip: S.of(context).playNamed(rec.song.name),
+                        icon: const Icon(
+                          Icons.play_circle_outline,
+                          size: 24,
+                          color: kRecommendColor,
+                        ),
+                        onPressed: () => playProvider.playPlaylist(
+                          recommendations.map((r) => r.song).toList(),
+                          index: index,
+                          manualPlayName: recommendations[index].song.name,
+                        ),
+                      ),
+                      onTap: () => playProvider.playPlaylist(
+                        recommendations.map((r) => r.song).toList(),
+                        index: index,
+                        manualPlayName: recommendations[index].song.name,
+                      ),
+                    );
+                  },
                 ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context, int count) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [kRecommendColor, Color(0xFFFFB35C)],
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha(40),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.auto_awesome,
-              color: Colors.white,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  S.of(context).basedOnFavorites,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  S.of(context).recommendUpdated(count),
-                  style: TextStyle(
-                    color: Colors.white.withAlpha(200),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

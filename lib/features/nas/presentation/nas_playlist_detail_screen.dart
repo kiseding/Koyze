@@ -3,6 +3,7 @@ import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/favorite_button.dart';
@@ -94,11 +95,12 @@ class NasPlaylistDetailScreen extends ConsumerWidget {
               ),
             );
           }
-          return ListView.builder(
+          return AdaptiveSongList.builder(
             padding: EdgeInsets.only(
               top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
               bottom: 32,
             ),
+            landscapeItemExtent: 82,
             itemCount: songs.length,
             itemBuilder: (context, index) {
               final song = songs[index];
@@ -157,13 +159,12 @@ class NasPlaylistDetailScreen extends ConsumerWidget {
     try {
       await ref
           .read(playerServiceProvider)
-          .playPlaylist(
-            songs,
-            index: index,
-            manualPlayName: songs[index].name,
-          );
+          .playPlaylist(songs, index: index, manualPlayName: songs[index].name);
     } catch (error) {
-      showAppNotification('${S.of(context).playFailed}: $error', type: AppNotificationType.error);
+      showAppNotification(
+        '${S.of(context).playFailed}: $error',
+        type: AppNotificationType.error,
+      );
     }
   }
 }

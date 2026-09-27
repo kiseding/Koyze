@@ -292,7 +292,22 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       if (songHits.isEmpty && filteredPlaylists.isEmpty)
         const _BodyEmptyResult(),
     ];
-    return items;
+    final size = MediaQuery.sizeOf(context);
+    if (size.width <= size.height) return items;
+    final rows = <_PlaylistBodyItem>[];
+    for (var index = 0; index < items.length; index++) {
+      final item = items[index];
+      if (item is! _BodySongHitItem) {
+        rows.add(item);
+        continue;
+      }
+      final second =
+          index + 1 < items.length && items[index + 1] is _BodySongHitItem
+          ? (items[++index] as _BodySongHitItem).hit
+          : null;
+      rows.add(_BodySongHitPair(item.hit, second));
+    }
+    return rows;
   }
 
   Widget _buildBodyItem(
@@ -364,6 +379,33 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         hit.song,
         hit.index,
         playerService,
+      ),
+      _BodySongHitPair(:final first, :final second) => Row(
+        children: [
+          Expanded(
+            child: _buildSongHitItem(
+              context,
+              ref,
+              first.playlist,
+              first.song,
+              first.index,
+              playerService,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: second == null
+                ? const SizedBox.shrink()
+                : _buildSongHitItem(
+                    context,
+                    ref,
+                    second.playlist,
+                    second.song,
+                    second.index,
+                    playerService,
+                  ),
+          ),
+        ],
       ),
       _BodyLoading() => const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
@@ -1956,6 +1998,13 @@ class _BodySongHitItem extends _PlaylistBodyItem {
   const _BodySongHitItem(this.hit);
 
   final PlaylistSongMatch hit;
+}
+
+class _BodySongHitPair extends _PlaylistBodyItem {
+  const _BodySongHitPair(this.first, this.second);
+
+  final PlaylistSongMatch first;
+  final PlaylistSongMatch? second;
 }
 
 class _BodyLoading extends _PlaylistBodyItem {

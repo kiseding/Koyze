@@ -131,7 +131,9 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
             ? null
             : () => _removeSongIds(selected.toList(growable: false)),
         icon: const Icon(Icons.delete_outline, size: 16),
-        label: Text(_removing ? S.of(context).working : S.of(context).removeSelected),
+        label: Text(
+          _removing ? S.of(context).working : S.of(context).removeSelected,
+        ),
         style: TextButton.styleFrom(
           foregroundColor: AppColors.accentOf(context),
         ),
@@ -221,8 +223,31 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          for (final song in group.songs)
-            _buildSongRow(context, group, song, groups, selected),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final size = MediaQuery.sizeOf(context);
+              final landscape = size.width > size.height;
+              final itemWidth = landscape
+                  ? (constraints.maxWidth - 8) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: landscape ? 8 : 0,
+                children: [
+                  for (final song in group.songs)
+                    SizedBox(
+                      width: itemWidth,
+                      child: _buildSongRow(
+                        context,
+                        group,
+                        song,
+                        groups,
+                        selected,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           if (groupSelected.isNotEmpty)
             Align(
               alignment: Alignment.centerRight,
@@ -231,7 +256,11 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
                     ? null
                     : () => _removeSongIds(groupSelected),
                 icon: const Icon(Icons.delete_outline, size: 16),
-                label: Text(_removing ? S.of(context).working : S.of(context).removeGroupSelected),
+                label: Text(
+                  _removing
+                      ? S.of(context).working
+                      : S.of(context).removeGroupSelected,
+                ),
               ),
             ),
         ],
@@ -336,7 +365,10 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      showAppNotification('${S.of(context).removeFailed}: $e', type: AppNotificationType.error);
+      showAppNotification(
+        '${S.of(context).removeFailed}: $e',
+        type: AppNotificationType.error,
+      );
     } finally {
       if (mounted) setState(() => _removing = false);
     }

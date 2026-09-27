@@ -8,6 +8,7 @@ import '../../../core/pagination/page_range.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/favorite_button.dart';
@@ -2463,10 +2464,11 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
         children: [
           Positioned.fill(
             child: _wrapQueueScrollable(
-              ListView.builder(
+              AdaptiveSongList.builder(
                 controller: _queueScrollController,
                 itemCount: queueItems.length,
                 itemExtent: _queueTileHeight,
+                landscapeItemExtent: _queueTileHeight + 8,
                 padding: EdgeInsets.only(
                   bottom: range.pageCount > 1
                       ? PageNavigationBar.listBottomPadding
@@ -2737,10 +2739,11 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                 children: [
                   Positioned.fill(
                     child: _wrapQueueScrollable(
-                      ListView.builder(
+                      AdaptiveSongList.builder(
                         controller: _queueScrollController,
                         itemCount: queue.length,
                         itemExtent: _queueTileHeight,
+                        landscapeItemExtent: _queueTileHeight + 8,
                         padding: EdgeInsets.only(
                           bottom: range.pageCount > 1
                               ? PageNavigationBar.listBottomPadding

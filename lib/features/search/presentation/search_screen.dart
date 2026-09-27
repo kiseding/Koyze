@@ -470,6 +470,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
       );
     }
+    if (MediaQuery.sizeOf(context).width > MediaQuery.sizeOf(context).height) {
+      return _buildLandscapeResultList(searchState, favoriteSongs);
+    }
     final localSectionCount =
         localMatches.length + (localMatches.isNotEmpty ? 1 : 0);
     final networkSectionCount =
@@ -716,6 +719,289 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLandscapeResultList(
+    SearchState searchState,
+    List<MusicItem> favoriteSongs,
+  ) {
+    final localMatches = searchState.localMatches;
+    final results = searchState.items;
+    final hasOnlineResults =
+        results.isNotEmpty &&
+        searchState.sourceId != 'local' &&
+        searchState.sourceId != 'favorites';
+    const gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 2,
+      mainAxisExtent: 82,
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 4,
+    );
+
+    return CustomScrollView(
+      key: ValueKey('results-${searchState.generation}'),
+      controller: _scrollController,
+      physics: const ClampingScrollPhysics(),
+      slivers: [
+        if (localMatches.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.library_music,
+                    size: 16,
+                    color: AppColors.accentOf(context),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    S.of(context).localMusic,
+                    style: TextStyle(
+                      color: AppColors.accentOf(context),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverGrid.builder(
+              gridDelegate: gridDelegate,
+              itemCount: localMatches.length,
+              itemBuilder: (context, index) =>
+                  _buildLocalSearchResult(localMatches[index], localMatches),
+            ),
+          ),
+        ],
+        if (hasOnlineResults)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Divider(color: AppColors.cardBorder(context)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      S.of(context).onlineMusic,
+                      style: TextStyle(
+                        color: AppColors.mutedText(context),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(color: AppColors.cardBorder(context)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (results.isNotEmpty)
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverGrid.builder(
+              gridDelegate: gridDelegate,
+              itemCount: results.length,
+              itemBuilder: (context, index) => _buildOnlineSearchResult(
+                results[index],
+                results,
+                favoriteSongs,
+              ),
+            ),
+          ),
+        if (searchState.hasMore)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Center(
+                child: searchState.isLoading
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: AppLoadingIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.accentOf(context),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        S.of(context).slideForMore,
+                        style: TextStyle(
+                          color: AppColors.mutedText(context),
+                          fontSize: 12,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLocalSearchResult(
+    MusicItem local,
+    List<MusicItem> localMatches,
+  ) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      onTap: () {
+        final playable = localMatches.where((e) => e.isPlayable).toList();
+        ref
+            .read(playerServiceProvider)
+            .setQueue(
+              playable,
+              startIndex: playable.indexWhere(
+                (e) => e.identityKey == local.identityKey,
+              ),
+              manualPlayName: local.name,
+            );
+      },
+      onLongPress: () => _showSongMenu(local, localMatches),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 40,
+          height: 40,
+          color: AppColors.miniBar(context),
+          child: local.artwork != null && local.artwork!.isNotEmpty
+              ? ArtworkImage(
+                  local.artwork!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _placeholder(),
+                )
+              : Icon(
+                  Icons.audiotrack,
+                  color: AppColors.accentOf(context),
+                  size: 24,
+                ),
+        ),
+      ),
+      title: Text(
+        local.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: AppColors.onScaffold(context), fontSize: 13),
+      ),
+      subtitle: Text(
+        S.of(context).localArtist(local.singer),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: AppColors.mutedText(context), fontSize: 11),
+      ),
+    );
+  }
+
+  Widget _buildOnlineSearchResult(
+    MusicItem item,
+    List<MusicItem> results,
+    List<MusicItem> favoriteSongs,
+  ) {
+    final isSonglist = !item.isPlayable;
+    return ListEntrance(
+      key: ValueKey('song-${item.id}'),
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        onTap: () {
+          if (isSonglist) {
+            Navigator.push(
+              context,
+              reduceMotion(context)
+                  ? PageRouteBuilder<void>(
+                      transitionDuration: Duration.zero,
+                      reverseTransitionDuration: Duration.zero,
+                      pageBuilder: (_, _, _) =>
+                          SongListDetailScreen(songList: item),
+                    )
+                  : MaterialPageRoute<void>(
+                      builder: (_) => SongListDetailScreen(songList: item),
+                    ),
+            );
+          } else {
+            final playable = results.where((e) => e.isPlayable).toList();
+            final index = playable.indexWhere(
+              (e) => e.identityKey == item.identityKey,
+            );
+            ref
+                .read(playerServiceProvider)
+                .setQueue(
+                  playable,
+                  startIndex: index < 0 ? 0 : index,
+                  manualPlayName: item.name,
+                );
+          }
+        },
+        onLongPress: isSonglist
+            ? null
+            : () => _showSongMenu(
+                item,
+                results.where((e) => e.isPlayable).toList(),
+              ),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: item.artwork != null && item.artwork!.isNotEmpty
+                ? ArtworkImage(
+                    item.artwork!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _placeholder(),
+                  )
+                : _placeholder(),
+          ),
+        ),
+        title: Text(
+          item.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: AppColors.onScaffold(context),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        subtitle: Text(
+          isSonglist
+              ? item.singer
+              : '${item.singer}${item.album.isNotEmpty ? ' · ${item.album}' : ''}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: AppColors.mutedText(context), fontSize: 11),
+        ),
+        trailing: isSonglist
+            ? Icon(Icons.chevron_right, color: AppColors.mutedText(context))
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FavoriteButton(
+                    song: item,
+                    isFavorite: isFavoriteMusic(item, favoriteSongs),
+                  ),
+                  FxIconButton(
+                    tooltip: S.of(context).moreActions,
+                    icon: Icon(
+                      Icons.more_vert,
+                      color: AppColors.mutedText(context),
+                      size: 20,
+                    ),
+                    onPressed: () => _showSongMenu(
+                      item,
+                      results.where((e) => e.isPlayable).toList(),
+                    ),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 
