@@ -610,7 +610,7 @@ class _SideNav extends ConsumerWidget {
                             ? '${s.syncAccount}，${s.loggedInAs(username)}'
                             : s.syncAccount,
                         selected: _isPath(path, '/sync'),
-                        onTap: () => _open(context, 3, '/sync'),
+                        onTap: () => context.push('/sync'),
                         compact: true,
                         trailing: loggedIn
                             ? _logoutButton(context, ref, s, compact: true)
@@ -771,11 +771,6 @@ class _SideNav extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  void _open(BuildContext context, int index, String location) {
-    onTap(index);
-    context.push(location);
   }
 
   bool _isPath(String path, String location) {

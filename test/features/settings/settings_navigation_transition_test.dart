@@ -30,6 +30,20 @@ void main() {
     expect(source, isNot(contains('/duplicates')));
   });
 
+  test(
+    'sync rail entry pushes directly without selecting the settings tab',
+    () {
+      final source = File(
+        'lib/features/home/presentation/main_scaffold.dart',
+      ).readAsStringSync();
+
+      expect(source, contains("onTap: () => context.push('/sync')"));
+      expect(
+        source,
+        isNot(contains("onTap: () => _open(context, 3, '/sync')")),
+      );
+    },
+  );
   test('default search picker includes self-hosted and nas sources', () {
     final settings = File(
       'lib/features/settings/presentation/settings_screen.dart',

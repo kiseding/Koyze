@@ -228,6 +228,7 @@ final appRouter = GoRouter(
       // 透明但不使用系统 route snapshot，避免打开/关闭时快照层闪成半透明浅色幕。
       pageBuilder: (context, state) => _PlayerTransitionPage(
         key: state.pageKey,
+        opaque: _isLandscapeViewport(context),
         child: EdgeSwipeDismiss(
           // 左缘右滑直接驱动播放器 morph 进度，全屏界面整体跟手收拢；
           // 播放器进度语义为 1=全屏，与拖动手势相反需取反。
@@ -427,13 +428,23 @@ final appRouter = GoRouter(
   ],
 );
 
-/// 全屏播放器专用透明路由。Flutter 的默认 route snapshotting 在透明路由 +
-/// 深/浅色主题快速切换首尾帧时可能短暂合成一层浅色快照，表现成全屏半透明白闪。
-/// 播放器本身已有基于 [playerRouteProgress] 的元素 morph，所以这里强制实时绘制。
+bool _isLandscapeViewport(BuildContext context) {
+  final logical = MediaQuery.sizeOf(context);
+  final physical = View.of(context).physicalSize;
+  return logical.width > logical.height || physical.width > physical.height;
+}
+
+/// 全屏播放器使用无快照路由。横屏时路由本身不透明，避免底层 tab 页面与
+/// 透明屏障一起参与合成；竖屏保留透明路由以支持播放器卡片形变。
 class _PlayerTransitionPage extends Page<void> {
-  const _PlayerTransitionPage({required this.child, super.key});
+  const _PlayerTransitionPage({
+    required this.child,
+    required this.opaque,
+    super.key,
+  });
 
   final Widget child;
+  final bool opaque;
 
   @override
   Route<void> createRoute(BuildContext context) =>
@@ -447,7 +458,7 @@ class _PlayerTransitionRoute extends PageRoute<void> {
   _PlayerTransitionPage get _page => settings as _PlayerTransitionPage;
 
   @override
-  bool get opaque => false;
+  bool get opaque => _page.opaque;
 
   @override
   bool get barrierDismissible => true;
