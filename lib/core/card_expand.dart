@@ -393,6 +393,8 @@ class EdgeSwipeDismiss extends StatefulWidget {
     this.onDismissCommit,
     this.invertProgress = false,
     this.fullWidthSwipe = false,
+    this.bypassOnLandscape = false,
+    this.landscapeLayout = false,
   });
 
   final Widget child;
@@ -412,6 +414,11 @@ class EdgeSwipeDismiss extends StatefulWidget {
   /// 整页右滑返回（用于无横向滚动内容的页面，如榜单设置）。
   /// 默认只接管左缘窄条，避免与页面内横向列表/PageView 冲突。
   final bool fullWidthSwipe;
+
+  /// 横屏播放器不需要透明 morph / 边缘包装，避免 Android 合成器把
+  /// 路由背景留在内容之上。
+  final bool bypassOnLandscape;
+  final bool landscapeLayout;
 
   @override
   State<EdgeSwipeDismiss> createState() => _EdgeSwipeDismissState();
@@ -549,6 +556,15 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
+    final landscape =
+        widget.landscapeLayout ||
+        MediaQuery.orientationOf(context) == Orientation.landscape ||
+        width > MediaQuery.sizeOf(context).height ||
+        View.of(context).physicalSize.width >
+            View.of(context).physicalSize.height;
+    if (widget.bypassOnLandscape && landscape) {
+      return widget.child;
+    }
     final route = ModalRoute.of(context);
     final opaqueRoute = route?.opaque ?? true;
     final ios = Theme.of(context).platform == TargetPlatform.iOS;

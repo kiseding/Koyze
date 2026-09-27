@@ -121,7 +121,14 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     playerRouteProgress.value = 0;
+    edgeDragActive = true;
+    playerRouteDismissLocked = true;
     await tester.pumpWidget(harness());
+    await tester.pump();
+    // The new route must clear stale close state, while a stuck route progress
+    // and a stale edge flag must still leave the landscape body visible.
+    playerRouteProgress.value = 0;
+    edgeDragActive = true;
     await tester.pump();
 
     expect(find.text('测试歌曲名称'), findsOneWidget);

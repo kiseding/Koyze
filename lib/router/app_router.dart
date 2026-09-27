@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 
 import 'package:go_router/go_router.dart';
@@ -12,6 +13,7 @@ import '../features/player/presentation/player_screen.dart';
 import '../features/search/presentation/search_screen.dart';
 import '../features/playlist/presentation/playlist_screen.dart';
 import '../features/playlist/presentation/playlist_detail_screen.dart';
+import '../features/settings/presentation/settings_provider.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/download/presentation/download_screen.dart';
 import '../features/custom_source/presentation/custom_source_screen.dart';
@@ -226,20 +228,29 @@ final appRouter = GoRouter(
       path: '/player',
       parentNavigatorKey: rootNavigatorKey,
       // 透明但不使用系统 route snapshot，避免打开/关闭时快照层闪成半透明浅色幕。
-      pageBuilder: (context, state) => _PlayerTransitionPage(
-        key: state.pageKey,
-        opaque: _isLandscapeViewport(context),
-        child: EdgeSwipeDismiss(
-          // 左缘右滑直接驱动播放器 morph 进度，全屏界面整体跟手收拢；
-          // 播放器进度语义为 1=全屏，与拖动手势相反需取反。
-          progress: playerRouteProgress,
-          invertProgress: true,
-          onDismissCommit: _lockPlayerRouteDismiss,
-          child: PlayerScreen(
-            openLyrics: state.uri.queryParameters['lyrics'] == '1',
+      // pageBuilder: (context, state) => _PlayerTransitionPage
+      pageBuilder: (context, state) {
+        final landscape =
+            _isLandscapeViewport(context) ||
+            ProviderScope.containerOf(context).read(forceLandscapeProvider);
+        return _PlayerTransitionPage(
+          key: state.pageKey,
+          opaque: landscape,
+          child: EdgeSwipeDismiss(
+            bypassOnLandscape: true,
+            landscapeLayout: landscape,
+            // 左缘右滑直接驱动播放器 morph 进度，全屏界面整体跟手收拢；
+            // 播放器进度语义为 1=全屏，与拖动手势相反需取反。
+            progress: playerRouteProgress,
+            invertProgress: true,
+            onDismissCommit: _lockPlayerRouteDismiss,
+            child: PlayerScreen(
+              openLyrics: state.uri.queryParameters['lyrics'] == '1',
+              landscapeLayout: landscape,
+            ),
           ),
-        ),
-      ),
+        );
+      },
     ),
     GoRoute(
       path: '/local-music',

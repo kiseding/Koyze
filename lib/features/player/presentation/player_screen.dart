@@ -688,9 +688,14 @@ class _RoutePlayButtonMorphOverlay extends StatelessWidget {
 }
 
 class PlayerScreen extends ConsumerStatefulWidget {
-  const PlayerScreen({super.key, this.openLyrics = false});
+  const PlayerScreen({
+    super.key,
+    this.openLyrics = false,
+    this.landscapeLayout = false,
+  });
 
   final bool openLyrics;
+  final bool landscapeLayout;
 
   @override
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
@@ -733,6 +738,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void initState() {
+    // A player route is a new presentation session. Do not inherit a stale
+    // edge-dismiss flag from the route that was just removed.
+    playerRouteDismissLocked = false;
+    playerRouteProgress.value = 1.0;
+    edgeDragActive = false;
+    cardDismissLocked = false;
+    cardDismissProgress.value = 0;
+    cardDismissOffset.value = 0;
     super.initState();
     _currentPage = widget.openLyrics ? 1 : 0;
     _pageController = PageController(initialPage: _currentPage);
@@ -893,6 +906,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final screenH = MediaQuery.of(context).size.height;
     final screenW = MediaQuery.of(context).size.width;
     final landscape =
+        widget.landscapeLayout ||
         ref.watch(forceLandscapeProvider) ||
         MediaQuery.orientationOf(context) == Orientation.landscape ||
         screenW > screenH ||
@@ -1040,10 +1054,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               );
         // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
         final hideLayer = lyricCollapsing && closeT >= 0.99;
-        // 横屏展开不走磨砂遮罩。那层遮罩（半透明压暗 + 模糊封面）铺满全屏，
-        // 封面和控件却要等进度精确到 1 才出现。安卓横屏上这段进度到不了 1，
-        // 屏幕上就只剩遮罩。横屏直接画不透明的播放器；只有跟手收起才回到形变。
-        if (landscape && !closing) {
+        final landscapeClosing =
+            _draggingDown ||
+            _collapsing ||
+            _settleController.isAnimating ||
+            playerRouteDismissLocked;
+        // Horizontal edge state belongs to the dismiss wrapper. It can briefly
+        // outlive a route during Android rotation; it must not hide the new
+        // landscape player's steady-state content.
+        if (landscape && !landscapeClosing) {
           return ColoredBox(
             color: Theme.of(context).scaffoldBackgroundColor,
             child: _buildPlayerBody(
