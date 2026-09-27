@@ -56,7 +56,8 @@ void main() {
     ).readAsStringSync();
 
     expect(RegExp(r'CardPlayButton\(').allMatches(source).length, 5);
-    expect(source, contains('_BodySubsonicCard'));
+    expect(source, contains('_BodyPresetGrid'));
+    expect(source, contains('_buildSubsonicCard'));
     expect(source, isNot(contains('_BodyNasCard')));
     expect(source, contains("context.push('/subsonic')"));
     expect(source, contains('subsonicLibrarySongsProvider'));
