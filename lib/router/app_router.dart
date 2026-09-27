@@ -475,6 +475,22 @@ class _PlayerTransitionRoute extends PageRoute<void> {
     return super.didPop(result);
   }
 
+  /// 关闭特效时过渡时长是 0，动画在监听挂上之前就已经结束。
+  /// 不在这里补一次进度的话，透明路由会停在半透明遮罩，播放器正文出不来。
+  @override
+  TickerFuture didPush() {
+    final future = super.didPush();
+    _publishOpenedProgress();
+    return future;
+  }
+
+  void _publishOpenedProgress() {
+    if (playerRouteDismissLocked) return;
+    final value = controller?.value;
+    if (value == null || playerRouteProgress.value == value) return;
+    playerRouteProgress.value = value;
+  }
+
   @override
   Widget buildPage(
     BuildContext context,
@@ -525,6 +541,7 @@ class _PlayerRouteProgressBridgeState
   void initState() {
     super.initState();
     widget.animation.addListener(_sync);
+    _sync();
   }
 
   @override
@@ -533,6 +550,7 @@ class _PlayerRouteProgressBridgeState
     if (oldWidget.animation != widget.animation) {
       oldWidget.animation.removeListener(_sync);
       widget.animation.addListener(_sync);
+      _sync();
     }
   }
 
