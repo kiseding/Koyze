@@ -263,15 +263,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
   }) {
     if (_searchQuery.isEmpty) {
       return [
-        const _BodyFavoritesCard(),
-        const _BodyGap(12),
-        const _BodyRecommendCard(),
-        const _BodyGap(12),
-        const _BodyLocalCard(),
-        const _BodyGap(12),
-        const _BodySubsonicCard(),
-        const _BodyGap(12),
-        const _BodyRecentCard(),
+        const _BodyPresetGrid(),
         const _BodyGap(24),
         _BodyHeader(title: S.of(context).customPlaylists, trailing: true),
         const _BodyGap(12),
@@ -314,21 +306,14 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
   }) {
     final scheme = Theme.of(context).colorScheme;
     return switch (item) {
-      _BodyFavoritesCard() => _buildFavoritesCard(
+      _BodyPresetGrid() => _buildPresetGrid(
         context,
         ref,
-        favorites,
         playerService,
+        favorites: favorites,
+        local: local,
+        recent: recent,
       ),
-      _BodyRecommendCard() => _buildRecommendCard(context, ref, playerService),
-      _BodyLocalCard() => _buildLocalCard(context, ref, local, playerService),
-      _BodyRecentCard() => _buildRecentCard(
-        context,
-        ref,
-        recent,
-        playerService,
-      ),
-      _BodySubsonicCard() => _buildSubsonicCard(context, ref, playerService),
       _BodyGap(:final height) => SizedBox(height: height),
       _BodyHeader(:final title, :final trailing) => Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -452,6 +437,58 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           },
         ),
       ),
+    );
+  }
+
+  /// 五个预设歌单。宽度够放两张时自动两列，窄屏仍是单列。
+  Widget _buildPresetGrid(
+    BuildContext context,
+    WidgetRef ref,
+    dynamic playerService, {
+    required Playlist? favorites,
+    required Playlist? local,
+    required Playlist? recent,
+  }) {
+    final cards = <Widget>[
+      _buildFavoritesCard(context, ref, favorites, playerService),
+      _buildRecommendCard(context, ref, playerService),
+      _buildLocalCard(context, ref, local, playerService),
+      _buildSubsonicCard(context, ref, playerService),
+      _buildRecentCard(context, ref, recent, playerService),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 480 ? 2 : 1;
+        if (columns == 1) {
+          return Column(
+            children: [
+              for (var i = 0; i < cards.length; i++) ...[
+                if (i > 0) const SizedBox(height: 12),
+                cards[i],
+              ],
+            ],
+          );
+        }
+        return Column(
+          children: [
+            for (var i = 0; i < cards.length; i += 2) ...[
+              if (i > 0) const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: cards[i]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: i + 1 < cards.length
+                        ? cards[i + 1]
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -1892,24 +1929,8 @@ sealed class _PlaylistBodyItem {
   const _PlaylistBodyItem();
 }
 
-class _BodyFavoritesCard extends _PlaylistBodyItem {
-  const _BodyFavoritesCard();
-}
-
-class _BodyRecommendCard extends _PlaylistBodyItem {
-  const _BodyRecommendCard();
-}
-
-class _BodyLocalCard extends _PlaylistBodyItem {
-  const _BodyLocalCard();
-}
-
-class _BodyRecentCard extends _PlaylistBodyItem {
-  const _BodyRecentCard();
-}
-
-class _BodySubsonicCard extends _PlaylistBodyItem {
-  const _BodySubsonicCard();
+class _BodyPresetGrid extends _PlaylistBodyItem {
+  const _BodyPresetGrid();
 }
 
 class _BodyGap extends _PlaylistBodyItem {
