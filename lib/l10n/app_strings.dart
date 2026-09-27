@@ -745,6 +745,7 @@ class S {
       en ? 'Enter the server, username, and password' : '请填写服务器、用户名和密码';
   String get loginFailed => en ? 'Could not log in' : '登录失败';
   String get syncTitle => en ? 'Sync' : '同步 / 云端账号';
+  String get syncAccount => en ? 'Sync account' : '同步账号';
   String get workersServer => en ? 'Workers server' : 'Workers 服务器';
   String get workersUnset => en
       ? 'Not set (for example https://xxx.workers.dev)'

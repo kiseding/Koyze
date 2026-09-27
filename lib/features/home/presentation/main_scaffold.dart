@@ -9,9 +9,11 @@ import '../../../core/motion/motion_tokens.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/root_shell_layout.dart';
+import '../../cloud/presentation/cloud_provider.dart';
 import '../../player/presentation/widgets/mini_player.dart';
 import '../../settings/presentation/settings_provider.dart';
 
@@ -520,7 +522,25 @@ class _EditableAwareHorizontalDragGestureRecognizer
 const _sideNavItemOuterPadding = 8.0;
 const _sideNavItemInnerPadding = 10.0;
 
-class _SideNav extends StatelessWidget {
+/// 标题栏占位：上 18 + 字高 52 + 下 10。矮屏放不下整栏时整段隐藏。
+const _sideNavTitleExtent = 80.0;
+const _sideNavRuleExtent = 1.0;
+const _sideNavTabExtent = 48.0;
+const _sideNavShortcutExtent = 36.0;
+const _sideNavListPadding = 14.0;
+const _sideNavFooterPadding = 16.0;
+
+/// 三个标签、五个单列歌单入口、设置和同步账号，按舒适字号排开的高度。
+const _sideNavBodyExtent =
+    _sideNavListPadding +
+    _sideNavTabExtent * 3 +
+    _sideNavShortcutExtent * 5 +
+    _sideNavRuleExtent +
+    _sideNavFooterPadding +
+    _sideNavTabExtent +
+    _sideNavShortcutExtent;
+
+class _SideNav extends ConsumerWidget {
   final int selectedIndex;
   final RootHeaderController headers;
   final ValueChanged<int> onTap;
@@ -532,73 +552,303 @@ class _SideNav extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final s = S.of(context);
+    final session = ref.watch(cloudSessionProvider);
+    final router = GoRouter.of(context);
     return ListenableBuilder(
-      listenable: headers,
+      listenable: Listenable.merge([headers, router.routerDelegate]),
       builder: (context, _) {
-        return Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                _sideNavItemOuterPadding + _sideNavItemInnerPadding,
-                18,
-                8,
-                10,
-              ),
-              child: SizedBox(
-                height: 52,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Koyze',
-                    key: headers.headerFor(0)?.titleKey,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      height: 1,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                      color: AppColors.amber,
-                    ),
+        final path = router.routerDelegate.currentConfiguration.uri.path;
+        final loggedIn = session.loggedIn;
+        final username = session.username?.trim() ?? '';
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final showTitle =
+                constraints.maxHeight >=
+                _sideNavTitleExtent + _sideNavRuleExtent + _sideNavBodyExtent;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (showTitle) ...[
+                  _title(context),
+                  _rule(context),
+                ] else
+                  const SizedBox(height: 8),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.only(top: 8, bottom: 6),
+                    children: [
+                      _item(
+                        context,
+                        0,
+                        Icons.home_outlined,
+                        Icons.home,
+                        s.home,
+                      ),
+                      _item(
+                        context,
+                        1,
+                        Icons.leaderboard_outlined,
+                        Icons.leaderboard,
+                        s.charts,
+                      ),
+                      _item(
+                        context,
+                        2,
+                        Icons.library_music_outlined,
+                        Icons.library_music,
+                        s.playlists,
+                      ),
+                      _childGroup(context, [
+                        _shortcut(
+                          context,
+                          icon: Icons.favorite_rounded,
+                          color: const Color(0xFFFF453A),
+                          label: s.favorites,
+                          selected: path == '/playlist/detail/favorites',
+                          onTap: () => _openPlaylist(context, 'favorites'),
+                        ),
+                        _shortcut(
+                          context,
+                          icon: Icons.auto_awesome_rounded,
+                          color: const Color(0xFFFF8F1F),
+                          label: s.forYou,
+                          selected: _isPath(path, '/recommend'),
+                          onTap: () => _open(context, 2, '/recommend'),
+                        ),
+                        _shortcut(
+                          context,
+                          icon: Icons.library_music_rounded,
+                          color: const Color(0xFFBF5AF2),
+                          label: s.localMusic,
+                          selected: path == '/playlist/detail/local',
+                          onTap: () => _openPlaylist(context, 'local'),
+                        ),
+                        _shortcut(
+                          context,
+                          icon: Icons.cloud_queue_rounded,
+                          color: const Color(0xFFFF375F),
+                          label: s.nasLibrary,
+                          selected: _isPath(path, '/subsonic'),
+                          onTap: () => _open(context, 2, '/subsonic'),
+                        ),
+                        _shortcut(
+                          context,
+                          icon: Icons.history_rounded,
+                          color: const Color(0xFF0A84FF),
+                          label: s.recentPlays,
+                          selected: path == '/playlist/detail/recent',
+                          onTap: () => _openPlaylist(context, 'recent'),
+                        ),
+                      ]),
+                    ],
                   ),
                 ),
-              ),
-            ),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _item(context, 0, Icons.home_outlined, Icons.home, s.home),
-                  _item(
-                    context,
-                    1,
-                    Icons.leaderboard_outlined,
-                    Icons.leaderboard,
-                    s.charts,
+                _rule(context),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
+                  child: Column(
+                    children: [
+                      _item(
+                        context,
+                        3,
+                        Icons.settings_outlined,
+                        Icons.settings,
+                        s.settings,
+                      ),
+                      _childGroup(context, [
+                        _shortcut(
+                          context,
+                          icon: Icons.cloud_sync_rounded,
+                          color: AppColors.accentOf(context),
+                          label: s.syncAccount,
+                          semanticLabel: loggedIn && username.isNotEmpty
+                              ? '${s.syncAccount}，${s.loggedInAs(username)}'
+                              : s.syncAccount,
+                          selected: _isPath(path, '/sync'),
+                          onTap: () => _open(context, 3, '/sync'),
+                          trailing: loggedIn
+                              ? _logoutButton(context, ref, s)
+                              : null,
+                        ),
+                      ]),
+                    ],
                   ),
-                  _item(
-                    context,
-                    2,
-                    Icons.library_music_outlined,
-                    Icons.library_music,
-                    s.playlists,
-                  ),
-                  _item(
-                    context,
-                    3,
-                    Icons.settings_outlined,
-                    Icons.settings,
-                    s.settings,
-                  ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         );
       },
     );
+  }
+
+  Widget _title(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        _sideNavItemOuterPadding + _sideNavItemInnerPadding,
+        18,
+        8,
+        10,
+      ),
+      child: SizedBox(
+        height: 52,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Koyze',
+            key: headers.headerFor(0)?.titleKey,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 28,
+              height: 1,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
+              color: AppColors.amber,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _rule(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.cardBorder(context),
+          borderRadius: BorderRadius.circular(1),
+        ),
+        child: const SizedBox(height: 1),
+      ),
+    );
+  }
+
+  /// 父级图标中线落下的细线，把子入口收成一组。
+  Widget _childGroup(BuildContext context, List<Widget> children) {
+    final line = Theme.of(context).colorScheme.primary.withValues(alpha: 0.28);
+    return Padding(
+      padding: const EdgeInsets.only(left: 29),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: line, width: 1.5)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 6),
+          child: Column(children: children),
+        ),
+      ),
+    );
+  }
+
+  Widget _shortcut(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    String? semanticLabel,
+    Widget? trailing,
+  }) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final isDark = AppColors.isDark(context);
+    final muted = isDark ? const Color(0xC7FFFFFF) : const Color(0xC7000000);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 0, 8, 0),
+      child: SizedBox(
+        height: _sideNavShortcutExtent,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: selected
+                ? accent.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8, right: 2),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Pressable(
+                    semanticLabel: semanticLabel ?? label,
+                    onTap: onTap,
+                    scale: 0.98,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 16, color: color),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: selected ? accent : muted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (trailing != null) trailing,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _logoutButton(BuildContext context, WidgetRef ref, S s) {
+    return Pressable(
+      semanticLabel: s.logOut,
+      tooltip: s.logOut,
+      onTap: () async {
+        await ref.read(cloudSessionProvider.notifier).logout();
+        if (!context.mounted) return;
+        final next = ref.read(cloudSessionProvider);
+        showAppNotification(
+          next.loggedIn ? (next.error ?? s.logOut) : s.loggedOut,
+          type: next.loggedIn
+              ? AppNotificationType.error
+              : AppNotificationType.success,
+        );
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const SizedBox(
+          width: 28,
+          height: 28,
+          child: Icon(Icons.logout_rounded, size: 16, color: AppColors.error),
+        ),
+      ),
+    );
+  }
+
+  void _open(BuildContext context, int index, String location) {
+    onTap(index);
+    context.push(location);
+  }
+
+  void _openPlaylist(BuildContext context, String id) {
+    onTap(2);
+    context.pushNamed('playlistDetail', pathParameters: {'playlistId': id});
+  }
+
+  bool _isPath(String path, String location) {
+    return path == location || path.startsWith('$location/');
   }
 
   Widget _item(
@@ -613,12 +863,9 @@ class _SideNav extends StatelessWidget {
     final isDark = AppColors.isDark(context);
     final muted = isDark ? const Color(0xE6FFFFFF) : const Color(0xE6000000);
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: _sideNavItemOuterPadding,
-        vertical: 2,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: _sideNavItemOuterPadding),
       child: SizedBox(
-        height: 48,
+        height: _sideNavTabExtent,
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: isSelected
