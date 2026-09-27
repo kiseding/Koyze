@@ -680,31 +680,41 @@ class _SideNav extends StatelessWidget {
   };
 
   List<Widget> _tabActions(int index, bool enabled) {
-    final published = headers.headerFor(index)?.actions ?? const <Widget>[];
-    final List<Widget> actions;
-    if (published.isNotEmpty) {
-      actions = published;
-    } else {
-      final icon = _standbyActionIcons[index];
-      if (icon == null) return const [];
-      actions = [FrostedHeaderButton(icon: icon, onTap: () {})];
-    }
+    final published =
+        headers
+            .headerFor(index)
+            ?.actions
+            .whereType<FrostedHeaderButton>()
+            .toList() ??
+        const <FrostedHeaderButton>[];
+    final icons = published.isNotEmpty
+        ? published.map((button) => button.icon).toList()
+        : [if (_standbyActionIcons[index] case final icon?) icon];
+    if (icons.isEmpty) return const [];
     return [
-      const SizedBox(width: 4),
-      GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: enabled ? null : () {},
-        child: Opacity(
-          opacity: enabled ? 1 : 0.42,
+      for (var i = 0; i < icons.length; i++) ...[
+        const SizedBox(width: 4),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: enabled ? null : () {},
           child: IgnorePointer(
             ignoring: !enabled,
             child: ExcludeSemantics(
               excluding: !enabled,
-              child: Row(mainAxisSize: MainAxisSize.min, children: actions),
+              child: FrostedHeaderButton(
+                icon: icons[i],
+                semanticLabel: i < published.length
+                    ? published[i].semanticLabel
+                    : null,
+                dimmed: !enabled,
+                onTap: enabled && i < published.length
+                    ? published[i].onTap
+                    : () {},
+              ),
             ),
           ),
         ),
-      ),
+      ],
     ];
   }
 }

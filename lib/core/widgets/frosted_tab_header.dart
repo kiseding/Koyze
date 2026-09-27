@@ -26,10 +26,7 @@ class FrostedTabHeader extends StatelessWidget {
   static const double barHeight = 64;
   static const double bottomPadding = 10;
 
-  static double extent(
-    BuildContext context, {
-    double extra = 0,
-  }) {
+  static double extent(BuildContext context, {double extra = 0}) {
     return MediaQuery.paddingOf(context).top + barHeight + extra;
   }
 
@@ -62,7 +59,9 @@ class FrostedTabHeader extends StatelessWidget {
                           width: 36,
                           height: 36,
                           decoration: BoxDecoration(
-                            color: AppColors.accentOf(context).withValues(alpha: 0.14),
+                            color: AppColors.accentOf(
+                              context,
+                            ).withValues(alpha: 0.14),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
@@ -82,7 +81,10 @@ class FrostedTabHeader extends StatelessWidget {
                   ),
                   Padding(
                     padding: EdgeInsets.symmetric(
-                      horizontal: _titleSideInset(leadingIcon != null, actions.length),
+                      horizontal: _titleSideInset(
+                        leadingIcon != null,
+                        actions.length,
+                      ),
                     ),
                     child: Text(
                       title,
@@ -102,10 +104,7 @@ class FrostedTabHeader extends StatelessWidget {
                 ],
               ),
             ),
-            if (bottom != null) ...[
-              const SizedBox(height: 8),
-              bottom!,
-            ],
+            if (bottom != null) ...[const SizedBox(height: 8), bottom!],
           ],
         ),
       ),
@@ -119,14 +118,19 @@ class FrostedHeaderButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.semanticLabel,
+    this.dimmed = false,
   });
 
   final IconData icon;
   final VoidCallback onTap;
   final String? semanticLabel;
 
+  /// Unselected side-rail tabs keep the button visible, with a quieter icon.
+  final bool dimmed;
+
   @override
   Widget build(BuildContext context) {
+    final color = AppColors.secondaryText(context);
     return Pressable(
       semanticLabel: semanticLabel,
       onTap: onTap,
@@ -137,7 +141,7 @@ class FrostedHeaderButton extends StatelessWidget {
         padding: const EdgeInsets.all(8),
         child: Icon(
           icon,
-          color: AppColors.secondaryText(context),
+          color: dimmed ? color.withValues(alpha: 0.38) : color,
           size: 20,
         ),
       ),
