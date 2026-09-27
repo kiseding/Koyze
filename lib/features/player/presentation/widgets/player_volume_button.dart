@@ -220,7 +220,7 @@ class _VolumePanel extends StatelessWidget {
         maxLines: 1,
         style: TextStyle(
           color: AppColors.onScaffold(context),
-          fontSize: horizontal ? 12 : 15,
+          fontSize: horizontal ? 14 : 15,
           fontWeight: FontWeight.w700,
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
@@ -233,12 +233,12 @@ class _VolumePanel extends StatelessWidget {
       scale: 0.9,
       onTap: onMute,
       child: Padding(
-        padding: EdgeInsets.all(horizontal ? 4 : 6),
+        padding: EdgeInsets.all(horizontal ? 6 : 6),
         child: Icon(
           volume <= 0.001
               ? Icons.volume_off_rounded
               : Icons.volume_mute_rounded,
-          size: horizontal ? 16 : 30,
+          size: horizontal ? 22 : 30,
           color: AppColors.secondaryText(context),
         ),
       ),
@@ -252,9 +252,9 @@ class _VolumePanel extends StatelessWidget {
       key: const Key('volume-panel'),
       type: MaterialType.transparency,
       child: GlassSurface(
-        borderRadius: BorderRadius.circular(horizontal ? 16 : 28),
+        borderRadius: BorderRadius.circular(horizontal ? 20 : 28),
         padding: horizontal
-            ? const EdgeInsets.fromLTRB(4, 3, 8, 3)
+            ? const EdgeInsets.fromLTRB(8, 8, 12, 8)
             : const EdgeInsets.fromLTRB(14, 14, 14, 10),
         boxShadow: [
           BoxShadow(
@@ -268,10 +268,10 @@ class _VolumePanel extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   mute,
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 8),
                   track,
-                  const SizedBox(width: 6),
-                  SizedBox(width: 28, child: percentLabel),
+                  const SizedBox(width: 10),
+                  SizedBox(width: 34, child: percentLabel),
                 ],
               )
             : SizedBox(
@@ -304,7 +304,7 @@ class _VolumeTrack extends StatelessWidget {
   final ValueChanged<double> onChanged;
 
   static const double _portraitLength = 148;
-  static const double _landscapeLength = 92;
+  static const double _landscapeLength = 140;
 
   double get _length => horizontal ? _landscapeLength : _portraitLength;
 
@@ -335,18 +335,18 @@ class _VolumeTrack extends StatelessWidget {
           : (details) => _update(details.localPosition.dy),
       child: SizedBox(
         width: horizontal ? _length : 36,
-        height: horizontal ? 22 : _length,
+        height: horizontal ? 36 : _length,
         child: Center(
           child: SizedBox(
             width: horizontal ? _length : 36,
-            height: horizontal ? 6 : _length,
+            height: horizontal ? 16 : _length,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: track,
-                borderRadius: BorderRadius.circular(horizontal ? 3 : 18),
+                borderRadius: BorderRadius.circular(horizontal ? 8 : 18),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(horizontal ? 3 : 18),
+                borderRadius: BorderRadius.circular(horizontal ? 8 : 18),
                 child: Align(
                   alignment: horizontal
                       ? Alignment.centerLeft
