@@ -90,10 +90,7 @@ void main() {
     await tester.pump();
 
     // 切到歌词页（PageView 横滑）。
-    await tester.drag(
-      find.byType(PageView),
-      const Offset(-360, 0),
-    );
+    await tester.drag(find.byType(PageView), const Offset(-360, 0));
     await tester.pumpAndSettle();
     expect(find.text('Lyrics'), findsOneWidget);
     expect(find.text('Now playing'), findsNothing);
@@ -113,5 +110,34 @@ void main() {
     expect(find.text('Now playing'), findsNothing);
 
     edgeDragActive = false;
+  });
+
+  testWidgets('landscape player stays opaque when route progress is stuck', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    playerRouteProgress.value = 0;
+    await tester.pumpWidget(harness());
+    await tester.pump();
+
+    expect(find.text('测试歌曲名称'), findsOneWidget);
+    final opacities = find
+        .ancestor(of: find.text('测试歌曲名称'), matching: find.byType(Opacity))
+        .evaluate()
+        .map((element) => (element.widget as Opacity).opacity);
+    expect(opacities, isNot(contains(0)));
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is ColoredBox &&
+            (widget.color == const Color(0x73FFFFFF) ||
+                widget.color == const Color(0x8A000000)),
+      ),
+      findsNothing,
+    );
   });
 }

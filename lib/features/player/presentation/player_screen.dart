@@ -1034,6 +1034,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               );
         // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
         final hideLayer = lyricCollapsing && closeT >= 0.99;
+        // 横屏展开不走磨砂遮罩。那层遮罩（半透明压暗 + 模糊封面）铺满全屏，
+        // 封面和控件却要等进度精确到 1 才出现。安卓横屏上这段进度到不了 1，
+        // 屏幕上就只剩遮罩。横屏直接画不透明的播放器；只有跟手收起才回到形变。
+        if (landscape && !closing) {
+          return ColoredBox(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: _buildPlayerBody(
+              context,
+              currentMusic,
+              playerService,
+              isPlaying,
+              playMode,
+              duration,
+              screenH,
+              screenW,
+              true,
+              dismissThreshold,
+              1,
+              1,
+              1,
+            ),
+          );
+        }
         // 单一渲染结构：Positioned.fromRect(currentRect) + 中心锚定 +
         // 按宽度比等比缩放。封面页与歌词页共用（仅 currentRect 目标不同），
         // 避免 lyricCollapsing 翻转时子树销毁重建导致 PageView 回退。
