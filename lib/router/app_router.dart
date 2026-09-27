@@ -457,6 +457,8 @@ class _PlayerTransitionRoute extends PageRoute<void> {
 
   _PlayerTransitionPage get _page => settings as _PlayerTransitionPage;
 
+  // Portrait routes used to use the fixed declaration `bool get opaque => false`;
+  // the page now supplies the same behavior only when the viewport is portrait.
   @override
   bool get opaque => _page.opaque;
 
