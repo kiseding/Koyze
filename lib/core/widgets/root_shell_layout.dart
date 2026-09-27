@@ -18,6 +18,14 @@ bool shouldUseSideNavigation({
   return isDesktop || orientation == Orientation.landscape;
 }
 
+/// Side-rail content width for the current window.
+///
+/// It grows with the screen instead of staying on one constant, and it keeps
+/// enough room for the label and the trailing action button to stay apart.
+double sideRailContentWidth(double screenWidth) {
+  return (screenWidth * 0.22).clamp(180.0, 320.0);
+}
+
 /// Layout mode supplied by the root navigation shell.
 ///
 /// Root pages use this only to remove their duplicated compact title bar when

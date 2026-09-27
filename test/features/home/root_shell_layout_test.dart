@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/widgets/root_shell_layout.dart';
@@ -66,15 +64,11 @@ void main() {
     expect(find.text('side'), findsOneWidget);
   });
 
-  test('side rail is not given a fixed content width', () {
-    final layout = File(
-      'lib/core/widgets/root_shell_layout.dart',
-    ).readAsStringSync();
-    final scaffold = File(
-      'lib/features/home/presentation/main_scaffold.dart',
-    ).readAsStringSync();
-    expect(layout, isNot(contains('sideNavigationContentWidth')));
-    expect(scaffold, contains('IntrinsicWidth'));
+  test('side rail width grows with the window and keeps a middle gap', () {
+    expect(sideRailContentWidth(800), 180);
+    expect(sideRailContentWidth(1200), closeTo(264, 0.01));
+    expect(sideRailContentWidth(1600), 320);
+    expect(sideRailContentWidth(800), isNot(sideRailContentWidth(1200)));
   });
 
   testWidgets('portrait header actions are published into the side rail', (

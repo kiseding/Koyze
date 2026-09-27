@@ -79,6 +79,9 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     final contentRightInset = usesSideNavigation
         ? (trailingInset > 20 ? trailingInset : 20.0)
         : 0.0;
+    final sideRailWidth = usesSideNavigation
+        ? leadingInset + sideRailContentWidth(media.size.width)
+        : 0.0;
     // The side layout has no bottom tab bar, so only reserve space for the
     // mini-player and a small breathing room below it.
     final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
@@ -181,29 +184,32 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (usesSideNavigation)
-                  Opacity(
-                    opacity: chromeOpacity,
-                    child: FractionalTranslation(
-                      translation: Offset(-eased, 0),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppColors.fill(context),
-                          border: Border(
-                            right: BorderSide(
-                              color: AppColors.cardBorder(context),
+                  SizedBox(
+                    width: sideRailWidth,
+                    child: Opacity(
+                      opacity: chromeOpacity,
+                      child: FractionalTranslation(
+                        translation: Offset(-eased, 0),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColors.fill(context),
+                            border: Border(
+                              right: BorderSide(
+                                color: AppColors.cardBorder(context),
+                              ),
                             ),
                           ),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            left: leadingInset,
-                            top: topInset,
-                            bottom: bottomInset,
-                          ),
-                          child: _SideNav(
-                            selectedIndex: selectedIndex,
-                            headers: _pageHeaders,
-                            onTap: onBranchTap,
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              left: leadingInset,
+                              top: topInset,
+                              bottom: bottomInset,
+                            ),
+                            child: _SideNav(
+                              selectedIndex: selectedIndex,
+                              headers: _pageHeaders,
+                              onTap: onBranchTap,
+                            ),
                           ),
                         ),
                       ),
@@ -559,64 +565,62 @@ class _SideNav extends ConsumerWidget {
             final showTitle =
                 constraints.maxHeight >=
                 _sideNavTitleExtent + _sideNavRuleExtent + _sideNavBodyExtent;
-            return IntrinsicWidth(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (showTitle) ...[
-                    _title(context),
-                    _rule(context),
-                  ] else
-                    const SizedBox(height: 8),
-                  _item(context, 0, Icons.home_outlined, Icons.home, s.home),
-                  _item(
-                    context,
-                    1,
-                    Icons.leaderboard_outlined,
-                    Icons.leaderboard,
-                    s.charts,
-                  ),
-                  _item(
-                    context,
-                    2,
-                    Icons.library_music_outlined,
-                    Icons.library_music,
-                    s.playlists,
-                  ),
-                  const Spacer(),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (showTitle) ...[
+                  _title(context),
                   _rule(context),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8, bottom: 8),
-                    child: Column(
-                      children: [
-                        _item(
+                ] else
+                  const SizedBox(height: 8),
+                _item(context, 0, Icons.home_outlined, Icons.home, s.home),
+                _item(
+                  context,
+                  1,
+                  Icons.leaderboard_outlined,
+                  Icons.leaderboard,
+                  s.charts,
+                ),
+                _item(
+                  context,
+                  2,
+                  Icons.library_music_outlined,
+                  Icons.library_music,
+                  s.playlists,
+                ),
+                const Spacer(),
+                _rule(context),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
+                  child: Column(
+                    children: [
+                      _item(
+                        context,
+                        3,
+                        Icons.settings_outlined,
+                        Icons.settings,
+                        s.settings,
+                      ),
+                      _childGroup(context, [
+                        _shortcut(
                           context,
-                          3,
-                          Icons.settings_outlined,
-                          Icons.settings,
-                          s.settings,
+                          icon: Icons.cloud_sync_rounded,
+                          color: AppColors.accentOf(context),
+                          label: s.syncAccount,
+                          semanticLabel: loggedIn && username.isNotEmpty
+                              ? '${s.syncAccount}，${s.loggedInAs(username)}'
+                              : s.syncAccount,
+                          selected: _isPath(path, '/sync'),
+                          onTap: () => _open(context, 3, '/sync'),
+                          trailing: loggedIn
+                              ? _logoutButton(context, ref, s)
+                              : null,
                         ),
-                        _childGroup(context, [
-                          _shortcut(
-                            context,
-                            icon: Icons.cloud_sync_rounded,
-                            color: AppColors.accentOf(context),
-                            label: s.syncAccount,
-                            semanticLabel: loggedIn && username.isNotEmpty
-                                ? '${s.syncAccount}，${s.loggedInAs(username)}'
-                                : s.syncAccount,
-                            selected: _isPath(path, '/sync'),
-                            onTap: () => _open(context, 3, '/sync'),
-                            trailing: loggedIn
-                                ? _logoutButton(context, ref, s)
-                                : null,
-                          ),
-                        ]),
-                      ],
-                    ),
+                      ]),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             );
           },
         );
@@ -712,26 +716,30 @@ class _SideNav extends ConsumerWidget {
             padding: const EdgeInsets.only(left: 8, right: 2),
             child: Row(
               children: [
-                Pressable(
-                  semanticLabel: semanticLabel ?? label,
-                  onTap: onTap,
-                  scale: 0.98,
-                  borderRadius: BorderRadius.circular(10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, size: 16, color: color),
-                      const SizedBox(width: 8),
-                      Text(
-                        label,
-                        maxLines: 1,
-                        style: TextStyle(
-                          color: selected ? accent : muted,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Pressable(
+                    semanticLabel: semanticLabel ?? label,
+                    onTap: onTap,
+                    scale: 0.98,
+                    borderRadius: BorderRadius.circular(10),
+                    child: Row(
+                      children: [
+                        Icon(icon, size: 16, color: color),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: selected ? accent : muted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 if (trailing != null) trailing,
@@ -810,32 +818,36 @@ class _SideNav extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Pressable(
-                  semanticLabel: label,
-                  selected: isSelected,
-                  onTap: () => onTap(index),
-                  scale: 0.96,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedIconSwitch(
-                        icon: isSelected ? activeIcon : icon,
-                        keyValue: isSelected ? activeIcon : icon,
-                        size: 22,
-                        color: isSelected ? accent : muted,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        label,
-                        maxLines: 1,
-                        style: TextStyle(
+                Expanded(
+                  child: Pressable(
+                    semanticLabel: label,
+                    selected: isSelected,
+                    onTap: () => onTap(index),
+                    scale: 0.96,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Row(
+                      children: [
+                        AnimatedIconSwitch(
+                          icon: isSelected ? activeIcon : icon,
+                          keyValue: isSelected ? activeIcon : icon,
+                          size: 22,
                           color: isSelected ? accent : muted,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isSelected ? accent : muted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 ..._tabActions(index, isSelected),
