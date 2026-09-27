@@ -18,27 +18,6 @@ bool shouldUseSideNavigation({
   return isDesktop || orientation == Orientation.landscape;
 }
 
-/// Content width of the side rail, excluding the leading safe inset.
-/// Wide enough for an icon, a label, and that tab's header button.
-const sideNavigationContentWidth = 216.0;
-
-/// Width reserved for the persistent side rail.
-///
-/// Phone landscape safe areas exist on both horizontal edges. Applying the
-/// trailing inset inside the left rail collapses its content to zero, so only
-/// the leading inset is included here.
-double sideNavigationWidth({
-  required bool enabled,
-  required EdgeInsets padding,
-  required EdgeInsets viewPadding,
-}) {
-  if (!enabled) return 0;
-  final leading = padding.left > viewPadding.left
-      ? padding.left
-      : viewPadding.left;
-  return leading + sideNavigationContentWidth;
-}
-
 /// Layout mode supplied by the root navigation shell.
 ///
 /// Root pages use this only to remove their duplicated compact title bar when

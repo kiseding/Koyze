@@ -65,11 +65,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     final navHeight = 36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
     const miniHeight = 66.0;
     const miniGap = 11.0;
-    final sideRailWidth = sideNavigationWidth(
-      enabled: usesSideNavigation,
-      padding: media.padding,
-      viewPadding: media.viewPadding,
-    );
     final leadingInset = media.padding.left > media.viewPadding.left
         ? media.padding.left
         : media.viewPadding.left;
@@ -127,94 +122,94 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             child: navigationShell,
           );
 
-          return RootHeaderScope(
-            controller: _pageHeaders,
-            child: Stack(
-              children: [
-                Positioned.fill(
+          final content = Stack(
+            children: [
+              Positioned.fill(
+                child: Opacity(
+                  opacity: chromeOpacity,
+                  child: Transform.translate(
+                    offset: Offset(0, -tabPush * eased),
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: contentRightInset,
+                        bottom: usesSideNavigation ? 0 : chromeBottom,
+                      ),
+                      child: shell,
+                    ),
+                  ),
+                ),
+              ),
+              if (!usesSideNavigation)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: bottomClearance,
                   child: Opacity(
                     opacity: chromeOpacity,
                     child: Transform.translate(
-                      offset: Offset(0, -tabPush * eased),
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: usesSideNavigation ? sideRailWidth : 0,
-                          right: contentRightInset,
-                          bottom: usesSideNavigation ? 0 : chromeBottom,
-                        ),
-                        child: shell,
+                      offset: Offset(0, navPush * eased),
+                      child: _BottomNav(
+                        height: navHeight,
+                        bottomSpacing: bottomSpacing,
+                        selectedIndex: selectedIndex,
+                        onTap: onBranchTap,
                       ),
                     ),
                   ),
                 ),
+              Positioned(
+                // Settings option cards are inset 16pt from the content
+                // edges. The landscape mini player uses the same edges.
+                left: usesSideNavigation ? 16 : 3,
+                right: usesSideNavigation ? contentRightInset + 16 : 3,
+                bottom: miniBottom,
+                child: Transform.scale(
+                  alignment: Alignment.bottomCenter,
+                  scale: 1 + 0.035 * eased,
+                  child: Opacity(
+                    opacity: chromeOpacity,
+                    child: const MiniPlayer(floating: true, alwaysShow: true),
+                  ),
+                ),
+              ),
+            ],
+          );
+
+          return RootHeaderScope(
+            controller: _pageHeaders,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 if (usesSideNavigation)
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: sideRailWidth,
-                    child: Opacity(
-                      opacity: chromeOpacity,
-                      child: Transform.translate(
-                        offset: Offset(-sideRailWidth * eased, 0),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: AppColors.fill(context),
-                            border: Border(
-                              right: BorderSide(
-                                color: AppColors.cardBorder(context),
-                              ),
+                  Opacity(
+                    opacity: chromeOpacity,
+                    child: FractionalTranslation(
+                      translation: Offset(-eased, 0),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.fill(context),
+                          border: Border(
+                            right: BorderSide(
+                              color: AppColors.cardBorder(context),
                             ),
                           ),
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              left: leadingInset,
-                              top: topInset,
-                              bottom: bottomInset,
-                            ),
-                            child: _SideNav(
-                              selectedIndex: selectedIndex,
-                              headers: _pageHeaders,
-                              onTap: onBranchTap,
-                            ),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            left: leadingInset,
+                            top: topInset,
+                            bottom: bottomInset,
+                          ),
+                          child: _SideNav(
+                            selectedIndex: selectedIndex,
+                            headers: _pageHeaders,
+                            onTap: onBranchTap,
                           ),
                         ),
                       ),
                     ),
                   ),
-                if (!usesSideNavigation)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: bottomClearance,
-                    child: Opacity(
-                      opacity: chromeOpacity,
-                      child: Transform.translate(
-                        offset: Offset(0, navPush * eased),
-                        child: _BottomNav(
-                          height: navHeight,
-                          bottomSpacing: bottomSpacing,
-                          selectedIndex: selectedIndex,
-                          onTap: onBranchTap,
-                        ),
-                      ),
-                    ),
-                  ),
-                Positioned(
-                  // Settings option cards are inset 16pt from the content
-                  // edges. The landscape mini player uses the same edges.
-                  left: usesSideNavigation ? sideRailWidth + 16 : 3,
-                  right: usesSideNavigation ? contentRightInset + 16 : 3,
-                  bottom: miniBottom,
-                  child: Transform.scale(
-                    alignment: Alignment.bottomCenter,
-                    scale: 1 + 0.035 * eased,
-                    child: Opacity(
-                      opacity: chromeOpacity,
-                      child: const MiniPlayer(floating: true, alwaysShow: true),
-                    ),
-                  ),
-                ),
+                Expanded(child: content),
               ],
             ),
           );
@@ -527,14 +522,11 @@ const _sideNavTitleExtent = 80.0;
 const _sideNavRuleExtent = 1.0;
 const _sideNavTabExtent = 48.0;
 const _sideNavShortcutExtent = 36.0;
-const _sideNavListPadding = 14.0;
 const _sideNavFooterPadding = 16.0;
 
-/// 三个标签、五个单列歌单入口、设置和同步账号，按舒适字号排开的高度。
+/// 三个标签、设置和同步账号，按舒适字号排开的高度。
 const _sideNavBodyExtent =
-    _sideNavListPadding +
     _sideNavTabExtent * 3 +
-    _sideNavShortcutExtent * 5 +
     _sideNavRuleExtent +
     _sideNavFooterPadding +
     _sideNavTabExtent +
@@ -567,116 +559,64 @@ class _SideNav extends ConsumerWidget {
             final showTitle =
                 constraints.maxHeight >=
                 _sideNavTitleExtent + _sideNavRuleExtent + _sideNavBodyExtent;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (showTitle) ...[
-                  _title(context),
+            return IntrinsicWidth(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (showTitle) ...[
+                    _title(context),
+                    _rule(context),
+                  ] else
+                    const SizedBox(height: 8),
+                  _item(context, 0, Icons.home_outlined, Icons.home, s.home),
+                  _item(
+                    context,
+                    1,
+                    Icons.leaderboard_outlined,
+                    Icons.leaderboard,
+                    s.charts,
+                  ),
+                  _item(
+                    context,
+                    2,
+                    Icons.library_music_outlined,
+                    Icons.library_music,
+                    s.playlists,
+                  ),
+                  const Spacer(),
                   _rule(context),
-                ] else
-                  const SizedBox(height: 8),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.only(top: 8, bottom: 6),
-                    children: [
-                      _item(
-                        context,
-                        0,
-                        Icons.home_outlined,
-                        Icons.home,
-                        s.home,
-                      ),
-                      _item(
-                        context,
-                        1,
-                        Icons.leaderboard_outlined,
-                        Icons.leaderboard,
-                        s.charts,
-                      ),
-                      _item(
-                        context,
-                        2,
-                        Icons.library_music_outlined,
-                        Icons.library_music,
-                        s.playlists,
-                      ),
-                      _childGroup(context, [
-                        _shortcut(
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 8),
+                    child: Column(
+                      children: [
+                        _item(
                           context,
-                          icon: Icons.favorite_rounded,
-                          color: const Color(0xFFFF453A),
-                          label: s.favorites,
-                          selected: path == '/playlist/detail/favorites',
-                          onTap: () => _openPlaylist(context, 'favorites'),
+                          3,
+                          Icons.settings_outlined,
+                          Icons.settings,
+                          s.settings,
                         ),
-                        _shortcut(
-                          context,
-                          icon: Icons.auto_awesome_rounded,
-                          color: const Color(0xFFFF8F1F),
-                          label: s.forYou,
-                          selected: _isPath(path, '/recommend'),
-                          onTap: () => _open(context, 2, '/recommend'),
-                        ),
-                        _shortcut(
-                          context,
-                          icon: Icons.library_music_rounded,
-                          color: const Color(0xFFBF5AF2),
-                          label: s.localMusic,
-                          selected: path == '/playlist/detail/local',
-                          onTap: () => _openPlaylist(context, 'local'),
-                        ),
-                        _shortcut(
-                          context,
-                          icon: Icons.cloud_queue_rounded,
-                          color: const Color(0xFFFF375F),
-                          label: s.nasLibrary,
-                          selected: _isPath(path, '/subsonic'),
-                          onTap: () => _open(context, 2, '/subsonic'),
-                        ),
-                        _shortcut(
-                          context,
-                          icon: Icons.history_rounded,
-                          color: const Color(0xFF0A84FF),
-                          label: s.recentPlays,
-                          selected: path == '/playlist/detail/recent',
-                          onTap: () => _openPlaylist(context, 'recent'),
-                        ),
-                      ]),
-                    ],
+                        _childGroup(context, [
+                          _shortcut(
+                            context,
+                            icon: Icons.cloud_sync_rounded,
+                            color: AppColors.accentOf(context),
+                            label: s.syncAccount,
+                            semanticLabel: loggedIn && username.isNotEmpty
+                                ? '${s.syncAccount}，${s.loggedInAs(username)}'
+                                : s.syncAccount,
+                            selected: _isPath(path, '/sync'),
+                            onTap: () => _open(context, 3, '/sync'),
+                            trailing: loggedIn
+                                ? _logoutButton(context, ref, s)
+                                : null,
+                          ),
+                        ]),
+                      ],
+                    ),
                   ),
-                ),
-                _rule(context),
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 8),
-                  child: Column(
-                    children: [
-                      _item(
-                        context,
-                        3,
-                        Icons.settings_outlined,
-                        Icons.settings,
-                        s.settings,
-                      ),
-                      _childGroup(context, [
-                        _shortcut(
-                          context,
-                          icon: Icons.cloud_sync_rounded,
-                          color: AppColors.accentOf(context),
-                          label: s.syncAccount,
-                          semanticLabel: loggedIn && username.isNotEmpty
-                              ? '${s.syncAccount}，${s.loggedInAs(username)}'
-                              : s.syncAccount,
-                          selected: _isPath(path, '/sync'),
-                          onTap: () => _open(context, 3, '/sync'),
-                          trailing: loggedIn
-                              ? _logoutButton(context, ref, s)
-                              : null,
-                        ),
-                      ]),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         );
@@ -772,30 +712,26 @@ class _SideNav extends ConsumerWidget {
             padding: const EdgeInsets.only(left: 8, right: 2),
             child: Row(
               children: [
-                Expanded(
-                  child: Pressable(
-                    semanticLabel: semanticLabel ?? label,
-                    onTap: onTap,
-                    scale: 0.98,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Row(
-                      children: [
-                        Icon(icon, size: 16, color: color),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: selected ? accent : muted,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                Pressable(
+                  semanticLabel: semanticLabel ?? label,
+                  onTap: onTap,
+                  scale: 0.98,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 16, color: color),
+                      const SizedBox(width: 8),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: selected ? accent : muted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
                 if (trailing != null) trailing,
@@ -842,11 +778,6 @@ class _SideNav extends ConsumerWidget {
     context.push(location);
   }
 
-  void _openPlaylist(BuildContext context, String id) {
-    onTap(2);
-    context.pushNamed('playlistDetail', pathParameters: {'playlistId': id});
-  }
-
   bool _isPath(String path, String location) {
     return path == location || path.startsWith('$location/');
   }
@@ -879,36 +810,32 @@ class _SideNav extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Expanded(
-                  child: Pressable(
-                    semanticLabel: label,
-                    selected: isSelected,
-                    onTap: () => onTap(index),
-                    scale: 0.96,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Row(
-                      children: [
-                        AnimatedIconSwitch(
-                          icon: isSelected ? activeIcon : icon,
-                          keyValue: isSelected ? activeIcon : icon,
-                          size: 22,
+                Pressable(
+                  semanticLabel: label,
+                  selected: isSelected,
+                  onTap: () => onTap(index),
+                  scale: 0.96,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedIconSwitch(
+                        icon: isSelected ? activeIcon : icon,
+                        keyValue: isSelected ? activeIcon : icon,
+                        size: 22,
+                        color: isSelected ? accent : muted,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        style: TextStyle(
                           color: isSelected ? accent : muted,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isSelected ? accent : muted,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
                 ..._tabActions(index, isSelected),

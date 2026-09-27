@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/widgets/root_shell_layout.dart';
@@ -64,24 +66,15 @@ void main() {
     expect(find.text('side'), findsOneWidget);
   });
 
-  test('landscape safe areas do not collapse the side rail', () {
-    const horizontalInset = EdgeInsets.symmetric(horizontal: 59);
-    expect(
-      sideNavigationWidth(
-        enabled: true,
-        padding: horizontalInset,
-        viewPadding: horizontalInset,
-      ),
-      59 + sideNavigationContentWidth,
-    );
-    expect(
-      sideNavigationWidth(
-        enabled: false,
-        padding: horizontalInset,
-        viewPadding: horizontalInset,
-      ),
-      0,
-    );
+  test('side rail is not given a fixed content width', () {
+    final layout = File(
+      'lib/core/widgets/root_shell_layout.dart',
+    ).readAsStringSync();
+    final scaffold = File(
+      'lib/features/home/presentation/main_scaffold.dart',
+    ).readAsStringSync();
+    expect(layout, isNot(contains('sideNavigationContentWidth')));
+    expect(scaffold, contains('IntrinsicWidth'));
   });
 
   testWidgets('portrait header actions are published into the side rail', (
