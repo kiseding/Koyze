@@ -898,7 +898,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     return ValueListenableBuilder<double>(
       valueListenable: playerRouteProgress,
-      builder: (context, progress, _) {
+      builder: (context, rawProgress, _) {
+        // 横屏模拟器上路由动画会在监听挂上之前结束，进度停在 0。
+        // 这时磨砂背景已经铺满，歌名和控件却还按进度藏着，看起来只剩遮罩。
+        // 路由已经展开、且不是在跟手收起时，直接按全屏来画。
+        final gestureClosing =
+            _draggingDown ||
+            _collapsing ||
+            _settleController.isAnimating ||
+            edgeDragActive ||
+            playerRouteDismissLocked;
+        final routeAnimation = ModalRoute.of(context)?.animation;
+        final routePresented =
+            routeAnimation == null ||
+            routeAnimation.status == AnimationStatus.completed ||
+            routeAnimation.value >= 0.999;
+        final progress = gestureClosing || !routePresented ? rawProgress : 1.0;
         // 读取真实布局几何（上一帧已布局），morph 覆盖层终点与页面内容
         // 严格一致，展开/收起全程无跳变；未布局（首帧）时回退估算值。
         _recordMorphTargets();
@@ -1037,6 +1052,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             dismissThreshold,
             artworkReveal,
             chromeFade,
+            progress,
           ),
         );
         return Stack(
@@ -1137,6 +1153,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     double dismissThreshold,
     double artworkReveal,
     double chromeFade,
+    double progress,
   ) {
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -1145,6 +1162,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // 避免半透明混合透出灰色阴影使界面看起来灰蒙蒙。
         color: Colors.transparent,
         child: SafeArea(
+          left: screenW - MediaQuery.paddingOf(context).horizontal >= 160,
+          right: screenW - MediaQuery.paddingOf(context).horizontal >= 160,
+          top: screenH - MediaQuery.paddingOf(context).vertical >= 160,
+          bottom: screenH - MediaQuery.paddingOf(context).vertical >= 160,
           child: GestureDetector(
             onVerticalDragStart: (_) {
               // 已开始关闭（pop 进行中）后不再响应新手势，防止
@@ -1201,6 +1222,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               }
             },
             onVerticalDragCancel: () {
+              // 横屏左侧是横向翻页。没真正下滑就被它抢走时，不能按
+              // 进度 0 收成遮罩。
+              if (_dragOffset <= 0 && !_settleController.isAnimating) {
+                if (_draggingDown || _collapsing) {
+                  setState(() {
+                    _draggingDown = false;
+                    _collapsing = false;
+                  });
+                }
+                return;
+              }
               // 手势被其它手势（左缘返回 / PageView 横向）抢占而失去时，
               // 绝不把界面留在半收拢状态：动画已在进行则继续，否则按
               // 当前位置自动收敛——过半继续收拢关闭，否则回弹全屏。
@@ -1236,6 +1268,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   opacity: chromeFade,
                   child: _StaggeredFade(
                     delay: 0.55,
+                    progress: progress,
                     child: _buildAppBar(context, currentMusic),
                   ),
                 ),
@@ -1273,6 +1306,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 playMode: playMode,
                                 duration: duration,
                                 chromeFade: chromeFade,
+                                progress: progress,
                                 compact: true,
                               ),
                             ),
@@ -1302,6 +1336,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                   playMode: playMode,
                                   duration: duration,
                                   chromeFade: chromeFade,
+                                  progress: progress,
                                 ),
                                 const SizedBox(height: 12),
                               ],
@@ -1315,6 +1350,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                   opacity: chromeFade,
                                   child: _StaggeredFade(
                                     delay: 0.55,
+                                    progress: progress,
                                     child: _buildLyricMiniBar(
                                       currentMusic,
                                       playerService,
@@ -1519,6 +1555,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     required PlayMode playMode,
     required Duration duration,
     required double chromeFade,
+    required double progress,
     bool compact = false,
   }) {
     return Opacity(
@@ -1530,11 +1567,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         children: [
           _StaggeredFade(
             delay: 0.2,
+            progress: progress,
             child: _buildSongInfo(currentMusic, compact: compact),
           ),
-          _StaggeredFade(delay: 0.3, child: const _CurrentLyricLine()),
+          _StaggeredFade(
+            delay: 0.3,
+            progress: progress,
+            child: const _CurrentLyricLine(),
+          ),
           _StaggeredFade(
             delay: 0.45,
+            progress: progress,
             child: _PlayerProgress(
               duration: duration,
               seeking: _seeking,
@@ -1548,6 +1591,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
           _StaggeredFade(
             delay: 0.5,
+            progress: progress,
             child: _buildControls(
               playerService,
               isPlaying,
@@ -2790,25 +2834,15 @@ class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
     if (artwork == null || artwork.isEmpty) {
       return const ColoredBox(color: Colors.transparent);
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final side = constraints.biggest.longestSide;
-        return OverflowBox(
-          alignment: Alignment.center,
-          minWidth: side,
-          maxWidth: side,
-          minHeight: side,
-          maxHeight: side,
-          child: ImageFiltered(
-            imageFilter: AppGlass.filterFor(AppGlassStyle.regular),
-            child: ArtworkImage(
-              artwork,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-            ),
-          ),
-        );
-      },
+    return ImageFiltered(
+      imageFilter: AppGlass.filterFor(AppGlassStyle.regular),
+      child: ArtworkImage(
+        artwork,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      ),
     );
   }
 
@@ -2829,46 +2863,51 @@ class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
       curve: MotionCurve.iosSpring,
     );
     return IgnorePointer(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
-          if (!reduced && _previous != null)
-            FadeTransition(opacity: ReverseAnimation(curved), child: _previous),
-          if (reduced)
-            _current
-          else
-            FadeTransition(opacity: curved, child: _current),
-          ColoredBox(color: dim),
-        ],
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
+            if (!reduced && _previous != null)
+              FadeTransition(
+                opacity: ReverseAnimation(curved),
+                child: _previous,
+              ),
+            if (reduced)
+              _current
+            else
+              FadeTransition(opacity: curved, child: _current),
+            ColoredBox(color: dim),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _StaggeredFade extends StatelessWidget {
-  const _StaggeredFade({required this.delay, required this.child});
+  const _StaggeredFade({
+    required this.delay,
+    required this.progress,
+    required this.child,
+  });
 
   /// 淡入开始的进度阈值（0~1）。
   final double delay;
+  final double progress;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<double>(
-      valueListenable: playerRouteProgress,
-      builder: (context, progress, _) {
-        final t = delay >= 1
-            ? 1.0
-            : ((progress - delay) / (1 - delay)).clamp(0.0, 1.0);
-        return Opacity(
-          opacity: Curves.easeOutCubic.transform(t),
-          child: Transform.translate(
-            offset: Offset(0, 14 * (1 - Curves.easeOutCubic.transform(t))),
-            child: child,
-          ),
-        );
-      },
+    final t = delay >= 1
+        ? 1.0
+        : ((progress - delay) / (1 - delay)).clamp(0.0, 1.0);
+    return Opacity(
+      opacity: Curves.easeOutCubic.transform(t),
+      child: Transform.translate(
+        offset: Offset(0, 14 * (1 - Curves.easeOutCubic.transform(t))),
+        child: child,
+      ),
     );
   }
 }
