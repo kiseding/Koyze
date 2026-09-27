@@ -41,6 +41,15 @@ void main() {
       find.byKey(const Key('volume-track-horizontal')),
     );
     expect(track.width, greaterThan(track.height));
+    expect(track.width, lessThanOrEqualTo(100));
+    expect(track.height, lessThanOrEqualTo(24));
     expect(find.byKey(const Key('volume-track-vertical')), findsNothing);
+
+    final panel = tester.getRect(find.byKey(const Key('volume-panel')));
+    final button = tester.getRect(find.byType(PlayerVolumeButton));
+    expect(panel.height, lessThan(40));
+    expect(panel.width, lessThan(180));
+    expect(panel.bottom, lessThanOrEqualTo(button.top + 1));
+    expect(panel.right, closeTo(button.right, 8));
   });
 }

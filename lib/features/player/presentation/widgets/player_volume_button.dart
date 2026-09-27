@@ -104,36 +104,48 @@ class _PlayerVolumeButtonState extends ConsumerState<PlayerVolumeButton>
             CompositedTransformFollower(
               link: _link,
               targetAnchor: widget.horizontal
-                  ? Alignment.centerLeft
+                  ? Alignment.topRight
                   : Alignment.topCenter,
               followerAnchor: widget.horizontal
-                  ? Alignment.centerRight
+                  ? Alignment.bottomRight
                   : Alignment.bottomCenter,
-              offset: widget.horizontal
-                  ? const Offset(-8, 0)
-                  : const Offset(0, -6),
+              offset: Offset(0, widget.horizontal ? -4 : -6),
               child: FadeTransition(
                 opacity: CurvedAnimation(
                   parent: _panel,
                   curve: MotionCurve.easeOut,
                   reverseCurve: MotionCurve.easeIn,
                 ),
-                child: ScaleTransition(
-                  alignment: widget.horizontal
-                      ? Alignment.centerRight
-                      : Alignment.bottomCenter,
-                  scale: Tween<double>(begin: 0.86, end: 1).animate(
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: widget.horizontal
+                        ? const Offset(0, 0.35)
+                        : Offset.zero,
+                    end: Offset.zero,
+                  ).animate(
                     CurvedAnimation(
                       parent: _panel,
-                      curve: MotionCurve.iosSpring,
+                      curve: MotionCurve.easeOut,
                       reverseCurve: MotionCurve.easeIn,
                     ),
                   ),
-                  child: _VolumePanel(
-                    volume: volume,
-                    horizontal: widget.horizontal,
-                    onChanged: _setVolume,
-                    onMute: () => _toggleMute(volume),
+                  child: ScaleTransition(
+                    alignment: widget.horizontal
+                        ? Alignment.bottomRight
+                        : Alignment.bottomCenter,
+                    scale: Tween<double>(begin: 0.92, end: 1).animate(
+                      CurvedAnimation(
+                        parent: _panel,
+                        curve: MotionCurve.iosSpring,
+                        reverseCurve: MotionCurve.easeIn,
+                      ),
+                    ),
+                    child: _VolumePanel(
+                      volume: volume,
+                      horizontal: widget.horizontal,
+                      onChanged: _setVolume,
+                      onMute: () => _toggleMute(volume),
+                    ),
                   ),
                 ),
               ),
@@ -204,9 +216,11 @@ class _VolumePanel extends StatelessWidget {
       child: Text(
         '$percent',
         key: ValueKey<int>(percent),
+        textAlign: TextAlign.center,
+        maxLines: 1,
         style: TextStyle(
           color: AppColors.onScaffold(context),
-          fontSize: 15,
+          fontSize: horizontal ? 12 : 15,
           fontWeight: FontWeight.w700,
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
@@ -219,12 +233,12 @@ class _VolumePanel extends StatelessWidget {
       scale: 0.9,
       onTap: onMute,
       child: Padding(
-        padding: const EdgeInsets.all(6),
+        padding: EdgeInsets.all(horizontal ? 4 : 6),
         child: Icon(
           volume <= 0.001
               ? Icons.volume_off_rounded
               : Icons.volume_mute_rounded,
-          size: horizontal ? 24 : 30,
+          size: horizontal ? 16 : 30,
           color: AppColors.secondaryText(context),
         ),
       ),
@@ -235,17 +249,18 @@ class _VolumePanel extends StatelessWidget {
       onChanged: onChanged,
     );
     return Material(
+      key: const Key('volume-panel'),
       type: MaterialType.transparency,
       child: GlassSurface(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(horizontal ? 16 : 28),
         padding: horizontal
-            ? const EdgeInsets.fromLTRB(8, 8, 14, 8)
+            ? const EdgeInsets.fromLTRB(4, 3, 8, 3)
             : const EdgeInsets.fromLTRB(14, 14, 14, 10),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: horizontal ? 0.16 : 0.28),
+            blurRadius: horizontal ? 12 : 24,
+            offset: Offset(0, horizontal ? 4 : 10),
           ),
         ],
         child: horizontal
@@ -253,10 +268,10 @@ class _VolumePanel extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   mute,
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   track,
-                  const SizedBox(width: 12),
-                  SizedBox(width: 32, child: Center(child: percentLabel)),
+                  const SizedBox(width: 6),
+                  SizedBox(width: 28, child: percentLabel),
                 ],
               )
             : SizedBox(
@@ -288,7 +303,10 @@ class _VolumeTrack extends StatelessWidget {
   final bool horizontal;
   final ValueChanged<double> onChanged;
 
-  static const double _length = 148;
+  static const double _portraitLength = 148;
+  static const double _landscapeLength = 92;
+
+  double get _length => horizontal ? _landscapeLength : _portraitLength;
 
   void _update(double position) {
     final next = horizontal
@@ -317,31 +335,37 @@ class _VolumeTrack extends StatelessWidget {
           : (details) => _update(details.localPosition.dy),
       child: SizedBox(
         width: horizontal ? _length : 36,
-        height: horizontal ? 36 : _length,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: track,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Align(
-              alignment: horizontal
-                  ? Alignment.centerLeft
-                  : Alignment.bottomCenter,
-              child: FractionallySizedBox(
-                widthFactor: horizontal ? volume.clamp(0.0, 1.0) : 1,
-                heightFactor: horizontal ? 1 : volume.clamp(0.0, 1.0),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: horizontal
-                          ? Alignment.centerLeft
-                          : Alignment.bottomCenter,
-                      end: horizontal
-                          ? Alignment.centerRight
-                          : Alignment.topCenter,
-                      colors: [accent, accent.withValues(alpha: 0.72)],
+        height: horizontal ? 22 : _length,
+        child: Center(
+          child: SizedBox(
+            width: horizontal ? _length : 36,
+            height: horizontal ? 6 : _length,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: track,
+                borderRadius: BorderRadius.circular(horizontal ? 3 : 18),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(horizontal ? 3 : 18),
+                child: Align(
+                  alignment: horizontal
+                      ? Alignment.centerLeft
+                      : Alignment.bottomCenter,
+                  child: FractionallySizedBox(
+                    widthFactor: horizontal ? volume.clamp(0.0, 1.0) : 1,
+                    heightFactor: horizontal ? 1 : volume.clamp(0.0, 1.0),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: horizontal
+                              ? Alignment.centerLeft
+                              : Alignment.bottomCenter,
+                          end: horizontal
+                              ? Alignment.centerRight
+                              : Alignment.topCenter,
+                          colors: [accent, accent.withValues(alpha: 0.72)],
+                        ),
+                      ),
                     ),
                   ),
                 ),
