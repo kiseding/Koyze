@@ -144,7 +144,13 @@ Future<void> _bootstrapUnsafe(
         }
 
         final session = await AudioSession.instance;
-        await session.configure(const AudioSessionConfiguration.music());
+        await session.configure(
+          const AudioSessionConfiguration.music().copyWith(
+            androidAudioFocusGainType:
+                AndroidAudioFocusGainType.gainTransientMayDuck,
+            androidWillPauseWhenDucked: false,
+          ),
+        );
         AppLog.instance.record('audio.session', 'audio session configured');
         final lxHandler = LxAudioHandler(
           prepareForPlayback: () async {
@@ -229,9 +235,7 @@ Future<void> _bootstrapUnsafe(
           interruptionEvents: session.interruptionEventStream,
           noisyEvents: session.becomingNoisyEventStream,
           onInterruption: (event) async {
-            final ignored =
-                event.type == AudioInterruptionType.duck ||
-                event.type == AudioInterruptionType.unknown;
+            final ignored = event.type == AudioInterruptionType.unknown;
             AppLog.instance.record(
               'audio.interruption',
               'type=${event.type.name} begin=${event.begin} ignored=$ignored',
@@ -241,10 +245,14 @@ Future<void> _bootstrapUnsafe(
             );
             if (ignored) return;
             if (event.begin) {
-              await lxHandler.beginAudioInterruption();
+              await lxHandler.beginAudioInterruption(
+                duck: event.type == AudioInterruptionType.duck,
+              );
             } else {
               await lxHandler.endAudioInterruption(
-                mayResume: event.type == AudioInterruptionType.pause,
+                mayResume:
+                    event.type == AudioInterruptionType.pause ||
+                    event.type == AudioInterruptionType.duck,
               );
             }
           },

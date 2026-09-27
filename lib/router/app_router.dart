@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 
 import 'package:go_router/go_router.dart';
@@ -13,7 +12,6 @@ import '../features/player/presentation/player_screen.dart';
 import '../features/search/presentation/search_screen.dart';
 import '../features/playlist/presentation/playlist_screen.dart';
 import '../features/playlist/presentation/playlist_detail_screen.dart';
-import '../features/settings/presentation/settings_provider.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/download/presentation/download_screen.dart';
 import '../features/custom_source/presentation/custom_source_screen.dart';
@@ -215,42 +213,22 @@ final appRouter = GoRouter(
       ),
     ),
     GoRoute(
-      path: '/sync',
-      parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const SyncScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
-      ),
-    ),
-    GoRoute(
       path: '/player',
       parentNavigatorKey: rootNavigatorKey,
       // 透明但不使用系统 route snapshot，避免打开/关闭时快照层闪成半透明浅色幕。
-      // pageBuilder: (context, state) => _PlayerTransitionPage
-      pageBuilder: (context, state) {
-        final landscape =
-            _isLandscapeViewport(context) ||
-            ProviderScope.containerOf(context).read(forceLandscapeProvider);
-        return _PlayerTransitionPage(
-          key: state.pageKey,
-          opaque: landscape,
-          child: EdgeSwipeDismiss(
-            bypassOnLandscape: true,
-            landscapeLayout: landscape,
-            // 左缘右滑直接驱动播放器 morph 进度，全屏界面整体跟手收拢；
-            // 播放器进度语义为 1=全屏，与拖动手势相反需取反。
-            progress: playerRouteProgress,
-            invertProgress: true,
-            onDismissCommit: _lockPlayerRouteDismiss,
-            child: PlayerScreen(
-              openLyrics: state.uri.queryParameters['lyrics'] == '1',
-              landscapeLayout: landscape,
-            ),
+      pageBuilder: (context, state) => _PlayerTransitionPage(
+        key: state.pageKey,
+        child: EdgeSwipeDismiss(
+          // 左缘右滑直接驱动播放器 morph 进度，全屏界面整体跟手收拢；
+          // 播放器进度语义为 1=全屏，与拖动手势相反需取反。
+          progress: playerRouteProgress,
+          invertProgress: true,
+          onDismissCommit: _lockPlayerRouteDismiss,
+          child: PlayerScreen(
+            openLyrics: state.uri.queryParameters['lyrics'] == '1',
           ),
-        );
-      },
+        ),
+      ),
     ),
     GoRoute(
       path: '/local-music',
@@ -439,23 +417,13 @@ final appRouter = GoRouter(
   ],
 );
 
-bool _isLandscapeViewport(BuildContext context) {
-  final logical = MediaQuery.sizeOf(context);
-  final physical = View.of(context).physicalSize;
-  return logical.width > logical.height || physical.width > physical.height;
-}
-
-/// 全屏播放器使用无快照路由。横屏时路由本身不透明，避免底层 tab 页面与
-/// 透明屏障一起参与合成；竖屏保留透明路由以支持播放器卡片形变。
+/// 全屏播放器专用透明路由。Flutter 的默认 route snapshotting 在透明路由 +
+/// 深/浅色主题快速切换首尾帧时可能短暂合成一层浅色快照，表现成全屏半透明白闪。
+/// 播放器本身已有基于 [playerRouteProgress] 的元素 morph，所以这里强制实时绘制。
 class _PlayerTransitionPage extends Page<void> {
-  const _PlayerTransitionPage({
-    required this.child,
-    required this.opaque,
-    super.key,
-  });
+  const _PlayerTransitionPage({required this.child, super.key});
 
   final Widget child;
-  final bool opaque;
 
   @override
   Route<void> createRoute(BuildContext context) =>
@@ -468,10 +436,8 @@ class _PlayerTransitionRoute extends PageRoute<void> {
 
   _PlayerTransitionPage get _page => settings as _PlayerTransitionPage;
 
-  // Portrait routes used to use the fixed declaration `bool get opaque => false`;
-  // the page now supplies the same behavior only when the viewport is portrait.
   @override
-  bool get opaque => _page.opaque;
+  bool get opaque => false;
 
   @override
   bool get barrierDismissible => true;
@@ -507,22 +473,6 @@ class _PlayerTransitionRoute extends PageRoute<void> {
       controller?.reverseDuration = Duration.zero;
     }
     return super.didPop(result);
-  }
-
-  /// 关闭特效时过渡时长是 0，动画在监听挂上之前就已经结束。
-  /// 不在这里补一次进度的话，透明路由会停在半透明遮罩，播放器正文出不来。
-  @override
-  TickerFuture didPush() {
-    final future = super.didPush();
-    _publishOpenedProgress();
-    return future;
-  }
-
-  void _publishOpenedProgress() {
-    if (playerRouteDismissLocked) return;
-    final value = controller?.value;
-    if (value == null || playerRouteProgress.value == value) return;
-    playerRouteProgress.value = value;
   }
 
   @override
@@ -575,7 +525,6 @@ class _PlayerRouteProgressBridgeState
   void initState() {
     super.initState();
     widget.animation.addListener(_sync);
-    _sync();
   }
 
   @override
@@ -584,7 +533,6 @@ class _PlayerRouteProgressBridgeState
     if (oldWidget.animation != widget.animation) {
       oldWidget.animation.removeListener(_sync);
       widget.animation.addListener(_sync);
-      _sync();
     }
   }
 

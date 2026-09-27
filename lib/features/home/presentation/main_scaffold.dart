@@ -14,6 +14,7 @@ import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../cloud/presentation/cloud_provider.dart';
+import '../../settings/presentation/settings_screen.dart';
 import '../../player/presentation/widgets/mini_player.dart';
 import '../../settings/presentation/settings_provider.dart';
 
@@ -171,7 +172,15 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                   scale: 1 + 0.035 * eased,
                   child: Opacity(
                     opacity: chromeOpacity,
-                    child: const MiniPlayer(floating: true, alwaysShow: true),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: settingsOptionMaxWidth,
+                      ),
+                      child: const MiniPlayer(
+                        floating: true,
+                        alwaysShow: true,
+                      ),
+                    ),
                   ),
                 ),
               ),

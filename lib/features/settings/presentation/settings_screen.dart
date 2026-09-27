@@ -32,6 +32,8 @@ import '../../../l10n/app_strings.dart';
 import '../../sync/data/sync_identity_store.dart';
 import '../../nas/domain/nas_url.dart';
 
+const double settingsOptionMaxWidth = 340;
+
 final settingsDeviceIdProvider = FutureProvider<String>((ref) async {
   return (await SyncIdentityStore().load()).deviceId;
 });
@@ -1091,7 +1093,7 @@ class _PlatformPickerDialog extends ConsumerWidget {
       child: Material(
         color: Colors.transparent,
         child: SizedBox(
-          width: 340,
+          width: settingsOptionMaxWidth,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: GlassSurface(
@@ -1298,7 +1300,7 @@ class _QualityPickerDialog extends ConsumerWidget {
       child: Material(
         color: Colors.transparent,
         child: SizedBox(
-          width: 340,
+          width: settingsOptionMaxWidth,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: GlassSurface(
@@ -1576,7 +1578,7 @@ class _LanguagePickerDialog extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: SizedBox(
-            width: 340,
+            width: settingsOptionMaxWidth,
             child: GlassSurface(
               style: AppGlassStyle.regular,
               borderRadius: BorderRadius.circular(24),

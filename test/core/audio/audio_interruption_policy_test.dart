@@ -10,6 +10,20 @@ import 'package:koyze/features/player/presentation/player_provider.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('duck lowers playback without pausing and restores user volume', () {
+    final policy = AudioInterruptionPolicy();
+
+    expect(
+      policy.onBegin(wasPlaying: true, duck: true),
+      InterruptionAction.duck,
+    );
+    expect(
+      policy.onEnd(userStillWantsPlay: true, mayResume: true),
+      InterruptionAction.unduck,
+    );
+    expect(policy.active, isFalse);
+  });
+
   test('interruption resumes only playback paused by that interruption', () {
     final policy = AudioInterruptionPolicy();
 
@@ -135,6 +149,29 @@ void main() {
     await handler.endAudioInterruption(mayResume: true);
     expect(player.playing, isTrue);
     expect(handler.userIntentGeneration, intentGeneration);
+  });
+
+  test('handler ducks playback volume and restores it exactly', () async {
+    final player = _InterruptionAudioPlayer();
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    await handler.setPlaylist([_item('A')]);
+    handler.applyPlaybackVolume(0.8);
+    await pumpEventQueue();
+
+    await handler.beginAudioInterruption(duck: true);
+
+    expect(player.playing, isTrue);
+    expect(player.volume, closeTo(0.8 * duckedPlaybackVolumeFactor, 0.0001));
+
+    handler.applyPlaybackVolume(0.6);
+    await pumpEventQueue();
+    expect(player.volume, closeTo(0.6 * duckedPlaybackVolumeFactor, 0.0001));
+
+    await handler.endAudioInterruption(mayResume: true);
+    await pumpEventQueue();
+    expect(player.playing, isTrue);
+    expect(player.volume, closeTo(0.6, 0.0001));
   });
 
   test('explicit user pause invalidates interruption resume', () async {
@@ -992,6 +1029,8 @@ class _InterruptionAudioPlayer extends AudioPlayer {
   _Gate? _stopGate;
   int pauseCalls = 0;
   int playCalls = 0;
+  @override
+  double volume = 1;
   bool advanceOnPlay = false;
 
   void gateNextPause(_Gate gate) => _pauseGates.add(gate);
@@ -1046,6 +1085,11 @@ class _InterruptionAudioPlayer extends AudioPlayer {
     _positions.add(_position);
     _processingState = ProcessingState.ready;
     return null;
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {
+    this.volume = volume;
   }
 
   @override

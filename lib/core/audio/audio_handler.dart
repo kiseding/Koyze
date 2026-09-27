@@ -255,21 +255,32 @@ enum InterruptionAction {
   pausePreservingIntent,
   pauseClearingIntent,
   resume,
+  duck,
+  unduck,
 }
+
+/// Temporary loudness used while another Android app holds duckable focus.
+const double duckedPlaybackVolumeFactor = 0.35;
 
 class AudioInterruptionPolicy {
   int _depth = 0;
   bool _ownsPause = false;
+  bool _ducking = false;
   bool _mayResume = true;
 
   bool get active => _depth > 0;
   int get depth => _depth;
 
-  InterruptionAction onBegin({required bool wasPlaying}) {
+  InterruptionAction onBegin({
+    required bool wasPlaying,
+    bool duck = false,
+  }) {
     _depth++;
     if (_depth > 1) return InterruptionAction.none;
-    _ownsPause = wasPlaying;
+    _ownsPause = wasPlaying && !duck;
+    _ducking = duck;
     _mayResume = true;
+    if (duck) return InterruptionAction.duck;
     return wasPlaying
         ? InterruptionAction.pausePreservingIntent
         : InterruptionAction.none;
@@ -284,9 +295,12 @@ class AudioInterruptionPolicy {
     _depth--;
     if (_depth > 0) return InterruptionAction.none;
     final ownsPause = _ownsPause;
+    final ducking = _ducking;
     final cycleMayResume = _mayResume;
     _ownsPause = false;
+    _ducking = false;
     _mayResume = true;
+    if (ducking && cycleMayResume) return InterruptionAction.unduck;
     return ownsPause && userStillWantsPlay && cycleMayResume
         ? InterruptionAction.resume
         : InterruptionAction.none;
@@ -295,6 +309,7 @@ class AudioInterruptionPolicy {
   InterruptionAction onBecomingNoisy() {
     _depth = 0;
     _ownsPause = false;
+    _ducking = false;
     _mayResume = true;
     return InterruptionAction.pausePreservingIntent;
   }
@@ -869,6 +884,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   double _playbackVolume = 1;
+  bool _audioDucked = false;
 
   /// App-level loudness. Reapplied when the native player is rebuilt.
   void applyPlaybackVolume(double volume) {
@@ -876,9 +892,26 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _pushPlaybackVolume();
   }
 
+  /// Lowers playback while another app plays, without changing user volume.
+  void duckPlaybackVolume() {
+    if (_audioDucked) return;
+    _audioDucked = true;
+    _pushPlaybackVolume();
+  }
+
+  /// Restores the user's volume after the temporary duck ends.
+  void restoreDuckedPlaybackVolume() {
+    if (!_audioDucked) return;
+    _audioDucked = false;
+    _pushPlaybackVolume();
+  }
+
   void _pushPlaybackVolume() {
+    final volume = _audioDucked
+        ? _playbackVolume * duckedPlaybackVolumeFactor
+        : _playbackVolume;
     unawaited(
-      _player.setVolume(_playbackVolume).then<void>((_) {}, onError: (_, _) {}),
+      _player.setVolume(volume).then<void>((_) {}, onError: (_, _) {}),
     );
   }
 
@@ -1997,10 +2030,13 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     return owner;
   }
 
-  Future<void> beginAudioInterruption() =>
-      _runPublicOperation<void>(_beginAudioInterruption, disposedValue: null);
+  Future<void> beginAudioInterruption({bool duck = false}) =>
+      _runPublicOperation<void>(
+        () => _beginAudioInterruption(duck: duck),
+        disposedValue: null,
+      );
 
-  Future<void> _beginAudioInterruption() async {
+  Future<void> _beginAudioInterruption({bool duck = false}) async {
     if (_disposed) return;
     final firstBegin = !_interruptionPolicy.active;
     if (firstBegin) {
@@ -2012,7 +2048,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     final action = _interruptionPolicy.onBegin(
       wasPlaying: _player.playing || (_userWantsPlay && _activeItemId != null),
+      duck: duck,
     );
+    if (action == InterruptionAction.duck) {
+      duckPlaybackVolume();
+      return;
+    }
     final interruptionGeneration = _interruptionGeneration;
     final sourceGeneration = _interruptionSourceGeneration;
     final userIntentGeneration = _interruptionUserIntentGeneration;
@@ -2058,11 +2099,16 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (interruptionGeneration != _interruptionGeneration) return;
     if (!finalEnd || _interruptionPolicy.active) return;
     _interruptionClosing = false;
+    if (action == InterruptionAction.unduck ||
+        action == InterruptionAction.resume) {
+      restoreDuckedPlaybackVolume();
+    }
     if (action == InterruptionAction.resume && ownsPlayback) {
       if (_player.processingState == ProcessingState.completed) {
         _onTrackCompleted();
       }
-    } else if (action != InterruptionAction.resume) {
+    } else if (action != InterruptionAction.resume &&
+        action != InterruptionAction.unduck) {
       ++_playbackStartBlockGeneration;
     }
     _clearInterruptionOwnership();
