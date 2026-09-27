@@ -9,6 +9,7 @@ import '../../../core/motion/motion_tokens.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../player/presentation/widgets/mini_player.dart';
@@ -672,9 +673,22 @@ class _SideNav extends StatelessWidget {
     );
   }
 
+  static const _standbyActionIcons = <int, IconData>{
+    0: Icons.tune_rounded,
+    1: Icons.tune_rounded,
+    2: Icons.playlist_add_rounded,
+  };
+
   List<Widget> _tabActions(int index, bool enabled) {
-    final actions = headers.headerFor(index)?.actions ?? const <Widget>[];
-    if (actions.isEmpty) return const [];
+    final published = headers.headerFor(index)?.actions ?? const <Widget>[];
+    final List<Widget> actions;
+    if (published.isNotEmpty) {
+      actions = published;
+    } else {
+      final icon = _standbyActionIcons[index];
+      if (icon == null) return const [];
+      actions = [FrostedHeaderButton(icon: icon, onTap: () {})];
+    }
     return [
       const SizedBox(width: 4),
       GestureDetector(
