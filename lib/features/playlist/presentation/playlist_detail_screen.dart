@@ -291,9 +291,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               ),
               if (isSelectionMode)
                 FxIconButton(
-                  tooltip: isAllFavoritesSelected
-                      ? S.of(context).deselectAll
-                      : S.of(context).selectAll,
+                  tooltip: isAllFavoritesSelected ? S.of(context).deselectAll : S.of(context).selectAll,
                   onPressed: _selectionBusy || currentPageSongs.isEmpty
                       ? null
                       : () => _toggleAllFavoriteSelection(
