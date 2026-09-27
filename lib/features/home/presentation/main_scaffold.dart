@@ -601,22 +601,20 @@ class _SideNav extends ConsumerWidget {
                         Icons.settings,
                         s.settings,
                       ),
-                      _childGroup(context, [
-                        _shortcut(
-                          context,
-                          icon: Icons.cloud_sync_rounded,
-                          color: AppColors.accentOf(context),
-                          label: s.syncAccount,
-                          semanticLabel: loggedIn && username.isNotEmpty
-                              ? '${s.syncAccount}，${s.loggedInAs(username)}'
-                              : s.syncAccount,
-                          selected: _isPath(path, '/sync'),
-                          onTap: () => _open(context, 3, '/sync'),
-                          trailing: loggedIn
-                              ? _logoutButton(context, ref, s)
-                              : null,
-                        ),
-                      ]),
+                      _shortcut(
+                        context,
+                        icon: Icons.cloud_sync_rounded,
+                        color: AppColors.accentOf(context),
+                        label: s.syncAccount,
+                        semanticLabel: loggedIn && username.isNotEmpty
+                            ? '${s.syncAccount}，${s.loggedInAs(username)}'
+                            : s.syncAccount,
+                        selected: _isPath(path, '/sync'),
+                        onTap: () => _open(context, 3, '/sync'),
+                        trailing: loggedIn
+                            ? _logoutButton(context, ref, s)
+                            : null,
+                      ),
                     ],
                   ),
                 ),
@@ -667,23 +665,6 @@ class _SideNav extends ConsumerWidget {
           borderRadius: BorderRadius.circular(1),
         ),
         child: const SizedBox(height: 1),
-      ),
-    );
-  }
-
-  /// 父级图标中线落下的细线，把子入口收成一组。
-  Widget _childGroup(BuildContext context, List<Widget> children) {
-    final line = Theme.of(context).colorScheme.primary.withValues(alpha: 0.28);
-    return Padding(
-      padding: const EdgeInsets.only(left: 29),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: line, width: 1.5)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.only(left: 6),
-          child: Column(children: children),
-        ),
       ),
     );
   }
