@@ -1274,6 +1274,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 duration: duration,
                                 chromeFade: chromeFade,
                                 compact: true,
+                                horizontalVolume: true,
                               ),
                             ),
                           ],
@@ -1520,6 +1521,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     required Duration duration,
     required double chromeFade,
     bool compact = false,
+    bool horizontalVolume = false,
   }) {
     return Opacity(
       opacity: chromeFade,
@@ -1530,7 +1532,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         children: [
           _StaggeredFade(
             delay: 0.2,
-            child: _buildSongInfo(currentMusic, compact: compact),
+            child: _buildSongInfo(
+              currentMusic,
+              compact: compact,
+              horizontalVolume: horizontalVolume,
+            ),
           ),
           _StaggeredFade(delay: 0.3, child: const _CurrentLyricLine()),
           _StaggeredFade(
@@ -1626,7 +1632,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
-  Widget _buildSongInfo(MusicItem music, {bool compact = false}) {
+  Widget _buildSongInfo(
+    MusicItem music, {
+    bool compact = false,
+    bool horizontalVolume = false,
+  }) {
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 16 : 32,
@@ -1698,7 +1708,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
             ),
           ),
-          const PlayerVolumeButton(),
+          PlayerVolumeButton(horizontal: horizontalVolume),
           Pressable(
             tooltip: S.of(context).download,
             semanticLabel: S.of(context).download,

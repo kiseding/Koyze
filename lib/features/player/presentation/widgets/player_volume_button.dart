@@ -11,7 +11,10 @@ import '../../../settings/presentation/settings_provider.dart';
 
 /// Full-player volume control. Sits beside download and opens upward.
 class PlayerVolumeButton extends ConsumerStatefulWidget {
-  const PlayerVolumeButton({super.key});
+  const PlayerVolumeButton({super.key, this.horizontal = false});
+
+  /// Landscape players use a sideways slider; portrait keeps the tall one.
+  final bool horizontal;
 
   @override
   ConsumerState<PlayerVolumeButton> createState() => _PlayerVolumeButtonState();
@@ -100,9 +103,15 @@ class _PlayerVolumeButtonState extends ConsumerState<PlayerVolumeButton>
             ),
             CompositedTransformFollower(
               link: _link,
-              targetAnchor: Alignment.topCenter,
-              followerAnchor: Alignment.bottomCenter,
-              offset: const Offset(0, -6),
+              targetAnchor: widget.horizontal
+                  ? Alignment.centerLeft
+                  : Alignment.topCenter,
+              followerAnchor: widget.horizontal
+                  ? Alignment.centerRight
+                  : Alignment.bottomCenter,
+              offset: widget.horizontal
+                  ? const Offset(-8, 0)
+                  : const Offset(0, -6),
               child: FadeTransition(
                 opacity: CurvedAnimation(
                   parent: _panel,
@@ -110,7 +119,9 @@ class _PlayerVolumeButtonState extends ConsumerState<PlayerVolumeButton>
                   reverseCurve: MotionCurve.easeIn,
                 ),
                 child: ScaleTransition(
-                  alignment: Alignment.bottomCenter,
+                  alignment: widget.horizontal
+                      ? Alignment.centerRight
+                      : Alignment.bottomCenter,
                   scale: Tween<double>(begin: 0.86, end: 1).animate(
                     CurvedAnimation(
                       parent: _panel,
@@ -120,6 +131,7 @@ class _PlayerVolumeButtonState extends ConsumerState<PlayerVolumeButton>
                   ),
                   child: _VolumePanel(
                     volume: volume,
+                    horizontal: widget.horizontal,
                     onChanged: _setVolume,
                     onMute: () => _toggleMute(volume),
                   ),
@@ -174,22 +186,61 @@ IconData _volumeIcon(double volume) {
 class _VolumePanel extends StatelessWidget {
   const _VolumePanel({
     required this.volume,
+    required this.horizontal,
     required this.onChanged,
     required this.onMute,
   });
 
   final double volume;
+  final bool horizontal;
   final ValueChanged<double> onChanged;
   final VoidCallback onMute;
 
   @override
   Widget build(BuildContext context) {
     final percent = (volume * 100).round();
+    final percentLabel = AnimatedSwitcher(
+      duration: motionDuration(context, MotionDuration.micro),
+      child: Text(
+        '$percent',
+        key: ValueKey<int>(percent),
+        style: TextStyle(
+          color: AppColors.onScaffold(context),
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+    final mute = Pressable(
+      semanticLabel: volume <= 0.001
+          ? S.of(context).unmute
+          : S.of(context).mute,
+      scale: 0.9,
+      onTap: onMute,
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Icon(
+          volume <= 0.001
+              ? Icons.volume_off_rounded
+              : Icons.volume_mute_rounded,
+          size: horizontal ? 24 : 30,
+          color: AppColors.secondaryText(context),
+        ),
+      ),
+    );
+    final track = _VolumeTrack(
+      volume: volume,
+      horizontal: horizontal,
+      onChanged: onChanged,
+    );
     return Material(
       type: MaterialType.transparency,
       child: GlassSurface(
         borderRadius: BorderRadius.circular(28),
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+        padding: horizontal
+            ? const EdgeInsets.fromLTRB(8, 8, 14, 8)
+            : const EdgeInsets.fromLTRB(14, 14, 14, 10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.28),
@@ -197,62 +248,52 @@ class _VolumePanel extends StatelessWidget {
             offset: const Offset(0, 10),
           ),
         ],
-        child: SizedBox(
-          width: 52,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AnimatedSwitcher(
-                duration: motionDuration(context, MotionDuration.micro),
-                child: Text(
-                  '$percent',
-                  key: ValueKey<int>(percent),
-                  style: TextStyle(
-                    color: AppColors.onScaffold(context),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+        child: horizontal
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  mute,
+                  const SizedBox(width: 8),
+                  track,
+                  const SizedBox(width: 12),
+                  SizedBox(width: 32, child: Center(child: percentLabel)),
+                ],
+              )
+            : SizedBox(
+                width: 52,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    percentLabel,
+                    const SizedBox(height: 10),
+                    track,
+                    const SizedBox(height: 6),
+                    mute,
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-              _VolumeTrack(volume: volume, onChanged: onChanged),
-              const SizedBox(height: 6),
-              Pressable(
-                semanticLabel: volume <= 0.001
-                    ? S.of(context).unmute
-                    : S.of(context).mute,
-                scale: 0.9,
-                onTap: onMute,
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Icon(
-                    volume <= 0.001
-                        ? Icons.volume_off_rounded
-                        : Icons.volume_mute_rounded,
-                    size: 30,
-                    color: AppColors.secondaryText(context),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
 }
 
 class _VolumeTrack extends StatelessWidget {
-  const _VolumeTrack({required this.volume, required this.onChanged});
+  const _VolumeTrack({
+    required this.volume,
+    required this.horizontal,
+    required this.onChanged,
+  });
 
   final double volume;
+  final bool horizontal;
   final ValueChanged<double> onChanged;
 
-  static const double _height = 148;
+  static const double _length = 148;
 
-  void _update(double dy) {
-    final next = (1 - dy / _height).clamp(0.0, 1.0);
+  void _update(double position) {
+    final next = horizontal
+        ? (position / _length).clamp(0.0, 1.0)
+        : (1 - position / _length).clamp(0.0, 1.0);
     onChanged(next);
   }
 
@@ -261,12 +302,22 @@ class _VolumeTrack extends StatelessWidget {
     final accent = AppColors.accentOf(context);
     final track = AppColors.fill2(context);
     return GestureDetector(
+      key: Key(
+        horizontal ? 'volume-track-horizontal' : 'volume-track-vertical',
+      ),
       behavior: HitTestBehavior.opaque,
-      onTapDown: (details) => _update(details.localPosition.dy),
-      onVerticalDragUpdate: (details) => _update(details.localPosition.dy),
+      onTapDown: (details) => _update(
+        horizontal ? details.localPosition.dx : details.localPosition.dy,
+      ),
+      onHorizontalDragUpdate: horizontal
+          ? (details) => _update(details.localPosition.dx)
+          : null,
+      onVerticalDragUpdate: horizontal
+          ? null
+          : (details) => _update(details.localPosition.dy),
       child: SizedBox(
-        width: 36,
-        height: _height,
+        width: horizontal ? _length : 36,
+        height: horizontal ? 36 : _length,
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: track,
@@ -275,15 +326,21 @@ class _VolumeTrack extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
             child: Align(
-              alignment: Alignment.bottomCenter,
+              alignment: horizontal
+                  ? Alignment.centerLeft
+                  : Alignment.bottomCenter,
               child: FractionallySizedBox(
-                heightFactor: volume.clamp(0.0, 1.0),
-                widthFactor: 1,
+                widthFactor: horizontal ? volume.clamp(0.0, 1.0) : 1,
+                heightFactor: horizontal ? 1 : volume.clamp(0.0, 1.0),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
+                      begin: horizontal
+                          ? Alignment.centerLeft
+                          : Alignment.bottomCenter,
+                      end: horizontal
+                          ? Alignment.centerRight
+                          : Alignment.topCenter,
                       colors: [accent, accent.withValues(alpha: 0.72)],
                     ),
                   ),
