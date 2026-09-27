@@ -892,7 +892,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     final screenH = MediaQuery.of(context).size.height;
     final screenW = MediaQuery.of(context).size.width;
-    final landscape = ref.watch(forceLandscapeProvider) || screenW > screenH;
+    final landscape =
+        ref.watch(forceLandscapeProvider) ||
+        MediaQuery.orientationOf(context) == Orientation.landscape ||
+        screenW > screenH ||
+        View.of(context).physicalSize.width >
+            View.of(context).physicalSize.height;
     final dismissThreshold = screenH * 0.4; // 超过 2/5 关闭
     _dragDistance = screenH * 0.42; // 拖动跟手 morph 的满程距离
 
@@ -902,11 +907,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // 横屏模拟器上路由动画会在监听挂上之前结束，进度停在 0。
         // 这时磨砂背景已经铺满，歌名和控件却还按进度藏着，看起来只剩遮罩。
         // 路由已经展开、且不是在跟手收起时，直接按全屏来画。
+        final edgeGestureClosing = edgeDragActive && rawProgress < 0.999;
         final gestureClosing =
             _draggingDown ||
             _collapsing ||
             _settleController.isAnimating ||
-            edgeDragActive ||
+            edgeGestureClosing ||
             playerRouteDismissLocked;
         final routeAnimation = ModalRoute.of(context)?.animation;
         final routePresented =
@@ -948,7 +954,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 _draggingDown ||
                 _collapsing ||
                 _settleController.isAnimating ||
-                edgeDragActive);
+                edgeGestureClosing);
         final closeT = 1 - progress;
         // 对称收起（卡片式）：矩形从全屏线性收向目标——封面页→迷你栏，
         // 歌词页→迷你栏歌词行同款长条；内容以矩形中心锚定并按宽度比
@@ -1003,7 +1009,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             _draggingDown ||
             _collapsing ||
             _settleController.isAnimating ||
-            edgeDragActive;
+            edgeGestureClosing;
         // overlay（飞行封面/播放按钮）只在"打开已完成"时让位正文；
         // 一旦进入关闭/手势驱动则全程可见（封面/按钮随进度完整归位）。
         final closing = animating || playerRouteDismissLocked;

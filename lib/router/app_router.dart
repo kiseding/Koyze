@@ -213,6 +213,16 @@ final appRouter = GoRouter(
       ),
     ),
     GoRoute(
+      path: '/sync',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const SyncScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+      ),
+    ),
+    GoRoute(
       path: '/player',
       parentNavigatorKey: rootNavigatorKey,
       // 透明但不使用系统 route snapshot，避免打开/关闭时快照层闪成半透明浅色幕。

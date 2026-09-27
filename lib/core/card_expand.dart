@@ -533,14 +533,17 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
       end: targetMorph,
     ).animate(curved);
     onStart?.call();
-    _settleController.forward(from: 0);
     void settleListener(AnimationStatus status) {
       if (status != AnimationStatus.completed) return;
       _settleController.removeStatusListener(settleListener);
+      // 0 时长动画会在 forward() 内同步完成；先清理全局手势状态，
+      // 否则透明播放器会一直被当成“正在收起”，只显示半透明遮罩。
+      _syncProgress();
       onComplete();
     }
 
     _settleController.addStatusListener(settleListener);
+    _settleController.forward(from: 0);
   }
 
   @override

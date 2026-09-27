@@ -611,8 +611,9 @@ class _SideNav extends ConsumerWidget {
                             : s.syncAccount,
                         selected: _isPath(path, '/sync'),
                         onTap: () => _open(context, 3, '/sync'),
+                        compact: true,
                         trailing: loggedIn
-                            ? _logoutButton(context, ref, s)
+                            ? _logoutButton(context, ref, s, compact: true)
                             : null,
                       ),
                     ],
@@ -678,14 +679,15 @@ class _SideNav extends ConsumerWidget {
     required VoidCallback onTap,
     String? semanticLabel,
     Widget? trailing,
+    bool compact = false,
   }) {
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = AppColors.isDark(context);
     final muted = isDark ? const Color(0xC7FFFFFF) : const Color(0xC7000000);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(2, 0, 8, 0),
+      padding: EdgeInsets.fromLTRB(compact ? 0 : 2, 0, compact ? 0 : 8, 0),
       child: SizedBox(
-        height: _sideNavShortcutExtent,
+        height: compact ? 32 : _sideNavShortcutExtent,
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: selected
@@ -694,7 +696,7 @@ class _SideNav extends ConsumerWidget {
             borderRadius: BorderRadius.circular(10),
           ),
           child: Padding(
-            padding: const EdgeInsets.only(left: 8, right: 2),
+            padding: EdgeInsets.only(left: compact ? 18 : 8, right: 2),
             child: Row(
               children: [
                 Expanded(
@@ -705,8 +707,8 @@ class _SideNav extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(10),
                     child: Row(
                       children: [
-                        Icon(icon, size: 16, color: color),
-                        const SizedBox(width: 8),
+                        Icon(icon, size: compact ? 14 : 16, color: color),
+                        SizedBox(width: compact ? 6 : 8),
                         Expanded(
                           child: Text(
                             label,
@@ -714,7 +716,7 @@ class _SideNav extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: selected ? accent : muted,
-                              fontSize: 14,
+                              fontSize: compact ? 13 : 14,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -732,7 +734,12 @@ class _SideNav extends ConsumerWidget {
     );
   }
 
-  Widget _logoutButton(BuildContext context, WidgetRef ref, S s) {
+  Widget _logoutButton(
+    BuildContext context,
+    WidgetRef ref,
+    S s, {
+    bool compact = false,
+  }) {
     return Pressable(
       semanticLabel: s.logOut,
       tooltip: s.logOut,
@@ -753,10 +760,14 @@ class _SideNav extends ConsumerWidget {
           color: AppColors.error.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const SizedBox(
-          width: 28,
-          height: 28,
-          child: Icon(Icons.logout_rounded, size: 16, color: AppColors.error),
+        child: SizedBox(
+          width: compact ? 24 : 28,
+          height: compact ? 24 : 28,
+          child: Icon(
+            Icons.logout_rounded,
+            size: compact ? 14 : 16,
+            color: AppColors.error,
+          ),
         ),
       ),
     );

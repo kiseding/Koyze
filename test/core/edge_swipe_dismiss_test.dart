@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/card_expand.dart';
+import 'package:koyze/core/performance/low_memory.dart';
 
 /// 把 EdgeSwipeDismiss 放进一个透明（无系统手势）的路由里，测试自绘手势。
 Widget _dismissHarness() {
@@ -135,6 +136,26 @@ void main() {
       );
     },
   );
+
+  testWidgets('zero-duration edge settle clears the active gesture flag', (
+    tester,
+  ) async {
+    final previous = LowMemory.active;
+    LowMemory.active = true;
+    addTearDown(() => LowMemory.active = previous);
+
+    await tester.pumpWidget(_dismissHarness());
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(const Offset(1, 200));
+    await gesture.moveBy(const Offset(60, 0));
+    await gesture.up();
+    await tester.pump();
+
+    expect(edgeDragActive, isFalse);
+    expect(cardDismissProgress.value, 0.0);
+  });
 
   testWidgets('accepted drag settles while preserving route pop', (
     tester,
@@ -496,7 +517,9 @@ void main() {
                     Scaffold(
                       body: Column(
                         children: [
-                          const Expanded(child: Center(child: Text('library-live'))),
+                          const Expanded(
+                            child: Center(child: Text('library-live')),
+                          ),
                           Builder(
                             builder: (inner) => TextButton(
                               onPressed: () {
@@ -504,7 +527,9 @@ void main() {
                                   expandablePage(
                                     const ValueKey('settings-page'),
                                     const Scaffold(
-                                      body: Center(child: Text('settings-live')),
+                                      body: Center(
+                                        child: Text('settings-live'),
+                                      ),
                                     ),
                                     fullWidthSwipe: true,
                                   ).createRoute(inner),
@@ -557,7 +582,9 @@ void main() {
                     Scaffold(
                       body: Column(
                         children: [
-                          const Expanded(child: Center(child: Text('library-live'))),
+                          const Expanded(
+                            child: Center(child: Text('library-live')),
+                          ),
                           Builder(
                             builder: (inner) => TextButton(
                               onPressed: () {
