@@ -533,79 +533,70 @@ class _SideNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
-    return Column(
-      children: [
-        ListenableBuilder(
-          listenable: headers,
-          builder: (context, _) {
-            const slotHeight = 44.0;
-            const topPadding = 22.0;
-            const bottomPadding = 12.0;
-            final header = headers.headerFor(selectedIndex);
-            return Padding(
+    return ListenableBuilder(
+      listenable: headers,
+      builder: (context, _) {
+        return Column(
+          children: [
+            Padding(
               padding: const EdgeInsets.fromLTRB(
                 _sideNavItemOuterPadding + _sideNavItemInnerPadding,
-                topPadding,
+                18,
                 8,
-                bottomPadding,
+                10,
               ),
               child: SizedBox(
-                height: slotHeight,
-                child: header == null
-                    ? const SizedBox.expand()
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              header.title,
-                              key: header.titleKey,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.3,
-                                color: AppColors.onScaffold(context),
-                              ),
-                            ),
-                          ),
-                          ...header.actions,
-                        ],
-                      ),
+                height: 52,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Koyze',
+                    key: headers.headerFor(0)?.titleKey,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      height: 1,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                      color: AppColors.amber,
+                    ),
+                  ),
+                ),
               ),
-            );
-          },
-        ),
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _item(context, 0, Icons.home_outlined, Icons.home, s.home),
-              _item(
-                context,
-                1,
-                Icons.leaderboard_outlined,
-                Icons.leaderboard,
-                s.charts,
+            ),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _item(context, 0, Icons.home_outlined, Icons.home, s.home),
+                  _item(
+                    context,
+                    1,
+                    Icons.leaderboard_outlined,
+                    Icons.leaderboard,
+                    s.charts,
+                  ),
+                  _item(
+                    context,
+                    2,
+                    Icons.library_music_outlined,
+                    Icons.library_music,
+                    s.playlists,
+                  ),
+                  _item(
+                    context,
+                    3,
+                    Icons.settings_outlined,
+                    Icons.settings,
+                    s.settings,
+                  ),
+                ],
               ),
-              _item(
-                context,
-                2,
-                Icons.library_music_outlined,
-                Icons.library_music,
-                s.playlists,
-              ),
-              _item(
-                context,
-                3,
-                Icons.settings_outlined,
-                Icons.settings,
-                s.settings,
-              ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -627,51 +618,80 @@ class _SideNav extends StatelessWidget {
       ),
       child: SizedBox(
         height: 48,
-        child: Pressable(
-          semanticLabel: label,
-          selected: isSelected,
-          onTap: () => onTap(index),
-          scale: 0.96,
-          borderRadius: BorderRadius.circular(12),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? accent.withValues(alpha: 0.14)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: isSelected
+                ? accent.withValues(alpha: 0.14)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: _sideNavItemInnerPadding,
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: _sideNavItemInnerPadding,
-              ),
-              child: Row(
-                children: [
-                  AnimatedIconSwitch(
-                    icon: isSelected ? activeIcon : icon,
-                    keyValue: isSelected ? activeIcon : icon,
-                    size: 22,
-                    color: isSelected ? accent : muted,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isSelected ? accent : muted,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Pressable(
+                    semanticLabel: label,
+                    selected: isSelected,
+                    onTap: () => onTap(index),
+                    scale: 0.96,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Row(
+                      children: [
+                        AnimatedIconSwitch(
+                          icon: isSelected ? activeIcon : icon,
+                          keyValue: isSelected ? activeIcon : icon,
+                          size: 22,
+                          color: isSelected ? accent : muted,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isSelected ? accent : muted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+                ..._tabActions(index, isSelected),
+              ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  List<Widget> _tabActions(int index, bool enabled) {
+    final actions = headers.headerFor(index)?.actions ?? const <Widget>[];
+    if (actions.isEmpty) return const [];
+    return [
+      const SizedBox(width: 4),
+      GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? null : () {},
+        child: Opacity(
+          opacity: enabled ? 1 : 0.42,
+          child: IgnorePointer(
+            ignoring: !enabled,
+            child: ExcludeSemantics(
+              excluding: !enabled,
+              child: Row(mainAxisSize: MainAxisSize.min, children: actions),
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 }
 

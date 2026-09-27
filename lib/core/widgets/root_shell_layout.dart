@@ -18,6 +18,10 @@ bool shouldUseSideNavigation({
   return isDesktop || orientation == Orientation.landscape;
 }
 
+/// Content width of the side rail, excluding the leading safe inset.
+/// Wide enough for an icon, a label, and that tab's header button.
+const sideNavigationContentWidth = 216.0;
+
 /// Width reserved for the persistent side rail.
 ///
 /// Phone landscape safe areas exist on both horizontal edges. Applying the
@@ -32,7 +36,7 @@ double sideNavigationWidth({
   final leading = padding.left > viewPadding.left
       ? padding.left
       : viewPadding.left;
-  return leading + 176;
+  return leading + sideNavigationContentWidth;
 }
 
 /// Layout mode supplied by the root navigation shell.

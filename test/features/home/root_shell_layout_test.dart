@@ -72,7 +72,7 @@ void main() {
         padding: horizontalInset,
         viewPadding: horizontalInset,
       ),
-      235,
+      59 + sideNavigationContentWidth,
     );
     expect(
       sideNavigationWidth(
