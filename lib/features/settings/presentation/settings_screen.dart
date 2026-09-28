@@ -384,7 +384,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ]),
                 _buildSection(context, s.about, [
-                  _SettingRow(name: s.version, value: 'v3.0.4'),
+                  _SettingRow(name: s.version, value: 'v3.0.5'),
                   _DeviceIdRow(
                     deviceId: ref.watch(settingsDeviceIdProvider).valueOrNull,
                   ),
