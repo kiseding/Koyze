@@ -32,12 +32,14 @@ void main() {
     );
     final bar = tester.getSize(find.byKey(const Key('volume-track-bar')));
     expect(track.height, greaterThan(track.width));
+    expect(track.height, 144);
     expect(bar.width, 26);
-    expect(bar.height, track.height);
+    expect(bar.height, 144);
     expect(find.byKey(const Key('volume-track-horizontal')), findsNothing);
 
     final panel = tester.getSize(find.byKey(const Key('volume-panel')));
     expect(panel.width, 52);
+    expect(panel.height, 244.5);
   });
 
   testWidgets('landscape volume panel opens sideways', (tester) async {
@@ -48,16 +50,16 @@ void main() {
     );
     final bar = tester.getSize(find.byKey(const Key('volume-track-bar')));
     expect(track.width, greaterThan(track.height));
-    expect(track.width, inInclusiveRange(120, 160));
+    expect(track.width, 144);
     expect(track.height, inInclusiveRange(28, 44));
     expect(bar.height, 26);
-    expect(bar.width, track.width);
+    expect(bar.width, 144);
     expect(find.byKey(const Key('volume-track-vertical')), findsNothing);
 
     final panel = tester.getRect(find.byKey(const Key('volume-panel')));
     final button = tester.getRect(find.byType(PlayerVolumeButton));
     expect(panel.height, 52);
-    expect(panel.width, inInclusiveRange(180, 280));
+    expect(panel.width, 244.5);
     expect(panel.bottom, lessThanOrEqualTo(button.top + 1));
     expect(panel.right, closeTo(button.right, 8));
   });
