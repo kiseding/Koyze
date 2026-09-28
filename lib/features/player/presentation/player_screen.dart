@@ -162,6 +162,9 @@ class _PlayerProgress extends ConsumerWidget {
   final VoidCallback onSeekCancel;
   final Future<void> Function(double value, Duration target) onTapSeek;
 
+  /// 横屏把左右时间贴到行两端，和下面五个控件的外缘对齐。
+  final bool pinTimesToEnds;
+
   const _PlayerProgress({
     required this.duration,
     required this.seeking,
@@ -171,6 +174,7 @@ class _PlayerProgress extends ConsumerWidget {
     required this.onSeekEnd,
     required this.onSeekCancel,
     required this.onTapSeek,
+    this.pinTimesToEnds = false,
   });
 
   @override
@@ -192,27 +196,31 @@ class _PlayerProgress extends ConsumerWidget {
     }
 
     // 10Hz 进度更新只重绘进度条自身，避免波及整页（封面/阴影/遮罩）。
+    // 横屏五个控件的图标外缘在 16：左右各 8 的行距，再加图标自身 8。
+    final timeStyle = TextStyle(
+      color: AppColors.mutedText(context),
+      fontSize: 14,
+      fontFeatures: [FontFeature.tabularFigures()],
+    );
+    Widget timeLabel(String text, {required bool leading}) {
+      if (pinTimesToEnds) return Text(text, style: timeStyle);
+      return SizedBox(
+        width: 58,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: leading ? Alignment.centerRight : Alignment.centerLeft,
+          child: Text(text, style: timeStyle),
+        ),
+      );
+    }
+
     return RepaintBoundary(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 13),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(
-              width: 58,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: Text(
-                  _formatPlayerDuration(displayPos),
-                  style: TextStyle(
-                    color: AppColors.mutedText(context),
-                    fontSize: 14,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ),
+            timeLabel(_formatPlayerDuration(displayPos), leading: true),
             const SizedBox(width: 8),
             Expanded(
               child: LayoutBuilder(
@@ -323,22 +331,7 @@ class _PlayerProgress extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 8),
-            SizedBox(
-              width: 58,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _formatPlayerDuration(duration),
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    color: AppColors.mutedText(context),
-                    fontSize: 14,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ),
+            timeLabel(_formatPlayerDuration(duration), leading: false),
           ],
         ),
       ),
@@ -1550,6 +1543,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               onSeekEnd: _finishSeek,
               onSeekCancel: _cancelSeek,
               onTapSeek: _tapSeek,
+              pinTimesToEnds: compact,
             ),
           ),
           _StaggeredFade(
