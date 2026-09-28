@@ -24,6 +24,9 @@ Future<T?> showKoyzeSheet<T>({
   final maxHeight = koyzeSheetMaxHeight(context);
   return showModalBottomSheet<T>(
     context: context,
+    // 壳层迷你栏画在分支导航之上。弹窗必须走根导航，否则横屏时
+    // 迷你栏会盖住睡眠定时这类弹窗的底部内容，并且拦掉点击。
+    useRootNavigator: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.4),
     isScrollControlled: isScrollControlled,

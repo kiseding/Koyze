@@ -22,4 +22,61 @@ void main() {
     );
     expect(height, 852 - 59 - 16);
   });
+
+  testWidgets('sheet stays above the shell mini player', (tester) async {
+    var sheetTaps = 0;
+    var miniTaps = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Stack(
+          children: [
+            Navigator(
+              onGenerateRoute: (settings) {
+                return MaterialPageRoute<void>(
+                  builder: (context) => Scaffold(
+                    body: TextButton(
+                      onPressed: () {
+                        showKoyzeSheet<void>(
+                          context: context,
+                          builder: (_) => SizedBox(
+                            height: 240,
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              child: TextButton(
+                                onPressed: () => sheetTaps++,
+                                child: const Text('sheet-bottom'),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text('open-sheet'),
+                    ),
+                  ),
+                );
+              },
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(
+                height: 66,
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => miniTaps++,
+                  child: const Text('mini-player'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open-sheet'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('sheet-bottom'));
+    expect(sheetTaps, 1);
+    expect(miniTaps, 0);
+  });
 }
