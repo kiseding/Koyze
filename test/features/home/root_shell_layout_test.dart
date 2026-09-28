@@ -147,6 +147,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('Koyze'), findsOneWidget);
+    final titleStyle = DefaultTextStyle.of(
+      tester.element(find.text('Koyze')),
+    ).style;
+    expect(titleStyle.decoration, isNot(TextDecoration.underline));
     final rail = tester.getRect(find.text('Koyze'));
     await tester.tap(find.text('open-popup'));
     await tester.pumpAndSettle();
@@ -154,6 +158,12 @@ void main() {
     final popup = tester.getCenter(find.text('right-popup'));
     expect(popup.dx, greaterThan(rail.right));
     expect(find.text('Koyze'), findsOneWidget);
+
+    tester.view.physicalSize = const Size(400, 900);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Koyze'), findsNothing);
+    expect(find.text('open-popup'), findsOneWidget);
   });
 }
 

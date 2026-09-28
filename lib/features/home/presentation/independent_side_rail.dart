@@ -12,13 +12,50 @@ import 'main_scaffold.dart';
 ///
 /// Subpages, sheets, dialogs, and their transitions are all painted by that
 /// navigator, so they stay in the right pane and cannot cover the rail.
-class IndependentSideRail extends ConsumerWidget {
+class IndependentSideRail extends ConsumerStatefulWidget {
   const IndependentSideRail({super.key, required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<IndependentSideRail> createState() =>
+      _IndependentSideRailState();
+}
+
+class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
+  String _path = '/';
+  bool _listening = false;
+
+  @override
+  void initState() {
+    super.initState();
+    appRouter.routerDelegate.addListener(_onRoute);
+    _listening = true;
+    _path = _currentPath();
+  }
+
+  @override
+  void dispose() {
+    if (_listening) appRouter.routerDelegate.removeListener(_onRoute);
+    super.dispose();
+  }
+
+  String _currentPath() {
+    return appRouter.routerDelegate.currentConfiguration.uri.path;
+  }
+
+  /// The router notifies while it is still building. Refreshing the rail in
+  /// that moment marks an ancestor dirty and takes down the page.
+  void _onRoute() {
+    final path = _currentPath();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _path == path) return;
+      setState(() => _path = path);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final side = shouldUseSideNavigation(
       size: media.size,
@@ -27,8 +64,6 @@ class IndependentSideRail extends ConsumerWidget {
       isWeb: kIsWeb,
       forceLandscape: ref.watch(forceLandscapeProvider),
     );
-    if (!side) return child;
-
     final leadingInset = media.padding.left > media.viewPadding.left
         ? media.padding.left
         : media.viewPadding.left;
@@ -38,7 +73,9 @@ class IndependentSideRail extends ConsumerWidget {
     final bottomInset = media.padding.bottom > media.viewPadding.bottom
         ? media.padding.bottom
         : media.viewPadding.bottom;
-    final railWidth = leadingInset + sideRailContentWidth(media.size.width);
+    final railWidth = side
+        ? leadingInset + sideRailContentWidth(media.size.width)
+        : 0.0;
     final contentWidth = (media.size.width - railWidth).clamp(
       0.0,
       media.size.width,
@@ -48,53 +85,56 @@ class IndependentSideRail extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
+          key: const ValueKey('side-rail'),
           width: railWidth,
-          child: _RailOverlay(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.fill(context),
-                border: Border(
-                  right: BorderSide(color: AppColors.cardBorder(context)),
-                ),
-              ),
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: leadingInset,
-                  top: topInset,
-                  bottom: bottomInset,
-                ),
-                child: ListenableBuilder(
-                  listenable: Listenable.merge([
-                    appRouter.routerDelegate,
-                    rootBranchIndex,
-                  ]),
-                  builder: (context, _) {
-                    return RootSideNav(
-                      selectedIndex: rootBranchIndex.value,
-                      headers: rootHeaderController,
-                      routeListenable: appRouter.routerDelegate,
-                      currentPath: appRouter
-                          .routerDelegate
-                          .currentConfiguration
-                          .uri
-                          .path,
-                      onTap: selectRootBranch,
-                      onOpenSync: () => appRouter.push('/sync'),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
+          child: side
+              ? _RailOverlay(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.fill(context),
+                      border: Border(
+                        right: BorderSide(color: AppColors.cardBorder(context)),
+                      ),
+                    ),
+                    // Outside the navigator there is no Material, so text would
+                    // inherit MaterialApp's yellow double-underline fallback.
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          left: leadingInset,
+                          top: topInset,
+                          bottom: bottomInset,
+                        ),
+                        child: ListenableBuilder(
+                          listenable: rootBranchIndex,
+                          builder: (context, _) {
+                            return RootSideNav(
+                              selectedIndex: rootBranchIndex.value,
+                              headers: rootHeaderController,
+                              currentPath: _path,
+                              onTap: selectRootBranch,
+                              onOpenSync: () => appRouter.push('/sync'),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
         ),
         Expanded(
+          key: const ValueKey('side-content'),
           child: MediaQuery(
-            data: media.copyWith(
-              size: Size(contentWidth, media.size.height),
-              padding: media.padding.copyWith(left: 0),
-              viewPadding: media.viewPadding.copyWith(left: 0),
-            ),
-            child: child,
+            data: side
+                ? media.copyWith(
+                    size: Size(contentWidth, media.size.height),
+                    padding: media.padding.copyWith(left: 0),
+                    viewPadding: media.viewPadding.copyWith(left: 0),
+                  )
+                : media,
+            child: widget.child,
           ),
         ),
       ],

@@ -516,7 +516,6 @@ class RootSideNav extends ConsumerWidget {
   final int selectedIndex;
   final RootHeaderController headers;
   final ValueChanged<int> onTap;
-  final Listenable routeListenable;
   final String currentPath;
   final VoidCallback onOpenSync;
 
@@ -525,7 +524,6 @@ class RootSideNav extends ConsumerWidget {
     required this.selectedIndex,
     required this.headers,
     required this.onTap,
-    required this.routeListenable,
     required this.currentPath,
     required this.onOpenSync,
   });
@@ -535,7 +533,7 @@ class RootSideNav extends ConsumerWidget {
     final s = S.of(context);
     final session = ref.watch(cloudSessionProvider);
     return ListenableBuilder(
-      listenable: Listenable.merge([headers, routeListenable]),
+      listenable: headers,
       builder: (context, _) {
         final path = currentPath;
         final loggedIn = session.loggedIn;
