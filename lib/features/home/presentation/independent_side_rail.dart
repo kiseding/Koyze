@@ -26,12 +26,11 @@ double screenAspectRatio(Size size) {
 /// [fullscreenPlayerSideRailAspectRatio]. Wider landscape windows keep it.
 bool showIndependentSideRail({
   required bool side,
-  required String path,
+  required bool playerOpen,
   required double aspectRatio,
 }) {
   if (!side) return false;
-  final player = path == '/player' || path.startsWith('/player/');
-  if (player && aspectRatio < fullscreenPlayerSideRailAspectRatio) {
+  if (playerOpen && aspectRatio < fullscreenPlayerSideRailAspectRatio) {
     return false;
   }
   return true;
@@ -53,6 +52,7 @@ class IndependentSideRail extends ConsumerStatefulWidget {
 
 class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
   String _path = '/';
+  bool _playerOpen = false;
   bool _listening = false;
 
   @override
@@ -61,6 +61,7 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
     appRouter.routerDelegate.addListener(_onRoute);
     _listening = true;
     _path = _currentPath();
+    _playerOpen = routerHasFullscreenPlayer();
   }
 
   @override
@@ -77,9 +78,13 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
   /// that moment marks an ancestor dirty and takes down the page.
   void _onRoute() {
     final path = _currentPath();
+    final playerOpen = routerHasFullscreenPlayer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _path == path) return;
-      setState(() => _path = path);
+      if (!mounted || (_path == path && _playerOpen == playerOpen)) return;
+      setState(() {
+        _path = path;
+        _playerOpen = playerOpen;
+      });
     });
   }
 
@@ -106,7 +111,7 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
         : media.viewPadding.bottom;
     final showRail = showIndependentSideRail(
       side: side,
-      path: _path,
+      playerOpen: _playerOpen,
       aspectRatio: screenAspectRatio(media.size),
     );
     final railWidth = showRail

@@ -119,19 +119,35 @@ void main() {
 
   test('fullscreen player hides the landscape side rail', () {
     expect(
-      showIndependentSideRail(side: true, path: '/player', aspectRatio: 2.17),
+      showIndependentSideRail(
+        side: true,
+        playerOpen: true,
+        aspectRatio: 2.17,
+      ),
       isFalse,
     );
     expect(
-      showIndependentSideRail(side: true, path: '/player', aspectRatio: 2.5),
+      showIndependentSideRail(
+        side: true,
+        playerOpen: true,
+        aspectRatio: 2.5,
+      ),
       isTrue,
     );
     expect(
-      showIndependentSideRail(side: true, path: '/playlist', aspectRatio: 2.0),
+      showIndependentSideRail(
+        side: true,
+        playerOpen: false,
+        aspectRatio: 2.0,
+      ),
       isTrue,
     );
     expect(
-      showIndependentSideRail(side: false, path: '/', aspectRatio: 2.0),
+      showIndependentSideRail(
+        side: false,
+        playerOpen: true,
+        aspectRatio: 2.0,
+      ),
       isFalse,
     );
     expect(screenAspectRatio(const Size(874, 402)), closeTo(2.17, 0.01));

@@ -45,8 +45,32 @@ void _lockPlayerRouteDismiss() {
   playerRouteDismissLocked = true;
 }
 
-bool _isCurrentRoute(String path) =>
-    appRouter.routerDelegate.currentConfiguration.uri.path == path;
+bool _isCurrentRoute(String path) => routerMatchIs(path);
+
+/// `push` puts the player on the root navigator as an imperative match.
+/// [GoRouterState.uri] ignores those matches, so the shell path stays `/`.
+bool routerHasFullscreenPlayer() => routerMatchIs('/player');
+
+bool routerMatchIs(String path) {
+  final configuration = appRouter.routerDelegate.currentConfiguration;
+  if (configuration.uri.path == path) return true;
+  return _matchesLocation(configuration.matches, path);
+}
+
+bool _matchesLocation(List<RouteMatchBase> matches, String path) {
+  for (final match in matches) {
+    final location = match.matchedLocation;
+    if (location == path || location.startsWith('$path/')) return true;
+    if (match is ImperativeRouteMatch &&
+        _matchesLocation(match.matches.matches, path)) {
+      return true;
+    }
+    if (match is ShellRouteMatch && _matchesLocation(match.matches, path)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 const _rootBranchLocations = ['/', '/leaderboard', '/playlist', '/settings'];
 
