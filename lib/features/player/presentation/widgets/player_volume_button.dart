@@ -238,7 +238,7 @@ class _VolumePanel extends StatelessWidget {
           volume <= 0.001
               ? Icons.volume_off_rounded
               : Icons.volume_mute_rounded,
-          size: horizontal ? 22 : 30,
+          size: 22,
           color: AppColors.secondaryText(context),
         ),
       ),
@@ -255,7 +255,7 @@ class _VolumePanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(horizontal ? 20 : 28),
         padding: horizontal
             ? const EdgeInsets.fromLTRB(8, 8, 12, 8)
-            : const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            : const EdgeInsets.fromLTRB(8, 14, 8, 10),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: horizontal ? 0.16 : 0.28),
@@ -275,7 +275,7 @@ class _VolumePanel extends StatelessWidget {
                 ],
               )
             : SizedBox(
-                width: 52,
+                width: _VolumeTrack._hitExtent,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
