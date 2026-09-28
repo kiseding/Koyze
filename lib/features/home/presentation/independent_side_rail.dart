@@ -8,10 +8,33 @@ import '../../../router/app_router.dart';
 import '../../settings/presentation/settings_provider.dart';
 import 'main_scaffold.dart';
 
-/// The fullscreen player covers the whole landscape window, including the rail.
-bool showIndependentSideRail({required bool side, required String path}) {
+/// Below this long-side / short-side ratio, the landscape player takes the
+/// whole window and the side rail steps aside.
+const double fullscreenPlayerSideRailAspectRatio = 2.5;
+
+/// Longer side divided by the shorter side. Orientation does not matter.
+double screenAspectRatio(Size size) {
+  final width = size.width.abs();
+  final height = size.height.abs();
+  final shortSide = width < height ? width : height;
+  if (shortSide == 0) return 1;
+  final longSide = width > height ? width : height;
+  return longSide / shortSide;
+}
+
+/// The fullscreen player covers the rail only on screens narrower than
+/// [fullscreenPlayerSideRailAspectRatio]. Wider landscape windows keep it.
+bool showIndependentSideRail({
+  required bool side,
+  required String path,
+  required double aspectRatio,
+}) {
   if (!side) return false;
-  return path != '/player' && !path.startsWith('/player/');
+  final player = path == '/player' || path.startsWith('/player/');
+  if (player && aspectRatio < fullscreenPlayerSideRailAspectRatio) {
+    return false;
+  }
+  return true;
 }
 
 /// Keeps the side rail outside the app navigator.
@@ -81,7 +104,11 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
     final bottomInset = media.padding.bottom > media.viewPadding.bottom
         ? media.padding.bottom
         : media.viewPadding.bottom;
-    final showRail = showIndependentSideRail(side: side, path: _path);
+    final showRail = showIndependentSideRail(
+      side: side,
+      path: _path,
+      aspectRatio: screenAspectRatio(media.size),
+    );
     final railWidth = showRail
         ? leadingInset + sideRailContentWidth(media.size.width)
         : 0.0;
