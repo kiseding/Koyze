@@ -79,4 +79,54 @@ void main() {
     expect(sheetTaps, 1);
     expect(miniTaps, 0);
   });
+
+  testWidgets('landscape option sheet scrolls instead of overflowing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(852, 393);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () {
+              showKoyzeSheet<void>(
+                context: context,
+                builder: (_) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < 8; i++)
+                      SizedBox(
+                        height: 56,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('option-$i'),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+            child: const Text('open-sheet'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open-sheet'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('option-0'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('option-7'),
+      80,
+      scrollable: find.byType(Scrollable),
+    );
+    expect(find.text('option-7'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

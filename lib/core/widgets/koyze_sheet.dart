@@ -22,6 +22,9 @@ Future<T?> showKoyzeSheet<T>({
   final useGlass = frosted && backgroundColor != Colors.transparent;
   // 必须用调用方 context：sheet 内部会 removeTop，padding.top 会变成 0。
   final maxHeight = koyzeSheetMaxHeight(context);
+  // 调用方没自己控制高度时，横屏仍会被 Material 限制在屏幕的 9/16，
+  // 选项列表会直接底部溢出。这时改成内容多高就多高，放不下再滚动。
+  final compactMenu = !isScrollControlled;
   return showModalBottomSheet<T>(
     context: context,
     // 壳层迷你栏画在分支导航之上。弹窗必须走根导航，否则横屏时
@@ -29,7 +32,7 @@ Future<T?> showKoyzeSheet<T>({
     useRootNavigator: true,
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.4),
-    isScrollControlled: isScrollControlled,
+    isScrollControlled: true,
     enableDrag: enableDrag,
     requestFocus: false,
     useSafeArea: true,
@@ -39,6 +42,7 @@ Future<T?> showKoyzeSheet<T>({
     ),
     sheetAnimationStyle: effectsAnimationStyle(),
     builder: (context) {
+      final built = builder(context);
       final content = TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: 1),
         duration: motionDuration(context, MotionDuration.normal),
@@ -47,7 +51,7 @@ Future<T?> showKoyzeSheet<T>({
           scale: 1 - 0.02 * (1 - t),
           child: Opacity(opacity: t, child: child),
         ),
-        child: builder(context),
+        child: compactMenu ? _CompactSheet(child: built) : built,
       );
       if (!useGlass) return content;
       return GlassSurface(
@@ -69,3 +73,17 @@ double koyzeSheetMaxHeight(BuildContext context) {
 }
 
 const double _topGap = 16;
+
+/// 短菜单按内容收缩；超过可用高度时在弹窗内部滚动，而不是底部溢出。
+class _CompactSheet extends StatelessWidget {
+  const _CompactSheet({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: child,
+    );
+  }
+}
