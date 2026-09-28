@@ -20,6 +20,7 @@ import 'package:koyze/features/sync/presentation/cloud_sync_provider.dart';
 import 'package:koyze/features/sync/presentation/sync_phase1_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import 'package:koyze/features/custom_source/presentation/custom_source_provider.dart';
+import 'package:koyze/features/home/presentation/independent_side_rail.dart';
 import 'package:koyze/features/sync/presentation/startup_cloud_login_prompt.dart';
 
 class PlayerMessageListener extends ConsumerStatefulWidget {
@@ -106,9 +107,10 @@ class LxMusicApp extends ConsumerWidget {
       builder: (context, child) {
         final framed = CompactHighResolutionFrame(
           child: WindowsCaptionFrame(
-            child: WindowsCloseHandler(
-              navigatorKey: rootNavigatorKey,
-              child: CloudSyncHost(
+            child: IndependentSideRail(
+              child: WindowsCloseHandler(
+                navigatorKey: rootNavigatorKey,
+                child: CloudSyncHost(
                 child: AppNotificationHost(
                   child: PlayerMessageListener(
                     child: AndroidFloatingPlayerHost(
@@ -121,6 +123,7 @@ class LxMusicApp extends ConsumerWidget {
                   ),
                 ),
               ),
+            ),
             ),
           ),
         );

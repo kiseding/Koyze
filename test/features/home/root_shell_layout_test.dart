@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/widgets/root_shell_layout.dart';
+import 'package:koyze/features/home/presentation/independent_side_rail.dart';
 
 void main() {
   test('side navigation is used for desktop and landscape windows', () {
@@ -113,6 +115,45 @@ void main() {
     final header = headers.headerFor(0);
     expect(header?.title, 'Koyze');
     expect(header?.actions, hasLength(1));
+  });
+
+  testWidgets('pages and dialogs stay in the pane beside the side rail', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 420);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          builder: (context, child) =>
+              IndependentSideRail(child: child ?? const SizedBox.shrink()),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () {
+                showDialog<void>(
+                  context: context,
+                  builder: (_) => const Text('right-popup'),
+                );
+              },
+              child: const Text('open-popup'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Koyze'), findsOneWidget);
+    final rail = tester.getRect(find.text('Koyze'));
+    await tester.tap(find.text('open-popup'));
+    await tester.pumpAndSettle();
+
+    final popup = tester.getCenter(find.text('right-popup'));
+    expect(popup.dx, greaterThan(rail.right));
+    expect(find.text('Koyze'), findsOneWidget);
   });
 }
 

@@ -119,6 +119,8 @@ class FrostedHeaderButton extends StatelessWidget {
     required this.onTap,
     this.semanticLabel,
     this.dimmed = false,
+    this.iconSize = 20,
+    this.padding = const EdgeInsets.all(8),
   });
 
   final IconData icon;
@@ -127,6 +129,8 @@ class FrostedHeaderButton extends StatelessWidget {
 
   /// Unselected side-rail tabs keep the button visible, with a quieter icon.
   final bool dimmed;
+  final double iconSize;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
@@ -138,11 +142,11 @@ class FrostedHeaderButton extends StatelessWidget {
       child: GlassSurface(
         style: AppGlassStyle.chrome,
         borderRadius: BorderRadius.circular(12),
-        padding: const EdgeInsets.all(8),
+        padding: padding,
         child: Icon(
           icon,
           color: dimmed ? color.withValues(alpha: 0.38) : color,
-          size: 20,
+          size: iconSize,
         ),
       ),
     );

@@ -34,12 +34,15 @@ void main() {
     'sync rail entry pushes directly without selecting the settings tab',
     () {
       final source = File(
+        'lib/features/home/presentation/independent_side_rail.dart',
+      ).readAsStringSync();
+      final scaffold = File(
         'lib/features/home/presentation/main_scaffold.dart',
       ).readAsStringSync();
 
-      expect(source, contains("onTap: () => context.push('/sync')"));
+      expect(source, contains("appRouter.push('/sync')"));
       expect(
-        source,
+        scaffold,
         isNot(contains("onTap: () => _open(context, 3, '/sync')")),
       );
     },

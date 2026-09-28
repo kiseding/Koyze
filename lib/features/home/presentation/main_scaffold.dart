@@ -31,17 +31,17 @@ class MainScaffold extends ConsumerStatefulWidget {
   ConsumerState<MainScaffold> createState() => _MainScaffoldState();
 }
 
+/// Titles and actions published by the four tabs, read by the side rail.
+final rootHeaderController = RootHeaderController();
+
+/// Active shell tab. Updated by [MainScaffold], including while a page
+/// covers the right pane.
+final rootBranchIndex = ValueNotifier<int>(0);
+
 class _MainScaffoldState extends ConsumerState<MainScaffold> {
   // 上一帧 progress：判定方向——下滑/关闭（progress 下降）时 chrome
   // 全程立即显示，迷你栏绝不"消失一下"；打开（上升）保留退场窗口。
   double _prevProgress = 0;
-  final _pageHeaders = RootHeaderController();
-
-  @override
-  void dispose() {
-    _pageHeaders.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,12 +65,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     final navHeight = 36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
     const miniHeight = 66.0;
     const miniGap = 11.0;
-    final leadingInset = media.padding.left > media.viewPadding.left
-        ? media.padding.left
-        : media.viewPadding.left;
-    final topInset = media.padding.top > media.viewPadding.top
-        ? media.padding.top
-        : media.viewPadding.top;
     final trailingInset = media.padding.right > media.viewPadding.right
         ? media.padding.right
         : media.viewPadding.right;
@@ -79,9 +73,9 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     final contentRightInset = usesSideNavigation
         ? (trailingInset > 20 ? trailingInset : 20.0)
         : 0.0;
-    final sideRailWidth = usesSideNavigation
-        ? leadingInset + sideRailContentWidth(media.size.width)
-        : 0.0;
+    // The side rail is outside this navigator, and the media size already
+    // excludes it. Do not reserve the rail width a second time.
+    const sideRailWidth = 0.0;
     // The side layout has no bottom tab bar, so only reserve space for the
     // mini-player and a small breathing room below it.
     final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
@@ -91,6 +85,13 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         ? navHeight + 16 + bottomClearance + miniGap
         : navHeight + miniGap;
     final selectedIndex = navigationShell.currentIndex;
+    if (rootBranchIndex.value != selectedIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (rootBranchIndex.value != selectedIndex) {
+          rootBranchIndex.value = selectedIndex;
+        }
+      });
+    }
     final chromeBottom =
         miniBottom + miniHeight + (usesSideNavigation ? 8.0 : 0.0);
     final pageWidth = media.size.width - sideRailWidth - contentRightInset;
@@ -187,45 +188,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           );
 
           return RootHeaderScope(
-            controller: _pageHeaders,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (usesSideNavigation)
-                  SizedBox(
-                    width: sideRailWidth,
-                    child: Opacity(
-                      opacity: chromeOpacity,
-                      child: FractionalTranslation(
-                        translation: Offset(-eased, 0),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: AppColors.fill(context),
-                            border: Border(
-                              right: BorderSide(
-                                color: AppColors.cardBorder(context),
-                              ),
-                            ),
-                          ),
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              left: leadingInset,
-                              top: topInset,
-                              bottom: bottomInset,
-                            ),
-                            child: _SideNav(
-                              selectedIndex: selectedIndex,
-                              headers: _pageHeaders,
-                              onTap: onBranchTap,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                Expanded(child: content),
-              ],
-            ),
+            controller: rootHeaderController,
+            child: content,
           );
         },
       ),
@@ -534,38 +498,46 @@ const _sideNavItemInnerPadding = 10.0;
 /// 标题栏占位：上 18 + 字高 52 + 下 10。矮屏放不下整栏时整段隐藏。
 const _sideNavTitleExtent = 80.0;
 const _sideNavRuleExtent = 1.0;
-const _sideNavTabExtent = 48.0;
+const _sideNavTabExtent = 54.0;
+const _sideNavTabGap = 8.0;
 const _sideNavShortcutExtent = 36.0;
 const _sideNavFooterPadding = 16.0;
 
 /// 三个标签、设置和同步账号，按舒适字号排开的高度。
 const _sideNavBodyExtent =
     _sideNavTabExtent * 3 +
+    _sideNavTabGap * 2 +
     _sideNavRuleExtent +
     _sideNavFooterPadding +
     _sideNavTabExtent +
     _sideNavShortcutExtent;
 
-class _SideNav extends ConsumerWidget {
+class RootSideNav extends ConsumerWidget {
   final int selectedIndex;
   final RootHeaderController headers;
   final ValueChanged<int> onTap;
+  final Listenable routeListenable;
+  final String currentPath;
+  final VoidCallback onOpenSync;
 
-  const _SideNav({
+  const RootSideNav({
+    super.key,
     required this.selectedIndex,
     required this.headers,
     required this.onTap,
+    required this.routeListenable,
+    required this.currentPath,
+    required this.onOpenSync,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = S.of(context);
     final session = ref.watch(cloudSessionProvider);
-    final router = GoRouter.of(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([headers, router.routerDelegate]),
+      listenable: Listenable.merge([headers, routeListenable]),
       builder: (context, _) {
-        final path = router.routerDelegate.currentConfiguration.uri.path;
+        final path = currentPath;
         final loggedIn = session.loggedIn;
         final username = session.username?.trim() ?? '';
         return LayoutBuilder(
@@ -582,6 +554,7 @@ class _SideNav extends ConsumerWidget {
                 ] else
                   const SizedBox(height: 8),
                 _item(context, 0, Icons.home_outlined, Icons.home, s.home),
+                const SizedBox(height: _sideNavTabGap),
                 _item(
                   context,
                   1,
@@ -589,6 +562,7 @@ class _SideNav extends ConsumerWidget {
                   Icons.leaderboard,
                   s.charts,
                 ),
+                const SizedBox(height: _sideNavTabGap),
                 _item(
                   context,
                   2,
@@ -618,7 +592,7 @@ class _SideNav extends ConsumerWidget {
                             ? '${s.syncAccount}，${s.loggedInAs(username)}'
                             : s.syncAccount,
                         selected: _isPath(path, '/sync'),
-                        onTap: () => context.push('/sync'),
+                        onTap: onOpenSync,
                         compact: true,
                         trailing: loggedIn
                             ? _logoutButton(context, ref, s, compact: true)
@@ -825,7 +799,7 @@ class _SideNav extends ConsumerWidget {
                         AnimatedIconSwitch(
                           icon: isSelected ? activeIcon : icon,
                           keyValue: isSelected ? activeIcon : icon,
-                          size: 22,
+                          size: 26,
                           color: isSelected ? accent : muted,
                         ),
                         const SizedBox(width: 8),
@@ -836,7 +810,7 @@ class _SideNav extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: isSelected ? accent : muted,
-                              fontSize: 14,
+                              fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -888,6 +862,8 @@ class _SideNav extends ConsumerWidget {
                     ? published[i].semanticLabel
                     : null,
                 dimmed: !enabled,
+                iconSize: 16,
+                padding: const EdgeInsets.all(6),
                 onTap: enabled && i < published.length
                     ? published[i].onTap
                     : () {},

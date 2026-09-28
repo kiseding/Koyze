@@ -48,6 +48,25 @@ void _lockPlayerRouteDismiss() {
 bool _isCurrentRoute(String path) =>
     appRouter.routerDelegate.currentConfiguration.uri.path == path;
 
+const _rootBranchLocations = ['/', '/leaderboard', '/playlist', '/settings'];
+
+/// Switch tabs from the side rail. A page covering the right pane is closed
+/// first, so the rail never has to draw that page itself.
+void selectRootBranch(int index) {
+  final location = _rootBranchLocations[index];
+  final path = appRouter.routerDelegate.currentConfiguration.uri.path;
+  if (!_rootBranchLocations.contains(path)) {
+    appRouter.go(location);
+    return;
+  }
+  final state = _swipeBranchKey.currentState;
+  if (state != null) {
+    state.select(index);
+  } else {
+    appRouter.go(location);
+  }
+}
+
 Future<void> pushPlayerRoute(
   BuildContext context, {
   required bool hasSong,
