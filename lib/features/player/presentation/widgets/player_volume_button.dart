@@ -306,6 +306,10 @@ class _VolumeTrack extends StatelessWidget {
   static const double _portraitLength = 148;
   static const double _landscapeLength = 140;
 
+  /// Halfway between the old portrait bar (36) and landscape bar (16).
+  static const double _thickness = 26;
+  static const double _hitExtent = 36;
+
   double get _length => horizontal ? _landscapeLength : _portraitLength;
 
   void _update(double position) {
@@ -334,19 +338,20 @@ class _VolumeTrack extends StatelessWidget {
           ? null
           : (details) => _update(details.localPosition.dy),
       child: SizedBox(
-        width: horizontal ? _length : 36,
-        height: horizontal ? 36 : _length,
+        width: horizontal ? _length : _hitExtent,
+        height: horizontal ? _hitExtent : _length,
         child: Center(
           child: SizedBox(
-            width: horizontal ? _length : 36,
-            height: horizontal ? 16 : _length,
+            key: const Key('volume-track-bar'),
+            width: horizontal ? _length : _thickness,
+            height: horizontal ? _thickness : _length,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: track,
-                borderRadius: BorderRadius.circular(horizontal ? 8 : 18),
+                borderRadius: BorderRadius.circular(_thickness / 2),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(horizontal ? 8 : 18),
+                borderRadius: BorderRadius.circular(_thickness / 2),
                 child: Align(
                   alignment: horizontal
                       ? Alignment.centerLeft

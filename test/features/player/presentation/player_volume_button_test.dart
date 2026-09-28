@@ -30,7 +30,10 @@ void main() {
     final track = tester.getSize(
       find.byKey(const Key('volume-track-vertical')),
     );
+    final bar = tester.getSize(find.byKey(const Key('volume-track-bar')));
     expect(track.height, greaterThan(track.width));
+    expect(bar.width, 26);
+    expect(bar.height, track.height);
     expect(find.byKey(const Key('volume-track-horizontal')), findsNothing);
   });
 
@@ -40,9 +43,12 @@ void main() {
     final track = tester.getSize(
       find.byKey(const Key('volume-track-horizontal')),
     );
+    final bar = tester.getSize(find.byKey(const Key('volume-track-bar')));
     expect(track.width, greaterThan(track.height));
     expect(track.width, inInclusiveRange(120, 160));
     expect(track.height, inInclusiveRange(28, 44));
+    expect(bar.height, 26);
+    expect(bar.width, track.width);
     expect(find.byKey(const Key('volume-track-vertical')), findsNothing);
 
     final panel = tester.getRect(find.byKey(const Key('volume-panel')));
