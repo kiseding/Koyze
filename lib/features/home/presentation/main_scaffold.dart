@@ -503,7 +503,7 @@ const _sideNavTabGap = 8.0;
 const _sideNavShortcutExtent = 36.0;
 const _sideNavFooterPadding = 16.0;
 
-/// 三个标签、设置和同步账号，按舒适字号排开的高度。
+/// 三个标签、设置和登录入口，按舒适字号排开的高度。
 const _sideNavBodyExtent =
     _sideNavTabExtent * 3 +
     _sideNavTabGap * 2 +
@@ -589,12 +589,16 @@ class RootSideNav extends ConsumerWidget {
                       ),
                       _shortcut(
                         context,
-                        icon: Icons.cloud_sync_rounded,
+                        icon: loggedIn && username.isNotEmpty
+                            ? Icons.person_rounded
+                            : Icons.login_rounded,
                         color: AppColors.accentOf(context),
-                        label: s.syncAccount,
+                        label: loggedIn && username.isNotEmpty
+                            ? username
+                            : s.login,
                         semanticLabel: loggedIn && username.isNotEmpty
-                            ? '${s.syncAccount}，${s.loggedInAs(username)}'
-                            : s.syncAccount,
+                            ? s.loggedInAs(username)
+                            : s.login,
                         selected: _isPath(path, '/sync'),
                         onTap: onOpenSync,
                         compact: true,
