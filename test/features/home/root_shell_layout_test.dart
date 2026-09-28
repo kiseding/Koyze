@@ -117,6 +117,21 @@ void main() {
     expect(header?.actions, hasLength(1));
   });
 
+  test('fullscreen player hides the landscape side rail', () {
+    expect(
+      showIndependentSideRail(side: true, path: '/player'),
+      isFalse,
+    );
+    expect(
+      showIndependentSideRail(side: true, path: '/playlist'),
+      isTrue,
+    );
+    expect(
+      showIndependentSideRail(side: false, path: '/'),
+      isFalse,
+    );
+  });
+
   testWidgets('pages and dialogs stay in the pane beside the side rail', (
     tester,
   ) async {

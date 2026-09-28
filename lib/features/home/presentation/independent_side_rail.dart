@@ -8,6 +8,12 @@ import '../../../router/app_router.dart';
 import '../../settings/presentation/settings_provider.dart';
 import 'main_scaffold.dart';
 
+/// The fullscreen player covers the whole landscape window, including the rail.
+bool showIndependentSideRail({required bool side, required String path}) {
+  if (!side) return false;
+  return path != '/player' && !path.startsWith('/player/');
+}
+
 /// Keeps the side rail outside the app navigator.
 ///
 /// Subpages, sheets, dialogs, and their transitions are all painted by that
@@ -75,7 +81,8 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
     final bottomInset = media.padding.bottom > media.viewPadding.bottom
         ? media.padding.bottom
         : media.viewPadding.bottom;
-    final railWidth = side
+    final showRail = showIndependentSideRail(side: side, path: _path);
+    final railWidth = showRail
         ? leadingInset + sideRailContentWidth(media.size.width)
         : 0.0;
     final contentWidth = (media.size.width - railWidth).clamp(
@@ -89,7 +96,7 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
         SizedBox(
           key: const ValueKey('side-rail'),
           width: railWidth,
-          child: side
+          child: showRail
               ? _RailOverlay(
                   key: ValueKey(brightness),
                   child: DecoratedBox(
@@ -130,7 +137,7 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
         Expanded(
           key: const ValueKey('side-content'),
           child: MediaQuery(
-            data: side
+            data: showRail
                 ? media.copyWith(
                     size: Size(contentWidth, media.size.height),
                     padding: media.padding.copyWith(left: 0),
