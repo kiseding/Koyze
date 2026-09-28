@@ -53,8 +53,11 @@ void main() {
       'lib/features/playlist/presentation/playlist_detail_screen.dart',
     ).readAsStringSync();
 
-    // 列表可滚动到栏内部（栏高度不变），磨砂才可见。
-    expect(source, contains('extendBodyBehindAppBar: true'));
+    // 普通歌单仍滚进磨砂顶栏。收藏、最近播放、本地音乐改用页面底色。
+    expect(source, contains('extendBodyBehindAppBar: !flatTitleBar'));
+    expect(source, contains("playlistId == 'favorites'"));
+    expect(source, contains("playlistId == 'recent'"));
+    expect(source, contains("playlistId == 'local'"));
     // 顶栏磨砂玻璃（flexibleSpace），页码栏悬浮于列表上方。
     expect(source, contains('GradientAppBarBackground('));
     expect(source, contains('PageNavigationBar('));
@@ -87,7 +90,16 @@ void main() {
       final source = File(path).readAsStringSync();
       expect(source, contains('GradientAppBarBackground('), reason: path);
       // 列表可滚动到栏内部（extendBodyBehindAppBar），磨砂才可见。
-      expect(source, contains('extendBodyBehindAppBar: true'), reason: path);
+      // 歌单详情里三个系统列表关掉延伸，其余页面仍是字面量 true。
+      expect(
+        source,
+        contains(
+          path.endsWith('playlist_detail_screen.dart')
+              ? 'extendBodyBehindAppBar: !flatTitleBar'
+              : 'extendBodyBehindAppBar: true',
+        ),
+        reason: path,
+      );
       expect(source, isNot(contains('fadeStart:')), reason: path);
     }
   });

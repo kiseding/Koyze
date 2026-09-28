@@ -57,6 +57,8 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final brightness = Theme.of(context).brightness;
+    ref.watch(themeModeProvider);
     final side = shouldUseSideNavigation(
       size: media.size,
       orientation: media.orientation,
@@ -89,9 +91,10 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
           width: railWidth,
           child: side
               ? _RailOverlay(
+                  key: ValueKey(brightness),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: AppColors.fill(context),
+                      color: AppColors.scaffold(context),
                       border: Border(
                         right: BorderSide(color: AppColors.cardBorder(context)),
                       ),
@@ -145,7 +148,7 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
 /// Gives the rail its own overlay so tooltips work without joining the
 /// page navigator.
 class _RailOverlay extends StatefulWidget {
-  const _RailOverlay({required this.child});
+  const _RailOverlay({super.key, required this.child});
 
   final Widget child;
 

@@ -139,6 +139,18 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     });
   }
 
+  /// 收藏、最近播放、本地音乐的顶栏跟「猜你喜欢」一样，用页面底色，不用磨砂。
+  bool _flatTitleBar(String playlistId) {
+    return playlistId == 'favorites' ||
+        playlistId == 'recent' ||
+        playlistId == 'local';
+  }
+
+  double _listTopInset(BuildContext context, String playlistId) {
+    if (_flatTitleBar(playlistId)) return 4;
+    return MediaQuery.paddingOf(context).top + kToolbarHeight;
+  }
+
   PageRange _pageRangeFor(int itemCount) {
     return PageRange(itemCount: itemCount, pageIndex: _pageIndex);
   }
@@ -241,20 +253,24 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         currentPageIds.isNotEmpty &&
         currentPageIds.every(_selectedFavoriteIds.contains);
 
+    final flatTitleBar = _flatTitleBar(playlist.id);
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        // 列表可滚动到栏内部（栏高度不变），顶栏磨砂才可见。
-        extendBodyBehindAppBar: true,
+        // 普通歌单列表滚进磨砂顶栏；这三个系统列表用实心底色，不延伸到栏下。
+        extendBodyBehindAppBar: !flatTitleBar,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
+          elevation: flatTitleBar ? 0 : null,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
-          // 顶栏整栏磨砂玻璃，无底部渐变透明。
-          flexibleSpace: GradientAppBarBackground(
-            background: Theme.of(context).scaffoldBackgroundColor,
-          ),
+          // 顶栏整栏磨砂玻璃，无底部渐变透明。系统列表不铺这层。
+          flexibleSpace: flatTitleBar
+              ? null
+              : GradientAppBarBackground(
+                  background: Theme.of(context).scaffoldBackgroundColor,
+                ),
           leading: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -598,7 +614,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final range = _pageRangeFor(_reorderedSongs.length);
     final songs = pageSlice(_reorderedSongs, range);
     // 列表可滚动到栏内部；顶部/底部预留栏空间，避免内容被栏遮挡。
-    final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
+    final topInset = _listTopInset(context, playlist.id);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Stack(
       children: [
@@ -670,7 +686,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         ? const <MusicItem>[]
         : ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
     // 列表全屏可滚动到栏内部；顶部/底部预留栏空间，滚动时才进入渐变区。
-    final topInset = MediaQuery.paddingOf(context).top + kToolbarHeight;
+    final topInset = _listTopInset(context, playlist.id);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Stack(
       children: [

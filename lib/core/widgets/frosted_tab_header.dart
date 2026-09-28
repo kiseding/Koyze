@@ -119,6 +119,7 @@ class FrostedHeaderButton extends StatelessWidget {
     required this.onTap,
     this.semanticLabel,
     this.dimmed = false,
+    this.solid = false,
     this.iconSize = 20,
     this.padding = const EdgeInsets.all(8),
   });
@@ -129,12 +130,37 @@ class FrostedHeaderButton extends StatelessWidget {
 
   /// Unselected side-rail tabs keep the button visible, with a quieter icon.
   final bool dimmed;
+
+  /// Opaque fill for the side rail. Glass there blurs the wrong surface
+  /// and does not follow light and dark themes.
+  final bool solid;
   final double iconSize;
   final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     final color = AppColors.secondaryText(context);
+    final iconWidget = Icon(
+      icon,
+      color: dimmed ? color.withValues(alpha: 0.38) : color,
+      size: iconSize,
+    );
+    if (solid) {
+      return Pressable(
+        semanticLabel: semanticLabel,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.isDark(context)
+                ? const Color(0x14FFFFFF)
+                : const Color(0x14000000),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(padding: padding, child: iconWidget),
+        ),
+      );
+    }
     return Pressable(
       semanticLabel: semanticLabel,
       onTap: onTap,
@@ -143,11 +169,7 @@ class FrostedHeaderButton extends StatelessWidget {
         style: AppGlassStyle.chrome,
         borderRadius: BorderRadius.circular(12),
         padding: padding,
-        child: Icon(
-          icon,
-          color: dimmed ? color.withValues(alpha: 0.38) : color,
-          size: iconSize,
-        ),
+        child: iconWidget,
       ),
     );
   }

@@ -512,6 +512,12 @@ const _sideNavBodyExtent =
     _sideNavTabExtent +
     _sideNavShortcutExtent;
 
+/// 浅色用实色卡片，深色用主题色薄底，避免半透明绿在两种背景上都发灰。
+Color _sideNavSelectedFill(BuildContext context) {
+  if (!AppColors.isDark(context)) return AppColors.card(context);
+  return Theme.of(context).colorScheme.primary.withValues(alpha: 0.16);
+}
+
 class RootSideNav extends ConsumerWidget {
   final int selectedIndex;
   final RootHeaderController headers;
@@ -671,7 +677,7 @@ class RootSideNav extends ConsumerWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: selected
-                ? accent.withValues(alpha: 0.12)
+                ? _sideNavSelectedFill(context)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
@@ -775,7 +781,7 @@ class RootSideNav extends ConsumerWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: isSelected
-                ? accent.withValues(alpha: 0.14)
+                ? _sideNavSelectedFill(context)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -860,6 +866,7 @@ class RootSideNav extends ConsumerWidget {
                     ? published[i].semanticLabel
                     : null,
                 dimmed: !enabled,
+                solid: true,
                 iconSize: 16,
                 padding: const EdgeInsets.all(6),
                 onTap: enabled && i < published.length
