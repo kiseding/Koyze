@@ -58,9 +58,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         // 顶部不包 SafeArea：磨砂要铺到屏幕顶（含灵动岛/状态栏）。
         body: LayoutBuilder(
           builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            final isWide = width >= 720;
-            final contentWidth = isWide ? min(width * 0.82, 900.0) : width;
+            final contentWidth = shellContentWidth(constraints.maxWidth);
 
             return Center(
               child: SizedBox(

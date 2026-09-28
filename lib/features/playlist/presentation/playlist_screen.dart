@@ -132,6 +132,10 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   ),
                 ],
               ),
+            Expanded(
+              child: ShellContentFrame(
+                child: Column(
+                  children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: TextField(
@@ -205,6 +209,10 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   favorites: favorites,
                   local: local,
                   recent: recent,
+                ),
+              ),
+            ),
+                  ],
                 ),
               ),
             ),

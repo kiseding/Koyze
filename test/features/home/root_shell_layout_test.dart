@@ -64,6 +64,26 @@ void main() {
     expect(find.text('side'), findsOneWidget);
   });
 
+  test('root tabs and the mini player share the home content width', () {
+    expect(shellContentWidth(390), 390);
+    expect(shellContentWidth(719), 719);
+    expect(shellContentWidth(720), closeTo(720 * 0.82, 0.01));
+    expect(shellContentWidth(1600), 900);
+
+    expect(
+      miniPlayerSideInset(pageWidth: 390, usesSideNavigation: false),
+      3,
+    );
+    expect(
+      miniPlayerSideInset(pageWidth: 800, usesSideNavigation: true),
+      closeTo((800 - 800 * 0.82) / 2, 0.01),
+    );
+    expect(
+      miniPlayerSideInset(pageWidth: 1600, usesSideNavigation: true),
+      closeTo((1600 - 900) / 2, 0.01),
+    );
+  });
+
   test('side rail width grows with the window and keeps a middle gap', () {
     expect(sideRailContentWidth(800), 180);
     expect(sideRailContentWidth(1200), closeTo(264, 0.01));

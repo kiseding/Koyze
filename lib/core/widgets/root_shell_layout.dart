@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/widgets.dart';
 
 bool shouldUseSideNavigation({
@@ -24,6 +26,49 @@ bool shouldUseSideNavigation({
 /// enough room for the label and the trailing action button to stay apart.
 double sideRailContentWidth(double screenWidth) {
   return (screenWidth * 0.22).clamp(180.0, 320.0);
+}
+
+/// Home-tab content width. Wide windows keep an 18% margin and cap at 900.
+/// Other root tabs and the mini player use the same measure.
+double shellContentWidth(double availableWidth) {
+  if (availableWidth >= 720) {
+    return min(availableWidth * 0.82, 900.0);
+  }
+  return availableWidth;
+}
+
+/// Horizontal inset that lines the mini player up with [shellContentWidth].
+/// Narrow windows keep the existing floating margin.
+double miniPlayerSideInset({
+  required double pageWidth,
+  required bool usesSideNavigation,
+}) {
+  final centered = (pageWidth - shellContentWidth(pageWidth)) / 2;
+  if (centered > 0.5) return centered;
+  return usesSideNavigation ? 16 : 3;
+}
+
+/// Centers [child] in the shared home-tab content width.
+class ShellContentFrame extends StatelessWidget {
+  const ShellContentFrame({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = shellContentWidth(constraints.maxWidth);
+        final height = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : null;
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SizedBox(width: width, height: height, child: child),
+        );
+      },
+    );
+  }
 }
 
 /// Layout mode supplied by the root navigation shell.

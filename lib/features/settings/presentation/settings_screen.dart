@@ -115,7 +115,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         backgroundColor: Colors.transparent,
         body: Stack(
           children: [
-            ListView(
+            ShellContentFrame(
+              child: ListView(
               padding: EdgeInsets.only(
                 top: isLandscapeShell ? 0 : FrostedTabHeader.extent(context),
                 bottom: RootShellLayout.obscuredBottomOf(context),
@@ -397,6 +398,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ]),
                 const SizedBox(height: 40),
               ],
+            ),
             ),
             if (isLandscapeShell)
               RootHeaderPublisher(index: 3, title: s.settings)

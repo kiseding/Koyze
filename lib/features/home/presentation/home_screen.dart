@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -46,7 +44,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           builder: (context, constraints) {
             final width = constraints.maxWidth;
             final isWide = width >= 720;
-            final contentWidth = isWide ? min(width * 0.82, 900.0) : width;
+            final contentWidth = shellContentWidth(width);
             final columns = isWide ? 4 : 2;
             final isLandscapeShell = RootShellLayout.usesSideNavigationOf(
               context,
