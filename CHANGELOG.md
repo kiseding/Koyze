@@ -15,9 +15,14 @@
   - RBAC 角色系统（admin/user/readonly）
   - 审计日志（记录所有关键操作）
   - 数据库迁移脚本（0003_add_rbac.sql）
+- **监控与可观测性**: 三层监控架构
+  - 音源健康监控（周期检查、自动告警、统计上线率）
+  - 崩溃报告（异常捕获、上下文记录、本地存储）
+  - 性能监控（操作追踪、帧率监控、内存监控、P50/P95/P99 指标）
+  - 统一监控服务（MonitoringService 入口）
 - **测试覆盖率 CI**: 自动检查覆盖率阈值（≥70%）
 - **完整文档**:
-  - 架构决策记录（ADR）：Cloudflare Workers、Riverpod
+  - 架构决策记录（ADR）：Cloudflare Workers、Riverpod、监控架构
   - 贡献指南（CONTRIBUTING.md）
   - API 参考文档
   - 优化路线图
