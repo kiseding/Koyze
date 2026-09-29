@@ -9,7 +9,6 @@
 /// - Obfuscation and entropy analysis
 /// - Resource consumption limits
 
-import 'dart:convert';
 import 'dart:math';
 
 class SecurityIssue {

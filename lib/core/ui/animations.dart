@@ -12,7 +12,6 @@
 /// - Staggered animations
 
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 
 /// Custom page route with slide transition
 class SlidePageRoute extends PageRouteBuilder {
@@ -271,9 +270,6 @@ class StaggeredListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final itemDelay = delay.inMilliseconds * index;
-    final totalDuration = animation.status == AnimationStatus.forward
-        ? 1.0
-        : 0.0;
 
     return FadeTransition(
       opacity: Tween<double>(begin: 0.0, end: 1.0).animate(

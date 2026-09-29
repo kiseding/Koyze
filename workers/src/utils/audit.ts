@@ -5,7 +5,7 @@
  * Audit logging service for tracking user actions
  */
 
-import type { Env } from '../index';
+import type { Env } from '../lib/response';
 
 export interface AuditEntry {
   userId: number;

@@ -83,7 +83,6 @@ class SourceNetworkProxy {
     
     // Kuwo Music
     'kuwo.cn',
-    'kugou.com',
     'api.kuwo.cn',
     'img.kuwo.cn',
     

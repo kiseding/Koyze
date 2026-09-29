@@ -119,10 +119,7 @@ class SecureSourceEngine {
     String operation,
     Map<String, dynamic> args,
   ) async {
-    // Intercept network requests and route through proxy
-    final modifiedArgs = Map<String, dynamic>.from(args);
-    
-    // If the operation involves fetching, wrap the URL
+    // If the operation involves fetching, route the URL through the proxy.
     if (operation == 'fetch' || operation == 'request') {
       final url = args['url'] as String?;
       if (url != null) {
@@ -145,8 +142,9 @@ class SecureSourceEngine {
       }
     }
     
-    // Execute the actual operation
-      throw UnimplementedError('Generic execute not supported');
+    throw UnimplementedError(
+      'Generic execute not supported on ${_baseEngine.runtimeType}',
+    );
   }
 
   Future<int?> _getProcessMemory() async {

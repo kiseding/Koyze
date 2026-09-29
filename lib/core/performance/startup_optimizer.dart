@@ -95,7 +95,7 @@ class StartupOptimizer {
     await Future.wait([
       precacheImage(AssetImage('assets/images/logo.png'), context),
       precacheImage(AssetImage('assets/images/placeholder.png'), context),
-    ].where((future) => future != null).cast<Future>());
+    ]);
 
     debugPrint('✅ Resources preloaded');
   }

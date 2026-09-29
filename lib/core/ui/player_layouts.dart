@@ -15,7 +15,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import '../ui/responsive_layout.dart';
-import '../ui/animations.dart';
 
 /// Full-screen music player
 class FullScreenPlayer extends StatelessWidget {

@@ -11,7 +11,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../domain/source_network_proxy.dart';
 
 enum SecurityWarningLevel { info, warning, critical }
 
