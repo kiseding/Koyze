@@ -1,6 +1,7 @@
 // Copyright 2024 Koyze Contributors
 // Licensed under the Apache License, Version 2.0
 
+import 'dart:async';
 /// High-performance list with virtual scrolling and optimizations.
 /// 
 /// Features:

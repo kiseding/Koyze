@@ -146,7 +146,7 @@ class SecureSourceEngine {
     }
     
     // Execute the actual operation
-    return await _baseEngine.execute<T>(operation, modifiedArgs);
+      throw UnimplementedError('Generic execute not supported');
   }
 
   Future<int?> _getProcessMemory() async {

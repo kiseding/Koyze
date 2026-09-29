@@ -44,7 +44,7 @@ class AdvancedImageCache {
   final Map<String, Uint8List> _memoryCache = {};
   final List<String> _cacheKeys = [];
   final int _maxMemoryCacheSize = 50; // MB
-  int _currentMemoryCacheSize = 0;
+  double _currentMemoryCacheSize = 0;
 
   // Disk cache would use path_provider + file system
   // For now, memory cache only

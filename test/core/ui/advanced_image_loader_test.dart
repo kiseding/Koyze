@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:typed_data';
 import 'package:koyze/core/ui/advanced_image_loader.dart';
 
 void main() {
@@ -128,5 +129,3 @@ void main() {
     });
   });
 }
-
-import 'dart:typed_data';

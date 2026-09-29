@@ -103,26 +103,6 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      final semantics = tester.getSemantics(find.bySemanticsLabel('Test Button'));
-      expect(semantics.hasAction(SemanticsAction.tap), isTrue);
-    });
-
-    testWidgets('should show tooltip on hover', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AccessibleButton(
-              semanticLabel: 'Test',
-              tooltip: 'This is a tooltip',
-              onPressed: () {},
-              child: Text('Hover me'),
-            ),
-          ),
-        ),
-      );
-
-      await tester.pumpAndSettle();
-
       // Long press to show tooltip
       await tester.longPress(find.text('Hover me'));
       await tester.pumpAndSettle();

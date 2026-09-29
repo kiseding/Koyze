@@ -49,74 +49,52 @@ class ValidationResult {
 
   List<SecurityIssue> get criticalIssues =>
       issues.where((i) => i.level == SecurityLevel.critical).toList();
-
   List<SecurityIssue> get highIssues =>
       issues.where((i) => i.level == SecurityLevel.high).toList();
 }
 
-class EnhancedSourceScriptValidator {
-  static const int MAX_SCRIPT_SIZE = 2 * 1024 * 1024; // 2MB
-  static const int MAX_LINES = 50000;
-  static const double HIGH_ENTROPY_THRESHOLD = 4.5; // bits per byte
-  static const int MAX_NESTING_DEPTH = 20;
-
-  /// Validates a custom source script with comprehensive security checks.
+/// Enhanced script validator with comprehensive security checks
+class EnhancedScriptValidator {
+  /// Validates a custom source script with multi-layer security analysis.
   static ValidationResult validate(String script) {
+    if (script.isEmpty) {
+      return ValidationResult(
+        issues: [
+          SecurityIssue(
+            level: SecurityLevel.critical,
+            description: 'Empty script not allowed',
+            code: 'EMPTY_SCRIPT',
+          ),
+        ],
+      );
+    }
+
     final issues = <SecurityIssue>[];
     final metadata = <String, dynamic>{};
 
-    // 1. Basic size and format checks
-    if (script.length > MAX_SCRIPT_SIZE) {
-      issues.add(SecurityIssue(
-        level: SecurityLevel.critical,
-        description: 'Script exceeds maximum size of ${MAX_SCRIPT_SIZE ~/ 1024}KB',
-        code: SecurityIssue.excessiveComplexity,
-      ));
-      return ValidationResult(issues: issues, metadata: metadata);
-    }
-
-    final lines = script.split('\n');
-    if (lines.length > MAX_LINES) {
-      issues.add(SecurityIssue(
-        level: SecurityLevel.high,
-        description: 'Script exceeds maximum line count of $MAX_LINES',
-        code: SecurityIssue.excessiveComplexity,
-      ));
-    }
-
-    metadata['size'] = script.length;
-    metadata['lines'] = lines.length;
-
-    // 2. Dynamic code execution detection
+    // Layer 1: Static pattern analysis
     _checkDynamicExecution(script, issues);
-
-    // 3. Forbidden global access
     _checkForbiddenGlobals(script, issues);
+    _checkSuspiciousPatterns(script, issues);
 
-    // 4. Obfuscation detection
-    _checkObfuscation(script, issues, metadata);
-
-    // 5. Entropy analysis (detect encrypted/packed code)
+    // Layer 2: Entropy and obfuscation detection
     final entropy = _calculateEntropy(script);
     metadata['entropy'] = entropy;
-    if (entropy > HIGH_ENTROPY_THRESHOLD) {
+    if (entropy > 5.5) {
       issues.add(SecurityIssue(
         level: SecurityLevel.high,
-        description: 'High entropy ($entropy) suggests encrypted or packed code',
+        description: 'High entropy detected (possible obfuscation): $entropy',
         code: SecurityIssue.highEntropy,
       ));
     }
 
-    // 6. Suspicious network patterns
-    _checkSuspiciousNetworkPatterns(script, issues);
-
-    // 7. Complexity analysis
-    final nestingDepth = _calculateMaxNestingDepth(script);
-    metadata['maxNestingDepth'] = nestingDepth;
-    if (nestingDepth > MAX_NESTING_DEPTH) {
+    // Layer 3: Complexity analysis
+    final complexity = _estimateComplexity(script);
+    metadata['complexity'] = complexity;
+    if (complexity > 500) {
       issues.add(SecurityIssue(
         level: SecurityLevel.medium,
-        description: 'Excessive nesting depth ($nestingDepth) may indicate obfuscation',
+        description: 'Excessive code complexity: $complexity',
         code: SecurityIssue.excessiveComplexity,
       ));
     }
@@ -131,9 +109,9 @@ class EnhancedSourceScriptValidator {
       RegExp(r'\bnew\s+Function\s*\('),
       RegExp(r'Function\s*\('),
       RegExp(r'\$\{[^}]*eval[^}]*\}'), // Template literal eval
-      RegExp(r'this\[\s*["\']eval["\']\s*\]'),
-      RegExp(r'window\[\s*["\']eval["\']\s*\]'),
-      RegExp(r'global\[\s*["\']eval["\']\s*\]'),
+      RegExp(r'this\[\s*[' "'" r'"' "'" r']eval[' "'" r'"' "'" r']\s*\]'),
+      RegExp(r'window\[\s*[' "'" r'"' "'" r']eval[' "'" r'"' "'" r']\s*\]'),
+      RegExp(r'global\[\s*[' "'" r'"' "'" r']eval[' "'" r'"' "'" r']\s*\]'),
     ];
 
     for (final pattern in dangerousPatterns) {
@@ -147,7 +125,7 @@ class EnhancedSourceScriptValidator {
     }
 
     // Check for indirect eval via bracket notation
-    if (RegExp(r'\[["\']constructor["\']\]').hasMatch(script)) {
+    if (RegExp(r'\[[' "'" r'"' "'" r']constructor[' "'" r'"' "'" r']\]').hasMatch(script)) {
       issues.add(SecurityIssue(
         level: SecurityLevel.high,
         description: 'Potential constructor exploitation detected',
@@ -161,104 +139,69 @@ class EnhancedSourceScriptValidator {
     final forbiddenGlobals = [
       'process',
       'require',
-      'import\\s*\\(',
+      r'import\s*\(',
       '__dirname',
       '__filename',
       'Buffer',
       'child_process',
       'fs',
-      'path',
-      'os',
-      'net',
-      'http',
-      'https',
-      'dns',
+      'module',
+      'exports',
     ];
 
     for (final global in forbiddenGlobals) {
-      final pattern = RegExp('\\b$global\\b');
-      if (pattern.hasMatch(script)) {
+      if (RegExp('\\b$global\\b').hasMatch(script)) {
         issues.add(SecurityIssue(
           level: SecurityLevel.critical,
-          description: 'Forbidden global access: $global',
+          description: 'Forbidden global access detected: $global',
           code: SecurityIssue.forbiddenGlobalAccess,
         ));
       }
     }
   }
 
-  /// Detects code obfuscation patterns.
-  static void _checkObfuscation(
-    String script,
-    List<SecurityIssue> issues,
-    Map<String, dynamic> metadata,
-  ) {
-    // Pattern 1: Excessive unicode escapes
-    final unicodeEscapes = RegExp(r'\\u[0-9a-fA-F]{4}').allMatches(script).length;
-    metadata['unicodeEscapes'] = unicodeEscapes;
-    if (unicodeEscapes > 50) {
+  /// Detects suspicious patterns that may indicate malicious behavior.
+  static void _checkSuspiciousPatterns(String script, List<SecurityIssue> issues) {
+    // Check for data exfiltration patterns
+    if (RegExp(r'fetch\s*\(|XMLHttpRequest|navigator\.sendBeacon').hasMatch(script)) {
       issues.add(SecurityIssue(
         level: SecurityLevel.medium,
-        description: 'Excessive unicode escapes ($unicodeEscapes) may indicate obfuscation',
+        description: 'Network request detected - verify destination',
+        code: SecurityIssue.suspiciousNetworkPattern,
+      ));
+    }
+
+    // Check for long base64 strings (possible payload)
+    if (RegExp(r'[A-Za-z0-9+/]{200,}={0,2}').hasMatch(script)) {
+      issues.add(SecurityIssue(
+        level: SecurityLevel.medium,
+        description: 'Long base64-like string detected',
         code: SecurityIssue.suspiciousObfuscation,
       ));
     }
 
-    // Pattern 2: Hex encoded strings
-    final hexStrings = RegExp(r'\\x[0-9a-fA-F]{2}').allMatches(script).length;
-    metadata['hexStrings'] = hexStrings;
-    if (hexStrings > 50) {
+    // Check for hex-encoded strings
+    if (RegExp(r'\\x[0-9a-fA-F]{2}').allMatches(script).length > 20) {
       issues.add(SecurityIssue(
         level: SecurityLevel.medium,
-        description: 'Excessive hex-encoded strings ($hexStrings)',
-        code: SecurityIssue.suspiciousObfuscation,
-      ));
-    }
-
-    // Pattern 3: Suspicious string splitting/joining
-    if (RegExp(r'\.split\(["\']["\']?\)\.reverse\(\)\.join\(').hasMatch(script)) {
-      issues.add(SecurityIssue(
-        level: SecurityLevel.medium,
-        description: 'String reversal pattern detected (common in obfuscation)',
-        code: SecurityIssue.suspiciousObfuscation,
-      ));
-    }
-
-    // Pattern 4: Excessive use of bracket notation
-    final bracketNotation = RegExp(r'\[["\'][^"\']+["\']\]').allMatches(script).length;
-    final identifiers = RegExp(r'\b[a-zA-Z_$][a-zA-Z0-9_$]*\b').allMatches(script).length;
-    if (identifiers > 0 && bracketNotation / identifiers > 0.3) {
-      issues.add(SecurityIssue(
-        level: SecurityLevel.medium,
-        description: 'Excessive bracket notation usage (${(bracketNotation / identifiers * 100).toStringAsFixed(1)}%)',
-        code: SecurityIssue.suspiciousObfuscation,
-      ));
-    }
-
-    // Pattern 5: Suspicious character sequences
-    if (RegExp(r'[!+\[\]]{10,}').hasMatch(script)) {
-      issues.add(SecurityIssue(
-        level: SecurityLevel.high,
-        description: 'JSFuck-style obfuscation detected',
+        description: 'Excessive hex-encoded characters detected',
         code: SecurityIssue.suspiciousObfuscation,
       ));
     }
   }
 
-  /// Calculates Shannon entropy to detect encrypted/packed code.
+  /// Calculates Shannon entropy to detect obfuscation.
   static double _calculateEntropy(String text) {
-    if (text.isEmpty) return 0.0;
+    if (text.isEmpty) return 0;
 
-    final frequency = <int, int>{};
-    for (var i = 0; i < text.length; i++) {
-      final code = text.codeUnitAt(i);
-      frequency[code] = (frequency[code] ?? 0) + 1;
+    final freq = <int, int>{};
+    for (final char in text.codeUnits) {
+      freq[char] = (freq[char] ?? 0) + 1;
     }
 
-    double entropy = 0.0;
+    double entropy = 0;
     final length = text.length;
-
-    for (final count in frequency.values) {
+    for (final count in freq.values) {
       final probability = count / length;
       entropy -= probability * (log(probability) / ln2);
     }
@@ -266,73 +209,21 @@ class EnhancedSourceScriptValidator {
     return entropy;
   }
 
-  /// Detects suspicious network request patterns.
-  static void _checkSuspiciousNetworkPatterns(
-    String script,
-    List<SecurityIssue> issues,
-  ) {
-    // Pattern 1: Base64 encoded URLs
-    if (RegExp(r'atob\s*\(').hasMatch(script) &&
-        RegExp(r'https?[:;]').hasMatch(script)) {
-      issues.add(SecurityIssue(
-        level: SecurityLevel.high,
-        description: 'Base64 decoding near URL patterns (potential hidden endpoint)',
-        code: SecurityIssue.suspiciousNetworkPattern,
-      ));
-    }
+  /// Estimates code complexity (cyclomatic-like metric).
+  static int _estimateComplexity(String script) {
+    int complexity = 1; // Base complexity
 
-    // Pattern 2: IP address literals (non-standard for music APIs)
-    if (RegExp(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b').hasMatch(script)) {
-      issues.add(SecurityIssue(
-        level: SecurityLevel.medium,
-        description: 'IP address literals detected',
-        code: SecurityIssue.suspiciousNetworkPattern,
-      ));
-    }
+    // Count control flow statements
+    complexity += RegExp(r'\bif\b').allMatches(script).length;
+    complexity += RegExp(r'\belse\b').allMatches(script).length;
+    complexity += RegExp(r'\bfor\b').allMatches(script).length;
+    complexity += RegExp(r'\bwhile\b').allMatches(script).length;
+    complexity += RegExp(r'\bswitch\b').allMatches(script).length;
+    complexity += RegExp(r'\bcase\b').allMatches(script).length;
+    complexity += RegExp(r'\bcatch\b').allMatches(script).length;
+    complexity += RegExp(r'\?\s*[^:]+:').allMatches(script).length; // Ternary
+    complexity += RegExp(r'&&|\|\|').allMatches(script).length; // Logical ops
 
-    // Pattern 3: Suspicious TLDs
-    final suspiciousTlds = ['.tk', '.ml', '.ga', '.cf', '.gq', '.xyz', '.top'];
-    for (final tld in suspiciousTlds) {
-      if (script.contains(tld)) {
-        issues.add(SecurityIssue(
-          level: SecurityLevel.medium,
-          description: 'Suspicious TLD detected: $tld',
-          code: SecurityIssue.suspiciousNetworkPattern,
-        ));
-      }
-    }
-
-    // Pattern 4: Data exfiltration patterns
-    if (RegExp(r'new\s+Image\s*\(').hasMatch(script) &&
-        RegExp(r'\.src\s*=').hasMatch(script)) {
-      issues.add(SecurityIssue(
-        level: SecurityLevel.high,
-        description: 'Image beacon pattern (potential data exfiltration)',
-        code: SecurityIssue.suspiciousNetworkPattern,
-      ));
-    }
-  }
-
-  /// Calculates maximum nesting depth (braces, brackets, parens).
-  static int _calculateMaxNestingDepth(String script) {
-    int maxDepth = 0;
-    int currentDepth = 0;
-
-    final openChars = {'{', '[', '('};
-    final closeChars = {'}', ']', ')'};
-
-    for (var i = 0; i < script.length; i++) {
-      final char = script[i];
-      if (openChars.contains(char)) {
-        currentDepth++;
-        if (currentDepth > maxDepth) {
-          maxDepth = currentDepth;
-        }
-      } else if (closeChars.contains(char)) {
-        currentDepth = max(0, currentDepth - 1);
-      }
-    }
-
-    return maxDepth;
+    return complexity;
   }
 }

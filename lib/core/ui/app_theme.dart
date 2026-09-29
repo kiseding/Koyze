@@ -11,6 +11,7 @@
 /// - Smooth theme transitions
 
 import 'package:flutter/material.dart';
+import 'dart:ui';
 import 'package:flutter/services.dart';
 
 /// App theme configuration
@@ -44,7 +45,7 @@ class AppTheme {
       ),
 
       // Card
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -144,7 +145,7 @@ class AppTheme {
         systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
 
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -411,5 +412,3 @@ class _AnimatedGradientBackgroundState extends State<AnimatedGradientBackground>
     );
   }
 }
-
-import 'dart:ui';

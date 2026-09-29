@@ -1,6 +1,7 @@
 // Copyright 2024 Koyze Contributors
 // Licensed under the Apache License, Version 2.0
 
+import 'dart:math' as math;
 /// Optimized player UI with modern layout and smooth animations.
 /// 
 /// Features:
@@ -470,5 +471,3 @@ class MiniPlayerBar extends StatelessWidget {
     );
   }
 }
-
-import 'dart:math' as math;

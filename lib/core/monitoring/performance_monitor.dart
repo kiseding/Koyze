@@ -358,7 +358,7 @@ class PerformanceMonitor {
 }
 
 /// Extension for easy performance tracking
-extension PerformanceTrackingExtension on Future<T> Function() {
+extension PerformanceTrackingExtension<T> on Future<T> Function() {
   Future<T> track(String name, {Map<String, dynamic>? attributes}) {
     return PerformanceMonitor().measureAsync(name, this, attributes: attributes);
   }
