@@ -130,8 +130,17 @@ class PerformanceMonitor {
   final int _maxFrameSamples = 1000;
 
   bool _isMonitoring = false;
+  bool _listeningToFrames = false;
   Timer? _memoryCheckTimer;
   MemorySnapshot? _lastMemorySnapshot;
+
+  SchedulerBinding? _schedulerBindingOrNull() {
+    try {
+      return SchedulerBinding.instance;
+    } on Object {
+      return null;
+    }
+  }
 
   /// Initialize performance monitoring
   void initialize() {
@@ -139,9 +148,12 @@ class PerformanceMonitor {
 
     _isMonitoring = true;
 
-    // Monitor frame rendering
-    if (!kIsWeb) {
-      SchedulerBinding.instance.addTimingsCallback(_onFrameTiming);
+    // Monitor frame rendering when a binding exists. Unit tests and very
+    // early startup do not have one; metrics collection still works.
+    final scheduler = kIsWeb ? null : _schedulerBindingOrNull();
+    if (scheduler != null) {
+      scheduler.addTimingsCallback(_onFrameTiming);
+      _listeningToFrames = true;
     }
 
     // Periodic memory snapshots
@@ -350,9 +362,10 @@ class PerformanceMonitor {
   void dispose() {
     _memoryCheckTimer?.cancel();
     _isMonitoring = false;
-    
-    if (!kIsWeb) {
-      SchedulerBinding.instance.removeTimingsCallback(_onFrameTiming);
+
+    if (_listeningToFrames) {
+      _schedulerBindingOrNull()?.removeTimingsCallback(_onFrameTiming);
+      _listeningToFrames = false;
     }
   }
 }

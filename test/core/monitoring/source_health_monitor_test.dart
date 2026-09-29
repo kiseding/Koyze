@@ -48,10 +48,16 @@ void main() {
       expect(history.length, greaterThanOrEqualTo(2));
     });
 
-    test('should limit history to max entries', () async {
-      // Exceed max history
+    test('should limit history to max entries', () {
       for (int i = 0; i < 150; i++) {
-        await monitor.checkSource(MusicPlatform.qq);
+        monitor.recordCheck(
+          MusicPlatform.qq,
+          SourceHealth(
+            status: HealthStatus.healthy,
+            lastCheck: DateTime.now(),
+            latencyMs: 10,
+          ),
+        );
       }
 
       final history = monitor.getHistory(MusicPlatform.qq);

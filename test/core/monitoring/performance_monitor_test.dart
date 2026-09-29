@@ -35,14 +35,11 @@ void main() {
 
     test('should start and stop trace', () {
       final trace = monitor.startTrace('test_trace');
-      
-      // Simulate some work
-      for (int i = 0; i < 1000; i++) {
-        // Busy work
-      }
+      final spin = Stopwatch()..start();
+      while (spin.elapsedMilliseconds < 2) {}
 
       final metric = trace.stop();
-      
+
       expect(metric.name, 'test_trace');
       expect(metric.durationMs, greaterThan(0));
     });

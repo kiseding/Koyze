@@ -106,6 +106,13 @@ class AdvancedImageLoader {
   final Dio _dio = Dio();
   final AdvancedImageCache _cache = AdvancedImageCache();
   final Map<String, Future<ImageLoadResult>> _pendingRequests = {};
+  Future<Uint8List?> Function(String url)? _debugFetcher;
+
+  /// Replaces network fetches. Pass null to restore real HTTP.
+  @visibleForTesting
+  void debugSetFetcher(Future<Uint8List?> Function(String url)? fetcher) {
+    _debugFetcher = fetcher;
+  }
 
   /// Load image with progressive display
   Future<ImageLoadResult> loadImage(
@@ -148,6 +155,23 @@ class AdvancedImageLoader {
     int? maxHeight,
     int retries = 3,
   }) async {
+    if (_debugFetcher != null) {
+      try {
+        final bytes = await _debugFetcher!(url);
+        if (bytes == null || bytes.isEmpty) {
+          return ImageLoadResult(error: 'Empty response');
+        }
+        return await _resultFromBytes(
+          url,
+          bytes,
+          maxWidth: maxWidth,
+          maxHeight: maxHeight,
+        );
+      } catch (e) {
+        return ImageLoadResult(error: e.toString());
+      }
+    }
+
     for (int attempt = 0; attempt < retries; attempt++) {
       try {
         final response = await _dio.get<Uint8List>(
@@ -163,17 +187,11 @@ class AdvancedImageLoader {
         }
 
         final bytes = response.data!;
-        
-        // Cache the bytes
-        _cache.put(url, bytes);
-
-        // Decode image
-        final image = await _decodeImage(bytes, maxWidth: maxWidth, maxHeight: maxHeight);
-
-        return ImageLoadResult(
-          image: image,
-          bytes: bytes,
-          isFromCache: false,
+        return await _resultFromBytes(
+          url,
+          bytes,
+          maxWidth: maxWidth,
+          maxHeight: maxHeight,
         );
 
       } on DioException catch (e) {
@@ -191,6 +209,24 @@ class AdvancedImageLoader {
     }
 
     return ImageLoadResult(error: 'Failed after $retries attempts');
+  }
+
+  Future<ImageLoadResult> _resultFromBytes(
+    String url,
+    Uint8List bytes, {
+    int? maxWidth,
+    int? maxHeight,
+  }) async {
+    final image = await _decodeImage(
+      bytes,
+      maxWidth: maxWidth,
+      maxHeight: maxHeight,
+    );
+    if (image == null) {
+      return ImageLoadResult(bytes: bytes, error: 'Decode failed');
+    }
+    _cache.put(url, bytes);
+    return ImageLoadResult(image: image, bytes: bytes);
   }
 
   Future<ui.Image?> _decodeImage(

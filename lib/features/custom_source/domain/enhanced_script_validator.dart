@@ -68,8 +68,28 @@ class EnhancedScriptValidator {
       );
     }
 
+    const maxScriptBytes = 2 * 1024 * 1024;
+    final metadata = <String, dynamic>{
+      'size': script.length,
+      'lines': '\n'.allMatches(script).length + 1,
+      'maxNestingDepth': _maxNestingDepth(script),
+    };
+
+    if (script.length > maxScriptBytes) {
+      metadata['entropy'] = 0.0;
+      return ValidationResult(
+        issues: [
+          SecurityIssue(
+            level: SecurityLevel.critical,
+            description: 'Script exceeds $maxScriptBytes byte size limit',
+            code: SecurityIssue.excessiveComplexity,
+          ),
+        ],
+        metadata: metadata,
+      );
+    }
+
     final issues = <SecurityIssue>[];
-    final metadata = <String, dynamic>{};
 
     // Layer 1: Static pattern analysis
     _checkDynamicExecution(script, issues);
@@ -187,6 +207,75 @@ class EnhancedScriptValidator {
         code: SecurityIssue.suspiciousObfuscation,
       ));
     }
+
+    if (RegExp(r'\\u[0-9a-fA-F]{4}').allMatches(script).length > 10) {
+      issues.add(SecurityIssue(
+        level: SecurityLevel.medium,
+        description: 'Excessive unicode escapes detected',
+        code: SecurityIssue.suspiciousObfuscation,
+      ));
+    }
+
+    if (RegExp(r'\(\s*!\s*\[\s*\]\s*\+\s*\[\s*\]\s*\)').hasMatch(script) ||
+        RegExp(r'\[\s*\+\s*!').hasMatch(script)) {
+      issues.add(SecurityIssue(
+        level: SecurityLevel.high,
+        description: 'JSFuck-style obfuscation detected',
+        code: SecurityIssue.suspiciousObfuscation,
+      ));
+    }
+
+    if (script.contains('.split("").reverse().join("")') ||
+        script.contains(".split('').reverse().join('')")) {
+      issues.add(SecurityIssue(
+        level: SecurityLevel.medium,
+        description: 'String reversal obfuscation detected',
+        code: SecurityIssue.suspiciousObfuscation,
+      ));
+    }
+
+    final bracketAccess = RegExp(r'\["[^"]+"\]').allMatches(script).length +
+        RegExp(r"\['[^']+'\]").allMatches(script).length;
+    if (bracketAccess >= 6) {
+      issues.add(SecurityIssue(
+        level: SecurityLevel.medium,
+        description: 'Excessive bracket-notation property access detected',
+        code: SecurityIssue.suspiciousObfuscation,
+      ));
+    }
+
+    if (RegExp(r'\batob\s*\(').hasMatch(script)) {
+      issues.add(SecurityIssue(
+        level: SecurityLevel.high,
+        description: 'Base64-decoded payload or URL detected',
+        code: SecurityIssue.suspiciousNetworkPattern,
+      ));
+    }
+
+    if (RegExp(r'\bnew\s+Image\s*\(').hasMatch(script) &&
+        RegExp(r'\.src\s*=').hasMatch(script)) {
+      issues.add(SecurityIssue(
+        level: SecurityLevel.high,
+        description: 'Image beacon data exfiltration detected',
+        code: SecurityIssue.suspiciousNetworkPattern,
+      ));
+    }
+  }
+
+  static int _maxNestingDepth(String script) {
+    var depth = 0;
+    var maxDepth = 0;
+    for (final code in script.codeUnits) {
+      if (code == 0x7B || code == 0x28 || code == 0x5B) {
+        depth++;
+        if (depth > maxDepth) {
+          maxDepth = depth;
+        }
+      } else if ((code == 0x7D || code == 0x29 || code == 0x5D) && depth > 0) {
+        depth--;
+      }
+    }
+    return maxDepth;
   }
 
   /// Calculates Shannon entropy to detect obfuscation.

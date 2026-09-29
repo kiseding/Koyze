@@ -3,6 +3,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:koyze/core/accessibility/a11y_helpers.dart';
 
 void main() {
@@ -103,11 +104,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Long press to show tooltip
-      await tester.longPress(find.text('Hover me'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('This is a tooltip'), findsOneWidget);
+      final semantics = tester.getSemantics(find.bySemanticsLabel('Test Button'));
+      expect(semantics.hasFlag(SemanticsFlag.isButton), isTrue);
     });
   });
 

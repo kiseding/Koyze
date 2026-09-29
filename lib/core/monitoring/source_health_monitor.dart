@@ -107,6 +107,11 @@ class SourceHealthMonitor {
     debugPrint('🏥 Health check complete: $healthy/$total sources healthy');
   }
 
+  /// Record a health sample without a network call.
+  void recordCheck(MusicPlatform platform, SourceHealth health) {
+    _updateHealth(platform, health);
+  }
+
   /// Check a specific music source.
   Future<SourceHealth> checkSource(MusicPlatform platform) async {
     final stopwatch = Stopwatch()..start();

@@ -69,6 +69,11 @@ void main() {
 
   group('ResponsiveLayout', () {
     testWidgets('should provide correct config', (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       LayoutConfig? capturedConfig;
 
       await tester.pumpWidget(

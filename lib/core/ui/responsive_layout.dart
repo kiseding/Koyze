@@ -312,16 +312,31 @@ class MusicCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return ModernCard(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 160.0;
+        final maxHeight = constraints.maxHeight;
+        final textBlockHeight = 72.0;
+        final imageHeight = maxHeight.isFinite
+            ? math.max(
+                48.0,
+                math.min(maxWidth, math.max(0.0, maxHeight - textBlockHeight)),
+              )
+            : maxWidth;
+
+        return ModernCard(
       onTap: onTap,
       padding: EdgeInsets.zero,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Cover image
-          AspectRatio(
-            aspectRatio: 1,
+          SizedBox(
+            width: double.infinity,
+            height: imageHeight,
             child: Stack(
+              fit: StackFit.expand,
               children: [
                 // Image
                 ClipRRect(
@@ -406,6 +421,8 @@ class MusicCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+      },
     );
   }
 
