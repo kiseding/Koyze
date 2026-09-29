@@ -3,6 +3,13 @@ description: Koyze - 一个免费的音乐查找助手
 publish_to: 'none'
 version: 3.0.5+36
 
+homepage: https://github.com/kiseding/koyze
+repository: https://github.com/kiseding/koyze
+issue_tracker: https://github.com/kiseding/koyze/issues
+
+# Apache 2.0 开源许可证
+license: Apache-2.0
+
 environment:
   sdk: '>=3.12.0 <4.0.0'
   flutter: '>=3.44.0'

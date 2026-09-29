@@ -33,8 +33,38 @@ jobs:
       - name: Analyze Dart and Flutter sources
         run: flutter analyze --no-fatal-infos
 
-      - name: Run deterministic Flutter tests
-        run: flutter test --exclude-tags live
+      - name: Run deterministic Flutter tests with coverage
+        run: flutter test --coverage --exclude-tags live
+
+      - name: Check coverage threshold
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lcov
+          
+          # Generate coverage report
+          lcov --summary coverage/lcov.info > coverage_summary.txt
+          cat coverage_summary.txt
+          
+          # Extract coverage percentage
+          coverage=$(lcov --summary coverage/lcov.info | grep 'lines' | grep -oP '\d+\.\d+' | head -1)
+          echo "Coverage: $coverage%"
+          
+          # Check minimum threshold (70%)
+          if (( $(echo "$coverage < 70.0" | bc -l) )); then
+            echo "::error::Coverage $coverage% is below 70% threshold"
+            exit 1
+          fi
+          
+          echo "::notice::Coverage $coverage% meets the 70% threshold"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+          flags: unittests
+          token: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
 
   workers-ci:
     runs-on: ubuntu-latest
