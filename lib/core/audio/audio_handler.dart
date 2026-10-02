@@ -33,6 +33,51 @@ typedef LazyQueueShuffleRebuilder =
 const _silentPlaceholder =
     'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 
+/// Host-dependent playback defaults.
+///
+/// Windows needs `just_audio_windows` workarounds that POSIX hosts must not
+/// apply, so these are read from [Platform] in production. They are bound
+/// through this object rather than read inline so the test suite can pin them
+/// to the non-Windows behaviour it asserts, no matter which host runs it.
+/// Reading [Platform] directly made ~46 tests pass only on non-Windows CI.
+class AudioHandlerPlatformDefaults {
+  const AudioHandlerPlatformDefaults({
+    required this.useSilenceKeepalive,
+    required this.streamLocalFiles,
+  });
+
+  /// Silence keepalive between tracks. Unsupported by `just_audio_windows`.
+  final bool useSilenceKeepalive;
+
+  /// Stream local files over just_audio's local HTTP proxy. Windows WinRT
+  /// cannot play arbitrary `file://` URIs.
+  final bool streamLocalFiles;
+
+  /// Resolved once at startup from the host platform.
+  ///
+  /// Not `const`: `Platform.isWindows` is a runtime getter, not a constant.
+  static final AudioHandlerPlatformDefaults host =
+      AudioHandlerPlatformDefaults(
+        useSilenceKeepalive: !Platform.isWindows,
+        streamLocalFiles: Platform.isWindows,
+      );
+
+  /// The non-Windows behaviour, which is what the audio tests assert.
+  static const AudioHandlerPlatformDefaults posix =
+      AudioHandlerPlatformDefaults(
+        useSilenceKeepalive: true,
+        streamLocalFiles: false,
+      );
+
+  /// Overrides [host] for subsequent handler construction. Test-only.
+  @visibleForTesting
+  static AudioHandlerPlatformDefaults current = host;
+
+  /// Restores the host-derived defaults. Test-only.
+  @visibleForTesting
+  static void resetCurrent() => current = host;
+}
+
 /// 将远程 URL 或本地 file 路径转为 just_audio 可用的 Uri。
 Uri playableUri(String url) {
   if (url.isEmpty) return Uri.parse(_silentPlaceholder);
@@ -359,6 +404,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioInterruptionPolicy _interruptionPolicy = AudioInterruptionPolicy();
   // just_audio_windows 不支持 SilenceAudioSource；Windows 切歌跳过静音过渡
   final bool _useSilenceKeepalive;
+  // Windows WinRT 播不了任意 file://，本地文件改走 just_audio 本地代理 HTTP。
+  // 与 _useSilenceKeepalive 一样做成可注入接缝：默认取平台值，测试显式指定，
+  // 这样同一套测试不依赖运行主机是 Windows 还是 POSIX。
+  final bool _streamLocalFiles;
   final List<MediaItem> _queue = [];
   final List<int> _queueOccurrenceIds = [];
   int _nextQueueOccurrenceId = 0;
@@ -862,10 +911,14 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     Duration outputRouteRecoveryTimeout = const Duration(milliseconds: 1200),
     Duration resolveTimeout = _defaultResolveTimeout,
     bool? useSilenceKeepalive,
+    bool? streamLocalFiles,
     EqualizerBridge? equalizer,
   }) : assert(player == null || playerFactory == null),
        _prepareForPlayback = prepareForPlayback,
-       _useSilenceKeepalive = useSilenceKeepalive ?? !Platform.isWindows,
+       _useSilenceKeepalive =
+           useSilenceKeepalive ?? AudioHandlerPlatformDefaults.current.useSilenceKeepalive,
+       _streamLocalFiles =
+           streamLocalFiles ?? AudioHandlerPlatformDefaults.current.streamLocalFiles,
        _outputRouteRecoveryTimeout = outputRouteRecoveryTimeout,
        _resolveTimeout = resolveTimeout {
     // 均衡器必须在播放器之前就绪：音效只能经 AudioPipeline 在构造时注入，
@@ -3337,7 +3390,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             url,
             tag: updatedItem,
             headers: requestHeaders,
-            streamLocalFiles: Platform.isWindows,
+            streamLocalFiles: _streamLocalFiles,
           ),
         );
         sourceTransitionFollows = true;

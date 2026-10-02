@@ -46,9 +46,10 @@ class TxSource extends MusicPlatform {
       if (data == null) return [];
 
       final results = await compute(_parseSearchResult, data);
+      clearFailure();
       return results;
     } catch (e) {
-      return [];
+      throw noteFailure('search', e);
     }
   }
 
@@ -205,6 +206,7 @@ class TxSource extends MusicPlatform {
       }
       return null;
     } catch (e) {
+      noteFailure('musicUrl', e);
       return null;
     }
   }
@@ -415,6 +417,7 @@ class TxSource extends MusicPlatform {
 
       return utf8.decode(base64Decode(lyricBase64));
     } catch (e) {
+      noteFailure('lyric', e);
       return null;
     }
   }
@@ -591,5 +594,6 @@ class TxSource extends MusicPlatform {
 
   void dispose() {
     _dio.close();
+    closeReusedServiceClients();
   }
 }

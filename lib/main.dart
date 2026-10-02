@@ -8,6 +8,7 @@ import 'package:koyze/core/audio/audio_handler.dart';
 import 'package:koyze/core/audio/audio_runtime.dart';
 import 'package:koyze/core/audio/playback_cache_service.dart';
 import 'package:koyze/core/logging/app_log.dart';
+import 'package:koyze/core/monitoring/monitoring_service.dart';
 import 'package:koyze/core/performance/low_memory.dart';
 import 'package:koyze/core/network/music_source_service.dart';
 import 'package:koyze/core/storage/cache_maintenance_service.dart';
@@ -74,6 +75,23 @@ Future<void> _bootstrap(
 Future<void> _bootstrapUnsafe(
   ValueNotifier<StartupBootstrapState> bootstrapStatus,
 ) async {
+  // Install diagnostics before anything else can fail. This also redirects
+  // debugPrint and registers the Flutter/platform error handlers, so every
+  // AppLog.instance.record call in this file actually stores something.
+  AppLog.instance.start();
+  // Crash capture and performance/health monitoring. Initialized after AppLog
+  // so that CrashReporter's global handlers chain onto AppLog's rather than
+  // replacing them. Kept non-fatal: monitoring must never block startup.
+  try {
+    await MonitoringService().initialize(MonitoringConfig.production);
+  } catch (error, stackTrace) {
+    AppLog.instance.record(
+      'monitoring',
+      'monitoring initialization failed: $error',
+      level: AppLogLevel.error,
+      stackTrace: stackTrace,
+    );
+  }
   await LowMemory.detect();
   await PortableMode.initialize();
   final portableRoot = PortableMode.root;

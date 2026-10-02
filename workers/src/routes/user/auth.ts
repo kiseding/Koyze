@@ -25,6 +25,43 @@ function rateLimitUnavailableResponse(): Response {
   );
 }
 
+function tooManyRequestsResponse(resetAt: number): Response {
+  return jsonResponse(
+    {
+      error: '请求过于频繁，请稍后再试',
+      retryAfter: Math.max(1, Math.ceil((resetAt - Date.now()) / 1000)),
+    },
+    429,
+  );
+}
+
+/**
+ * Rate-limit an authenticated write path that costs real CPU (PBKDF2) or
+ * creates rows. Returns a Response to short-circuit with, or null to proceed.
+ *
+ * The bucket lives in its own Durable Object shard keyed by the subject, so the
+ * budget follows the account rather than the client IP.
+ */
+async function enforceAccountWriteLimit(
+  env: Env,
+  subject: string,
+  max: number,
+  windowSeconds: number,
+): Promise<Response | null> {
+  const limiter = new RateLimiter(env.RATE_LIMITER);
+  try {
+    const result = await limiter.check(
+      subject,
+      [{ key: 'write', max, windowSeconds }],
+      `auth-write:${subject}`,
+    );
+    return result.allowed ? null : tooManyRequestsResponse(result.resetAt);
+  } catch (error) {
+    if (error instanceof RateLimiterUnavailableError) return rateLimitUnavailableResponse();
+    throw error;
+  }
+}
+
 async function selectUserByUsername(
   env: Env,
   username: string,
@@ -60,13 +97,23 @@ export async function handleUserLogin(request: Request, env: Env): Promise<Respo
   const normalized = normalizeUsername(username);
   const ip = getClientIP(request);
   const limiter = new RateLimiter(env.RATE_LIMITER);
+  // The account bucket lives in its own Durable Object shard, keyed by the
+  // account only. Sharing the per-IP shard would scope "5 attempts per minute
+  // per account" to a single client IP, so rotating IPs would grant unlimited
+  // attempts against one account.
+  const accountShard = `auth-acct:${normalized}`;
   try {
-    const rateCheck = await limiter.check(ip, [
-      { key: 'ip', max: LOGIN_IP_MAX, windowSeconds: LOGIN_WINDOW_SECONDS },
-      { key: `account:${normalized}`, max: LOGIN_ACCOUNT_MAX, windowSeconds: LOGIN_WINDOW_SECONDS },
+    const [ipCheck, accountCheck] = await Promise.all([
+      limiter.check(ip, [
+        { key: 'ip', max: LOGIN_IP_MAX, windowSeconds: LOGIN_WINDOW_SECONDS },
+      ]),
+      limiter.check(ip, [
+        { key: 'account', max: LOGIN_ACCOUNT_MAX, windowSeconds: LOGIN_WINDOW_SECONDS },
+      ], accountShard),
     ]);
+    const rateCheck = ipCheck.allowed ? accountCheck : ipCheck;
     if (!rateCheck.allowed) {
-      return jsonResponse({ error: '请求过于频繁，请稍后再试', retryAfter: Math.ceil((rateCheck.resetAt - Date.now()) / 1000) }, 429);
+      return tooManyRequestsResponse(rateCheck.resetAt);
     }
   } catch (error) {
     if (error instanceof RateLimiterUnavailableError) return rateLimitUnavailableResponse();
@@ -97,8 +144,9 @@ export async function handleUserLogin(request: Request, env: Env): Promise<Respo
 
   const token = await signToken({ sub: user.id, username: normalized, role: user.role, tv: user.token_version }, '7d', env);
 
-  // Reset only the account bucket on successful login; keep shared IP bucket.
-  await limiter.reset(ip, [`account:${normalized}`]);
+  // Reset only the account bucket on successful login; keep the shared IP
+  // bucket so one account logging in does not clear another's IP budget.
+  await limiter.reset(ip, ['account'], accountShard);
 
   return jsonResponse({ token, username, role: user.role, accountId: String(user.id) });
 }
@@ -180,6 +228,11 @@ export async function handleChangePassword(request: Request, env: Env): Promise<
 
   const ctErr = requireJsonContentType(request);
   if (ctErr) return ctErr;
+
+  // Each call runs PBKDF2 twice (verify + hash), so it needs a bound even when
+  // authenticated.
+  const limited = await enforceAccountWriteLimit(env, `user:${userId}`, 10, 600);
+  if (limited) return limited;
 
   const parsed = await readJsonBody(request);
   if (parsed instanceof Response) return parsed;
@@ -315,6 +368,9 @@ export async function handleAdminUsers(request: Request, env: Env): Promise<Resp
   if (request.method === 'POST') {
     const ctErr = requireJsonContentType(request);
     if (ctErr) return ctErr;
+    // Creating a user runs PBKDF2; bound it per admin account.
+    const limited = await enforceAccountWriteLimit(env, `admin:${userId}`, 20, 600);
+    if (limited) return limited;
     const parsed = await readJsonBody(request);
     if (parsed instanceof Response) return parsed;
     const body = parsed.body as { username?: unknown; password?: unknown };
@@ -344,6 +400,7 @@ export async function handleAdminUsers(request: Request, env: Env): Promise<Resp
     if (id === userId) return jsonResponse({ error: '不能删除自己' }, 403);
     const user = await env.DB.prepare('SELECT username, role FROM users WHERE id = ?').bind(id).first<{ username: string; role: string }>();
     if (user?.role === 'admin') return jsonResponse({ error: '不能删除管理员' }, 403);
+    if (!user) return jsonResponse({ error: '用户不存在' }, 404);
     // DELETE cascades via FK to playlists / playlist_songs / playback_progress,
     // and the next verify on a still-cached JWT will fail the user lookup,
     // so the target's active sessions are invalidated as a side effect.
@@ -357,15 +414,46 @@ export async function handleAdminUsers(request: Request, env: Env): Promise<Resp
     const parsed = await readJsonBody(request);
     if (parsed instanceof Response) return parsed;
     const body = parsed.body as { id?: unknown; password?: unknown };
-    const id = String(body.id || '');
+    const rawId = body.id;
     const password = String(body.password || '');
-    if (!id || !password) return jsonResponse({ error: '缺少参数' }, 400);
+    const id = typeof rawId === 'number'
+      ? rawId
+      : typeof rawId === 'string' && /^\d+$/.test(rawId.trim())
+        ? Number(rawId.trim())
+        : NaN;
+    if (!Number.isSafeInteger(id) || id <= 0) return jsonResponse({ error: '缺少ID' }, 400);
+    if (!password) return jsonResponse({ error: '缺少参数' }, 400);
     const pwCheck = checkPasswordLength(password);
     if (!pwCheck.ok) return jsonResponse({ error: pwCheck.reason }, 400);
+
+    const target = await env.DB.prepare('SELECT role FROM users WHERE id = ?')
+      .bind(id).first<{ role: string }>();
+    if (!target) return jsonResponse({ error: '用户不存在' }, 404);
+    // Overwriting your own credentials bumps your own token_version, which
+    // invalidates the token you are calling with. Block it explicitly rather
+    // than returning success for a request that logs the caller out.
+    if (id === userId) {
+      return jsonResponse({ error: '不能在此修改自己的密码，请使用修改密码接口' }, 403);
+    }
+    // Never remove the last remaining admin: seedAdminUser caches its result
+    // per isolate and will not recreate one, leaving the instance unmanageable.
+    if (target.role === 'admin') {
+      const otherAdmins = await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND id != ?",
+      ).bind(id).first<{ count: number }>();
+      if (Number(otherAdmins?.count ?? 0) === 0) {
+        return jsonResponse({ error: '不能修改最后一个管理员' }, 403);
+      }
+    }
+
     const hash = await hashPassword(password);
     // Bump token_version so the user is logged out everywhere.
-    await env.DB.prepare("UPDATE users SET password_hash = ?, token_version = token_version + 1, updated_at = datetime('now') WHERE id = ?")
-      .bind(hash, id).run();
+    const updated = await env.DB.prepare(
+      "UPDATE users SET password_hash = ?, token_version = token_version + 1, updated_at = datetime('now') WHERE id = ?",
+    ).bind(hash, id).run();
+    if ((updated.meta?.changes ?? 0) === 0) {
+      return jsonResponse({ error: '用户不存在' }, 404);
+    }
     return jsonResponse({ ok: true });
   }
 

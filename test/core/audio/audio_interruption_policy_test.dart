@@ -9,6 +9,10 @@ import 'package:koyze/features/player/presentation/player_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    AudioHandlerPlatformDefaults.current = AudioHandlerPlatformDefaults.posix;
+  });
+  tearDownAll(AudioHandlerPlatformDefaults.resetCurrent);
 
   test('duck lowers playback without pausing and restores user volume', () {
     final policy = AudioInterruptionPolicy();

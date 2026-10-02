@@ -151,9 +151,10 @@ class WySource extends MusicPlatform {
       if (respBody is! Map) return [];
 
       final results = await compute(_parseSearchResult, respBody);
+      clearFailure();
       return results;
     } catch (e) {
-      return [];
+      throw noteFailure('search', e);
     }
   }
 
@@ -294,6 +295,7 @@ class WySource extends MusicPlatform {
 
       return null;
     } catch (e) {
+      noteFailure('musicUrl', e);
       return null;
     }
   }
@@ -385,6 +387,7 @@ class WySource extends MusicPlatform {
 
       return lyric;
     } catch (e) {
+      noteFailure('lyric', e);
       return null;
     }
   }
@@ -528,6 +531,7 @@ class WySource extends MusicPlatform {
           playlistMap = (jsonDecode(playlistBody) as Map)
               .map((k, v) => MapEntry(k.toString(), v));
         } catch (e) {
+          noteFailure('decode', e);
           return [];
         }
       } else if (playlistBody is Map) {
@@ -578,6 +582,7 @@ class WySource extends MusicPlatform {
           detailMap = (jsonDecode(detailBody) as Map)
               .map((k, v) => MapEntry(k.toString(), v));
         } catch (e) {
+          noteFailure('decode', e);
           return [];
         }
       } else if (detailBody is Map) {
@@ -598,6 +603,7 @@ class WySource extends MusicPlatform {
 
       return _filterLeaderboardTracks(songs, privileges);
     } catch (e) {
+      noteFailure('leaderboard', e);
       return [];
     }
   }
@@ -663,5 +669,6 @@ class WySource extends MusicPlatform {
 
   void dispose() {
     _dio.close();
+    closeReusedServiceClients();
   }
 }

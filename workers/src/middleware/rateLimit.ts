@@ -21,12 +21,23 @@ export class RateLimiterUnavailableError extends Error {
 export class RateLimiter {
   constructor(private readonly binding: DurableObjectNamespace) {}
 
-  async check(ip: string, limits: RateLimitRule[]): Promise<RateLimitResult> {
+  /**
+   * @param shard Durable Object shard to keep the counters in. Defaults to the
+   *   client IP. Pass a distinct shard for account-scoped buckets: sharing the
+   *   IP shard would scope an `account:<name>` bucket to whichever IP happened
+   *   to send the request, letting an attacker rotate IPs to get unlimited
+   *   attempts against one account.
+   */
+  async check(
+    ip: string,
+    limits: RateLimitRule[],
+    shard: string = `auth-ip:${ip}`,
+  ): Promise<RateLimitResult> {
     try {
       if (!this.binding || typeof this.binding.idFromName !== 'function') {
         throw new Error('RATE_LIMITER binding unavailable');
       }
-      const stub = this.binding.get(this.binding.idFromName(`auth-ip:${ip}`));
+      const stub = this.binding.get(this.binding.idFromName(shard));
       const response = await stub.fetch('https://rate/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -44,9 +55,13 @@ export class RateLimiter {
     }
   }
 
-  async reset(ip: string, keys: string[]): Promise<void> {
+  async reset(
+    ip: string,
+    keys: string[],
+    shard: string = `auth-ip:${ip}`,
+  ): Promise<void> {
     try {
-      const stub = this.binding.get(this.binding.idFromName(`auth-ip:${ip}`));
+      const stub = this.binding.get(this.binding.idFromName(shard));
       const response = await stub.fetch('https://rate/reset', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },

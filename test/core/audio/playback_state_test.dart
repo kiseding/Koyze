@@ -9,6 +9,10 @@ import 'package:koyze/core/audio/playback_cache_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    AudioHandlerPlatformDefaults.current = AudioHandlerPlatformDefaults.posix;
+  });
+  tearDownAll(AudioHandlerPlatformDefaults.resetCurrent);
 
   test('just_audio processing states map to audio_service states', () {
     expect(
@@ -1775,7 +1779,9 @@ void main() {
     final item = handler.mediaItem.value;
     expect(item, isNotNull);
     expect(item!.artUri, local);
-    expect(item.extras?['artCacheFile'], '/tmp/cache/art.png');
+    // Compare against the native path URI.file() produces on this host: a
+    // hard-coded '/tmp/cache/art.png' is POSIX-only.
+    expect(item.extras?['artCacheFile'], local.toFilePath());
   });
 
   test('patchQueueArtUri fills artCacheFile when artUri already matches',
@@ -1793,7 +1799,10 @@ void main() {
     handler.patchQueueArtUri('A', local);
 
     expect(handler.mediaItem.value?.artUri, local);
-    expect(handler.mediaItem.value?.extras?['artCacheFile'], '/tmp/cache/art.png');
+    expect(
+      handler.mediaItem.value?.extras?['artCacheFile'],
+      local.toFilePath(),
+    );
   });
 
   test('patchQueueArtUri writes artCacheFile on an upcoming queue item',
@@ -1816,7 +1825,7 @@ void main() {
     handler.patchQueueArtUri('B', local);
 
     expect(handler.queueItems[1].artUri, local);
-    expect(handler.queueItems[1].extras?['artCacheFile'], '/tmp/cache/b.jpg');
+    expect(handler.queueItems[1].extras?['artCacheFile'], local.toFilePath());
     expect(handler.mediaItem.value?.id, 'A');
   });
 
@@ -1840,15 +1849,16 @@ void main() {
       ),
     ]);
     await started.future;
-    handler.patchQueueArtUri('A', Uri.file('/tmp/cache/a.jpg'));
-    expect(handler.mediaItem.value?.extras?['artCacheFile'], '/tmp/cache/a.jpg');
+    final localArt = Uri.file('/tmp/cache/a.jpg');
+    handler.patchQueueArtUri('A', localArt);
+    expect(handler.mediaItem.value?.extras?['artCacheFile'], localArt.toFilePath());
     release.complete();
     await loading;
     await pumpEventQueue();
 
     expect(handler.mediaItem.value?.id, 'A');
     expect(handler.mediaItem.value?.extras?['url'], 'file:///tmp/A.mp3');
-    expect(handler.mediaItem.value?.extras?['artCacheFile'], '/tmp/cache/a.jpg');
+    expect(handler.mediaItem.value?.extras?['artCacheFile'], localArt.toFilePath());
     expect(player.sourceLoadCalls, greaterThan(0));
   });
 
@@ -1881,13 +1891,14 @@ void main() {
       ),
     ]);
     await preloadStarted.future;
-    handler.patchQueueArtUri('B', Uri.file('/tmp/cache/b.jpg'));
+    final preloadArt = Uri.file('/tmp/cache/b.jpg');
+    handler.patchQueueArtUri('B', preloadArt);
     releasePreload.complete();
     await pumpEventQueue();
 
     expect(handler.queueItems[1].extras?['url'], 'https://cdn.example/B.mp3');
-    expect(handler.queueItems[1].extras?['artCacheFile'], '/tmp/cache/b.jpg');
-    expect(handler.queueItems[1].artUri, Uri.file('/tmp/cache/b.jpg'));
+    expect(handler.queueItems[1].extras?['artCacheFile'], preloadArt.toFilePath());
+    expect(handler.queueItems[1].artUri, preloadArt);
   });
 }
 

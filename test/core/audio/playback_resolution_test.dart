@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
@@ -8,6 +9,17 @@ import 'package:koyze/core/audio/audio_handler.dart';
 import 'package:koyze/core/audio/playback_cache_service.dart';
 import 'package:koyze/core/network/play_url_result.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
+
+/// Host-native spelling of a cache path.
+///
+/// A cached path reaches `acquireExisting`/`classifyExisting` after
+/// round-tripping through `PlaybackCacheService.toPlayableUri` (file URI) and
+/// the cache's `_normalizeAbsolute`, which rewrites separators for the host:
+/// `/cache/a.mp3` arrives as `\cache\a.mp3` on Windows. Assertions must compare
+/// against the native separator rather than the POSIX spelling they were
+/// written with. Only separators change, so this must not absolutize the path.
+String nativeCachePath(String path) =>
+    path.replaceAll('/', Platform.pathSeparator);
 
 MusicItem _item({
   String id = 'song-a',
@@ -59,6 +71,10 @@ class _FakeLease {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    AudioHandlerPlatformDefaults.current = AudioHandlerPlatformDefaults.posix;
+  });
+  tearDownAll(AudioHandlerPlatformDefaults.resetCurrent);
 
   group('PlaybackUrlResolver', () {
     test('denied QQ HTTP media never reaches the native player', () async {
@@ -890,7 +906,7 @@ void main() {
 
       await handler.setPlaylist([_cachedItem('preloaded', lease.path)]);
 
-      expect(acquired, [lease.path]);
+      expect(acquired, [nativeCachePath(lease.path)]);
       expect(player.sourceInstallCount, 1);
       expect(lease.releaseCount, 0);
       },
@@ -931,8 +947,9 @@ void main() {
       });
       final replacement = _FakeLease('/cache/new.mp3', 'new', (_) {});
       handler.attachPlaybackCache(
-        acquireExisting: (path) async =>
-            path == old.path ? old.asLease() : replacement.asLease(),
+        acquireExisting: (path) async => path == nativeCachePath(old.path)
+            ? old.asLease()
+            : replacement.asLease(),
       );
 
       await handler.setPlaylist([
@@ -1131,7 +1148,7 @@ void main() {
       handler.attachPlaybackCache(
         classifyExisting: (path) async {
           classifyCalls++;
-          expect(path, '/cache/new.mp3');
+          expect(path, nativeCachePath('/cache/new.mp3'));
           return const RejectedPlaybackCachePath();
         },
       );

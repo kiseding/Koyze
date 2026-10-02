@@ -23,13 +23,13 @@ export class RateLimiterDO implements DurableObject {
     if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
 
     const body = await request.json<CheckBody>();
-    if (!Array.isArray(body.limits) || body.limits.length !== 2) {
+    if (!Array.isArray(body.limits) || body.limits.length < 1 || body.limits.length > 2) {
       return Response.json({ error: 'Invalid limits' }, { status: 400 });
     }
     const now = Date.now();
     const active = new Map<string, Bucket>();
     for (const rule of body.limits) {
-      if (!/^(ip|account:[\w\-一-鿿]{1,32})$/u.test(rule.key)
+      if (!/^(ip|account|account:[\w\-一-鿿]{1,32})$/u.test(rule.key)
           || !Number.isInteger(rule.max) || rule.max < 1
           || !Number.isInteger(rule.windowSeconds) || rule.windowSeconds < 1) {
         return Response.json({ error: 'Invalid limit rule' }, { status: 400 });
@@ -40,7 +40,8 @@ export class RateLimiterDO implements DurableObject {
         : { count: 0, resetAt: now + rule.windowSeconds * 1000 });
     }
 
-    const accountRule = body.limits.find((rule) => rule.key.startsWith('account:'))!;
+    const accountRule = body.limits.find((rule) => rule.key === 'account' || rule.key.startsWith('account:'));
+    if (accountRule) {
     const accountStorageKey = `bucket:${accountRule.key}`;
     if (!(await this.state.storage.get(accountStorageKey))) {
       // storage.list is paginated; walk pages so capacity counts every account bucket.
@@ -70,6 +71,7 @@ export class RateLimiterDO implements DurableObject {
           limitedBy: 'capacity',
         });
       }
+    }
     }
 
     for (const rule of body.limits) {

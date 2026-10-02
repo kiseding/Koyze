@@ -8,6 +8,13 @@ import 'package:koyze/core/audio/audio_handler.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // Behavioural assertions below describe non-Windows playback (local files stay
+  // ProgressiveAudioSource). Pin the host-derived defaults so the suite does not
+  // depend on which OS runs it.
+  setUpAll(() {
+    AudioHandlerPlatformDefaults.current = AudioHandlerPlatformDefaults.posix;
+  });
+  tearDownAll(AudioHandlerPlatformDefaults.resetCurrent);
 
   test(
     'local progressive sources request precise darwin timing for flac seek',
@@ -33,7 +40,15 @@ void main() {
       expect(handler, contains('DarwinAssetOptions'));
       expect(sourceFactory, contains('ProgressiveAudioSource('));
       expect(sourceFactory, isNot(contains('AudioSource.file(')));
-      expect(handler, contains('streamLocalFiles: Platform.isWindows'));
+      // The production default must stay host-derived (Windows streams local
+      // files through the proxy); the handler reads it from the injectable
+      // AudioHandlerPlatformDefaults seam rather than inline Platform calls.
+      expect(handler, contains('AudioHandlerPlatformDefaults.current.streamLocalFiles'));
+      expect(handler, contains('AudioHandlerPlatformDefaults.current.useSilenceKeepalive'));
+      expect(
+        handler,
+        contains('streamLocalFiles: Platform.isWindows,'),
+      );
     },
   );
 

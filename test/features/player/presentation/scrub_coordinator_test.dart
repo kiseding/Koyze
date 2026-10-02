@@ -10,6 +10,10 @@ import 'package:koyze/features/player/presentation/player_provider.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    AudioHandlerPlatformDefaults.current = AudioHandlerPlatformDefaults.posix;
+  });
+  tearDownAll(AudioHandlerPlatformDefaults.resetCurrent);
 
   test('loading seek unfreezes to current engine position without resuming',
       () async {

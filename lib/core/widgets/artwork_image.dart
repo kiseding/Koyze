@@ -219,6 +219,30 @@ class ArtworkBytesLoader {
   }
 }
 
+/// Physical pixels to decode a cover at. Explicit [cacheWidth] wins.
+/// Otherwise the layout width is scaled by the device pixel ratio and capped
+/// so a 1000×1000 CDN image is not decoded at full size for a list tile.
+int artworkCachePixels({
+  required int? cacheWidth,
+  required double? width,
+  required double maxConstraintWidth,
+  required double devicePixelRatio,
+}) {
+  if (cacheWidth != null && cacheWidth > 0) return cacheWidth;
+  final logical = width != null && width.isFinite && width > 0
+      ? width
+      : (maxConstraintWidth.isFinite && maxConstraintWidth > 0
+            ? maxConstraintWidth
+            : 320.0);
+  final ratio = devicePixelRatio.isFinite && devicePixelRatio > 0
+      ? devicePixelRatio
+      : 1.0;
+  final pixels = (logical * ratio).round();
+  if (pixels < 1) return 1;
+  if (pixels > 1080) return 1080;
+  return pixels;
+}
+
 class ArtworkImage extends StatelessWidget {
   final String url;
   final BoxFit fit;
@@ -241,16 +265,25 @@ class ArtworkImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = ArtworkNetworkImage(url);
-    return Image(
-      image: cacheWidth == null
-          ? provider
-          : ResizeImage.resizeIfNeeded(cacheWidth, null, provider),
-      fit: fit,
-      width: width,
-      height: height,
-      errorBuilder: errorBuilder,
-      frameBuilder: frameBuilder,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pixels = artworkCachePixels(
+          cacheWidth: cacheWidth,
+          width: width,
+          maxConstraintWidth: constraints.maxWidth,
+          devicePixelRatio:
+              MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1,
+        );
+        final provider = ArtworkNetworkImage(url);
+        return Image(
+          image: ResizeImage.resizeIfNeeded(pixels, null, provider),
+          fit: fit,
+          width: width,
+          height: height,
+          errorBuilder: errorBuilder,
+          frameBuilder: frameBuilder,
+        );
+      },
     );
   }
 }

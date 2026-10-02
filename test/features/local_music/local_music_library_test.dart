@@ -626,7 +626,7 @@ void main() {
 
       await LocalMusicScanner().scanDirectory(
         root.path,
-        shouldSkip: (path) {
+        shouldSkip: (path) async {
           visited.add(path);
           return true;
         },

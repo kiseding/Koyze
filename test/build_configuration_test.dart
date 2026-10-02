@@ -195,7 +195,10 @@ void main() {
     ).readAsStringSync();
 
     expect(handler, contains('useSilenceKeepalive'));
-    expect(handler, contains('!Platform.isWindows'));
+    // Host-derived defaults now live in one seam so tests can pin them; the
+    // production values must still come from the platform.
+    expect(handler, contains('useSilenceKeepalive: !Platform.isWindows'));
+    expect(handler, contains('streamLocalFiles: Platform.isWindows'));
     expect(handler, contains('useProxyForRequestHeaders: Platform.isWindows'));
   });
 

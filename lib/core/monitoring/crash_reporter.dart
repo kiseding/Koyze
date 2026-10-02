@@ -11,6 +11,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../logging/app_log.dart';
+
 /// Error severity levels
 enum ErrorSeverity { fatal, error, warning, info, debug }
 
@@ -58,6 +60,8 @@ class CrashReporter {
 
   final List<CrashReport> _localReports = [];
   final int _maxLocalReports = 100;
+  final List<Map<String, dynamic>> _breadcrumbs = [];
+  final int _maxBreadcrumbs = 100;
   
   bool _isInitialized = false;
   String? _userId;
@@ -164,9 +168,20 @@ class CrashReporter {
 
   /// Add breadcrumb (user action trail)
   void addBreadcrumb(String message, {Map<String, dynamic>? data}) {
-    // TODO: Implement breadcrumb trail
-    debugPrint('🍞 Breadcrumb: $message');
+    _breadcrumbs.add({
+      'timestamp': DateTime.now().toIso8601String(),
+      'message': message,
+      if (data != null && data.isNotEmpty) 'data': data,
+    });
+    if (_breadcrumbs.length > _maxBreadcrumbs) {
+      _breadcrumbs.removeRange(0, _breadcrumbs.length - _maxBreadcrumbs);
+    }
+    AppLog.instance.record('breadcrumb', message);
   }
+
+  /// Recent user-action trail, oldest first.
+  List<Map<String, dynamic>> get breadcrumbs =>
+      List.unmodifiable(_breadcrumbs);
 
   /// Get all local reports
   List<CrashReport> getReports({
@@ -195,6 +210,13 @@ class CrashReporter {
     return _localReports.map((r) => r.toJson()).toList();
   }
 
+  /// Export the full crash report bundle, including the breadcrumb trail that
+  /// leads up to the most recent reports.
+  Map<String, dynamic> exportBundle() => {
+        'reports': exportReports(),
+        'breadcrumbs': breadcrumbs,
+      };
+
   /// Clear local reports
   void clearReports() {
     _localReports.clear();
@@ -214,13 +236,21 @@ class CrashReporter {
   }
 
   Future<void> _sendToService(CrashReport report) async {
-    // TODO: Implement integration with crash reporting service
-    // Example: Sentry, Firebase Crashlytics, custom endpoint
-    
-    // For now, just log
-    if (report.severity == ErrorSeverity.fatal || report.severity == ErrorSeverity.error) {
-      debugPrint('📤 Would send crash report to service: ${report.id}');
-    }
+    // There is no remote crash backend configured. Reports are retained in
+    // memory (see getReports/exportReports) *and* mirrored into AppLog so the
+    // in-app diagnostics screen and the redacted log ring show the same event.
+    // Wire a real backend here (Sentry, Crashlytics, a Koyze Workers endpoint)
+    // if remote reporting is ever added.
+    AppLog.instance.record(
+      'crash',
+      'severity=${report.severity.name} id=${report.id} '
+          'exception=${report.exception}',
+      level: report.severity == ErrorSeverity.info ||
+              report.severity == ErrorSeverity.debug
+          ? AppLogLevel.info
+          : AppLogLevel.error,
+      stackTrace: report.stackTrace,
+    );
   }
 }
 

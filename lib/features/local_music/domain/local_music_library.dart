@@ -277,7 +277,7 @@ class LocalMusicLibrary {
     }
     for (final path in stalePaths) {
       _files.remove(path);
-      _scrapeStore.discard(path);
+      _scrapeStore.discard(normalizeLocalMusicPath(path));
     }
     await Future.wait([_persistIndex(), _scrapeStore.flush()]);
     LocalMusicDebugLog.info(
@@ -371,7 +371,7 @@ class LocalMusicLibrary {
     );
     for (final path in missing) {
       _files.remove(path);
-      _scrapeStore.discard(path);
+      _scrapeStore.discard(normalizeLocalMusicPath(path));
     }
     await Future.wait([_persistIndex(), _scrapeStore.flush()]);
   }
@@ -399,16 +399,21 @@ class LocalMusicLibrary {
     final tracks = await _scanner.scanDirectory(
       directoryPath,
       onDiscoveredPath: discoveredPaths.add,
-      shouldSkip: (path) {
+      shouldSkip: (path) async {
         final entry = _files[path];
         if (entry == null) return false;
+        // Scrape identities may be keyed with either separator; normalize so a
+        // stale identity is actually discarded on the host that stored it.
+        final scrapeKey = normalizeLocalMusicPath(path);
         try {
-          final stat = File(path).statSync();
+          // Async stat: statSync ran once per file on the UI isolate and froze
+          // the app while a large library was being re-scanned.
+          final stat = await File(path).stat();
           final indexedModified = DateTime.tryParse(
             entry['modifiedAt']?.toString() ?? '',
           );
           if (entry['size'] != stat.size || indexedModified != stat.modified) {
-            _scrapeStore.discard(path);
+            _scrapeStore.discard(scrapeKey);
             invalidatedChanged++;
             LocalMusicDebugLog.warning(
               'library.file_changed',
@@ -423,7 +428,7 @@ class LocalMusicLibrary {
           );
           return false;
         }
-        final identity = _scrapeStore.identityOf(path);
+        final identity = _scrapeStore.identityOf(scrapeKey);
         final hasLyrics = identity?['lyrics']?.toString().isNotEmpty == true;
         final hasArtwork = identity?['artwork']?.toString().isNotEmpty == true;
         // 歌词和封面分别刮削；不能因为已有歌词就跳过缺封面的文件。
@@ -470,12 +475,21 @@ class LocalMusicLibrary {
         LocalMusicDebugLog.indexedFile(_files[track.path]!),
       );
     }
-    final prefix = directoryPath.endsWith(Platform.pathSeparator)
-        ? directoryPath
-        : '$directoryPath${Platform.pathSeparator}';
+    // Stale detection must not depend on path separators: index keys can be
+    // stored with '/' (e.g. from `Directory.systemTemp.createTemp` or a
+    // content URI) while this prefix used `Platform.pathSeparator`. On Windows
+    // that mismatch made `startsWith` false for every entry, so deleted files
+    // were never pruned from the library index. Normalize both sides.
+    final prefix = normalizeLocalMusicPath(directoryPath);
+    final normalizedDiscovered = discoveredPaths
+        .map(normalizeLocalMusicPath)
+        .toSet();
     final stalePaths = _files.keys
         .where(
-          (path) => path.startsWith(prefix) && !discoveredPaths.contains(path),
+          (path) => normalizeLocalMusicPath(
+            path,
+          ).startsWith(prefix) &&
+              !normalizedDiscovered.contains(normalizeLocalMusicPath(path)),
         )
         .toList(growable: false);
     if (stalePaths.isNotEmpty) {
@@ -486,7 +500,7 @@ class LocalMusicLibrary {
     }
     for (final path in stalePaths) {
       _files.remove(path);
-      _scrapeStore.discard(path);
+      _scrapeStore.discard(normalizeLocalMusicPath(path));
     }
     await Future.wait([_persistIndex(), _scrapeStore.flush()]);
     LocalMusicDebugLog.info(
@@ -827,3 +841,14 @@ class LocalMusicLibrary {
     return '128k';
   }
 }
+
+/// Canonical form of a local-music path for comparison purposes.
+///
+/// Backslashes are folded to '/' so that a path stored with either separator
+/// compares equal to a scan-discovered path. Index keys have historically been
+/// written both ways (a picked directory keeps whatever the platform returned,
+/// while `Directory.systemTemp.createTemp` yields '/'), and comparing raw
+/// strings silently disabled stale-entry pruning on Windows.
+String normalizeLocalMusicPath(String path) =>
+    path.replaceAll(r'\', '/');
+

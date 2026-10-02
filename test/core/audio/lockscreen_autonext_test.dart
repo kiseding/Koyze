@@ -8,6 +8,10 @@ import 'package:koyze/core/audio/audio_handler.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    AudioHandlerPlatformDefaults.current = AudioHandlerPlatformDefaults.posix;
+  });
+  tearDownAll(AudioHandlerPlatformDefaults.resetCurrent);
 
   late LxAudioHandler handler;
   late _CompletionAudioPlayer player;

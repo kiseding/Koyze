@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/audio/playback_cache_service.dart';
+import 'package:koyze/core/network/source_media_transport.dart';
+import 'package:koyze/core/network/source_request_policy.dart';
 
 class _RangeResponseAdapter implements HttpClientAdapter {
   _RangeResponseAdapter(this.response);
@@ -129,6 +131,43 @@ void main() {
     expect(adapter.closeCalls, 0);
     dio.close(force: true);
     expect(adapter.closeCalls, 1);
+  });
+
+  test('built-in downloads reject a public name that resolves privately', () async {
+    var lookups = 0;
+    var connections = 0;
+    final service = PlaybackCacheService(
+      cacheRootOverride: tempDir.path,
+      indexStore: MemoryPlaybackCacheIndexStore(),
+      sourceMediaTransport: SourceMediaTransport(
+        sandbox: SourceStreamSandbox(
+          policy: SourceRequestPolicy(
+            resolve: (host) async {
+              lookups++;
+              return [InternetAddress('127.0.0.1')];
+            },
+          ),
+          transport: (request, cancellation) async {
+            connections++;
+            throw StateError('private destination was contacted');
+          },
+        ),
+      ),
+    );
+    await service.init();
+    try {
+      final lease = await service.acquireOrDownload(
+        remoteUrl: 'https://cdn.example/song.mp3',
+        platform: 'tx',
+        songId: 'ssrf-builtin',
+        quality: '128k',
+      );
+      expect(lease, isNull);
+      expect(lookups, 1);
+      expect(connections, 0);
+    } finally {
+      await service.dispose();
+    }
   });
 
   test('stream validation requires a ranged audio response', () async {

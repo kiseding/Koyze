@@ -733,6 +733,10 @@ class PlaybackCacheService {
        _protectFile = protectFile ?? ensureBackgroundReadable,
        _sourceMediaTransport = sourceMediaTransport ?? SourceMediaTransport();
 
+  /// Production downloads go through [SourceMediaTransport], which refuses
+  /// private and link-local addresses. Tests inject [dio] or [downloader].
+  bool get _usesPolicyTransport => _ownsDio && _downloader == null;
+
   static Dio _createDownloadDio() {
     return AppHttpClient.create(
       options: BaseOptions(
@@ -971,24 +975,37 @@ class PlaybackCacheService {
     if (_disposed) return false;
     final url = normalizeMediaUrl(remoteUrl);
     try {
-      if (fromCustomSource) {
+      if (fromCustomSource || _usesPolicyTransport) {
+        final responseHeaders = <String, String>{};
         final bytes = await _sourceMediaTransport.read(
           url,
           maximumBytes: 65536,
           requiredStatusCode: 206,
+          responseHeaders: responseHeaders,
           headers: {
             ...mediaRequestHeaders(url, platform),
             'Range': 'bytes=0-65535',
             'Accept-Encoding': 'identity',
           },
         );
-        return bytes.isNotEmpty &&
-            !_looksLikeNonAudio(bytes.take(64).toList(growable: false)) &&
-            extensionFromBytes(
-                  bytes.take(64).toList(growable: false),
-                  fallback: '.audio',
-                ) !=
-                '.audio';
+        final header = bytes.take(64).toList(growable: false);
+        if (bytes.isEmpty ||
+            _looksLikeNonAudio(header) ||
+            extensionFromBytes(header, fallback: '.audio') == '.audio') {
+          return false;
+        }
+        if (fromCustomSource) return true;
+        final range = RegExp(
+          r'^bytes 0-(\d+)/(\d+)$',
+        ).firstMatch((responseHeaders['content-range'] ?? '').trim());
+        if (range == null) return false;
+        final end = int.tryParse(range.group(1)!);
+        final total = int.tryParse(range.group(2)!);
+        return end != null &&
+            total != null &&
+            total > 0 &&
+            end >= 0 &&
+            bytes.length == end + 1;
       }
       final response = await _dio.get<List<int>>(
         url,
@@ -1495,7 +1512,7 @@ class PlaybackCacheService {
       );
       if (_downloader != null) {
         await _downloader(downloadUrl, safePartPath, cancelToken: token);
-      } else if (fromCustomSource) {
+      } else if (fromCustomSource || _usesPolicyTransport) {
         await _sourceMediaTransport.download(
           downloadUrl,
           safePartPath,

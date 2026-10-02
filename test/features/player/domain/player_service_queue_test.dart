@@ -13,6 +13,13 @@ import 'package:koyze/features/player/domain/player_service.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // The audio assertions in this file describe non-Windows behaviour (silence
+  // keepalive installed, local files not routed through the HTTP proxy). Pin the
+  // host-derived defaults so the suite is independent of the test host.
+  setUpAll(() {
+    AudioHandlerPlatformDefaults.current = AudioHandlerPlatformDefaults.posix;
+  });
+  tearDownAll(AudioHandlerPlatformDefaults.resetCurrent);
   audioHandler = BaseAudioHandler();
 
   late AudioHandler originalAudioHandler;

@@ -79,9 +79,10 @@ class KwSource extends MusicPlatform {
 
       // 使用 compute 在后台线程解析，防止 UI 卡顿
       final results = await compute(_parseSearchResult, data);
+      clearFailure();
       return results;
     } catch (e) {
-      return [];
+      throw noteFailure('search', e);
     }
   }
 
@@ -178,6 +179,7 @@ class KwSource extends MusicPlatform {
       }
       return null;
     } catch (e) {
+      noteFailure('artwork', e);
       return null;
     }
   }
@@ -437,10 +439,9 @@ class KwSource extends MusicPlatform {
           'Referer': 'https://www.kuwo.cn/',
         },
       );
-      lyricDio.options.responseType = ResponseType.bytes;
-
       final response = await lyricDio.get(
         '$kuwoLyricEndpoint?$params',
+        options: Options(responseType: ResponseType.bytes),
       );
 
       final data = response.data;
@@ -512,6 +513,7 @@ class KwSource extends MusicPlatform {
           .where((m) => m.id.isNotEmpty)
           .toList();
     } catch (e) {
+      noteFailure('searchSongLists', e);
       return [];
     }
   }
@@ -553,6 +555,7 @@ class KwSource extends MusicPlatform {
           .whereType<MusicItem>()
           .toList();
     } catch (e) {
+      noteFailure('songListDetail', e);
       return [];
     }
   }
@@ -709,6 +712,7 @@ class KwSource extends MusicPlatform {
 
   void dispose() {
     _dio.close();
+    closeReusedServiceClients();
   }
 
   /// 以固定的最大并发数处理一个列表，保持返回顺序与输入一致。

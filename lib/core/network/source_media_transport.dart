@@ -97,6 +97,7 @@ final class SourceMediaTransport {
     required Map<String, String> headers,
     required int maximumBytes,
     int? requiredStatusCode,
+    Map<String, String>? responseHeaders,
   }) async {
     final response = await _sandbox.open(Uri.parse(url), {
       'method': 'GET',
@@ -110,6 +111,10 @@ final class SourceMediaTransport {
       }
       if (requiredStatusCode != null && status != requiredStatusCode) {
         throw MediaTransferHttpException(status);
+      }
+      if (responseHeaders != null) {
+        final range = response.header('content-range');
+        if (range != null) responseHeaders['content-range'] = range;
       }
       final declared = int.tryParse(response.header('content-length') ?? '');
       if (declared != null && declared > maximumBytes) {
