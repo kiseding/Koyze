@@ -339,7 +339,7 @@ class ArtworkNetworkImage extends ImageProvider<ArtworkNetworkImage> {
           throw Exception('ArtworkNetworkImage empty local file: $uri');
         }
         final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-        return decode(buffer);
+        return await decode(buffer);
       }
       // Prefer 12h disk cache (shared with lock-screen art download).
       Uint8List? bytes = await ArtworkDiskCache.instance.bytesForUrl(
@@ -389,14 +389,14 @@ class ArtworkNetworkImage extends ImageProvider<ArtworkNetworkImage> {
       }
 
       final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-      return decode(buffer);
+      return await decode(buffer);
     } catch (e) {
       scheduleMicrotask(() {
         PaintingBinding.instance.imageCache.evict(key);
       });
       rethrow;
     } finally {
-      chunkEvents.close();
+      await chunkEvents.close();
     }
   }
 

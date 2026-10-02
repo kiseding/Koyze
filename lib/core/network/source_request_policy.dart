@@ -443,9 +443,11 @@ class SourceRequestSandbox {
         ]);
         if (cancel.isCancelled) _throwCancelled();
         final transportFuture = transport(request, cancel);
-        transportFuture.then((lateResponse) {
-          if (cancel.isCancelled) lateResponse.close();
-        }, onError: (_) {});
+        unawaited(
+          transportFuture.then((lateResponse) {
+            if (cancel.isCancelled) lateResponse.close();
+          }, onError: (_) {}),
+        );
         if (cancel.isCancelled) _throwCancelled();
         final response = await Future.any([
           transportFuture.timeout(
@@ -612,11 +614,13 @@ class SourceRequestSandbox {
       );
       unawaited(subscription.cancel());
     });
-    cancellation.future.then((reason) {
-      completeError(SourceRequestPolicyException('cancelled', reason));
-      unawaited(subscription.cancel());
-      response.close();
-    });
+    unawaited(
+      cancellation.future.then((reason) {
+        completeError(SourceRequestPolicyException('cancelled', reason));
+        unawaited(subscription.cancel());
+        response.close();
+      }),
+    );
 
     try {
       final result = await done.future;

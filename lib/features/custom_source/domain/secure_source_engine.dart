@@ -92,8 +92,8 @@ class SecureSourceEngine {
       if (!completer.isCompleted) {
         completer.complete(result);
       }
-      
-      return completer.future;
+
+      return await completer.future;
     } catch (e) {
       _executionTimer?.cancel();
       _totalExecutionTime.stop();
@@ -110,8 +110,8 @@ class SecureSourceEngine {
       if (!completer.isCompleted) {
         completer.completeError(e);
       }
-      
-      return completer.future;
+
+      return await completer.future;
     }
   }
 

@@ -39,7 +39,9 @@ class SubsonicStore {
   Future<String?> loadPassword(String baseUrl) async {
     if (baseUrl.trim().isEmpty) return null;
     try {
-      return _tokenStore.read(originTokenKey(subsonicPasswordNamespace, baseUrl));
+      return await _tokenStore.read(
+        originTokenKey(subsonicPasswordNamespace, baseUrl),
+      );
     } catch (_) {
       return null;
     }

@@ -366,7 +366,7 @@ final class SyncPhase1Service {
         await identity.markFirstLoginCompleted(accountId);
       }
       await identity.markFirstLoginUsed();
-      return SyncReport.fromCurrentState(
+      return await SyncReport.fromCurrentState(
         deviceId: account.deviceId,
         playlists: _playlists!,
         ratings: _ratings!,

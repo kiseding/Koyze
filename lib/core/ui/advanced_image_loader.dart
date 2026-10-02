@@ -145,7 +145,7 @@ class AdvancedImageLoader {
       final result = await future;
       return result;
     } finally {
-      _pendingRequests.remove(url);
+      _pendingRequests.remove(url)?.ignore();
     }
   }
 

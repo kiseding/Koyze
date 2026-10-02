@@ -158,7 +158,7 @@ class ArtworkDiskCache {
         if (bytes.isEmpty) continue;
         // Cache under the originally requested URL so a 404ing 1000px
         // scrape result still hits on the next lookup.
-        return put(requested, bytes);
+        return await put(requested, bytes);
       } catch (error) {
         lastError = error;
       }

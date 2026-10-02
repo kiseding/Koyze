@@ -59,10 +59,12 @@ class SourcePinnedTransport {
       closeDio(dio);
     }
 
-    cancellation.future.then((reason) {
-      cancelToken.cancel(reason);
-      close();
-    });
+    unawaited(
+      cancellation.future.then((reason) {
+        cancelToken.cancel(reason);
+        close();
+      }),
+    );
     if (cancellation.isCancelled) {
       close();
       _throwCancelled();
@@ -134,7 +136,7 @@ class SourcePinnedTransport {
       client.close(force: true);
     }
 
-    cancellation.future.then((_) => close());
+    unawaited(cancellation.future.then((_) => close()));
 
     try {
       final httpRequest = await client
