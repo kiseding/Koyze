@@ -412,6 +412,8 @@ class _FullPlayerArtworkSwitcherState extends State<_FullPlayerArtworkSwitcher>
     if (artwork == null || artwork.isEmpty) return widget.fallback();
     return ArtworkImage(
       artwork,
+      // 与飞行封面同一解码宽度，交接时不会换一张更糊或更锐的图。
+      cacheWidth: 1080,
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => widget.fallback(),
     );
@@ -596,6 +598,8 @@ class _RouteArtworkMorphOverlay extends StatelessWidget {
     final Widget child = artwork != null && artwork!.isNotEmpty
         ? ArtworkImage(
             artwork!,
+            // 矩形每帧都在变。若按当前宽度重新解码，封面会一帧一张图，看起来一直在闪。
+            cacheWidth: 1080,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => fallback(),
           )
