@@ -985,17 +985,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // overlay（飞行封面/播放按钮）只在"打开已完成"时让位正文；
         // 一旦进入关闭/手势驱动则全程可见（封面/按钮随进度完整归位）。
         final closing = animating || playerRouteDismissLocked;
-        // 仅关闭时：前 5%（progress 1.00→0.95）控件淡出。
-        // 背景不跟这一段走：否则几乎全屏的面板会突然透明，
-        // 底下页面和白色蒙层交替闪一下。
+        // 仅关闭时：前 5%（progress 1.00→0.95）除封面/歌词外全部淡到全透明。
+        // 打开（progress 上升）不做这个淡出。
         final dismissing = closing && progress < 1;
         final chromeFade = dismissing
             ? ((progress - 0.95) / 0.05).clamp(0.0, 1.0)
             : 1.0;
-        // 背景在收拢后段（已接近迷你栏）才交给真实迷你栏，避免大块透明。
-        final backdropFade = dismissing
-            ? (progress / 0.18).clamp(0.0, 1.0)
-            : 1.0;
+        // 关闭时控件/磨砂/背景走 chromeFade；打开保持不透明。
         final contentOpacity = 1.0;
         // 动效全程隐藏正文封面，只留飞行快照封面；progress=1 再交棒，
         // 避免全屏/迷你栏真封面与快照叠在一起。
@@ -1011,7 +1007,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 AppColors.miniBar(context),
                 closeT,
               )!
-            : Theme.of(context).scaffoldBackgroundColor;
+            : Theme.of(context).scaffoldBackgroundColor.withValues(
+                alpha: closing ? chromeFade : 1.0,
+              );
         // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
         final hideLayer = lyricCollapsing && closeT >= 0.99;
         // 单一渲染结构：Positioned.fromRect(currentRect) + 中心锚定 +
@@ -1079,15 +1077,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                             fit: StackFit.expand,
                             children: [
                               Opacity(
-                                opacity: backdropFade,
+                                opacity: chromeFade,
                                 child: ColoredBox(
                                   color: sheetColor,
-                                  child: dismissing
-                                      ? const SizedBox.expand()
-                                      : _PlayerCoverBackdrop(
-                                          artwork: currentMusic.artwork,
-                                          songId: currentMusic.id,
-                                        ),
+                                  child: _PlayerCoverBackdrop(
+                                    artwork: currentMusic.artwork,
+                                    songId: currentMusic.id,
+                                  ),
                                 ),
                               ),
                               sheetContent,
@@ -2854,7 +2850,7 @@ class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
   }
 }
 
-class _StaggeredFade extends StatefulWidget {
+class _StaggeredFade extends StatelessWidget {
   const _StaggeredFade({required this.delay, required this.child});
 
   /// 淡入开始的进度阈值（0~1）。
@@ -2862,29 +2858,18 @@ class _StaggeredFade extends StatefulWidget {
   final Widget child;
 
   @override
-  State<_StaggeredFade> createState() => _StaggeredFadeState();
-}
-
-class _StaggeredFadeState extends State<_StaggeredFade> {
-  /// 打开完成后锁住。关闭时不再把入场位移倒放一遍，
-  /// 否则控件会边淡出边下滑，看起来一闪一闪。
-  bool _opened = false;
-
-  @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<double>(
       valueListenable: playerRouteProgress,
       builder: (context, progress, _) {
-        if (progress >= 0.999) _opened = true;
-        final t = _opened || widget.delay >= 1
+        final t = delay >= 1
             ? 1.0
-            : ((progress - widget.delay) / (1 - widget.delay)).clamp(0.0, 1.0);
-        final eased = Curves.easeOutCubic.transform(t);
+            : ((progress - delay) / (1 - delay)).clamp(0.0, 1.0);
         return Opacity(
-          opacity: eased,
+          opacity: Curves.easeOutCubic.transform(t),
           child: Transform.translate(
-            offset: Offset(0, 14 * (1 - eased)),
-            child: widget.child,
+            offset: Offset(0, 14 * (1 - Curves.easeOutCubic.transform(t))),
+            child: child,
           ),
         );
       },

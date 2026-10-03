@@ -124,10 +124,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                               valueListenable: playerRouteProgress,
                               builder: (context, progress, child) {
                                 // 动效期间隐藏迷你栏真封面，只留飞行快照封面。
-                                // 收拢到 0 后路由还没拆掉时也继续藏，避免和快照叠成两层。
-                                final hideCover =
-                                    playerRouteDismissLocked ||
-                                    (progress > 0 && progress < 1);
+                                final hideCover = progress > 0 && progress < 1;
                                 return Opacity(
                                   opacity: hideCover ? 0 : 1,
                                   child: child,

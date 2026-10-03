@@ -69,21 +69,10 @@ class _PressableState extends State<Pressable> {
               });
               if (widget.captureExpandRect) {
                 final anchor = _expandAnchorKey.currentContext;
-                var captured = false;
-                final capture = anchor == null
-                    ? Future<void>.value()
-                    : captureCardExpandOrigin(anchor).whenComplete(() {
-                        captured = true;
-                      });
-                // 按下回弹固定 105ms。截图更慢就放弃，不能让跳转干等 GPU 回读。
                 await Future.wait<void>([
-                  Future.any<void>([
-                    capture,
-                    Future<void>.delayed(const Duration(milliseconds: 105)),
-                  ]),
+                  if (anchor != null) captureCardExpandOrigin(anchor),
                   Future<void>.delayed(const Duration(milliseconds: 105)),
                 ]);
-                if (!captured) abandonCardExpandCapture();
                 if (!mounted) return;
               }
               _releasing = false;
