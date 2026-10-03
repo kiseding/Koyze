@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -18,8 +19,8 @@ ui.Image? _cardExpandSnapshot;
 
 /// go_router 每次改栈都会重跑 pageBuilder，[consumeCardExpandRect] 又是
 /// 一次性的。同一条路由（同一个 [Page.key]）必须记住第一次吃到的源矩形，
-/// 否则从叠在上面的设置页返回后会变成不透明普通页：卡片 morph 没了，
-/// 自绘右滑也没了（[_CardExpandRoute] 并没有 iOS 系统返回手势）。
+/// 否则从叠在上面的设置页返回后会变成不透明普通页，卡片 morph 会丢。
+/// 左缘右滑仍由自绘手势接管：[_CardExpandRoute] 没有 iOS 系统返回手势。
 final Map<LocalKey, Rect> _expandRectByPage = <LocalKey, Rect>{};
 final Map<LocalKey, ui.Image> _expandSnapshotByPage = <LocalKey, ui.Image>{};
 
@@ -381,7 +382,9 @@ class _CardExpandRoute extends PageRoute<Object?> {
 
 /// 从屏幕左缘右滑关闭当前页面。只在边缘窄条接管手势，避免影响页面
 /// 内的横向列表、播放器 PageView 和主 Tab 滑动。
-/// - 不透明路由（iOS 普通页）：不接管，交系统左缘返回手势。
+/// - 不透明且路由自带系统返回手势（Material / Cupertino）：不接管。
+/// - 不透明但路由没有系统手势（卡片路由的普通页，如收藏列表）：
+///   左缘窄条自己接管，否则右滑没有任何响应。
 /// - 透明路由（卡片展开页/播放器）：只发布 [progress]（跟手驱动
 ///   内层 morph），不叠加外层 transform——否则内容缩放与外层矩形
 ///   裁剪两条曲线打架，出现"与卡片同缩程度不一致的浮动层"。
@@ -568,10 +571,16 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     final route = ModalRoute.of(context);
     final opaqueRoute = route?.opaque ?? true;
     final ios = Theme.of(context).platform == TargetPlatform.iOS;
-    // 不透明路由（iOS 普通页）：系统左缘返回手势可用，自绘手势完全退出，
-    // 过渡则直接由系统手势驱动的 route 动画播放（跟手 + 从当前位置继续）。
-    // fullWidthSwipe 必须由自绘识别器接管；iOS 系统只支持左缘起手。
-    final systemBackGesture = ios && opaqueRoute && !widget.fullWidthSwipe;
+    // 只有路由自己装了系统返回手势时才让出自绘手势。
+    // 收藏列表这类普通页走 _CardExpandRoute：不透明，但没有 Cupertino
+    // 返回手势。若这里也让出，左缘右滑就没有任何识别器。
+    final routeProvidesSystemBackGesture =
+        route is MaterialPageRoute || route is CupertinoRouteTransitionMixin;
+    final systemBackGesture =
+        ios &&
+        opaqueRoute &&
+        !widget.fullWidthSwipe &&
+        routeProvidesSystemBackGesture;
     // 透明路由（卡片展开/播放器）必须只走内层矩形 morph 一套进度，
     // 避免外层 translate/scale 与内层裁剪互相打架。
     final morphOnly = !opaqueRoute;
@@ -644,7 +653,10 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
                   // 收拢成卡片，在源卡片位置成型后 pop（宿主此时锁定
                   // 反向动画接管，路由关闭不再回弹放大）。
                   _settleTo(
-                    targetDrag: widget.fullWidthSwipe ? width : 0,
+                    // 普通页跟着手指滑出屏幕；卡片页仍收拢到源矩形，不平移。
+                    targetDrag: widget.fullWidthSwipe || opaqueRoute
+                        ? width
+                        : 0,
                     targetMorph: 1,
                     duration: MotionDuration.normal,
                     onComplete: () {
