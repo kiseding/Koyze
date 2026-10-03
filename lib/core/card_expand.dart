@@ -15,6 +15,13 @@ import 'motion/motion_tokens.dart';
 /// 其他入口进入（未记录矩形）时退化为默认的上滑淡入。
 Rect? _cardExpandRect;
 ui.Image? _cardExpandSnapshot;
+int _cardExpandCaptureToken = 0;
+
+/// 截图没能在按下动画结束前完成时调用。晚到的位图会被丢掉，
+/// 避免卡在 GPU 回读上，也避免串到下一次打开。
+void abandonCardExpandCapture() {
+  _cardExpandCaptureToken++;
+}
 
 /// go_router 每次改栈都会重跑 pageBuilder，[consumeCardExpandRect] 又是
 /// 一次性的。同一条路由（同一个 [Page.key]）必须记住第一次吃到的源矩形，
@@ -73,6 +80,7 @@ void captureCardExpandRect(BuildContext context) {
 /// 同时记录卡片几何和像素快照。快照只在转场前短暂保留，用于让源卡片
 /// 本体先随边界长大，再交给目标页面内容。
 Future<void> captureCardExpandOrigin(BuildContext context) async {
+  final token = ++_cardExpandCaptureToken;
   // 开启动画不隐藏源卡片；隐藏只由关闭阶段的 morph 进度控制。
   cardExpandSourceHidden.value = false;
   captureCardExpandRect(context);
@@ -82,10 +90,13 @@ Future<void> captureCardExpandOrigin(BuildContext context) async {
   final boundary = context.findRenderObject() as RenderRepaintBoundary?;
   if (boundary == null || !boundary.attached || !boundary.hasSize) return;
   try {
-    // 按设备像素密度截图（封顶 2x），否则收拢成卡片后快照被插值放大、
-    // 文字发虚。
-    final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1.0;
-    final snapshot = await boundary.toImage(pixelRatio: dpr.clamp(1.0, 2.0));
+    // 1x 就够：快照只在矩形长大的前半段显示，2x 回读会把点击直接卡住。
+    // 放大交给图层变换，不再每帧用高质量滤镜重采样。
+    final snapshot = await boundary.toImage(pixelRatio: 1);
+    if (token != _cardExpandCaptureToken) {
+      snapshot.dispose();
+      return;
+    }
     _cardExpandSnapshot?.dispose();
     _cardExpandSnapshot = snapshot;
   } catch (_) {
@@ -785,15 +796,19 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         // 收拢/拖拽关闭方向（dragging）：内容保持不透明、不浮现快照，
         // 收拢矩形只是裁剪窗口——route 移除瞬间真实页面同像素接管，
         // 不会出现"快照 vs 实时渲染"的亮度跳变。
-        // 展开方向保留原逻辑：内容淡出让快照盖住未长成的本体。
+        // 展开方向：有快照时前 60% 只画这张小图，真实页（歌单/榜单列表）
+        // 保持透明从而不参与绘制；快结束再交叉淡入。没有快照时仍尽早露出页面。
         // 关闭 85%~95% 完成交接：实时页面淡出、源卡片快照淡入；
         // 95%~99% 全程由快照沿矩形路径飞回，最后 1% 直接砍层。
+        final hasSnapshot = widget.sourceSnapshot != null;
         final reveal = dismissing
             ? ((0.95 - t) / 0.1).clamp(0.0, 1.0)
+            : hasSnapshot
+            ? ((0.42 - t) / 0.34).clamp(0.0, 1.0)
             : ((1 - t) / 0.18).clamp(0.0, 1.0);
         final snapshotOpacity = dismissing
             ? ((t - 0.85) / 0.1).clamp(0.0, 1.0)
-            : ((t - 0.8) / 0.2).clamp(0.0, 1.0);
+            : ((t - 0.08) / 0.34).clamp(0.0, 1.0);
         // 背景/表面圆角全程保持与源卡片一致（18），
         // 动效行进中矩形扩张/收缩不改变圆角。
         const radius = 18.0;
@@ -820,44 +835,47 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                     ),
                     // 源卡片快照按窗宽等比放大，相对窗口居中：
                     // 收起时上下左右一起走，而不是顶对齐从下往上收。
-                    if (widget.sourceSnapshot != null)
+                    if (widget.sourceSnapshot != null && snapshotOpacity > 0)
                       Opacity(
                         opacity: snapshotOpacity,
                         child: Transform.scale(
                           alignment: Alignment.center,
                           scale: currentRect.width / sourceRect.width,
-                          child: SizedBox(
-                            width: sourceRect.width,
-                            height: sourceRect.height,
-                            child: RawImage(
-                              image: widget.sourceSnapshot,
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.high,
+                          child: RepaintBoundary(
+                            child: SizedBox(
+                              width: sourceRect.width,
+                              height: sourceRect.height,
+                              child: RawImage(
+                                image: widget.sourceSnapshot,
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.low,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     // 目的页按窗宽等比缩放，相对窗口居中：
                     // 宽度跟着走，高度保持比例；收起时对称裁切。
-                    Opacity(
-                      opacity: reveal,
-                      child: OverflowBox(
-                        alignment: Alignment.center,
-                        minWidth: targetRect.width,
-                        maxWidth: targetRect.width,
-                        minHeight: targetRect.height,
-                        maxHeight: targetRect.height,
-                        child: Transform.scale(
+                    if (reveal > 0)
+                      Opacity(
+                        opacity: reveal,
+                        child: OverflowBox(
                           alignment: Alignment.center,
-                          scale: currentRect.width / targetRect.width,
-                          child: SizedBox(
-                            width: targetRect.width,
-                            height: targetRect.height,
-                            child: child,
+                          minWidth: targetRect.width,
+                          maxWidth: targetRect.width,
+                          minHeight: targetRect.height,
+                          maxHeight: targetRect.height,
+                          child: Transform.scale(
+                            alignment: Alignment.center,
+                            scale: currentRect.width / targetRect.width,
+                            child: SizedBox(
+                              width: targetRect.width,
+                              height: targetRect.height,
+                              child: child,
+                            ),
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
