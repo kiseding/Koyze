@@ -180,12 +180,27 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
     final fullRail = side
         ? leadingInset + sideRailContentWidth(media.size.width)
         : 0.0;
-    final railWidth = fullRail * fraction;
+    final rawRail = fullRail * fraction;
+    final pixel = 1 / MediaQuery.devicePixelRatioOf(context);
+    // 收到最后不到半像素时直接落位，避免亚像素来回取整把界面抖一下。
+    final railWidth = rawRail <= pixel
+        ? 0.0
+        : (fullRail - rawRail) <= pixel
+        ? fullRail
+        : rawRail;
     final showRail = railWidth > 0;
     final contentWidth = (media.size.width - railWidth).clamp(
       0.0,
       media.size.width,
     );
+    // 栏在时左安全区算在栏里；栏让开后安全区要交还给内容。
+    // 两边按同一进度过渡，结束时不会突然多出一条刘海内边距。
+    final paddingLeft = side
+        ? media.padding.left * (1 - fraction)
+        : media.padding.left;
+    final viewPaddingLeft = side
+        ? media.viewPadding.left * (1 - fraction)
+        : media.viewPadding.left;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -245,13 +260,11 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
         Expanded(
           key: const ValueKey('side-content'),
           child: MediaQuery(
-            data: showRail
-                ? media.copyWith(
-                    size: Size(contentWidth, media.size.height),
-                    padding: media.padding.copyWith(left: 0),
-                    viewPadding: media.viewPadding.copyWith(left: 0),
-                  )
-                : media,
+            data: media.copyWith(
+              size: Size(contentWidth, media.size.height),
+              padding: media.padding.copyWith(left: paddingLeft),
+              viewPadding: media.viewPadding.copyWith(left: viewPaddingLeft),
+            ),
             child: widget.child,
           ),
         ),
