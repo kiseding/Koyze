@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../../router/app_router.dart';
@@ -29,11 +30,32 @@ bool showIndependentSideRail({
   required bool playerOpen,
   required double aspectRatio,
 }) {
-  if (!side) return false;
-  if (playerOpen && aspectRatio < fullscreenPlayerSideRailAspectRatio) {
-    return false;
-  }
-  return true;
+  return sideRailShownFraction(
+        side: side,
+        aspectRatio: aspectRatio,
+        playerProgress: playerOpen &&
+                aspectRatio < fullscreenPlayerSideRailAspectRatio
+            ? 1
+            : 0,
+      ) >
+      0;
+}
+
+/// How much of the side rail stays visible while the fullscreen player moves.
+///
+/// Narrow landscape follows [playerProgress] (1 = rail gone) so the rail
+/// steps aside with the transition instead of popping. Wide windows keep it.
+double sideRailShownFraction({
+  required bool side,
+  required double aspectRatio,
+  required double playerProgress,
+}) {
+  if (!side) return 0;
+  if (aspectRatio >= fullscreenPlayerSideRailAspectRatio) return 1;
+  final progress = playerProgress.isFinite
+      ? playerProgress.clamp(0.0, 1.0)
+      : 0.0;
+  return 1 - progress;
 }
 
 /// Keeps the side rail outside the app navigator.
@@ -109,14 +131,57 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
     final bottomInset = media.padding.bottom > media.viewPadding.bottom
         ? media.padding.bottom
         : media.viewPadding.bottom;
-    final showRail = showIndependentSideRail(
-      side: side,
-      playerOpen: _playerOpen,
-      aspectRatio: screenAspectRatio(media.size),
+    final aspect = screenAspectRatio(media.size);
+    final followsPlayer =
+        side && aspect < fullscreenPlayerSideRailAspectRatio;
+    if (!followsPlayer) {
+      return _buildFrame(
+        context,
+        media: media,
+        side: side,
+        fraction: side ? 1 : 0,
+        leadingInset: leadingInset,
+        topInset: topInset,
+        bottomInset: bottomInset,
+        brightness: brightness,
+      );
+    }
+    return ListenableBuilder(
+      listenable: playerRouteProgress,
+      builder: (context, _) {
+        return _buildFrame(
+          context,
+          media: media,
+          side: side,
+          fraction: sideRailShownFraction(
+            side: true,
+            aspectRatio: aspect,
+            playerProgress: playerRouteProgress.value,
+          ),
+          leadingInset: leadingInset,
+          topInset: topInset,
+          bottomInset: bottomInset,
+          brightness: brightness,
+        );
+      },
     );
-    final railWidth = showRail
+  }
+
+  Widget _buildFrame(
+    BuildContext context, {
+    required MediaQueryData media,
+    required bool side,
+    required double fraction,
+    required double leadingInset,
+    required double topInset,
+    required double bottomInset,
+    required Brightness brightness,
+  }) {
+    final fullRail = side
         ? leadingInset + sideRailContentWidth(media.size.width)
         : 0.0;
+    final railWidth = fullRail * fraction;
+    final showRail = railWidth > 0;
     final contentWidth = (media.size.width - railWidth).clamp(
       0.0,
       media.size.width,
@@ -128,8 +193,16 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
         SizedBox(
           key: const ValueKey('side-rail'),
           width: railWidth,
+          // 宽度跟着播放器进度收，但栏内容保持原宽并往左滑出，避免文字被挤扁。
           child: showRail
-              ? _RailOverlay(
+              ? ClipRect(
+                  child: OverflowBox(
+                    alignment: Alignment.centerLeft,
+                    minWidth: fullRail,
+                    maxWidth: fullRail,
+                    child: Transform.translate(
+                      offset: Offset(-fullRail * (1 - fraction), 0),
+                      child: _RailOverlay(
                   key: ValueKey(brightness),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -160,6 +233,9 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
                             );
                           },
                         ),
+                      ),
+                    ),
+                  ),
                       ),
                     ),
                   ),

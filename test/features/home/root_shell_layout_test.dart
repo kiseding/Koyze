@@ -153,6 +153,49 @@ void main() {
     expect(screenAspectRatio(const Size(874, 402)), closeTo(2.17, 0.01));
   });
 
+  test('narrow landscape rail follows the player instead of snapping', () {
+    expect(
+      sideRailShownFraction(
+        side: true,
+        aspectRatio: 2.17,
+        playerProgress: 0,
+      ),
+      1,
+    );
+    expect(
+      sideRailShownFraction(
+        side: true,
+        aspectRatio: 2.17,
+        playerProgress: 0.4,
+      ),
+      closeTo(0.6, 0.001),
+    );
+    expect(
+      sideRailShownFraction(
+        side: true,
+        aspectRatio: 2.17,
+        playerProgress: 1,
+      ),
+      0,
+    );
+    expect(
+      sideRailShownFraction(
+        side: true,
+        aspectRatio: 2.5,
+        playerProgress: 1,
+      ),
+      1,
+    );
+    expect(
+      sideRailShownFraction(
+        side: false,
+        aspectRatio: 2,
+        playerProgress: 1,
+      ),
+      0,
+    );
+  });
+
   testWidgets('pages and dialogs stay in the pane beside the side rail', (
     tester,
   ) async {

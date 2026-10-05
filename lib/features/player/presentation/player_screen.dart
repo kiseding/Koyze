@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/app_strings.dart';
@@ -7,6 +8,7 @@ import '../../../core/card_expand.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
@@ -889,7 +891,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     final screenH = MediaQuery.of(context).size.height;
     final screenW = MediaQuery.of(context).size.width;
-    final landscape = ref.watch(forceLandscapeProvider) || screenW > screenH;
+    final forceLandscape = ref.watch(forceLandscapeProvider);
+    final landscape = forceLandscape || screenW > screenH;
+    final usesSideNavigation = shouldUseSideNavigation(
+      size: Size(screenW, screenH),
+      orientation: MediaQuery.orientationOf(context),
+      platform: Theme.of(context).platform,
+      isWeb: kIsWeb,
+      forceLandscape: forceLandscape,
+    );
     final dismissThreshold = screenH * 0.4; // 超过 2/5 关闭
     _dragDistance = screenH * 0.42; // 拖动跟手 morph 的满程距离
 
@@ -910,13 +920,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         const miniHeight = 66.0;
         const miniGap = 11.0;
         final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
-        final miniBottom = bottomInset == 0
+        final trailingInset = media.padding.right > media.viewPadding.right
+            ? media.padding.right
+            : media.viewPadding.right;
+        final contentRightInset = usesSideNavigation
+            ? (trailingInset > 20 ? trailingInset : 20.0)
+            : 0.0;
+        // 横屏迷你栏没有底栏，并且和侧栏让出的内容区对齐。
+        final miniBottom = usesSideNavigation
+            ? (bottomInset == 0 ? 8.0 : 6.0)
+            : bottomInset == 0
             ? navHeight + 16 + bottomClearance + miniGap
             : navHeight + miniGap;
-        final miniLeft = 3.0;
-        final miniWidth = screenW - 6.0;
+        final pageWidth = screenW - contentRightInset;
+        final miniInset = miniPlayerSideInset(
+          pageWidth: pageWidth,
+          usesSideNavigation: usesSideNavigation,
+        );
+        final miniWidth = (screenW - contentRightInset - miniInset * 2).clamp(
+          0.0,
+          screenW,
+        );
         final miniRect = Rect.fromLTWH(
-          miniLeft,
+          miniInset,
           screenH - miniBottom - miniHeight,
           miniWidth,
           miniHeight,
