@@ -15,6 +15,8 @@ class FrostedTabHeader extends StatelessWidget {
     this.leadingIcon,
     this.actions = const [],
     this.bottom,
+    this.blur,
+    this.vivid = true,
   });
 
   final String title;
@@ -22,6 +24,8 @@ class FrostedTabHeader extends StatelessWidget {
   final IconData? leadingIcon;
   final List<Widget> actions;
   final Widget? bottom;
+  final double? blur;
+  final bool vivid;
 
   static const double barHeight = 64;
   static const double bottomPadding = 10;
@@ -42,6 +46,8 @@ class FrostedTabHeader extends StatelessWidget {
     final top = MediaQuery.paddingOf(context).top;
     return GradientAppBarBackground(
       background: Theme.of(context).scaffoldBackgroundColor,
+      blur: blur,
+      vivid: vivid,
       child: Padding(
         padding: EdgeInsets.fromLTRB(16, top + 8, 10, bottomPadding),
         child: Column(

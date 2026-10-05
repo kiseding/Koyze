@@ -116,7 +116,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         body: Stack(
           children: [
             ShellContentFrame(
-              child: ListView(
+              child: RepaintBoundary(
+                child: ListView(
               padding: EdgeInsets.only(
                 top: isLandscapeShell ? 0 : FrostedTabHeader.extent(context),
                 bottom: RootShellLayout.obscuredBottomOf(context),
@@ -398,7 +399,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ]),
                 const SizedBox(height: 40),
               ],
-            ),
+                ),
+              ),
             ),
             if (isLandscapeShell)
               RootHeaderPublisher(index: 3, title: s.settings)
@@ -410,6 +412,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: FrostedTabHeader(
                   title: s.settings,
                   leadingIcon: Icons.settings_rounded,
+                  // 列表从栏下穿过。去掉饱和度那一层，模糊半径也收一点，
+                  // 磨砂还在，滚动时不用每帧算两遍滤镜。
+                  blur: 16,
+                  vivid: false,
                 ),
               ),
           ],
@@ -513,55 +519,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     Widget? trailing,
     bool captureExpandOrigin = false,
   }) {
-    final expandAnchorKey = GlobalKey();
-    return RepaintBoundary(
-      key: expandAnchorKey,
-      child: InkWell(
-        onTap: captureExpandOrigin
-            ? () async {
-                final anchor = expandAnchorKey.currentContext;
-                if (anchor != null) await captureCardExpandOrigin(anchor);
-                if (context.mounted) onTap();
-              }
-            : onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.onScaffold(context),
-                      ),
-                    ),
-                    if (subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.mutedText(context),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              trailing ??
-                  Icon(
-                    Icons.chevron_right,
-                    color: AppColors.mutedText(context),
-                  ),
-            ],
-          ),
-        ),
-      ),
+    return _SettingsNavTile(
+      title: title,
+      subtitle: subtitle,
+      onTap: onTap,
+      trailing: trailing,
+      captureExpandOrigin: captureExpandOrigin,
     );
   }
 
@@ -976,6 +939,81 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
       }
     }
+  }
+}
+
+class _SettingsNavTile extends StatefulWidget {
+  const _SettingsNavTile({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.trailing,
+    this.captureExpandOrigin = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final Widget? trailing;
+  final bool captureExpandOrigin;
+
+  @override
+  State<_SettingsNavTile> createState() => _SettingsNavTileState();
+}
+
+class _SettingsNavTileState extends State<_SettingsNavTile> {
+  final GlobalKey _anchorKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final tile = InkWell(
+      onTap: widget.captureExpandOrigin
+          ? () async {
+              final anchor = _anchorKey.currentContext;
+              if (anchor != null) await captureCardExpandOrigin(anchor);
+              if (context.mounted) widget.onTap();
+            }
+          : widget.onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.onScaffold(context),
+                    ),
+                  ),
+                  if (widget.subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.subtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.mutedText(context),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            widget.trailing ??
+                Icon(
+                  Icons.chevron_right,
+                  color: AppColors.mutedText(context),
+                ),
+          ],
+        ),
+      ),
+    );
+    if (!widget.captureExpandOrigin) return tile;
+    return RepaintBoundary(key: _anchorKey, child: tile);
   }
 }
 

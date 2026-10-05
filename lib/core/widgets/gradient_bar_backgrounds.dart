@@ -11,6 +11,8 @@ class GradientAppBarBackground extends StatelessWidget {
     super.key,
     required this.background,
     this.child,
+    this.blur,
+    this.vivid = true,
   });
 
   /// 保留参数以兼容现有调用；实际 tint 由 [AppGlassStyle.bar] 决定。
@@ -19,12 +21,20 @@ class GradientAppBarBackground extends StatelessWidget {
   /// 可选子内容（如自定义标题栏），置于磨砂之上。
   final Widget? child;
 
+  /// 覆盖磨砂半径。列表从栏下穿过时用较小值，避免每帧全强度模糊。
+  final double? blur;
+
+  /// 为 false 时不做饱和度矩阵，只保留模糊。
+  final bool vivid;
+
   @override
   Widget build(BuildContext context) {
     final frost = GlassSurface(
       style: AppGlassStyle.bar,
       borderRadius: BorderRadius.zero,
       border: const Border(),
+      blur: blur,
+      vivid: vivid,
       child: child ?? const SizedBox.expand(),
     );
     if (child != null) {

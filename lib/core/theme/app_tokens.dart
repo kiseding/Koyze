@@ -114,6 +114,7 @@ class GlassSurface extends StatelessWidget {
     this.blur,
     this.boxShadow,
     this.fade = AppGlassFade.none,
+    this.vivid = true,
   });
 
   final Widget child;
@@ -125,6 +126,10 @@ class GlassSurface extends StatelessWidget {
   final double? blur;
   final List<BoxShadow>? boxShadow;
   final AppGlassFade fade;
+
+  /// 为 false 时只做模糊，不再叠饱和度矩阵。滚动内容从栏下穿过时，
+  /// 每帧少一次全栏滤镜。
+  final bool vivid;
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +164,7 @@ class GlassSurface extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: fade == AppGlassFade.none
           ? BackdropFilter(
-              filter: _filter(sigma),
+              filter: _filter(sigma, vivid: vivid),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: fill,
@@ -185,14 +190,18 @@ class GlassSurface extends StatelessWidget {
     );
   }
 
-  static ImageFilter _filter(double sigma) => ImageFilter.compose(
-    outer: ImageFilter.blur(
+  static ImageFilter _filter(double sigma, {bool vivid = true}) {
+    final blur = ImageFilter.blur(
       sigmaX: sigma,
       sigmaY: sigma,
       tileMode: TileMode.mirror,
-    ),
-    inner: ColorFilter.matrix(AppGlass._saturationMatrix(AppGlass.saturate)),
-  );
+    );
+    if (!vivid) return blur;
+    return ImageFilter.compose(
+      outer: blur,
+      inner: ColorFilter.matrix(AppGlass._saturationMatrix(AppGlass.saturate)),
+    );
+  }
 }
 
 class _FadingFrost extends StatelessWidget {
