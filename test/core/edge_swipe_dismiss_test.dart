@@ -242,52 +242,17 @@ void main() {
     expect(observer.popCount, 0);
   });
 
-  testWidgets('material route on iOS keeps the system back gesture', (
+  testWidgets('opaque route on iOS does not install a custom edge gesture', (
     tester,
   ) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(platform: TargetPlatform.iOS),
-        home: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const EdgeSwipeDismiss(
-                  child: ColoredBox(color: Colors.black),
-                ),
-              ),
-            ),
-            child: const Text('open'),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('open'));
-    await tester.pumpAndSettle();
-
-    // MaterialPageRoute 在 iOS 上自带系统返回手势，自绘窄条必须退出，
-    // 避免两条手势抢同一下左缘右滑。
-    final edges = tester.widgetList<GestureDetector>(
-      find.byType(GestureDetector),
-    );
-    expect(edges.where((e) => e.onHorizontalDragUpdate != null), isEmpty);
-  });
-
-  testWidgets('opaque custom route still accepts a left-edge swipe back', (
-    tester,
-  ) async {
-    final observer = _PopObserver();
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(platform: TargetPlatform.iOS),
-        navigatorObservers: [observer],
         home: Builder(
           builder: (context) => TextButton(
             onPressed: () => Navigator.of(context).push(
               PageRouteBuilder<void>(
                 opaque: true,
-                transitionDuration: Duration.zero,
-                reverseTransitionDuration: const Duration(milliseconds: 280),
                 pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
                   child: ColoredBox(color: Colors.black),
                 ),
@@ -301,19 +266,12 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    // 收藏列表走的就是这种不透明自定义路由：没有系统返回手势，
-    // 左缘必须由自绘手势接管，滑过阈值后关闭页面。
+    // 系统手势可用时，自绘手势带（左缘窄条）必须完全退出，把左缘
+    // 右滑交给 iOS 系统手势（跟手、从当前位置继续）。
     final edges = tester.widgetList<GestureDetector>(
       find.byType(GestureDetector),
     );
-    expect(edges.where((e) => e.onHorizontalDragUpdate != null), isNotEmpty);
-
-    final gesture = await tester.startGesture(const Offset(1, 200));
-    await gesture.moveBy(const Offset(220, 0));
-    await gesture.up();
-    await tester.pumpAndSettle();
-    expect(observer.popCount, 1);
-    expect(find.text('open'), findsOneWidget);
+    expect(edges.where((e) => e.onHorizontalDragUpdate != null), isEmpty);
   });
 
   testWidgets('full-width swipe overrides iOS system edge gesture', (

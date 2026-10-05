@@ -556,8 +556,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     return HoverFloat(
       child: Pressable(
         borderRadius: BorderRadius.circular(16),
-        // 收藏列表直接进入普通页面，避免卡片截图转场阻塞首帧。
-        captureExpandRect: false,
+        // 与首页快捷入口、本地/最近播放卡片同一套：记下卡片矩形再进入，
+        // 左缘右滑沿用卡片页已有的返回手势。
+        captureExpandRect: true,
         onTap: () {
           context.pushNamed(
             'playlistDetail',
