@@ -83,7 +83,7 @@ class _PressableState extends State<Pressable> {
         scale: _pressed ? widget.scale : 1,
         duration: motionDuration(
           context,
-          _releasing ? const Duration(milliseconds: 210) : widget.duration,
+          _releasing ? const Duration(milliseconds: 220) : widget.duration,
         ),
         curve: _releasing ? Curves.easeOutBack : Curves.easeOutCubic,
         child: AnimatedOpacity(

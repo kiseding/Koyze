@@ -40,9 +40,9 @@ abstract final class AppGlass {
   }) {
     final isDark = AppColors.isDark(context);
     final alpha = switch (style) {
-      AppGlassStyle.bar => isDark ? 0.72 : 0.78,
-      AppGlassStyle.regular => isDark ? 0.70 : 0.82,
-      AppGlassStyle.chrome => isDark ? 0.55 : 0.62,
+      AppGlassStyle.bar => isDark ? 0.68 : 0.78,
+      AppGlassStyle.regular => isDark ? 0.64 : 0.82,
+      AppGlassStyle.chrome => isDark ? 0.48 : 0.62,
     };
     return (isDark ? const Color(0xFF1C1C1E) : Colors.white).withValues(
       alpha: alpha,
@@ -52,9 +52,30 @@ abstract final class AppGlass {
   static BorderSide hairline(BuildContext context) {
     final isDark = AppColors.isDark(context);
     return BorderSide(
-      color: isDark ? const Color(0x33FFFFFF) : const Color(0x3DFFFFFF),
+      color: isDark ? const Color(0x3DFFFFFF) : const Color(0x52FFFFFF),
       width: 0.5,
     );
+  }
+
+  static List<BoxShadow> shadowFor(
+    BuildContext context, {
+    AppGlassStyle style = AppGlassStyle.regular,
+  }) {
+    final isDark = AppColors.isDark(context);
+    final blurRadius = switch (style) {
+      AppGlassStyle.bar => 18.0,
+      AppGlassStyle.regular => 24.0,
+      AppGlassStyle.chrome => 12.0,
+    };
+    return [
+      BoxShadow(
+        color: (isDark ? Colors.black : const Color(0x33000000)).withValues(
+          alpha: isDark ? 0.30 : 0.10,
+        ),
+        blurRadius: blurRadius,
+        offset: const Offset(0, 7),
+      ),
+    ];
   }
 
   static ImageFilter filterFor(AppGlassStyle style) {
@@ -150,7 +171,10 @@ class GlassSurface extends StatelessWidget {
           color: opaque,
           borderRadius: radius,
           border: side,
-          boxShadow: boxShadow,
+          boxShadow: boxShadow ??
+              (style == AppGlassStyle.bar
+                  ? AppGlass.shadowFor(context, style: style)
+                  : const <BoxShadow>[]),
         ),
         child: ClipRRect(
           borderRadius: radius,
@@ -167,9 +191,20 @@ class GlassSurface extends StatelessWidget {
               filter: _filter(sigma, vivid: vivid),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: fill,
                   borderRadius: radius,
                   border: side,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color.lerp(
+                        fill,
+                        Colors.white,
+                        AppColors.isDark(context) ? 0.055 : 0.16,
+                      )!,
+                      fill,
+                    ],
+                  ),
                 ),
                 child: content,
               ),
@@ -183,9 +218,12 @@ class GlassSurface extends StatelessWidget {
               child: content,
             ),
     );
-    if (boxShadow == null || boxShadow!.isEmpty) return glass;
+    final shadows = boxShadow ??
+        (style == AppGlassStyle.bar
+            ? shadowFor(context, style: style)
+            : const <BoxShadow>[]);
     return DecoratedBox(
-      decoration: BoxDecoration(borderRadius: radius, boxShadow: boxShadow),
+      decoration: BoxDecoration(borderRadius: radius, boxShadow: shadows),
       child: glass,
     );
   }

@@ -35,6 +35,7 @@ class GradientAppBarBackground extends StatelessWidget {
       border: const Border(),
       blur: blur,
       vivid: vivid,
+      fade: AppGlassFade.down,
       child: child ?? const SizedBox.expand(),
     );
     if (child != null) {
@@ -67,6 +68,7 @@ class GradientBottomBarBackground extends StatelessWidget {
       style: AppGlassStyle.bar,
       borderRadius: BorderRadius.zero,
       border: const Border(),
+      fade: AppGlassFade.up,
       child: child,
     );
   }

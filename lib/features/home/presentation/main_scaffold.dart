@@ -953,31 +953,49 @@ class _BottomNav extends StatelessWidget {
         selected: isSelected,
         onTap: () => onTap(index),
         scale: 0.92,
+        borderRadius: BorderRadius.circular(18),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedIconSwitch(
-                icon: isSelected ? activeIcon : icon,
-                keyValue: isSelected ? activeIcon : icon,
-                size: 23,
-                color: isSelected ? accent : muted,
+          child: AnimatedContainer(
+            duration: motionDuration(context, MotionDuration.micro),
+            curve: MotionCurve.easeOut,
+            margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? accent.withValues(alpha: isDark ? 0.18 : 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isSelected
+                    ? accent.withValues(alpha: isDark ? 0.28 : 0.18)
+                    : Colors.transparent,
               ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedIconSwitch(
+                  icon: isSelected ? activeIcon : icon,
+                  keyValue: isSelected ? activeIcon : icon,
+                  size: 23,
                   color: isSelected ? accent : muted,
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? accent : muted,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
