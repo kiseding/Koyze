@@ -1,0 +1,424 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+import '../network/outbound_url.dart';
+import 'artwork_disk_cache.dart';
+
+/// Headers / client identity required by some music CDNs (especially NetEase).
+///
+/// Critical: [NetworkImage] uses `HttpHeaders.add`, so a custom User-Agent is
+/// **appended** to the default `Dart/x.x (dart:io)` UA. NetEase CDN then still
+/// sees the Dart UA and returns 403 HTML. We must set [HttpClient.userAgent]
+/// (or `headers.set`) so only one browser UA is sent.
+const String kArtworkUserAgent =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
+Map<String, String> artworkRequestHeaders(String url) {
+  final lower = url.toLowerCase();
+  if (lower.contains('music.126.net') ||
+      lower.contains('126.net') ||
+      lower.contains('music.163.com')) {
+    // 网易云：防盗链，需要浏览器 UA + 网易 Referer
+    return const {
+      'User-Agent': kArtworkUserAgent,
+      'Referer': 'https://music.163.com/',
+    };
+  }
+  if (lower.contains('y.gtimg.cn') ||
+      lower.contains('y.ggtimg.cn') ||
+      lower.contains('imgcache.qq.com')) {
+    // 腾讯系封面：防盗链，需 QQ 音乐 Referer
+    return const {
+      'User-Agent': kArtworkUserAgent,
+      'Referer': 'https://y.qq.com/',
+    };
+  }
+  if (lower.contains('img1.kuwo.cn') || lower.contains('kuwo.cn')) {
+    // 酷我封面：防盗链
+    return const {
+      'User-Agent': kArtworkUserAgent,
+      'Referer': 'https://www.kuwo.cn/',
+    };
+  }
+  if (lower.contains('kugou.com') || lower.contains('kgimg.com')) {
+    // 酷狗封面：防盗链
+    return const {
+      'User-Agent': kArtworkUserAgent,
+      'Referer': 'https://www.kugou.com/',
+    };
+  }
+  return const {};
+}
+
+bool artworkNeedsBrowserClient(String url) {
+  return artworkRequestHeaders(url).isNotEmpty;
+}
+
+/// Extra CDN renditions to try when [url] 404s or returns a tiny HTML error.
+///
+/// QQ album art often advertises `T002R1000x1000…jpg` but only the 500px
+/// file exists. Scraped NAS / Subsonic songs keep `platform=subsonic`, so
+/// platform-based artwork candidates never run for them.
+List<String> artworkFallbackUrls(String url) {
+  if (url.isEmpty) return const [];
+  final fallbacks = <String>[];
+  void add(String value) {
+    if (value.isNotEmpty && value != url && !fallbacks.contains(value)) {
+      fallbacks.add(value);
+    }
+  }
+
+  if (url.contains('R1000x1000') || url.contains('R800x800')) {
+    add(
+      url
+          .replaceAll('R1000x1000', 'R500x500')
+          .replaceAll('R800x800', 'R500x500'),
+    );
+  }
+
+  final lower = url.toLowerCase();
+  if (lower.contains('126.net') || lower.contains('music.163.com')) {
+    final bare = url.split('?').first;
+    add('$bare?param=500y500');
+    add(bare);
+  }
+  if (lower.contains('kuwo.cn') && url.contains('/500/')) {
+    add(url.replaceFirst('/500/', '/300/'));
+    add(url.replaceFirst('/500/', '/120/'));
+  }
+  return fallbacks;
+}
+
+class ArtworkLimitException implements Exception {
+  ArtworkLimitException(this.message);
+  final String message;
+
+  @override
+  String toString() => 'ArtworkLimitException: $message';
+}
+
+/// Minimal HTTP client surface used by [ArtworkBytesLoader].
+abstract interface class ArtworkHttpClient {
+  Future<HttpClientRequest> getUrl(Uri url);
+  void close({bool force = false});
+  set userAgent(String? value);
+}
+
+typedef ArtworkClientFactory = ArtworkHttpClient Function();
+
+class _IoArtworkHttpClient implements ArtworkHttpClient {
+  _IoArtworkHttpClient() : _client = HttpClient();
+
+  final HttpClient _client;
+
+  @override
+  set userAgent(String? value) {
+    _client.userAgent = value;
+  }
+
+  @override
+  Future<HttpClientRequest> getUrl(Uri url) => _client.getUrl(url);
+
+  @override
+  void close({bool force = false}) => _client.close(force: force);
+}
+
+/// Bounded download of artwork bytes with forced client close.
+class ArtworkBytesLoader {
+  ArtworkBytesLoader({
+    ArtworkClientFactory? createClient,
+    this.maximumBytes = 8 * 1024 * 1024,
+    this.timeout = const Duration(seconds: 12),
+  }) : createClient = createClient ?? _IoArtworkHttpClient.new;
+
+  final ArtworkClientFactory createClient;
+  final int maximumBytes;
+  final Duration timeout;
+
+  Future<Uint8List> load(
+    Uri uri,
+    Map<String, String> headers,
+    void Function(int, int?) onProgress,
+  ) async {
+    final client = createClient();
+    try {
+      return await _loadWithClient(
+        client,
+        uri,
+        headers,
+        onProgress,
+      ).timeout(timeout);
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<Uint8List> _loadWithClient(
+    ArtworkHttpClient client,
+    Uri uri,
+    Map<String, String> headers,
+    void Function(int, int?) onProgress,
+  ) async {
+    final userAgent = _headerValue(headers, 'user-agent');
+    if (userAgent != null) {
+      client.userAgent = userAgent;
+    }
+
+    final request = await client.getUrl(uri);
+    headers.forEach((name, value) {
+      if (name.toLowerCase() == 'user-agent') return;
+      request.headers.set(name, value);
+    });
+
+    final response = await request.close();
+    if (response.statusCode != HttpStatus.ok) {
+      await response.drain<void>();
+      throw NetworkImageLoadException(
+        statusCode: response.statusCode,
+        uri: uri,
+      );
+    }
+
+    final declared = response.contentLength;
+    if (declared > maximumBytes) {
+      await response.drain<void>();
+      throw ArtworkLimitException(
+        'Content-Length $declared exceeds maximumBytes $maximumBytes',
+      );
+    }
+
+    final builder = BytesBuilder(copy: false);
+    var cumulative = 0;
+    final expected = declared >= 0 ? declared : null;
+
+    await for (final chunk in response) {
+      cumulative += chunk.length;
+      if (cumulative > maximumBytes) {
+        throw ArtworkLimitException(
+          'Streamed body $cumulative exceeds maximumBytes $maximumBytes',
+        );
+      }
+      builder.add(chunk);
+      onProgress(cumulative, expected);
+    }
+
+    return builder.takeBytes();
+  }
+
+  static String? _headerValue(Map<String, String> headers, String name) {
+    final target = name.toLowerCase();
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() == target) return entry.value;
+    }
+    return null;
+  }
+}
+
+/// Physical pixels to decode a cover at. Explicit [cacheWidth] wins.
+/// Otherwise the layout width is scaled by the device pixel ratio and capped
+/// so a 1000×1000 CDN image is not decoded at full size for a list tile.
+int artworkCachePixels({
+  required int? cacheWidth,
+  required double? width,
+  required double maxConstraintWidth,
+  required double devicePixelRatio,
+}) {
+  if (cacheWidth != null && cacheWidth > 0) return cacheWidth;
+  final logical = width != null && width.isFinite && width > 0
+      ? width
+      : (maxConstraintWidth.isFinite && maxConstraintWidth > 0
+            ? maxConstraintWidth
+            : 320.0);
+  final ratio = devicePixelRatio.isFinite && devicePixelRatio > 0
+      ? devicePixelRatio
+      : 1.0;
+  final pixels = (logical * ratio).round();
+  if (pixels < 1) return 1;
+  if (pixels > 1080) return 1080;
+  return pixels;
+}
+
+class ArtworkImage extends StatelessWidget {
+  final String url;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+  final int? cacheWidth;
+  final Widget Function(BuildContext, Object, StackTrace?)? errorBuilder;
+  final Widget Function(BuildContext, Widget, int?, bool)? frameBuilder;
+
+  const ArtworkImage(
+    this.url, {
+    super.key,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.height,
+    this.cacheWidth,
+    this.errorBuilder,
+    this.frameBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pixels = artworkCachePixels(
+          cacheWidth: cacheWidth,
+          width: width,
+          maxConstraintWidth: constraints.maxWidth,
+          devicePixelRatio:
+              MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1,
+        );
+        final provider = ArtworkNetworkImage(url);
+        return Image(
+          image: ResizeImage.resizeIfNeeded(pixels, null, provider),
+          fit: fit,
+          width: width,
+          height: height,
+          errorBuilder: errorBuilder,
+          frameBuilder: frameBuilder,
+        );
+      },
+    );
+  }
+}
+
+@immutable
+class ArtworkNetworkImage extends ImageProvider<ArtworkNetworkImage> {
+  const ArtworkNetworkImage(this.url, {this.scale = 1.0, this.loader});
+
+  final String url;
+  final double scale;
+  final ArtworkBytesLoader? loader;
+
+  String get resolvedUrl => normalizeOutboundUrl(url);
+
+  ArtworkBytesLoader get _loader => loader ?? ArtworkBytesLoader();
+
+  @override
+  Future<ArtworkNetworkImage> obtainKey(ImageConfiguration configuration) {
+    return SynchronousFuture<ArtworkNetworkImage>(this);
+  }
+
+  @override
+  ImageStreamCompleter loadImage(
+    ArtworkNetworkImage key,
+    ImageDecoderCallback decode,
+  ) {
+    final chunkEvents = StreamController<ImageChunkEvent>();
+    return MultiFrameImageStreamCompleter(
+      codec: _loadAsync(key, chunkEvents, decode),
+      chunkEvents: chunkEvents.stream,
+      scale: key.scale,
+      debugLabel: key.url,
+      informationCollector: () => <DiagnosticsNode>[
+        DiagnosticsProperty<ImageProvider>('Image provider', this),
+        DiagnosticsProperty<ArtworkNetworkImage>('Image key', key),
+      ],
+    );
+  }
+
+  Future<ui.Codec> _loadAsync(
+    ArtworkNetworkImage key,
+    StreamController<ImageChunkEvent> chunkEvents,
+    ImageDecoderCallback decode,
+  ) async {
+    try {
+      assert(key == this);
+      final uri = Uri.parse(key.resolvedUrl);
+      // 本地文件封面（本地音乐内嵌封面缓存）：直接读文件，不走网络/磁盘缓存。
+      if (uri.scheme == 'file') {
+        final file = File(uri.toFilePath());
+        final bytes = await file.readAsBytes();
+        if (bytes.isEmpty) {
+          throw Exception('ArtworkNetworkImage empty local file: $uri');
+        }
+        final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+        return await decode(buffer);
+      }
+      // Prefer 12h disk cache (shared with lock-screen art download).
+      Uint8List? bytes = await ArtworkDiskCache.instance.bytesForUrl(
+        key.resolvedUrl,
+      );
+      Object? lastError;
+      if (bytes == null) {
+        final candidates = <String>{
+          key.resolvedUrl,
+          ...artworkFallbackUrls(key.resolvedUrl),
+        };
+        for (final candidate in candidates) {
+          try {
+            final candidateUri = Uri.parse(candidate);
+            bytes = await key._loader.load(
+              candidateUri,
+              artworkRequestHeaders(candidate),
+              (cumulative, total) {
+                chunkEvents.add(
+                  ImageChunkEvent(
+                    cumulativeBytesLoaded: cumulative,
+                    expectedTotalBytes: total,
+                  ),
+                );
+              },
+            );
+            if (_isUsableArtwork(bytes)) {
+              unawaited(
+                ArtworkDiskCache.instance.put(key.resolvedUrl, bytes),
+              );
+              lastError = null;
+              break;
+            }
+            lastError = Exception(
+              'ArtworkNetworkImage got HTML instead of image: $candidateUri',
+            );
+            bytes = null;
+          } catch (error) {
+            lastError = error;
+            bytes = null;
+          }
+        }
+      }
+      if (bytes == null || bytes.lengthInBytes == 0) {
+        throw lastError ??
+            Exception('ArtworkNetworkImage is an empty file: $uri');
+      }
+
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      return await decode(buffer);
+    } catch (e) {
+      scheduleMicrotask(() {
+        PaintingBinding.instance.imageCache.evict(key);
+      });
+      rethrow;
+    } finally {
+      await chunkEvents.close();
+    }
+  }
+
+  static bool _isUsableArtwork(Uint8List bytes) {
+    if (bytes.isEmpty) return false;
+    // NetEase sometimes returns tiny HTML error pages with 200; reject them.
+    if (bytes.lengthInBytes < 200 && bytes[0] == 0x3C /* < */) return false;
+    return true;
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other.runtimeType != runtimeType) return false;
+    return other is ArtworkNetworkImage &&
+        other.url == url &&
+        other.scale == scale;
+  }
+
+  @override
+  int get hashCode => Object.hash(url, scale);
+
+  @override
+  String toString() =>
+      '${objectRuntimeType(this, 'ArtworkNetworkImage')}("$url", scale: ${scale.toStringAsFixed(1)})';
+}

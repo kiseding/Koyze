@@ -1,0 +1,176 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:koyze/features/playlist/data/playlist_repository.dart';
+import 'package:koyze/features/playlist/domain/playlist.dart';
+import 'package:koyze/features/playlist/presentation/playlist_detail_screen.dart';
+import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
+
+void main() {
+  test('playlist list more menu uses center dialog and can add favorites', () {
+    final source = File(
+      'lib/features/playlist/presentation/playlist_screen.dart',
+    ).readAsStringSync();
+    final more = source.substring(
+      source.indexOf('void _showPlaylistMoreMenu('),
+    );
+
+    expect(more, contains('showDialog<void>'));
+    expect(more, contains('Dialog('));
+    expect(more, contains('BorderRadius.circular(20)'));
+    expect(more, contains('maxHeight: maxH'));
+    expect(more, contains('S.of(context).addAllToFavorites'));
+    expect(
+      File('lib/l10n/app_strings.dart').readAsStringSync(),
+      contains('全部添加到收藏列表'),
+    );
+    expect(more, contains('await ref'));
+    expect(more, contains('.addAllSongsToFavorites(playlist.id)'));
+    expect(more, isNot(contains('showModalBottomSheet')));
+  });
+
+  test(
+    'playlist detail more menu exposes clear favorites action only there',
+    () {
+      final source = File(
+        'lib/features/playlist/presentation/playlist_detail_screen.dart',
+      ).readAsStringSync();
+      expect(source, contains("case 'clear_favorites':"));
+      expect(source, contains("case 'duplicates':"));
+      expect(source, contains("context.push('/duplicates')"));
+      expect(source, contains('S.of(context).clearFavorites'));
+      expect(source, contains('S.of(context).confirmClear'));
+      expect(source, contains('S.of(context).clearFavoritesTitle'));
+      expect(source, isNot(contains('一键取消收藏')));
+      final itemBuilder = source.substring(
+        source.indexOf('itemBuilder: (context) {'),
+        source.indexOf('body: playlist.songCount == 0'),
+      );
+      expect(itemBuilder, contains("value: 'duplicates'"));
+      expect(itemBuilder, contains('S.of(context).duplicateSongs'));
+      expect(
+        itemBuilder.indexOf("value: 'duplicates'"),
+        greaterThan(itemBuilder.indexOf("value: 'sort_duration'")),
+      );
+      expect(
+        itemBuilder.indexOf("value: 'clear_favorites'"),
+        greaterThan(itemBuilder.indexOf("value: 'duplicates'")),
+      );
+      expect(source, isNot(contains("case 'add_all_to_favorites':")));
+      expect(source, isNot(contains('全部添加到收藏列表')));
+    },
+  );
+
+  test('favorites detail supports long-press multi-select batch actions', () {
+    final source = File(
+      'lib/features/playlist/presentation/playlist_detail_screen.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('onLongPress: isFavorites'));
+    expect(source, contains('_toggleFavoriteSelection(song)'));
+    expect(source, contains('S.of(context).selectedCount(_selectedFavoriteIds.length)'));
+    expect(source, contains('_downloadSelectedFavorites'));
+    expect(source, contains('_removeSelectedFavorites'));
+    expect(source, contains('_toggleAllFavoriteSelection'));
+    expect(source, contains('currentPageSongs'));
+    expect(source, contains('_selectedFavoriteIds.clear();'));
+    expect(source, contains('_selectedFavoriteIds.removeAll(currentPageIds)'));
+    expect(
+      source,
+      contains('currentPageIds.every(_selectedFavoriteIds.contains)'),
+    );
+    final selectAllMethod = source.substring(
+      source.indexOf('void _toggleAllFavoriteSelection('),
+      source.indexOf('Future<List<MusicItem>> _selectedFavoriteSongs('),
+    );
+    expect(selectAllMethod, isNot(contains('getAllSongs')));
+    expect(
+      source,
+      contains(
+        'tooltip: isAllFavoritesSelected ? S.of(context).deselectAll : S.of(context).selectAll',
+      ),
+    );
+    expect(source, contains('Icons.select_all'));
+    expect(source, contains('Icons.deselect'));
+    expect(
+      source,
+      contains('removeSongsFromPlaylist(playlist.id, selectedIds)'),
+    );
+    expect(source, contains('ref.read(downloadSongProvider)'));
+  });
+
+  testWidgets(
+    'replaceAll removal shows missing playlist without stale actions',
+    (tester) async {
+      final now = DateTime.utc(2026);
+      final selected = Playlist(
+        id: 'selected',
+        name: 'Selected',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final repository = _MemoryRepository(
+        PlaylistSnapshot(
+          schemaVersion: 1,
+          playlists: [
+            Playlist(
+              id: 'favorites',
+              name: 'Favorites',
+              createdAt: now,
+              updatedAt: now,
+            ),
+            Playlist(
+              id: 'recent',
+              name: 'Recent',
+              createdAt: now,
+              updatedAt: now,
+            ),
+            selected,
+          ],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [playlistRepositoryProvider.overrideWithValue(repository)],
+      );
+      addTearDown(container.dispose);
+      final service = container.read(playlistServiceProvider);
+      await service.init();
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: PlaylistDetailScreen(playlistId: selected.id),
+          ),
+        ),
+      );
+      expect(find.textContaining('Selected'), findsOneWidget);
+
+      await service.replaceAll(
+        service.playlists
+            .where((playlist) => playlist.id != selected.id)
+            .toList(),
+      );
+      await tester.pump();
+
+      expect(find.text('Playlist not found'), findsOneWidget);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+    },
+  );
+}
+
+final class _MemoryRepository implements PlaylistRepository {
+  _MemoryRepository(this.snapshot);
+
+  PlaylistSnapshot snapshot;
+
+  @override
+  Future<PlaylistSnapshot> load() async => snapshot;
+
+  @override
+  Future<void> save(PlaylistSnapshot snapshot) async {
+    this.snapshot = snapshot;
+  }
+}

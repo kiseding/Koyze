@@ -1,0 +1,606 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('root toolchain requirements match the supported Flutter release', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+
+    expect(pubspec, contains("sdk: '>=3.12.0 <4.0.0'"));
+    expect(pubspec, contains("flutter: '>=3.44.0'"));
+  });
+
+  test('settings about row shows the pubspec version', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final version = RegExp(
+      r'^version:\s*([0-9.]+)',
+      multiLine: true,
+    ).firstMatch(pubspec)!.group(1)!;
+    final settings = File(
+      'lib/features/settings/presentation/settings_screen.dart',
+    ).readAsStringSync();
+    final strings = File('lib/l10n/app_strings.dart').readAsStringSync();
+    expect(settings, contains("name: s.version, value: 'v$version'"));
+    expect(strings, contains("en ? 'Version' : '版本'"));
+  });
+
+  test('platform workflows use the same pinned Flutter patch release', () {
+    for (final platform in ['android', 'ios', 'linux', 'macos', 'windows']) {
+      final workflow = File(
+        '.github/workflows/build-$platform.yml',
+      ).readAsStringSync();
+      expect(workflow, contains("flutter-version: '3.44.9'"), reason: platform);
+      expect(
+        RegExp(r"flutter-version: '([^']+)'").allMatches(workflow),
+        hasLength(1),
+        reason: platform,
+      );
+    }
+  });
+
+  test('official build workflow actions are pinned to full SHAs', () {
+    for (final platform in ['android', 'ios', 'linux', 'macos', 'windows']) {
+      final workflow = File(
+        '.github/workflows/build-$platform.yml',
+      ).readAsStringSync();
+      for (final action in ['actions/checkout', 'actions/upload-artifact']) {
+        expect(
+          RegExp(
+            'uses: $action@[0-9a-f]{40}\\s+# v[0-9]+\\.[0-9]+\\.[0-9]+',
+          ).hasMatch(workflow),
+          isTrue,
+          reason: '$platform $action',
+        );
+      }
+    }
+    final android = File(
+      '.github/workflows/build-android.yml',
+    ).readAsStringSync();
+    expect(
+      RegExp(
+        r'uses: actions/setup-java@[0-9a-f]{40}\s+# v[0-9]+\.[0-9]+\.[0-9]+',
+      ).hasMatch(android),
+      isTrue,
+    );
+  });
+
+  test('build workflows use the reviewed Flutter action major', () {
+    for (final platform in ['android', 'ios', 'linux', 'macos', 'windows']) {
+      final workflow = File(
+        '.github/workflows/build-$platform.yml',
+      ).readAsStringSync();
+      expect(
+        RegExp(
+          r'uses: subosito/flutter-action@v2\s*$',
+          multiLine: true,
+        ).allMatches(workflow),
+        hasLength(1),
+        reason: platform,
+      );
+    }
+  });
+
+  test('iOS CI gates the build on analysis and deterministic tests', () {
+    final workflow = File('.github/workflows/build-ios.yml').readAsStringSync();
+    final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
+    final test = workflow.indexOf('run: flutter test --exclude-tags live');
+    final build = workflow.indexOf('run: flutter build ios');
+
+    expect(analyze, greaterThanOrEqualTo(0));
+    expect(test, greaterThan(analyze));
+    expect(build, greaterThan(test));
+  });
+
+  test('iOS CI publishes only the Apple ID sideload IPA', () {
+    final workflow = File('.github/workflows/build-ios.yml').readAsStringSync();
+
+    expect(workflow, contains('Koyze-Apple-ID-Sideload.ipa'));
+    expect(workflow, contains('Koyze-Apple-ID-Sideload-IPA'));
+    expect(
+      workflow,
+      contains('rm -rf build/ios/ipa-sideload/Payload/Runner.app/PlugIns'),
+    );
+    expect(workflow, isNot(contains('Koyze-unsigned.ipa')));
+    expect(workflow, isNot(contains('Koyze-unsigned-IPA')));
+  });
+
+  test('iOS source transport completes each Flutter result only once', () {
+    final appDelegate = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+
+    expect(appDelegate, contains('private final class FlutterResultGate'));
+    expect(appDelegate, contains('guard !completed else'));
+    expect(appDelegate, contains('resultGate.complete('));
+    expect(appDelegate, contains('bytes[10] == 0xff'));
+    expect(appDelegate, contains('Self.isPrivateIPv4(bytes[12], bytes[13])'));
+  });
+
+  test('Workers deployment does not print the login token response', () {
+    final workflow = File(
+      '.github/workflows/deploy-workers.yml',
+    ).readAsStringSync();
+
+    expect(workflow, isNot(contains('cat /tmp/login.json')));
+    expect(workflow, contains("TOKEN=\"\$(jq -er '.token' /tmp/login.json)\""));
+  });
+
+  test('Windows CI validates and publishes a complete portable bundle', () {
+    final workflow = File(
+      '.github/workflows/build-windows.yml',
+    ).readAsStringSync();
+    final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
+    final test = workflow.indexOf(
+      'run: flutter test test/build_configuration_test.dart',
+    );
+    final build = workflow.indexOf('run: flutter build windows --release');
+
+    expect(analyze, greaterThanOrEqualTo(0));
+    expect(test, greaterThan(analyze));
+    expect(build, greaterThan(test));
+    expect(workflow, contains('quickjs_c_bridge.dll'));
+    expect(workflow, contains('Koyze-Windows-x64.zip'));
+  });
+
+  test('Linux CI validates and publishes a complete portable bundle', () {
+    final workflow = File(
+      '.github/workflows/build-linux.yml',
+    ).readAsStringSync();
+    final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
+    final test = workflow.indexOf(
+      'run: flutter test test/build_configuration_test.dart',
+    );
+    final build = workflow.indexOf('run: flutter build linux --release');
+
+    expect(analyze, greaterThanOrEqualTo(0));
+    expect(test, greaterThan(analyze));
+    expect(build, greaterThan(test));
+    expect(workflow, contains('libgtk-3-dev'));
+    expect(workflow, contains('libsecret-1-dev'));
+    expect(workflow, contains('libflutter_js_plugin.so'));
+    expect(workflow, contains('data/app_icon.png'));
+    expect(workflow, contains('Koyze-Linux-x64.tar.gz'));
+    expect(
+      File('linux/CMakeLists.txt').readAsStringSync(),
+      contains('APPLICATION_ID "com.koyze.app"'),
+    );
+  });
+
+  test('macOS CI validates and publishes an unsigned app archive', () {
+    final workflow = File(
+      '.github/workflows/build-macos.yml',
+    ).readAsStringSync();
+    final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
+    final test = workflow.indexOf(
+      'run: flutter test test/build_configuration_test.dart',
+    );
+    final build = workflow.indexOf('run: flutter build macos --release');
+
+    expect(analyze, greaterThanOrEqualTo(0));
+    expect(test, greaterThan(analyze));
+    expect(build, greaterThan(test));
+    expect(workflow, contains('Koyze.app'));
+    expect(workflow, contains('Koyze-macOS.zip'));
+    expect(
+      File('macos/Runner/Release.entitlements').readAsStringSync(),
+      contains('com.apple.security.network.client'),
+    );
+    expect(
+      File('macos/Runner/Configs/AppInfo.xcconfig').readAsStringSync(),
+      contains('PRODUCT_BUNDLE_IDENTIFIER = com.koyze.app'),
+    );
+  });
+
+  test('Windows playback skips silence keepalive and proxies headers', () {
+    final handler = File(
+      'lib/core/audio/audio_handler.dart',
+    ).readAsStringSync();
+
+    expect(handler, contains('useSilenceKeepalive'));
+    // Host-derived defaults now live in one seam so tests can pin them; the
+    // production values must still come from the platform.
+    expect(handler, contains('useSilenceKeepalive: !Platform.isWindows'));
+    expect(handler, contains('streamLocalFiles: Platform.isWindows'));
+    expect(handler, contains('useProxyForRequestHeaders: Platform.isWindows'));
+  });
+
+  test('Windows close uses themed Flutter dialog and single instance', () {
+    final runner = File('windows/runner/win32_window.cpp').readAsStringSync();
+    final main = File('windows/runner/main.cpp').readAsStringSync();
+    final cmake = File('windows/runner/CMakeLists.txt').readAsStringSync();
+    final handler = File(
+      'lib/core/windows/windows_close_handler.dart',
+    ).readAsStringSync();
+
+    expect(runner, contains('case WM_CLOSE'));
+    expect(runner, isNot(contains('MessageBoxW')));
+    expect(runner, contains('Shell_NotifyIconW(NIM_ADD'));
+    expect(runner, contains('Shell_NotifyIconW(NIM_DELETE'));
+    expect(runner, contains('ShowWindow(window_handle_, SW_HIDE)'));
+    expect(runner, contains('RestoreFromTray'));
+    expect(main, contains('CreateMutexW'));
+    expect(main, contains('ERROR_ALREADY_EXISTS'));
+    expect(main, contains('Koyze.RestoreInstance'));
+    expect(handler, contains("MethodChannel('koyze/window')"));
+    expect(handler, contains('showDialog<_CloseSelection>'));
+    expect(handler, contains('下次不再询问'));
+    expect(handler, contains("'windows_close_action'"));
+    expect(cmake, contains('"shell32.lib"'));
+    expect(cmake, contains('PRIVATE "/utf-8"'));
+  });
+
+  test('Windows title bar is an immersive client caption', () {
+    final runner = File('windows/runner/win32_window.cpp').readAsStringSync();
+    final mainCpp = File('windows/runner/main.cpp').readAsStringSync();
+    final channel = File(
+      'windows/runner/flutter_window.cpp',
+    ).readAsStringSync();
+    final bar = File(
+      'lib/core/windows/windows_caption_bar.dart',
+    ).readAsStringSync();
+    final app = File('lib/app.dart').readAsStringSync();
+    final close = File(
+      'lib/core/windows/windows_close_handler.dart',
+    ).readAsStringSync();
+
+    expect(runner, contains('WM_NCCALCSIZE'));
+    expect(runner, contains('DwmExtendFrameIntoClientArea'));
+    expect(runner, contains('DWMWA_COLOR_NONE'));
+    expect(
+      runner,
+      contains(
+        'style &= ~(WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX)',
+      ),
+    );
+    expect(runner, contains('case WM_ERASEBKGND:'));
+    expect(runner, contains('SWP_FRAMECHANGED'));
+    expect(runner, contains('kCornerRadiusDip = 24'));
+    expect(runner, contains('CreateRoundRectRgn'));
+    expect(bar, contains('EdgeInsets.only(top: 8, right: 16)'));
+    expect(runner, contains('HTTRANSPARENT'));
+    expect(runner, contains('WM_NCUAHDRAWCAPTION'));
+    expect(runner, contains('DWMWA_CAPTION_COLOR'));
+    expect(runner, contains('DWMNCRP_DISABLED'));
+    expect(runner, contains('const MARGINS margins = {0, 0, 0, 0}'));
+    expect(mainCpp, contains('kImmersiveCaptionHeight = 40'));
+    expect(mainCpp, contains('kNonClientHeight = 0'));
+    expect(channel, contains('startDragging'));
+    expect(channel, contains('toggleMaximize'));
+    expect(channel, contains('closeWindow'));
+    expect(channel, contains('"windowState"'));
+    expect(bar, contains('barHeight = 40'));
+    expect(bar, contains('windowsCaptionMaximized'));
+    expect(app, contains('WindowsCaptionFrame'));
+    expect(close, contains('applyWindowsWindowState'));
+  });
+
+  test('Android CI requires signing and publishes verified APKs', () {
+    final workflow = File(
+      '.github/workflows/build-android.yml',
+    ).readAsStringSync();
+    final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
+    final test = workflow.indexOf('run: flutter test --exclude-tags live');
+    final build = workflow.indexOf('flutter build apk --release');
+    final signingCheck = workflow.indexOf(
+      'name: Require Android release signing secrets',
+    );
+
+    expect(analyze, greaterThanOrEqualTo(0));
+    expect(test, greaterThan(analyze));
+    expect(build, greaterThan(test));
+    expect(signingCheck, greaterThanOrEqualTo(0));
+    expect(signingCheck, lessThan(analyze));
+    expect(workflow, contains('--split-per-abi'));
+    expect(workflow, contains('Koyze-\${version}-\${abi}.apk'));
+    expect(workflow, contains('for apk in build/android-release/*.apk'));
+    expect(workflow, contains('Koyze-Android-APKs'));
+    expect(workflow, isNot(contains('flutter build appbundle')));
+    expect(workflow, isNot(contains('.aab')));
+    expect(workflow, isNot(contains('Koyze-Android-AAB')));
+    expect(workflow, contains('ANDROID_KEYSTORE_BASE64'));
+    expect(workflow, isNot(contains('ANDROID_KEYSTORE_BASE64 !=')));
+    expect(workflow, contains('Verify Android release signatures'));
+    expect(workflow, contains('apksigner" verify'));
+    expect(workflow, contains('zipalign" -c -P 16 -v 4'));
+    expect(workflow, isNot(contains('jarsigner')));
+  });
+
+  test('Android Gradle prefers GCS Maven Central to avoid CI 429s', () {
+    final init = File('android/init.gradle').readAsStringSync();
+    final properties = File('android/gradle.properties').readAsStringSync();
+    final settings = File('android/settings.gradle.kts').readAsStringSync();
+    final workflow = File(
+      '.github/workflows/build-android.yml',
+    ).readAsStringSync();
+
+    const gcsMirror = 'maven-central.storage-download.googleapis.com/maven2';
+    expect(init, contains('beforeSettings'));
+    expect(init, contains(gcsMirror));
+    expect(init, contains('gradlePluginPortal()'));
+    expect(init, contains('google()'));
+    expect(
+      init.indexOf(gcsMirror),
+      lessThan(init.indexOf('gradlePluginPortal()')),
+    );
+    expect(init, contains("setUrl('https://$gcsMirror/')"));
+    expect(init, isNot(contains('url = gcsMavenCentral')));
+    expect(init, isNot(contains('repo.url =')));
+    expect(init, isNot(contains('kotlin-dsl')));
+    expect(
+      properties,
+      contains('org.gradle.internal.repository.max.tentatives=10'),
+    );
+    expect(settings, contains(gcsMirror));
+    expect(
+      settings.indexOf(gcsMirror),
+      lessThan(settings.indexOf('mavenCentral()')),
+    );
+    expect(workflow, contains('android/init.gradle'));
+    expect(workflow, contains('.gradle/init.d'));
+    expect(workflow, contains('cache: gradle'));
+    final installInit = workflow.indexOf('.gradle/init.d');
+    final build = workflow.indexOf('flutter build apk --release');
+    expect(installInit, greaterThanOrEqualTo(0));
+    expect(installInit, lessThan(build));
+  });
+
+  test('Android host declares background media playback support', () {
+    final manifest = File(
+      'android/app/src/main/AndroidManifest.xml',
+    ).readAsStringSync();
+    final activity = File(
+      'android/app/src/main/kotlin/com/koyze/app/MainActivity.kt',
+    ).readAsStringSync();
+
+    expect(manifest, contains('android.permission.INTERNET'));
+    expect(manifest, contains('FOREGROUND_SERVICE_MEDIA_PLAYBACK'));
+    expect(manifest, contains('android.permission.POST_NOTIFICATIONS'));
+    expect(manifest, contains('READ_MEDIA_AUDIO'));
+    expect(manifest, contains('READ_EXTERNAL_STORAGE'));
+    expect(manifest, contains('MANAGE_EXTERNAL_STORAGE'));
+    expect(activity, contains('scanMediaStore'));
+    expect(activity, contains('scanSelectedDirectory'));
+    expect(activity, contains('isExternalStorageManager'));
+    expect(activity, contains('isIgnoringBatteryOptimizations'));
+    expect(activity, contains('openBatteryOptimizationSettings'));
+    expect(activity, contains('pendingImportedAudio'));
+    expect(activity, contains('ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS'));
+    expect(activity, contains('ACTION_OPEN_DOCUMENT_TREE'));
+    expect(activity, contains('Intent.ACTION_VIEW'));
+    expect(manifest, contains('android.intent.action.VIEW'));
+    expect(manifest, contains('android:mimeType="audio/*"'));
+    expect(manifest, contains('android:scheme="content"'));
+    expect(manifest, contains('android:foregroundServiceType="mediaPlayback"'));
+    expect(manifest, contains('android:stopWithTask="false"'));
+    expect(manifest, contains('android:allowBackup="false"'));
+    expect(
+      manifest,
+      contains('android:dataExtractionRules="@xml/data_extraction_rules"'),
+    );
+    expect(manifest, contains('android:fullBackupContent="@xml/backup_rules"'));
+    expect(activity, contains('AudioServiceActivity'));
+    final localMusic = File(
+      'lib/features/local_music/presentation/local_music_screen.dart',
+    ).readAsStringSync();
+    expect(localMusic, contains('writeTags'));
+    expect(
+      File('lib/l10n/app_strings.dart').readAsStringSync(),
+      contains('注入tag（实验性）'),
+    );
+    final main = File('lib/main.dart').readAsStringSync();
+    expect(main, contains('Permission.notification.request()'));
+    expect(main, contains('androidStopForegroundOnPause: false'));
+    expect(main, contains('androidNotificationOngoing: false'));
+    final iosInfo = File('ios/Runner/Info.plist').readAsStringSync();
+    expect(iosInfo, contains('<key>UIBackgroundModes</key>'));
+    expect(iosInfo, contains('<string>audio</string>'));
+    expect(iosInfo, contains('<string>fetch</string>'));
+  });
+
+  test('iOS host exposes Background App Refresh via fetch', () {
+    final iosInfo = File('ios/Runner/Info.plist').readAsStringSync();
+    // Windows CI checks out Swift as CRLF; normalize before multiline contains().
+    final appDelegate = File(
+      'ios/Runner/AppDelegate.swift',
+    ).readAsStringSync().replaceAll('\r\n', '\n');
+
+    expect(iosInfo, contains('<string>fetch</string>'));
+    expect(appDelegate, contains('setMinimumBackgroundFetchInterval'));
+    expect(appDelegate, contains('performFetchWithCompletionHandler'));
+    expect(
+      appDelegate,
+      contains(
+        'override func application(\n'
+        '    _ application: UIApplication,\n'
+        '    performFetchWithCompletionHandler',
+      ),
+    );
+    expect(appDelegate, isNot(contains('@objc func application(')));
+    expect(
+      appDelegate,
+      contains('#selector(application(_:performFetchWithCompletionHandler:))'),
+    );
+    expect(appDelegate, contains('completionHandler(.noData)'));
+  });
+
+  test('Android host aligns the legacy flutter_js Kotlin target', () {
+    final build = File('android/build.gradle.kts').readAsStringSync();
+
+    expect(build, contains('if (name == "flutter_js")'));
+    expect(build, contains('JvmTarget.JVM_11'));
+    expect(
+      build,
+      contains('pluginManager.apply("org.jetbrains.kotlin.android")'),
+    );
+    expect(build, contains('JvmTarget.JVM_17'));
+  });
+
+  test('Android release enables R8 with Flutter plugin keep rules', () {
+    final build = File('android/app/build.gradle.kts').readAsStringSync();
+    final rules = File('android/app/proguard-rules.pro').readAsStringSync();
+
+    expect(build, contains('rootProject.file("key.properties")'));
+    expect(
+      build,
+      contains('providers.gradleProperty("allowDebugReleaseSigning")'),
+    );
+    expect(build, contains('requestsRelease && !hasReleaseSigning'));
+    expect(
+      build,
+      contains('allowDebugReleaseSigning -> signingConfigs.getByName("debug")'),
+    );
+    expect(build, contains('isMinifyEnabled = true'));
+    expect(build, contains('isShrinkResources = true'));
+    expect(build, contains('proguardFiles('));
+    expect(build, contains('"proguard-rules.pro"'));
+    expect(rules, contains('GeneratedPluginRegistrant'));
+    expect(
+      rules,
+      contains('io.flutter.embedding.engine.plugins.FlutterPlugin'),
+    );
+    expect(rules, contains('com.ryanheise.audioservice'));
+    expect(rules, contains('io.abner.flutter_js'));
+    expect(rules, contains('com.koyze.app'));
+    expect(rules, contains('com.google.android.play.core.splitinstall'));
+    expect(rules, contains('-dontwarn com.google.android.play.core.tasks.**'));
+  });
+
+  test('Android backup policy excludes all application data', () {
+    final legacy = File(
+      'android/app/src/main/res/xml/backup_rules.xml',
+    ).readAsStringSync();
+    final modern = File(
+      'android/app/src/main/res/xml/data_extraction_rules.xml',
+    ).readAsStringSync();
+
+    for (final domain in [
+      'root',
+      'file',
+      'database',
+      'sharedpref',
+      'external',
+    ]) {
+      expect(legacy, contains('<exclude domain="$domain" path="." />'));
+      expect(modern, contains('<exclude domain="$domain" path="." />'));
+    }
+    expect(modern, contains('<cloud-backup'));
+    expect(modern, contains('<device-transfer>'));
+  });
+
+  test('launcher source icon is not shipped as a Flutter asset', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    // Windows CI checks out YAML as CRLF; the flutter: section split must
+    // not fall through to flutter_launcher_icons image_path.
+    final normalized = pubspec.replaceAll('\r\n', '\n');
+    for (final text in [normalized, normalized.replaceAll('\n', '\r\n')]) {
+      final flutterSection = text
+          .replaceAll('\r\n', '\n')
+          .split(RegExp(r'\nflutter:\n'))
+          .last;
+
+      expect(flutterSection, contains('uses-material-design: true'));
+      expect(flutterSection, isNot(contains('assets:')));
+      expect(flutterSection, isNot(contains('app_icon.png')));
+    }
+  });
+
+  test('launcher source icon stays a compact 1024 PNG', () {
+    final icon = File('assets/icon/app_icon.png');
+    final bytes = icon.readAsBytesSync();
+
+    expect(bytes[0], 0x89);
+    expect(bytes.sublist(1, 4), [0x50, 0x4e, 0x47]);
+    expect(
+      (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19],
+      1024,
+    );
+    expect(
+      (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23],
+      1024,
+    );
+    // Source is launcher input only (not a Flutter asset). Do not recompress
+    // artwork; still reject the previous uncompressed 860KB blow-up.
+    expect(bytes.length, lessThan(256 * 1024));
+  });
+
+  test('macOS and Linux launcher icons use the mobile artwork', () {
+    final source = File('assets/icon/app_icon.png').readAsBytesSync();
+    expect(
+      File(
+        'macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png',
+      ).readAsBytesSync(),
+      source,
+    );
+    expect(
+      File('linux/runner/resources/app_icon.png').readAsBytesSync(),
+      source,
+    );
+
+    const macosSizes = {16, 32, 64, 128, 256, 512, 1024};
+    for (final size in macosSizes) {
+      final bytes = File(
+        'macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_$size.png',
+      ).readAsBytesSync();
+      expect(bytes[0], 0x89);
+      expect(bytes.sublist(1, 4), [0x50, 0x4e, 0x47]);
+      expect(
+        (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19],
+        size,
+      );
+      expect(
+        (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23],
+        size,
+      );
+    }
+
+    final linuxRunner = File(
+      'linux/runner/my_application.cc',
+    ).readAsStringSync();
+    expect(linuxRunner, contains('set_application_icon(window)'));
+    expect(linuxRunner, contains('gtk_window_set_icon_from_file'));
+    expect(linuxRunner, contains('data", "app_icon.png"'));
+
+    final cmake = File('linux/CMakeLists.txt').readAsStringSync();
+    expect(cmake, contains('runner/resources/app_icon.png'));
+    expect(cmake, contains('INSTALL_BUNDLE_DATA_DIR'));
+  });
+
+  test('Widget Extension inherits Flutter build name and number', () {
+    final project = File(
+      'ios/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+    final widgetConfigurations = RegExp(
+      r'AA000000000000000000000[DEF] /\* (?:Debug|Release|Profile) \*/ = \{'
+      r'.*?CURRENT_PROJECT_VERSION = "\$\(FLUTTER_BUILD_NUMBER\)";'
+      r'.*?MARKETING_VERSION = "\$\(FLUTTER_BUILD_NAME\)";',
+      dotAll: true,
+    ).allMatches(project);
+
+    expect(widgetConfigurations, hasLength(3));
+  });
+
+  test('build workflows gate a release tag on the pubspec version', () {
+    final guard = RegExp(
+      r"name: Verify release tag matches pubspec version\n"
+      r"\s+if: startsWith\(github\.ref, 'refs/tags/v'\)\n"
+      r"\s+shell: bash\n"
+      r"\s+run: \|",
+    );
+    for (final platform in ['android', 'ios', 'linux', 'macos', 'windows']) {
+      // Windows CI checks out the workflow as CRLF; normalize before matching.
+      final workflow = File(
+        '.github/workflows/build-$platform.yml',
+      ).readAsStringSync().replaceAll('\r\n', '\n');
+
+      expect(guard.hasMatch(workflow), isTrue, reason: platform);
+
+      final checkout = workflow.indexOf('name: Check out repository');
+      final verify = workflow.indexOf(
+        'name: Verify release tag matches pubspec version',
+      );
+      final flutter = workflow.indexOf('uses: subosito/flutter-action@v2');
+
+      expect(checkout, greaterThanOrEqualTo(0), reason: platform);
+      expect(verify, greaterThan(checkout), reason: platform);
+      expect(flutter, greaterThan(verify), reason: platform);
+    }
+  });
+}

@@ -1,0 +1,1356 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:audio_service/audio_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:koyze/core/audio/audio_handler.dart';
+import 'package:koyze/core/widgets/artwork_disk_cache.dart';
+import 'package:koyze/core/widgets/artwork_image.dart';
+import 'package:koyze/features/player/domain/music_item.dart';
+import 'package:koyze/features/player/domain/player_service.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  // The audio assertions in this file describe non-Windows behaviour (silence
+  // keepalive installed, local files not routed through the HTTP proxy). Pin the
+  // host-derived defaults so the suite is independent of the test host.
+  setUpAll(() {
+    AudioHandlerPlatformDefaults.current = AudioHandlerPlatformDefaults.posix;
+  });
+  tearDownAll(AudioHandlerPlatformDefaults.resetCurrent);
+  audioHandler = BaseAudioHandler();
+
+  late AudioHandler originalAudioHandler;
+  late LxAudioHandler handler;
+  late _RecordingAudioPlayer player;
+
+  setUp(() {
+    originalAudioHandler = audioHandler;
+    player = _RecordingAudioPlayer();
+    handler = LxAudioHandler(player: player);
+  });
+
+  tearDown(() async {
+    audioHandler = originalAudioHandler;
+    await handler.dispose();
+  });
+
+  test('player service has no independently mutable queue', () {
+    final source = File(
+      'lib/features/player/domain/player_service.dart',
+    ).readAsStringSync();
+    expect(source, isNot(contains('final List<MediaItem> _playQueue')));
+    expect(source, isNot(contains('int _currentIndex')));
+    expect(source, contains('queueItems'));
+    expect(source, contains('currentQueueIndex'));
+  });
+
+  test(
+    'leaderboard queue keeps now-playing marker after replacement',
+    () async {
+      audioHandler = handler;
+      final service = PlayerService();
+      final song = MusicItem(
+        id: 'rank-1',
+        name: 'Rank 1',
+        singer: '',
+        source: 'test',
+      );
+
+      await service.setQueue([song], leaderboardId: 'daily-rank');
+
+      expect(service.nowPlayingLeaderboardId, 'daily-rank');
+      expect(handler.mediaItem.value?.id, song.identityKey);
+
+      await service.playPlaylist([song], autoplay: false);
+
+      expect(service.nowPlayingLeaderboardId, isNull);
+    },
+  );
+
+  test(
+    'manual skip stays responsive after mode toggles on a lazy paged playlist',
+    () async {
+      audioHandler = handler;
+      final service = PlayerService();
+      MusicItem song(int i) => MusicItem(
+        id: 's$i',
+        name: 's$i',
+        singer: '',
+        source: 'test',
+        url: 'file:///tmp/s$i.mp3',
+      );
+      final songs = [for (var i = 0; i < 30; i++) song(i)];
+
+      await service.playPagedPlaylist(
+        songCount: songs.length,
+        startIndex: 0,
+        playlistId: 'lazy-playlist',
+        loadPage: (offset, limit) async =>
+            songs.sublist(offset, (offset + limit).clamp(0, songs.length)),
+      );
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+
+      // 开随机：手动切歌必须换曲。
+      await service.setShuffleMode(true);
+      await handler.skipToNext();
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+
+      // 切回顺序：手动切歌必须完成（此前会卡住）。
+      await service.setShuffleMode(false);
+      await handler.skipToNext();
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+
+      // 单曲循环 ↔ 顺序：模式切换后手动切歌仍必须完成。
+      await service.setRepeatMode(AudioServiceRepeatMode.one);
+      await handler.skipToNext();
+      await service.setRepeatMode(AudioServiceRepeatMode.none);
+      await handler.skipToNext();
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+
+      // 上一首也必须可用。
+      await handler.skipToPrevious();
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+    },
+  );
+
+  test(
+    'paged sequential play returns to the first song after the last',
+    () async {
+      audioHandler = handler;
+      final service = PlayerService();
+      MusicItem song(int i) => MusicItem(
+        id: 's$i',
+        name: 's$i',
+        singer: '',
+        source: 'test',
+        url: 'file:///tmp/s$i.mp3',
+      );
+      final songs = [for (var i = 0; i < 3; i++) song(i)];
+
+      await service.playPagedPlaylist(
+        songCount: songs.length,
+        startIndex: 0,
+        playlistId: 'wrap',
+        loadPage: (offset, limit) async =>
+            songs.sublist(offset, (offset + limit).clamp(0, songs.length)),
+      );
+      String bare(String? id) => id!.split(':').last;
+      expect(bare(handler.mediaItem.value?.id), 's0');
+
+      await handler.skipToNext();
+      await handler.skipToNext();
+      expect(bare(handler.mediaItem.value?.id), 's2');
+      await handler.skipToNext();
+
+      expect(bare(handler.mediaItem.value?.id), 's0');
+      expect(handler.queueItems.length, greaterThan(3));
+    },
+  );
+
+  test('paged shuffle keeps picking a song after the pass ends', () async {
+    audioHandler = handler;
+    final service = PlayerService();
+    MusicItem song(int i) => MusicItem(
+      id: 's$i',
+      name: 's$i',
+      singer: '',
+      source: 'test',
+      url: 'file:///tmp/s$i.mp3',
+    );
+    final songs = [for (var i = 0; i < 3; i++) song(i)];
+    await handler.setShuffleMode(AudioServiceShuffleMode.all);
+
+    await service.playPagedPlaylist(
+      songCount: songs.length,
+      startIndex: 0,
+      playlistId: 'shuffle-wrap',
+      loadPage: (offset, limit) async =>
+          songs.sublist(offset, (offset + limit).clamp(0, songs.length)),
+    );
+    final ids = <String>{};
+    for (var i = 0; i < 5; i++) {
+      ids.add(handler.mediaItem.value!.id.split(':').last);
+      await handler.skipToNext();
+    }
+
+    expect(handler.mediaItem.value!.id.split(':').last, startsWith('s'));
+    expect(ids, {'s0', 's1', 's2'});
+    expect(handler.queueItems.length, greaterThan(3));
+    expect(player.loadedSource, isA<ProgressiveAudioSource>());
+  });
+
+  test('newer playlist invalidates an in-flight paged playlist load', () async {
+    audioHandler = handler;
+    final service = PlayerService();
+    final pageStarted = Completer<void>();
+    final releasePage = Completer<void>();
+    final staleMusic = MusicItem(
+      id: 'stale',
+      name: 'stale',
+      singer: '',
+      source: 'test',
+    );
+    final currentMusic = MusicItem(
+      id: 'current',
+      name: 'current',
+      singer: '',
+      source: 'test',
+    );
+
+    final stale = service.playPagedPlaylist(
+      songCount: 1,
+      startIndex: 0,
+      playlistId: 'stale-playlist',
+      loadPage: (_, __) async {
+        pageStarted.complete();
+        await releasePage.future;
+        return [staleMusic];
+      },
+    );
+    await pageStarted.future;
+    await service.playPlaylist([currentMusic], autoplay: false);
+    releasePage.complete();
+    await stale;
+
+    expect(handler.queueItems.map((item) => item.id), [
+      currentMusic.identityKey,
+    ]);
+    expect(handler.mediaItem.value?.id, currentMusic.identityKey);
+    expect(service.currentLazyPlaylistId, isNull);
+  });
+
+  test('player service filters disliked songs before queue install', () async {
+    audioHandler = handler;
+    final disliked = MusicItem(
+      id: 'bad',
+      name: 'bad',
+      singer: '',
+      source: 'test',
+    );
+    final liked = MusicItem(
+      id: 'good',
+      name: 'good',
+      singer: '',
+      source: 'test',
+    );
+    final service = PlayerService(
+      isDisliked: (song) async => song.identityKey == disliked.identityKey,
+    );
+
+    await service.playPlaylist([disliked, liked], autoplay: false);
+
+    expect(handler.queueItems.map((item) => item.id), [liked.identityKey]);
+    expect(handler.mediaItem.value?.id, liked.identityKey);
+  });
+
+  test(
+    'setPlaylist empty clears every authoritative current item field',
+    () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      await handler.setPlaylist([item('A')]);
+
+      await handler.setPlaylist(const []);
+
+      expect(handler.queueItems, isEmpty);
+      expect(handler.currentQueueIndex, -1);
+      expect(handler.mediaItem.value, isNull);
+      expect(handler.playbackState.value.queueIndex, -1);
+      expect(player.playing, isFalse);
+    },
+  );
+
+  test('queue metadata updates never replace the active audio source', () {
+    final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
+    final update = source.substring(
+      source.indexOf('Future<void> updateQueue('),
+      source.indexOf('Future<void> addQueueItem('),
+    );
+    expect(update, isNot(contains('ConcatenatingAudioSource')));
+    expect(update, isNot(contains('setAudioSource')));
+  });
+
+  test('lazy queue refills only before the native queue runs out', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    final loadRequests = <int>[];
+    handler.configureLazyQueue(
+      loadMore: (minimumItems) async {
+        loadRequests.add(minimumItems);
+        return [item('B'), item('C')];
+      },
+      rebuildForShuffle: (current, enabled, minimumItems) async => const [],
+    );
+
+    await handler.setPlaylist([item('A')]);
+
+    expect(handler.queueItems.map((queueItem) => queueItem.id), ['A']);
+
+    await handler.skipToNext();
+
+    expect(handler.queueItems.map((queueItem) => queueItem.id), [
+      'A',
+      'B',
+      'C',
+    ]);
+    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'B');
+    expect(loadRequests, isNotEmpty);
+  });
+
+  test(
+    'lazy skip recovers after a shuffle rebuild that returns an empty tail',
+    () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      handler.configureLazyQueue(
+        loadMore: (minimumItems) async {
+          // Sequential window exhausted: repeat=off keeps the list empty.
+          return const [];
+        },
+        rebuildForShuffle: (current, enabled, minimumItems) async {
+          if (!enabled) return const [];
+          return [item('S1')];
+        },
+      );
+
+      await handler.setPlaylist([item('A'), item('B')]);
+      await handler.skipToNext(); // now on B
+      expect(player.loadedSource, isA<ProgressiveAudioSource>());
+
+      // Toggle shuffle on (rebuild gives S1), then back to sequential with an
+      // empty tail — previously this left next/previous permanently inert.
+      await handler.setShuffleMode(AudioServiceShuffleMode.all);
+      expect(handler.queueItems.map((queueItem) => queueItem.id), ['B', 'S1']);
+      await handler.setShuffleMode(AudioServiceShuffleMode.none);
+      expect(handler.currentQueueIndex, 0);
+
+      // Eager retry must pull new items even though loadMore returned empty
+      // before; simulate the loader recovering after the toggle.
+      await handler.skipToNext();
+      expect(player.playing, isTrue);
+    },
+  );
+
+  test(
+    'starting a new playlist silences the previous track immediately',
+    () async {
+      final slowResolverStarted = Completer<void>();
+      final releaseSlowResolver = Completer<void>();
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+
+      await handler.setPlaylist([item('Old')]);
+      expect(player.playing, isTrue);
+      final pausesBefore = player.pauseCalls;
+
+      // 'New' has no cached URL, forcing a real resolution round-trip.
+      final newItem = MediaItem(
+        id: 'New',
+        title: 'New',
+        extras: {'requestedQuality': '320k'},
+      );
+      handler.urlResolver = (id, [extras]) async {
+        if (id == 'New') {
+          slowResolverStarted.complete();
+          await releaseSlowResolver.future;
+        }
+        return 'file:///tmp/$id.mp3';
+      };
+
+      // Jump to a song from another list while the old track is playing.
+      final replacement = handler.setPlaylist([newItem]);
+      await slowResolverStarted.future;
+
+      // The old track must already be silent before the new URL resolves.
+      expect(player.pauseCalls, greaterThan(pausesBefore));
+      expect(player.playing, isFalse);
+      // Mini-player / full-screen buttons read playbackState.playing, not the
+      // native engine. Card play must keep that flag true during resolve, or
+      // the buttons show "play" while the new track is about to start.
+      expect(handler.playbackState.value.playing, isTrue);
+
+      releaseSlowResolver.complete();
+      await replacement;
+      expect(player.playing, isTrue);
+      expect(handler.playbackState.value.playing, isTrue);
+    },
+  );
+
+  test(
+    'togglePlay during card-play resolve pauses instead of starting again',
+    () async {
+      audioHandler = handler;
+      final service = PlayerService();
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      MediaItem item(String id, {required bool resolved}) => MediaItem(
+        id: id,
+        title: id,
+        extras: resolved
+            ? {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'}
+            : {'requestedQuality': '320k'},
+      );
+
+      await handler.setPlaylist([item('Old', resolved: true)]);
+      expect(player.playing, isTrue);
+      handler.urlResolver = (id, [extras]) async {
+        if (id == 'New') {
+          resolverStarted.complete();
+          await releaseResolver.future;
+        }
+        return 'file:///tmp/$id.mp3';
+      };
+
+      final replacement = handler.setPlaylist([item('New', resolved: false)]);
+      await resolverStarted.future;
+      expect(handler.playbackState.value.playing, isTrue);
+      expect(player.playing, isFalse);
+      final pausesBeforeToggle = player.pauseCalls;
+
+      await service.togglePlay();
+
+      expect(player.pauseCalls, greaterThanOrEqualTo(pausesBeforeToggle));
+      expect(handler.playbackState.value.playing, isFalse);
+
+      releaseResolver.complete();
+      await replacement;
+      expect(player.playing, isFalse);
+      expect(handler.playbackState.value.playing, isFalse);
+    },
+  );
+
+  test('next and previous finish on the selected track source', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    await handler.setPlaylist([item('A'), item('B')]);
+
+    await handler.skipToNext();
+
+    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'B');
+
+    await handler.skipToPrevious();
+
+    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'A');
+  });
+
+  test(
+    'next keeps a tagged native source playing while URL resolution waits',
+    () async {
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      MediaItem item(String id, {bool resolved = true}) => MediaItem(
+        id: id,
+        title: id,
+        extras: resolved
+            ? {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'}
+            : null,
+      );
+      await handler.setPlaylist([item('A'), item('B', resolved: false)]);
+      handler.urlResolver = (id, [extras]) async {
+        if (id == 'B') {
+          resolverStarted.complete();
+          await releaseResolver.future;
+        }
+        return 'file:///tmp/$id.mp3';
+      };
+
+      final skip = handler.skipToNext();
+      await resolverStarted.future;
+
+      expect(player.playing, isTrue);
+      final temporary = player.loadedSource;
+      expect(temporary, isA<SilenceAudioSource>());
+      expect((temporary as SilenceAudioSource).tag, isA<MediaItem>());
+      expect((temporary.tag as MediaItem).id, 'B');
+
+      releaseResolver.complete();
+      await skip;
+    },
+  );
+
+  test('playNext inserts a removed duplicate after the current item', () async {
+    audioHandler = handler;
+    const currentId = 'B';
+    MediaItem item(String id) => MediaItem(id: id, title: id);
+    final current = item(currentId);
+    await handler.updateQueue([current]);
+    await handler.updateQueue([item('A'), current, item('C')]);
+
+    await PlayerService().playNext(
+      MusicItem(id: 'A', name: 'A', singer: '', source: 'test'),
+    );
+
+    expect(handler.queueItems.map((item) => item.id), [
+      'B',
+      MusicItem(id: 'A', name: 'A', singer: '', source: 'test').identityKey,
+      'C',
+    ]);
+  });
+
+  test('playNext current item is a no-op', () async {
+    audioHandler = handler;
+    final currentMusic = MusicItem(
+      id: 'current',
+      name: 'Current',
+      singer: '',
+      source: 'test',
+    );
+    final item = MediaItem(
+      id: currentMusic.identityKey,
+      title: currentMusic.name,
+      extras: currentMusic.toJson(),
+    );
+    await handler.setPlaylist([item]);
+
+    await PlayerService().playNext(currentMusic);
+
+    expect(handler.queueItems.map((item) => item.id), [
+      currentMusic.identityKey,
+    ]);
+    expect(handler.currentQueueIndex, 0);
+  });
+
+  test(
+    'in-flight queue load follows active item after metadata move',
+    () async {
+      final resolverStarted = Completer<void>();
+      final releaseResolver = Completer<void>();
+      final errors = <String>[];
+      MediaItem item(String id) => MediaItem(id: id, title: id);
+      final active = item('B');
+      await handler.updateQueue([item('A'), active]);
+      handler.onError = errors.add;
+      handler.urlResolver = (id, [extras]) async {
+        resolverStarted.complete();
+        await releaseResolver.future;
+        return null;
+      };
+
+      final load = handler.skipToQueueItem(1);
+      await resolverStarted.future;
+      await handler.updateQueue([active]);
+      releaseResolver.complete();
+      await load;
+
+      expect(handler.currentQueueIndex, 0);
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(errors, hasLength(1));
+    },
+  );
+
+  test(
+    'removing before current preserves current item and shifts index',
+    () async {
+      MediaItem item(String id) => MediaItem(id: id, title: id);
+      final current = item('B');
+      await handler.updateQueue([current]);
+      await handler.updateQueue([item('A'), current, item('C')]);
+
+      await handler.removeQueueItem(item('A'));
+
+      expect(handler.queueItems.map((item) => item.id), ['B', 'C']);
+      expect(handler.currentQueueIndex, 0);
+      expect(handler.mediaItem.value?.id, 'B');
+    },
+  );
+
+  test(
+    'manual skip stays responsive across play-mode switches on a plain queue',
+    () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      await handler.setPlaylist([item('A'), item('B'), item('C'), item('D')]);
+      final playedIds = <String>[];
+      String currentSourceId() =>
+          (player.loadedSource as ProgressiveAudioSource).tag.id as String;
+
+      // 顺序 → 随机：手动切歌必须换曲。
+      await handler.setShuffleMode(AudioServiceShuffleMode.all);
+      await handler.skipToNext();
+      playedIds.add(currentSourceId());
+
+      // 随机 → 顺序：手动切歌必须换曲。
+      await handler.setShuffleMode(AudioServiceShuffleMode.none);
+      await handler.skipToNext();
+      playedIds.add(currentSourceId());
+
+      // 顺序 → 单曲循环 → 顺序：手动切歌必须换曲。
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      await handler.skipToNext();
+      playedIds.add(currentSourceId());
+      await handler.setRepeatMode(AudioServiceRepeatMode.none);
+      await handler.skipToNext();
+      playedIds.add(currentSourceId());
+
+      // 上一首也必须可用。
+      await handler.skipToPrevious();
+      playedIds.add(currentSourceId());
+
+      // 5 次手动切换都实际换了曲（不卡在同一首）。
+      final distinct = playedIds.toSet();
+      expect(distinct.length, greaterThan(1));
+    },
+  );
+
+  test('removing current selects the item now at the same index', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    final current = item('B');
+    await handler.updateQueue([current]);
+    await handler.updateQueue([item('A'), current, item('C')]);
+
+    await handler.removeQueueItem(item('B'));
+
+    expect(handler.queueItems.map((item) => item.id), ['A', 'C']);
+    expect(handler.currentQueueIndex, 1);
+    expect(handler.mediaItem.value?.id, 'C');
+  });
+
+  test('removing current last item selects the preceding item', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    final current = item('C');
+    await handler.updateQueue([current]);
+    await handler.updateQueue([item('A'), item('B'), current]);
+
+    await handler.removeQueueItem(item('C'));
+
+    expect(handler.queueItems.map((item) => item.id), ['A', 'B']);
+    expect(handler.currentQueueIndex, 1);
+    expect(handler.mediaItem.value?.id, 'B');
+  });
+
+  for (final paused in [false, true]) {
+    test('updateQueue loads replacement for removed active occurrence while '
+        '${paused ? 'paused' : 'playing'}', () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      final active = item('A');
+      await handler.setPlaylist([active]);
+      if (paused) await handler.pause();
+      final replacement = item('B');
+
+      await handler.updateQueue([replacement]);
+      await pumpEventQueue();
+
+      expect(handler.currentQueueIndex, 0);
+      expect(handler.mediaItem.value, same(handler.queueItems.single));
+      expect(
+        (player.loadedSource as ProgressiveAudioSource).tag,
+        same(handler.queueItems.single),
+      );
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(player.playing, !paused);
+    });
+  }
+
+  test('removing a non-current last item preserves current state', () async {
+    MediaItem item(String id) => MediaItem(id: id, title: id);
+    final current = item('B');
+    await handler.updateQueue([current]);
+    await handler.updateQueue([item('A'), current, item('C')]);
+
+    await handler.removeQueueItem(item('C'));
+
+    expect(handler.queueItems.map((item) => item.id), ['A', 'B']);
+    expect(handler.currentQueueIndex, 1);
+    expect(handler.mediaItem.value?.id, 'B');
+  });
+
+  test('removing sole item clears authoritative queue state', () async {
+    final item = MediaItem(id: 'A', title: 'A');
+    await handler.updateQueue([item]);
+
+    await handler.removeQueueItem(item);
+
+    expect(handler.queueItems, isEmpty);
+    expect(handler.currentQueueIndex, -1);
+    expect(handler.mediaItem.value, isNull);
+  });
+
+  for (final paused in [false, true]) {
+    test('removing loaded current middle replaces source with next item '
+        'when ${paused ? 'paused' : 'playing'}', () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      final current = item('B');
+      await handler.updateQueue([item('A'), current, item('C')]);
+      await handler.skipToQueueItem(1);
+      if (paused) await handler.pause();
+
+      await handler.removeQueueItem(current);
+
+      expect(handler.currentQueueIndex, 1);
+      expect(handler.mediaItem.value?.id, 'C');
+      expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'C');
+      expect(player.playing, !paused);
+    });
+
+    test('removing loaded current last replaces source with previous item '
+        'when ${paused ? 'paused' : 'playing'}', () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      final current = item('C');
+      await handler.updateQueue([item('A'), item('B'), current]);
+      await handler.skipToQueueItem(2);
+      if (paused) await handler.pause();
+
+      await handler.removeQueueItem(current);
+
+      expect(handler.currentQueueIndex, 1);
+      expect(handler.mediaItem.value?.id, 'B');
+      expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'B');
+      expect(player.playing, !paused);
+    });
+  }
+
+  test('current removal relocates target after suspended pause', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    final current = item('B');
+    await handler.updateQueue([item('A'), current, item('C')]);
+    await handler.skipToQueueItem(1);
+    final liveCurrent = handler.queueItems[1];
+    player.gateNextPause();
+
+    final removal = handler.removeQueueItem(liveCurrent);
+    await player.pauseStarted.future;
+    await handler.updateQueue([liveCurrent, item('A'), item('C')]);
+    player.releasePause.complete();
+    await removal;
+
+    expect(handler.queueItems.map((item) => item.id), ['A', 'C']);
+    expect(handler.currentQueueIndex, 0);
+    expect(handler.mediaItem.value?.id, 'A');
+    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'A');
+  });
+
+  test(
+    'queue shortening between halt and load releases transferred owner',
+    () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      final first = item('A');
+      await handler.setPlaylist([first, item('B')]);
+      player.gateNextSourceLoad();
+
+      final navigation = handler.skipToNext();
+      await player.sourceLoadStarted.future;
+      await handler.updateQueue([first]);
+      player.releaseSourceLoad.complete();
+      await navigation;
+
+      await handler.skipToQueueItem(0);
+      await handler.play();
+
+      expect(handler.mediaItem.value?.id, 'A');
+      expect(player.playing, isTrue);
+    },
+  );
+
+  for (final direction in ['next', 'previous']) {
+    test(
+      '$direction follows its occurrence when queue moves during load',
+      () async {
+        MediaItem item(String id) => MediaItem(
+          id: id,
+          title: id,
+          extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+        );
+        final a = item('A');
+        final b = item('B');
+        final c = item('C');
+        await handler.setPlaylist([
+          a,
+          b,
+          c,
+        ], initialIndex: direction == 'next' ? 0 : 2);
+        final liveA = handler.queueItems[0];
+        final liveB = handler.queueItems[1];
+        final liveC = handler.queueItems[2];
+        player.gateNextSourceLoad();
+
+        final navigation = direction == 'next'
+            ? handler.skipToNext()
+            : handler.skipToPrevious();
+        await player.sourceLoadStarted.future;
+        await handler.updateQueue(
+          direction == 'next' ? [liveA, liveC, liveB] : [liveB, liveA, liveC],
+        );
+        player.releaseSourceLoad.complete();
+        await navigation;
+
+        expect(handler.mediaItem.value?.id, 'B');
+        expect(handler.currentQueueIndex, direction == 'next' ? 2 : 0);
+        expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'B');
+      },
+    );
+  }
+
+  for (final replacementId in [null, 'D']) {
+    test('source load aborts when active item is '
+        '${replacementId == null ? 'removed' : 'replaced'}', () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      final current = item('B');
+      await handler.updateQueue([item('A'), current, item('C')]);
+      player.gateNextSourceLoad();
+
+      final load = handler.skipToQueueItem(1);
+      await player.sourceLoadStarted.future;
+      await handler.updateQueue([
+        item('A'),
+        if (replacementId != null) item(replacementId),
+        item('C'),
+      ]);
+      player.releaseSourceLoad.complete();
+      await load;
+
+      expect(player.playedSourceIds, isNot(contains('B')));
+      expect(handler.mediaItem.value?.id, 'A');
+      expect(
+        handler.queueItems.map((item) => item.id),
+        replacementId == null ? ['A', 'C'] : ['A', 'D', 'C'],
+      );
+    });
+  }
+
+  test(
+    'source load follows active item when metadata merely moves it',
+    () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      final current = item('B');
+      await handler.updateQueue([item('A'), current, item('C')]);
+      player.gateNextSourceLoad();
+
+      final load = handler.skipToQueueItem(1);
+      await player.sourceLoadStarted.future;
+      await handler.updateQueue([current, item('A'), item('C')]);
+      player.releaseSourceLoad.complete();
+      await load;
+
+      expect(player.playCalls, 1);
+      expect(handler.currentQueueIndex, 0);
+      expect(handler.mediaItem.value?.id, 'B');
+      expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'B');
+    },
+  );
+
+  test('post-load identity check guards play and preload', () {
+    final source = File(
+      'lib/core/audio/playback_command_coordinator.dart',
+    ).readAsStringSync();
+    final transaction = source.substring(
+      source.indexOf('.setAudioSource('),
+      source.indexOf('_desiredSeek != null'),
+    );
+    final validation = transaction.indexOf('_installedSourceToken');
+    expect(validation, greaterThanOrEqualTo(0));
+    expect(source, contains('ownsSourceRequest'));
+  });
+
+  for (final replacementId in [null, 'D']) {
+    test('stale installed source is recovered when item is '
+        '${replacementId == null ? 'removed' : 'replaced'}', () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      final current = item('B');
+      await handler.updateQueue([item('A'), current, item('C')]);
+      player.gateNextSourceLoad();
+
+      final load = handler.skipToQueueItem(1);
+      await player.sourceLoadStarted.future;
+      await handler.updateQueue([
+        item('A'),
+        if (replacementId != null) item(replacementId),
+        item('C'),
+      ]);
+      player.releaseSourceLoad.complete();
+      await load;
+      player.playedSourceIds.clear();
+
+      await handler.play();
+
+      expect(player.playedSourceIds, ['A']);
+      expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'A');
+      expect(handler.mediaItem.value?.id, 'A');
+    });
+  }
+
+  test('new user play wins during paused current-item removal', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    final current = item('B');
+    await handler.updateQueue([item('A'), current, item('C')]);
+    await handler.skipToQueueItem(1);
+    await handler.pause();
+    player.gateNextSourceLoad();
+
+    final removal = handler.removeQueueItem(current);
+    await player.sourceLoadStarted.future;
+    final userPlay = handler.play();
+    player.releaseSourceLoad.complete();
+    await userPlay;
+    await removal;
+
+    expect(player.playing, isTrue);
+    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'C');
+  });
+
+  test('new user pause wins during playing current-item removal', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    final current = item('B');
+    await handler.updateQueue([item('A'), current, item('C')]);
+    await handler.skipToQueueItem(1);
+    player.gateNextSourceLoad();
+
+    final removal = handler.removeQueueItem(current);
+    await player.sourceLoadStarted.future;
+    await handler.pause();
+    player.releaseSourceLoad.complete();
+    await removal;
+    final loadsAfterRemoval = player.sourceLoadCalls;
+    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.flac';
+
+    await handler.applyPreferredQuality('flac');
+
+    expect(player.playing, isFalse);
+    expect(player.sourceLoadCalls, loadsAfterRemoval + 1);
+  });
+
+  test(
+    'older stale install cannot stop a newer authoritative install',
+    () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      await handler.updateQueue([item('A'), item('B')]);
+      final olderGate = player.queueSourceLoadGate();
+      final olderLoad = handler.skipToQueueItem(0);
+      await olderGate.started.future;
+      final newerGate = player.queueSourceLoadGate();
+      final newerLoad = handler.skipToQueueItem(1);
+      expect(player.sourceLoadCalls, 1);
+      olderGate.release.complete();
+      await newerGate.started.future;
+      newerGate.release.complete();
+      await newerLoad;
+      final stopsAfterNewer = player.stopCalls;
+
+      await olderLoad;
+
+      expect(player.stopCalls, stopsAfterNewer);
+      expect(player.playing, isTrue);
+      expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'B');
+      expect(handler.mediaItem.value?.id, 'B');
+    },
+  );
+
+  test('stale non-recovering install cannot stop a newer source', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    await handler.updateQueue([item('A'), item('B'), item('C')]);
+    final staleGate = player.queueSourceLoadGate();
+    final staleLoad = handler.skipToQueueItem(1);
+    await staleGate.started.future;
+    final recoveryGate = player.queueSourceLoadGate();
+    await handler.updateQueue([item('A'), item('C')]);
+    staleGate.release.complete();
+    await recoveryGate.started.future;
+    final newerGate = player.queueSourceLoadGate();
+    final newerLoad = handler.skipToQueueItem(1);
+    expect(player.sourceLoadCalls, 2);
+    recoveryGate.release.complete();
+    await newerGate.started.future;
+    newerGate.release.complete();
+    await newerLoad;
+    final stopsAfterNewer = player.stopCalls;
+
+    await staleLoad;
+
+    expect(player.stopCalls, stopsAfterNewer);
+    expect(player.playing, isTrue);
+    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'C');
+    expect(handler.mediaItem.value?.id, 'C');
+  });
+
+  test(
+    'explicit same-item selection wins during paused removal load',
+    () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      final current = item('B');
+      await handler.updateQueue([item('A'), current, item('C')]);
+      await handler.skipToQueueItem(1);
+      await handler.pause();
+      final removalGate = player.queueSourceLoadGate();
+      final removal = handler.removeQueueItem(current);
+      await removalGate.started.future;
+
+      final userSelection = handler.skipToQueueItem(1);
+      removalGate.release.complete();
+      await userSelection;
+      await removal;
+
+      expect(player.playing, isTrue);
+      expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'C');
+      expect(handler.mediaItem.value?.id, 'C');
+    },
+  );
+
+  test('explicit terminal next wins during paused removal load', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    final current = item('B');
+    await handler.updateQueue([item('A'), current]);
+    await handler.skipToQueueItem(1);
+    await handler.pause();
+    final removalGate = player.queueSourceLoadGate();
+    final removal = handler.removeQueueItem(current);
+    await removalGate.started.future;
+
+    await handler.skipToNext();
+    removalGate.release.complete();
+    await removal;
+
+    expect(player.playing, isTrue);
+    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'A');
+    expect(handler.mediaItem.value?.id, 'A');
+  });
+
+  test('newer install waits for stale install and remains current', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    await handler.updateQueue([item('A'), item('B')]);
+    final staleInstall = player.queueSourceLoadGate();
+    final staleLoad = handler.skipToQueueItem(0);
+    await staleInstall.started.future;
+    await handler.updateQueue([item('B')]);
+    final recoveryInstall = player.queueSourceLoadGate();
+    staleInstall.release.complete();
+    await recoveryInstall.started.future;
+
+    final newerLoad = handler.skipToQueueItem(0);
+    expect(player.sourceLoadCalls, 2);
+    recoveryInstall.release.complete();
+    await staleLoad;
+    await newerLoad;
+
+    expect(player.sourceLoadCalls, 3);
+    expect(player.playing, isTrue);
+    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'B');
+    expect(handler.mediaItem.value?.id, 'B');
+  });
+
+  test('bounded non-recovering stale install releases source gate', () async {
+    MediaItem item(String id) => MediaItem(
+      id: id,
+      title: id,
+      extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+    );
+    await handler.updateQueue([item('A'), item('B')]);
+    final staleInstall = player.queueSourceLoadGate();
+    final staleLoad = handler.skipToQueueItem(0);
+    await staleInstall.started.future;
+    await handler.updateQueue([item('B')]);
+    final recoveryInstall = player.queueSourceLoadGate();
+    staleInstall.release.complete();
+    await recoveryInstall.started.future;
+    await handler.updateQueue([item('A')]);
+    recoveryInstall.release.complete();
+
+    final newerLoad = handler.skipToQueueItem(0);
+    await staleLoad;
+    await newerLoad;
+
+    expect(player.sourceLoadCalls, 3);
+    expect(player.playing, isTrue);
+    expect((player.loadedSource as ProgressiveAudioSource).tag.id, 'A');
+    expect(handler.mediaItem.value?.id, 'A');
+  });
+
+  test(
+    'recovery install cannot forget a completed interruption cycle',
+    () async {
+      MediaItem item(String id) => MediaItem(
+        id: id,
+        title: id,
+        extras: {'url': 'file:///tmp/$id.mp3', 'requestedQuality': '320k'},
+      );
+      await handler.updateQueue([item('A'), item('B')]);
+      final staleInstall = player.queueSourceLoadGate();
+      final staleLoad = handler.skipToQueueItem(0);
+      await staleInstall.started.future;
+      await handler.updateQueue([item('B')]);
+      final recoveryInstall = player.queueSourceLoadGate();
+      staleInstall.release.complete();
+      await recoveryInstall.started.future;
+
+      await handler.beginAudioInterruption();
+      await handler.endAudioInterruption(mayResume: false);
+      recoveryInstall.release.complete();
+      await staleLoad;
+      await pumpEventQueue();
+
+      expect(handler.mediaItem.value?.id, 'B');
+      expect(player.playing, isFalse);
+    },
+  );
+
+  test(
+    'warmCurrentAndUpcomingArtwork caches covers for preloaded tracks',
+    () async {
+      final root = await Directory.systemTemp.createTemp('koyze-art-');
+      addTearDown(() => root.delete(recursive: true));
+      final loader = _MapArtworkLoader({
+        'https://p1.music.126.net/a.jpg': Uint8List.fromList([1, 2, 3, 4]),
+        'https://p1.music.126.net/b.jpg': Uint8List.fromList([5, 6, 7, 8]),
+        'https://p1.music.126.net/c.jpg': Uint8List.fromList([9, 8, 7, 6]),
+        'https://p1.music.126.net/d.jpg': Uint8List.fromList([4, 3, 2, 1]),
+      });
+      final cache = ArtworkDiskCache(loader: loader, rootOverride: root.path);
+      audioHandler = handler;
+      handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+      final service = PlayerService(artworkCache: cache);
+      MusicItem song(String id) => MusicItem(
+        id: id,
+        name: id,
+        singer: '',
+        source: 'test',
+        platform: 'wy',
+        artwork: 'https://p1.music.126.net/$id.jpg',
+      );
+
+      await service.playPlaylist([song('a'), song('b'), song('c'), song('d')]);
+      await service.warmCurrentAndUpcomingArtwork();
+
+      expect(handler.queueItems, hasLength(4));
+      for (final item in handler.queueItems) {
+        expect(item.artUri?.scheme, 'file');
+        expect(item.extras?['artCacheFile'], isNotEmpty);
+        expect(
+          File(item.extras!['artCacheFile'] as String).existsSync(),
+          isTrue,
+        );
+      }
+      expect(loader.urls.toSet(), {
+        'https://p1.music.126.net/a.jpg',
+        'https://p1.music.126.net/b.jpg',
+        'https://p1.music.126.net/c.jpg',
+        'https://p1.music.126.net/d.jpg',
+      });
+    },
+  );
+}
+
+class _RecordingAudioPlayer extends AudioPlayer {
+  int pauseCalls = 0;
+  AudioSource? loadedSource;
+  bool _playing = false;
+  Completer<void>? _pauseStarted;
+  Completer<void>? _releasePause;
+  Completer<void>? _sourceLoadStarted;
+  Completer<void>? _releaseSourceLoad;
+  final _sourceLoadGates = <_SourceLoadGate>[];
+  _SourceLoadGate? _stopGate;
+  int playCalls = 0;
+  int sourceLoadCalls = 0;
+  int stopCalls = 0;
+  final playedSourceIds = <String>[];
+
+  Completer<void> get pauseStarted => _pauseStarted!;
+  Completer<void> get releasePause => _releasePause!;
+  Completer<void> get sourceLoadStarted => _sourceLoadStarted!;
+  Completer<void> get releaseSourceLoad => _releaseSourceLoad!;
+
+  void gateNextPause() {
+    _pauseStarted = Completer<void>();
+    _releasePause = Completer<void>();
+  }
+
+  void gateNextSourceLoad() {
+    _sourceLoadStarted = Completer<void>();
+    _releaseSourceLoad = Completer<void>();
+  }
+
+  _SourceLoadGate queueSourceLoadGate() {
+    final gate = _SourceLoadGate();
+    _sourceLoadGates.add(gate);
+    return gate;
+  }
+
+  _SourceLoadGate gateNextStop() {
+    final gate = _SourceLoadGate();
+    _stopGate = gate;
+    return gate;
+  }
+
+  @override
+  AudioSource? get audioSource => loadedSource;
+
+  @override
+  bool get playing => _playing;
+
+  @override
+  Future<Duration?> setAudioSource(
+    AudioSource source, {
+    bool preload = true,
+    int? initialIndex,
+    Duration? initialPosition,
+  }) async {
+    sourceLoadCalls++;
+    loadedSource = source;
+    final queuedGate = _sourceLoadGates.isEmpty
+        ? null
+        : _sourceLoadGates.removeAt(0);
+    if (queuedGate != null) {
+      queuedGate.started.complete();
+      await queuedGate.release.future;
+    }
+    final started = _sourceLoadStarted;
+    final release = _releaseSourceLoad;
+    if (started != null && release != null) {
+      started.complete();
+      await release.future;
+      _sourceLoadStarted = null;
+      _releaseSourceLoad = null;
+    }
+    return null;
+  }
+
+  @override
+  Future<void> play() async {
+    playCalls++;
+    final source = loadedSource;
+    if (source is ProgressiveAudioSource) {
+      playedSourceIds.add((source.tag as MediaItem).id);
+    }
+    _playing = true;
+  }
+
+  @override
+  Future<void> pause() async {
+    pauseCalls++;
+    _playing = false;
+    final started = _pauseStarted;
+    final release = _releasePause;
+    if (started != null && release != null) {
+      started.complete();
+      await release.future;
+      _pauseStarted = null;
+      _releasePause = null;
+    }
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCalls++;
+    _playing = false;
+    final gate = _stopGate;
+    if (gate != null) {
+      _stopGate = null;
+      gate.started.complete();
+      await gate.release.future;
+    }
+  }
+}
+
+class _SourceLoadGate {
+  final started = Completer<void>();
+  final release = Completer<void>();
+}
+
+class _MapArtworkLoader extends ArtworkBytesLoader {
+  _MapArtworkLoader(this.responses);
+
+  final Map<String, Uint8List> responses;
+  final urls = <String>[];
+
+  @override
+  Future<Uint8List> load(
+    Uri uri,
+    Map<String, String> headers,
+    void Function(int, int?) onProgress,
+  ) async {
+    final key = uri.toString();
+    urls.add(key);
+    final bytes = responses[key];
+    if (bytes == null) {
+      throw StateError('unexpected artwork url $key');
+    }
+    return bytes;
+  }
+}

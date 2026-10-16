@@ -1,0 +1,425 @@
+import 'dart:async';
+
+import 'package:audio_service/audio_service.dart';
+import 'package:flutter/services.dart';
+import '../domain/music_item.dart';
+import '../../../core/audio/audio_handler.dart';
+import '../../../core/network/outbound_url.dart';
+import '../../../core/widgets/app_notification.dart';
+import '../../../core/widgets/artwork_disk_cache.dart';
+import 'lazy_playlist_order.dart';
+
+class PlayerService {
+  PlayerService({
+    ArtworkDiskCache? artworkCache,
+    Future<bool> Function(MusicItem song)? isDisliked,
+  }) : _artworkCache = artworkCache ?? ArtworkDiskCache.instance,
+       _isDisliked = isDisliked;
+
+  static const int dislikedRating = 0;
+
+  final ArtworkDiskCache _artworkCache;
+  final Future<bool> Function(MusicItem song)? _isDisliked;
+  int _queueGeneration = 0;
+
+  int beginQueueReplacement() => ++_queueGeneration;
+
+  bool ownsQueueReplacement(int generation) => generation == _queueGeneration;
+
+  /// 当前惰性分页歌单 ID；播放列表弹窗据此展示完整分页列表。
+  String? currentLazyPlaylistId;
+
+  /// 当前惰性分页歌单的总歌曲数。
+  int currentLazyPlaylistSongCount = 0;
+
+  /// 正在播放的榜单 ID（排行榜页播放时设置，其他播放入口清零），
+  /// 用于榜单行"正在播放"高亮。
+  String? nowPlayingLeaderboardId;
+
+  PlaybackState get playbackState => audioHandler.playbackState.value;
+  bool get isPlaying => audioHandler.playbackState.value.playing;
+  MediaItem? get mediaItem => audioHandler.mediaItem.value;
+
+  Future<void> setQueue(
+    List<MusicItem> songs, {
+    int startIndex = 0,
+    String? manualPlayName,
+    String? leaderboardId,
+  }) async {
+    await playPlaylist(
+      songs,
+      index: startIndex,
+      manualPlayName: manualPlayName,
+      leaderboardId: leaderboardId,
+    );
+  }
+
+  /// Instant start: no await on artwork download.
+  /// [manualPlayName] 非空时立即弹顶部通知（仅手动点击歌曲播放的场景，
+  /// 自动切歌 / 会话恢复不传，避免误弹）。
+  Future<void> playPlaylist(
+    List<MusicItem> songs, {
+    int index = 0,
+    bool autoplay = true,
+    bool userInitiated = true,
+    String? manualPlayName,
+    String? leaderboardId,
+    int? queueGeneration,
+  }) async {
+    final generation = queueGeneration ?? beginQueueReplacement();
+    if (!ownsQueueReplacement(generation)) return;
+    if (manualPlayName != null) {
+      _notifyManualPlay(manualPlayName);
+    }
+    final playableSongs = await _withoutDisliked(songs);
+    if (!ownsQueueReplacement(generation)) return;
+    if (playableSongs.isEmpty) return;
+    final safeIndex = index.clamp(0, playableSongs.length - 1);
+    currentLazyPlaylistId = null;
+    currentLazyPlaylistSongCount = 0;
+    nowPlayingLeaderboardId = leaderboardId;
+    final items = playableSongs.map(_convertToMediaItemSync).toList();
+    if (audioHandler is LxAudioHandler) {
+      final handler = audioHandler as LxAudioHandler;
+      handler.clearLazyQueue();
+      await handler.setPlaylist(
+        items,
+        initialIndex: safeIndex,
+        playWhenReady: autoplay,
+        userInitiated: userInitiated,
+      );
+      if (!ownsQueueReplacement(generation)) return;
+      nowPlayingLeaderboardId = leaderboardId;
+      unawaited(
+        _warmArtForQueue(
+          playableSongs,
+          preferIndex: safeIndex,
+          queueGeneration: generation,
+        ),
+      );
+    }
+  }
+
+  /// Starts a large playlist without converting every saved song into a native
+  /// media queue. A pass covers every global index once; when it ends, sequential
+  /// play restarts at the first song and shuffle starts another random pass.
+  Future<void> playPagedPlaylist({
+    required int songCount,
+    required int startIndex,
+    required Future<List<MusicItem>> Function(int offset, int limit) loadPage,
+    String? playlistId,
+    bool autoplay = true,
+    bool userInitiated = true,
+    bool manual = false,
+    int? queueGeneration,
+  }) async {
+    final generation = queueGeneration ?? beginQueueReplacement();
+    if (!ownsQueueReplacement(generation)) return;
+    currentLazyPlaylistId = playlistId;
+    currentLazyPlaylistSongCount = songCount;
+    nowPlayingLeaderboardId = null;
+    if (songCount <= 0 || audioHandler is! LxAudioHandler) return;
+    final handler = audioHandler as LxAudioHandler;
+    final shuffle =
+        handler.playbackState.value.shuffleMode == AudioServiceShuffleMode.all;
+    var shuffleEnabled = shuffle;
+    final window = LazyPlaylistWindow(
+      length: songCount,
+      initialIndex: startIndex,
+      shuffle: shuffle,
+      loadPage: loadPage,
+    );
+
+    Future<List<MediaItem>> mediaItems(
+      List<LazyPlaylistEntry> entries,
+    ) async => [
+      for (final entry in entries)
+        if (!await _isSongDisliked(entry.song))
+          _convertToMediaItemSync(entry.song, lazyPlaylistIndex: entry.index),
+    ];
+
+    final initialEntries = await window.takeEntries(9);
+    if (!ownsQueueReplacement(generation) || initialEntries.isEmpty) return;
+    if (manual) {
+      _notifyManualPlay(initialEntries.first.song.name);
+    }
+    handler.configureLazyQueue(
+      loadMore: (minimumItems) async {
+        if (!ownsQueueReplacement(generation)) return const [];
+        var entries = await window.takeEntries(minimumItems);
+        if (!ownsQueueReplacement(generation)) return const [];
+        if (entries.isEmpty &&
+            handler.playbackState.value.repeatMode !=
+                AudioServiceRepeatMode.one) {
+          final shuffling =
+              shuffleEnabled ||
+              handler.playbackState.value.shuffleMode ==
+                  AudioServiceShuffleMode.all;
+          entries = shuffling
+              ? await window.continueShuffled(count: minimumItems)
+              : await window.restartFromBeginning(
+                  shuffle: false,
+                  count: minimumItems,
+                );
+          if (!ownsQueueReplacement(generation)) return const [];
+        }
+        return mediaItems(entries);
+      },
+      rebuildForShuffle: (current, enabled, minimumItems) async {
+        if (!ownsQueueReplacement(generation)) return const [];
+        shuffleEnabled = enabled;
+        final index = current.extras?['_lazyPlaylistIndex'];
+        if (index is! int) return const [];
+        final entries = await window.restartEntriesAfterCurrent(
+          currentIndex: index,
+          shuffle: enabled,
+          count: minimumItems,
+        );
+        return ownsQueueReplacement(generation)
+            ? mediaItems(entries)
+            : const [];
+      },
+    );
+    if (!ownsQueueReplacement(generation)) return;
+    final initialItems = await mediaItems(initialEntries);
+    if (!ownsQueueReplacement(generation) || initialItems.isEmpty) return;
+    await handler.setPlaylist(
+      initialItems,
+      playWhenReady: autoplay,
+      userInitiated: userInitiated,
+    );
+    if (!ownsQueueReplacement(generation)) return;
+    unawaited(
+      _warmArtForQueue(
+        initialEntries.map((entry) => entry.song).toList(growable: false),
+        preferIndex: 0,
+        queueGeneration: generation,
+      ),
+    );
+  }
+
+  Future<bool> _isSongDisliked(MusicItem song) async {
+    final isDisliked = _isDisliked;
+    if (isDisliked == null) return false;
+    try {
+      return await isDisliked(song);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<MusicItem>> _withoutDisliked(List<MusicItem> songs) async {
+    if (_isDisliked == null || songs.isEmpty) return songs;
+    final result = <MusicItem>[];
+    for (final song in songs) {
+      if (!await _isSongDisliked(song)) result.add(song);
+    }
+    return result;
+  }
+
+  Future<void> dislikeAndSkipCurrent(
+    Future<void> Function(MusicItem song) markDisliked,
+  ) async {
+    final item = mediaItem;
+    final extras = item?.extras;
+    if (item == null || extras == null) return;
+    final song = MusicItem.fromJson(extras);
+    await markDisliked(song);
+    await audioHandler.skipToNext();
+  }
+
+  Future<void> togglePlay() async {
+    unawaited(HapticFeedback.selectionClick());
+    // Match the icon the UI is showing (playbackState.playing), not the native
+    // engine. Card play / skip pauses the engine while resolving a new URL but
+    // keeps the published state as playing; reading player.playing here would
+    // treat that as "paused" and call play() again.
+    isPlaying ? await audioHandler.pause() : await audioHandler.play();
+  }
+
+  void _notifyManualPlay(String songName) {
+    showAppNotification('播放"$songName"', type: AppNotificationType.info);
+  }
+
+  MediaItem _convertToMediaItemSync(MusicItem song, {int? lazyPlaylistIndex}) {
+    final art = song.artwork;
+    return MediaItem(
+      id: song.identityKey,
+      album: song.album,
+      title: song.name,
+      artist: song.singer,
+      duration: song.duration,
+      artUri: (art != null && art.isNotEmpty)
+          ? Uri.tryParse(normalizeOutboundUrl(art))
+          : null,
+      extras: {
+        ...song.toJson(),
+        if (lazyPlaylistIndex != null) '_lazyPlaylistIndex': lazyPlaylistIndex,
+      },
+    );
+  }
+
+  /// Re-warm lock-screen covers for the current track and the next few
+  /// preloaded items. iOS Now Playing / Dynamic Island only display a local
+  /// `artCacheFile`; remote NetEase URLs fail without Referer headers.
+  Future<void> warmCurrentAndUpcomingArtwork({int ahead = 3}) async {
+    if (audioHandler is! LxAudioHandler) return;
+    final handler = audioHandler as LxAudioHandler;
+    final items = handler.queueItems;
+    if (items.isEmpty) return;
+    final current = handler.currentQueueIndex;
+    final start = current < 0 ? 0 : current;
+    MusicItem? songAt(int i) {
+      if (i < 0 || i >= items.length) return null;
+      final extras = items[i].extras;
+      if (extras == null) return null;
+      try {
+        return MusicItem.fromJson(Map<String, dynamic>.from(extras));
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final songs = <MusicItem>[];
+    if (start > 0) {
+      final previous = songAt(start - 1);
+      if (previous != null) songs.add(previous);
+    }
+    final preferIndex = songs.length;
+    for (var i = start; i < items.length && (i - start) <= ahead; i++) {
+      final song = songAt(i);
+      if (song != null) songs.add(song);
+    }
+    if (songs.isEmpty) return;
+    await _warmArtForQueue(
+      songs,
+      preferIndex: preferIndex,
+      queueGeneration: _queueGeneration,
+      ahead: ahead,
+    );
+  }
+
+  /// Download covers in background; patch file:// artUri for lock screen.
+  Future<void> _warmArtForQueue(
+    List<MusicItem> songs, {
+    required int preferIndex,
+    required int queueGeneration,
+    int ahead = 3,
+  }) async {
+    if (!ownsQueueReplacement(queueGeneration) ||
+        songs.isEmpty ||
+        audioHandler is! LxAudioHandler) {
+      return;
+    }
+    final handler = audioHandler as LxAudioHandler;
+    final order = <int>[];
+    void add(int i) {
+      if (i >= 0 && i < songs.length && !order.contains(i)) order.add(i);
+    }
+
+    add(preferIndex);
+    for (var i = 1; i <= ahead; i++) {
+      add(preferIndex + i);
+    }
+    add(preferIndex - 1);
+    for (final i in order) {
+      final song = songs[i];
+      final remote = song.artwork;
+      if (remote == null || remote.isEmpty) continue;
+      final alreadyCached = handler.queueItems.any((item) {
+        if (item.id != song.identityKey) return false;
+        final cached = item.extras?['artCacheFile']?.toString();
+        return item.artUri?.scheme == 'file' &&
+            cached != null &&
+            cached.isNotEmpty;
+      });
+      if (alreadyCached) continue;
+      try {
+        final local = await _artworkCache.localArtUri(remote);
+        if (!ownsQueueReplacement(queueGeneration)) return;
+        if (local == null || local.scheme != 'file') continue;
+        if (audioHandler is! LxAudioHandler) return;
+        handler.patchQueueArtUri(song.identityKey, local);
+      } catch (_) {}
+    }
+  }
+
+  List<MediaItem> get queue {
+    if (audioHandler is! LxAudioHandler) return const [];
+    return (audioHandler as LxAudioHandler).queueItems;
+  }
+
+  int get currentIndex {
+    if (audioHandler is! LxAudioHandler) return -1;
+    return (audioHandler as LxAudioHandler).currentQueueIndex;
+  }
+
+  Future<void> playNext(MusicItem song) async {
+    final item = _convertToMediaItemSync(song);
+    if (audioHandler is LxAudioHandler) {
+      final handler = audioHandler as LxAudioHandler;
+      final items = List<MediaItem>.from(handler.queueItems);
+      if (items.isEmpty) {
+        final generation = beginQueueReplacement();
+        handler.clearLazyQueue();
+        await handler.setPlaylist([item], userInitiated: true);
+        if (!ownsQueueReplacement(generation)) return;
+        unawaited(
+          _warmArtForQueue([song], preferIndex: 0, queueGeneration: generation),
+        );
+        return;
+      }
+      final currentId = handler.mediaItem.value?.id;
+      if (currentId == song.identityKey) return;
+      final generation = beginQueueReplacement();
+      items.removeWhere(
+        (queueItem) =>
+            _mediaIdentity(queueItem) == song.identityKey ||
+            queueItem.id == song.id,
+      );
+      final currentIndex = items.indexWhere(
+        (queueItem) => queueItem.id == currentId,
+      );
+      final insertIndex = (currentIndex + 1).clamp(0, items.length);
+      items.insert(insertIndex, item);
+      await handler.updateQueue(items);
+      if (!ownsQueueReplacement(generation)) return;
+      unawaited(
+        _warmArtForQueue([song], preferIndex: 0, queueGeneration: generation),
+      );
+    }
+  }
+
+  String _mediaIdentity(MediaItem item) {
+    final extras = item.extras;
+    if (extras == null) return item.id;
+    try {
+      return MusicItem.fromJson(extras).identityKey;
+    } catch (_) {
+      return item.id;
+    }
+  }
+
+  Future<void> next() {
+    unawaited(HapticFeedback.selectionClick());
+    return audioHandler.skipToNext();
+  }
+
+  Future<void> previous() {
+    unawaited(HapticFeedback.selectionClick());
+    return audioHandler.skipToPrevious();
+  }
+
+  Future<void> seek(Duration position) => audioHandler.seek(position);
+  Future<void> stop() => audioHandler.stop();
+
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    await audioHandler.setRepeatMode(repeatMode);
+  }
+
+  Future<void> setShuffleMode(bool enabled) async {
+    await audioHandler.setShuffleMode(
+      enabled ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none,
+    );
+  }
+}

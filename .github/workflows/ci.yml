@@ -1,0 +1,90 @@
+name: Pull Request CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Resolve Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze Dart and Flutter sources
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run deterministic Flutter tests with coverage
+        run: flutter test --coverage --exclude-tags live
+
+      - name: Check coverage threshold
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lcov
+          
+          # Generate coverage report
+          lcov --summary coverage/lcov.info > coverage_summary.txt
+          cat coverage_summary.txt
+          
+          # Extract coverage percentage
+          coverage=$(lcov --summary coverage/lcov.info | grep 'lines' | grep -oP '\d+\.\d+' | head -1)
+          echo "Coverage: $coverage%"
+          
+          # Check minimum threshold (70%)
+          if (( $(echo "$coverage < 70.0" | bc -l) )); then
+            echo "::error::Coverage $coverage% is below 70% threshold"
+            exit 1
+          fi
+          
+          echo "::notice::Coverage $coverage% meets the 70% threshold"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+          flags: unittests
+          token: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+
+  workers-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: workers
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: workers/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Workers API
+        run: npm run validate
