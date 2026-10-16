@@ -5,7 +5,7 @@ class MainFlutterWindow: NSWindow {
   // 首页内容高度以 test/home_content_height_test.dart 为准；底部 Dock 和悬浮播放器
   // 预留约 160px，低于这个高度首页就要滚动，
   // 所以它是默认窗口高度的硬下限。（实测方式见 test/home_content_height_test.dart。）
-  private static let homeContentHeight: CGFloat = 782
+  private static let homeContentHeight: CGFloat = 977
   // 在内容下限之上再留出的呼吸余量。
   private static let breathingRoom: CGFloat = 76
   // 桌面端默认高度 = 首页内容下限 + 呼吸余量。按「刚好装下首页且不局促」定，

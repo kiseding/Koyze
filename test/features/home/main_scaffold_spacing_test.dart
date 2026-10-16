@@ -21,7 +21,7 @@ void main() {
     );
     expect(source, contains('bottom: miniBottom'));
     expect(source, contains('bottom: bottomClearance'));
-    expect(source, contains('height: height + 16'));
+    expect(source, contains('height: height + 22'));
     expect(source, isNot(contains('GlassSurface(')));
     expect(source, isNot(contains('AppGlassStyle.bar')));
   });
