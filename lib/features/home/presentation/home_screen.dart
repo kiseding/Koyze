@@ -73,7 +73,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ListEntrance(child: _buildSearchBar(context)),
                           const SizedBox(height: 20),
                           const ListEntrance(child: HomeHeroCard()),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 24),
                           ListEntrance(
                             child: _buildQuickSectionTitle(
                               context,
