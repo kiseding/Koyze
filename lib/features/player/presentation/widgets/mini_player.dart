@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/motion/motion_tokens.dart';
 import '../../../../core/player_route_progress.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/widgets/artwork_image.dart';
 import '../../../../core/widgets/pressable.dart';
+import '../../../../core/widgets/origo_chrome.dart';
 import '../../../../router/app_router.dart';
 import '../../../../core/widgets/play_pulse_button.dart';
 import '../player_provider.dart';
@@ -81,23 +81,24 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     return Material(
       color: Colors.transparent,
       child: SizedBox(
-        height: 66,
-        child: GlassSurface(
-          style: AppGlassStyle.bar,
-          borderRadius: BorderRadius.circular(20),
+        height: widget.floating ? 78 : 66,
+        child: OrigoChromeSurface(
+          borderRadius: BorderRadius.circular(widget.floating ? 24 : 20),
+          accent: currentMusic == null ? AppColors.accentOf(context) : null,
+          emphasized: widget.floating,
           boxShadow: widget.floating
               ? [
                   BoxShadow(
                     color: isDark
-                        ? const Color(0x66000000)
-                        : const Color(0x1A000000),
-                    blurRadius: 12,
-                    offset: const Offset(0, 2),
+                        ? const Color(0x88000000)
+                        : const Color(0x26000000),
+                    blurRadius: 24,
+                    offset: const Offset(0, 9),
                   ),
                 ]
               : null,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 2, 0),
+            padding: EdgeInsets.fromLTRB(widget.floating ? 10 : 8, 7, 7, 7),
             child: Row(
               children: [
                 Expanded(
@@ -109,21 +110,25 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                       onTap: currentMusic != null
                           ? () => pushPlayerRoute(context, hasSong: true)
                           : null,
-                      borderRadius: BorderRadius.circular(13),
+                      borderRadius: BorderRadius.circular(16),
                       child: Row(
                         children: [
                           Container(
-                            width: 50,
-                            height: 50,
+                            width: widget.floating ? 62 : 50,
+                            height: widget.floating ? 62 : 50,
                             decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(13),
+                              borderRadius: BorderRadius.circular(
+                                widget.floating ? 17 : 13,
+                              ),
                               color: surface,
+                              border: Border.all(
+                                color: AppColors.cardBorder(context),
+                              ),
                             ),
                             clipBehavior: Clip.antiAlias,
                             child: ValueListenableBuilder<double>(
                               valueListenable: playerRouteProgress,
                               builder: (context, progress, child) {
-                                // 动效期间隐藏迷你栏真封面，只留飞行快照封面。
                                 final hideCover = progress > 0 && progress < 1;
                                 return Opacity(
                                   opacity: hideCover ? 0 : 1,
@@ -142,7 +147,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                                     opacity: animation,
                                     child: ScaleTransition(
                                       scale: Tween<double>(
-                                        begin: 0.94,
+                                        begin: 0.90,
                                         end: 1,
                                       ).animate(animation),
                                       child: child,
@@ -172,7 +177,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 13),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -181,8 +186,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                                 Text(
                                   title,
                                   style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: widget.floating ? 15 : 15,
+                                    fontWeight: FontWeight.w700,
                                     color: titleColor,
                                   ),
                                   maxLines: 1,
@@ -203,7 +208,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                   ),
                 ),
                 SizedBox(
-                  width: 180,
+                  width: widget.floating ? 164 : 180,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -218,7 +223,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                               ),
                         child: Icon(
                           Icons.subject_rounded,
-                          size: 32,
+                          size: widget.floating ? 28 : 32,
                           color: currentMusic == null ? subColor : titleColor,
                         ),
                       ),
@@ -228,8 +233,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             ? null
                             : () => playerService.togglePlay(),
                         enabled: currentMusic != null,
-                        size: 38,
-                        iconSize: 24,
+                        size: widget.floating ? 44 : 38,
+                        iconSize: widget.floating ? 26 : 24,
                         mini: true,
                       ),
                       Pressable(
@@ -239,7 +244,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             : () => playerService.next(),
                         child: Icon(
                           Icons.skip_next_rounded,
-                          size: 35,
+                          size: widget.floating ? 31 : 35,
                           color: currentMusic == null ? subColor : titleColor,
                         ),
                       ),

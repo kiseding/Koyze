@@ -13,6 +13,7 @@ import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/root_shell_layout.dart';
+import '../../../core/widgets/origo_chrome.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 import '../../player/presentation/widgets/mini_player.dart';
 import '../../settings/presentation/settings_provider.dart';
@@ -63,7 +64,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     final bottomSpacing = bottomInset == 0 ? 2.0 : 0.0;
     final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
     final navHeight = 36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
-    const miniHeight = 66.0;
+    const miniHeight = 78.0;
     const miniGap = 11.0;
     final trailingInset = media.padding.right > media.viewPadding.right
         ? media.padding.right
@@ -901,35 +902,57 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
+    final width = MediaQuery.sizeOf(context).width;
+    final dockWidth = (width - 28).clamp(300.0, 520.0);
     return SizedBox(
-      height: height + 16,
-      child: Padding(
-        padding: EdgeInsets.only(bottom: bottomSpacing),
-        child: Row(
-          children: [
-            _item(context, 0, Icons.home_outlined, Icons.home, s.home),
-            _item(
-              context,
-              1,
-              Icons.leaderboard_outlined,
-              Icons.leaderboard,
-              s.charts,
+      height: height + 22,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: bottomSpacing + 6),
+          child: SizedBox(
+            width: dockWidth,
+            child: OrigoChromeSurface(
+              borderRadius: BorderRadius.circular(26),
+              padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+              emphasized: true,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.isDark(context)
+                      ? const Color(0x99000000)
+                      : const Color(0x26000000),
+                  blurRadius: 26,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+              child: Row(
+                children: [
+                  _item(context, 0, Icons.home_outlined, Icons.home, s.home),
+                  _item(
+                    context,
+                    1,
+                    Icons.leaderboard_outlined,
+                    Icons.leaderboard,
+                    s.charts,
+                  ),
+                  _item(
+                    context,
+                    2,
+                    Icons.library_music_outlined,
+                    Icons.library_music,
+                    s.playlists,
+                  ),
+                  _item(
+                    context,
+                    3,
+                    Icons.settings_outlined,
+                    Icons.settings,
+                    s.settings,
+                  ),
+                ],
+              ),
             ),
-            _item(
-              context,
-              2,
-              Icons.library_music_outlined,
-              Icons.library_music,
-              s.playlists,
-            ),
-            _item(
-              context,
-              3,
-              Icons.settings_outlined,
-              Icons.settings,
-              s.settings,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -952,25 +975,33 @@ class _BottomNav extends StatelessWidget {
         semanticLabel: label,
         selected: isSelected,
         onTap: () => onTap(index),
-        scale: 0.92,
-        borderRadius: BorderRadius.circular(18),
+        scale: 0.90,
+        borderRadius: BorderRadius.circular(20),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48),
           child: AnimatedContainer(
-            duration: motionDuration(context, MotionDuration.micro),
-            curve: MotionCurve.easeOut,
-            margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            duration: motionDuration(context, MotionDuration.normal),
+            curve: MotionCurve.iosSpring,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
             decoration: BoxDecoration(
               color: isSelected
-                  ? accent.withValues(alpha: isDark ? 0.18 : 0.12)
+                  ? accent.withValues(alpha: isDark ? 0.22 : 0.14)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(19),
               border: Border.all(
                 color: isSelected
-                    ? accent.withValues(alpha: isDark ? 0.28 : 0.18)
+                    ? accent.withValues(alpha: isDark ? 0.38 : 0.26)
                     : Colors.transparent,
               ),
+              boxShadow: [
+                if (isSelected)
+                  BoxShadow(
+                    color: accent.withValues(alpha: isDark ? 0.18 : 0.10),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -979,7 +1010,7 @@ class _BottomNav extends StatelessWidget {
                 AnimatedIconSwitch(
                   icon: isSelected ? activeIcon : icon,
                   keyValue: isSelected ? activeIcon : icon,
-                  size: 23,
+                  size: isSelected ? 24 : 22,
                   color: isSelected ? accent : muted,
                 ),
                 const SizedBox(height: 2),
@@ -989,8 +1020,8 @@ class _BottomNav extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 10.5,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
                     color: isSelected ? accent : muted,
                   ),
                 ),

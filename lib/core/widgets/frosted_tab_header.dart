@@ -4,6 +4,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import 'gradient_bar_backgrounds.dart';
 import 'pressable.dart';
+import 'origo_chrome.dart';
 
 /// Shared large-title chrome for the four root tabs.
 /// Frosted bar pinned to the status bar; list content should pad by [extent].
@@ -27,94 +28,83 @@ class FrostedTabHeader extends StatelessWidget {
   final double? blur;
   final bool vivid;
 
-  static const double barHeight = 64;
-  static const double bottomPadding = 10;
+  static const double barHeight = 82;
+  static const double bottomPadding = 12;
 
   static double extent(BuildContext context, {double extra = 0}) {
     return MediaQuery.paddingOf(context).top + barHeight + extra;
   }
 
-  /// Equal side inset so the title stays centered and clear of the icon and actions.
-  static double _titleSideInset(bool hasLeading, int actionCount) {
-    final left = hasLeading ? 48.0 : 0.0;
-    final right = actionCount * 44.0;
-    return left > right ? left : right;
-  }
-
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
+    final accent = AppColors.accentOf(context);
     return GradientAppBarBackground(
       background: Theme.of(context).scaffoldBackgroundColor,
       blur: blur,
       vivid: vivid,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, top + 8, 10, bottomPadding),
+        padding: EdgeInsets.fromLTRB(16, top + 8, 12, bottomPadding),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              height: 48,
-              child: Stack(
-                alignment: Alignment.center,
+              height: 58,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Row(
-                    children: [
-                      if (leadingIcon != null) ...[
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: AppColors.accentOf(
-                              context,
-                            ).withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            leadingIcon,
-                            color: AppColors.accentOf(context),
-                            size: 20,
+                  if (leadingIcon != null) ...[
+                    OrigoChromeSurface(
+                      borderRadius: BorderRadius.circular(16),
+                      padding: const EdgeInsets.all(10),
+                      accent: accent,
+                      child: Icon(leadingIcon, color: accent, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Koyze',
+                          style: TextStyle(
+                            color: accent.withValues(alpha: 0.78),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.3,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                      ],
-                      const Spacer(),
-                      for (final action in actions) ...[
-                        const SizedBox(width: 4),
-                        action,
-                      ],
-                    ],
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: _titleSideInset(
-                        leadingIcon != null,
-                        actions.length,
-                      ),
-                    ),
-                    child: Text(
-                      title,
-                      key: titleKey,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0,
-                        height: 1.1,
-                        color: AppColors.onScaffold(context),
-                        shadows: [
-                          Shadow(
-                            color: Theme.of(context)
-                                .scaffoldBackgroundColor
-                                .withValues(alpha: 0.70),
-                            blurRadius: 12,
+                        const SizedBox(height: 3),
+                        Text(
+                          title,
+                          key: titleKey,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            height: 1,
+                            color: AppColors.onScaffold(context),
+                            shadows: [
+                              Shadow(
+                                color: Theme.of(context)
+                                    .scaffoldBackgroundColor
+                                    .withValues(alpha: 0.76),
+                                blurRadius: 14,
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
+                  for (final action in actions) ...[
+                    const SizedBox(width: 8),
+                    action,
+                  ],
                 ],
               ),
             ),

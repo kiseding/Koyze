@@ -18,8 +18,8 @@ const int homeContentMinHeight = 621;
 
 /// 底部 chrome 在桌面端占用的高度。来自
 /// `lib/features/home/presentation/main_scaffold.dart`：
-/// navHeight 38（36 基准 + bottomSpacing 2）+ 容器内边距 16 + bottomClearance 11
-/// + miniGap 11 + miniHeight 78 = 154。桌面端没有系统底栏 inset，取的是这条分支。
+/// navHeight 38（36 基准 + bottomSpacing 2）+ Dock 外层高度 22 + bottomClearance 11
+/// + miniGap 11 + miniHeight 78 = 160。桌面端没有系统底栏 inset，取的是这条分支。
 const int desktopChromeHeight = 154;
 
 /// 各平台 runner 里的默认窗口高度常数 -> 定义它的源文件与变量名。

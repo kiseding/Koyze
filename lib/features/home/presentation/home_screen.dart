@@ -15,7 +15,7 @@ import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/fx_switch.dart';
 import '../../../core/motion/list_entrance.dart';
-import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/origo_chrome.dart';
 
 /// 首页：搜索入口 + 可切换的歌单大卡片 + 快捷功能。
 /// 竖屏单列、大屏居中并自适应列数，底部导航由 MainScaffold 提供。
@@ -57,13 +57,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
             return Stack(
               children: [
+                Positioned.fill(
+                  child: OrigoAmbientBackdrop(
+                    leadingColor: AppColors.accentOf(context),
+                    trailingColor: Theme.of(context).colorScheme.secondary,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
                 Center(
                   child: SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
                       isWide ? 0 : 16,
-                      headerExtent == 0 ? 16 : headerExtent + 8,
+                      headerExtent == 0 ? 24 : headerExtent + 12,
                       isWide ? 0 : 16,
-                      12 + RootShellLayout.obscuredBottomOf(context),
+                      28 + RootShellLayout.obscuredBottomOf(context),
                     ),
                     child: SizedBox(
                       width: contentWidth,
@@ -71,18 +78,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           ListEntrance(child: _buildSearchBar(context)),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 22),
                           const ListEntrance(child: HomeHeroCard()),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 28),
                           ListEntrance(
                             child: _buildQuickSectionTitle(
                               context,
                               S.of(context).shortcuts,
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 14),
                           _buildQuickGrid(context, ref, columns, quickIds),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 28),
                         ],
                       ),
                     ),
@@ -142,25 +149,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final muted = AppColors.mutedText(context);
     final border = AppColors.cardBorder(context);
     return Pressable(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(18),
       onTap: () => _openSearchSheet(context),
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: AppColors.miniBar(context),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border.withValues(alpha: 0.6)),
-        ),
+      child: OrigoChromeSurface(
+        borderRadius: BorderRadius.circular(18),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        accent: AppColors.accentOf(context),
         child: Row(
           children: [
-            Icon(Icons.search, color: muted, size: 22),
-            const SizedBox(width: 10),
+            Icon(Icons.search_rounded, color: muted, size: 22),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 S.of(context).searchSongsHint,
-                style: TextStyle(color: muted, fontSize: 15),
+                style: TextStyle(
+                  color: muted,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
+            ),
+            Icon(
+              Icons.arrow_forward_rounded,
+              color: border.withValues(alpha: 0.9),
+              size: 18,
             ),
           ],
         ),
@@ -416,23 +428,24 @@ class _QuickEntryCard extends ConsumerWidget {
   }
 
   Widget _buildCardBody(BuildContext context, WidgetRef ref, Color color) {
-    return GlassSurface(
-      style: AppGlassStyle.chrome,
-      borderRadius: BorderRadius.circular(16),
-      padding: const EdgeInsets.all(12),
-      boxShadow: const [],
+    return OrigoChromeSurface(
+      borderRadius: BorderRadius.circular(20),
+      padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+      accent: color,
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
+          AnimatedContainer(
+            duration: motionDuration(context, MotionDuration.micro),
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: color.withAlpha(40),
-              borderRadius: BorderRadius.circular(11),
+              color: color.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: color.withValues(alpha: 0.22)),
             ),
             child: Icon(entry.icon, color: color, size: 22),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 11),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,11 +456,11 @@ class _QuickEntryCard extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.onScaffold(context),
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   S.of(context).quickSubtitle(entry.id),
                   maxLines: 1,
@@ -461,9 +474,9 @@ class _QuickEntryCard extends ConsumerWidget {
             ),
           ),
           Icon(
-            Icons.chevron_right,
+            Icons.arrow_outward_rounded,
             color: AppColors.mutedText(context),
-            size: 18,
+            size: 17,
           ),
         ],
       ),

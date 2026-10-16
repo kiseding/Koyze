@@ -20,6 +20,7 @@ import '../../player/presentation/player_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../recommend/presentation/recommendation_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
+import '../../../core/widgets/origo_chrome.dart';
 
 /// 首页大卡片：对应歌单 tab 顶部那五张，同一时间只能启用一张。
 enum HomeHeroCardId { favorites, recommend, local, nas, recent }
@@ -326,16 +327,17 @@ class HomeHeroCard extends ConsumerWidget {
     final model = _resolve(context, ref, spec, playMode);
     const onAccent = Colors.white;
     final color = model.color;
+    final title = spec.titleFor(S.of(context));
 
     return HoverFloat(
       child: Pressable(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(28),
         captureExpandRect: true,
-        semanticLabel: spec.titleFor(S.of(context)),
+        semanticLabel: title,
         onTap: model.onOpen,
         child: AnimatedSwitcher(
-          duration: motionDuration(context, MotionDuration.normal),
-          switchInCurve: MotionCurve.easeOut,
+          duration: motionDuration(context, MotionDuration.container),
+          switchInCurve: MotionCurve.iosSpring,
           switchOutCurve: MotionCurve.easeIn,
           layoutBuilder: (current, previous) => Stack(
             alignment: Alignment.topLeft,
@@ -343,7 +345,7 @@ class HomeHeroCard extends ConsumerWidget {
           ),
           transitionBuilder: (child, animation) {
             final slide = Tween<Offset>(
-              begin: const Offset(0.035, 0),
+              begin: const Offset(0.045, 0.02),
               end: Offset.zero,
             ).animate(animation);
             return FadeTransition(
@@ -351,99 +353,13 @@ class HomeHeroCard extends ConsumerWidget {
               child: SlideTransition(position: slide, child: child),
             );
           },
-          child: Container(
+          child: _HeroStage(
             key: ValueKey(spec.id),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [color.withAlpha(235), color.withAlpha(118)],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withAlpha(58),
-                  blurRadius: 22,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: onAccent.withAlpha(36),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    spec.icon,
-                    color: spec.id == HomeHeroCardId.favorites
-                        ? const Color(0xFFFF3B30)
-                        : onAccent,
-                    size: 30,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            spec.titleFor(S.of(context)),
-                            style: const TextStyle(
-                              color: onAccent,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (model.showCountInTitle && model.count > 0) ...[
-                            const SizedBox(width: 6),
-                            Text(
-                              '(${model.count})',
-                              style: TextStyle(
-                                color: onAccent.withAlpha(210),
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        model.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: onAccent.withAlpha(210),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Pressable(
-                  scale: 0.9,
-                  semanticLabel: model.actionLabel,
-                  onTap: model.canPlay ? model.onPlay : null,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: onAccent.withAlpha(40),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(model.actionIcon, color: onAccent, size: 26),
-                  ),
-                ),
-              ],
-            ),
+            spec: spec,
+            model: model,
+            title: title,
+            color: color,
+            onAccent: onAccent,
           ),
         ),
       ),
@@ -750,6 +666,197 @@ class HomeHeroCard extends ConsumerWidget {
         type: AppNotificationType.error,
       );
     }
+  }
+}
+
+class _HeroStage extends StatelessWidget {
+  const _HeroStage({
+    super.key,
+    required this.spec,
+    required this.model,
+    required this.title,
+    required this.color,
+    required this.onAccent,
+  });
+
+  final HomeHeroCardOption spec;
+  final _HeroModel model;
+  final String title;
+  final Color color;
+  final Color onAccent;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = onAccent.withValues(alpha: 0.72);
+    final iconColor = spec.id == HomeHeroCardId.favorites
+        ? const Color(0xFFFF6B6B)
+        : onAccent;
+    return OrigoChromeSurface(
+      borderRadius: BorderRadius.circular(28),
+      accent: color,
+      emphasized: true,
+      boxShadow: [
+        BoxShadow(
+          color: color.withValues(alpha: 0.24),
+          blurRadius: 30,
+          offset: const Offset(0, 14),
+        ),
+      ],
+      child: SizedBox(
+        height: 218,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      color.withValues(alpha: 0.95),
+                      color.withValues(alpha: 0.52),
+                      Colors.black.withValues(alpha: 0.42),
+                    ],
+                    stops: const [0, 0.46, 1],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: -26,
+              bottom: -42,
+              child: Transform.rotate(
+                angle: -0.14,
+                child: Icon(
+                  spec.icon,
+                  size: 190,
+                  color: onAccent.withValues(alpha: 0.10),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 20, 20, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: onAccent.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(17),
+                          border: Border.all(
+                            color: onAccent.withValues(alpha: 0.22),
+                          ),
+                        ),
+                        child: Icon(spec.icon, color: iconColor, size: 28),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'KOYZE / HOME',
+                              style: TextStyle(
+                                color: muted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                height: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (model.showCountInTitle && model.count > 0)
+                              Text(
+                                S.of(context).songCount(model.count),
+                                style: TextStyle(
+                                  color: muted,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            const SizedBox(height: 4),
+                            Text(
+                              model.subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: onAccent.withValues(alpha: 0.88),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Pressable(
+                        scale: 0.90,
+                        semanticLabel: model.actionLabel,
+                        onTap: model.canPlay ? model.onPlay : null,
+                        child: AnimatedContainer(
+                          duration: motionDuration(
+                            context,
+                            MotionDuration.normal,
+                          ),
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: model.canPlay
+                                ? onAccent
+                                : onAccent.withValues(alpha: 0.28),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              if (model.canPlay)
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.18),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 5),
+                                ),
+                            ],
+                          ),
+                          child: Icon(
+                            model.actionIcon,
+                            color: model.canPlay ? color : muted,
+                            size: 25,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
