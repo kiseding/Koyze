@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../l10n/app_strings.dart';
 import '../../../core/animations/micro_animations.dart';
+import '../../../core/motion/motion_tokens.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
@@ -328,100 +329,121 @@ class HomeHeroCard extends ConsumerWidget {
 
     return HoverFloat(
       child: Pressable(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         captureExpandRect: true,
         semanticLabel: spec.titleFor(S.of(context)),
         onTap: model.onOpen,
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [color.withAlpha(230), color.withAlpha(120)],
-            ),
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: color.withAlpha(50),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
+        child: AnimatedSwitcher(
+          duration: motionDuration(context, MotionDuration.normal),
+          switchInCurve: MotionCurve.easeOut,
+          switchOutCurve: MotionCurve.easeIn,
+          layoutBuilder: (current, previous) => Stack(
+            alignment: Alignment.topLeft,
+            children: <Widget>[...previous, if (current != null) current],
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: onAccent.withAlpha(36),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  spec.icon,
-                  color: spec.id == HomeHeroCardId.favorites
-                      ? const Color(0xFFFF3B30)
-                      : onAccent,
-                  size: 30,
-                ),
+          transitionBuilder: (child, animation) {
+            final slide = Tween<Offset>(
+              begin: const Offset(0.035, 0),
+              end: Offset.zero,
+            ).animate(animation);
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(position: slide, child: child),
+            );
+          },
+          child: Container(
+            key: ValueKey(spec.id),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [color.withAlpha(235), color.withAlpha(118)],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          spec.titleFor(S.of(context)),
-                          style: const TextStyle(
-                            color: onAccent,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (model.showCountInTitle && model.count > 0) ...[
-                          const SizedBox(width: 6),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withAlpha(58),
+                  blurRadius: 22,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: onAccent.withAlpha(36),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    spec.icon,
+                    color: spec.id == HomeHeroCardId.favorites
+                        ? const Color(0xFFFF3B30)
+                        : onAccent,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
                           Text(
-                            '(${model.count})',
-                            style: TextStyle(
-                              color: onAccent.withAlpha(210),
-                              fontSize: 13,
+                            spec.titleFor(S.of(context)),
+                            style: const TextStyle(
+                              color: onAccent,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
+                          if (model.showCountInTitle && model.count > 0) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              '(${model.count})',
+                              style: TextStyle(
+                                color: onAccent.withAlpha(210),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      model.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: onAccent.withAlpha(210),
-                        fontSize: 13,
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              Pressable(
-                scale: 0.9,
-                semanticLabel: model.actionLabel,
-                onTap: model.canPlay ? model.onPlay : null,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: onAccent.withAlpha(40),
-                    shape: BoxShape.circle,
+                      const SizedBox(height: 4),
+                      Text(
+                        model.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: onAccent.withAlpha(210),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Icon(model.actionIcon, color: onAccent, size: 26),
                 ),
-              ),
-            ],
+                Pressable(
+                  scale: 0.9,
+                  semanticLabel: model.actionLabel,
+                  onTap: model.canPlay ? model.onPlay : null,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: onAccent.withAlpha(40),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(model.actionIcon, color: onAccent, size: 26),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

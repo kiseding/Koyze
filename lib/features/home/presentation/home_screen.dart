@@ -14,6 +14,8 @@ import 'home_quick_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/fx_switch.dart';
+import '../../../core/motion/list_entrance.dart';
+import '../../../core/theme/app_tokens.dart';
 
 /// 首页：搜索入口 + 可切换的歌单大卡片 + 快捷功能。
 /// 竖屏单列、大屏居中并自适应列数，底部导航由 MainScaffold 提供。
@@ -68,13 +70,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _buildSearchBar(context),
+                          ListEntrance(child: _buildSearchBar(context)),
                           const SizedBox(height: 20),
-                          const HomeHeroCard(),
-                          const SizedBox(height: 24),
-                          _buildQuickSectionTitle(
-                            context,
-                            S.of(context).shortcuts,
+                          const ListEntrance(child: HomeHeroCard()),
+                          const SizedBox(height: 28),
+                          ListEntrance(
+                            child: _buildQuickSectionTitle(
+                              context,
+                              S.of(context).shortcuts,
+                            ),
                           ),
                           const SizedBox(height: 12),
                           _buildQuickGrid(context, ref, columns, quickIds),
@@ -215,10 +219,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           spacing: spacing,
           runSpacing: spacing,
           children: [
-            for (final entry in entries)
+            for (var index = 0; index < entries.length; index++)
               SizedBox(
                 width: tileWidth,
-                child: _QuickEntryCard(entry: entry),
+                child: ListEntrance(
+                  key: ValueKey('quick-${entries[index].id}'),
+                  child: _QuickEntryCard(entry: entries[index]),
+                ),
               ),
           ],
         );
@@ -409,13 +416,11 @@ class _QuickEntryCard extends ConsumerWidget {
   }
 
   Widget _buildCardBody(BuildContext context, WidgetRef ref, Color color) {
-    return Container(
+    return GlassSurface(
+      style: AppGlassStyle.chrome,
+      borderRadius: BorderRadius.circular(16),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder(context)),
-      ),
+      boxShadow: const [],
       child: Row(
         children: [
           Container(

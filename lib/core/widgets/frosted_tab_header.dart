@@ -101,9 +101,17 @@ class FrostedTabHeader extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -0.4,
+                        letterSpacing: 0,
                         height: 1.1,
                         color: AppColors.onScaffold(context),
+                        shadows: [
+                          Shadow(
+                            color: Theme.of(context)
+                                .scaffoldBackgroundColor
+                                .withValues(alpha: 0.70),
+                            blurRadius: 12,
+                          ),
+                        ],
                       ),
                     ),
                   ),
