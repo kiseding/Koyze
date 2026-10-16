@@ -220,7 +220,7 @@ class GlassSurface extends StatelessWidget {
     );
     final shadows = boxShadow ??
         (style == AppGlassStyle.bar
-            ? shadowFor(context, style: style)
+            ? AppGlass.shadowFor(context, style: style)
             : const <BoxShadow>[]);
     return DecoratedBox(
       decoration: BoxDecoration(borderRadius: radius, boxShadow: shadows),
