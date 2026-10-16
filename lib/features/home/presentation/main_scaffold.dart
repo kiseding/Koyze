@@ -909,7 +909,7 @@ class _BottomNav extends StatelessWidget {
       child: Align(
         alignment: Alignment.bottomCenter,
         child: Padding(
-          padding: EdgeInsets.only(bottom: bottomSpacing + 6),
+          padding: EdgeInsets.only(bottom: bottomSpacing),
           child: SizedBox(
             width: dockWidth,
             child: OrigoChromeSurface(
