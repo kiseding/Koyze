@@ -1139,52 +1139,60 @@ class _HotRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
+        child: SizedBox(
           height: 46,
-          decoration: BoxDecoration(
-            border: last
-                ? null
-                : Border(
-                    bottom: BorderSide(
+          child: Stack(
+            children: [
+              // 分隔线从榜名那一列起，而不是横贯整块面板：七条通栏线会把
+              // 热搜压成一张表格，序号和名字之间的留白也被切断。
+              if (!last)
+                Positioned(
+                  left: 32,
+                  right: 0,
+                  bottom: 0,
+                  child: SizedBox(
+                    height: 0.6,
+                    child: ColoredBox(
                       color: AppColors.cardBorder(
                         context,
                       ).withValues(alpha: 0.55),
-                      width: 0.6,
                     ),
                   ),
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 20,
-                child: Text(
-                  '${index + 1}',
-                  textAlign: TextAlign.left,
-                  style: TextStyle(
-                    color: top
-                        ? AppColors.accentOf(context)
-                        : primary.withValues(alpha: 0.72),
-                    fontSize: top ? 15 : 14,
-                    height: 1.0,
-                    fontWeight: top ? FontWeight.w800 : FontWeight.w600,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: primary.withValues(alpha: 0.92),
-                    fontSize: 14.5,
-                    height: 1.0,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: -0.1,
+              Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    child: Text(
+                      '${index + 1}',
+                      textAlign: TextAlign.left,
+                      style: TextStyle(
+                        color: top
+                            ? AppColors.accentOf(context)
+                            : primary.withValues(alpha: 0.72),
+                        fontSize: top ? 15 : 14,
+                        height: 1.0,
+                        fontWeight: top ? FontWeight.w800 : FontWeight.w600,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: primary.withValues(alpha: 0.92),
+                        fontSize: 14.5,
+                        height: 1.0,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.1,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
