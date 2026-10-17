@@ -239,10 +239,14 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 onPressed: () => _showExportDialog(context, ref, source),
               ),
               TextButton.icon(
-                icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                icon: Icon(
+                  Icons.delete,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 label: Text(
                   S.of(context).delete,
-                  style: TextStyle(color: Colors.red),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
                 onPressed: () => _showDeleteDialog(context, ref, source),
               ),
@@ -842,7 +846,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
             },
             child: Text(
               S.of(context).delete,
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
         ],

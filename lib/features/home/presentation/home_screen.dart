@@ -15,7 +15,6 @@ import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/fx_switch.dart';
 import '../../../core/motion/list_entrance.dart';
-import '../../../core/motion/motion_tokens.dart';
 import '../../../core/widgets/origo_chrome.dart';
 
 /// 首页：搜索入口 + 可切换的歌单大卡片 + 快捷功能。
@@ -238,10 +237,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         blendMode: BlendMode.dstIn,
                         child: SingleChildScrollView(
                           padding: const EdgeInsets.only(bottom: 14),
+                          // Two columns instead of one: the right half of a
+                          // landscape window is ~590pt wide, so a single
+                          // column of tiles left half the row blank and still
+                          // ended after three and a half of the eight entries.
                           child: _buildQuickGrid(
                             context,
                             ref,
-                            1,
+                            2,
                             quickIds,
                             dense: true,
                           ),
@@ -562,58 +565,70 @@ class _QuickEntryCard extends ConsumerWidget {
   Widget _buildCardBody(BuildContext context, WidgetRef ref, Color color) {
     // The whole tile is tappable, so the trailing arrow only stole width from
     // the label — at 2 columns it was the reason "Local music" clipped.
-    return OrigoChromeSurface(
-      borderRadius: BorderRadius.circular(18),
-      padding: EdgeInsets.fromLTRB(12, dense ? 8 : 11, 12, dense ? 8 : 11),
-      child: Row(
-        children: [
-          AnimatedContainer(
-            duration: motionDuration(context, MotionDuration.micro),
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(11),
-              border: Border.all(color: color.withValues(alpha: 0.20)),
+    //
+    // Height is fixed rather than content-driven: the tiles live in a Wrap, so
+    // a two-line caption on one card would otherwise make its whole run taller
+    // and leave the neighbours floating against different baselines.
+    return SizedBox(
+      height: dense ? 52 : 68,
+      child: OrigoChromeSurface(
+        borderRadius: BorderRadius.circular(18),
+        padding: EdgeInsets.fromLTRB(11, dense ? 8 : 10, 11, dense ? 8 : 10),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: color.withValues(alpha: 0.20)),
+              ),
+              child: Icon(entry.icon, color: color, size: 18),
             ),
-            child: Icon(entry.icon, color: color, size: 19),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  S.of(context).quickTitle(entry.id),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    height: 1.15,
-                    letterSpacing: -0.1,
-                    color: AppColors.onScaffold(context),
-                  ),
-                ),
-                if (!dense) ...[
-                  const SizedBox(height: 3),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Text(
-                    S.of(context).quickSubtitle(entry.id),
+                    S.of(context).quickTitle(entry.id),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 10,
-                      height: 1.2,
-                      letterSpacing: -0.1,
-                      color: AppColors.mutedText(context),
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      height: 1.15,
+                      letterSpacing: -0.2,
+                      color: AppColors.onScaffold(context),
                     ),
                   ),
+                  if (!dense) ...[
+                    const SizedBox(height: 3),
+                    // Two lines: at 2 columns the caption only gets ~106pt, and
+                    // every longer English label ("Tasks and progress") was
+                    // cut in the middle of a word.
+                    Text(
+                      S.of(context).quickSubtitle(entry.id),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 9.8,
+                        height: 1.16,
+                        letterSpacing: 0,
+                        // mutedText is 45% black in the light theme — at 9.8pt
+                        // that lands around 2.5:1 on a white card.
+                        color: AppColors.secondaryText(context),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

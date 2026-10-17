@@ -219,7 +219,9 @@ class S {
     'recommend' => forYou,
     'local' => localMusic,
     'subsonic' => nasLibrary,
-    'downloads' => downloadManager,
+    // 快捷卡只有两列宽（约 106pt 文字列），"Download manager" 这个
+    // 页面标题在这里会把单词截断，换成更短的同义标签。
+    'downloads' => en ? 'Downloads' : downloadManager,
     'stats' => listeningStats,
     'sleep_timer' => sleepTimer,
     'theme' => en ? 'Theme' : '切换主题',
@@ -227,7 +229,7 @@ class S {
     'recent' => recentPlays,
     'leaderboard' => charts,
     'search' => en ? 'Search' : '搜索歌曲',
-    'playlists' => en ? 'Manage playlists' : '歌单管理',
+    'playlists' => en ? 'Playlists' : '歌单管理',
     'settings' => en ? 'App settings' : '应用设置',
     'custom_source' => customSources,
     'sync' => en ? 'Cloud sync' : '云同步',

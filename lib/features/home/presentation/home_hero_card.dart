@@ -709,6 +709,16 @@ class _HeroStage extends StatelessWidget {
   final Color color;
   final Color onAccent;
 
+  /// 旋转色相，给单色卡面制造第二束光。低饱和的强调色在这里会退化成灰色，
+  /// 所以同时把饱和度抬一点，保证色相位移看得见。
+  static Color _hueShift(Color base, [double degrees = 32]) {
+    final hsl = HSLColor.fromColor(base);
+    return hsl
+        .withHue((hsl.hue + degrees) % 360)
+        .withSaturation((hsl.saturation + 0.08).clamp(0.0, 1.0))
+        .toColor();
+  }
+
   @override
   Widget build(BuildContext context) {
     final muted = onAccent.withValues(alpha: 0.74);
@@ -756,9 +766,9 @@ class _HeroStage extends StatelessWidget {
                       // strength across a large surface it reads as neon.
                       // Hold it back ~20% and let the top edge carry the
                       // highlight instead.
-                      Color.lerp(color, Colors.white, 0.14)!,
-                      Color.lerp(color, Colors.black, 0.20)!,
-                      Color.lerp(color, Colors.black, 0.52)!,
+                      Color.lerp(color, Colors.white, 0.07)!,
+                      Color.lerp(color, Colors.black, 0.28)!,
+                      Color.lerp(color, Colors.black, 0.60)!,
                     ],
                   ),
                 ),
@@ -774,6 +784,37 @@ class _HeroStage extends StatelessWidget {
                     colors: [
                       onAccent.withValues(alpha: compact ? 0.10 : 0.16),
                       onAccent.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+              // 品牌色只有一种，铺满一大块就是一块油漆。错一个色相再补两团
+              // 光，表面才有「调过色的封面」的层次，而不是单色填充。
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: RadialGradient(
+                    center: const Alignment(0.8, -0.9),
+                    radius: 1.05,
+                    colors: [
+                      _hueShift(color).withValues(alpha: compact ? 0.16 : 0.24),
+                      _hueShift(color).withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.95, 0.85),
+                    radius: 0.9,
+                    colors: [
+                      _hueShift(
+                        color,
+                        300,
+                      ).withValues(alpha: compact ? 0.12 : 0.18),
+                      _hueShift(color, 300).withValues(alpha: 0),
                     ],
                   ),
                 ),
@@ -932,6 +973,43 @@ class _HeroStage extends StatelessWidget {
                         ),
                       ],
                     );
+                    if (!model.canPlay) {
+                      // 空态整块居中：标题钉顶、说明钉底会在大片纯色中间留出
+                      // 一块空洞，看着像没渲染完；收成一枚居中的海报更清楚。
+                      // 同时不再画播放键——禁用的圆钮浮在色块里像坏掉的控件。
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        // 高卡（平板/桌面横屏）走海报式排版：说明压在底部，
+                        // 居中的话会变成一大片纯色中间浮着一个标签。
+                        mainAxisAlignment: tall
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.center,
+                        children: [
+                          badgeBox,
+                          SizedBox(height: compact ? 10 : 14),
+                          if (!compact) ...[eyebrow, const SizedBox(height: 6)],
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: titleText,
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              model.subtitle,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: onAccent.withValues(alpha: 0.88),
+                                fontSize: compact ? 12 : 12.5,
+                                fontWeight: FontWeight.w500,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
                     if (tall) {
                       // Poster: a tall stage keeps the top to the gradient and
                       // stacks badge, eyebrow and headline at the bottom the
