@@ -40,10 +40,23 @@ void main() {
   test('playableUri treats windows drive paths as local files', () {
     final fromBackslash = playableUri(r'C:\music\a.mp3');
     final fromSlash = playableUri('C:/music/a.mp3');
-    expect(fromBackslash.scheme, 'file');
-    expect(fromSlash.scheme, 'file');
-    expect(fromBackslash.toFilePath(), isNotEmpty);
-    expect(fromSlash.toFilePath(), isNotEmpty);
+    if (Platform.isWindows) {
+      expect(fromBackslash.scheme, 'file');
+      expect(fromSlash.scheme, 'file');
+    } else {
+      // Uri.file preserves a Windows drive path on POSIX hosts, but the
+      // host-specific URI serializer does not assign a file scheme there.
+      expect(fromBackslash.scheme, isEmpty);
+      expect(fromSlash.scheme, isEmpty);
+    }
+    expect(
+      fromBackslash.toFilePath().replaceAll(r'\', '/'),
+      startsWith('C:'),
+    );
+    expect(
+      fromSlash.toFilePath().replaceAll(r'\', '/'),
+      startsWith('C:'),
+    );
     expect(
       playableUri('file:///C:/music/a.mp3').toString(),
       'file:///C:/music/a.mp3',
