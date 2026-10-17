@@ -27,6 +27,7 @@ class SearchScreen extends ConsumerStatefulWidget {
     this.autofocusDelay,
     this.canAutofocus,
     this.embedded = false,
+    this.liveSearch = false,
     this.reserveKeyboardInset = true,
     this.onDismiss,
   });
@@ -37,6 +38,9 @@ class SearchScreen extends ConsumerStatefulWidget {
 
   /// 嵌在搜索弹窗内时不要再铺实色底，让外层磨砂透出来。
   final bool embedded;
+
+  /// 输入时是否按 Origo 的方式实时防抖搜索，而不是只在提交时搜索。
+  final bool liveSearch;
 
   /// 内容底部是否为输入法留白。搜索弹窗会让面板整体缩到键盘上沿，
   /// 此时再垫一层就是双倍空白；独立页面则需要它。
@@ -58,6 +62,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final FocusNode _searchFocus = FocusNode();
   final ScrollController _scrollController = ScrollController();
   Timer? _autofocusTimer;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -101,6 +106,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void dispose() {
     _autofocusTimer?.cancel();
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
     _scrollController.dispose();
@@ -118,12 +124,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     ref.read(searchStateProvider.notifier).loadMore();
   }
 
-  void _onSearch(String query) {
-    if (query.trim().isNotEmpty) {
-      ref.read(searchQueryProvider.notifier).state = query.trim();
-      ref.read(searchStateProvider.notifier).search(query.trim());
-      ref.read(searchHistoryProvider.notifier).add(query.trim());
+  void _onSearch(String query, {bool recordHistory = true}) {
+    final normalized = query.trim();
+    _searchDebounce?.cancel();
+    if (normalized.isEmpty) {
+      ref.read(searchQueryProvider.notifier).state = '';
+      ref.read(searchStateProvider.notifier).reset();
+      return;
     }
+    ref.read(searchQueryProvider.notifier).state = normalized;
+    ref.read(searchStateProvider.notifier).search(normalized);
+    if (recordHistory) {
+      ref.read(searchHistoryProvider.notifier).add(normalized);
+    }
+  }
+
+  void _onQueryChanged(String query) {
+    _searchDebounce?.cancel();
+    if (query.trim().isEmpty) {
+      _onSearch('');
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) _onSearch(query, recordHistory: false);
+    });
   }
 
   @override
@@ -145,6 +169,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           child: Column(
             children: [
               _buildHeader(context, allSources, selectedSourceId),
+              if (searchState.isLoading)
+                LinearProgressIndicator(
+                  minHeight: 2,
+                  backgroundColor: Colors.transparent,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppColors.accentOf(context),
+                  ),
+                ),
               Expanded(child: _buildMainContent(searchState, searchHistory)),
             ],
           ),
@@ -184,12 +216,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       submitTooltip: S.of(context).searchAction,
       cancelLabel: S.of(context).cancel,
       // 横屏时取消按钮搬到行尾，让输入框和平台胶囊紧挨着。
-      onCancel: wide ? null : cancel,
+      onChanged: widget.liveSearch ? _onQueryChanged : null,
+      onBack: cancel,
+      backTooltip: S.of(context).cancel,
+      onCancel: null,
       onClear: () {
         _searchController.clear();
-        ref.read(searchQueryProvider.notifier).state = '';
-        ref.read(searchStateProvider.notifier).reset();
-        setState(() {});
+        _onSearch('');
       },
       onSubmit: _onSearch,
     );
@@ -222,7 +255,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       child: Padding(
         padding: const EdgeInsets.only(top: 2, bottom: 10),
-        child: wide
+        child: widget.embedded
+            ? Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: field,
+                  ),
+                  const SizedBox(height: 10),
+                  chips,
+                ],
+              )
+            : wide
             ? Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(

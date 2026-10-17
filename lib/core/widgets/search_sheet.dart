@@ -2,23 +2,24 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:koyze/features/search/presentation/search_screen.dart';
 
 import '../motion/motion_tokens.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 
-/// 弹出搜索弹窗。
-/// 弹窗从底部滑入，顶部对齐传入的 [topInset]（首页 Koyze 文字上方 3px）；
-/// 顶部小白条可按住上下拖动；列表滑到顶后继续下拉时弹窗跟随下滑，
-/// 超过阈值关闭；滑入后自动聚焦输入框弹出键盘。
+/// 弹出 Origo 风格搜索弹窗。
+/// 面板从底部滑入并保留页面上下文；系统 bottom sheet 负责顶部拖拽，
+/// 列表滑到顶后继续下拉时弹窗也会跟随下滑，超过阈值关闭；
+/// 滑入后自动聚焦输入框弹出键盘。
 Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
   final size = MediaQuery.sizeOf(context);
   final landscape = size.width > size.height;
   // 面板不再顶到屏幕边：Origo 的弹层最高只占八成画面，上面留出被压暗的
   // 页面，一眼就能看出「这是浮在内容上的一层」，而不是换了个页面。
-  final ratio = landscape ? 0.90 : 0.82;
+  // Origo 的搜索弹窗把内容放进约 90% 高的独立工作面板，顶部始终
+  // 留出当前页面的上下文，结果区也不会像全屏路由一样突然换页。
+  final ratio = 0.90;
   var height = min(size.height - topInset, size.height * ratio);
   // 桌面窗口里按屏幕高度铺满会留下大半块空面板，压到 620 更像一个浮层。
   if (size.width >= 1100) height = min(height, 620);
@@ -27,7 +28,7 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
     useRootNavigator: true,
     isScrollControlled: true,
     isDismissible: true,
-    enableDrag: false,
+    enableDrag: true,
     requestFocus: false,
     backgroundColor: Colors.transparent,
     // 宽度按设备收窄：搜索面板不需要桌面级的宽度，720 已经足够放下
@@ -109,14 +110,6 @@ class _SearchSheetState extends State<_SearchSheet>
     if (_dragOffset > _closeThreshold) {
       unawaited(_dismissSheet());
     }
-  }
-
-  void _onDragUpdate(DragUpdateDetails details) {
-    _applyDragDelta(details.delta.dy);
-  }
-
-  Future<void> _onDragEnd(DragEndDetails details) async {
-    await _finishDrag(details.primaryVelocity ?? 0);
   }
 
   Future<void> _finishDrag(double velocity) async {
@@ -218,41 +211,10 @@ class _SearchSheetState extends State<_SearchSheet>
               ),
               child: Column(
                 children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onVerticalDragStart: (_) {
-                      if (_dismissStarted) return;
-                      if (_settle.isAnimating) _settle.stop();
-                    },
-                    onVerticalDragUpdate: _onDragUpdate,
-                    onVerticalDragEnd: _onDragEnd,
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 22,
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 7),
-                          child: Container(
-                            width: 36,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.onSurface
-                                  .withValues(
-                                    alpha: AppColors.isDark(context)
-                                        ? 0.20
-                                        : 0.26,
-                                  ),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
                   Expanded(
                     child: SearchScreen(
                       embedded: true,
+                      liveSearch: true,
                       reserveKeyboardInset: false,
                       onDismiss: _dismissSheet,
                       autofocusDelay: _focusDelay(),

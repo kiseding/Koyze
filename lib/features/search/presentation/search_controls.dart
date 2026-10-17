@@ -18,6 +18,9 @@ class SearchFieldBar extends StatefulWidget {
     required this.hintText,
     required this.onSubmit,
     required this.onClear,
+    this.onChanged,
+    this.onBack,
+    this.backTooltip,
     this.onCancel,
     this.cancelLabel,
     this.clearTooltip,
@@ -30,6 +33,9 @@ class SearchFieldBar extends StatefulWidget {
   final String hintText;
   final ValueChanged<String> onSubmit;
   final VoidCallback onClear;
+  final ValueChanged<String>? onChanged;
+  final VoidCallback? onBack;
+  final String? backTooltip;
   final VoidCallback? onCancel;
   final String? cancelLabel;
   final String? clearTooltip;
@@ -87,6 +93,17 @@ class _SearchFieldBarState extends State<SearchFieldBar> {
 
     return Row(
       children: [
+        if (widget.onBack != null) ...[
+          IconButton(
+            tooltip: widget.backTooltip,
+            onPressed: widget.onBack,
+            icon: Icon(Icons.arrow_back_rounded, size: 21, color: primary),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            visualDensity: VisualDensity.compact,
+          ),
+          const SizedBox(width: 4),
+        ],
         Expanded(
           child: SizedBox(
             height: SearchFieldBar.height,
@@ -123,6 +140,7 @@ class _SearchFieldBarState extends State<SearchFieldBar> {
                         focusNode: widget.focusNode,
                         autofocus: widget.autofocus,
                         textInputAction: TextInputAction.search,
+                        onChanged: widget.onChanged,
                         onSubmitted: widget.onSubmit,
                         cursorColor: accent,
                         cursorWidth: 1.6,
