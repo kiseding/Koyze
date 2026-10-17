@@ -105,7 +105,12 @@ jobs:
       - name: Rename APKs with app name and version
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
+          pubspec_version="$(awk '/^version:/{print $2; exit}' pubspec.yaml)"
+          if [ -z "$pubspec_version" ]; then
+            echo "::error::pubspec.yaml does not declare a version"
+            exit 1
+          fi
+          version="${pubspec_version%%+*}"
           mkdir -p build/android-release
           for abi in armeabi-v7a arm64-v8a x86_64; do
             src="build/app/outputs/flutter-apk/app-${abi}-release.apk"

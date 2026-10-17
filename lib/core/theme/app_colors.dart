@@ -31,8 +31,10 @@ abstract final class AppColors {
   static const Color lightSurface = Color(0xFFFFFFFF);
   static const Color lightSurface2 = Color(0xFFF2F2F7);
   static const Color lightText = Color(0xFF000000);
-  static const Color lightTextSecondary = Color(0x993C3C43);
-  static const Color lightTextMuted = Color(0x4D3C3C43);
+  static const Color lightTextSecondary = Color(0xA63C3C43);
+  // 30% grey is unreadable on a white card; 45% keeps the hierarchy while
+  // staying above the contrast floor for secondary metadata.
+  static const Color lightTextMuted = Color(0x733C3C43);
   static const Color lightBorder = Color(0x1A3C3C43);
   static const Color lightAccent = Color(0xFF1DB954);
   static const Color lightMiniBar = Color(0xF2FFFFFF);

@@ -13,6 +13,7 @@ import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/root_shell_layout.dart';
+import '../../../core/widgets/origo_chrome.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 import '../../player/presentation/widgets/mini_player.dart';
 import '../../settings/presentation/settings_provider.dart';
@@ -63,7 +64,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     final bottomSpacing = bottomInset == 0 ? 2.0 : 0.0;
     final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
     final navHeight = 36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
-    const miniHeight = 66.0;
+    const miniHeight = 78.0;
     const miniGap = 11.0;
     final trailingInset = media.padding.right > media.viewPadding.right
         ? media.padding.right
@@ -512,10 +513,11 @@ const _sideNavBodyExtent =
     _sideNavTabExtent +
     _sideNavShortcutExtent;
 
-/// 浅色用实色卡片，深色用主题色薄底，避免半透明绿在两种背景上都发灰。
+/// Selected rail item: an accent wash, not an opaque card. A solid white pill
+/// on top of glass reads as a different material.
 Color _sideNavSelectedFill(BuildContext context) {
-  if (!AppColors.isDark(context)) return AppColors.card(context);
-  return Theme.of(context).colorScheme.primary.withValues(alpha: 0.16);
+  final accent = Theme.of(context).colorScheme.primary;
+  return accent.withValues(alpha: AppColors.isDark(context) ? 0.18 : 0.11);
 }
 
 class RootSideNav extends ConsumerWidget {
@@ -635,10 +637,10 @@ class RootSideNav extends ConsumerWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 28,
+              fontSize: 26,
               height: 1,
               fontWeight: FontWeight.w800,
-              letterSpacing: -0.6,
+              letterSpacing: -0.5,
               color: AppColors.amber,
             ),
           ),
@@ -777,7 +779,7 @@ class RootSideNav extends ConsumerWidget {
     final isSelected = index == selectedIndex;
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = AppColors.isDark(context);
-    final muted = isDark ? const Color(0xE6FFFFFF) : const Color(0xE6000000);
+    final muted = isDark ? const Color(0xCCFFFFFF) : const Color(0xCC000000);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: _sideNavItemOuterPadding),
       child: SizedBox(
@@ -787,7 +789,7 @@ class RootSideNav extends ConsumerWidget {
             color: isSelected
                 ? _sideNavSelectedFill(context)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -800,17 +802,17 @@ class RootSideNav extends ConsumerWidget {
                     semanticLabel: label,
                     selected: isSelected,
                     onTap: () => onTap(index),
-                    scale: 0.96,
-                    borderRadius: BorderRadius.circular(12),
+                    scale: 0.97,
+                    borderRadius: BorderRadius.circular(14),
                     child: Row(
                       children: [
                         AnimatedIconSwitch(
                           icon: isSelected ? activeIcon : icon,
                           keyValue: isSelected ? activeIcon : icon,
-                          size: 26,
+                          size: 23,
                           color: isSelected ? accent : muted,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 9),
                         Expanded(
                           child: Text(
                             label,
@@ -818,8 +820,10 @@ class RootSideNav extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: isSelected ? accent : muted,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 14.5,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
                             ),
                           ),
                         ),
@@ -901,35 +905,48 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
+    final width = MediaQuery.sizeOf(context).width;
+    final dockWidth = (width - 28).clamp(300.0, 520.0);
     return SizedBox(
-      height: height + 16,
-      child: Padding(
-        padding: EdgeInsets.only(bottom: bottomSpacing),
-        child: Row(
-          children: [
-            _item(context, 0, Icons.home_outlined, Icons.home, s.home),
-            _item(
-              context,
-              1,
-              Icons.leaderboard_outlined,
-              Icons.leaderboard,
-              s.charts,
+      height: height + 22,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: bottomSpacing),
+          child: SizedBox(
+            width: dockWidth,
+            child: OrigoChromeSurface(
+              borderRadius: BorderRadius.circular(26),
+              padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+              emphasized: true,
+              child: Row(
+                children: [
+                  _item(context, 0, Icons.home_outlined, Icons.home, s.home),
+                  _item(
+                    context,
+                    1,
+                    Icons.leaderboard_outlined,
+                    Icons.leaderboard,
+                    s.charts,
+                  ),
+                  _item(
+                    context,
+                    2,
+                    Icons.library_music_outlined,
+                    Icons.library_music,
+                    s.playlists,
+                  ),
+                  _item(
+                    context,
+                    3,
+                    Icons.settings_outlined,
+                    Icons.settings,
+                    s.settings,
+                  ),
+                ],
+              ),
             ),
-            _item(
-              context,
-              2,
-              Icons.library_music_outlined,
-              Icons.library_music,
-              s.playlists,
-            ),
-            _item(
-              context,
-              3,
-              Icons.settings_outlined,
-              Icons.settings,
-              s.settings,
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -945,39 +962,59 @@ class _BottomNav extends StatelessWidget {
     final isSelected = index == selectedIndex;
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = AppColors.isDark(context);
-    // 未选中也要深、粗（约 90% 不透明）
-    final muted = isDark ? const Color(0xE6FFFFFF) : const Color(0xE6000000);
+    // Muted labels still need contrast against translucent glass, but pure
+    // black at 90% makes the unselected tabs look heavier than the selected.
+    final muted = isDark ? const Color(0xCCFFFFFF) : const Color(0xCC000000);
     return Expanded(
       child: Pressable(
         semanticLabel: label,
         selected: isSelected,
         onTap: () => onTap(index),
         scale: 0.92,
+        borderRadius: BorderRadius.circular(19),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedIconSwitch(
-                icon: isSelected ? activeIcon : icon,
-                keyValue: isSelected ? activeIcon : icon,
-                size: 23,
-                color: isSelected ? accent : muted,
+          child: AnimatedContainer(
+            duration: motionDuration(context, MotionDuration.normal),
+            curve: MotionCurve.iosSpring,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? accent.withValues(alpha: isDark ? 0.20 : 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(19),
+              border: Border.all(
+                color: isSelected
+                    ? accent.withValues(alpha: isDark ? 0.30 : 0.20)
+                    : Colors.transparent,
+                width: 0.8,
               ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedIconSwitch(
+                  icon: isSelected ? activeIcon : icon,
+                  keyValue: isSelected ? activeIcon : icon,
+                  size: isSelected ? 24 : 22,
                   color: isSelected ? accent : muted,
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                    color: isSelected ? accent : muted,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

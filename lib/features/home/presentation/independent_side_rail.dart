@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/player_route_progress.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/root_shell_layout.dart';
+import '../../../core/widgets/origo_chrome.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../router/app_router.dart';
 import '../../settings/presentation/settings_provider.dart';
 import 'main_scaffold.dart';
@@ -218,39 +219,43 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
                     child: Transform.translate(
                       offset: Offset(-fullRail * (1 - fraction), 0),
                       child: _RailOverlay(
-                  key: ValueKey(brightness),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: AppColors.scaffold(context),
-                      border: Border(
-                        right: BorderSide(color: AppColors.cardBorder(context)),
-                      ),
-                    ),
-                    // Outside the navigator there is no Material, so text would
-                    // inherit MaterialApp's yellow double-underline fallback.
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: leadingInset,
-                          top: topInset,
-                          bottom: bottomInset,
+                        key: ValueKey(brightness),
+                        child: Padding(
+                          // Floating card, not a docked panel. An inset on
+                          // every side keeps the rail reading as one object
+                          // above the page — in landscape and on desktop.
+                          padding: EdgeInsets.fromLTRB(
+                            leadingInset + 8,
+                            topInset + 8,
+                            0,
+                            bottomInset + 8,
+                          ),
+                          child: OrigoChromeSurface(
+                            borderRadius: BorderRadius.circular(24),
+                            style: AppGlassStyle.bar,
+                            emphasized: true,
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                ),
+                                child: ListenableBuilder(
+                                  listenable: rootBranchIndex,
+                                  builder: (context, _) {
+                                    return RootSideNav(
+                                      selectedIndex: rootBranchIndex.value,
+                                      headers: rootHeaderController,
+                                      currentPath: _path,
+                                      onTap: selectRootBranch,
+                                      onOpenSync: () => appRouter.push('/sync'),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
-                        child: ListenableBuilder(
-                          listenable: rootBranchIndex,
-                          builder: (context, _) {
-                            return RootSideNav(
-                              selectedIndex: rootBranchIndex.value,
-                              headers: rootHeaderController,
-                              currentPath: _path,
-                              onTap: selectRootBranch,
-                              onOpenSync: () => appRouter.push('/sync'),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
                       ),
                     ),
                   ),

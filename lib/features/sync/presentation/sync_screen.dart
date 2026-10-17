@@ -10,6 +10,7 @@ import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/loading_widget.dart';
+import 'package:koyze/core/widgets/koyze_modal.dart';
 
 /// 同步页：对接 workers 云端（账号 + 歌单），不再强制首次启动登录。
 class SyncScreen extends ConsumerStatefulWidget {
@@ -443,10 +444,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     );
     final urlFocus = FocusNode();
     final url =
-        await showDialog<String>(
+        await showKoyzeDialog<String>(
           context: context,
           builder: (ctx) {
-            return AlertDialog(
+            return KoyzeDialog(
               backgroundColor: AppColors.dialogBg(context),
               title: Text(
                 S.of(context).workersAddress,
@@ -685,10 +686,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                         final userFocus = FocusNode();
                         final passFocus = FocusNode();
                         final credentials =
-                            await showDialog<List<String>>(
+                            await showKoyzeDialog<List<String>>(
                               context: ctx,
                               builder: (d) {
-                                return AlertDialog(
+                                return KoyzeDialog(
                                   backgroundColor: AppColors.dialogBg(context),
                                   title: Text(
                                     S.of(context).newUser,

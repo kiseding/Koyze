@@ -18,6 +18,7 @@ import 'custom_source_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/fx_switch.dart';
 import '../../../core/widgets/loading_widget.dart';
+import 'package:koyze/core/widgets/koyze_modal.dart';
 
 class CustomSourceScreen extends ConsumerStatefulWidget {
   const CustomSourceScreen({super.key});
@@ -238,10 +239,14 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 onPressed: () => _showExportDialog(context, ref, source),
               ),
               TextButton.icon(
-                icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                icon: Icon(
+                  Icons.delete,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.error,
+                ),
                 label: Text(
                   S.of(context).delete,
-                  style: TextStyle(color: Colors.red),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
                 onPressed: () => _showDeleteDialog(context, ref, source),
               ),
@@ -300,15 +305,14 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     final nameFocus = FocusNode();
     var keyboardRequested = false;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
       builder: (dialogContext) {
         if (!keyboardRequested) {
           keyboardRequested = true;
           requestTextInput(dialogContext, nameFocus);
         }
-        return AlertDialog(
+        return KoyzeDialog(
           backgroundColor: AppColors.dialogBg(dialogContext),
           title: Text(
             S.of(context).addCustomSource,
@@ -402,15 +406,14 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     final nameFocus = FocusNode();
     var keyboardRequested = false;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
       builder: (dialogContext) {
         if (!keyboardRequested) {
           keyboardRequested = true;
           requestTextInput(dialogContext, nameFocus);
         }
-        return AlertDialog(
+        return KoyzeDialog(
           backgroundColor: AppColors.dialogBg(dialogContext),
           title: Text(
             S.of(context).editCustomSource,
@@ -492,8 +495,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     var keyboardRequested = false;
     bool isLoading = false;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: pageContext,
       barrierDismissible: true,
       builder: (dialogContext) {
@@ -527,7 +529,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
               );
             }
 
-            return AlertDialog(
+            return KoyzeDialog(
               backgroundColor: AppColors.dialogBg(dialogContext),
               title: Text(
                 S.of(context).importFromLink,
@@ -648,8 +650,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     var keyboardRequested = false;
     bool isLoading = false;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: pageContext,
       barrierDismissible: true,
       builder: (dialogContext) {
@@ -658,7 +659,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
           requestTextInput(dialogContext, inputFocus);
         }
         return StatefulBuilder(
-          builder: (dialogContext, setState) => AlertDialog(
+          builder: (dialogContext, setState) => KoyzeDialog(
             backgroundColor: AppColors.dialogBg(dialogContext),
             title: Text(
               S.of(context).importCustomSource,
@@ -779,10 +780,9 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
   ) {
     final jsonStr = const JsonEncoder.withIndent('  ').convert(source.toJson());
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => KoyzeDialog(
         backgroundColor: AppColors.dialogBg(context),
         title: Text(
           S.of(context).exportCustomSource,
@@ -819,10 +819,9 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     WidgetRef ref,
     CustomSource source,
   ) {
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => KoyzeDialog(
         backgroundColor: AppColors.dialogBg(context),
         title: Text(
           S.of(context).deleteCustomSource,
@@ -847,7 +846,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
             },
             child: Text(
               S.of(context).delete,
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
         ],
@@ -860,8 +859,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     WidgetRef ref,
     CustomSource source,
   ) {
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
       builder: (context) => _LogConsole(source: source),
     );
@@ -969,7 +967,7 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return KoyzeDialog(
       backgroundColor: AppColors.dialogBg(context),
       title: Row(
         children: [

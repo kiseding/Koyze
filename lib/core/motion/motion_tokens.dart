@@ -19,6 +19,18 @@ class MotionDuration {
   /// 大型页面转场（普通全屏页面）。
   static const Duration page = Duration(milliseconds: 480);
 
+  /// 弹窗进场：压暗、模糊和面板弹出共用一条时间线。
+  static const Duration dialog = Duration(milliseconds: 320);
+
+  /// 弹窗退场比进场快，避免关闭时拖沓。
+  static const Duration dialogReverse = Duration(milliseconds: 180);
+
+  /// 底部弹窗进场。比普通过渡慢，留给面板滑动和内容淡入。
+  static const Duration sheet = Duration(milliseconds: 420);
+
+  /// 底部弹窗退场。
+  static const Duration sheetReverse = Duration(milliseconds: 260);
+
   /// iOS 风格播放器展开/收起。比普通页面慢，给封面、背景和内容 stagger 留足时间。
   static const Duration player = Duration(milliseconds: 720);
 
@@ -77,6 +89,15 @@ class MotionCurve {
 
   /// iOS-like 的慢速减速曲线：接近原生 spring 的“有惯性但不弹”的观感。
   static const Curve iosSpring = Cubic(0.20, 0.00, 0.00, 1.00);
+
+  /// 弹窗弹出：终点略微过冲，收尾时面板会“落”回 100%，比纯 easeOut 有实体感。
+  static const Curve dialogIn = Cubic(0.20, 1.16, 0.32, 1.00);
+
+  /// 底部弹窗上滑：几乎无过冲，只保留最后一段减速。
+  static const Curve sheetIn = Cubic(0.16, 1.00, 0.30, 1.00);
+
+  /// 快速的 quint 级减速，用于内容入场与色块扩展。
+  static const Curve easeOutQuart = Cubic(0.25, 1.00, 0.50, 1.00);
 }
 
 class MotionDistance {

@@ -17,9 +17,9 @@ void main() {
       source.indexOf('void _showPlaylistMoreMenu('),
     );
 
-    expect(more, contains('showDialog<void>'));
+    expect(more, contains('showKoyzeDialog<void>'));
     expect(more, contains('Dialog('));
-    expect(more, contains('BorderRadius.circular(20)'));
+    expect(more, contains('GlassSurface('));
     expect(more, contains('maxHeight: maxH'));
     expect(more, contains('S.of(context).addAllToFavorites'));
     expect(
@@ -70,7 +70,10 @@ void main() {
 
     expect(source, contains('onLongPress: isFavorites'));
     expect(source, contains('_toggleFavoriteSelection(song)'));
-    expect(source, contains('S.of(context).selectedCount(_selectedFavoriteIds.length)'));
+    expect(
+      source,
+      contains('S.of(context).selectedCount(_selectedFavoriteIds.length)'),
+    );
     expect(source, contains('_downloadSelectedFavorites'));
     expect(source, contains('_removeSelectedFavorites'));
     expect(source, contains('_toggleAllFavoriteSelection'));

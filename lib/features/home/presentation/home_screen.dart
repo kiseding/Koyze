@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +16,8 @@ import 'home_quick_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/fx_switch.dart';
+import '../../../core/motion/list_entrance.dart';
+import '../../../core/widgets/origo_chrome.dart';
 
 /// 首页：搜索入口 + 可切换的歌单大卡片 + 快捷功能。
 /// 竖屏单列、大屏居中并自适应列数，底部导航由 MainScaffold 提供。
@@ -43,47 +47,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         body: LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
+            final height = constraints.maxHeight;
             final isWide = width >= 720;
             final contentWidth = shellContentWidth(width);
-            final columns = isWide ? 4 : 2;
+            // Landscape rows have far less height than width; a stacked
+            // 218-point hero plus a shortcut grid would scroll immediately.
+            final isLandscape =
+                width > height * 1.12 && height < 620 && width >= 560;
             final isLandscapeShell = RootShellLayout.usesSideNavigationOf(
               context,
             );
             final headerExtent = isLandscapeShell
                 ? 0.0
                 : FrostedTabHeader.extent(context);
+            final obscured = RootShellLayout.obscuredBottomOf(context);
 
             return Stack(
               children: [
-                Center(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      isWide ? 0 : 16,
-                      headerExtent == 0 ? 16 : headerExtent + 8,
-                      isWide ? 0 : 16,
-                      12 + RootShellLayout.obscuredBottomOf(context),
-                    ),
-                    child: SizedBox(
-                      width: contentWidth,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildSearchBar(context),
-                          const SizedBox(height: 20),
-                          const HomeHeroCard(),
-                          const SizedBox(height: 24),
-                          _buildQuickSectionTitle(
-                            context,
-                            S.of(context).shortcuts,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildQuickGrid(context, ref, columns, quickIds),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    ),
+                Positioned.fill(
+                  child: OrigoAmbientBackdrop(
+                    leadingColor: AppColors.accentOf(context),
+                    trailingColor: Theme.of(context).colorScheme.secondary,
+                    child: const SizedBox.expand(),
                   ),
                 ),
+                if (isLandscape)
+                  _buildLandscapeBody(
+                    context,
+                    ref,
+                    contentWidth: contentWidth,
+                    headerExtent: headerExtent,
+                    obscuredBottom: obscured,
+                    quickIds: quickIds,
+                  )
+                else
+                  _buildPortraitBody(
+                    context,
+                    ref,
+                    contentWidth: contentWidth,
+                    headerExtent: headerExtent,
+                    obscuredBottom: obscured,
+                    isWide: isWide,
+                    columns: isWide ? 4 : 2,
+                    quickIds: quickIds,
+                  ),
                 if (isLandscapeShell)
                   RootHeaderPublisher(
                     index: 0,
@@ -123,6 +130,181 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  /// Portrait: search, hero stage, shortcut grid, all in one scroll column.
+  Widget _buildPortraitBody(
+    BuildContext context,
+    WidgetRef ref, {
+    required double contentWidth,
+    required double headerExtent,
+    required double obscuredBottom,
+    required bool isWide,
+    required int columns,
+    required List<String> quickIds,
+  }) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          isWide ? 0 : 16,
+          headerExtent == 0 ? 24 : headerExtent + 12,
+          isWide ? 0 : 16,
+          28 + obscuredBottom,
+        ),
+        child: SizedBox(
+          width: contentWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListEntrance(index: 0, child: _buildSearchBar(context)),
+              const SizedBox(height: 20),
+              const ListEntrance(index: 1, child: HomeHeroCard()),
+              const SizedBox(height: 24),
+              ListEntrance(
+                index: 2,
+                child: _buildQuickSectionTitle(
+                  context,
+                  S.of(context).shortcuts,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildQuickGrid(context, ref, columns, quickIds),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Landscape: hero on the left, search plus shortcuts on the right. The hero
+  /// fills the row height instead of pinning 218 points, and the shortcut list
+  /// scrolls on its own so the page itself never scrolls.
+  Widget _buildLandscapeBody(
+    BuildContext context,
+    WidgetRef ref, {
+    required double contentWidth,
+    required double headerExtent,
+    required double obscuredBottom,
+    required List<String> quickIds,
+  }) {
+    final top = headerExtent == 0 ? 18.0 : headerExtent + 8;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, top, 20, 20 + obscuredBottom),
+        child: LayoutBuilder(
+          builder: (context, outer) {
+            // 两栏放进同一个高度盒子：整行撑满窗口时 hero 会被拉成一张
+            // 390×475 的巨幅，收在 340 以内再顶对齐，左右两栏的顶边、底边
+            // 才会落在同一条水平线上。
+            final rowHeight = min(
+              outer.maxHeight,
+              (MediaQuery.sizeOf(context).height * 0.72).clamp(240.0, 340.0),
+            );
+            return SizedBox(
+              width: contentWidth,
+              height: rowHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: ListEntrance(
+                      index: 0,
+                      child: const HomeHeroCard(height: null),
+                    ),
+                  ),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ListEntrance(index: 0, child: _buildSearchBar(context)),
+                        const SizedBox(height: 16),
+                        ListEntrance(
+                          index: 1,
+                          child: _buildQuickSectionTitle(
+                            context,
+                            S.of(context).shortcuts,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, box) {
+                              // Eight entries over two columns is four rows. A
+                              // fixed 52pt tile leaves a ~100pt hole at the
+                              // bottom of a tablet's right column while the hero
+                              // next to it runs the full 340 — the two columns
+                              // stop ending on the same line. Spread the tiles
+                              // over whatever height is actually available.
+                              const spacing = 8.0;
+                              const bottomFade = 14.0;
+                              // Two columns everywhere. A third column does fit
+                              // all eight entries on a landscape phone, but each
+                              // tile then has ~70pt of text width and English
+                              // captions come back as "Local m…", "Listenin…".
+                              // Keeping two columns means the list scrolls; the
+                              // fade at the bottom is what says so.
+                              const columns = 2;
+                              final rows = (quickIds.length / columns).ceil();
+                              final tileHeight =
+                                  ((box.maxHeight -
+                                              bottomFade -
+                                              (rows - 1) * spacing) /
+                                          rows)
+                                      .clamp(52.0, 78.0);
+                              // A landscape window is too short for eight
+                              // shortcut tiles, so the list always ends mid-card.
+                              // Fade the last few points instead of slicing a
+                              // card in half.
+                              return ShaderMask(
+                                shaderCallback: (rect) => const LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.white,
+                                    Colors.white,
+                                    Colors.transparent,
+                                  ],
+                                  stops: [0, 0.9, 1],
+                                ).createShader(rect),
+                                blendMode: BlendMode.dstIn,
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.only(
+                                    bottom: bottomFade,
+                                  ),
+                                  // Two columns instead of one: the right half of
+                                  // a landscape window is ~590pt wide, so a
+                                  // single column of tiles left half the row
+                                  // blank and still ended after three and a half
+                                  // of the eight entries.
+                                  child: _buildQuickGrid(
+                                    context,
+                                    ref,
+                                    columns,
+                                    quickIds,
+                                    dense: true,
+                                    tileHeight: tileHeight,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   void _openSearchSheet(BuildContext context) {
     // 弹窗顶部对齐首页 Koyze 文字顶部上方 3px。
     double topInset = 0;
@@ -135,29 +317,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   /// 搜索条占一行：点击弹出搜索弹窗（滑入动画，2/3 时弹输入法）。
   Widget _buildSearchBar(BuildContext context) {
-    final muted = AppColors.mutedText(context);
-    final border = AppColors.cardBorder(context);
+    // mutedText 在白玻璃上只有 2.5:1，15pt 的占位符读起来发灰；
+    // 提到 secondaryText，和卡片副标题用同一档。
+    final hint = AppColors.secondaryText(context);
     return Pressable(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(18),
       onTap: () => _openSearchSheet(context),
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: AppColors.miniBar(context),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: border.withValues(alpha: 0.6)),
-        ),
+      child: OrigoChromeSurface(
+        borderRadius: BorderRadius.circular(18),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        accent: AppColors.accentOf(context),
         child: Row(
           children: [
-            Icon(Icons.search, color: muted, size: 22),
-            const SizedBox(width: 10),
+            Icon(Icons.search_rounded, color: hint, size: 21),
+            const SizedBox(width: 11),
             Expanded(
               child: Text(
                 S.of(context).searchSongsHint,
-                style: TextStyle(color: muted, fontSize: 15),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: hint,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: -0.1,
+                ),
               ),
             ),
+            const SizedBox(width: 8),
+            Icon(Icons.arrow_forward_rounded, color: hint, size: 17),
           ],
         ),
       ),
@@ -165,10 +353,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildQuickSectionTitle(BuildContext context, String title) {
+    // Section label, not a second page title: smaller, tracked out, muted.
     final titleStyle = TextStyle(
-      fontSize: 16,
+      fontSize: 13,
       fontWeight: FontWeight.w700,
-      color: AppColors.onScaffold(context),
+      letterSpacing: 0.2,
+      color: AppColors.secondaryText(context),
     );
     return Row(
       children: [
@@ -199,8 +389,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     BuildContext context,
     WidgetRef ref,
     int columns,
-    List<String> quickIds,
-  ) {
+    List<String> quickIds, {
+    bool dense = false,
+    double? tileHeight,
+  }) {
     final entries = [
       for (final id in quickIds)
         homeQuickFeatures.firstWhere((entry) => entry.id == id),
@@ -208,17 +400,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final spacing = 12.0;
+        final spacing = dense ? 8.0 : 10.0;
         final tileWidth =
             (constraints.maxWidth - spacing * (columns - 1)) / columns;
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
           children: [
-            for (final entry in entries)
+            for (var index = 0; index < entries.length; index++)
               SizedBox(
                 width: tileWidth,
-                child: _QuickEntryCard(entry: entry),
+                child: ListEntrance(
+                  key: ValueKey('quick-${entries[index].id}'),
+                  index: index,
+                  child: _QuickEntryCard(
+                    entry: entries[index],
+                    dense: dense,
+                    tileHeight: tileHeight,
+                  ),
+                ),
               ),
           ],
         );
@@ -364,7 +564,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 class _QuickEntryCard extends ConsumerWidget {
   final HomeQuickFeature entry;
 
-  const _QuickEntryCard({required this.entry});
+  /// Landscape has roughly 190 points for the whole list; dropping the
+  /// caption fits four tiles instead of two and a half.
+  final bool dense;
+
+  /// 覆盖默认行高。平板横屏的右栏放得下更高的卡，撑满后与左侧 hero 齐底。
+  final double? tileHeight;
+
+  const _QuickEntryCard({
+    required this.entry,
+    this.dense = false,
+    this.tileHeight,
+  });
 
   void _toggleTheme(WidgetRef ref) {
     final current = ref.read(themeModeProvider);
@@ -409,58 +620,72 @@ class _QuickEntryCard extends ConsumerWidget {
   }
 
   Widget _buildCardBody(BuildContext context, WidgetRef ref, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder(context)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: color.withAlpha(40),
-              borderRadius: BorderRadius.circular(11),
+    // The whole tile is tappable, so the trailing arrow only stole width from
+    // the label — at 2 columns it was the reason "Local music" clipped.
+    //
+    // Height is fixed rather than content-driven: the tiles live in a Wrap, so
+    // a two-line caption on one card would otherwise make its whole run taller
+    // and leave the neighbours floating against different baselines.
+    return SizedBox(
+      height: tileHeight ?? (dense ? 52 : 68),
+      child: OrigoChromeSurface(
+        borderRadius: BorderRadius.circular(18),
+        padding: EdgeInsets.fromLTRB(11, dense ? 8 : 10, 11, dense ? 8 : 10),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: color.withValues(alpha: 0.20)),
+              ),
+              child: Icon(entry.icon, color: color, size: 18),
             ),
-            child: Icon(entry.icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  S.of(context).quickTitle(entry.id),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onScaffold(context),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    S.of(context).quickTitle(entry.id),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      height: 1.15,
+                      letterSpacing: -0.2,
+                      color: AppColors.onScaffold(context),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  S.of(context).quickSubtitle(entry.id),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.mutedText(context),
-                  ),
-                ),
-              ],
+                  if (!dense) ...[
+                    const SizedBox(height: 3),
+                    // Two lines: at 2 columns the caption only gets ~106pt, and
+                    // every longer English label ("Tasks and progress") was
+                    // cut in the middle of a word.
+                    Text(
+                      S.of(context).quickSubtitle(entry.id),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 9.8,
+                        height: 1.16,
+                        letterSpacing: 0,
+                        // mutedText is 45% black in the light theme — at 9.8pt
+                        // that lands around 2.5:1 on a white card.
+                        color: AppColors.secondaryText(context),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          Icon(
-            Icons.chevron_right,
-            color: AppColors.mutedText(context),
-            size: 18,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

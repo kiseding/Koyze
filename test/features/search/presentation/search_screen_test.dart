@@ -26,6 +26,21 @@ void main() {
     expect(source, contains('physics: const ClampingScrollPhysics()'));
   });
 
+  test('embedded search follows the Origo sheet interaction model', () {
+    final source = File(
+      'lib/features/search/presentation/search_screen.dart',
+    ).readAsStringSync();
+    final controls = File(
+      'lib/features/search/presentation/search_controls.dart',
+    ).readAsStringSync();
+
+    expect(source, contains('this.liveSearch = false'));
+    expect(source, contains('Timer(const Duration(milliseconds: 250)'));
+    expect(source, contains('onBack: cancel'));
+    expect(controls, contains('Icons.arrow_back_rounded'));
+    expect(controls, contains('onChanged: widget.onChanged'));
+  });
+
   testWidgets('search screen renders history and hot list', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -52,7 +67,9 @@ void main() {
 
     expect(find.text('Trending'), findsOneWidget);
     expect(find.text('热歌1'), findsOneWidget);
-    expect(find.text('Search'), findsWidgets);
+    // 输入行改成胶囊搜索框，提交按钮只在有输入时出现。
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('全网'), findsOneWidget);
   });
 
   testWidgets('search error exposes retry action', (tester) async {

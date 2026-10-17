@@ -198,7 +198,10 @@ void main() {
       expect(full, contains('GlassSurface('));
       expect(full, contains('Material('));
       expect(full, contains('color: Colors.transparent'));
-      expect(full, contains('borderRadius: const BorderRadius.vertical('));
+      expect(
+        full,
+        contains('borderRadius: BorderRadius.circular(koyzeSheetRadius)'),
+      );
       expect(full, contains('final pageContext = context'));
       expect(full, contains('showPlaylistPicker(context: pageContext'));
     },

@@ -202,7 +202,7 @@ jobs:
               -d "$LOGIN_BODY" \
               "$WORKER_URL/api/user/login" || true)"
             echo "POST /api/user/login -> HTTP $CODE"
-            cat /tmp/login.json || true
+            echo "login response received (body redacted)"
             echo
             case "$CODE" in
               200) LOGIN_OK=1; break;;

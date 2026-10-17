@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'windows_caption_bar.dart';
+import 'package:koyze/core/widgets/koyze_modal.dart';
 
 enum _WindowsCloseAction { tray, exit }
 
@@ -62,7 +63,7 @@ class _WindowsCloseHandlerState extends State<WindowsCloseHandler> {
       }
       final dialogContext = widget.navigatorKey.currentContext;
       if (!mounted || dialogContext == null || !dialogContext.mounted) return;
-      final selection = await showDialog<_CloseSelection>(
+      final selection = await showKoyzeDialog<_CloseSelection>(
         context: dialogContext,
         barrierDismissible: false,
         builder: (context) => const _WindowsCloseDialog(),
@@ -98,9 +99,9 @@ class _WindowsCloseHandlerState extends State<WindowsCloseHandler> {
       if (remembered) await preferences.remove(_preferenceKey);
       final dialogContext = widget.navigatorKey.currentContext;
       if (!mounted || dialogContext == null || !dialogContext.mounted) return;
-      await showDialog<void>(
+      await showKoyzeDialog<void>(
         context: dialogContext,
-        builder: (context) => AlertDialog(
+        builder: (context) => KoyzeDialog(
           title: const Text('无法最小化到托盘'),
           content: const Text('系统托盘暂时不可用，Koyze 将保持打开。'),
           actions: [
@@ -138,7 +139,7 @@ class _WindowsCloseDialogState extends State<_WindowsCloseDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return AlertDialog(
+    return KoyzeDialog(
       icon: Icon(Icons.music_note_rounded, color: colors.primary, size: 30),
       title: const Text('关闭 Koyze？'),
       content: ConstrainedBox(

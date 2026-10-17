@@ -22,6 +22,7 @@ import '../../player/presentation/player_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
+import 'package:koyze/core/widgets/koyze_modal.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const PlaylistDetailScreen({
@@ -1009,8 +1010,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final descFocus = FocusNode();
     var keyboardRequested = false;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
       builder: (ctx) {
         if (!keyboardRequested) {
@@ -1022,7 +1022,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             retryDelay: const Duration(milliseconds: 220),
           );
         }
-        return AlertDialog(
+        return KoyzeDialog(
           backgroundColor: AppColors.dialogBg(ctx),
           title: Text(
             S.of(context).editPlaylist,
@@ -1101,10 +1101,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     WidgetRef ref,
     Playlist playlist,
   ) async {
-    final confirmed = await showDialog<bool>(
-      animationStyle: effectsAnimationStyle(),
+    final confirmed = await showKoyzeDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => KoyzeDialog(
         backgroundColor: AppColors.dialogBg(context),
         title: Text(
           S.of(context).clearFavoritesTitle,
@@ -1166,10 +1165,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     WidgetRef ref,
     Playlist playlist,
   ) {
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => KoyzeDialog(
         backgroundColor: AppColors.dialogBg(context),
         title: Text(
           S.of(context).deletePlaylist,

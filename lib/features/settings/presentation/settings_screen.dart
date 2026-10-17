@@ -31,8 +31,16 @@ import '../../../core/widgets/fx_switch.dart';
 import '../../../l10n/app_strings.dart';
 import '../../sync/data/sync_identity_store.dart';
 import '../../nas/domain/nas_url.dart';
+import 'package:koyze/core/widgets/koyze_modal.dart';
 
 const double settingsOptionMaxWidth = 340;
+const double settingsOptionSideGap = 24;
+
+double settingsOptionPanelWidth(BuildContext context) {
+  final available =
+      MediaQuery.sizeOf(context).width - settingsOptionSideGap * 2;
+  return available.clamp(0.0, settingsOptionMaxWidth).toDouble();
+}
 
 final settingsDeviceIdProvider = FutureProvider<String>((ref) async {
   return (await SyncIdentityStore().load()).deviceId;
@@ -437,10 +445,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Text(
             title,
             style: TextStyle(
-              fontSize: 10,
+              // 与首页「快捷方式」、歌单页「自定义歌单」同一档：
+              // 分区标签是路标，不是注脚。10pt 加 1.2 字距在中文字面下
+              // 几乎读不出字形，45% 黑的对比度也不够。
+              fontSize: 12,
               fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: AppColors.mutedText(context),
+              letterSpacing: 0.4,
+              color: AppColors.secondaryText(context),
             ),
           ),
         ),
@@ -488,7 +499,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w500,
                     color: AppColors.onScaffold(context),
                   ),
@@ -497,8 +508,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.mutedText(context),
+                    fontSize: 11.5,
+                    color: AppColors.secondaryText(context),
                   ),
                 ),
               ],
@@ -794,7 +805,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: copy.tempFilesSubtitle,
           ),
         ];
-    final confirmed = await showDialog<Set<AppCacheCategory>>(
+    final confirmed = await showKoyzeDialog<Set<AppCacheCategory>>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setState) {
@@ -804,12 +815,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               : selected.isEmpty
               ? false
               : null;
-          return AlertDialog(
-            backgroundColor: AppColors.dialogBg(context),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Text(
+          return KoyzeDialog(
+            backgroundColor: AppColors.dialogBg(context),            title: Text(
               copy.chooseCache,
               style: TextStyle(color: AppColors.onScaffold(context)),
             ),
@@ -985,7 +992,7 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
                   Text(
                     widget.title,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w500,
                       color: AppColors.onScaffold(context),
                     ),
@@ -995,8 +1002,8 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
                     Text(
                       widget.subtitle,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.mutedText(context),
+                        fontSize: 11.5,
+                        color: AppColors.secondaryText(context),
                       ),
                     ),
                   ],
@@ -1033,7 +1040,7 @@ class _SettingRow extends StatelessWidget {
             child: Text(
               name,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 14.5,
                 fontWeight: FontWeight.w500,
                 color: AppColors.onScaffold(context),
               ),
@@ -1041,7 +1048,7 @@ class _SettingRow extends StatelessWidget {
           ),
           Text(
             value,
-            style: TextStyle(fontSize: 12, color: AppColors.mutedText(context)),
+            style: TextStyle(fontSize: 12.5, color: AppColors.secondaryText(context)),
           ),
         ],
       ),
@@ -1076,7 +1083,7 @@ class _DeviceIdRow extends StatelessWidget {
             Text(
               S.of(context).deviceUuid,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 14.5,
                 fontWeight: FontWeight.w500,
                 color: AppColors.onScaffold(context),
               ),
@@ -1132,10 +1139,12 @@ class _PlatformPickerDialog extends ConsumerWidget {
     return Center(
       child: Material(
         color: Colors.transparent,
-        child: SizedBox(
-          width: settingsOptionMaxWidth,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: settingsOptionSideGap,
+          ),
+          child: SizedBox(
+            width: settingsOptionPanelWidth(context),
             child: GlassSurface(
               style: AppGlassStyle.regular,
               borderRadius: BorderRadius.circular(24),
@@ -1285,7 +1294,7 @@ class _PlatformOptionTile extends StatelessWidget {
                     name,
                     style: TextStyle(
                       color: selected ? accent : AppColors.onScaffold(context),
-                      fontSize: 14,
+                      fontSize: 14.5,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
@@ -1293,8 +1302,8 @@ class _PlatformOptionTile extends StatelessWidget {
                   Text(
                     description,
                     style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
+                      color: AppColors.secondaryText(context),
+                      fontSize: 11.5,
                     ),
                   ),
                 ],
@@ -1339,10 +1348,12 @@ class _QualityPickerDialog extends ConsumerWidget {
     return Center(
       child: Material(
         color: Colors.transparent,
-        child: SizedBox(
-          width: settingsOptionMaxWidth,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: settingsOptionSideGap,
+          ),
+          child: SizedBox(
+            width: settingsOptionPanelWidth(context),
             child: GlassSurface(
               style: AppGlassStyle.regular,
               borderRadius: BorderRadius.circular(24),
@@ -1475,7 +1486,7 @@ class _QualityOptionTile extends StatelessWidget {
                     name,
                     style: TextStyle(
                       color: selected ? accent : AppColors.onScaffold(context),
-                      fontSize: 14,
+                      fontSize: 14.5,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
@@ -1483,8 +1494,8 @@ class _QualityOptionTile extends StatelessWidget {
                   Text(
                     description,
                     style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
+                      color: AppColors.secondaryText(context),
+                      fontSize: 11.5,
                     ),
                   ),
                 ],
@@ -1616,9 +1627,11 @@ class _LanguagePickerDialog extends ConsumerWidget {
       child: Material(
         color: Colors.transparent,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(
+            horizontal: settingsOptionSideGap,
+          ),
           child: SizedBox(
-            width: settingsOptionMaxWidth,
+            width: settingsOptionPanelWidth(context),
             child: GlassSurface(
               style: AppGlassStyle.regular,
               borderRadius: BorderRadius.circular(24),
@@ -1711,7 +1724,7 @@ class _LanguageOptionTile extends StatelessWidget {
                     name,
                     style: TextStyle(
                       color: selected ? accent : AppColors.onScaffold(context),
-                      fontSize: 15,
+                      fontSize: 14.5,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
@@ -1719,8 +1732,8 @@ class _LanguageOptionTile extends StatelessWidget {
                   Text(
                     description,
                     style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
+                      color: AppColors.secondaryText(context),
+                      fontSize: 11.5,
                     ),
                   ),
                 ],

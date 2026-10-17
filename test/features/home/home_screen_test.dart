@@ -68,10 +68,13 @@ void main() {
     expect(source, contains('_BodyHeader(title: S.of(context).customPlaylists'));
   });
 
-  test('search sheet has draggable handle and delays keyboard focus', () {
+  test('search sheet follows the Origo search surface and delays keyboard focus', () {
     final sheet = File('lib/core/widgets/search_sheet.dart').readAsStringSync();
     final search = File(
       'lib/features/search/presentation/search_screen.dart',
+    ).readAsStringSync();
+    final controls = File(
+      'lib/features/search/presentation/search_controls.dart',
     ).readAsStringSync();
 
     expect(sheet, contains('autofocusDelay'));
@@ -82,17 +85,24 @@ void main() {
       sheet,
       isNot(contains('margin: EdgeInsets.only(top: widget.topInset)')),
     );
-    expect(sheet, contains('onVerticalDragUpdate'));
-    expect(sheet, contains('onVerticalDragEnd'));
+    // 系统 bottom sheet 负责顶部拖拽，列表到顶后的下拉由弹窗自身接管。
+    expect(sheet, contains('enableDrag: true'));
     expect(sheet, contains('Transform.translate'));
     expect(sheet, contains('_closeThreshold'));
     expect(search, contains('autofocusDelay'));
     expect(search, contains('Timer(delay'));
-    // 弹窗可下拉关闭，无需返回按钮。
-    expect(search, isNot(contains('Icons.arrow_back')));
-    // 左右滑入动效。
-    expect(search, contains('Offset(-40 * (1 - t), 0)'));
-    expect(search, contains('Offset(40 * (1 - t), 0)'));
+    // Origo 式搜索面板把返回按钮放在输入行左侧，同时仍支持下滑关闭。
+    expect(controls, contains('Icons.arrow_back_rounded'));
+    expect(sheet, contains('liveSearch: true'));
+    expect(search, contains('Timer(const Duration(milliseconds: 250)'));
+    // 控件整体做轻微上浮淡入，不再左右对冲。
+    expect(search, contains('Offset(0, 6 * (1 - t))'));
+    // 输入行与平台胶囊各自成组件，弹窗里固定上下堆叠，独立页横屏才并排。
+    expect(controls, contains('class SearchFieldBar'));
+    expect(controls, contains('class SearchSourceChips'));
+    expect(controls, contains('onBack'));
+    expect(controls, contains('onChanged'));
+    expect(search, contains('final wide = size.width > size.height * 1.15;'));
   });
 
   test('home does not duplicate leaderboard cards', () {

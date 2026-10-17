@@ -2,31 +2,52 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:koyze/features/search/presentation/search_screen.dart';
 
 import '../motion/motion_tokens.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 
-/// 弹出搜索弹窗。
-/// 弹窗从底部滑入，顶部对齐传入的 [topInset]（首页 Koyze 文字上方 3px）；
-/// 顶部小白条可按住上下拖动；列表滑到顶后继续下拉时弹窗跟随下滑，
-/// 超过阈值关闭；滑入后自动聚焦输入框弹出键盘。
+/// 弹出 Origo 风格搜索弹窗。
+/// 面板从底部滑入并保留页面上下文；系统 bottom sheet 负责顶部拖拽，
+/// 列表滑到顶后继续下拉时弹窗也会跟随下滑，超过阈值关闭；
+/// 滑入后自动聚焦输入框弹出键盘。
 Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
   final size = MediaQuery.sizeOf(context);
-  final height = max(size.height - topInset, 200.0);
+  final landscape = size.width > size.height;
+  // 面板不再顶到屏幕边：Origo 的弹层最高只占八成画面，上面留出被压暗的
+  // 页面，一眼就能看出「这是浮在内容上的一层」，而不是换了个页面。
+  // Origo 的搜索弹窗把内容放进约 90% 高的独立工作面板，顶部始终
+  // 留出当前页面的上下文，结果区也不会像全屏路由一样突然换页。
+  final ratio = 0.90;
+  var height = min(size.height - topInset, size.height * ratio);
+  // 桌面窗口里按屏幕高度铺满会留下大半块空面板，压到 620 更像一个浮层。
+  if (size.width >= 1100) height = min(height, 620);
   return showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
     isDismissible: true,
-    enableDrag: false,
+    enableDrag: true,
     requestFocus: false,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black45,
+    // 宽度按设备收窄：搜索面板不需要桌面级的宽度，720 已经足够放下
+    // 两列结果，再宽只会让每行拉得太空。
+    constraints: BoxConstraints(
+      maxWidth: size.width >= 1100
+          ? 720
+          : landscape
+          ? 640
+          : 560,
+    ),
+    // 搜索面板几乎盖满全屏，遮罩要压得比短菜单更实，否则底层列表会透出来。
+    barrierColor: Colors.black.withValues(
+      alpha: AppColors.isDark(context) ? 0.50 : 0.22,
+    ),
     sheetAnimationStyle: effectsAnimationStyle(
-      duration: MotionDuration.container,
+      duration: MotionDuration.sheet,
       reverseDuration: Duration.zero,
+      curve: MotionCurve.sheetIn,
     ),
     builder: (context) => _SearchSheet(height: height),
   );
@@ -57,6 +78,9 @@ class _SearchSheetState extends State<_SearchSheet>
 
   double get _closeThreshold => widget.height * 0.22;
 
+  /// 面板底边与屏幕底之间保留的缝，配合四角圆角让它像一块浮起来的卡片。
+  static const double _bottomGap = 12;
+
   @override
   void dispose() {
     _settle.dispose();
@@ -86,14 +110,6 @@ class _SearchSheetState extends State<_SearchSheet>
     if (_dragOffset > _closeThreshold) {
       unawaited(_dismissSheet());
     }
-  }
-
-  void _onDragUpdate(DragUpdateDetails details) {
-    _applyDragDelta(details.delta.dy);
-  }
-
-  Future<void> _onDragEnd(DragEndDetails details) async {
-    await _finishDrag(details.primaryVelocity ?? 0);
   }
 
   Future<void> _finishDrag(double velocity) async {
@@ -156,6 +172,17 @@ class _SearchSheetState extends State<_SearchSheet>
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    // 所有宽度档都留出侧边：即使面板本身已经被 maxWidth 收窄，
+    // 也不能让中等横屏窗口出现整块贴边的玻璃面板。
+    const side = 12.0;
+    // 竖屏时让面板底边停在键盘上沿：否则面板底部三分之一藏在输入法后面，
+    // 看起来像被裁掉。注意要在「顶边固定」的前提下缩高度——直接缩
+    // SizedBox 会让底边贴着屏幕底、顶边反而往下掉。
+    // 横屏本来就矮，再缩会把结果区挤没，改为由列表自己补底部留白。
+    final keyboard = media.size.height > media.size.width
+        ? media.viewInsets.bottom
+        : 0.0;
     return AnimatedBuilder(
       animation: _settle,
       builder: (context, child) =>
@@ -164,51 +191,38 @@ class _SearchSheetState extends State<_SearchSheet>
         onNotification: _onScrollNotification,
         child: SizedBox(
           height: widget.height,
-          child: GlassSurface(
-            style: AppGlassStyle.regular,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
-                blurRadius: 24,
-                offset: const Offset(0, -4),
+          child: AnimatedPadding(
+            duration: motionDuration(context, MotionDuration.micro),
+            curve: MotionCurve.easeOutQuart,
+            // 面板四边都离开屏幕边缘：底边常留 12pt，弹键盘时再让出键盘高度。
+            // 不再贴屏幕底，所以四角统一收圆，不会在键盘上方露出直角。
+            padding: EdgeInsets.fromLTRB(side, 0, side, keyboard + _bottomGap),
+            child: GlassSurface(
+              style: AppGlassStyle.regular,
+              borderRadius: BorderRadius.circular(26),
+              emphasized: true,
+              // 这块面板几乎盖满屏幕，按默认 0.7 的基底会把首页糊成一整片
+              // 色块；压到 0.88 让底层的标题和卡片仍然隐约可辨。
+              alphaScale: 0.86,
+              boxShadow: AppGlass.shadowFor(
+                context,
+                style: AppGlassStyle.regular,
+                emphasized: true,
               ),
-            ],
-            child: Column(
-              children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onVerticalDragStart: (_) {
-                    if (_dismissStarted) return;
-                    if (_settle.isAnimating) _settle.stop();
-                  },
-                  onVerticalDragUpdate: _onDragUpdate,
-                  onVerticalDragEnd: _onDragEnd,
-                  child: Container(
-                    width: double.infinity,
-                    height: 28,
-                    alignment: Alignment.topCenter,
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.28),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: SearchScreen(
+                      embedded: true,
+                      liveSearch: true,
+                      reserveKeyboardInset: false,
+                      onDismiss: _dismissSheet,
+                      autofocusDelay: _focusDelay(),
+                      canAutofocus: () => !_dismissStarted,
                     ),
                   ),
-                ),
-                Expanded(
-                  child: SearchScreen(
-                    embedded: true,
-                    autofocusDelay: _focusDelay(),
-                    canAutofocus: () => !_dismissStarted,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

@@ -7,10 +7,12 @@ import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/card_play_button.dart';
+import '../../../core/widgets/origo_chrome.dart';
 import '../domain/playlist.dart';
 import '../domain/playlist_import_service.dart';
 import '../domain/playlist_service.dart';
@@ -22,9 +24,9 @@ import '../../nas/domain/nas_kind.dart';
 import '../../nas/presentation/nas_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/koyze_modal.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/loading_widget.dart';
-import '../../../core/motion/motion_tokens.dart';
 
 enum PlaylistSortMode { recent, name, songCount }
 
@@ -136,82 +138,97 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               child: ShellContentFrame(
                 child: Column(
                   children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                style: TextStyle(
-                  color: AppColors.onScaffold(context),
-                  fontSize: 14,
-                ),
-                // 延迟过滤，避免每个字符整页 rebuild 抢焦点
-                onChanged: (_) {
-                  Future.microtask(() {
-                    if (mounted) setState(() {});
-                  });
-                },
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: S.of(context).searchLibraryHint,
-                  hintStyle: TextStyle(
-                    color: AppColors.mutedText(context),
-                    fontSize: 14,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: AppColors.mutedText(context),
-                    size: 20,
-                  ),
-                  suffixIcon: _searchQuery.isEmpty
-                      ? null
-                      : FxIconButton(
-                          tooltip: S.of(context).clearSearch,
-                          icon: Icon(
-                            Icons.clear,
-                            size: 18,
-                            color: AppColors.mutedText(context),
+                    Padding(
+                      // 与卡片左边缘同一条线（16），上下的呼吸量也收在同一档，
+                      // 搜索条不再像被随手贴在标题下面。
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                      child: SizedBox(
+                        height: 46,
+                        child: OrigoChromeSurface(
+                          borderRadius: BorderRadius.circular(16),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          // 首页的搜索入口是一条玻璃条；这里原本是实心灰块，
+                          // 同一应用里两种搜索入口长得不一样，翻页时很跳。
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.search_rounded,
+                                size: 19,
+                                color: AppColors.secondaryText(context),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  focusNode: _searchFocus,
+                                  style: TextStyle(
+                                    color: AppColors.onScaffold(context),
+                                    fontSize: 14,
+                                  ),
+                                  // 延迟过滤，避免每个字符整页 rebuild 抢焦点
+                                  onChanged: (_) {
+                                    Future.microtask(() {
+                                      if (mounted) setState(() {});
+                                    });
+                                  },
+                                  textInputAction: TextInputAction.search,
+                                  decoration: InputDecoration(
+                                    // 必须是显式 false：InputDecoration 的
+                                    // filled 为 null 时会回填主题里的
+                                    // filled:true，于是在玻璃条中间又糊出一块
+                                    // 实心 surface（浅色主题下是白色）。
+                                    filled: false,
+                                    isCollapsed: true,
+                                    border: InputBorder.none,
+                                    contentPadding: EdgeInsets.zero,
+                                    hintText: S.of(context).searchLibraryHint,
+                                    hintStyle: TextStyle(
+                                      color: AppColors.secondaryText(context),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (_searchQuery.isNotEmpty)
+                                FxIconButton(
+                                  tooltip: S.of(context).clearSearch,
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    size: 17,
+                                    color: AppColors.secondaryText(context),
+                                  ),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {});
+                                  },
+                                ),
+                            ],
                           ),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {});
-                          },
                         ),
-                  filled: true,
-                  fillColor: AppColors.miniBar(context),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  0,
-                  16,
-                  RootShellLayout.obscuredBottomOf(context),
-                ),
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                itemCount: bodyItems.length,
-                itemBuilder: (context, index) => _buildBodyItem(
-                  context,
-                  ref,
-                  playerService,
-                  bodyItems[index],
-                  favorites: favorites,
-                  local: local,
-                  recent: recent,
-                ),
-              ),
-            ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          RootShellLayout.obscuredBottomOf(context),
+                        ),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        itemCount: bodyItems.length,
+                        itemBuilder: (context, index) => _buildBodyItem(
+                          context,
+                          ref,
+                          playerService,
+                          bodyItems[index],
+                          favorites: favorites,
+                          local: local,
+                          recent: recent,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -339,40 +356,46 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       ),
       _BodyGap(:final height) => SizedBox(height: height),
       _BodyHeader(:final title, :final trailing) => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // 与首页「快捷方式」同一档：二级分区名是标签，不是第二个页面标题。
+          // 原来 16pt 常白加粗，比卡片里的歌单名还重，层级是反的。
           Text(
             title,
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: scheme.onSurface,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+              color: AppColors.secondaryText(context),
             ),
           ),
-          if (trailing)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FxIconButton(
-                  tooltip: S.of(context).newPlaylist,
-                  icon: Icon(
-                    Icons.add_rounded,
-                    color: scheme.onSurface.withAlpha(120),
-                    size: 22,
-                  ),
-                  onPressed: () => _showCreateDialog(context, ref),
-                ),
-                FxIconButton(
-                  tooltip: S.of(context).sortPlaylists,
-                  icon: Icon(
-                    Icons.sort,
-                    color: scheme.onSurface.withAlpha(120),
-                    size: 20,
-                  ),
-                  onPressed: () => _showSortMenu(context),
-                ),
-              ],
+          const Spacer(),
+          if (trailing) ...[
+            FxIconButton(
+              tooltip: S.of(context).newPlaylist,
+              // IconButton 的 48 命中区里图标只占中间一圈，视觉边缘会内缩
+              // 十几 pt，右侧两个按钮因此对不上卡片的右边线。
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+              icon: Icon(
+                Icons.add_rounded,
+                color: AppColors.secondaryText(context),
+                size: 21,
+              ),
+              onPressed: () => _showCreateDialog(context, ref),
             ),
+            const SizedBox(width: 2),
+            FxIconButton(
+              tooltip: S.of(context).sortPlaylists,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+              icon: Icon(
+                Icons.sort_rounded,
+                color: AppColors.secondaryText(context),
+                size: 19,
+              ),
+              onPressed: () => _showSortMenu(context),
+            ),
+          ],
         ],
       ),
       _BodyPlaylistItem(:final playlist) => _buildPlaylistItem(
@@ -524,15 +547,14 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             for (var i = 0; i < cards.length; i += 2) ...[
               if (i > 0) const SizedBox(height: 12),
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                // 入口数是奇数，最后一行只剩一张。用 SizedBox.shrink 占住
+                // 右半格会在页面底部留一个 300 宽的黑洞，不如让它铺满。
                 children: [
                   Expanded(child: cards[i]),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: i + 1 < cards.length
-                        ? cards[i + 1]
-                        : const SizedBox.shrink(),
-                  ),
+                  if (i + 1 < cards.length) ...[
+                    const SizedBox(width: 12),
+                    Expanded(child: cards[i + 1]),
+                  ],
                 ],
               ),
             ],
@@ -549,184 +571,18 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     dynamic playerService,
   ) {
     final songCount = favorites?.songCount ?? 0;
-    final accent = AppColors.accentOf(context);
-    // 主题的 onPrimary 在深色下是黑色（黄底黑字），但渐变卡片视觉上应统一为白字。
-    const onAccent = Colors.white;
-
-    return HoverFloat(
-      child: Pressable(
-        borderRadius: BorderRadius.circular(16),
-        // 与首页快捷入口、本地/最近播放卡片同一套：记下卡片矩形再进入，
-        // 左缘右滑沿用卡片页已有的返回手势。
-        captureExpandRect: true,
-        onTap: () {
-          context.pushNamed(
-            'playlistDetail',
-            pathParameters: {'playlistId': 'favorites'},
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [accent.withAlpha(220), accent.withAlpha(120)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: onAccent.withAlpha(40),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.favorite_rounded,
-                  color: Color(0xFFFF3B30),
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      S.of(context).favorites,
-                      style: const TextStyle(
-                        color: onAccent,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      S.of(context).songCount(songCount),
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: onAccent.withAlpha(200),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              CardPlayButton(
-                color: onAccent,
-                backgroundColor: onAccent.withAlpha(40),
-                onPressed: favorites != null && favorites.songCount > 0
-                    ? () => _playPlaylist(playerService, favorites)
-                    : null,
-                icon: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: onAccent,
-                  size: 30,
-                ),
-              ),
-            ],
-          ),
-        ),
+    return _PresetCard(
+      icon: Icons.favorite_rounded,
+      tone: const Color(0xFFFF453A),
+      title: S.of(context).favorites,
+      subtitle: S.of(context).songCount(songCount),
+      onTap: () => context.pushNamed(
+        'playlistDetail',
+        pathParameters: {'playlistId': 'favorites'},
       ),
-    );
-  }
-
-  Widget _buildLocalCard(
-    BuildContext context,
-    WidgetRef ref,
-    Playlist? local,
-    dynamic playerService,
-  ) {
-    final songCount = local?.songCount ?? 0;
-    // 紫色渐变（与收藏 / 最近播放卡片结构一致）
-    const purple = Colors.purple;
-    const onPurple = Colors.white;
-
-    return HoverFloat(
-      child: Pressable(
-        borderRadius: BorderRadius.circular(16),
-        captureExpandRect: true,
-        onTap: () {
-          context.pushNamed(
-            'playlistDetail',
-            pathParameters: {'playlistId': 'local'},
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [purple.withAlpha(220), purple.withAlpha(120)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: onPurple.withAlpha(40),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.library_music,
-                  color: onPurple,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      S.of(context).localMusic,
-                      style: const TextStyle(
-                        color: onPurple,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      songCount == 0
-                          ? S.of(context).chooseFolderToScan
-                          : S.of(context).songCount(songCount),
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: onPurple.withAlpha(200),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              CardPlayButton(
-                color: onPurple,
-                backgroundColor: onPurple.withAlpha(40),
-                onPressed: local != null && local.songCount > 0
-                    ? () => _playPlaylist(playerService, local)
-                    : null,
-                icon: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: onPurple,
-                  size: 30,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      onPlay: favorites != null && favorites.songCount > 0
+          ? () => _playPlaylist(playerService, favorites)
+          : null,
     );
   }
 
@@ -737,80 +593,42 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     dynamic playerService,
   ) {
     final songCount = recent?.songCount ?? 0;
-    // 蓝色渐变（与收藏列表结构一致，仅替换为蓝色）
-    const blue = Colors.blue;
-    final onBlue = Colors.white;
-
-    return HoverFloat(
-      child: Pressable(
-        borderRadius: BorderRadius.circular(16),
-        captureExpandRect: true,
-        onTap: () {
-          context.pushNamed(
-            'playlistDetail',
-            pathParameters: {'playlistId': 'recent'},
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [blue.withAlpha(220), blue.withAlpha(120)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: onBlue.withAlpha(40),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.history_rounded, color: onBlue, size: 28),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      S.of(context).recentPlays,
-                      style: TextStyle(
-                        color: onBlue,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      S.of(context).songCount(songCount),
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: onBlue.withAlpha(200),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              CardPlayButton(
-                color: onBlue,
-                backgroundColor: onBlue.withAlpha(40),
-                onPressed: recent != null && recent.songCount > 0
-                    ? () => _playPlaylist(playerService, recent)
-                    : null,
-                icon: Icon(Icons.play_arrow_rounded, color: onBlue, size: 30),
-              ),
-            ],
-          ),
-        ),
+    return _PresetCard(
+      icon: Icons.history_rounded,
+      tone: const Color(0xFF3E8BFF),
+      title: S.of(context).recentPlays,
+      subtitle: S.of(context).songCount(songCount),
+      onTap: () => context.pushNamed(
+        'playlistDetail',
+        pathParameters: {'playlistId': 'recent'},
       ),
+      onPlay: recent != null && recent.songCount > 0
+          ? () => _playPlaylist(playerService, recent)
+          : null,
+    );
+  }
+
+  Widget _buildLocalCard(
+    BuildContext context,
+    WidgetRef ref,
+    Playlist? local,
+    dynamic playerService,
+  ) {
+    final songCount = local?.songCount ?? 0;
+    return _PresetCard(
+      icon: Icons.folder_rounded,
+      tone: const Color(0xFFAF6BFF),
+      title: S.of(context).localMusic,
+      subtitle: songCount == 0
+          ? S.of(context).chooseFolderToScan
+          : S.of(context).songCount(songCount),
+      onTap: () => context.pushNamed(
+        'playlistDetail',
+        pathParameters: {'playlistId': 'local'},
+      ),
+      onPlay: local != null && local.songCount > 0
+          ? () => _playPlaylist(playerService, local)
+          : null,
     );
   }
 
@@ -822,89 +640,20 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final recommendationsAsync = ref.watch(recommendationProvider);
     final recommendations = recommendationsAsync.valueOrNull ?? const [];
     final count = recommendations.length;
-    const orange = Color(0xFFFF8F1F);
-    const onOrange = Colors.white;
-
-    return HoverFloat(
-      child: Pressable(
-        borderRadius: BorderRadius.circular(16),
-        captureExpandRect: true,
-        onTap: () {
-          context.push('/recommend');
-        },
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [orange.withAlpha(235), orange.withAlpha(130)],
+    return _PresetCard(
+      icon: Icons.auto_awesome_rounded,
+      tone: const Color(0xFFFF9F2E),
+      title: S.of(context).forYou,
+      subtitle: count > 0
+          ? S.of(context).recommendedSongs(count)
+          : S.of(context).recommendAfterFavorites,
+      onTap: () => context.push('/recommend'),
+      onPlay: recommendations.isEmpty
+          ? null
+          : () => playerService.playPlaylist(
+              recommendations.map((item) => item.song).toList(),
+              manualPlayName: recommendations.first.song.name,
             ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: onOrange.withAlpha(40),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  color: onOrange,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      S.of(context).forYou,
-                      style: const TextStyle(
-                        color: onOrange,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      count > 0
-                          ? S.of(context).recommendedSongs(count)
-                          : S.of(context).recommendAfterFavorites,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: onOrange.withAlpha(200),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              CardPlayButton(
-                color: onOrange,
-                backgroundColor: onOrange.withAlpha(40),
-                onPressed: recommendations.isEmpty
-                    ? null
-                    : () => playerService.playPlaylist(
-                        recommendations.map((item) => item.song).toList(),
-                        manualPlayName: recommendations.first.song.name,
-                      ),
-                icon: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: onOrange,
-                  size: 30,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -922,87 +671,20 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         : const AsyncValue<List<MusicItem>>.data([]);
     final songs = songsAsync.valueOrNull ?? const <MusicItem>[];
     final songCount = songs.length;
-    const pink = Colors.pink;
-    const onPink = Colors.white;
     final subtitle = !connected
         ? S.of(context).nasHosts
         : subsonicConnected && songsAsync.isLoading
         ? S.of(context).loadingHost(config.hostLabel)
         : 'NAS';
-
-    return HoverFloat(
-      child: Pressable(
-        borderRadius: BorderRadius.circular(16),
-        captureExpandRect: true,
-        onTap: () => context.push('/subsonic'),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [pink.withAlpha(220), pink.withAlpha(120)],
-            ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: onPink.withAlpha(40),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.cloud_queue_rounded,
-                  color: onPink,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      S.of(context).nasLibrary,
-                      style: const TextStyle(
-                        color: onPink,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: onPink.withAlpha(200),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              CardPlayButton(
-                color: onPink,
-                backgroundColor: onPink.withAlpha(40),
-                onPressed: !subsonicConnected || songCount <= 0
-                    ? null
-                    : () => _playSubsonicLibrary(ref, songs),
-                icon: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: onPink,
-                  size: 30,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return _PresetCard(
+      icon: Icons.cloud_queue_rounded,
+      tone: const Color(0xFF38BDF8),
+      title: S.of(context).nasLibrary,
+      subtitle: subtitle,
+      onTap: () => context.push('/subsonic'),
+      onPlay: !subsonicConnected || songCount <= 0
+          ? null
+          : () => _playSubsonicLibrary(ref, songs),
     );
   }
 
@@ -1044,11 +726,13 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.fill(context),
-        borderRadius: BorderRadius.circular(12),
+        // 与上方预设卡同一个圆角与行高（12 + 48 + 12 = 72）：
+        // 两种条目交替出现时，行高差 8pt 会让整列基线看起来是歪的。
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.cardBorder(context)),
       ),
       child: Pressable(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         captureExpandRect: true,
         onTap: () {
           _openPlaylist(context, playlist);
@@ -1056,10 +740,10 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         child: Row(
           children: [
             Container(
-              width: 56,
-              height: 56,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(14),
                 gradient: LinearGradient(
                   colors: [
                     Theme.of(context).colorScheme.primary.withAlpha(100),
@@ -1073,7 +757,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   playlist.name.isEmpty ? '♪' : playlist.name.substring(0, 1),
                   style: TextStyle(
                     color: AppColors.onScaffold(context),
-                    fontSize: 24,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1090,8 +774,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                         .builtinPlaylistName(playlist.id, playlist.name),
                     style: TextStyle(
                       color: AppColors.onScaffold(context),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1102,8 +786,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                         .of(context)
                         .playlistMeta(playlist.songCount, playlist.description),
                     style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
+                      color: AppColors.secondaryText(context),
+                      fontSize: 11.5,
                     ),
                     maxLines: 1,
                     softWrap: false,
@@ -1113,10 +797,12 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               ),
             ),
             FxIconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
               icon: Icon(
-                Icons.more_vert,
-                color: AppColors.mutedText(context),
-                size: 20,
+                Icons.more_vert_rounded,
+                color: AppColors.secondaryText(context),
+                size: 19,
               ),
               onPressed: () => _showPlaylistMoreMenu(context, ref, playlist),
             ),
@@ -1133,8 +819,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final descFocus = FocusNode();
     var keyboardRequested = false;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
       builder: (dialogContext) {
         if (!keyboardRequested) {
@@ -1146,11 +831,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             retryDelay: const Duration(milliseconds: 220),
           );
         }
-        return AlertDialog(
+        return KoyzeDialog(
           backgroundColor: AppColors.dialogBg(dialogContext),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
           title: Text(
             S.of(context).createPlaylist,
             style: TextStyle(color: AppColors.onScaffold(dialogContext)),
@@ -1251,8 +933,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final descFocus = FocusNode();
     var keyboardRequested = false;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
       builder: (ctx) {
         if (!keyboardRequested) {
@@ -1264,11 +945,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             retryDelay: const Duration(milliseconds: 220),
           );
         }
-        return AlertDialog(
+        return KoyzeDialog(
           backgroundColor: AppColors.dialogBg(ctx),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
           title: Text(
             S.of(context).editPlaylist,
             style: TextStyle(color: AppColors.onScaffold(ctx)),
@@ -1453,8 +1131,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     // 网易云歌单需要分批拉取曲目详情，展示进度避免用户以为卡住。
     var progress = '';
 
-    await showDialog(
-      animationStyle: effectsAnimationStyle(),
+    await showKoyzeDialog(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
@@ -1469,14 +1146,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         }
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            return AlertDialog(
+            return KoyzeDialog(
               backgroundColor: AppColors.dialogBg(context),
               insetPadding: const EdgeInsets.symmetric(
                 horizontal: 20,
                 vertical: 24,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
               ),
               clipBehavior: Clip.antiAlias,
               contentPadding: EdgeInsets.zero,
@@ -1678,10 +1352,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                         },
                                       );
                                   if (!ctx.mounted) return;
-                                  final ok = await showDialog<bool>(
-                                    animationStyle: effectsAnimationStyle(),
+                                  final ok = await showKoyzeDialog<bool>(
                                     context: ctx,
-                                    builder: (c2) => AlertDialog(
+                                    builder: (c2) => KoyzeDialog(
                                       backgroundColor: AppColors.dialogBg(
                                         context,
                                       ),
@@ -1804,8 +1477,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final maxH = media.size.height * 0.56;
     final maxW = media.size.width.clamp(280.0, 420.0);
 
-    showDialog<void>(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (dialogCtx) {
@@ -1852,12 +1524,15 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           ),
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
-            child: Material(
-              color: AppColors.dialogBg(context),
-              elevation: 8,
-              shadowColor: Colors.black38,
-              borderRadius: BorderRadius.circular(20),
-              clipBehavior: Clip.antiAlias,
+            child: GlassSurface(
+              style: AppGlassStyle.regular,
+              borderRadius: BorderRadius.circular(22),
+              emphasized: true,
+              boxShadow: AppGlass.shadowFor(
+                context,
+                style: AppGlassStyle.regular,
+                emphasized: true,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1971,6 +1646,116 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+/// 预设歌单入口卡。
+///
+/// 五个入口共用同一套玻璃材质，只有图标色调区分。之前的做法是每张卡都
+/// 自带一条高饱和渐变（绿 / 橙 / 紫 / 品红 / 蓝），堆在一起就是一块调色板，
+/// 与首页快捷卡的材质也对不上。统一材质后，页面靠图标色分门别类，
+/// 主次交给字号和位置，而不是靠谁更亮。
+class _PresetCard extends StatelessWidget {
+  const _PresetCard({
+    required this.icon,
+    required this.tone,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.onPlay,
+  });
+
+  final IconData icon;
+  final Color tone;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  /// 为 null 时按钮仍在位（禁用态），避免卡片右侧塌成一块空白。
+  final VoidCallback? onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    return HoverFloat(
+      child: Pressable(
+        borderRadius: BorderRadius.circular(18),
+        captureExpandRect: true,
+        onTap: onTap,
+        // 固定高度：五个入口的副标题长短不一（"3 songs" / "Choose a folder
+        // to scan this device"），高度随内容走会让并排两张卡的基线错开。
+        child: SizedBox(
+          height: 72,
+          child: OrigoChromeSurface(
+            borderRadius: BorderRadius.circular(18),
+            accent: tone,
+            padding: const EdgeInsets.fromLTRB(13, 10, 11, 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: tone.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: tone, size: 20),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.onScaffold(context),
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.secondaryText(context),
+                          fontSize: 11.5,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                // 中性色而不是 accent：五张卡各带一个 accent 圆点会在右列排成
+                // 五颗同色的亮点，视线先落在按钮上而不是歌单名。左侧图标已经
+                // 承担了分类的颜色信息，这里只需要一个安静的播放 affordance。
+                CardPlayButton(
+                  size: 34,
+                  color: AppColors.onScaffold(context),
+                  backgroundColor: AppColors.isDark(context)
+                      ? Colors.white.withValues(alpha: 0.07)
+                      : Colors.black.withValues(alpha: 0.05),
+                  onPressed: onPlay,
+                  icon: Icon(
+                    Icons.play_arrow_rounded,
+                    color: onPlay == null
+                        ? AppColors.mutedText(context)
+                        : AppColors.onScaffold(context).withValues(alpha: 0.72),
+                    size: 21,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

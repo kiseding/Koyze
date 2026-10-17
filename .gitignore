@@ -68,3 +68,6 @@ tool/run_macos_preview.command
 
 # Local simulator screenshots, never commit.
 .tmp-ui/
+
+# Local soft-render screenshot harness (needs Windows fonts).
+test/ui_screenshot_test.dart

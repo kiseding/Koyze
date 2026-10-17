@@ -123,8 +123,8 @@ void main() {
       ),
       (
         'lib/features/player/presentation/widgets/mini_player.dart',
-        'padding: const EdgeInsets.fromLTRB(8, 0, 2, 0)',
-        'width: 180,',
+        'padding: EdgeInsets.fromLTRB(widget.floating ? 10 : 8, 7, 7, 7)',
+        'width: widget.floating ? 164 : 180,',
       ),
     ];
 

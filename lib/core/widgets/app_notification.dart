@@ -227,11 +227,7 @@ class _AppNotificationBanner extends StatelessWidget {
       AppNotificationType.error => s.error,
     };
 
-    final tintedFill = Color.alphaBlend(
-      accent.withValues(alpha: dark ? 0.18 : 0.10),
-      AppGlass.fill(context, style: AppGlassStyle.regular),
-    );
-    final borderRadius = BorderRadius.circular(20);
+    final borderRadius = BorderRadius.circular(18);
 
     return Semantics(
       container: true,
@@ -244,7 +240,7 @@ class _AppNotificationBanner extends StatelessWidget {
         child: GlassSurface(
           style: AppGlassStyle.regular,
           borderRadius: borderRadius,
-          color: tintedFill,
+          emphasized: true,
           boxShadow: [
             BoxShadow(
               color: shadowColor,
@@ -254,59 +250,66 @@ class _AppNotificationBanner extends StatelessWidget {
           ],
           child: Material(
             color: Colors.transparent,
-            child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ExcludeSemantics(
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.18),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, size: 15, color: accent),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: ExcludeSemantics(
-                    child: Text(
-                      shown,
-                      maxLines: 4,
-                      overflow: TextOverflow.fade,
-                      style: TextStyle(
-                        color: AppColors.onScaffold(context),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        height: 1.25,
-                        decoration: TextDecoration.none,
+            // 类型色用一层薄染色铺在玻璃之上。把带色的 fill 直接当基底会被
+            // GlassSurface 当成颜色提示（只偏移 5%），提示条就失去了语义色。
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: dark ? 0.10 : 0.07),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 6, 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ExcludeSemantics(
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.18),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(icon, size: 15, color: accent),
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: ExcludeSemantics(
+                        child: Text(
+                          shown,
+                          maxLines: 4,
+                          overflow: TextOverflow.fade,
+                          style: TextStyle(
+                            color: AppColors.onScaffold(context),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            height: 1.25,
+                            decoration: TextDecoration.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: S.of(context).dismissNotification,
+                      onPressed: onDismiss,
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 48,
+                      ),
+                      style: IconButton.styleFrom(
+                        hoverColor: Colors.transparent,
+                        focusColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
+                      ).copyWith(splashFactory: NoSplash.splashFactory),
+                      icon: Icon(
+                        Icons.close,
+                        size: 20,
+                        color: AppColors.mutedText(context),
+                      ),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: S.of(context).dismissNotification,
-                  onPressed: onDismiss,
-                  constraints: const BoxConstraints(
-                    minWidth: 48,
-                    minHeight: 48,
-                  ),
-                  style: IconButton.styleFrom(
-                    hoverColor: Colors.transparent,
-                    focusColor: Colors.transparent,
-                    highlightColor: Colors.transparent,
-                  ).copyWith(splashFactory: NoSplash.splashFactory),
-                  icon: Icon(
-                    Icons.close,
-                    size: 20,
-                    color: AppColors.mutedText(context),
-                  ),
-                ),
-              ],
-            ),
+              ),
             ),
           ),
         ),

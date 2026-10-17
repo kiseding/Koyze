@@ -8,18 +8,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:koyze/features/home/presentation/home_screen.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 
-/// 首页内容（搜索条 + 收藏卡片 + 快捷功能网格，含上下内边距）在竖屏单列宽度下的
-/// 自然高度。桌面端默认窗口高度必须容得下「该高度 + 底部 chrome」，否则首页一打开
-/// 就要滚动，观感上就是个放不下的窗口。
+/// 首页内容（沉浸式标题 + 搜索条 + Hero 舞台卡片 + 快捷功能网格，含上下内边距）
+/// 在竖屏单列宽度下的自然高度。桌面端默认窗口高度必须容得下「该高度 +
+/// 底部 chrome」，否则首页一打开就要滚动，观感上就是个放不下的窗口。
 ///
 /// 这个值是在测试字体下量出来的；真机字体行高略有差异（通常多几 px），
 /// 由各平台的 breathingRoom 吸收。改动首页布局后重新跑本测试即可拿到新值。
-const int homeContentMinHeight = 627;
+const int homeContentMinHeight = 728;
 
 /// 底部 chrome 在桌面端占用的高度。来自
 /// `lib/features/home/presentation/main_scaffold.dart`：
-/// navHeight 38（36 基准 + bottomSpacing 2）+ 容器内边距 16 + bottomClearance 11
-/// + miniGap 11 + miniHeight 78 = 154。桌面端没有系统底栏 inset，取的是这条分支。
+/// navHeight 38（36 基准 + bottomSpacing 2）+ miniGap 11 + miniHeight 78
+/// + bottomClearance 11 + mini 内外间隙 16 = 154。桌面端没有系统底栏 inset，取的是这条分支。
 const int desktopChromeHeight = 154;
 
 /// 各平台 runner 里的默认窗口高度常数 -> 定义它的源文件与变量名。
@@ -37,15 +37,17 @@ const nativeLandscapeRatios = <String, (String, String)>{
 };
 
 int _intConst(String source, String name) {
-  final match = RegExp('$name\\s*(?::\\s*CGFloat)?\\s*=\\s*(\\d+)')
-      .firstMatch(source);
+  final match = RegExp(
+    '$name\\s*(?::\\s*CGFloat)?\\s*=\\s*(\\d+)',
+  ).firstMatch(source);
   expect(match, isNotNull, reason: '找不到 $name 的定义');
   return int.parse(match!.group(1)!);
 }
 
 void expectLandscapeRatio(String source, String name, String platform) {
-  final match = RegExp('$name\\s*(?::\\s*CGFloat)?\\s*=\\s*([^\\n]+)')
-      .firstMatch(source);
+  final match = RegExp(
+    '$name\\s*(?::\\s*CGFloat)?\\s*=\\s*([^\\n]+)',
+  ).firstMatch(source);
   expect(match, isNotNull, reason: '$platform 缺少 $name');
   expect(
     match!.group(1),
@@ -75,9 +77,7 @@ void main() {
 
     final scrollView = find.byType(SingleChildScrollView);
     final size = tester.getSize(
-      find
-          .descendant(of: scrollView, matching: find.byType(Column))
-          .first,
+      find.descendant(of: scrollView, matching: find.byType(Column)).first,
     );
     final scroll = tester.widget<SingleChildScrollView>(scrollView);
     final padding = scroll.padding! as EdgeInsets;
