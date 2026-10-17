@@ -42,10 +42,10 @@ void main() {
     ).readAsStringSync();
     final card = source.substring(
       source.indexOf('Widget _buildLocalCard('),
-      source.indexOf('Widget _buildRecentCard('),
+      source.indexOf('Widget _buildRecommendCard('),
     );
 
-    expect(card, contains('captureExpandRect: true'));
+    expect(card, contains('_PresetCard('));
     expect(card, contains("pathParameters: {'playlistId': 'local'}"));
     expect(card, isNot(contains("context.push('/local-music')")));
   });
@@ -55,7 +55,11 @@ void main() {
       'lib/features/playlist/presentation/playlist_screen.dart',
     ).readAsStringSync();
 
-    expect(RegExp(r'CardPlayButton\(').allMatches(source).length, 5);
+    // 五个入口共用一枚 _PresetCard，播放反馈只实现一次；如果哪天又散回
+    // 五份手写卡片，这里的计数会先炸。
+    expect(RegExp(r'CardPlayButton\(').allMatches(source).length, 1);
+    expect(source, contains('class _PresetCard extends StatelessWidget'));
+    expect(RegExp(r'return _PresetCard\(').allMatches(source).length, 5);
     expect(source, contains('_BodyPresetGrid'));
     expect(source, contains('_buildSubsonicCard'));
     expect(source, isNot(contains('_BodyNasCard')));
