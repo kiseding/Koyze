@@ -2068,9 +2068,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           minChildSize: 0.18,
           maxChildSize: sheetSize,
           snap: true,
+          // 面板四边都离屏了，圆角必须四个角都给：只倒上角会让底部两条
+          // 直边悬在页面之上，看起来像被切掉了一截。
           builder: (context, scrollController) => GlassSurface(
             style: AppGlassStyle.regular,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: BorderRadius.circular(koyzeSheetRadius),
             child: Material(
               color: Colors.transparent,
               child: _PlaybackQueueSheet(

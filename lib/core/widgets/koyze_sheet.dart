@@ -27,7 +27,9 @@ Future<T?> showKoyzeSheet<T>({
   // 选项列表会直接底部溢出。这时改成内容多高就多高，放不下再滚动。
   final compactMenu = !isScrollControlled;
   final isDark = AppColors.isDark(context);
-  const radius = Radius.circular(_sheetRadius);
+  // 弹层不铺满左右：贴边的面板读起来像一次页面跳转，而不是浮在当前页
+  // 之上。手机留 12pt，宽屏由下面 constraints 的 640 上限自动居中留白。
+  final side = MediaQuery.sizeOf(context).width >= 700 ? 0.0 : _sideGap;
   return showModalBottomSheet<T>(
     context: context,
     // 壳层迷你栏画在分支导航之上。弹窗必须走根导航，否则横屏时
@@ -41,9 +43,9 @@ Future<T?> showKoyzeSheet<T>({
     requestFocus: false,
     useSafeArea: true,
     constraints: BoxConstraints(maxWidth: 640, maxHeight: maxHeight),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: radius),
-    ),
+    // 圆角交给里面的 GlassSurface 画：面板左右也离屏了，四角必须都是圆的，
+    // 只倒上面两个角会留下两条直边贴着页面。
+    shape: const RoundedRectangleBorder(),
     sheetAnimationStyle: effectsAnimationStyle(
       duration: MotionDuration.sheet,
       reverseDuration: MotionDuration.sheetReverse,
@@ -92,32 +94,53 @@ Future<T?> showKoyzeSheet<T>({
         child: compactMenu ? _CompactSheet(child: built) : built,
       );
       final themed = Theme(data: rowsTheme, child: content);
-      if (!useGlass) return themed;
-      return GlassSurface(
-        style: AppGlassStyle.regular,
-        borderRadius: const BorderRadius.vertical(top: radius),
-        color: backgroundColor,
-        emphasized: true,
-        // 底部弹窗的投影要朝上：默认 token 是向下 10px，落在面板下面
-        // 等于看不见，面板就会和页面糊在一起。
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.44)
-                : Colors.black.withValues(alpha: 0.14),
-            blurRadius: 36,
-            spreadRadius: -2,
-            offset: const Offset(0, -10),
-          ),
-        ],
-        child: themed,
+      final panel = useGlass
+          ? GlassSurface(
+              style: AppGlassStyle.regular,
+              borderRadius: BorderRadius.circular(koyzeSheetRadius),
+              color: backgroundColor,
+              emphasized: true,
+              // 面板四周都离屏，投影四向都要有，否则左右两侧会和页面糊在
+              // 一起，看不出这是一张浮起来的卡片。
+              boxShadow: [
+                BoxShadow(
+                  color: isDark
+                      ? Colors.black.withValues(alpha: 0.44)
+                      : Colors.black.withValues(alpha: 0.14),
+                  blurRadius: 32,
+                  spreadRadius: -2,
+                  offset: const Offset(0, -6),
+                ),
+              ],
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(koyzeSheetRadius),
+                child: themed,
+              ),
+            )
+          : themed;
+      // 底部也留 10pt：只缩左右会让面板像被两条边夹住，底部贴边反而不像
+      // 悬浮层。留出这一条后四角都是圆的，与搜索面板同一套「浮层」语言。
+      return Padding(
+        padding: EdgeInsets.fromLTRB(side, 0, side, _bottomGap),
+        // 弹窗路由给的是松散约束（Align + ConstrainedBox），面板必须自己撑满
+        // 可用宽度。否则内容本身不拉伸的弹层（只有一行文字的菜单）会缩成
+        // 贴着屏幕中间的一条窄带。
+        child: SizedBox(width: double.infinity, child: panel),
       );
     },
   );
 }
 
-/// 弹窗顶部圆角。与对话框（26）保持一致，切换弹窗类型时圆角不跳。
-const double _sheetRadius = 26;
+/// 弹层圆角。与对话框（26）保持一致，切换弹窗类型时圆角不跳。
+/// 调用方自己画面板（`frosted: false` + 自绘 [GlassSurface]）时也要用这个
+/// 值，否则弹层家族里会混出两套圆角。
+const double koyzeSheetRadius = 26;
+
+/// 左右留白：手机上面板不贴边，宽屏由 640 的宽度上限居中留出。
+const double _sideGap = 12;
+
+/// 底部留白：让四角都能看见圆角，而不是被屏幕下沿切平。
+const double _bottomGap = 10;
 
 /// 弹窗可用高度：屏幕高度减去状态栏（含灵动岛）再留一点空隙。
 /// [context] 必须是弹窗弹出之前的页面；sheet 内部 padding.top 会被清掉。

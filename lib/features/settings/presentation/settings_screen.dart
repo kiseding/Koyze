@@ -34,6 +34,13 @@ import '../../nas/domain/nas_url.dart';
 import 'package:koyze/core/widgets/koyze_modal.dart';
 
 const double settingsOptionMaxWidth = 340;
+const double settingsOptionSideGap = 24;
+
+double settingsOptionPanelWidth(BuildContext context) {
+  final available =
+      MediaQuery.sizeOf(context).width - settingsOptionSideGap * 2;
+  return available.clamp(0.0, settingsOptionMaxWidth).toDouble();
+}
 
 final settingsDeviceIdProvider = FutureProvider<String>((ref) async {
   return (await SyncIdentityStore().load()).deviceId;
@@ -1132,10 +1139,12 @@ class _PlatformPickerDialog extends ConsumerWidget {
     return Center(
       child: Material(
         color: Colors.transparent,
-        child: SizedBox(
-          width: settingsOptionMaxWidth,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: settingsOptionSideGap,
+          ),
+          child: SizedBox(
+            width: settingsOptionPanelWidth(context),
             child: GlassSurface(
               style: AppGlassStyle.regular,
               borderRadius: BorderRadius.circular(24),
@@ -1339,10 +1348,12 @@ class _QualityPickerDialog extends ConsumerWidget {
     return Center(
       child: Material(
         color: Colors.transparent,
-        child: SizedBox(
-          width: settingsOptionMaxWidth,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: settingsOptionSideGap,
+          ),
+          child: SizedBox(
+            width: settingsOptionPanelWidth(context),
             child: GlassSurface(
               style: AppGlassStyle.regular,
               borderRadius: BorderRadius.circular(24),
@@ -1616,9 +1627,11 @@ class _LanguagePickerDialog extends ConsumerWidget {
       child: Material(
         color: Colors.transparent,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(
+            horizontal: settingsOptionSideGap,
+          ),
           child: SizedBox(
-            width: settingsOptionMaxWidth,
+            width: settingsOptionPanelWidth(context),
             child: GlassSurface(
               style: AppGlassStyle.regular,
               borderRadius: BorderRadius.circular(24),

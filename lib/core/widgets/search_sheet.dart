@@ -180,8 +180,9 @@ class _SearchSheetState extends State<_SearchSheet>
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    // 窄屏也留出侧边：整块面板贴满左右边缘时，圆角看不出是「浮层」。
-    final side = media.size.width >= 600 ? 0.0 : 12.0;
+    // 所有宽度档都留出侧边：即使面板本身已经被 maxWidth 收窄，
+    // 也不能让中等横屏窗口出现整块贴边的玻璃面板。
+    const side = 12.0;
     // 竖屏时让面板底边停在键盘上沿：否则面板底部三分之一藏在输入法后面，
     // 看起来像被裁掉。注意要在「顶边固定」的前提下缩高度——直接缩
     // SizedBox 会让底边贴着屏幕底、顶边反而往下掉。
