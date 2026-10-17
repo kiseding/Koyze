@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:koyze/core/theme/app_colors.dart';
+import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/widgets/artwork_disk_cache.dart';
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
@@ -20,6 +21,7 @@ import 'package:koyze/features/local_music/domain/security_scoped_directory.dart
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/gradient_bar_backgrounds.dart';
 
 /// 本地音乐管理页：选择文件夹 → 扫描 → 刮削 → 写入「本地音乐」歌单。
 class LocalMusicScreen extends ConsumerStatefulWidget {
@@ -51,9 +53,12 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
+          flexibleSpace: GradientAppBarBackground(
+            background: Theme.of(context).scaffoldBackgroundColor,
+          ),
           leading: FxIconButton(
             icon: Icon(Icons.arrow_back, color: AppColors.onScaffold(context)),
             onPressed: () => Navigator.pop(context),
@@ -115,13 +120,13 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.card(context),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.cardBorder(context)),
+          GlassSurface(
+            style: AppGlassStyle.regular,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.fromBorderSide(
+              AppGlass.hairline(context, emphasized: false),
             ),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 Container(
@@ -224,44 +229,47 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
               child: Column(
                 children: [
                   for (final dir in directories)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.miniBar(context),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: GlassSurface(
+                        style: AppGlassStyle.chrome,
                         borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.folder_rounded, size: 18, color: accent),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              dir,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: AppColors.mutedText(context),
-                                fontSize: 12,
+                        border: Border.fromBorderSide(
+                          AppGlass.hairline(context, emphasized: false),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.folder_rounded, size: 18, color: accent),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                dir,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.mutedText(context),
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
-                          ),
-                          if (dir != downloadDirectory)
-                            FxIconButton(
-                              tooltip: S.of(context).remove,
-                              icon: Icon(
-                                Icons.close,
-                                size: 16,
-                                color: AppColors.mutedText(context),
+                            if (dir != downloadDirectory)
+                              FxIconButton(
+                                tooltip: S.of(context).remove,
+                                icon: Icon(
+                                  Icons.close,
+                                  size: 16,
+                                  color: AppColors.mutedText(context),
+                                ),
+                                onPressed: _scanning || _scraping || _tagWriting
+                                    ? null
+                                    : () => _removeDirectory(dir),
                               ),
-                              onPressed: _scanning || _scraping || _tagWriting
-                                  ? null
-                                  : () => _removeDirectory(dir),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                 ],
@@ -272,13 +280,13 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
               downloadDirectory != null)
             Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.card(context),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.cardBorder(context)),
+              child: GlassSurface(
+                style: AppGlassStyle.regular,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.fromBorderSide(
+                  AppGlass.hairline(context, emphasized: false),
                 ),
+                padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
                     Container(
@@ -386,7 +394,9 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       return;
     }
     try {
-      final path = await FilePicker.getDirectoryPath(dialogTitle: S.of(context).chooseMusicFolder);
+      final path = await FilePicker.getDirectoryPath(
+        dialogTitle: S.of(context).chooseMusicFolder,
+      );
       if (path == null || !mounted) return;
       await _scan(path);
     } catch (error) {
@@ -640,7 +650,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         await _scanAndroidPreferred();
         return;
       }
-      if (mounted) _showError(S.of(context).noLocalSources, StateError('empty'));
+      if (mounted)
+        _showError(S.of(context).noLocalSources, StateError('empty'));
       return;
     }
     setState(() {
@@ -896,7 +907,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     await _requestTagWritePermissions();
     final songs = library.songs;
     if (songs.isEmpty) {
-      if (mounted) _showError(S.of(context).noWritableSongs, StateError('empty'));
+      if (mounted)
+        _showError(S.of(context).noWritableSongs, StateError('empty'));
       return;
     }
     if (!mounted) return;
@@ -977,7 +989,9 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
         'attempted=$attempted written=$written',
       );
       showAppNotification(
-        attempted == 0 ? S.of(context).noTagsToWrite : S.of(context).tagsWritten(written, attempted),
+        attempted == 0
+            ? S.of(context).noTagsToWrite
+            : S.of(context).tagsWritten(written, attempted),
         type: written == attempted && attempted > 0
             ? AppNotificationType.success
             : AppNotificationType.info,
@@ -1060,7 +1074,10 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       await playlistService.replaceLocalSongs(library.songs);
       ref.read(localMusicRevisionProvider.notifier).state++;
       if (mounted) {
-        showAppNotification(S.of(context).folderRemoved, type: AppNotificationType.info);
+        showAppNotification(
+          S.of(context).folderRemoved,
+          type: AppNotificationType.info,
+        );
       }
     } catch (error) {
       if (mounted) _showError(S.of(context).removeFailed, error);

@@ -3,6 +3,7 @@ import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
@@ -13,6 +14,7 @@ import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import 'subsonic_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
+import '../../../core/widgets/origo_chrome.dart';
 
 class SubsonicPlaylistDetailScreen extends ConsumerWidget {
   const SubsonicPlaylistDetailScreen({
@@ -99,44 +101,54 @@ class SubsonicPlaylistDetailScreen extends ConsumerWidget {
             itemCount: songs.length,
             itemBuilder: (context, index) {
               final song = songs[index];
-              return ListTile(
-                onTap: () => _play(context, ref, songs, index),
-                leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: song.artwork == null || song.artwork!.isEmpty
-                        ? Icon(
-                            Icons.music_note,
-                            color: AppColors.mutedText(context),
-                          )
-                        : ArtworkImage(
-                            song.artwork!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              Icons.music_note,
-                              color: AppColors.mutedText(context),
-                            ),
-                          ),
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: GlassSurface(
+                  style: AppGlassStyle.regular,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.fromBorderSide(
+                    AppGlass.hairline(context, emphasized: false),
+                  ),
+                  child: ListTile(
+                    onTap: () => _play(context, ref, songs, index),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: song.artwork == null || song.artwork!.isEmpty
+                            ? Icon(
+                                Icons.music_note,
+                                color: AppColors.mutedText(context),
+                              )
+                            : ArtworkImage(
+                                song.artwork!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  Icons.music_note,
+                                  color: AppColors.mutedText(context),
+                                ),
+                              ),
+                      ),
+                    ),
+                    title: Text(
+                      song.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: on, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      song.singer,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.mutedText(context),
+                        fontSize: 12,
+                      ),
+                    ),
+                    trailing: FavoriteButton(song: song),
                   ),
                 ),
-                title: Text(
-                  song.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: on, fontSize: 14),
-                ),
-                subtitle: Text(
-                  song.singer,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.mutedText(context),
-                    fontSize: 12,
-                  ),
-                ),
-                trailing: FavoriteButton(song: song),
               );
             },
           );

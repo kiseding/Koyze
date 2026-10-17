@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../player/domain/music_item.dart';
@@ -10,6 +11,7 @@ import '../../search/presentation/search_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/loading_widget.dart';
+import '../../../core/widgets/origo_chrome.dart';
 
 class SongListDetailScreen extends ConsumerStatefulWidget {
   final MusicItem songList;
@@ -220,77 +222,79 @@ class _SongListRow extends ConsumerWidget {
     );
     final accent = AppColors.accentOf(context);
 
-    return Container(
-      margin: EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: AppColors.fill(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.cardBorder(context)),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.all(12),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 28,
-                child: isPlaying
-                    ? Icon(Icons.play_arrow, size: 22, color: accent)
-                    : Text(
-                        '${index + 1}',
-                        textAlign: TextAlign.center,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassSurface(
+        style: AppGlassStyle.regular,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.fromBorderSide(
+          AppGlass.hairline(context, emphasized: false),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: EdgeInsets.all(12),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 28,
+                  child: isPlaying
+                      ? Icon(Icons.play_arrow, size: 22, color: accent)
+                      : Text(
+                          '${index + 1}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.secondaryText(context),
+                            fontSize: 13,
+                            fontWeight: FontWeight.normal,
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 10),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: song.artwork != null && song.artwork!.isNotEmpty
+                      ? ArtworkImage(
+                          song.artwork!,
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => placeholder(),
+                        )
+                      : placeholder(),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.name,
+                        style: TextStyle(
+                          color: isPlaying
+                              ? accent
+                              : AppColors.onScaffold(context),
+                          fontSize: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${song.singer} · ${song.album}',
                         style: TextStyle(
                           color: AppColors.secondaryText(context),
-                          fontSize: 13,
-                          fontWeight: FontWeight.normal,
+                          fontSize: 12,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-              ),
-              const SizedBox(width: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: song.artwork != null && song.artwork!.isNotEmpty
-                    ? ArtworkImage(
-                        song.artwork!,
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => placeholder(),
-                      )
-                    : placeholder(),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.name,
-                      style: TextStyle(
-                        color: isPlaying
-                            ? accent
-                            : AppColors.onScaffold(context),
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${song.singer} · ${song.album}',
-                      style: TextStyle(
-                        color: AppColors.secondaryText(context),
-                        fontSize: 12,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

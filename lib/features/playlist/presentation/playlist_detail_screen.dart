@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/animations/micro_animations.dart';
-import '../../../core/motion/motion_tokens.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
@@ -21,6 +20,7 @@ import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
+import '../../../core/widgets/koyze_menu.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import 'package:koyze/core/widgets/koyze_modal.dart';
 
@@ -309,7 +309,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               ),
               if (isSelectionMode)
                 FxIconButton(
-                  tooltip: isAllFavoritesSelected ? S.of(context).deselectAll : S.of(context).selectAll,
+                  tooltip: isAllFavoritesSelected
+                      ? S.of(context).deselectAll
+                      : S.of(context).selectAll,
                   onPressed: _selectionBusy || currentPageSongs.isEmpty
                       ? null
                       : () => _toggleAllFavoriteSelection(
@@ -396,24 +398,13 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 ),
               )
             else if (!isSelectionMode)
-              PopupMenuButton<String>(
+              KoyzePopupMenuButton<String>(
+                tooltip: S.of(context).more,
                 icon: Icon(
-                  Icons.more_vert,
+                  Icons.more_vert_rounded,
                   color: AppColors.onScaffold(context),
                 ),
                 color: AppColors.dialogBg(context),
-                elevation: 10,
-                shadowColor: Colors.black.withValues(alpha: 0.2),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                offset: const Offset(0, 8),
-                popUpAnimationStyle: effectsAnimationStyle(
-                  duration: const Duration(milliseconds: 280),
-                  reverseDuration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOutCubic,
-                  reverseCurve: Curves.easeInCubic,
-                ),
                 onSelected: (value) async {
                   try {
                     switch (value) {

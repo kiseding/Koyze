@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:koyze/core/theme/app_colors.dart';
+import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/widgets/fx_icon_button.dart';
 import 'package:koyze/core/widgets/fx_switch.dart';
 import 'package:koyze/core/widgets/gradient_bar_backgrounds.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_preset.dart';
 import 'package:koyze/features/equalizer/presentation/equalizer_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
+import '../../../core/widgets/origo_chrome.dart';
 
 /// 均衡器。频段数由设备决定（Android 上常见 5 段，也有 10 段实现），
 /// 所以这里一律按播放器上报的布局渲染。
@@ -104,7 +106,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
   Widget _buildSwitchCard(BuildContext context, EqualizerState state) {
     return _Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
             Expanded(
@@ -200,29 +202,19 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           runSpacing: 8,
           children: [
             for (final preset in equalizerPresets)
-              ChoiceChip(
-                label: Text(S.of(context).presetName(preset.id), style: const TextStyle(fontSize: 13)),
+              KoyzeChoicePill(
+                label: S.of(context).presetName(preset.id),
                 selected: state.settings.presetId == preset.id,
-                onSelected: (_) => notifier.selectPreset(preset.id),
-                selectedColor: Theme.of(context).colorScheme.primaryContainer,
-                labelStyle: TextStyle(
-                  color: AppColors.onScaffold(context),
-                  fontSize: 13,
-                ),
-                visualDensity: VisualDensity.compact,
+                onPressed: () => notifier.selectPreset(preset.id),
+                dense: true,
               ),
             // 「自定义」不是可点的预设，只在手动拖过频段后作为状态提示出现。
             if (state.settings.isCustom)
-              ChoiceChip(
-                label: Text(S.of(context).customPreset, style: TextStyle(fontSize: 13)),
+              KoyzeChoicePill(
+                label: S.of(context).customPreset,
                 selected: true,
-                onSelected: null,
-                selectedColor: Theme.of(context).colorScheme.primaryContainer,
-                labelStyle: TextStyle(
-                  color: AppColors.onScaffold(context),
-                  fontSize: 13,
-                ),
-                visualDensity: VisualDensity.compact,
+                onPressed: null,
+                dense: true,
               ),
           ],
         ),
@@ -238,7 +230,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
 
     return _Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(6, 16, 6, 12),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             Row(
@@ -258,7 +250,9 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              interactive ? S.of(context).gainDb : S.of(context).enableEqualizerToAdjust,
+              interactive
+                  ? S.of(context).gainDb
+                  : S.of(context).enableEqualizerToAdjust,
               style: TextStyle(
                 fontSize: 11.5,
                 color: AppColors.mutedText(context),
@@ -296,11 +290,11 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.cardBorder(context)),
+    return GlassSurface(
+      style: AppGlassStyle.regular,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.fromBorderSide(
+        AppGlass.hairline(context, emphasized: false),
       ),
       child: child,
     );

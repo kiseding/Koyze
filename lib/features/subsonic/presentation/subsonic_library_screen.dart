@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
+import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/favorite_button.dart';
@@ -62,9 +64,12 @@ class _SubsonicLibraryScreenState extends ConsumerState<SubsonicLibraryScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        elevation: 0,
+        scrolledUnderElevation: 0,
+        flexibleSpace: GradientAppBarBackground(
+          background: Theme.of(context).scaffoldBackgroundColor,
+        ),
         leading: FxIconButton(
           tooltip: S.of(context).back,
           icon: Icon(Icons.arrow_back, color: on),
@@ -127,24 +132,32 @@ class _SubsonicLibraryScreenState extends ConsumerState<SubsonicLibraryScreen> {
         children: [
           if (_scraping)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  LinearProgressIndicator(
-                    value: _scrapeTotal == 0
-                        ? null
-                        : _scrapeDone / _scrapeTotal,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    S.of(context).scrapingProgress(_scrapeDone, _scrapeTotal),
-                    style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: GlassSurface(
+                style: AppGlassStyle.regular,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.fromBorderSide(
+                  AppGlass.hairline(context, emphasized: false),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    LinearProgressIndicator(
+                      value: _scrapeTotal == 0
+                          ? null
+                          : _scrapeDone / _scrapeTotal,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      S.of(context).scrapingProgress(_scrapeDone, _scrapeTotal),
+                      style: TextStyle(
+                        color: AppColors.mutedText(context),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           Expanded(
@@ -180,7 +193,7 @@ class _SubsonicLibraryScreenState extends ConsumerState<SubsonicLibraryScreen> {
                         );
                       }
                       return AdaptiveSongList.builder(
-                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 32),
+                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 32),
                         landscapeItemExtent: 82,
                         itemCount: songs.length,
                         itemBuilder: (context, index) {

@@ -9,7 +9,9 @@ import 'dart:io';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/motion/motion_tokens.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
+import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/auto_text_input.dart';
 import '../domain/custom_source.dart';
 import '../domain/custom_source_service.dart';
@@ -37,9 +39,12 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        elevation: 0,
+        scrolledUnderElevation: 0,
+        flexibleSpace: GradientAppBarBackground(
+          background: Theme.of(context).scaffoldBackgroundColor,
+        ),
         leading: FxIconButton(
           tooltip: S.of(context).back,
           icon: Icon(Icons.arrow_back, color: AppColors.onScaffold(context)),
@@ -124,135 +129,137 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     WidgetRef ref,
     CustomSource source,
   ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      source.name,
-                      style: TextStyle(
-                        color: AppColors.onScaffold(context),
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassSurface(
+        style: AppGlassStyle.regular,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.fromBorderSide(
+          AppGlass.hairline(context, emphasized: false),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        source.name,
+                        style: TextStyle(
+                          color: AppColors.onScaffold(context),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'v${source.version} · ${source.author}',
-                      style: TextStyle(
-                        color: AppColors.mutedText(context),
-                        fontSize: 12,
+                      const SizedBox(height: 4),
+                      Text(
+                        'v${source.version} · ${source.author}',
+                        style: TextStyle(
+                          color: AppColors.mutedText(context),
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                if (_initializingSources.contains(source.id))
+                  const SizedBox(
+                    width: 59,
+                    height: 32,
+                    child: Center(
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: AppLoadingIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                else
+                  FxSwitch(
+                    value: source.isEnabled,
+                    activeColor: AppColors.accentOf(context),
+                    inactiveTrackColor: AppColors.isDark(context)
+                        ? AppColors.surfaceVariant
+                        : AppColors.lightSurfaceVariant,
+                    onChanged: (value) async {
+                      setState(() => _initializingSources.add(source.id));
+                      bool ok = true;
+                      try {
+                        ok = await ref
+                            .read(customSourcesProvider.notifier)
+                            .toggleSource(source.id);
+                      } catch (_) {
+                        ok = false;
+                      } finally {
+                        if (mounted) {
+                          setState(
+                            () => _initializingSources.remove(source.id),
+                          );
+                        }
+                      }
+                      if (!ok && context.mounted) {
+                        showAppNotification(
+                          S.of(context).sourceInitFailed(source.name),
+                          type: AppNotificationType.error,
+                        );
+                      }
+                    },
+                  ),
+              ],
+            ),
+            if (source.description.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                source.description,
+                style: TextStyle(
+                  color: AppColors.secondaryText(context),
+                  fontSize: 14,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              if (_initializingSources.contains(source.id))
-                const SizedBox(
-                  width: 59,
-                  height: 32,
-                  child: Center(
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: AppLoadingIndicator(strokeWidth: 2),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  icon: const Icon(Icons.terminal, size: 16),
+                  label: Text(S.of(context).log),
+                  onPressed: () => _showLogDialog(context, ref, source),
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: Text(S.of(context).edit),
+                  onPressed: () => _showEditDialog(context, ref, source),
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.share, size: 16),
+                  label: Text(S.of(context).export),
+                  onPressed: () => _showExportDialog(context, ref, source),
+                ),
+                TextButton.icon(
+                  icon: Icon(
+                    Icons.delete,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  label: Text(
+                    S.of(context).delete,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-                )
-              else
-                FxSwitch(
-                  value: source.isEnabled,
-                  activeColor: AppColors.accentOf(context),
-                  inactiveTrackColor: AppColors.isDark(context)
-                      ? AppColors.surfaceVariant
-                      : AppColors.lightSurfaceVariant,
-                  onChanged: (value) async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    setState(() => _initializingSources.add(source.id));
-                    bool ok = true;
-                    try {
-                      ok = await ref
-                          .read(customSourcesProvider.notifier)
-                          .toggleSource(source.id);
-                    } catch (_) {
-                      ok = false;
-                    } finally {
-                      if (mounted) {
-                        setState(() => _initializingSources.remove(source.id));
-                      }
-                    }
-                    if (!ok && mounted) {
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            S.of(context).sourceInitFailed(source.name),
-                          ),
-                          duration: const Duration(seconds: 3),
-                        ),
-                      );
-                    }
-                  },
+                  onPressed: () => _showDeleteDialog(context, ref, source),
                 ),
-            ],
-          ),
-          if (source.description.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              source.description,
-              style: TextStyle(
-                color: AppColors.secondaryText(context),
-                fontSize: 14,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              ],
             ),
           ],
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton.icon(
-                icon: const Icon(Icons.terminal, size: 16),
-                label: Text(S.of(context).log),
-                onPressed: () => _showLogDialog(context, ref, source),
-              ),
-              TextButton.icon(
-                icon: const Icon(Icons.edit, size: 16),
-                label: Text(S.of(context).edit),
-                onPressed: () => _showEditDialog(context, ref, source),
-              ),
-              TextButton.icon(
-                icon: const Icon(Icons.share, size: 16),
-                label: Text(S.of(context).export),
-                onPressed: () => _showExportDialog(context, ref, source),
-              ),
-              TextButton.icon(
-                icon: Icon(
-                  Icons.delete,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                label: Text(
-                  S.of(context).delete,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                onPressed: () => _showDeleteDialog(context, ref, source),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }

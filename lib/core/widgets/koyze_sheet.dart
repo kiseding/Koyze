@@ -19,6 +19,7 @@ Future<T?> showKoyzeSheet<T>({
   bool isScrollControlled = false,
   bool enableDrag = true,
   bool frosted = true,
+  bool useRootNavigator = true,
 }) {
   final useGlass = frosted && backgroundColor != Colors.transparent;
   // 必须用调用方 context：sheet 内部会 removeTop，padding.top 会变成 0。
@@ -32,9 +33,9 @@ Future<T?> showKoyzeSheet<T>({
   final side = MediaQuery.sizeOf(context).width >= 700 ? 0.0 : _sideGap;
   return showModalBottomSheet<T>(
     context: context,
-    // 壳层迷你栏画在分支导航之上。弹窗必须走根导航，否则横屏时
-    // 迷你栏会盖住睡眠定时这类弹窗的底部内容，并且拦掉点击。
-    useRootNavigator: true,
+    // 壳层迷你栏画在分支导航之上。默认走根导航；需要在当前
+    // nested navigator 内关闭的调用点可显式关闭它。
+    useRootNavigator: useRootNavigator,
     backgroundColor: Colors.transparent,
     // 深色下压得更重，浅色只轻压：否则白底页面会被压成灰。
     barrierColor: Colors.black.withValues(alpha: isDark ? 0.50 : 0.26),

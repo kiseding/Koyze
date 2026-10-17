@@ -3,6 +3,8 @@ import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 import '../../cloud/domain/cloud_api_client.dart';
 import 'cloud_sync_provider.dart';
@@ -50,7 +52,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           S.of(context).syncTitle,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        flexibleSpace: GradientAppBarBackground(
+          background: Theme.of(context).scaffoldBackgroundColor,
+        ),
         iconTheme: IconThemeData(color: AppColors.onScaffold(context)),
       ),
       body: ListView(
@@ -91,7 +98,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     : AppColors.mutedText(context),
               ),
               title: Text(
-                session.loggedIn ? S.of(context).loggedInAs(session.username ?? '') : S.of(context).notLoggedIn,
+                session.loggedIn
+                    ? S.of(context).loggedInAs(session.username ?? '')
+                    : S.of(context).notLoggedIn,
                 style: TextStyle(color: AppColors.onScaffold(context)),
               ),
               subtitle: Text(
@@ -107,62 +116,61 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           ),
           if (_message != null) ...[
             const SizedBox(height: 8),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.fill(context),
-                borderRadius: BorderRadius.circular(10),
+            GlassSurface(
+              style: AppGlassStyle.regular,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.fromBorderSide(
+                AppGlass.hairline(context, emphasized: false),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Text(
-                  _message!,
-                  style: TextStyle(
-                    color: AppColors.secondaryText(context),
-                    fontSize: 12,
-                  ),
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                _message!,
+                style: TextStyle(
+                  color: AppColors.secondaryText(context),
+                  fontSize: 12,
                 ),
               ),
             ),
           ],
           if (ref.watch(cloudSyncProvider).phase == CloudSyncPhase.syncing) ...[
             const SizedBox(height: 12),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.fill(context),
-                borderRadius: BorderRadius.circular(12),
+            GlassSurface(
+              style: AppGlassStyle.regular,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.fromBorderSide(
+                AppGlass.hairline(context, emphasized: false),
               ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: AppLoadingIndicator(strokeWidth: 2.2),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            ref.watch(cloudSyncProvider).message ?? S.of(context).syncing,
-                            style: TextStyle(
-                              color: AppColors.onScaffold(context),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: AppLoadingIndicator(strokeWidth: 2.2),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          ref.watch(cloudSyncProvider).message ??
+                              S.of(context).syncing,
+                          style: TextStyle(
+                            color: AppColors.onScaffold(context),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: const LinearProgressIndicator(minHeight: 4),
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: const LinearProgressIndicator(minHeight: 4),
+                  ),
+                ],
               ),
             ),
           ],
@@ -187,11 +195,11 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   }
 
   Widget _card({required Widget child}) {
-    return Card(
-      color: AppColors.card(context),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppColors.cardBorder(context)),
+    return GlassSurface(
+      style: AppGlassStyle.regular,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.fromBorderSide(
+        AppGlass.hairline(context, emphasized: false),
       ),
       child: child,
     );
@@ -232,7 +240,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                       ButtonSegment(
                         value: false,
                         label: Text(S.of(context).register),
-                        icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                        icon: const Icon(
+                          Icons.person_add_alt_1_rounded,
+                          size: 18,
+                        ),
                       ),
                     ],
                     selected: {_isLoginMode},
@@ -322,7 +333,13 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                           : Icons.person_add_alt_1_rounded,
                       size: 18,
                     ),
-              label: Text(_busy ? S.of(context).pleaseWait : (_isLoginMode ? S.of(context).login : S.of(context).register)),
+              label: Text(
+                _busy
+                    ? S.of(context).pleaseWait
+                    : (_isLoginMode
+                          ? S.of(context).login
+                          : S.of(context).register),
+              ),
             ),
           ],
         ),
@@ -401,7 +418,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     return _card(
       child: ListTile(
         leading: const Icon(Icons.logout, color: AppColors.error),
-        title: Text(S.of(context).logOut, style: TextStyle(color: AppColors.error)),
+        title: Text(
+          S.of(context).logOut,
+          style: TextStyle(color: AppColors.error),
+        ),
         subtitle: Text(
           S.of(context).logOutHint,
           style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
@@ -497,11 +517,16 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         await ref.read(cloudSessionProvider.notifier).setBaseUrl(url);
         final alive = await _api.ping();
         if (!mounted) return;
-        setState(() => _message = alive ? S.of(context).serverReachable : S.of(context).savedHealthFailed);
+        setState(
+          () => _message = alive
+              ? S.of(context).serverReachable
+              : S.of(context).savedHealthFailed,
+        );
       } on ArgumentError catch (error) {
         if (!mounted) return;
         setState(
-          () => _message = error.message?.toString() ?? S.of(context).httpsRequired,
+          () => _message =
+              error.message?.toString() ?? S.of(context).httpsRequired,
         );
       }
     }
@@ -524,7 +549,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     if (!mounted) return;
     setState(() {
       _busy = false;
-      _message = ok ? S.of(context).loginSucceeded : (ref.read(cloudSessionProvider).error ?? S.of(context).failed);
+      _message = ok
+          ? S.of(context).loginSucceeded
+          : (ref.read(cloudSessionProvider).error ?? S.of(context).failed);
     });
   }
 
@@ -645,7 +672,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             ),
                           ),
                           trailing: FxIconButton(
-                            tooltip: S.of(context).deleteUser('${u['username']}'),
+                            tooltip: S
+                                .of(context)
+                                .deleteUser('${u['username']}'),
                             icon: const Icon(
                               Icons.delete_outline_rounded,
                               color: AppColors.error,
@@ -659,11 +688,16 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                 if (ctx.mounted) Navigator.pop(ctx);
                                 if (!mounted) return;
                                 setState(
-                                  () => _message = S.of(context).deletedUser('${u['username']}'),
+                                  () => _message = S
+                                      .of(context)
+                                      .deletedUser('${u['username']}'),
                                 );
                               } catch (e) {
                                 if (!mounted) return;
-                                setState(() => _message = '${S.of(context).deleteFailed}: $e');
+                                setState(
+                                  () => _message =
+                                      '${S.of(context).deleteFailed}: $e',
+                                );
                               }
                             },
                           ),
@@ -772,10 +806,15 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                             );
                             if (ctx.mounted) Navigator.pop(ctx);
                             if (!mounted) return;
-                            setState(() => _message = S.of(context).userCreated);
+                            setState(
+                              () => _message = S.of(context).userCreated,
+                            );
                           } catch (e) {
                             if (!mounted) return;
-                            setState(() => _message = '${S.of(context).createFailed}: $e');
+                            setState(
+                              () => _message =
+                                  '${S.of(context).createFailed}: $e',
+                            );
                           }
                         }
                       },

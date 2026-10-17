@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 
 /// Security monitoring widget for custom sources.
-/// 
+///
 /// Displays real-time security metrics:
 /// - Network request count
 /// - Accessed domains
@@ -11,6 +11,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 
 enum SecurityWarningLevel { info, warning, critical }
 
@@ -77,9 +80,14 @@ class SourceSecurityMonitor extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      margin: const EdgeInsets.all(16),
-      child: Padding(
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: GlassSurface(
+        style: AppGlassStyle.regular,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.fromBorderSide(
+          AppGlass.hairline(context, emphasized: false),
+        ),
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -90,15 +98,12 @@ class SourceSecurityMonitor extends ConsumerWidget {
                   status.hasCriticalWarnings
                       ? Icons.error
                       : status.hasWarnings
-                          ? Icons.warning
-                          : Icons.security,
+                      ? Icons.warning
+                      : Icons.security,
                   color: _getStatusColor(context),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '安全状态监控',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text('安全状态监控', style: Theme.of(context).textTheme.titleMedium),
               ],
             ),
             const SizedBox(height: 16),
@@ -119,9 +124,9 @@ class SourceSecurityMonitor extends ConsumerWidget {
               value: '${status.accessedDomains.length} 个',
               detail: status.accessedDomains.isNotEmpty
                   ? status.accessedDomains.take(3).join(', ') +
-                      (status.accessedDomains.length > 3
-                          ? ' +${status.accessedDomains.length - 3}'
-                          : '')
+                        (status.accessedDomains.length > 3
+                            ? ' +${status.accessedDomains.length - 3}'
+                            : '')
                   : null,
             ),
             const SizedBox(height: 8),
@@ -140,8 +145,7 @@ class SourceSecurityMonitor extends ConsumerWidget {
                 context,
                 icon: Icons.speed,
                 label: '速率限制剩余',
-                value:
-                    '${status.networkStats!['rateLimitRemaining']}/30 次/分钟',
+                value: '${status.networkStats!['rateLimitRemaining']}/30 次/分钟',
                 detail: status.networkStats!['rateLimitRemaining'] < 5
                     ? '接近限制'
                     : null,
@@ -156,12 +160,14 @@ class SourceSecurityMonitor extends ConsumerWidget {
               const SizedBox(height: 8),
               Text(
                 '⚠️ 安全警告',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Colors.orange,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(color: AppColors.warning),
               ),
               const SizedBox(height: 8),
-              ...status.warnings.map((warning) => _buildWarning(context, warning)),
+              ...status.warnings.map(
+                (warning) => _buildWarning(context, warning),
+              ),
             ],
           ],
         ),
@@ -179,34 +185,33 @@ class SourceSecurityMonitor extends ConsumerWidget {
   }) {
     Color? valueColor;
     if (warningLevel == SecurityWarningLevel.critical) {
-      valueColor = Colors.red;
+      valueColor = AppColors.error;
     } else if (warningLevel == SecurityWarningLevel.warning) {
-      valueColor = Colors.orange;
+      valueColor = AppColors.warning;
     }
 
     return Row(
       children: [
-        Icon(icon, size: 20, color: Theme.of(context).textTheme.bodySmall?.color),
+        Icon(
+          icon,
+          size: 20,
+          color: Theme.of(context).textTheme.bodySmall?.color,
+        ),
         const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text(label, style: Theme.of(context).textTheme.bodySmall),
               if (detail != null)
                 Text(
                   detail,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.color
-                            ?.withOpacity(0.7),
-                        fontSize: 11,
-                      ),
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.color?.withOpacity(0.7),
+                    fontSize: 11,
+                  ),
                 ),
             ],
           ),
@@ -214,9 +219,9 @@ class SourceSecurityMonitor extends ConsumerWidget {
         Text(
           value,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: valueColor,
-              ),
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
         ),
       ],
     );
@@ -229,15 +234,15 @@ class SourceSecurityMonitor extends ConsumerWidget {
     switch (warning.level) {
       case SecurityWarningLevel.critical:
         icon = Icons.error;
-        color = Colors.red;
+        color = AppColors.error;
         break;
       case SecurityWarningLevel.warning:
         icon = Icons.warning;
-        color = Colors.orange;
+        color = AppColors.warning;
         break;
       case SecurityWarningLevel.info:
         icon = Icons.info;
-        color = Colors.blue;
+        color = AppColors.info;
         break;
     }
 
@@ -261,11 +266,11 @@ class SourceSecurityMonitor extends ConsumerWidget {
 
   Color _getStatusColor(BuildContext context) {
     if (status.hasCriticalWarnings) {
-      return Colors.red;
+      return AppColors.error;
     } else if (status.hasWarnings) {
-      return Colors.orange;
+      return AppColors.warning;
     }
-    return Colors.green;
+    return AppColors.success;
   }
 
   String _formatDuration(Duration duration) {
@@ -283,10 +288,7 @@ class SourceSecurityMonitor extends ConsumerWidget {
 class CompactSecurityIndicator extends StatelessWidget {
   final SourceSecurityStatus status;
 
-  const CompactSecurityIndicator({
-    super.key,
-    required this.status,
-  });
+  const CompactSecurityIndicator({super.key, required this.status});
 
   @override
   Widget build(BuildContext context) {
@@ -304,8 +306,8 @@ class CompactSecurityIndicator extends StatelessWidget {
             status.hasCriticalWarnings
                 ? Icons.error
                 : status.hasWarnings
-                    ? Icons.warning
-                    : Icons.check_circle,
+                ? Icons.warning
+                : Icons.check_circle,
             size: 14,
             color: _getStatusColor(),
           ),
@@ -325,10 +327,10 @@ class CompactSecurityIndicator extends StatelessWidget {
 
   Color _getStatusColor() {
     if (status.hasCriticalWarnings) {
-      return Colors.red;
+      return AppColors.error;
     } else if (status.hasWarnings) {
-      return Colors.orange;
+      return AppColors.warning;
     }
-    return Colors.green;
+    return AppColors.success;
   }
 }

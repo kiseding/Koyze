@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/storage/storage_service.dart';
+import 'package:koyze/core/widgets/origo_chrome.dart';
 import 'package:koyze/features/nas/domain/nas_config.dart';
 import 'package:koyze/features/nas/domain/nas_kind.dart';
 import 'package:koyze/features/nas/domain/self_hosted_kind.dart';
@@ -15,26 +16,26 @@ import 'package:koyze/features/subsonic/presentation/subsonic_provider.dart';
 import 'package:koyze/features/subsonic/presentation/subsonic_settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-Future<StorageService> _freshStorage([Map<String, Object> seed = const {}]) async {
+Future<StorageService> _freshStorage([
+  Map<String, Object> seed = const {},
+]) async {
   SharedPreferences.setMockInitialValues(seed);
   return StorageService.forTesting(await SharedPreferences.getInstance());
 }
 
 List<Override> _nasOverrides(StorageService storage) => [
-      selfHostedKindStorageProvider.overrideWithValue(() async => storage),
-      subsonicConnectedProvider.overrideWithValue(false),
-      subsonicConfigProvider.overrideWithValue(SubsonicConfig.empty),
-      subsonicLibrarySongsProvider.overrideWith(
-        (ref) async => const <MusicItem>[],
-      ),
-      for (final kind in NasKind.values) ...[
-        nasConnectedProvider(kind).overrideWithValue(false),
-        nasConfigProvider(kind).overrideWithValue(NasConfig.empty(kind)),
-        nasLibrarySongsProvider(kind).overrideWith(
-          (ref) async => const <MusicItem>[],
-        ),
-      ],
-    ];
+  selfHostedKindStorageProvider.overrideWithValue(() async => storage),
+  subsonicConnectedProvider.overrideWithValue(false),
+  subsonicConfigProvider.overrideWithValue(SubsonicConfig.empty),
+  subsonicLibrarySongsProvider.overrideWith((ref) async => const <MusicItem>[]),
+  for (final kind in NasKind.values) ...[
+    nasConnectedProvider(kind).overrideWithValue(false),
+    nasConfigProvider(kind).overrideWithValue(NasConfig.empty(kind)),
+    nasLibrarySongsProvider(
+      kind,
+    ).overrideWith((ref) async => const <MusicItem>[]),
+  ],
+];
 
 void main() {
   test('library page source has no type chips; settings keeps them', () {
@@ -48,24 +49,27 @@ void main() {
     expect(library, isNot(contains('ChoiceChip')));
     expect(library, isNot(contains('SelfHostedKind.values')));
     expect(library, contains('selfHostedKindProvider'));
-    expect(settings, contains('ChoiceChip'));
+    expect(settings, contains('KoyzeChoicePill'));
     expect(settings, contains('selfHostedKindProvider'));
   });
 
-  test('selected self-hosted kind persists across notifier instances', () async {
-    final storage = await _freshStorage();
-    final first = SelfHostedKindNotifier(storage: () async => storage);
-    await first.restored;
-    expect(first.state, SelfHostedKind.subsonic);
+  test(
+    'selected self-hosted kind persists across notifier instances',
+    () async {
+      final storage = await _freshStorage();
+      final first = SelfHostedKindNotifier(storage: () async => storage);
+      await first.restored;
+      expect(first.state, SelfHostedKind.subsonic);
 
-    await first.select(SelfHostedKind.emby);
-    expect(first.state, SelfHostedKind.emby);
-    expect(storage.getString(selfHostedKindStorageKey), 'emby');
+      await first.select(SelfHostedKind.emby);
+      expect(first.state, SelfHostedKind.emby);
+      expect(storage.getString(selfHostedKindStorageKey), 'emby');
 
-    final second = SelfHostedKindNotifier(storage: () async => storage);
-    await second.restored;
-    expect(second.state, SelfHostedKind.emby);
-  });
+      final second = SelfHostedKindNotifier(storage: () async => storage);
+      await second.restored;
+      expect(second.state, SelfHostedKind.emby);
+    },
+  );
 
   test('dirty stored kind falls back to subsonic', () async {
     final storage = await _freshStorage({
@@ -109,7 +113,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(ChoiceChip), findsNWidgets(5));
+    expect(find.byType(KoyzeChoicePill), findsNWidgets(5));
     expect(find.text('Subsonic'), findsOneWidget);
     expect(find.text('群晖'), findsOneWidget);
 

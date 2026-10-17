@@ -18,9 +18,12 @@ void main() {
     );
 
     expect(more, contains('showKoyzeDialog<void>'));
-    expect(more, contains('Dialog('));
-    expect(more, contains('GlassSurface('));
+    expect(more, contains('return KoyzeDialog('));
+    expect(more, contains('contentPadding: EdgeInsets.zero'));
+    expect(more, contains('insetPadding: const EdgeInsets.symmetric('));
     expect(more, contains('maxHeight: maxH'));
+    expect(more, isNot(contains('return Dialog(')));
+    expect(more, isNot(contains('child: GlassSurface(')));
     expect(more, contains('S.of(context).addAllToFavorites'));
     expect(
       File('lib/l10n/app_strings.dart').readAsStringSync(),
@@ -89,12 +92,9 @@ void main() {
       source.indexOf('Future<List<MusicItem>> _selectedFavoriteSongs('),
     );
     expect(selectAllMethod, isNot(contains('getAllSongs')));
-    expect(
-      source,
-      contains(
-        'tooltip: isAllFavoritesSelected ? S.of(context).deselectAll : S.of(context).selectAll',
-      ),
-    );
+    expect(source, contains('tooltip: isAllFavoritesSelected'));
+    expect(source, contains('S.of(context).deselectAll'));
+    expect(source, contains('S.of(context).selectAll'));
     expect(source, contains('Icons.select_all'));
     expect(source, contains('Icons.deselect'));
     expect(

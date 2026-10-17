@@ -1,8 +1,138 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:koyze/core/audio/equalizer_bridge.dart';
+import 'package:koyze/core/storage/storage_service.dart';
+import 'package:koyze/core/theme/app_tokens.dart';
+import 'package:koyze/core/widgets/koyze_modal.dart';
+import 'package:koyze/features/equalizer/presentation/equalizer_provider.dart';
+import 'package:koyze/features/player/presentation/player_provider.dart';
+import 'package:koyze/features/settings/presentation/settings_provider.dart';
+import 'package:koyze/features/settings/presentation/settings_screen.dart';
+
+void _setViewport(WidgetTester tester, Size size) {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
 
 void main() {
+  testWidgets('setting pickers use one floating glass dialog rail', (
+    tester,
+  ) async {
+    _setViewport(tester, const Size(390, 844));
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final storage = StorageService.forTesting(
+      await SharedPreferences.getInstance(),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        equalizerBridgeProvider.overrideWithValue(
+          const UnsupportedEqualizerBridge(),
+        ),
+        equalizerStorageProvider.overrideWithValue(() async => storage),
+        settingsDeviceIdProvider.overrideWith((ref) async => 'device_test'),
+        sleepTimerProvider.overrideWith(
+          (ref) => SleepTimerNotifier(() async {}),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SettingsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    debugPrint(
+      'settings texts: ${find.byType(Text).evaluate().map((element) => (element.widget as Text).data).whereType<String>().toList()}',
+    );
+
+    Future<void> open(String label) async {
+      final target = find.text(label).first;
+      await Scrollable.ensureVisible(target.evaluate().single, alignment: 0.5);
+      await tester.pumpAndSettle();
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+      expect(find.byType(KoyzeDialog), findsOneWidget);
+      final panel = tester.getRect(find.byType(GlassSurface).last);
+      expect(panel.left, greaterThanOrEqualTo(24));
+      expect(panel.right, lessThanOrEqualTo(390 - 24));
+      expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.close_rounded));
+      await tester.pumpAndSettle();
+      expect(find.byType(KoyzeDialog), findsNothing);
+    }
+
+    await open('Audio quality');
+    await open('Default search source');
+    await open('Language');
+    await open('Download quality');
+  });
+
+  testWidgets('quality picker keeps the selected option and updates state', (
+    tester,
+  ) async {
+    _setViewport(tester, const Size(390, 844));
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final storage = StorageService.forTesting(
+      await SharedPreferences.getInstance(),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        equalizerBridgeProvider.overrideWithValue(
+          const UnsupportedEqualizerBridge(),
+        ),
+        equalizerStorageProvider.overrideWithValue(() async => storage),
+        settingsDeviceIdProvider.overrideWith((ref) async => 'device_test'),
+        sleepTimerProvider.overrideWith(
+          (ref) => SleepTimerNotifier(() async {}),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SettingsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Audio quality').first);
+    await tester.pumpAndSettle();
+    final dialog = find.byType(KoyzeDialog);
+    expect(dialog, findsOneWidget);
+    expect(
+      find.descendant(of: dialog, matching: find.text('High (320 kbps)')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: dialog,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is AnimatedScale && widget.scale == 1,
+        ),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(of: dialog, matching: find.text('Lossless (FLAC)')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(container.read(audioQualityProvider), AudioQualityOption.lossless);
+    expect(find.byType(KoyzeDialog), findsNothing);
+  });
+
   test('settings page routes capture their tile expansion origin', () {
     final source = File(
       'lib/features/settings/presentation/settings_screen.dart',

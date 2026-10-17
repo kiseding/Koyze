@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/animations/micro_animations.dart';
-import '../../../core/motion/motion_tokens.dart';
 import '../../../core/audio/playback_cache_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../player/presentation/player_provider.dart';
 import '../domain/download_task.dart';
 import 'download_provider.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/koyze_menu.dart';
 import '../../../core/widgets/loading_widget.dart';
 import 'package:koyze/core/widgets/koyze_modal.dart';
 
@@ -63,6 +65,12 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          scrolledUnderElevation: 0,
+          flexibleSpace: GradientAppBarBackground(
+            background: Theme.of(context).scaffoldBackgroundColor,
+          ),
           title: Text(
             S.of(context).downloadsTitle,
             style: TextStyle(
@@ -72,24 +80,13 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
             ),
           ),
           actions: [
-            PopupMenuButton<String>(
+            KoyzePopupMenuButton<String>(
+              tooltip: S.of(context).more,
               icon: Icon(
-                Icons.more_vert,
+                Icons.more_vert_rounded,
                 color: AppColors.secondaryText(context),
               ),
               color: AppColors.card(context),
-              elevation: 10,
-              shadowColor: Colors.black.withValues(alpha: 0.2),
-              offset: const Offset(0, 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              popUpAnimationStyle: effectsAnimationStyle(
-                duration: const Duration(milliseconds: 280),
-                reverseDuration: const Duration(milliseconds: 150),
-                curve: Curves.easeOutCubic,
-                reverseCurve: Curves.easeInCubic,
-              ),
               onSelected: (value) {
                 if (value == 'pause_all') _pauseAll(ref);
                 if (value == 'clear_completed') _clearCompleted(context, ref);
@@ -192,187 +189,189 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
     int speed,
     int downloaded,
   ) {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.fill(context),
-        border: Border.all(color: AppColors.cardBorder(context)),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 标题行
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text.rich(
-                TextSpan(
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onScaffold(context),
-                  ),
-                  children: [
-                    WidgetSpan(
-                      alignment: PlaceholderAlignment.baseline,
-                      baseline: TextBaseline.alphabetic,
-                      child: AnimatedCount(
-                        value: completed,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.onScaffold(context),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GlassSurface(
+        style: AppGlassStyle.regular,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.fromBorderSide(
+          AppGlass.hairline(context, emphasized: false),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 标题行
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text.rich(
+                  TextSpan(
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onScaffold(context),
+                    ),
+                    children: [
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.baseline,
+                        baseline: TextBaseline.alphabetic,
+                        child: AnimatedCount(
+                          value: completed,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.onScaffold(context),
+                          ),
                         ),
                       ),
-                    ),
-                    const TextSpan(text: ' / '),
-                    WidgetSpan(
-                      alignment: PlaceholderAlignment.baseline,
-                      baseline: TextBaseline.alphabetic,
-                      child: AnimatedCount(
-                        value: total,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.onScaffold(context),
+                      const TextSpan(text: ' / '),
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.baseline,
+                        baseline: TextBaseline.alphabetic,
+                        child: AnimatedCount(
+                          value: total,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.onScaffold(context),
+                          ),
                         ),
                       ),
-                    ),
-                    TextSpan(text: ' ${S.of(context).done}'),
-                  ],
-                ),
-              ),
-              AnimatedCount(
-                value: (progress * 100).round(),
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.mutedText(context),
-                ),
-              ),
-              Text(
-                '%',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.mutedText(context),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // 速度/时间/大小
-          Row(
-            children: [
-              _buildStatItem(
-                Text(
-                  _formatSpeed(speed),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onScaffold(context),
+                      TextSpan(text: ' ${S.of(context).done}'),
+                    ],
                   ),
                 ),
-                S.of(context).downloadSpeed,
-              ),
-              const SizedBox(width: 24),
-              _buildStatItem(
-                Text(
-                  _formatSize(downloaded),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onScaffold(context),
-                  ),
-                ),
-                S.of(context).downloaded,
-              ),
-              const SizedBox(width: 24),
-              _buildStatItem(
                 AnimatedCount(
-                  value: completed,
+                  value: (progress * 100).round(),
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onScaffold(context),
+                    fontSize: 11,
+                    color: AppColors.mutedText(context),
                   ),
                 ),
-                S.of(context).done,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // 进度条
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: AppColors.fill2(context),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                AppColors.accentOf(context),
-              ),
-              minHeight: 6,
+                Text(
+                  '%',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.mutedText(context),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          // 操作按钮
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 34,
-                  child: TextButton.icon(
-                    onPressed: () => _pauseAll(ref),
-                    style: TextButton.styleFrom(
-                      backgroundColor: AppColors.fill2(context),
-                      foregroundColor: AppColors.secondaryText(context),
-                      side: BorderSide(color: AppColors.cardBorder(context)),
-                      shape: const StadiumBorder(),
-                      padding: EdgeInsets.zero,
+            const SizedBox(height: 12),
+            // 速度/时间/大小
+            Row(
+              children: [
+                _buildStatItem(
+                  Text(
+                    _formatSpeed(speed),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onScaffold(context),
                     ),
-                    icon: Icon(
-                      Icons.pause,
-                      size: 14,
-                      color: AppColors.secondaryText(context),
+                  ),
+                  S.of(context).downloadSpeed,
+                ),
+                const SizedBox(width: 24),
+                _buildStatItem(
+                  Text(
+                    _formatSize(downloaded),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onScaffold(context),
                     ),
-                    label: Text(
-                      S.of(context).pauseAll,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                  ),
+                  S.of(context).downloaded,
+                ),
+                const SizedBox(width: 24),
+                _buildStatItem(
+                  AnimatedCount(
+                    value: completed,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onScaffold(context),
+                    ),
+                  ),
+                  S.of(context).done,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // 进度条
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: AppColors.fill2(context),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.accentOf(context),
+                ),
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 操作按钮
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 34,
+                    child: TextButton.icon(
+                      onPressed: () => _pauseAll(ref),
+                      style: TextButton.styleFrom(
+                        backgroundColor: AppColors.fill2(context),
+                        foregroundColor: AppColors.secondaryText(context),
+                        side: BorderSide(color: AppColors.cardBorder(context)),
+                        shape: const StadiumBorder(),
+                        padding: EdgeInsets.zero,
+                      ),
+                      icon: Icon(
+                        Icons.pause,
+                        size: 14,
                         color: AppColors.secondaryText(context),
                       ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SizedBox(
-                  height: 34,
-                  child: TextButton(
-                    onPressed: () => _clearCompleted(context, ref),
-                    style: TextButton.styleFrom(
-                      backgroundColor: AppColors.error.withAlpha(13),
-                      foregroundColor: AppColors.error,
-                      side: BorderSide(color: AppColors.error.withAlpha(51)),
-                      shape: const StadiumBorder(),
-                      padding: EdgeInsets.zero,
-                    ),
-                    child: Text(
-                      S.of(context).deleteFinishedDownloads,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.error,
+                      label: Text(
+                        S.of(context).pauseAll,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.secondaryText(context),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SizedBox(
+                    height: 34,
+                    child: TextButton(
+                      onPressed: () => _clearCompleted(context, ref),
+                      style: TextButton.styleFrom(
+                        backgroundColor: AppColors.error.withAlpha(13),
+                        foregroundColor: AppColors.error,
+                        side: BorderSide(color: AppColors.error.withAlpha(51)),
+                        shape: const StadiumBorder(),
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: Text(
+                        S.of(context).deleteFinishedDownloads,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -702,7 +701,8 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
     showKoyzeDialog(
       context: context,
       builder: (ctx) => KoyzeDialog(
-        backgroundColor: AppColors.dialogBg(context),        title: Text(
+        backgroundColor: AppColors.dialogBg(context),
+        title: Text(
           S.of(context).deleteFinishedDownloads,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
@@ -746,7 +746,8 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
     showKoyzeDialog(
       context: context,
       builder: (ctx) => KoyzeDialog(
-        backgroundColor: AppColors.dialogBg(context),        title: Text(
+        backgroundColor: AppColors.dialogBg(context),
+        title: Text(
           S.of(context).clearFailedTasks,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),

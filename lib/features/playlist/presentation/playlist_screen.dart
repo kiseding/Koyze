@@ -462,52 +462,57 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     int index,
     dynamic playerService,
   ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.cardBorder(context)),
-      ),
-      child: ListTile(
-        onTap: () => _openPlaylist(context, playlist, focusSongId: song.id),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: SizedBox(
-            width: 44,
-            height: 44,
-            child: song.artwork != null && song.artwork!.isNotEmpty
-                ? ArtworkImage(
-                    song.artwork!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Icon(
-                      Icons.music_note,
-                      color: AppColors.mutedText(context),
-                    ),
-                  )
-                : Icon(Icons.music_note, color: AppColors.mutedText(context)),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassSurface(
+        style: AppGlassStyle.regular,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.fromBorderSide(
+          AppGlass.hairline(context, emphasized: false),
+        ),
+        child: ListTile(
+          onTap: () => _openPlaylist(context, playlist, focusSongId: song.id),
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: song.artwork != null && song.artwork!.isNotEmpty
+                  ? ArtworkImage(
+                      song.artwork!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.music_note,
+                        color: AppColors.mutedText(context),
+                      ),
+                    )
+                  : Icon(Icons.music_note, color: AppColors.mutedText(context)),
+            ),
           ),
-        ),
-        title: Text(
-          song.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: AppColors.onScaffold(context), fontSize: 14),
-        ),
-        subtitle: Text(
-          '${song.singer} · ${S.of(context).builtinPlaylistName(playlist.id, playlist.name)}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
-        ),
-        trailing: FxIconButton(
-          icon: Icon(
-            Icons.play_arrow_rounded,
-            color: AppColors.accentOf(context),
+          title: Text(
+            song.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.onScaffold(context),
+              fontSize: 14,
+            ),
           ),
-          onPressed: () async {
-            await _playPlaylist(playerService, playlist, startIndex: index);
-          },
+          subtitle: Text(
+            '${song.singer} · ${S.of(context).builtinPlaylistName(playlist.id, playlist.name)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: AppColors.mutedText(context), fontSize: 12),
+          ),
+          trailing: FxIconButton(
+            icon: Icon(
+              Icons.play_arrow_rounded,
+              color: AppColors.accentOf(context),
+            ),
+            onPressed: () async {
+              await _playPlaylist(playerService, playlist, startIndex: index);
+            },
+          ),
         ),
       ),
     );
@@ -1475,7 +1480,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
   ) {
     final media = MediaQuery.of(context);
     final maxH = media.size.height * 0.56;
-    final maxW = media.size.width.clamp(280.0, 420.0);
+    final maxW = media.size.width.clamp(280.0, 420.0).toDouble();
 
     showKoyzeDialog<void>(
       context: context,
@@ -1516,132 +1521,121 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           );
         }
 
-        return Dialog(
-          backgroundColor: Colors.transparent,
+        return KoyzeDialog(
+          maxWidth: maxW,
+          contentPadding: EdgeInsets.zero,
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 28,
             vertical: 24,
           ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
-            child: GlassSurface(
-              style: AppGlassStyle.regular,
-              borderRadius: BorderRadius.circular(22),
-              emphasized: true,
-              boxShadow: AppGlass.shadowFor(
-                context,
-                style: AppGlassStyle.regular,
-                emphasized: true,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 18, 10, 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            S
-                                .of(context)
-                                .builtinPlaylistName(
-                                  playlist.id,
-                                  playlist.name,
-                                ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: on,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
+          content: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxH),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 10, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          S
+                              .of(context)
+                              .builtinPlaylistName(playlist.id, playlist.name),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: on,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        FxIconButton(
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => Navigator.pop(dialogCtx),
-                          icon: Icon(Icons.close_rounded, color: muted),
-                        ),
+                      ),
+                      FxIconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => Navigator.pop(dialogCtx),
+                        icon: Icon(Icons.close_rounded, color: muted),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: AppColors.cardBorder(context)),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxH - 92),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (playlist.id != 'recent')
+                          action(
+                            icon: Icons.edit_outlined,
+                            label: S.of(context).editPlaylist,
+                            onTap: () {
+                              Navigator.pop(dialogCtx);
+                              _showEditDialog(context, ref, playlist);
+                            },
+                          ),
+                        if (playlist.id != 'favorites' &&
+                            playlist.songCount > 0)
+                          action(
+                            icon: Icons.favorite_border_rounded,
+                            label: S.of(context).addAllToFavorites,
+                            onTap: () async {
+                              final int added;
+                              try {
+                                added = await ref
+                                    .read(playlistServiceProvider)
+                                    .addAllSongsToFavorites(playlist.id);
+                              } catch (error) {
+                                if (!context.mounted) return;
+                                showAppNotification(
+                                  '${S.of(context).addFailed}: $error',
+                                  type: AppNotificationType.error,
+                                );
+                                return;
+                              }
+                              if (!dialogCtx.mounted) return;
+                              Navigator.pop(dialogCtx);
+                              if (!context.mounted) return;
+                              showAppNotification(
+                                added == 0
+                                    ? S.of(context).alreadyInFavorites
+                                    : S.of(context).addedToFavorites(added),
+                                type: added == 0
+                                    ? AppNotificationType.info
+                                    : AppNotificationType.success,
+                              );
+                            },
+                          ),
+                        if (playlist.id != 'favorites' &&
+                            playlist.id != 'recent')
+                          action(
+                            icon: Icons.delete_outline_rounded,
+                            label: S.of(context).deletePlaylist,
+                            destructive: true,
+                            onTap: () async {
+                              try {
+                                await ref
+                                    .read(playlistServiceProvider)
+                                    .deletePlaylist(playlist.id);
+                              } catch (error) {
+                                if (!context.mounted) return;
+                                showAppNotification(
+                                  '${S.of(context).deleteFailed}: $error',
+                                  type: AppNotificationType.error,
+                                );
+                                return;
+                              }
+                              if (!dialogCtx.mounted) return;
+                              Navigator.pop(dialogCtx);
+                            },
+                          ),
                       ],
                     ),
                   ),
-                  Divider(height: 1, color: AppColors.cardBorder(context)),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (playlist.id != 'recent')
-                            action(
-                              icon: Icons.edit_outlined,
-                              label: S.of(context).editPlaylist,
-                              onTap: () {
-                                Navigator.pop(dialogCtx);
-                                _showEditDialog(context, ref, playlist);
-                              },
-                            ),
-                          if (playlist.id != 'favorites' &&
-                              playlist.songCount > 0)
-                            action(
-                              icon: Icons.favorite_border_rounded,
-                              label: S.of(context).addAllToFavorites,
-                              onTap: () async {
-                                final int added;
-                                try {
-                                  added = await ref
-                                      .read(playlistServiceProvider)
-                                      .addAllSongsToFavorites(playlist.id);
-                                } catch (error) {
-                                  if (!context.mounted) return;
-                                  showAppNotification(
-                                    '${S.of(context).addFailed}: $error',
-                                    type: AppNotificationType.error,
-                                  );
-                                  return;
-                                }
-                                if (!dialogCtx.mounted) return;
-                                Navigator.pop(dialogCtx);
-                                if (!context.mounted) return;
-                                showAppNotification(
-                                  added == 0
-                                      ? S.of(context).alreadyInFavorites
-                                      : S.of(context).addedToFavorites(added),
-                                  type: added == 0
-                                      ? AppNotificationType.info
-                                      : AppNotificationType.success,
-                                );
-                              },
-                            ),
-                          if (playlist.id != 'favorites' &&
-                              playlist.id != 'recent')
-                            action(
-                              icon: Icons.delete_outline_rounded,
-                              label: S.of(context).deletePlaylist,
-                              destructive: true,
-                              onTap: () async {
-                                try {
-                                  await ref
-                                      .read(playlistServiceProvider)
-                                      .deletePlaylist(playlist.id);
-                                } catch (error) {
-                                  if (!context.mounted) return;
-                                  showAppNotification(
-                                    '${S.of(context).deleteFailed}: $error',
-                                    type: AppNotificationType.error,
-                                  );
-                                  return;
-                                }
-                                if (!dialogCtx.mounted) return;
-                                Navigator.pop(dialogCtx);
-                              },
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -1689,7 +1683,7 @@ class _PresetCard extends StatelessWidget {
           child: OrigoChromeSurface(
             borderRadius: BorderRadius.circular(18),
             accent: tone,
-            padding: const EdgeInsets.fromLTRB(13, 10, 11, 10),
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
                 Container(

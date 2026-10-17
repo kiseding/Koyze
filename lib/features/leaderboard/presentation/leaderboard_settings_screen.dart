@@ -7,6 +7,7 @@ import '../../../l10n/app_strings.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/fx_switch.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/loading_widget.dart';
 
 /// 榜单设置：勾选显示哪些平台与榜单。
@@ -145,11 +146,11 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 平台勾选开关
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.card(context),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.cardBorder(context)),
+        GlassSurface(
+          style: AppGlassStyle.regular,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.fromBorderSide(
+            AppGlass.hairline(context, emphasized: false),
           ),
           child: ListTile(
             onTap: () {
@@ -213,36 +214,38 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
             ),
           )
         else
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            decoration: BoxDecoration(
-              color: AppColors.fill(context),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.cardBorder(context)),
-            ),
-            child: Column(
-              children: [
-                for (var index = 0; index < categories.length; index++) ...[
-                  _CategoryVisibilityTile(
-                    category: categories[index],
-                    color: color,
-                    visible:
-                        !(hiddenByKey['category:${categories[index].id}'] ??
-                            false),
-                    onChanged: (visible) {
-                      if (visible) {
-                        notifier.restoreItem(
-                          'category:${categories[index].id}',
-                        );
-                      } else {
-                        notifier.hideCategory(categories[index].id);
-                      }
-                    },
-                  ),
-                  if (index < categories.length - 1)
-                    Divider(height: 1, color: AppColors.cardBorder(context)),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: GlassSurface(
+              style: AppGlassStyle.regular,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.fromBorderSide(
+                AppGlass.hairline(context, emphasized: false),
+              ),
+              child: Column(
+                children: [
+                  for (var index = 0; index < categories.length; index++) ...[
+                    _CategoryVisibilityTile(
+                      category: categories[index],
+                      color: color,
+                      visible:
+                          !(hiddenByKey['category:${categories[index].id}'] ??
+                              false),
+                      onChanged: (visible) {
+                        if (visible) {
+                          notifier.restoreItem(
+                            'category:${categories[index].id}',
+                          );
+                        } else {
+                          notifier.hideCategory(categories[index].id);
+                        }
+                      },
+                    ),
+                    if (index < categories.length - 1)
+                      Divider(height: 1, color: AppColors.cardBorder(context)),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
       ],

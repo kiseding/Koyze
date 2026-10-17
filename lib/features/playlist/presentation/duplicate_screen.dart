@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
@@ -169,13 +170,13 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
       for (final song in group.songs)
         if (selected.contains(song.identityKey)) song.identityKey,
     ];
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardBorder(context)),
+    return GlassSurface(
+      style: AppGlassStyle.regular,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.fromBorderSide(
+        AppGlass.hairline(context, emphasized: false),
       ),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../motion/motion_tokens.dart';
 import '../performance/low_memory.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
@@ -57,6 +58,94 @@ class OrigoChromeSurface extends StatelessWidget {
                 )
               : null),
       child: padding == null ? child : Padding(padding: padding!, child: child),
+    );
+  }
+}
+
+/// Compact glass choice control shared by settings and data screens.
+///
+/// It keeps the same optical weight as the floating panels while remaining
+/// small enough for wrapped service lists and segmented dashboard controls.
+class KoyzeChoicePill extends StatelessWidget {
+  const KoyzeChoicePill({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+    this.icon,
+    this.dense = false,
+    this.padding,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final bool dense;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = AppColors.accentOf(context);
+    final disabled = onPressed == null;
+    final radius = BorderRadius.circular(dense ? 12 : 14);
+    final foreground = selected
+        ? accent.withValues(alpha: disabled ? 0.58 : 1)
+        : AppColors.onScaffold(context).withValues(alpha: disabled ? 0.52 : 1);
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: !disabled,
+      label: label,
+      child: AnimatedContainer(
+        duration: motionDuration(context, MotionDuration.micro),
+        curve: MotionCurve.easeOut,
+        constraints: BoxConstraints(minHeight: dense ? 34 : 40),
+        decoration: BoxDecoration(
+          color: selected
+              ? accent.withValues(alpha: disabled ? 0.09 : 0.14)
+              : AppColors.fill(context),
+          borderRadius: radius,
+          border: Border.fromBorderSide(
+            AppGlass.hairline(context, emphasized: selected),
+          ),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: radius,
+            child: Padding(
+              padding:
+                  padding ??
+                  EdgeInsets.symmetric(
+                    horizontal: dense ? 10 : 12,
+                    vertical: dense ? 7 : 9,
+                  ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: dense ? 16 : 18, color: foreground),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: dense ? 11.5 : 13,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

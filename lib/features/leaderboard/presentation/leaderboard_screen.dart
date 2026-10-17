@@ -21,6 +21,8 @@ import '../../player/presentation/player_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import 'leaderboard_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/origo_chrome.dart';
 
 const Map<String, String> kLeaderboardPlatformNames = {
   'tx': 'QQ音乐',
@@ -786,100 +788,107 @@ class _LeaderboardSongRow extends ConsumerWidget {
       ),
     );
     return RepaintBoundary(
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 32,
-                  child: isPlaying
-                      ? Icon(
-                          Icons.play_arrow,
-                          size: 22,
-                          color: AppColors.accentOf(context),
-                        )
-                      : Text(
-                          '${index + 1}',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: index < 3
-                                ? AppColors.accentOf(context)
-                                : AppColors.mutedText(context),
-                            fontSize: 14,
-                            fontWeight: index < 3
-                                ? FontWeight.bold
-                                : FontWeight.normal,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: GlassSurface(
+          style: AppGlassStyle.regular,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.fromBorderSide(
+            AppGlass.hairline(context, emphasized: false),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 32,
+                    child: isPlaying
+                        ? Icon(
+                            Icons.play_arrow,
+                            size: 22,
+                            color: AppColors.accentOf(context),
+                          )
+                        : Text(
+                            '${index + 1}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: index < 3
+                                  ? AppColors.accentOf(context)
+                                  : AppColors.mutedText(context),
+                              fontSize: 14,
+                              fontWeight: index < 3
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
                           ),
-                        ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.cardBorder(context)),
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: song.artwork != null && song.artwork!.isNotEmpty
-                        ? ArtworkImage(
-                            song.artwork!,
-                            cacheWidth: 96,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.cardBorder(context)),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: song.artwork != null && song.artwork!.isNotEmpty
+                          ? ArtworkImage(
+                              song.artwork!,
+                              cacheWidth: 96,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.music_note,
+                                color: AppColors.mutedText(context),
+                                size: 20,
+                              ),
+                            )
+                          : Icon(
                               Icons.music_note,
                               color: AppColors.mutedText(context),
                               size: 20,
                             ),
-                          )
-                        : Icon(
-                            Icons.music_note,
-                            color: AppColors.mutedText(context),
-                            size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.name,
+                          style: TextStyle(
+                            color: isPlaying
+                                ? AppColors.accentOf(context)
+                                : AppColors.onScaffold(context),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
                           ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        song.name,
-                        style: TextStyle(
-                          color: isPlaying
-                              ? AppColors.accentOf(context)
-                              : AppColors.onScaffold(context),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        song.singer,
-                        style: TextStyle(
-                          color: AppColors.mutedText(context),
-                          fontSize: 12,
+                        const SizedBox(height: 2),
+                        Text(
+                          song.singer,
+                          style: TextStyle(
+                            color: AppColors.mutedText(context),
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                FavoriteButton(
-                  song: song,
-                  isFavorite: isFavoriteMusic(song, favoriteSongs),
-                ),
-              ],
+                  FavoriteButton(
+                    song: song,
+                    isFavorite: isFavoriteMusic(song, favoriteSongs),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

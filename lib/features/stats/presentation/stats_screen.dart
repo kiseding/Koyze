@@ -6,6 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/gradient_bar_backgrounds.dart';
+import '../../../core/widgets/origo_chrome.dart';
 import '../data/play_history_store.dart';
 import 'play_history_provider.dart';
 
@@ -48,7 +51,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       backgroundColor: AppColors.scaffold(context),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        flexibleSpace: GradientAppBarBackground(
+          background: Theme.of(context).scaffoldBackgroundColor,
+        ),
         title: Text(
           S.of(context).listeningStats,
           style: TextStyle(
@@ -106,11 +113,12 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         for (final range in StatsRange.values) ...[
           if (range != StatsRange.values.first) const SizedBox(width: 8),
           Expanded(
-            child: ChoiceChip(
-              label: Text(range.label, style: TextStyle(fontSize: 13)),
+            child: KoyzeChoicePill(
+              label: range.label,
               selected: _range == range,
-              onSelected: (_) => setState(() => _range = range),
-              selectedColor: Theme.of(context).colorScheme.primaryContainer,
+              onPressed: () => setState(() => _range = range),
+              dense: true,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             ),
           ),
         ],
@@ -124,13 +132,25 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   ) {
     return Row(
       children: [
-        _summaryCard(S.of(context).playCount, '${summary.totalPlays}', summary.totalPlays),
+        _summaryCard(
+          S.of(context).playCount,
+          '${summary.totalPlays}',
+          summary.totalPlays,
+        ),
         const SizedBox(width: 10),
         _summaryCard(S.of(context).listenTime, _fmtDuration(summary.totalSec)),
         const SizedBox(width: 10),
-        _summaryCard(S.of(context).activeDays, '${summary.activeDays}', summary.activeDays),
+        _summaryCard(
+          S.of(context).activeDays,
+          '${summary.activeDays}',
+          summary.activeDays,
+        ),
         const SizedBox(width: 10),
-        _summaryCard(S.of(context).trackCount, '${summary.uniqueSongs}', summary.uniqueSongs),
+        _summaryCard(
+          S.of(context).trackCount,
+          '${summary.uniqueSongs}',
+          summary.uniqueSongs,
+        ),
       ],
     );
   }
@@ -143,13 +163,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       height: 1.1,
     );
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-        decoration: BoxDecoration(
-          color: AppColors.card(context),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.cardBorder(context)),
+      child: GlassSurface(
+        style: AppGlassStyle.regular,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.fromBorderSide(
+          AppGlass.hairline(context, emphasized: false),
         ),
+        padding: const EdgeInsets.all(10),
         child: Column(
           children: [
             countValue != null
@@ -184,13 +204,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
         .map((d) => d.$2)
         .reduce((a, b) => a > b ? a : b)
         .clamp(1, 1 << 30);
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardBorder(context)),
+    return GlassSurface(
+      style: AppGlassStyle.regular,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.fromBorderSide(
+        AppGlass.hairline(context, emphasized: false),
       ),
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -251,18 +271,17 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
       1 => artists,
       _ => albums,
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.card(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.cardBorder(context)),
+    return GlassSurface(
+      style: AppGlassStyle.regular,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.fromBorderSide(
+        AppGlass.hairline(context, emphasized: false),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+            padding: const EdgeInsets.all(14),
             child: Row(
               children: [
                 Text(
@@ -280,11 +299,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   (2, S.of(context).albums),
                 ]) ...[
                   if (index != 0) const SizedBox(width: 6),
-                  ChoiceChip(
-                    label: Text(label, style: const TextStyle(fontSize: 11)),
+                  KoyzeChoicePill(
+                    label: label,
                     selected: _tab == index,
-                    onSelected: (_) => setState(() => _tab = index),
-                    visualDensity: VisualDensity.compact,
+                    onPressed: () => setState(() => _tab = index),
+                    dense: true,
                   ),
                 ],
               ],
@@ -304,6 +323,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           else
             for (final (index, item) in items.indexed)
               ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
                 dense: true,
                 leading: SizedBox(
                   width: 24,

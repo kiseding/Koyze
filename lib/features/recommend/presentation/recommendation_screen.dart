@@ -3,6 +3,7 @@ import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../player/presentation/player_provider.dart';
 import 'recommendation_provider.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
@@ -23,7 +24,11 @@ class RecommendationScreen extends ConsumerWidget {
       backgroundColor: AppColors.scaffold(context),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        flexibleSpace: GradientAppBarBackground(
+          background: Theme.of(context).scaffoldBackgroundColor,
+        ),
         title: Text(
           S.of(context).forYou,
           style: TextStyle(
@@ -43,7 +48,7 @@ class RecommendationScreen extends ConsumerWidget {
           data: (recommendations) => recommendations.isEmpty
               ? _buildEmpty(context)
               : AdaptiveSongList.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                   landscapeItemExtent: 76,
                   itemCount: recommendations.length,
                   itemBuilder: (context, index) {

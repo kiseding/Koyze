@@ -4,8 +4,11 @@ import 'package:flutter/services.dart';
 
 import '../../../core/logging/app_log.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/gradient_bar_backgrounds.dart';
+import '../../../core/widgets/origo_chrome.dart';
 
 OverlayEntry? _diagnosticLogEntry;
 final _diagnosticLogKey = GlobalKey<_DiagnosticLogOverlayState>();
@@ -92,12 +95,13 @@ class _DiagnosticLogOverlayState extends State<_DiagnosticLogOverlay> {
           });
         },
         onTap: expand,
-        child: Material(
-          elevation: 8,
-          color: AppColors.card(context),
-          shape: StadiumBorder(
-            side: BorderSide(color: AppColors.cardBorder(context)),
+        child: GlassSurface(
+          style: AppGlassStyle.chrome,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.fromBorderSide(
+            AppGlass.hairline(context, emphasized: true),
           ),
+          emphasized: true,
           child: ValueListenableBuilder<List<AppLogEntry>>(
             valueListenable: widget.log.entries,
             builder: (context, entries, _) => SizedBox(
@@ -172,7 +176,10 @@ class _AppLogScreenState extends State<AppLogScreen> {
     if (text.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
-    showAppNotification(S.of(context).logCopied, type: AppNotificationType.success);
+    showAppNotification(
+      S.of(context).logCopied,
+      type: AppNotificationType.success,
+    );
   }
 
   @override
@@ -184,7 +191,14 @@ class _AppLogScreenState extends State<AppLogScreen> {
         borderRadius: BorderRadius.circular(18),
         clipBehavior: Clip.antiAlias,
         child: Scaffold(
+          backgroundColor: Colors.transparent,
           appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            scrolledUnderElevation: 0,
+            flexibleSpace: GradientAppBarBackground(
+              background: Theme.of(context).scaffoldBackgroundColor,
+            ),
             title: Text(S.of(context).diagnosticsTitle),
             actions: [
               if (widget.onMinimize != null)
@@ -213,15 +227,21 @@ class _AppLogScreenState extends State<AppLogScreen> {
           ),
           body: Column(
             children: [
-              Container(
-                width: double.infinity,
+              GlassSurface(
+                style: AppGlassStyle.chrome,
+                borderRadius: BorderRadius.zero,
+                border: Border(
+                  bottom: AppGlass.hairline(context, emphasized: false),
+                ),
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 9),
-                color: AppColors.fill(context),
-                child: Text(
-                  S.of(context).diagnosticsHint,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.secondaryText(context),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    S.of(context).diagnosticsHint,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.secondaryText(context),
+                    ),
                   ),
                 ),
               ),
