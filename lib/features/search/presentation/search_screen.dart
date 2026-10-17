@@ -324,39 +324,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       return _buildHistory(searchHistory);
     }
     if (searchState.isLoading && searchState.items.isEmpty) {
-      return Center(
+      // 横屏可用高度只有三百多，少放两行，别让骨架自己就溢出。
+      final size = MediaQuery.sizeOf(context);
+      final wide = size.width > size.height * 1.15;
+      return _SearchSkeleton(
         key: const ValueKey('search-loading'),
-        child: SizedBox(
-          width: 24,
-          height: 24,
-          child: AppLoadingIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              AppColors.accentOf(context),
-            ),
-          ),
-        ),
+        rows: wide ? 4 : 6,
       );
     }
     if (searchState.error != null && searchState.items.isEmpty) {
-      return Center(
+      return _SearchStatePanel(
         key: const ValueKey('search-error'),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              S.of(context).searchFailed(searchState.error ?? ''),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.tonal(
-              onPressed: () => ref
-                  .read(searchStateProvider.notifier)
-                  .search(searchState.query),
-              child: Text(S.of(context).retry),
-            ),
-          ],
+        icon: Icons.cloud_off_rounded,
+        tone: Theme.of(context).colorScheme.error,
+        title: S.of(context).searchErrorTitle,
+        hint: S.of(context).searchFailed(searchState.error ?? ''),
+        action: _PanelAction(
+          label: S.of(context).retry,
+          onTap: () =>
+              ref.read(searchStateProvider.notifier).search(searchState.query),
         ),
       );
     }
@@ -372,26 +358,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final favoriteSongs =
         ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
     if (results.isEmpty && localMatches.isEmpty && !searchState.isLoading) {
-      return Center(
+      // 只在「当前不是全网」时才给换源入口：停在全网还提示切全网是废话。
+      final canSwitchSource =
+          searchState.sourceId.isNotEmpty && searchState.sourceId != 'all';
+      return _SearchStatePanel(
         key: const ValueKey('search-empty'),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.search_off_rounded,
-              size: 30,
-              color: AppColors.mutedText(context),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              S.of(context).noResults,
-              style: TextStyle(
-                color: AppColors.mutedText(context),
-                fontSize: 13.5,
-              ),
-            ),
-          ],
-        ),
+        icon: Icons.search_off_rounded,
+        title: S.of(context).searchEmptyTitle(searchState.query),
+        hint: S.of(context).searchEmptyHint,
+        action: canSwitchSource
+            ? _PanelAction(
+                label: S.of(context).searchAllSources,
+                onTap: () {
+                  ref.read(selectedSourceIdProvider.notifier).state = 'all';
+                  _onSearch(searchState.query);
+                },
+              )
+            : null,
       );
     }
     if (MediaQuery.sizeOf(context).width > MediaQuery.sizeOf(context).height) {
@@ -517,7 +500,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
                 sliver: SliverGrid.builder(
                   gridDelegate: gridDelegate,
                   itemCount: localMatches.length,
@@ -541,7 +524,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             if (results.isNotEmpty)
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 18),
                 sliver: SliverGrid.builder(
                   gridDelegate: gridDelegate,
                   itemCount: results.length,
@@ -625,7 +608,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return _ResultRowShell(
       showDivider: divider,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18),
         minVerticalPadding: 7,
         onTap: play,
         onLongPress: () => _showSongMenu(local, localMatches),
@@ -718,7 +701,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return _ResultRowShell(
       showDivider: divider,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18),
         minVerticalPadding: 7,
         onTap: open,
         onLongPress: menu,
@@ -789,7 +772,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return ListView(
       // 底部已由 MainScaffold 预留，勿再垫 100 造成空白层
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 16),
       children: [
         if (searchHistory.isNotEmpty) ...[
           _buildSectionHeader(
@@ -1026,8 +1009,8 @@ class _ResultRowShell extends StatelessWidget {
           Divider(
             height: 0.6,
             thickness: 0.6,
-            indent: 64,
-            endIndent: 6,
+            indent: 80,
+            endIndent: 18,
             color: AppColors.cardBorder(context).withValues(alpha: 0.65),
           ),
       ],
@@ -1370,6 +1353,313 @@ class _HighlightedText extends StatelessWidget {
       TextSpan(style: style, children: spans),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+/// 加载骨架：按真实结果行的骨架屏，比一个转圈更能说明「马上就有列表了」。
+///
+/// 整块共用一个 `AnimationController`，微光横扫由它驱动；行与行之间靠
+/// 递减的不透明度拉开层次，让人一眼看出列表在往下延伸。
+class _SearchSkeleton extends StatefulWidget {
+  const _SearchSkeleton({super.key, this.rows = 6});
+
+  final int rows;
+
+  @override
+  State<_SearchSkeleton> createState() => _SearchSkeletonState();
+}
+
+class _SearchSkeletonState extends State<_SearchSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _sweep = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1350),
+  );
+  var _reduced = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduce = reduceMotion(context);
+    if (reduce == _reduced && (_reduced || _sweep.isAnimating)) return;
+    _reduced = reduce;
+    if (reduce) {
+      // 减弱动效时不跑循环，停在中段让微光均匀分布。
+      _sweep
+        ..stop()
+        ..value = 0.5;
+    } else {
+      _sweep.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _sweep.dispose();
+    super.dispose();
+  }
+
+  // 每行长度固定不随机：骨架屏自己跳动比没有骨架还干扰。
+  static const _titleFactors = [0.62, 0.48, 0.71, 0.54, 0.66, 0.44];
+  static const _subFactors = [0.30, 0.24, 0.36, 0.27, 0.32, 0.22];
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = AppColors.isDark(context);
+    final base = dark ? const Color(0xFF34343A) : const Color(0xFFDFDFE5);
+    final glow = dark ? const Color(0xFF52525C) : const Color(0xFFFFFFFF);
+    return AnimatedBuilder(
+      animation: _sweep,
+      // 子项只画实心块，颜色全交给遮罩上的横向渐变：整片列表共用一条扫光。
+      // 让每个方块自带渐变的话，同一时刻每个块都亮在自己身上，看起来像一堆
+      // 并排的斜纹，而不是一道光扫过列表。
+      child: ListView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(top: 4, bottom: 12),
+        itemCount: widget.rows,
+        itemBuilder: (context, index) => _SkeletonRow(
+          titleFactor: _titleFactors[index % _titleFactors.length],
+          subFactor: _subFactors[index % _subFactors.length],
+          opacity: (1 - index * 0.09).clamp(0.56, 1.0),
+        ),
+      ),
+      builder: (context, child) => ShaderMask(
+        blendMode: BlendMode.srcATop,
+        shaderCallback: (rect) {
+          // -0.25 → 1.25：光带从面板左外侧扫到右外侧，两端各留一段空转。
+          final center = -0.25 + _sweep.value * 1.5;
+          return LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [base, base, glow, base, base],
+            stops: [
+              0,
+              (center - 0.15).clamp(0.0, 1.0),
+              center.clamp(0.0, 1.0),
+              (center + 0.15).clamp(0.0, 1.0),
+              1,
+            ],
+          ).createShader(rect);
+        },
+        child: child,
+      ),
+    );
+  }
+}
+
+class _SkeletonRow extends StatelessWidget {
+  const _SkeletonRow({
+    required this.titleFactor,
+    required this.subFactor,
+    required this.opacity,
+  });
+
+  final double titleFactor;
+  final double subFactor;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: opacity,
+      child: Padding(
+        // 与真实结果行同一条 gutter，加载态到结果态不会左右跳一下。
+        padding: const EdgeInsets.fromLTRB(18, 7, 18, 7),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(11),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SkeletonBar(widthFactor: titleFactor, height: 11),
+                  const SizedBox(height: 8),
+                  _SkeletonBar(widthFactor: subFactor, height: 9),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 按父级宽度的比例取长的骨架条。填充色是「占位符」，真实颜色来自外层
+/// `ShaderMask` 的扫光，所以这里统一用不透明白。
+class _SkeletonBar extends StatelessWidget {
+  const _SkeletonBar({required this.widthFactor, required this.height});
+
+  final double widthFactor;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: FractionallySizedBox(
+        widthFactor: widthFactor,
+        child: Container(
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(height / 2),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 空结果 / 出错的统一版式：柔光徽标 + 标题 + 说明 + 可选动作。
+class _SearchStatePanel extends StatelessWidget {
+  const _SearchStatePanel({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.hint,
+    this.tone,
+    this.action,
+  });
+
+  final IconData icon;
+  final String title;
+  final String hint;
+  final Color? tone;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = tone ?? AppColors.accentOf(context);
+    return Center(
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(30, 10, 30, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    accent.withValues(alpha: 0.18),
+                    accent.withValues(alpha: 0.04),
+                  ],
+                ),
+                border: Border.all(
+                  color: accent.withValues(alpha: 0.22),
+                  width: 0.8,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withValues(alpha: 0.10),
+                    blurRadius: 18,
+                    spreadRadius: -6,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Icon(icon, size: 25, color: accent.withValues(alpha: 0.9)),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.onScaffold(context),
+                fontSize: 15,
+                height: 1.3,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              hint,
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.mutedText(context),
+                fontSize: 12.5,
+                height: 1.45,
+              ),
+            ),
+            if (action != null) ...[const SizedBox(height: 16), action!],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 状态面板里的动作按钮。
+///
+/// 面板里只有一个动作，用实心 accent 胶囊给足点击优先级；淡底 + accent 字的
+/// 淡描边在浅色主题里对比度只有 2.5:1，看着像禁用态。
+class _PanelAction extends StatelessWidget {
+  const _PanelAction({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = AppColors.accentOf(context);
+    // 不直接用 colorScheme.onPrimary：浅色主题里它是白色，压在这个绿上只有
+    // 2.4:1 对比度。按 accent 的明度自己挑墨色，换任何强调色都不会糊。
+    final ink = ThemeData.estimateBrightnessForColor(accent) == Brightness.dark
+        ? Colors.white
+        : const Color(0xFF08130C);
+    final radius = BorderRadius.circular(999);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: radius,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            color: accent,
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: 0.28),
+                blurRadius: 14,
+                spreadRadius: -4,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: ink,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.1,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

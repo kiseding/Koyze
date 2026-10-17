@@ -366,6 +366,12 @@ class S {
   String searchFailed(Object error) =>
       en ? 'Search failed: $error' : '搜索出错: $error';
   String get noResults => en ? 'No results' : '无结果';
+  String searchEmptyTitle(String query) =>
+      en ? 'Nothing for "$query"' : '没有找到「$query」';
+  String get searchEmptyHint =>
+      en ? 'Try another keyword, or switch sources.' : '换个关键词，或切换到其他平台再试';
+  String get searchErrorTitle => en ? 'Search unavailable' : '搜索暂时不可用';
+  String get searchAllSources => en ? 'Search all sources' : '搜索全部平台';
   String get onlineMusic => en ? 'Online' : '网络音乐';
   String localArtist(String singer) => en ? '$singer · Local' : '$singer · 本地';
   String get slideForMore => en ? 'Scroll for more' : '滑动加载更多';
