@@ -7,6 +7,7 @@ import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/auto_text_input.dart';
@@ -22,9 +23,9 @@ import '../../nas/domain/nas_kind.dart';
 import '../../nas/presentation/nas_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/koyze_modal.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/loading_widget.dart';
-import '../../../core/motion/motion_tokens.dart';
 
 enum PlaylistSortMode { recent, name, songCount }
 
@@ -136,82 +137,82 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
               child: ShellContentFrame(
                 child: Column(
                   children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                style: TextStyle(
-                  color: AppColors.onScaffold(context),
-                  fontSize: 14,
-                ),
-                // 延迟过滤，避免每个字符整页 rebuild 抢焦点
-                onChanged: (_) {
-                  Future.microtask(() {
-                    if (mounted) setState(() {});
-                  });
-                },
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: S.of(context).searchLibraryHint,
-                  hintStyle: TextStyle(
-                    color: AppColors.mutedText(context),
-                    fontSize: 14,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search,
-                    color: AppColors.mutedText(context),
-                    size: 20,
-                  ),
-                  suffixIcon: _searchQuery.isEmpty
-                      ? null
-                      : FxIconButton(
-                          tooltip: S.of(context).clearSearch,
-                          icon: Icon(
-                            Icons.clear,
-                            size: 18,
-                            color: AppColors.mutedText(context),
-                          ),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {});
-                          },
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocus,
+                        style: TextStyle(
+                          color: AppColors.onScaffold(context),
+                          fontSize: 14,
                         ),
-                  filled: true,
-                  fillColor: AppColors.miniBar(context),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  0,
-                  16,
-                  RootShellLayout.obscuredBottomOf(context),
-                ),
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                itemCount: bodyItems.length,
-                itemBuilder: (context, index) => _buildBodyItem(
-                  context,
-                  ref,
-                  playerService,
-                  bodyItems[index],
-                  favorites: favorites,
-                  local: local,
-                  recent: recent,
-                ),
-              ),
-            ),
+                        // 延迟过滤，避免每个字符整页 rebuild 抢焦点
+                        onChanged: (_) {
+                          Future.microtask(() {
+                            if (mounted) setState(() {});
+                          });
+                        },
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: S.of(context).searchLibraryHint,
+                          hintStyle: TextStyle(
+                            color: AppColors.mutedText(context),
+                            fontSize: 14,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: AppColors.mutedText(context),
+                            size: 20,
+                          ),
+                          suffixIcon: _searchQuery.isEmpty
+                              ? null
+                              : FxIconButton(
+                                  tooltip: S.of(context).clearSearch,
+                                  icon: Icon(
+                                    Icons.clear,
+                                    size: 18,
+                                    color: AppColors.mutedText(context),
+                                  ),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {});
+                                  },
+                                ),
+                          filled: true,
+                          fillColor: AppColors.miniBar(context),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          RootShellLayout.obscuredBottomOf(context),
+                        ),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        itemCount: bodyItems.length,
+                        itemBuilder: (context, index) => _buildBodyItem(
+                          context,
+                          ref,
+                          playerService,
+                          bodyItems[index],
+                          favorites: favorites,
+                          local: local,
+                          recent: recent,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1133,8 +1134,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final descFocus = FocusNode();
     var keyboardRequested = false;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
       builder: (dialogContext) {
         if (!keyboardRequested) {
@@ -1146,11 +1146,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             retryDelay: const Duration(milliseconds: 220),
           );
         }
-        return AlertDialog(
+        return KoyzeDialog(
           backgroundColor: AppColors.dialogBg(dialogContext),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
           title: Text(
             S.of(context).createPlaylist,
             style: TextStyle(color: AppColors.onScaffold(dialogContext)),
@@ -1251,8 +1248,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final descFocus = FocusNode();
     var keyboardRequested = false;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
       builder: (ctx) {
         if (!keyboardRequested) {
@@ -1264,11 +1260,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             retryDelay: const Duration(milliseconds: 220),
           );
         }
-        return AlertDialog(
+        return KoyzeDialog(
           backgroundColor: AppColors.dialogBg(ctx),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
           title: Text(
             S.of(context).editPlaylist,
             style: TextStyle(color: AppColors.onScaffold(ctx)),
@@ -1453,8 +1446,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     // 网易云歌单需要分批拉取曲目详情，展示进度避免用户以为卡住。
     var progress = '';
 
-    await showDialog(
-      animationStyle: effectsAnimationStyle(),
+    await showKoyzeDialog(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
@@ -1469,14 +1461,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         }
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            return AlertDialog(
+            return KoyzeDialog(
               backgroundColor: AppColors.dialogBg(context),
               insetPadding: const EdgeInsets.symmetric(
                 horizontal: 20,
                 vertical: 24,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
               ),
               clipBehavior: Clip.antiAlias,
               contentPadding: EdgeInsets.zero,
@@ -1678,10 +1667,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                         },
                                       );
                                   if (!ctx.mounted) return;
-                                  final ok = await showDialog<bool>(
-                                    animationStyle: effectsAnimationStyle(),
+                                  final ok = await showKoyzeDialog<bool>(
                                     context: ctx,
-                                    builder: (c2) => AlertDialog(
+                                    builder: (c2) => KoyzeDialog(
                                       backgroundColor: AppColors.dialogBg(
                                         context,
                                       ),
@@ -1804,8 +1792,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final maxH = media.size.height * 0.56;
     final maxW = media.size.width.clamp(280.0, 420.0);
 
-    showDialog<void>(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (dialogCtx) {
@@ -1852,12 +1839,15 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           ),
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
-            child: Material(
-              color: AppColors.dialogBg(context),
-              elevation: 8,
-              shadowColor: Colors.black38,
-              borderRadius: BorderRadius.circular(20),
-              clipBehavior: Clip.antiAlias,
+            child: GlassSurface(
+              style: AppGlassStyle.regular,
+              borderRadius: BorderRadius.circular(22),
+              emphasized: true,
+              boxShadow: AppGlass.shadowFor(
+                context,
+                style: AppGlassStyle.regular,
+                emphasized: true,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

@@ -154,11 +154,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ListEntrance(child: _buildSearchBar(context)),
+              ListEntrance(index: 0, child: _buildSearchBar(context)),
               const SizedBox(height: 22),
-              const ListEntrance(child: HomeHeroCard()),
+              const ListEntrance(index: 1, child: HomeHeroCard()),
               const SizedBox(height: 28),
               ListEntrance(
+                index: 2,
                 child: _buildQuickSectionTitle(
                   context,
                   S.of(context).shortcuts,
@@ -198,7 +199,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               Expanded(
                 flex: 5,
-                child: ListEntrance(child: const HomeHeroCard(height: null)),
+                child: ListEntrance(
+                  index: 0,
+                  child: const HomeHeroCard(height: null),
+                ),
               ),
               const SizedBox(width: 18),
               Expanded(
@@ -206,9 +210,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    ListEntrance(child: _buildSearchBar(context)),
+                    ListEntrance(index: 0, child: _buildSearchBar(context)),
                     const SizedBox(height: 16),
                     ListEntrance(
+                      index: 1,
                       child: _buildQuickSectionTitle(
                         context,
                         S.of(context).shortcuts,
@@ -358,6 +363,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 width: tileWidth,
                 child: ListEntrance(
                   key: ValueKey('quick-${entries[index].id}'),
+                  index: index,
                   child: _QuickEntryCard(entry: entries[index], dense: dense),
                 ),
               ),

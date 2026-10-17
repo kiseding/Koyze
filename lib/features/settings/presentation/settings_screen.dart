@@ -31,6 +31,7 @@ import '../../../core/widgets/fx_switch.dart';
 import '../../../l10n/app_strings.dart';
 import '../../sync/data/sync_identity_store.dart';
 import '../../nas/domain/nas_url.dart';
+import 'package:koyze/core/widgets/koyze_modal.dart';
 
 const double settingsOptionMaxWidth = 340;
 
@@ -794,7 +795,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             subtitle: copy.tempFilesSubtitle,
           ),
         ];
-    final confirmed = await showDialog<Set<AppCacheCategory>>(
+    final confirmed = await showKoyzeDialog<Set<AppCacheCategory>>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setState) {
@@ -804,12 +805,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               : selected.isEmpty
               ? false
               : null;
-          return AlertDialog(
-            backgroundColor: AppColors.dialogBg(context),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            title: Text(
+          return KoyzeDialog(
+            backgroundColor: AppColors.dialogBg(context),            title: Text(
               copy.chooseCache,
               style: TextStyle(color: AppColors.onScaffold(context)),
             ),

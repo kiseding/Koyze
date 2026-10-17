@@ -220,7 +220,7 @@ void main() {
     expect(main, contains('ERROR_ALREADY_EXISTS'));
     expect(main, contains('Koyze.RestoreInstance'));
     expect(handler, contains("MethodChannel('koyze/window')"));
-    expect(handler, contains('showDialog<_CloseSelection>'));
+    expect(handler, contains('showKoyzeDialog<_CloseSelection>'));
     expect(handler, contains('下次不再询问'));
     expect(handler, contains("'windows_close_action'"));
     expect(cmake, contains('"shell32.lib"'));

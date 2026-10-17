@@ -3,6 +3,7 @@ import 'package:koyze/l10n/app_strings.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import 'fx_icon_button.dart';
+import 'package:koyze/core/widgets/koyze_modal.dart';
 
 class PageNavigationBar extends StatelessWidget {
   const PageNavigationBar({
@@ -118,11 +119,11 @@ class PageNavigationBar extends StatelessWidget {
   }
 
   Future<void> _showPagePickerDialog(BuildContext context) async {
-    final selected = await showDialog<int>(
+    final selected = await showKoyzeDialog<int>(
       context: context,
       builder: (context) {
         final scheme = Theme.of(context).colorScheme;
-        return AlertDialog(
+        return KoyzeDialog(
           title: Text(S.of(context).choosePage),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 320, minWidth: 300),

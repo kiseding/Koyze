@@ -82,7 +82,7 @@ abstract final class AppGlass {
       AppGlassStyle.regular =>
         isDark
             ? (emphasized ? 0.66 : 0.52, emphasized ? 0.50 : 0.36)
-            : (emphasized ? 0.86 : 0.74, emphasized ? 0.72 : 0.58),
+            : (emphasized ? 0.80 : 0.70, emphasized ? 0.64 : 0.52),
       AppGlassStyle.chrome =>
         isDark
             ? (emphasized ? 0.50 : 0.36, emphasized ? 0.36 : 0.24)

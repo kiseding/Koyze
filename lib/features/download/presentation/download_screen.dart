@@ -11,6 +11,7 @@ import 'download_provider.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/loading_widget.dart';
+import 'package:koyze/core/widgets/koyze_modal.dart';
 
 class DownloadScreen extends ConsumerStatefulWidget {
   const DownloadScreen({super.key});
@@ -698,13 +699,10 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
         .toList();
     if (completed.isEmpty) return;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.dialogBg(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
+      builder: (ctx) => KoyzeDialog(
+        backgroundColor: AppColors.dialogBg(context),        title: Text(
           S.of(context).deleteFinishedDownloads,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),
@@ -745,13 +743,10 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
         .toList();
     if (failed.isEmpty) return;
 
-    showDialog(
-      animationStyle: effectsAnimationStyle(),
+    showKoyzeDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.dialogBg(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
+      builder: (ctx) => KoyzeDialog(
+        backgroundColor: AppColors.dialogBg(context),        title: Text(
           S.of(context).clearFailedTasks,
           style: TextStyle(color: AppColors.onScaffold(context)),
         ),

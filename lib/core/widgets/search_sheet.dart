@@ -24,10 +24,14 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
     enableDrag: false,
     requestFocus: false,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black45,
+    // 搜索面板几乎盖满全屏，遮罩要压得比短菜单更实，否则底层列表会透出来。
+    barrierColor: Colors.black.withValues(
+      alpha: AppColors.isDark(context) ? 0.50 : 0.22,
+    ),
     sheetAnimationStyle: effectsAnimationStyle(
-      duration: MotionDuration.container,
+      duration: MotionDuration.sheet,
       reverseDuration: Duration.zero,
+      curve: MotionCurve.sheetIn,
     ),
     builder: (context) => _SearchSheet(height: height),
   );
@@ -167,16 +171,13 @@ class _SearchSheetState extends State<_SearchSheet>
           height: widget.height,
           child: GlassSurface(
             style: AppGlassStyle.regular,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: AppColors.isDark(context) ? 0.34 : 0.10,
-                ),
-                blurRadius: 28,
-                offset: const Offset(0, -6),
-              ),
-            ],
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+            emphasized: true,
+            boxShadow: AppGlass.shadowFor(
+              context,
+              style: AppGlassStyle.regular,
+              emphasized: true,
+            ),
             child: Column(
               children: [
                 GestureDetector(
@@ -189,17 +190,17 @@ class _SearchSheetState extends State<_SearchSheet>
                   onVerticalDragEnd: _onDragEnd,
                   child: Container(
                     width: double.infinity,
-                    height: 28,
+                    height: 26,
                     alignment: Alignment.topCenter,
                     padding: const EdgeInsets.only(top: 10),
                     child: Container(
-                      width: 36,
-                      height: 4,
+                      width: 40,
+                      height: 4.5,
                       decoration: BoxDecoration(
                         color: Theme.of(
                           context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.28),
-                        borderRadius: BorderRadius.circular(2),
+                        ).colorScheme.onSurface.withValues(alpha: 0.24),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                   ),
