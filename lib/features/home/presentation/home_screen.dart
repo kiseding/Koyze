@@ -241,7 +241,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               // over whatever height is actually available.
                               const spacing = 8.0;
                               const bottomFade = 14.0;
-                              final rows = (quickIds.length / 2).ceil();
+                              // Two columns everywhere. A third column does fit
+                              // all eight entries on a landscape phone, but each
+                              // tile then has ~70pt of text width and English
+                              // captions come back as "Local m…", "Listenin…".
+                              // Keeping two columns means the list scrolls; the
+                              // fade at the bottom is what says so.
+                              const columns = 2;
+                              final rows = (quickIds.length / columns).ceil();
                               final tileHeight =
                                   ((box.maxHeight -
                                               bottomFade -
@@ -276,7 +283,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   child: _buildQuickGrid(
                                     context,
                                     ref,
-                                    2,
+                                    columns,
                                     quickIds,
                                     dense: true,
                                     tileHeight: tileHeight,
