@@ -321,8 +321,10 @@ class HomeHeroCardSettings extends ConsumerWidget {
 class HomeHeroCard extends ConsumerWidget {
   const HomeHeroCard({super.key, this.height = defaultHeight});
 
-  /// Portrait stage height.
-  static const double defaultHeight = 218;
+  /// Portrait stage height. 218 made the card read as a full-bleed billboard;
+  /// a large card that sits in the same rhythm as the shortcut tiles below it
+  /// is easier to scan and leaves the page with a readable line length.
+  static const double defaultHeight = 168;
 
   /// Fixed height, or null to fill the height its parent gives it. Landscape
   /// uses the fill mode so the card shares a row with the shortcut column
@@ -740,14 +742,14 @@ class _HeroStage extends StatelessWidget {
         builder: (context, constraints) {
           // Landscape stages are shorter than the portrait 218; drop the
           // eyebrow and shrink the controls so nothing clips.
-          final compact = constraints.maxHeight < 176;
+          final compact = constraints.maxHeight < 150;
           // A stage stretched to a full landscape column needs a centred
           // composition; pinning everything to the top and bottom leaves a
           // big coloured void in the middle.
           final tall = constraints.maxHeight > 300;
           final pad = compact ? 16.0 : 20.0;
-          final badge = compact ? 38.0 : (tall ? 48.0 : 46.0);
-          final playSize = compact ? 44.0 : (tall ? 52.0 : 50.0);
+          final badge = compact ? 36.0 : (tall ? 46.0 : 42.0);
+          final playSize = compact ? 42.0 : (tall ? 50.0 : 46.0);
           return Stack(
             fit: StackFit.expand,
             children: [
@@ -879,7 +881,7 @@ class _HeroStage extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: onAccent,
-                        fontSize: compact ? 18 : (tall ? 26 : 21),
+                        fontSize: compact ? 17 : (tall ? 25 : 20),
                         fontWeight: FontWeight.w800,
                         height: 1.05,
                         letterSpacing: -0.3,
@@ -979,11 +981,9 @@ class _HeroStage extends StatelessWidget {
                       // 同时不再画播放键——禁用的圆钮浮在色块里像坏掉的控件。
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        // 高卡（平板/桌面横屏）走海报式排版：说明压在底部，
-                        // 居中的话会变成一大片纯色中间浮着一个标签。
-                        mainAxisAlignment: tall
-                            ? MainAxisAlignment.end
-                            : MainAxisAlignment.center,
+                        // 空卡没有数量可以压底，跟着底部排会剩一大片纯色；
+                        // 整块居中，卡片再高也像一张「空封面」而不是漏渲染。
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           badgeBox,
                           SizedBox(height: compact ? 10 : 14),

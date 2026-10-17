@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -154,9 +156,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ListEntrance(index: 0, child: _buildSearchBar(context)),
-              const SizedBox(height: 22),
+              const SizedBox(height: 20),
               const ListEntrance(index: 1, child: HomeHeroCard()),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               ListEntrance(
                 index: 2,
                 child: _buildQuickSectionTitle(
@@ -164,9 +166,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   S.of(context).shortcuts,
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               _buildQuickGrid(context, ref, columns, quickIds),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -190,72 +192,83 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       alignment: Alignment.topCenter,
       child: Padding(
         padding: EdgeInsets.fromLTRB(20, top, 20, 20 + obscuredBottom),
-        child: SizedBox(
-          width: contentWidth,
-          height: double.infinity,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                flex: 5,
-                child: ListEntrance(
-                  index: 0,
-                  child: const HomeHeroCard(height: null),
-                ),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                flex: 6,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ListEntrance(index: 0, child: _buildSearchBar(context)),
-                    const SizedBox(height: 16),
-                    ListEntrance(
-                      index: 1,
-                      child: _buildQuickSectionTitle(
-                        context,
-                        S.of(context).shortcuts,
-                      ),
+        child: LayoutBuilder(
+          builder: (context, outer) {
+            // 两栏放进同一个高度盒子：整行撑满窗口时 hero 会被拉成一张
+            // 390×475 的巨幅，收在 340 以内再顶对齐，左右两栏的顶边、底边
+            // 才会落在同一条水平线上。
+            final rowHeight = min(
+              outer.maxHeight,
+              (MediaQuery.sizeOf(context).height * 0.72).clamp(240.0, 340.0),
+            );
+            return SizedBox(
+              width: contentWidth,
+              height: rowHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: ListEntrance(
+                      index: 0,
+                      child: const HomeHeroCard(height: null),
                     ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      // A landscape window is too short for eight shortcut
-                      // tiles, so the list always ends mid-card. Fade the
-                      // last few points instead of slicing a card in half.
-                      child: ShaderMask(
-                        shaderCallback: (rect) => const LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.white,
-                            Colors.white,
-                            Colors.transparent,
-                          ],
-                          stops: [0, 0.9, 1],
-                        ).createShader(rect),
-                        blendMode: BlendMode.dstIn,
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          // Two columns instead of one: the right half of a
-                          // landscape window is ~590pt wide, so a single
-                          // column of tiles left half the row blank and still
-                          // ended after three and a half of the eight entries.
-                          child: _buildQuickGrid(
+                  ),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ListEntrance(index: 0, child: _buildSearchBar(context)),
+                        const SizedBox(height: 16),
+                        ListEntrance(
+                          index: 1,
+                          child: _buildQuickSectionTitle(
                             context,
-                            ref,
-                            2,
-                            quickIds,
-                            dense: true,
+                            S.of(context).shortcuts,
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          // A landscape window is too short for eight shortcut
+                          // tiles, so the list always ends mid-card. Fade the
+                          // last few points instead of slicing a card in half.
+                          child: ShaderMask(
+                            shaderCallback: (rect) => const LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.white,
+                                Colors.white,
+                                Colors.transparent,
+                              ],
+                              stops: [0, 0.9, 1],
+                            ).createShader(rect),
+                            blendMode: BlendMode.dstIn,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              // Two columns instead of one: the right half of a
+                              // landscape window is ~590pt wide, so a single
+                              // column of tiles left half the row blank and still
+                              // ended after three and a half of the eight entries.
+                              child: _buildQuickGrid(
+                                context,
+                                ref,
+                                2,
+                                quickIds,
+                                dense: true,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -273,8 +286,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   /// 搜索条占一行：点击弹出搜索弹窗（滑入动画，2/3 时弹输入法）。
   Widget _buildSearchBar(BuildContext context) {
-    final muted = AppColors.mutedText(context);
-    final border = AppColors.cardBorder(context);
+    // mutedText 在白玻璃上只有 2.5:1，15pt 的占位符读起来发灰；
+    // 提到 secondaryText，和卡片副标题用同一档。
+    final hint = AppColors.secondaryText(context);
     return Pressable(
       borderRadius: BorderRadius.circular(18),
       onTap: () => _openSearchSheet(context),
@@ -284,23 +298,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         accent: AppColors.accentOf(context),
         child: Row(
           children: [
-            Icon(Icons.search_rounded, color: muted, size: 22),
-            const SizedBox(width: 12),
+            Icon(Icons.search_rounded, color: hint, size: 21),
+            const SizedBox(width: 11),
             Expanded(
               child: Text(
                 S.of(context).searchSongsHint,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: muted,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  color: hint,
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: -0.1,
                 ),
               ),
             ),
-            Icon(
-              Icons.arrow_forward_rounded,
-              color: border.withValues(alpha: 0.9),
-              size: 18,
-            ),
+            const SizedBox(width: 8),
+            Icon(Icons.arrow_forward_rounded, color: hint, size: 17),
           ],
         ),
       ),
@@ -310,9 +324,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildQuickSectionTitle(BuildContext context, String title) {
     // Section label, not a second page title: smaller, tracked out, muted.
     final titleStyle = TextStyle(
-      fontSize: 12.5,
+      fontSize: 13,
       fontWeight: FontWeight.w700,
-      letterSpacing: 0.4,
+      letterSpacing: 0.2,
       color: AppColors.secondaryText(context),
     );
     return Row(

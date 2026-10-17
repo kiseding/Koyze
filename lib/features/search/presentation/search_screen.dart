@@ -500,7 +500,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverGrid.builder(
                   gridDelegate: gridDelegate,
                   itemCount: localMatches.length,
@@ -524,7 +524,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             if (results.isNotEmpty)
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverGrid.builder(
                   gridDelegate: gridDelegate,
                   itemCount: results.length,
@@ -608,7 +608,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return _ResultRowShell(
       showDivider: divider,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
         minVerticalPadding: 7,
         onTap: play,
         onLongPress: () => _showSongMenu(local, localMatches),
@@ -701,7 +701,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return _ResultRowShell(
       showDivider: divider,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
         minVerticalPadding: 7,
         onTap: open,
         onLongPress: menu,
@@ -772,7 +772,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return ListView(
       // 底部已由 MainScaffold 预留，勿再垫 100 造成空白层
-      padding: const EdgeInsets.fromLTRB(18, 4, 18, 16),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       children: [
         if (searchHistory.isNotEmpty) ...[
           _buildSectionHeader(
@@ -961,7 +961,7 @@ class _ResultSection extends StatelessWidget {
         ? AppColors.accentOf(context)
         : AppColors.secondaryText(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
       child: Row(
         children: [
           Icon(icon, size: 14, color: color),
@@ -1009,8 +1009,8 @@ class _ResultRowShell extends StatelessWidget {
           Divider(
             height: 0.6,
             thickness: 0.6,
-            indent: 80,
-            endIndent: 18,
+            indent: 78,
+            endIndent: 16,
             color: AppColors.cardBorder(context).withValues(alpha: 0.65),
           ),
       ],
@@ -1465,7 +1465,7 @@ class _SkeletonRow extends StatelessWidget {
       opacity: opacity,
       child: Padding(
         // 与真实结果行同一条 gutter，加载态到结果态不会左右跳一下。
-        padding: const EdgeInsets.fromLTRB(18, 7, 18, 7),
+        padding: const EdgeInsets.fromLTRB(16, 7, 16, 7),
         child: Row(
           children: [
             Container(

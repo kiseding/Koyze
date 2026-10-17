@@ -15,7 +15,11 @@ import '../theme/app_tokens.dart';
 /// 超过阈值关闭；滑入后自动聚焦输入框弹出键盘。
 Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
   final size = MediaQuery.sizeOf(context);
-  var height = max(size.height - topInset, 200.0);
+  final landscape = size.width > size.height;
+  // 面板不再顶到屏幕边：Origo 的弹层最高只占八成画面，上面留出被压暗的
+  // 页面，一眼就能看出「这是浮在内容上的一层」，而不是换了个页面。
+  final ratio = landscape ? 0.90 : 0.82;
+  var height = min(size.height - topInset, size.height * ratio);
   // 桌面窗口里按屏幕高度铺满会留下大半块空面板，压到 620 更像一个浮层。
   if (size.width >= 1100) height = min(height, 620);
   return showModalBottomSheet<void>(
@@ -26,14 +30,14 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
     enableDrag: false,
     requestFocus: false,
     backgroundColor: Colors.transparent,
-    // 面板几乎盖满屏幕，Material 3 默认的 640 上限在横屏会留下两条
-    // 大留白；横屏放宽到 760，桌面再放宽到 820。
+    // 宽度按设备收窄：搜索面板不需要桌面级的宽度，720 已经足够放下
+    // 两列结果，再宽只会让每行拉得太空。
     constraints: BoxConstraints(
       maxWidth: size.width >= 1100
-          ? 820
-          : size.width > size.height
-          ? 760
-          : 640,
+          ? 720
+          : landscape
+          ? 640
+          : 560,
     ),
     // 搜索面板几乎盖满全屏，遮罩要压得比短菜单更实，否则底层列表会透出来。
     barrierColor: Colors.black.withValues(
@@ -72,6 +76,9 @@ class _SearchSheetState extends State<_SearchSheet>
   double _settleTo = 0;
 
   double get _closeThreshold => widget.height * 0.22;
+
+  /// 面板底边与屏幕底之间保留的缝，配合四角圆角让它像一块浮起来的卡片。
+  static const double _bottomGap = 12;
 
   @override
   void dispose() {
@@ -173,6 +180,8 @@ class _SearchSheetState extends State<_SearchSheet>
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    // 窄屏也留出侧边：整块面板贴满左右边缘时，圆角看不出是「浮层」。
+    final side = media.size.width >= 600 ? 0.0 : 12.0;
     // 竖屏时让面板底边停在键盘上沿：否则面板底部三分之一藏在输入法后面，
     // 看起来像被裁掉。注意要在「顶边固定」的前提下缩高度——直接缩
     // SizedBox 会让底边贴着屏幕底、顶边反而往下掉。
@@ -180,7 +189,6 @@ class _SearchSheetState extends State<_SearchSheet>
     final keyboard = media.size.height > media.size.width
         ? media.viewInsets.bottom
         : 0.0;
-    final floating = keyboard > 0;
     return AnimatedBuilder(
       animation: _settle,
       builder: (context, child) =>
@@ -192,13 +200,12 @@ class _SearchSheetState extends State<_SearchSheet>
           child: AnimatedPadding(
             duration: motionDuration(context, MotionDuration.micro),
             curve: MotionCurve.easeOutQuart,
-            // 底边离开屏幕后要收成圆角，否则会在键盘上方露出一条直角。
-            padding: EdgeInsets.only(bottom: keyboard),
+            // 面板四边都离开屏幕边缘：底边常留 12pt，弹键盘时再让出键盘高度。
+            // 不再贴屏幕底，所以四角统一收圆，不会在键盘上方露出直角。
+            padding: EdgeInsets.fromLTRB(side, 0, side, keyboard + _bottomGap),
             child: GlassSurface(
               style: AppGlassStyle.regular,
-              borderRadius: floating
-                  ? BorderRadius.circular(26)
-                  : const BorderRadius.vertical(top: Radius.circular(26)),
+              borderRadius: BorderRadius.circular(26),
               emphasized: true,
               // 这块面板几乎盖满屏幕，按默认 0.7 的基底会把首页糊成一整片
               // 色块；压到 0.88 让底层的标题和卡片仍然隐约可辨。
