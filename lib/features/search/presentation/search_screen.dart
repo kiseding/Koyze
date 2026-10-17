@@ -21,6 +21,9 @@ import '../../../core/motion/motion_tokens.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/loading_widget.dart';
 
+const double _searchContentInset = 20;
+const double _compactActionWidth = 96;
+
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({
     super.key,
@@ -157,30 +160,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final allSources = ref.watch(allSearchSourcesProvider);
     final searchHistory = ref.watch(searchHistoryProvider);
 
+    final content = Column(
+      children: [
+        _buildHeader(context, allSources, selectedSourceId),
+        if (searchState.isLoading)
+          LinearProgressIndicator(
+            minHeight: 2,
+            backgroundColor: Colors.transparent,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              AppColors.accentOf(context),
+            ),
+          ),
+        Expanded(child: _buildMainContent(searchState, searchHistory)),
+      ],
+    );
+    // Embedded mode is already inside the rounded sheet. A second Scaffold and
+    // SafeArea there creates a second layout root and shifts the header away
+    // from the same content rail as the result list.
+    if (widget.embedded) return content;
     return Container(
-      color: widget.embedded
-          ? Colors.transparent
-          : Theme.of(context).scaffoldBackgroundColor,
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        // 禁止随键盘改 body 高度，避免首焦布局抖动导致输入法秒关。
         resizeToAvoidBottomInset: false,
-        body: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(context, allSources, selectedSourceId),
-              if (searchState.isLoading)
-                LinearProgressIndicator(
-                  minHeight: 2,
-                  backgroundColor: Colors.transparent,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.accentOf(context),
-                  ),
-                ),
-              Expanded(child: _buildMainContent(searchState, searchHistory)),
-            ],
-          ),
-        ),
+        body: SafeArea(child: content),
       ),
     );
   }
@@ -229,7 +232,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final chips = SearchSourceChips(
       sources: sources,
       selectedId: selectedSourceId,
-      padding: wide
+      // 外层负责建立统一内容轨道；嵌入式面板不能再叠一层 16pt，
+      // 否则平台胶囊会比输入框和结果标题多缩进一截。
+      padding: widget.embedded || wide
           ? EdgeInsets.zero
           : const EdgeInsets.symmetric(horizontal: 16),
       onSelected: (id) {
@@ -254,16 +259,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.only(top: 2, bottom: 10),
+        padding: const EdgeInsets.only(top: 12, bottom: 10),
         child: widget.embedded
             ? Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _searchContentInset,
+                    ),
                     child: field,
                   ),
                   const SizedBox(height: 10),
-                  chips,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _searchContentInset,
+                    ),
+                    child: chips,
+                  ),
                 ],
               )
             : wide
@@ -287,11 +299,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             : Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _searchContentInset,
+                    ),
                     child: field,
                   ),
                   const SizedBox(height: 10),
-                  chips,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _searchContentInset,
+                    ),
+                    child: chips,
+                  ),
                 ],
               ),
       ),
@@ -524,9 +543,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         final columns = (constraints.maxWidth / 250).floor().clamp(2, 4);
         final gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: columns,
-          // 72 是两行 ListTile 的最小高度；压到 66 会让每一格底部溢出。
-          mainAxisExtent: 72,
-          crossAxisSpacing: 10,
+          // 紧凑行仍要容纳 40pt 封面和两枚 40pt 动作按钮。
+          mainAxisExtent: MediaQuery.sizeOf(context).height < 500 ? 62 : 72,
+          crossAxisSpacing: 16,
           mainAxisSpacing: 0,
         );
         return CustomScrollView(
@@ -541,10 +560,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   label: S.of(context).localMusic,
                   count: localMatches.length,
                   accent: true,
+                  compact: true,
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _searchContentInset,
+                ),
                 sliver: SliverGrid.builder(
                   gridDelegate: gridDelegate,
                   itemCount: localMatches.length,
@@ -564,11 +586,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   label: S.of(context).onlineMusic,
                   count: results.length,
                   accent: false,
+                  compact: true,
                 ),
               ),
             if (results.isNotEmpty)
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _searchContentInset,
+                ),
                 sliver: SliverGrid.builder(
                   gridDelegate: gridDelegate,
                   itemCount: results.length,
@@ -584,7 +609,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             if (searchState.hasMore)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Center(
                     child: searchState.isLoading
                         ? SizedBox(
@@ -652,7 +677,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return _ResultRowShell(
       showDivider: divider,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: _searchContentInset,
+        ),
         minVerticalPadding: 7,
         onTap: play,
         onLongPress: () => _showSongMenu(local, localMatches),
@@ -677,7 +704,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: AppColors.mutedText(context),
+            color: AppColors.secondaryText(context),
             fontSize: 12,
             height: 1.3,
           ),
@@ -745,7 +772,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return _ResultRowShell(
       showDivider: divider,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: _searchContentInset,
+        ),
         minVerticalPadding: 7,
         onTap: open,
         onLongPress: menu,
@@ -774,7 +803,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: AppColors.mutedText(context),
+            color: AppColors.secondaryText(context),
             fontSize: 12,
             height: 1.3,
           ),
@@ -815,8 +844,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final hotAsync = ref.watch(hotSearchProvider);
 
     return ListView(
-      // 底部已由 MainScaffold 预留，勿再垫 100 造成空白层
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      // 历史区和结果区共用同一条内容轨道，状态切换时不发生横向跳动。
+      padding: const EdgeInsets.fromLTRB(
+        _searchContentInset,
+        4,
+        _searchContentInset,
+        16,
+      ),
       children: [
         if (searchHistory.isNotEmpty) ...[
           _buildSectionHeader(
@@ -992,12 +1026,14 @@ class _ResultSection extends StatelessWidget {
     required this.label,
     required this.count,
     required this.accent,
+    this.compact = false,
   });
 
   final IconData icon;
   final String label;
   final int count;
   final bool accent;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1005,7 +1041,12 @@ class _ResultSection extends StatelessWidget {
         ? AppColors.accentOf(context)
         : AppColors.secondaryText(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+      padding: EdgeInsets.fromLTRB(
+        _searchContentInset,
+        compact ? 8 : 14,
+        _searchContentInset,
+        compact ? 2 : 4,
+      ),
       child: Row(
         children: [
           Icon(icon, size: 14, color: color),
@@ -1053,8 +1094,8 @@ class _ResultRowShell extends StatelessWidget {
           Divider(
             height: 0.6,
             thickness: 0.6,
-            indent: 78,
-            endIndent: 16,
+            indent: _searchContentInset + 46 + 16,
+            endIndent: _searchContentInset,
             color: AppColors.cardBorder(context).withValues(alpha: 0.65),
           ),
       ],
@@ -1108,7 +1149,7 @@ class _ArtworkTile extends StatelessWidget {
     child: Icon(
       fallbackIcon,
       size: size * 0.42,
-      color: AppColors.mutedText(context),
+      color: AppColors.secondaryText(context),
     ),
   );
 }
@@ -1278,9 +1319,17 @@ class _CompactResultTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       onLongPress: onMore,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: AppColors.cardBorder(context).withValues(alpha: 0.22),
+              width: 0.6,
+            ),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           children: [
             _ArtworkTile(
@@ -1314,7 +1363,7 @@ class _CompactResultTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: AppColors.mutedText(context),
+                      color: AppColors.secondaryText(context),
                       fontSize: 11,
                       height: 1.2,
                     ),
@@ -1322,30 +1371,48 @@ class _CompactResultTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (isSonglist)
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: AppColors.mutedText(context),
-              )
-            else ...[
-              if (showFavorite)
-                FavoriteButton(
-                  song: item,
-                  isFavorite: isFavorite,
-                  iconSize: 20,
-                ),
-              FxIconButton(
-                tooltip: S.of(context).moreActions,
-                padding: const EdgeInsets.all(6),
-                icon: Icon(
-                  Icons.more_vert_rounded,
-                  color: AppColors.mutedText(context),
-                  size: 18,
-                ),
-                onPressed: onMore,
+            SizedBox(
+              width: _compactActionWidth,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (isSonglist)
+                    const SizedBox(width: 48)
+                  else if (showFavorite)
+                    SizedBox(
+                      width: 48,
+                      child: FavoriteButton(
+                        song: item,
+                        isFavorite: isFavorite,
+                        iconSize: 20,
+                      ),
+                    )
+                  else
+                    const SizedBox(width: 48),
+                  SizedBox(
+                    width: 48,
+                    child: isSonglist
+                        ? Center(
+                            child: Icon(
+                              Icons.chevron_right_rounded,
+                              size: 18,
+                              color: AppColors.mutedText(context),
+                            ),
+                          )
+                        : FxIconButton(
+                            tooltip: S.of(context).moreActions,
+                            padding: const EdgeInsets.all(6),
+                            icon: Icon(
+                              Icons.more_vert_rounded,
+                              color: AppColors.mutedText(context),
+                              size: 18,
+                            ),
+                            onPressed: onMore,
+                          ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ],
         ),
       ),
@@ -1517,7 +1584,12 @@ class _SkeletonRow extends StatelessWidget {
       opacity: opacity,
       child: Padding(
         // 与真实结果行同一条 gutter，加载态到结果态不会左右跳一下。
-        padding: const EdgeInsets.fromLTRB(16, 7, 16, 7),
+        padding: const EdgeInsets.fromLTRB(
+          _searchContentInset,
+          7,
+          _searchContentInset,
+          7,
+        ),
         child: Row(
           children: [
             Container(

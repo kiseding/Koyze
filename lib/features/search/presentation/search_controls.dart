@@ -99,23 +99,23 @@ class _SearchFieldBarState extends State<SearchFieldBar> {
             onPressed: widget.onBack,
             icon: Icon(Icons.arrow_back_rounded, size: 21, color: primary),
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
             visualDensity: VisualDensity.compact,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
         ],
         Expanded(
           child: SizedBox(
             height: SearchFieldBar.height,
-            // 聚焦时只把边线调亮、投影加深；直接改底色会让整条控件在
-            // 键盘弹出的瞬间闪一下。
+            // 返回箭头与搜索图标属于同一条 chrome，不再悬在输入框左侧形成
+            // 第二条基线；这样输入栏、平台栏和结果区可以共用外层内缩。
             child: AnimatedScale(
               scale: _focused ? 1 : 0.995,
               duration: motionDuration(context, MotionDuration.micro),
               curve: MotionCurve.easeOutQuart,
               child: GlassSurface(
                 style: AppGlassStyle.chrome,
-                borderRadius: BorderRadius.circular(SearchFieldBar.height / 2),
+                borderRadius: BorderRadius.circular(18),
                 emphasized: _focused,
                 border: Border.all(color: edge, width: _focused ? 1 : 0.8),
                 boxShadow: [
@@ -389,11 +389,11 @@ class _SourceChip extends StatelessWidget {
     // 平台上直接叠磨砂会和面板自身的模糊打架（尤其浅色下会发灰），
     // 用同族色的半透明填充 + 细边线就能在玻璃上站住。
     final background = selected
-        ? accent.withValues(alpha: AppColors.isDark(context) ? 0.20 : 0.14)
-        : primary.withValues(alpha: AppColors.isDark(context) ? 0.06 : 0.05);
+        ? accent.withValues(alpha: AppColors.isDark(context) ? 0.18 : 0.10)
+        : primary.withValues(alpha: AppColors.isDark(context) ? 0.035 : 0.025);
     final side = selected
-        ? accent.withValues(alpha: 0.36)
-        : border.withValues(alpha: 0.8);
+        ? accent.withValues(alpha: 0.46)
+        : border.withValues(alpha: 0.42);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -402,12 +402,12 @@ class _SourceChip extends StatelessWidget {
         duration: motionDuration(context, MotionDuration.normal),
         curve: MotionCurve.easeOutQuart,
         height: SearchSourceChips.height,
-        padding: const EdgeInsets.symmetric(horizontal: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(height / 2),
-          border: Border.all(color: side, width: 0.7),
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: side, width: selected ? 0.8 : 0.45),
         ),
         child: AnimatedDefaultTextStyle(
           duration: motionDuration(context, MotionDuration.normal),
@@ -424,6 +424,4 @@ class _SourceChip extends StatelessWidget {
       ),
     );
   }
-
-  static const double height = SearchSourceChips.height;
 }

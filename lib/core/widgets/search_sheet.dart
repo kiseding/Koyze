@@ -15,20 +15,28 @@ import '../theme/app_tokens.dart';
 Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
   final size = MediaQuery.sizeOf(context);
   final landscape = size.width > size.height;
-  // 面板不再顶到屏幕边：Origo 的弹层最高只占八成画面，上面留出被压暗的
-  // 页面，一眼就能看出「这是浮在内容上的一层」，而不是换了个页面。
-  // Origo 的搜索弹窗把内容放进约 90% 高的独立工作面板，顶部始终
-  // 留出当前页面的上下文，结果区也不会像全屏路由一样突然换页。
-  final ratio = 0.90;
-  var height = min(size.height - topInset, size.height * ratio);
-  // 桌面窗口里按屏幕高度铺满会留下大半块空面板，压到 620 更像一个浮层。
-  if (size.width >= 1100) height = min(height, 620);
+  // 搜索面板只占主要工作区，顶部明确留出首页上下文；结果继续滚动，
+  // 不用靠一块接近全屏的空玻璃来撑高度。
+  final desktop = size.width >= 1100;
+  final ratio = desktop
+      ? 0.68
+      : landscape
+      ? 0.94
+      : 0.78;
+  // 横屏和桌面已经有足够的顶部上下文，不再把首页标题位置当作
+  // sheet 高度的扣除项；手机仍按标题位置留出明显的上下文。
+  final topClearance = landscape ? 8.0 : topInset;
+  var height = min(size.height - topClearance, size.height * ratio);
+  // 桌面按内容密度收敛到一张工作面板，不让结果贴在上方、空白拖到底部。
+  if (desktop) height = min(height, 430);
   return showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
     isDismissible: true,
     enableDrag: true,
+    showDragHandle: false,
+    useSafeArea: true,
     requestFocus: false,
     backgroundColor: Colors.transparent,
     // 宽度按设备收窄：搜索面板不需要桌面级的宽度，720 已经足够放下
@@ -40,9 +48,9 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
           ? 640
           : 560,
     ),
-    // 搜索面板几乎盖满全屏，遮罩要压得比短菜单更实，否则底层列表会透出来。
+    // 遮罩需要把底层降到上下文级别，面板本身再用玻璃保留一点颜色。
     barrierColor: Colors.black.withValues(
-      alpha: AppColors.isDark(context) ? 0.50 : 0.22,
+      alpha: AppColors.isDark(context) ? 0.54 : 0.30,
     ),
     sheetAnimationStyle: effectsAnimationStyle(
       duration: MotionDuration.sheet,
@@ -175,7 +183,7 @@ class _SearchSheetState extends State<_SearchSheet>
     final media = MediaQuery.of(context);
     // 所有宽度档都留出侧边：即使面板本身已经被 maxWidth 收窄，
     // 也不能让中等横屏窗口出现整块贴边的玻璃面板。
-    const side = 12.0;
+    const side = 16.0;
     // 竖屏时让面板底边停在键盘上沿：否则面板底部三分之一藏在输入法后面，
     // 看起来像被裁掉。注意要在「顶边固定」的前提下缩高度——直接缩
     // SizedBox 会让底边贴着屏幕底、顶边反而往下掉。
@@ -199,29 +207,29 @@ class _SearchSheetState extends State<_SearchSheet>
             padding: EdgeInsets.fromLTRB(side, 0, side, keyboard + _bottomGap),
             child: GlassSurface(
               style: AppGlassStyle.regular,
-              borderRadius: BorderRadius.circular(26),
+              borderRadius: BorderRadius.circular(28),
               emphasized: true,
-              // 这块面板几乎盖满屏幕，按默认 0.7 的基底会把首页糊成一整片
-              // 色块；压到 0.88 让底层的标题和卡片仍然隐约可辨。
-              alphaScale: 0.86,
-              boxShadow: AppGlass.shadowFor(
-                context,
-                style: AppGlassStyle.regular,
-                emphasized: true,
-              ),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: SearchScreen(
-                      embedded: true,
-                      liveSearch: true,
-                      reserveKeyboardInset: false,
-                      onDismiss: _dismissSheet,
-                      autofocusDelay: _focusDelay(),
-                      canAutofocus: () => !_dismissStarted,
-                    ),
-                  ),
-                ],
+              // 浅色面板降低基底不透明度，保留首页的色块层次而不是整块发白；
+              // 深色保持更高对比，让结果行和面板边界稳定。
+              vivid: false,
+              alphaScale: AppColors.isDark(context) ? 0.92 : 1.0,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.isDark(context)
+                      ? Colors.black.withValues(alpha: 0.48)
+                      : Colors.black.withValues(alpha: 0.16),
+                  blurRadius: 30,
+                  spreadRadius: -4,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+              child: SearchScreen(
+                embedded: true,
+                liveSearch: true,
+                reserveKeyboardInset: false,
+                onDismiss: _dismissSheet,
+                autofocusDelay: _focusDelay(),
+                canAutofocus: () => !_dismissStarted,
               ),
             ),
           ),
