@@ -231,35 +231,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                         const SizedBox(height: 8),
                         Expanded(
-                          // A landscape window is too short for eight shortcut
-                          // tiles, so the list always ends mid-card. Fade the
-                          // last few points instead of slicing a card in half.
-                          child: ShaderMask(
-                            shaderCallback: (rect) => const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.white,
-                                Colors.white,
-                                Colors.transparent,
-                              ],
-                              stops: [0, 0.9, 1],
-                            ).createShader(rect),
-                            blendMode: BlendMode.dstIn,
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              // Two columns instead of one: the right half of a
-                              // landscape window is ~590pt wide, so a single
-                              // column of tiles left half the row blank and still
-                              // ended after three and a half of the eight entries.
-                              child: _buildQuickGrid(
-                                context,
-                                ref,
-                                2,
-                                quickIds,
-                                dense: true,
-                              ),
-                            ),
+                          child: LayoutBuilder(
+                            builder: (context, box) {
+                              // Eight entries over two columns is four rows. A
+                              // fixed 52pt tile leaves a ~100pt hole at the
+                              // bottom of a tablet's right column while the hero
+                              // next to it runs the full 340 — the two columns
+                              // stop ending on the same line. Spread the tiles
+                              // over whatever height is actually available.
+                              const spacing = 8.0;
+                              const bottomFade = 14.0;
+                              final rows = (quickIds.length / 2).ceil();
+                              final tileHeight =
+                                  ((box.maxHeight -
+                                              bottomFade -
+                                              (rows - 1) * spacing) /
+                                          rows)
+                                      .clamp(52.0, 78.0);
+                              // A landscape window is too short for eight
+                              // shortcut tiles, so the list always ends mid-card.
+                              // Fade the last few points instead of slicing a
+                              // card in half.
+                              return ShaderMask(
+                                shaderCallback: (rect) => const LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.white,
+                                    Colors.white,
+                                    Colors.transparent,
+                                  ],
+                                  stops: [0, 0.9, 1],
+                                ).createShader(rect),
+                                blendMode: BlendMode.dstIn,
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.only(
+                                    bottom: bottomFade,
+                                  ),
+                                  // Two columns instead of one: the right half of
+                                  // a landscape window is ~590pt wide, so a
+                                  // single column of tiles left half the row
+                                  // blank and still ended after three and a half
+                                  // of the eight entries.
+                                  child: _buildQuickGrid(
+                                    context,
+                                    ref,
+                                    2,
+                                    quickIds,
+                                    dense: true,
+                                    tileHeight: tileHeight,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -360,6 +384,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     int columns,
     List<String> quickIds, {
     bool dense = false,
+    double? tileHeight,
   }) {
     final entries = [
       for (final id in quickIds)
@@ -381,7 +406,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: ListEntrance(
                   key: ValueKey('quick-${entries[index].id}'),
                   index: index,
-                  child: _QuickEntryCard(entry: entries[index], dense: dense),
+                  child: _QuickEntryCard(
+                    entry: entries[index],
+                    dense: dense,
+                    tileHeight: tileHeight,
+                  ),
                 ),
               ),
           ],
@@ -532,7 +561,14 @@ class _QuickEntryCard extends ConsumerWidget {
   /// caption fits four tiles instead of two and a half.
   final bool dense;
 
-  const _QuickEntryCard({required this.entry, this.dense = false});
+  /// 覆盖默认行高。平板横屏的右栏放得下更高的卡，撑满后与左侧 hero 齐底。
+  final double? tileHeight;
+
+  const _QuickEntryCard({
+    required this.entry,
+    this.dense = false,
+    this.tileHeight,
+  });
 
   void _toggleTheme(WidgetRef ref) {
     final current = ref.read(themeModeProvider);
@@ -584,7 +620,7 @@ class _QuickEntryCard extends ConsumerWidget {
     // a two-line caption on one card would otherwise make its whole run taller
     // and leave the neighbours floating against different baselines.
     return SizedBox(
-      height: dense ? 52 : 68,
+      height: tileHeight ?? (dense ? 52 : 68),
       child: OrigoChromeSurface(
         borderRadius: BorderRadius.circular(18),
         padding: EdgeInsets.fromLTRB(11, dense ? 8 : 10, 11, dense ? 8 : 10),

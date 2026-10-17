@@ -986,10 +986,13 @@ class _HeroStage extends StatelessWidget {
                           // 右边，透明度足够低，不抢标题。
                           Positioned(
                             right: compact ? -6 : -14,
-                            bottom: compact ? -8 : -16,
+                            // 高卡把文案压到了底部，水印要挪到右上，否则和
+                            // 标题撞在一起。
+                            top: tall ? -18 : null,
+                            bottom: tall ? null : (compact ? -8 : -16),
                             child: Icon(
                               Icons.graphic_eq_rounded,
-                              size: compact ? 84 : 118,
+                              size: compact ? 84 : tall ? 148 : 118,
                               color: onAccent.withValues(alpha: 0.13),
                             ),
                           ),
@@ -997,7 +1000,13 @@ class _HeroStage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             // 空卡没有数量可以压底，跟着底部排会剩一大片纯色；
                             // 整块居中，卡片再高也像一张「空封面」而不是漏渲染。
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            //
+                            // 但平板横屏的 hero 有 340pt 高，居中的四行文案
+                            // 会浮在色块正中间，上下各空一百多 pt——那才是真的
+                            // 漏渲染感。高卡改回海报式：标题压底，色彩留给上半。
+                            mainAxisAlignment: tall
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.center,
                             children: [
                               badgeBox,
                               SizedBox(height: compact ? 10 : 14),
