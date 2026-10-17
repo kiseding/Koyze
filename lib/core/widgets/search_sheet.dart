@@ -15,7 +15,9 @@ import '../theme/app_tokens.dart';
 /// 超过阈值关闭；滑入后自动聚焦输入框弹出键盘。
 Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
   final size = MediaQuery.sizeOf(context);
-  final height = max(size.height - topInset, 200.0);
+  var height = max(size.height - topInset, 200.0);
+  // 桌面窗口里按屏幕高度铺满会留下大半块空面板，压到 620 更像一个浮层。
+  if (size.width >= 1100) height = min(height, 620);
   return showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,
@@ -24,6 +26,15 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
     enableDrag: false,
     requestFocus: false,
     backgroundColor: Colors.transparent,
+    // 面板几乎盖满屏幕，Material 3 默认的 640 上限在横屏会留下两条
+    // 大留白；横屏放宽到 760，桌面再放宽到 820。
+    constraints: BoxConstraints(
+      maxWidth: size.width >= 1100
+          ? 820
+          : size.width > size.height
+          ? 760
+          : 640,
+    ),
     // 搜索面板几乎盖满全屏，遮罩要压得比短菜单更实，否则底层列表会透出来。
     barrierColor: Colors.black.withValues(
       alpha: AppColors.isDark(context) ? 0.50 : 0.22,
@@ -161,6 +172,15 @@ class _SearchSheetState extends State<_SearchSheet>
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    // 竖屏时让面板底边停在键盘上沿：否则面板底部三分之一藏在输入法后面，
+    // 看起来像被裁掉。注意要在「顶边固定」的前提下缩高度——直接缩
+    // SizedBox 会让底边贴着屏幕底、顶边反而往下掉。
+    // 横屏本来就矮，再缩会把结果区挤没，改为由列表自己补底部留白。
+    final keyboard = media.size.height > media.size.width
+        ? media.viewInsets.bottom
+        : 0.0;
+    final floating = keyboard > 0;
     return AnimatedBuilder(
       animation: _settle,
       builder: (context, child) =>
@@ -169,50 +189,70 @@ class _SearchSheetState extends State<_SearchSheet>
         onNotification: _onScrollNotification,
         child: SizedBox(
           height: widget.height,
-          child: GlassSurface(
-            style: AppGlassStyle.regular,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-            emphasized: true,
-            boxShadow: AppGlass.shadowFor(
-              context,
+          child: AnimatedPadding(
+            duration: motionDuration(context, MotionDuration.micro),
+            curve: MotionCurve.easeOutQuart,
+            // 底边离开屏幕后要收成圆角，否则会在键盘上方露出一条直角。
+            padding: EdgeInsets.only(bottom: keyboard),
+            child: GlassSurface(
               style: AppGlassStyle.regular,
+              borderRadius: floating
+                  ? BorderRadius.circular(26)
+                  : const BorderRadius.vertical(top: Radius.circular(26)),
               emphasized: true,
-            ),
-            child: Column(
-              children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onVerticalDragStart: (_) {
-                    if (_dismissStarted) return;
-                    if (_settle.isAnimating) _settle.stop();
-                  },
-                  onVerticalDragUpdate: _onDragUpdate,
-                  onVerticalDragEnd: _onDragEnd,
-                  child: Container(
-                    width: double.infinity,
-                    height: 26,
-                    alignment: Alignment.topCenter,
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Container(
-                      width: 40,
-                      height: 4.5,
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.24),
-                        borderRadius: BorderRadius.circular(3),
+              // 这块面板几乎盖满屏幕，按默认 0.7 的基底会把首页糊成一整片
+              // 色块；压到 0.88 让底层的标题和卡片仍然隐约可辨。
+              alphaScale: 0.86,
+              boxShadow: AppGlass.shadowFor(
+                context,
+                style: AppGlassStyle.regular,
+                emphasized: true,
+              ),
+              child: Column(
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onVerticalDragStart: (_) {
+                      if (_dismissStarted) return;
+                      if (_settle.isAnimating) _settle.stop();
+                    },
+                    onVerticalDragUpdate: _onDragUpdate,
+                    onVerticalDragEnd: _onDragEnd,
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 22,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 7),
+                          child: Container(
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.onSurface
+                                  .withValues(
+                                    alpha: AppColors.isDark(context)
+                                        ? 0.20
+                                        : 0.26,
+                                  ),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: SearchScreen(
-                    embedded: true,
-                    autofocusDelay: _focusDelay(),
-                    canAutofocus: () => !_dismissStarted,
+                  Expanded(
+                    child: SearchScreen(
+                      embedded: true,
+                      reserveKeyboardInset: false,
+                      onDismiss: _dismissSheet,
+                      autofocusDelay: _focusDelay(),
+                      canAutofocus: () => !_dismissStarted,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

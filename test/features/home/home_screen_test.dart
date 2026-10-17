@@ -73,6 +73,9 @@ void main() {
     final search = File(
       'lib/features/search/presentation/search_screen.dart',
     ).readAsStringSync();
+    final controls = File(
+      'lib/features/search/presentation/search_controls.dart',
+    ).readAsStringSync();
 
     expect(sheet, contains('autofocusDelay'));
     expect(sheet, contains('topInset'));
@@ -90,9 +93,12 @@ void main() {
     expect(search, contains('Timer(delay'));
     // 弹窗可下拉关闭，无需返回按钮。
     expect(search, isNot(contains('Icons.arrow_back')));
-    // 左右滑入动效。
-    expect(search, contains('Offset(-40 * (1 - t), 0)'));
-    expect(search, contains('Offset(40 * (1 - t), 0)'));
+    // 控件整体做轻微上浮淡入，不再左右对冲。
+    expect(search, contains('Offset(0, 6 * (1 - t))'));
+    // 输入行与平台胶囊各自成组件，横屏时并排而不是上下堆叠。
+    expect(controls, contains('class SearchFieldBar'));
+    expect(controls, contains('class SearchSourceChips'));
+    expect(search, contains('final wide = size.width > size.height * 1.15;'));
   });
 
   test('home does not duplicate leaderboard cards', () {

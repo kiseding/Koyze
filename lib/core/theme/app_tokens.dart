@@ -211,6 +211,7 @@ class GlassSurface extends StatelessWidget {
     this.fade = AppGlassFade.none,
     this.vivid = true,
     this.emphasized = false,
+    this.alphaScale = 1,
   });
 
   final Widget child;
@@ -232,6 +233,10 @@ class GlassSurface extends StatelessWidget {
 
   /// Brighter edge and a deeper shadow, used by floating chrome.
   final bool emphasized;
+
+  /// 整体透明度倍率（0–1）。近全屏的面板压在页面上时，0.7 的基底会把
+  /// 底层完全糊成一块色；压到 0.85 左右仍能透出页面结构。
+  final double alphaScale;
 
   @override
   Widget build(BuildContext context) {
@@ -318,7 +323,7 @@ class GlassSurface extends StatelessWidget {
       style: style,
       emphasized: emphasized,
     );
-    return leading;
+    return (leading * alphaScale).clamp(0.0, 1.0);
   }
 
   /// One gradient, top-left highlight into the base tint. No second wash.
@@ -334,6 +339,8 @@ class GlassSurface extends StatelessWidget {
       style: style,
       emphasized: emphasized,
     );
+    final lead = (leading * alphaScale).clamp(0.0, 1.0);
+    final trail = (trailing * alphaScale).clamp(0.0, 1.0);
     final highlight = Color.lerp(base, Colors.white, isDark ? 0.16 : 0.28)!;
     return BoxDecoration(
       borderRadius: radius,
@@ -342,8 +349,8 @@ class GlassSurface extends StatelessWidget {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          highlight.withValues(alpha: leading),
-          base.withValues(alpha: trailing),
+          highlight.withValues(alpha: lead),
+          base.withValues(alpha: trail),
         ],
       ),
     );

@@ -52,7 +52,9 @@ void main() {
 
     expect(find.text('Trending'), findsOneWidget);
     expect(find.text('热歌1'), findsOneWidget);
-    expect(find.text('Search'), findsWidgets);
+    // 输入行改成胶囊搜索框，提交按钮只在有输入时出现。
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('全网'), findsOneWidget);
   });
 
   testWidgets('search error exposes retry action', (tester) async {
