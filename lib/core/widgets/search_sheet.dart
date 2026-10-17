@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:koyze/features/search/presentation/search_screen.dart';
 
 import '../motion/motion_tokens.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 
 /// 弹出搜索弹窗。
@@ -169,9 +170,11 @@ class _SearchSheetState extends State<_SearchSheet>
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
-                blurRadius: 24,
-                offset: const Offset(0, -4),
+                color: Colors.black.withValues(
+                  alpha: AppColors.isDark(context) ? 0.34 : 0.10,
+                ),
+                blurRadius: 28,
+                offset: const Offset(0, -6),
               ),
             ],
             child: Column(

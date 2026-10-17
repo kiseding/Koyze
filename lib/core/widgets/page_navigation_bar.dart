@@ -48,15 +48,12 @@ class PageNavigationBar extends StatelessWidget {
             style: AppGlassStyle.bar,
             borderRadius: BorderRadius.circular(29),
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(
-                  alpha: AppColors.isDark(context) ? 0.28 : 0.12,
-                ),
-                blurRadius: 16,
-                offset: const Offset(0, 5),
-              ),
-            ],
+            emphasized: true,
+            boxShadow: AppGlass.shadowFor(
+              context,
+              style: AppGlassStyle.bar,
+              emphasized: true,
+            ),
             child: SizedBox(
               height: 50,
               child: Row(

@@ -10,6 +10,7 @@ import '../../../core/animations/micro_animations.dart';
 import '../../../core/motion/motion_tokens.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../nas/domain/nas_kind.dart';
@@ -104,10 +105,10 @@ class _PersistentEnumNotifier<T extends Enum> extends StateNotifier<T> {
     required String key,
     required _EnumParser<T> parse,
     StorageLoader? storage,
-  })  : _key = key,
-        _parse = parse,
-        _storage = storage ?? (() => StorageService.instance),
-        super(initial) {
+  }) : _key = key,
+       _parse = parse,
+       _storage = storage ?? (() => StorageService.instance),
+       super(initial) {
     _load();
   }
 
@@ -185,7 +186,8 @@ final homeHeroPlayModeProvider =
       (ref) => HomeHeroPlayModeNotifier(),
     );
 
-class HomeHeroPlayModeNotifier extends _PersistentEnumNotifier<HomeHeroPlayMode> {
+class HomeHeroPlayModeNotifier
+    extends _PersistentEnumNotifier<HomeHeroPlayMode> {
   HomeHeroPlayModeNotifier({StorageLoader? storage})
     : super(
         initial: HomeHeroPlayMode.shuffle,
@@ -317,7 +319,15 @@ class HomeHeroCardSettings extends ConsumerWidget {
 
 /// 首页那张大卡片：外观跟现在的收藏卡一致，内容随所选歌单卡切换。
 class HomeHeroCard extends ConsumerWidget {
-  const HomeHeroCard({super.key});
+  const HomeHeroCard({super.key, this.height = defaultHeight});
+
+  /// Portrait stage height.
+  static const double defaultHeight = 218;
+
+  /// Fixed height, or null to fill the height its parent gives it. Landscape
+  /// uses the fill mode so the card shares a row with the shortcut column
+  /// instead of forcing a fixed 218 points of scroll.
+  final double? height;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -329,9 +339,9 @@ class HomeHeroCard extends ConsumerWidget {
     final color = model.color;
     final title = spec.titleFor(S.of(context));
 
-    return HoverFloat(
+    final card = HoverFloat(
       child: Pressable(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(26),
         captureExpandRect: true,
         semanticLabel: title,
         onTap: model.onOpen,
@@ -340,7 +350,7 @@ class HomeHeroCard extends ConsumerWidget {
           switchInCurve: MotionCurve.iosSpring,
           switchOutCurve: MotionCurve.easeIn,
           layoutBuilder: (current, previous) => Stack(
-            alignment: Alignment.topLeft,
+            fit: StackFit.expand,
             children: <Widget>[...previous, if (current != null) current],
           ),
           transitionBuilder: (child, animation) {
@@ -364,6 +374,8 @@ class HomeHeroCard extends ConsumerWidget {
         ),
       ),
     );
+    if (height == null) return card;
+    return SizedBox(height: height, child: card);
   }
 
   _HeroModel _resolve(
@@ -388,14 +400,18 @@ class HomeHeroCard extends ConsumerWidget {
           color: color,
           subtitle: count == 0
               ? S.of(context).noFavoritesYet
-              : S.of(context).heroFavoritesHint(playMode.titleFor(S.of(context))),
+              : S
+                    .of(context)
+                    .heroFavoritesHint(playMode.titleFor(S.of(context))),
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
-          actionLabel: S.of(context).playAction(
-            playMode.titleFor(S.of(context)),
-            S.of(context).favorites,
-          ),
+          actionLabel: S
+              .of(context)
+              .playAction(
+                playMode.titleFor(S.of(context)),
+                S.of(context).favorites,
+              ),
           onOpen: () => context.pushNamed(
             'playlistDetail',
             pathParameters: {'playlistId': 'favorites'},
@@ -414,10 +430,12 @@ class HomeHeroCard extends ConsumerWidget {
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
-          actionLabel: S.of(context).playAction(
-            playMode.titleFor(S.of(context)),
-            S.of(context).forYou,
-          ),
+          actionLabel: S
+              .of(context)
+              .playAction(
+                playMode.titleFor(S.of(context)),
+                S.of(context).forYou,
+              ),
           onOpen: () => context.push('/recommend'),
           onPlay: () => _playRecommend(
             context,
@@ -441,10 +459,12 @@ class HomeHeroCard extends ConsumerWidget {
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
-          actionLabel: S.of(context).playAction(
-            playMode.titleFor(S.of(context)),
-            S.of(context).localMusic,
-          ),
+          actionLabel: S
+              .of(context)
+              .playAction(
+                playMode.titleFor(S.of(context)),
+                S.of(context).localMusic,
+              ),
           onOpen: () => context.pushNamed(
             'playlistDetail',
             pathParameters: {'playlistId': 'local'},
@@ -477,10 +497,12 @@ class HomeHeroCard extends ConsumerWidget {
           showCountInTitle: false,
           canPlay: subsonicConnected && count > 0,
           actionIcon: actionIcon,
-          actionLabel: S.of(context).playAction(
-            playMode.titleFor(S.of(context)),
-            S.of(context).nasLibrary,
-          ),
+          actionLabel: S
+              .of(context)
+              .playAction(
+                playMode.titleFor(S.of(context)),
+                S.of(context).nasLibrary,
+              ),
           onOpen: () => context.push('/subsonic'),
           onPlay: () => _playNas(context, ref, songs, playMode),
         );
@@ -497,10 +519,12 @@ class HomeHeroCard extends ConsumerWidget {
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
-          actionLabel: S.of(context).playAction(
-            playMode.titleFor(S.of(context)),
-            S.of(context).recentPlays,
-          ),
+          actionLabel: S
+              .of(context)
+              .playAction(
+                playMode.titleFor(S.of(context)),
+                S.of(context).recentPlays,
+              ),
           onOpen: () => context.pushNamed(
             'playlistDetail',
             pathParameters: {'playlistId': 'recent'},
@@ -687,174 +711,262 @@ class _HeroStage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = onAccent.withValues(alpha: 0.72);
+    final muted = onAccent.withValues(alpha: 0.74);
     final iconColor = spec.id == HomeHeroCardId.favorites
-        ? const Color(0xFFFF6B6B)
+        ? const Color(0xFFFF8A8A)
         : onAccent;
+    final deep = Color.lerp(color, Colors.black, 0.58)!;
     return OrigoChromeSurface(
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(26),
       accent: color,
       emphasized: true,
-      boxShadow: [
-        BoxShadow(
-          color: color.withValues(alpha: 0.24),
-          blurRadius: 30,
-          offset: const Offset(0, 14),
-        ),
-      ],
-      child: SizedBox(
-        height: 218,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: DecoratedBox(
+      boxShadow: AppGlass.shadowFor(
+        context,
+        style: AppGlassStyle.regular,
+        emphasized: true,
+        accent: color,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Landscape stages are shorter than the portrait 218; drop the
+          // eyebrow and shrink the controls so nothing clips.
+          final compact = constraints.maxHeight < 176;
+          // A stage stretched to a full landscape column needs a centred
+          // composition; pinning everything to the top and bottom leaves a
+          // big coloured void in the middle.
+          final tall = constraints.maxHeight > 300;
+          final pad = compact ? 16.0 : 20.0;
+          final badge = compact ? 38.0 : (tall ? 48.0 : 46.0);
+          final playSize = compact ? 44.0 : (tall ? 52.0 : 50.0);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              // Vertical two-tone wash: lit at the top, the card's own darker
+              // shade at the bottom. A diagonal gradient plus a wide card
+              // leaves most of the surface on one flat colour.
+              DecoratedBox(
                 decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      color.withValues(alpha: 0.95),
-                      color.withValues(alpha: 0.52),
-                      Colors.black.withValues(alpha: 0.42),
-                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                     stops: const [0, 0.46, 1],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              right: -26,
-              bottom: -42,
-              child: Transform.rotate(
-                angle: -0.14,
-                child: Icon(
-                  spec.icon,
-                  size: 190,
-                  color: onAccent.withValues(alpha: 0.10),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 20, 20, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: onAccent.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(17),
-                          border: Border.all(
-                            color: onAccent.withValues(alpha: 0.22),
-                          ),
-                        ),
-                        child: Icon(spec.icon, color: iconColor, size: 28),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'KOYZE / HOME',
-                              style: TextStyle(
-                                color: muted,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                height: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    colors: [
+                      // The brand accent is a high-chroma green; at full
+                      // strength across a large surface it reads as neon.
+                      // Hold it back ~20% and let the top edge carry the
+                      // highlight instead.
+                      Color.lerp(color, Colors.white, 0.14)!,
+                      Color.lerp(color, Colors.black, 0.20)!,
+                      Color.lerp(color, Colors.black, 0.52)!,
                     ],
                   ),
-                  const Spacer(),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (model.showCountInTitle && model.count > 0)
-                              Text(
-                                S.of(context).songCount(model.count),
-                                style: TextStyle(
-                                  color: muted,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            const SizedBox(height: 4),
-                            Text(
-                              model.subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: onAccent.withValues(alpha: 0.88),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
+                ),
+              ),
+              // Light falling in from the top-left corner, the way a printed
+              // cover is lit. Without it the flat fill looks like paint.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.85, -1.05),
+                    radius: 1.25,
+                    colors: [
+                      onAccent.withValues(alpha: compact ? 0.10 : 0.16),
+                      onAccent.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+              // Vignette. A cropped icon in the corner reads as a broken
+              // sticker once the card is tall; a dark corner grounds the
+              // surface and makes the white play button sit on something.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: RadialGradient(
+                    center: const Alignment(0.95, 1.2),
+                    radius: 1.15,
+                    colors: [
+                      Color.lerp(
+                        color,
+                        Colors.black,
+                        0.55,
+                      )!.withValues(alpha: compact ? 0.16 : 0.30),
+                      Color.lerp(
+                        color,
+                        Colors.black,
+                        0.55,
+                      )!.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.fromLTRB(pad + 2, pad, pad, pad - 2),
+                child: Builder(
+                  builder: (context) {
+                    final badgeBox = Container(
+                      width: badge,
+                      height: badge,
+                      decoration: BoxDecoration(
+                        color: onAccent.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(compact ? 13 : 15),
+                        border: Border.all(
+                          color: onAccent.withValues(alpha: 0.26),
+                          width: 0.8,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Pressable(
-                        scale: 0.90,
-                        semanticLabel: model.actionLabel,
-                        onTap: model.canPlay ? model.onPlay : null,
-                        child: AnimatedContainer(
-                          duration: motionDuration(
-                            context,
-                            MotionDuration.normal,
-                          ),
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            color: model.canPlay
-                                ? onAccent
-                                : onAccent.withValues(alpha: 0.28),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              if (model.canPlay)
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.18),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 5),
-                                ),
+                      child: Icon(
+                        spec.icon,
+                        color: iconColor,
+                        size: compact ? 21 : (tall ? 25 : 24),
+                      ),
+                    );
+                    final eyebrow = Text(
+                      'KOYZE / HOME',
+                      style: TextStyle(
+                        color: muted,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.4,
+                      ),
+                    );
+                    final titleText = Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: onAccent,
+                        fontSize: compact ? 18 : (tall ? 26 : 21),
+                        fontWeight: FontWeight.w800,
+                        height: 1.05,
+                        letterSpacing: -0.3,
+                      ),
+                    );
+                    final titleRow = Row(
+                      children: [
+                        badgeBox,
+                        SizedBox(width: compact ? 11 : 13),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (!compact) ...[
+                                eyebrow,
+                                const SizedBox(height: 5),
+                              ],
+                              titleText,
                             ],
                           ),
-                          child: Icon(
-                            model.actionIcon,
-                            color: model.canPlay ? color : muted,
-                            size: 25,
+                        ),
+                      ],
+                    );
+                    final metaRow = Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (model.showCountInTitle && model.count > 0)
+                                Text(
+                                  S.of(context).songCount(model.count),
+                                  style: TextStyle(
+                                    color: muted,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              if (model.showCountInTitle && model.count > 0)
+                                const SizedBox(height: 3),
+                              Text(
+                                model.subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: onAccent.withValues(alpha: 0.92),
+                                  fontSize: compact ? 12 : 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 12),
+                        Pressable(
+                          scale: 0.92,
+                          semanticLabel: model.actionLabel,
+                          onTap: model.canPlay ? model.onPlay : null,
+                          child: AnimatedContainer(
+                            duration: motionDuration(
+                              context,
+                              MotionDuration.normal,
+                            ),
+                            curve: MotionCurve.iosSpring,
+                            width: playSize,
+                            height: playSize,
+                            decoration: BoxDecoration(
+                              color: model.canPlay
+                                  ? onAccent
+                                  : onAccent.withValues(alpha: 0.26),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                if (model.canPlay)
+                                  BoxShadow(
+                                    color: deep.withValues(alpha: 0.34),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
+                                  ),
+                              ],
+                            ),
+                            child: Icon(
+                              model.actionIcon,
+                              color: model.canPlay ? deep : muted,
+                              size: compact ? 21 : 23,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                    if (tall) {
+                      // Poster: a tall stage keeps the top to the gradient and
+                      // stacks badge, eyebrow and headline at the bottom the
+                      // way a cover carries its caption.
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          badgeBox,
+                          const SizedBox(height: 14),
+                          if (!compact) ...[eyebrow, const SizedBox(height: 6)],
+                          titleText,
+                          const SizedBox(height: 16),
+                          metaRow,
+                        ],
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: titleRow,
+                          ),
+                        ),
+                        metaRow,
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }

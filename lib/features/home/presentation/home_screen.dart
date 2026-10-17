@@ -46,15 +46,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         body: LayoutBuilder(
           builder: (context, constraints) {
             final width = constraints.maxWidth;
+            final height = constraints.maxHeight;
             final isWide = width >= 720;
             final contentWidth = shellContentWidth(width);
-            final columns = isWide ? 4 : 2;
+            // Landscape rows have far less height than width; a stacked
+            // 218-point hero plus a shortcut grid would scroll immediately.
+            final isLandscape =
+                width > height * 1.12 && height < 620 && width >= 560;
             final isLandscapeShell = RootShellLayout.usesSideNavigationOf(
               context,
             );
             final headerExtent = isLandscapeShell
                 ? 0.0
                 : FrostedTabHeader.extent(context);
+            final obscured = RootShellLayout.obscuredBottomOf(context);
 
             return Stack(
               children: [
@@ -65,37 +70,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     child: const SizedBox.expand(),
                   ),
                 ),
-                Center(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      isWide ? 0 : 16,
-                      headerExtent == 0 ? 24 : headerExtent + 12,
-                      isWide ? 0 : 16,
-                      28 + RootShellLayout.obscuredBottomOf(context),
-                    ),
-                    child: SizedBox(
-                      width: contentWidth,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          ListEntrance(child: _buildSearchBar(context)),
-                          const SizedBox(height: 22),
-                          const ListEntrance(child: HomeHeroCard()),
-                          const SizedBox(height: 28),
-                          ListEntrance(
-                            child: _buildQuickSectionTitle(
-                              context,
-                              S.of(context).shortcuts,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          _buildQuickGrid(context, ref, columns, quickIds),
-                          const SizedBox(height: 28),
-                        ],
-                      ),
-                    ),
+                if (isLandscape)
+                  _buildLandscapeBody(
+                    context,
+                    ref,
+                    contentWidth: contentWidth,
+                    headerExtent: headerExtent,
+                    obscuredBottom: obscured,
+                    quickIds: quickIds,
+                  )
+                else
+                  _buildPortraitBody(
+                    context,
+                    ref,
+                    contentWidth: contentWidth,
+                    headerExtent: headerExtent,
+                    obscuredBottom: obscured,
+                    isWide: isWide,
+                    columns: isWide ? 4 : 2,
+                    quickIds: quickIds,
                   ),
-                ),
                 if (isLandscapeShell)
                   RootHeaderPublisher(
                     index: 0,
@@ -130,6 +124,130 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+
+  /// Portrait: search, hero stage, shortcut grid, all in one scroll column.
+  Widget _buildPortraitBody(
+    BuildContext context,
+    WidgetRef ref, {
+    required double contentWidth,
+    required double headerExtent,
+    required double obscuredBottom,
+    required bool isWide,
+    required int columns,
+    required List<String> quickIds,
+  }) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          isWide ? 0 : 16,
+          headerExtent == 0 ? 24 : headerExtent + 12,
+          isWide ? 0 : 16,
+          28 + obscuredBottom,
+        ),
+        child: SizedBox(
+          width: contentWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListEntrance(child: _buildSearchBar(context)),
+              const SizedBox(height: 22),
+              const ListEntrance(child: HomeHeroCard()),
+              const SizedBox(height: 28),
+              ListEntrance(
+                child: _buildQuickSectionTitle(
+                  context,
+                  S.of(context).shortcuts,
+                ),
+              ),
+              const SizedBox(height: 14),
+              _buildQuickGrid(context, ref, columns, quickIds),
+              const SizedBox(height: 28),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Landscape: hero on the left, search plus shortcuts on the right. The hero
+  /// fills the row height instead of pinning 218 points, and the shortcut list
+  /// scrolls on its own so the page itself never scrolls.
+  Widget _buildLandscapeBody(
+    BuildContext context,
+    WidgetRef ref, {
+    required double contentWidth,
+    required double headerExtent,
+    required double obscuredBottom,
+    required List<String> quickIds,
+  }) {
+    final top = headerExtent == 0 ? 18.0 : headerExtent + 8;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, top, 20, 20 + obscuredBottom),
+        child: SizedBox(
+          width: contentWidth,
+          height: double.infinity,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 5,
+                child: ListEntrance(child: const HomeHeroCard(height: null)),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                flex: 6,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListEntrance(child: _buildSearchBar(context)),
+                    const SizedBox(height: 16),
+                    ListEntrance(
+                      child: _buildQuickSectionTitle(
+                        context,
+                        S.of(context).shortcuts,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      // A landscape window is too short for eight shortcut
+                      // tiles, so the list always ends mid-card. Fade the
+                      // last few points instead of slicing a card in half.
+                      child: ShaderMask(
+                        shaderCallback: (rect) => const LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white,
+                            Colors.white,
+                            Colors.transparent,
+                          ],
+                          stops: [0, 0.9, 1],
+                        ).createShader(rect),
+                        blendMode: BlendMode.dstIn,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: _buildQuickGrid(
+                            context,
+                            ref,
+                            1,
+                            quickIds,
+                            dense: true,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -182,10 +300,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildQuickSectionTitle(BuildContext context, String title) {
+    // Section label, not a second page title: smaller, tracked out, muted.
     final titleStyle = TextStyle(
-      fontSize: 16,
+      fontSize: 12.5,
       fontWeight: FontWeight.w700,
-      color: AppColors.onScaffold(context),
+      letterSpacing: 0.4,
+      color: AppColors.secondaryText(context),
     );
     return Row(
       children: [
@@ -216,8 +336,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     BuildContext context,
     WidgetRef ref,
     int columns,
-    List<String> quickIds,
-  ) {
+    List<String> quickIds, {
+    bool dense = false,
+  }) {
     final entries = [
       for (final id in quickIds)
         homeQuickFeatures.firstWhere((entry) => entry.id == id),
@@ -225,7 +346,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final spacing = 12.0;
+        final spacing = dense ? 8.0 : 10.0;
         final tileWidth =
             (constraints.maxWidth - spacing * (columns - 1)) / columns;
         return Wrap(
@@ -237,7 +358,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 width: tileWidth,
                 child: ListEntrance(
                   key: ValueKey('quick-${entries[index].id}'),
-                  child: _QuickEntryCard(entry: entries[index]),
+                  child: _QuickEntryCard(entry: entries[index], dense: dense),
                 ),
               ),
           ],
@@ -384,7 +505,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 class _QuickEntryCard extends ConsumerWidget {
   final HomeQuickFeature entry;
 
-  const _QuickEntryCard({required this.entry});
+  /// Landscape has roughly 190 points for the whole list; dropping the
+  /// caption fits four tiles instead of two and a half.
+  final bool dense;
+
+  const _QuickEntryCard({required this.entry, this.dense = false});
 
   void _toggleTheme(WidgetRef ref) {
     final current = ref.read(themeModeProvider);
@@ -429,55 +554,58 @@ class _QuickEntryCard extends ConsumerWidget {
   }
 
   Widget _buildCardBody(BuildContext context, WidgetRef ref, Color color) {
+    // The whole tile is tappable, so the trailing arrow only stole width from
+    // the label — at 2 columns it was the reason "Local music" clipped.
     return OrigoChromeSurface(
-      borderRadius: BorderRadius.circular(20),
-      padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
-      accent: color,
+      borderRadius: BorderRadius.circular(18),
+      padding: EdgeInsets.fromLTRB(12, dense ? 8 : 11, 12, dense ? 8 : 11),
       child: Row(
         children: [
           AnimatedContainer(
             duration: motionDuration(context, MotionDuration.micro),
-            width: 42,
-            height: 42,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: color.withValues(alpha: 0.22)),
+              color: color.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: color.withValues(alpha: 0.20)),
             ),
-            child: Icon(entry.icon, color: color, size: 22),
+            child: Icon(entry.icon, color: color, size: 19),
           ),
-          const SizedBox(width: 11),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   S.of(context).quickTitle(entry.id),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w700,
+                    height: 1.15,
+                    letterSpacing: -0.1,
                     color: AppColors.onScaffold(context),
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  S.of(context).quickSubtitle(entry.id),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.mutedText(context),
+                if (!dense) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    S.of(context).quickSubtitle(entry.id),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      height: 1.2,
+                      letterSpacing: -0.1,
+                      color: AppColors.mutedText(context),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
-          ),
-          Icon(
-            Icons.arrow_outward_rounded,
-            color: AppColors.mutedText(context),
-            size: 17,
           ),
         ],
       ),

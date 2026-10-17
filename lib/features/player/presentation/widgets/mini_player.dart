@@ -63,7 +63,6 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     final currentMusic = ref.watch(currentMusicProvider);
     final isPlaying = ref.watch(isPlayingProvider);
     final playerService = ref.watch(playerServiceProvider);
-    final isDark = AppColors.isDark(context);
 
     if (currentMusic == null && !widget.alwaysShow) {
       return const SizedBox.shrink();
@@ -86,17 +85,6 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
           borderRadius: BorderRadius.circular(widget.floating ? 24 : 20),
           accent: currentMusic == null ? AppColors.accentOf(context) : null,
           emphasized: widget.floating,
-          boxShadow: widget.floating
-              ? [
-                  BoxShadow(
-                    color: isDark
-                        ? const Color(0x88000000)
-                        : const Color(0x26000000),
-                    blurRadius: 24,
-                    offset: const Offset(0, 9),
-                  ),
-                ]
-              : null,
           child: Padding(
             padding: EdgeInsets.fromLTRB(widget.floating ? 10 : 8, 7, 7, 7),
             child: Row(

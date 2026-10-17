@@ -14,7 +14,7 @@ import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 ///
 /// 这个值是在测试字体下量出来的；真机字体行高略有差异（通常多几 px），
 /// 由各平台的 breathingRoom 吸收。改动首页布局后重新跑本测试即可拿到新值。
-const int homeContentMinHeight = 823;
+const int homeContentMinHeight = 770;
 
 /// 底部 chrome 在桌面端占用的高度。来自
 /// `lib/features/home/presentation/main_scaffold.dart`：
@@ -37,15 +37,17 @@ const nativeLandscapeRatios = <String, (String, String)>{
 };
 
 int _intConst(String source, String name) {
-  final match = RegExp('$name\\s*(?::\\s*CGFloat)?\\s*=\\s*(\\d+)')
-      .firstMatch(source);
+  final match = RegExp(
+    '$name\\s*(?::\\s*CGFloat)?\\s*=\\s*(\\d+)',
+  ).firstMatch(source);
   expect(match, isNotNull, reason: '找不到 $name 的定义');
   return int.parse(match!.group(1)!);
 }
 
 void expectLandscapeRatio(String source, String name, String platform) {
-  final match = RegExp('$name\\s*(?::\\s*CGFloat)?\\s*=\\s*([^\\n]+)')
-      .firstMatch(source);
+  final match = RegExp(
+    '$name\\s*(?::\\s*CGFloat)?\\s*=\\s*([^\\n]+)',
+  ).firstMatch(source);
   expect(match, isNotNull, reason: '$platform 缺少 $name');
   expect(
     match!.group(1),
@@ -75,9 +77,7 @@ void main() {
 
     final scrollView = find.byType(SingleChildScrollView);
     final size = tester.getSize(
-      find
-          .descendant(of: scrollView, matching: find.byType(Column))
-          .first,
+      find.descendant(of: scrollView, matching: find.byType(Column)).first,
     );
     final scroll = tester.widget<SingleChildScrollView>(scrollView);
     final padding = scroll.padding! as EdgeInsets;

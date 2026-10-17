@@ -1,10 +1,16 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
+import '../performance/low_memory.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 
-/// Shared Origo-style surface: a quiet highlight, clear edge and floating
-/// shadow around the existing frosted material.
+/// Shared chrome surface for floating controls.
+///
+/// The gradient, tint and shadow all live in [GlassSurface]; this widget only
+/// decides how strongly the accent colour should register. Keeping one source
+/// of truth is what stops stacked surfaces from turning opaque white.
 class OrigoChromeSurface extends StatelessWidget {
   const OrigoChromeSurface({
     super.key,
@@ -20,6 +26,10 @@ class OrigoChromeSurface extends StatelessWidget {
   final Widget child;
   final BorderRadius borderRadius;
   final EdgeInsetsGeometry? padding;
+
+  /// Accent used for the edge and the floating shadow. Defaults to the theme
+  /// primary; the base tint itself stays neutral so a page of cards does not
+  /// become a patchwork of coloured panels.
   final Color? accent;
   final AppGlassStyle style;
   final bool emphasized;
@@ -28,50 +38,34 @@ class OrigoChromeSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tint = accent ?? AppColors.accentOf(context);
-    final isDark = AppColors.isDark(context);
-    final highlight = tint.withValues(
-      alpha: isDark
-          ? (emphasized ? 0.18 : 0.10)
-          : (emphasized ? 0.12 : 0.06),
-    );
-    final edge = Color.lerp(
-      AppColors.cardBorder(context),
-      tint,
-      emphasized ? 0.28 : 0.12,
-    )!;
 
     return GlassSurface(
       style: style,
       borderRadius: borderRadius,
-      border: Border.all(
-        color: edge.withValues(alpha: emphasized ? 0.72 : 0.52),
-        width: emphasized ? 0.8 : 0.6,
+      emphasized: emphasized,
+      border: Border.fromBorderSide(
+        AppGlass.hairline(context, emphasized: emphasized),
       ),
-      boxShadow: boxShadow,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: borderRadius,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white.withValues(alpha: isDark ? 0.045 : 0.34),
-              highlight,
-              Colors.transparent,
-            ],
-            stops: const [0, 0.28, 1],
-          ),
-        ),
-        child: padding == null
-            ? child
-            : Padding(padding: padding!, child: child),
-      ),
+      boxShadow:
+          boxShadow ??
+          (emphasized
+              ? AppGlass.shadowFor(
+                  context,
+                  style: style,
+                  emphasized: true,
+                  accent: tint,
+                )
+              : null),
+      child: padding == null ? child : Padding(padding: padding!, child: child),
     );
   }
 }
 
-/// Full-bleed ambient wash used behind root pages. It is deliberately made
-/// from broad bands rather than decorative blobs, so content remains readable.
+/// Full-bleed ambient wash behind root pages.
+///
+/// Built the way Origo builds page backgrounds: the surface blended toward the
+/// accent at the top, a second, weaker blend in the middle, then the plain
+/// surface. Three smooth stops, no overlay band with a visible edge.
 class OrigoAmbientBackdrop extends StatelessWidget {
   const OrigoAmbientBackdrop({
     super.key,
@@ -86,49 +80,143 @@ class OrigoAmbientBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark(context);
     final base = AppColors.scaffold(context);
     final leading = leadingColor ?? AppColors.accentOf(context);
     final trailing = trailingColor ?? Theme.of(context).colorScheme.secondary;
+    // The wash is a hint of the accent near the chrome, not a page-wide tint:
+    // a wide tint at high alpha turns black into green fog and white into
+    // grey-green paper.
     return Stack(
       fit: StackFit.expand,
       children: [
+        DecoratedBox(decoration: BoxDecoration(color: base)),
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              stops: const [0, 0.34, 0.72, 1],
+              end: Alignment.bottomCenter,
+              stops: const [0, 0.44, 1],
               colors: [
-                Color.lerp(base, leading, 0.16)!,
-                base,
-                Color.lerp(base, trailing, 0.055)!,
+                Color.alphaBlend(
+                  leading.withValues(alpha: isDark ? 0.11 : 0.040),
+                  base,
+                ),
+                Color.alphaBlend(
+                  trailing.withValues(alpha: isDark ? 0.045 : 0.018),
+                  base,
+                ),
                 base,
               ],
             ),
           ),
         ),
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 150,
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    leading.withValues(alpha: 0.10),
-                    Colors.transparent,
-                  ],
-                ),
+        child,
+      ],
+    );
+  }
+}
+
+/// Chrome backdrop whose blur radius tapers to zero toward the bottom.
+///
+/// A uniform `BackdropFilter` over a tall header leaves a hard edge where the
+/// blur stops, which reads as a grey band. Stacking narrow filters with a
+/// decreasing radius — the fallback Origo uses when shader filters are absent
+/// — costs a handful of extra layers but removes that edge entirely.
+class GradientFrost extends StatelessWidget {
+  const GradientFrost({
+    super.key,
+    required this.child,
+    this.height,
+    this.bands = 6,
+    this.sigma = 16,
+    this.base,
+    this.leadingAlpha,
+  });
+
+  final Widget child;
+
+  /// Total frosted height. Falls back to the incoming constraint.
+  final double? height;
+
+  /// Narrow filters approximating the radius curve. Kept low: every band is a
+  /// full backdrop sample.
+  final int bands;
+  final double sigma;
+
+  /// Tint colour; defaults to the themed bar base.
+  final Color? base;
+
+  /// Opacity at the top edge. Defaults to the dark/light bar value.
+  final double? leadingAlpha;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = base ?? AppGlass.tintBase(context, style: AppGlassStyle.bar);
+    final (defaultAlpha, _) = AppGlass.overlayAlphas(
+      context,
+      style: AppGlassStyle.bar,
+    );
+    final alpha = leadingAlpha ?? defaultAlpha;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final frostedHeight = height ?? constraints.maxHeight;
+        final safeHeight = frostedHeight.isFinite && frostedHeight > 0
+            ? frostedHeight
+            : 0.0;
+        final tintLayer = IgnorePointer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0, 0.58, 1],
+                colors: [
+                  tint.withValues(alpha: alpha),
+                  tint.withValues(alpha: alpha * 0.52),
+                  tint.withValues(alpha: 0),
+                ],
               ),
             ),
           ),
-        ),
-        child,
-      ],
+        );
+        if (LowMemory.active || safeHeight <= 0 || sigma <= 0) {
+          return Stack(
+            children: [
+              Positioned.fill(child: tintLayer),
+              child,
+            ],
+          );
+        }
+        // Bottom-up: a stronger band must not sample through a weaker one.
+        final bandCount = bands.clamp(1, 24);
+        final bandHeight = safeHeight / bandCount;
+        return Stack(
+          children: [
+            for (var i = bandCount - 1; i >= 0; i--)
+              Positioned(
+                top: bandHeight * i,
+                height: bandHeight,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: ClipRect(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(
+                        sigmaX: sigma * (1 - (i + 0.5) / bandCount),
+                        sigmaY: sigma * (1 - (i + 0.5) / bandCount),
+                        tileMode: TileMode.mirror,
+                      ),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ),
+              ),
+            Positioned.fill(child: tintLayer),
+            child,
+          ],
+        );
+      },
     );
   }
 }

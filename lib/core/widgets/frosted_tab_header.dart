@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
-import '../theme/app_tokens.dart';
 import 'gradient_bar_backgrounds.dart';
 import 'pressable.dart';
 import 'origo_chrome.dart';
@@ -28,8 +27,10 @@ class FrostedTabHeader extends StatelessWidget {
   final double? blur;
   final bool vivid;
 
-  static const double barHeight = 82;
-  static const double bottomPadding = 12;
+  /// Content height below the status bar. A single title row, no eyebrow copy:
+  /// the app name already appears on the hero card.
+  static const double barHeight = 72;
+  static const double bottomPadding = 10;
 
   static double extent(BuildContext context, {double extra = 0}) {
     return MediaQuery.paddingOf(context).top + barHeight + extra;
@@ -39,66 +40,55 @@ class FrostedTabHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
     final accent = AppColors.accentOf(context);
+    final isDark = AppColors.isDark(context);
     return GradientAppBarBackground(
       background: Theme.of(context).scaffoldBackgroundColor,
       blur: blur,
       vivid: vivid,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, top + 8, 12, bottomPadding),
+        padding: EdgeInsets.fromLTRB(16, top + 6, 14, bottomPadding),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              height: 58,
+              height: 56,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   if (leadingIcon != null) ...[
                     OrigoChromeSurface(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(19),
                       padding: const EdgeInsets.all(10),
                       accent: accent,
-                      child: Icon(leadingIcon, color: accent, size: 22),
+                      emphasized: true,
+                      child: Icon(leadingIcon, color: accent, size: 21),
                     ),
                     const SizedBox(width: 12),
                   ],
                   Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Koyze',
-                          style: TextStyle(
-                            color: accent.withValues(alpha: 0.78),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.3,
+                    child: Text(
+                      title,
+                      key: titleKey,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        height: 1.05,
+                        letterSpacing: -0.4,
+                        color: AppColors.onScaffold(context),
+                        // Keeps the title legible where artwork scrolls under
+                        // the tapered frost. Cheaper than a solid panel.
+                        shadows: [
+                          Shadow(
+                            color: AppColors.scaffold(
+                              context,
+                            ).withValues(alpha: isDark ? 0.62 : 0.42),
+                            blurRadius: 10,
                           ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          title,
-                          key: titleKey,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            height: 1,
-                            color: AppColors.onScaffold(context),
-                            shadows: [
-                              Shadow(
-                                color: Theme.of(context)
-                                    .scaffoldBackgroundColor
-                                    .withValues(alpha: 0.76),
-                                blurRadius: 14,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                   for (final action in actions) ...[
@@ -108,7 +98,7 @@ class FrostedTabHeader extends StatelessWidget {
                 ],
               ),
             ),
-            if (bottom != null) ...[const SizedBox(height: 8), bottom!],
+            if (bottom != null) ...[const SizedBox(height: 6), bottom!],
           ],
         ),
       ),
@@ -168,10 +158,9 @@ class FrostedHeaderButton extends StatelessWidget {
     return Pressable(
       semanticLabel: semanticLabel,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: GlassSurface(
-        style: AppGlassStyle.chrome,
-        borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(19),
+      child: OrigoChromeSurface(
+        borderRadius: BorderRadius.circular(19),
         padding: padding,
         child: iconWidget,
       ),

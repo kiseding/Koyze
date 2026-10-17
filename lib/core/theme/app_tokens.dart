@@ -5,28 +5,34 @@ import 'package:flutter/material.dart';
 import '../performance/low_memory.dart';
 import 'app_colors.dart';
 
-/// iOS-style frosted glass. Matches system materials more closely than a
-/// plain blur + near-opaque fill:
-/// - stronger blur
-/// - slight saturation boost (UIBlurEffect)
-/// - thin vibrancy tint, not a solid card
-/// - 0.5pt hairline highlight
+/// Glass materials, modelled on Origo-x's chrome.
+///
+/// The material is a single gradient laid over a modest blur — never a solid
+/// fill plus a second white wash. Three rules keep it from looking like
+/// painted plastic:
+/// - the base colour is the theme surface with a light primary tint;
+/// - both ends of the gradient stay below ~0.85 alpha so the backdrop shows;
+/// - shadows borrow the accent hue in light theme instead of neutral black.
 enum AppGlassStyle {
-  /// Nav / tab / mini player: ultra-thin material.
+  /// Nav / tab / mini player: the widest surfaces.
   bar,
 
-  /// Sheets, dialogs, toasts: regular material.
+  /// Sheets, dialogs, toasts.
   regular,
 
-  /// Compact controls sitting on artwork: thin material.
+  /// Compact controls sitting on artwork or other glass.
   chrome,
 }
 
 abstract final class AppGlass {
-  static const double blurBar = 36;
-  static const double blurRegular = 50;
-  static const double blurChrome = 28;
-  static const double saturate = 1.8;
+  // Blur is deliberately lower than a "frosted panel" default: heavy blur
+  // removes the colour behind the glass and the result reads as grey.
+  static const double blurBar = 20;
+  static const double blurRegular = 26;
+  static const double blurChrome = 14;
+
+  /// 1.8 over-saturates low-alpha glass; 1.3 keeps the tint believable.
+  static const double saturate = 1.3;
 
   static double blurFor(AppGlassStyle style) => switch (style) {
     AppGlassStyle.bar => blurBar,
@@ -34,46 +40,114 @@ abstract final class AppGlass {
     AppGlassStyle.chrome => blurChrome,
   };
 
+  /// Opaque base colour behind the gradient.
+  ///
+  /// Origo tints chrome with `surface` lerped toward `primary`, so switching
+  /// the accent colour re-tints every glass surface instead of leaving a
+  /// fixed white card behind.
+  static Color tintBase(
+    BuildContext context, {
+    AppGlassStyle style = AppGlassStyle.regular,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = AppColors.isDark(context);
+    final card = AppColors.card(context);
+    // Wider chrome takes a little more tint than a small control, otherwise
+    // large surfaces look washed out next to compact ones. Both values stay
+    // low: a green-tinted white card on a white page reads as dirty.
+    final strength = switch (style) {
+      AppGlassStyle.bar => isDark ? 0.040 : 0.030,
+      AppGlassStyle.regular => isDark ? 0.035 : 0.034,
+      AppGlassStyle.chrome => isDark ? 0.030 : 0.026,
+    };
+    final toned = Color.lerp(card, scheme.primary, strength)!;
+    if (!isDark) return toned;
+    // Pure #1C1C1E disappears on a black background; lift it just enough for
+    // the glass edge to register without turning the panel grey.
+    return Color.lerp(toned, const Color(0xFF2A2A2C), 0.38)!;
+  }
+
+  /// Opacity of the leading (top-left) and trailing (bottom-right) ends.
+  static (double, double) overlayAlphas(
+    BuildContext context, {
+    AppGlassStyle style = AppGlassStyle.regular,
+    bool emphasized = false,
+  }) {
+    final isDark = AppColors.isDark(context);
+    return switch (style) {
+      AppGlassStyle.bar =>
+        isDark
+            ? (emphasized ? 0.58 : 0.44, emphasized ? 0.42 : 0.30)
+            : (emphasized ? 0.80 : 0.66, emphasized ? 0.62 : 0.46),
+      AppGlassStyle.regular =>
+        isDark
+            ? (emphasized ? 0.66 : 0.52, emphasized ? 0.50 : 0.36)
+            : (emphasized ? 0.86 : 0.74, emphasized ? 0.72 : 0.58),
+      AppGlassStyle.chrome =>
+        isDark
+            ? (emphasized ? 0.50 : 0.36, emphasized ? 0.36 : 0.24)
+            : (emphasized ? 0.74 : 0.58, emphasized ? 0.56 : 0.42),
+    };
+  }
+
+  /// Flat colour for callers that need a solid stand-in (toasts, opaque
+  /// fallbacks). Keeps the tint but resolves to the gradient's strong end.
   static Color fill(
     BuildContext context, {
     AppGlassStyle style = AppGlassStyle.regular,
   }) {
-    final isDark = AppColors.isDark(context);
-    final alpha = switch (style) {
-      AppGlassStyle.bar => isDark ? 0.68 : 0.78,
-      AppGlassStyle.regular => isDark ? 0.64 : 0.82,
-      AppGlassStyle.chrome => isDark ? 0.48 : 0.62,
-    };
-    return (isDark ? const Color(0xFF1C1C1E) : Colors.white).withValues(
-      alpha: alpha,
-    );
+    final (leading, _) = overlayAlphas(context, style: style);
+    return tintBase(context, style: style).withValues(alpha: leading);
   }
 
-  static BorderSide hairline(BuildContext context) {
-    final isDark = AppColors.isDark(context);
+  /// Hairline edge: reflected light in dark theme, a grouped-cell rule in
+  /// light theme. A white edge on a near-white page simply disappears.
+  static BorderSide hairline(BuildContext context, {bool emphasized = false}) {
+    final scheme = Theme.of(context).colorScheme;
+    if (!AppColors.isDark(context)) {
+      final color = Color.lerp(
+        const Color(0xFF3C3C43),
+        scheme.primary,
+        emphasized ? 0.28 : 0.06,
+      )!;
+      return BorderSide(
+        color: color.withValues(alpha: emphasized ? 0.22 : 0.13),
+        width: emphasized ? 0.9 : 0.7,
+      );
+    }
+    final color = Color.lerp(
+      Colors.white,
+      scheme.primary,
+      emphasized ? 0.55 : 0.14,
+    )!;
     return BorderSide(
-      color: isDark ? const Color(0x3DFFFFFF) : const Color(0x52FFFFFF),
-      width: 0.5,
+      color: color.withValues(alpha: emphasized ? 0.34 : 0.18),
+      width: emphasized ? 0.9 : 0.7,
     );
   }
 
+  /// Floating shadow. Light theme leans on the accent so the shadow belongs
+  /// to the palette; a neutral black shadow over the warm backdrop looks dirty.
   static List<BoxShadow> shadowFor(
     BuildContext context, {
     AppGlassStyle style = AppGlassStyle.regular,
+    bool emphasized = false,
+    Color? accent,
   }) {
     final isDark = AppColors.isDark(context);
-    final blurRadius = switch (style) {
-      AppGlassStyle.bar => 18.0,
-      AppGlassStyle.regular => 24.0,
-      AppGlassStyle.chrome => 12.0,
-    };
+    final source = accent ?? Theme.of(context).colorScheme.primary;
+    final color = isDark
+        ? Colors.black.withValues(alpha: emphasized ? 0.34 : 0.22)
+        : Color.lerp(
+            source,
+            Colors.black,
+            0.45,
+          )!.withValues(alpha: emphasized ? 0.16 : 0.10);
     return [
       BoxShadow(
-        color: (isDark ? Colors.black : const Color(0x33000000)).withValues(
-          alpha: isDark ? 0.30 : 0.10,
-        ),
-        blurRadius: blurRadius,
-        offset: const Offset(0, 7),
+        color: color,
+        blurRadius: emphasized ? 28 : 18,
+        offset: Offset(0, emphasized ? 12 : 6),
       ),
     ];
   }
@@ -136,11 +210,15 @@ class GlassSurface extends StatelessWidget {
     this.boxShadow,
     this.fade = AppGlassFade.none,
     this.vivid = true,
+    this.emphasized = false,
   });
 
   final Widget child;
   final BorderRadius? borderRadius;
   final EdgeInsetsGeometry? padding;
+
+  /// Optional base tint. Its RGB replaces the themed base; opacity is still
+  /// governed by [AppGlassStyle] so every surface stays equally translucent.
   final Color? color;
   final Border? border;
   final AppGlassStyle style;
@@ -152,29 +230,31 @@ class GlassSurface extends StatelessWidget {
   /// 每帧少一次全栏滤镜。
   final bool vivid;
 
+  /// Brighter edge and a deeper shadow, used by floating chrome.
+  final bool emphasized;
+
   @override
   Widget build(BuildContext context) {
     final radius = borderRadius ?? BorderRadius.circular(16);
     final sigma = blur ?? AppGlass.blurFor(style);
-    final fill = color ?? AppGlass.fill(context, style: style);
-    final side = border ?? Border.fromBorderSide(AppGlass.hairline(context));
+    final base = _baseColor(context);
+    final side =
+        border ??
+        Border.fromBorderSide(
+          AppGlass.hairline(context, emphasized: emphasized),
+        );
     final content = padding == null
         ? child
         : Padding(padding: padding!, child: child);
     if (LowMemory.active) {
       final surface = AppColors.card(context);
-      final opaque = color == null || color!.a >= 1
-          ? (color ?? surface)
-          : Color.alphaBlend(color!, surface);
+      final opaque = Color.alphaBlend(base.withValues(alpha: 0.94), surface);
       return DecoratedBox(
         decoration: BoxDecoration(
           color: opaque,
           borderRadius: radius,
           border: side,
-          boxShadow: boxShadow ??
-              (style == AppGlassStyle.bar
-                  ? AppGlass.shadowFor(context, style: style)
-                  : const <BoxShadow>[]),
+          boxShadow: boxShadow ?? const <BoxShadow>[],
         ),
         child: ClipRRect(
           borderRadius: radius,
@@ -190,41 +270,82 @@ class GlassSurface extends StatelessWidget {
           ? BackdropFilter(
               filter: _filter(sigma, vivid: vivid),
               child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: radius,
-                  border: side,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color.lerp(
-                        fill,
-                        Colors.white,
-                        AppColors.isDark(context) ? 0.055 : 0.16,
-                      )!,
-                      fill,
-                    ],
-                  ),
-                ),
+                decoration: _decoration(context, radius: radius, border: side),
                 child: content,
               ),
             )
           : _FadingFrost(
               sigma: sigma,
               fade: fade,
-              fill: fill,
+              base: base,
+              leadingAlpha: _leadingAlpha(context),
               radius: radius,
               border: side,
+              vivid: vivid,
               child: content,
             ),
     );
-    final shadows = boxShadow ??
-        (style == AppGlassStyle.bar
-            ? AppGlass.shadowFor(context, style: style)
+    final shadows =
+        boxShadow ??
+        (style == AppGlassStyle.bar || emphasized
+            ? AppGlass.shadowFor(
+                context,
+                style: style,
+                emphasized: emphasized,
+                accent: color,
+              )
             : const <BoxShadow>[]);
     return DecoratedBox(
       decoration: BoxDecoration(borderRadius: radius, boxShadow: shadows),
       child: glass,
+    );
+  }
+
+  /// Base tint, optionally nudged by [color]'s hue.
+  Color _baseColor(BuildContext context) {
+    final themed = AppGlass.tintBase(context, style: style);
+    if (color == null) return themed;
+    // Replacing the base with the accent turns every card into its own
+    // saturated panel, which reads as a patchwork. Nudge instead — just
+    // enough that a row of cards shares a family resemblance.
+    final nudge = AppColors.isDark(context) ? 0.045 : 0.030;
+    return Color.lerp(themed, color!, nudge)!;
+  }
+
+  double _leadingAlpha(BuildContext context) {
+    final (leading, _) = AppGlass.overlayAlphas(
+      context,
+      style: style,
+      emphasized: emphasized,
+    );
+    return leading;
+  }
+
+  /// One gradient, top-left highlight into the base tint. No second wash.
+  BoxDecoration _decoration(
+    BuildContext context, {
+    required BorderRadius radius,
+    required Border border,
+  }) {
+    final isDark = AppColors.isDark(context);
+    final base = _baseColor(context);
+    final (leading, trailing) = AppGlass.overlayAlphas(
+      context,
+      style: style,
+      emphasized: emphasized,
+    );
+    final highlight = Color.lerp(base, Colors.white, isDark ? 0.16 : 0.28)!;
+    return BoxDecoration(
+      borderRadius: radius,
+      border: border,
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          highlight.withValues(alpha: leading),
+          base.withValues(alpha: trailing),
+        ],
+      ),
     );
   }
 
@@ -246,26 +367,30 @@ class _FadingFrost extends StatelessWidget {
   const _FadingFrost({
     required this.sigma,
     required this.fade,
-    required this.fill,
+    required this.base,
+    required this.leadingAlpha,
     required this.radius,
     required this.border,
+    required this.vivid,
     required this.child,
   });
 
   final double sigma;
   final AppGlassFade fade;
-  final Color fill;
+  final Color base;
+  final double leadingAlpha;
   final BorderRadius radius;
   final Border border;
+  final bool vivid;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final down = fade == AppGlassFade.down;
-    // Cover the chrome end solidly so content is not readable through the
-    // title/status area; fade uniformly to clear toward the scrolling edge.
-    final solid = fill.withValues(alpha: 0.94);
-    final clear = fill.withValues(alpha: 0);
+    // Solid at the chrome end so the title/status area stays readable, clear
+    // toward the scrolling edge so content does not end on a hard band.
+    final solid = base.withValues(alpha: leadingAlpha);
+    final clear = base.withValues(alpha: 0);
     return Stack(
       clipBehavior: Clip.hardEdge,
       children: [
@@ -273,7 +398,7 @@ class _FadingFrost extends StatelessWidget {
           child: IgnorePointer(
             child: ClipRect(
               child: BackdropFilter(
-                filter: GlassSurface._filter(sigma),
+                filter: GlassSurface._filter(sigma, vivid: vivid),
                 child: const ColoredBox(color: Color(0x00000000)),
               ),
             ),

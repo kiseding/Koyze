@@ -513,10 +513,11 @@ const _sideNavBodyExtent =
     _sideNavTabExtent +
     _sideNavShortcutExtent;
 
-/// 浅色用实色卡片，深色用主题色薄底，避免半透明绿在两种背景上都发灰。
+/// Selected rail item: an accent wash, not an opaque card. A solid white pill
+/// on top of glass reads as a different material.
 Color _sideNavSelectedFill(BuildContext context) {
-  if (!AppColors.isDark(context)) return AppColors.card(context);
-  return Theme.of(context).colorScheme.primary.withValues(alpha: 0.16);
+  final accent = Theme.of(context).colorScheme.primary;
+  return accent.withValues(alpha: AppColors.isDark(context) ? 0.18 : 0.11);
 }
 
 class RootSideNav extends ConsumerWidget {
@@ -636,10 +637,10 @@ class RootSideNav extends ConsumerWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              fontSize: 28,
+              fontSize: 26,
               height: 1,
               fontWeight: FontWeight.w800,
-              letterSpacing: -0.6,
+              letterSpacing: -0.5,
               color: AppColors.amber,
             ),
           ),
@@ -778,7 +779,7 @@ class RootSideNav extends ConsumerWidget {
     final isSelected = index == selectedIndex;
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = AppColors.isDark(context);
-    final muted = isDark ? const Color(0xE6FFFFFF) : const Color(0xE6000000);
+    final muted = isDark ? const Color(0xCCFFFFFF) : const Color(0xCC000000);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: _sideNavItemOuterPadding),
       child: SizedBox(
@@ -788,7 +789,7 @@ class RootSideNav extends ConsumerWidget {
             color: isSelected
                 ? _sideNavSelectedFill(context)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -801,17 +802,17 @@ class RootSideNav extends ConsumerWidget {
                     semanticLabel: label,
                     selected: isSelected,
                     onTap: () => onTap(index),
-                    scale: 0.96,
-                    borderRadius: BorderRadius.circular(12),
+                    scale: 0.97,
+                    borderRadius: BorderRadius.circular(14),
                     child: Row(
                       children: [
                         AnimatedIconSwitch(
                           icon: isSelected ? activeIcon : icon,
                           keyValue: isSelected ? activeIcon : icon,
-                          size: 26,
+                          size: 23,
                           color: isSelected ? accent : muted,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 9),
                         Expanded(
                           child: Text(
                             label,
@@ -819,8 +820,10 @@ class RootSideNav extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: isSelected ? accent : muted,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 14.5,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
                             ),
                           ),
                         ),
@@ -916,15 +919,6 @@ class _BottomNav extends StatelessWidget {
               borderRadius: BorderRadius.circular(26),
               padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
               emphasized: true,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.isDark(context)
-                      ? const Color(0x99000000)
-                      : const Color(0x26000000),
-                  blurRadius: 26,
-                  offset: const Offset(0, 10),
-                ),
-              ],
               child: Row(
                 children: [
                   _item(context, 0, Icons.home_outlined, Icons.home, s.home),
@@ -968,15 +962,16 @@ class _BottomNav extends StatelessWidget {
     final isSelected = index == selectedIndex;
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = AppColors.isDark(context);
-    // 未选中也要深、粗（约 90% 不透明）
-    final muted = isDark ? const Color(0xE6FFFFFF) : const Color(0xE6000000);
+    // Muted labels still need contrast against translucent glass, but pure
+    // black at 90% makes the unselected tabs look heavier than the selected.
+    final muted = isDark ? const Color(0xCCFFFFFF) : const Color(0xCC000000);
     return Expanded(
       child: Pressable(
         semanticLabel: label,
         selected: isSelected,
         onTap: () => onTap(index),
-        scale: 0.90,
-        borderRadius: BorderRadius.circular(20),
+        scale: 0.92,
+        borderRadius: BorderRadius.circular(19),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48),
           child: AnimatedContainer(
@@ -986,22 +981,15 @@ class _BottomNav extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
             decoration: BoxDecoration(
               color: isSelected
-                  ? accent.withValues(alpha: isDark ? 0.22 : 0.14)
+                  ? accent.withValues(alpha: isDark ? 0.20 : 0.12)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(19),
               border: Border.all(
                 color: isSelected
-                    ? accent.withValues(alpha: isDark ? 0.38 : 0.26)
+                    ? accent.withValues(alpha: isDark ? 0.30 : 0.20)
                     : Colors.transparent,
+                width: 0.8,
               ),
-              boxShadow: [
-                if (isSelected)
-                  BoxShadow(
-                    color: accent.withValues(alpha: isDark ? 0.18 : 0.10),
-                    blurRadius: 14,
-                    offset: const Offset(0, 5),
-                  ),
-              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
