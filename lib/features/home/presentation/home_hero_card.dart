@@ -979,33 +979,52 @@ class _HeroStage extends StatelessWidget {
                       // 空态整块居中：标题钉顶、说明钉底会在大片纯色中间留出
                       // 一块空洞，看着像没渲染完；收成一枚居中的海报更清楚。
                       // 同时不再画播放键——禁用的圆钮浮在色块里像坏掉的控件。
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        // 空卡没有数量可以压底，跟着底部排会剩一大片纯色；
-                        // 整块居中，卡片再高也像一张「空封面」而不是漏渲染。
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      return Stack(
                         children: [
-                          badgeBox,
-                          SizedBox(height: compact ? 10 : 14),
-                          if (!compact) ...[eyebrow, const SizedBox(height: 6)],
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: titleText,
-                          ),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              model.subtitle,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: onAccent.withValues(alpha: 0.88),
-                                fontSize: compact ? 12 : 12.5,
-                                fontWeight: FontWeight.w500,
-                                height: 1.3,
-                              ),
+                          // 文字只占左侧三分之一，右边全空，卡片就读成「左边有
+                          // 东西、右边没画完」。压一枚出血的声波水印把重量分到
+                          // 右边，透明度足够低，不抢标题。
+                          Positioned(
+                            right: compact ? -6 : -14,
+                            bottom: compact ? -8 : -16,
+                            child: Icon(
+                              Icons.graphic_eq_rounded,
+                              size: compact ? 84 : 118,
+                              color: onAccent.withValues(alpha: 0.13),
                             ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            // 空卡没有数量可以压底，跟着底部排会剩一大片纯色；
+                            // 整块居中，卡片再高也像一张「空封面」而不是漏渲染。
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              badgeBox,
+                              SizedBox(height: compact ? 10 : 14),
+                              if (!compact) ...[
+                                eyebrow,
+                                const SizedBox(height: 6),
+                              ],
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: titleText,
+                              ),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  model.subtitle,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: onAccent.withValues(alpha: 0.88),
+                                    fontSize: compact ? 12 : 12.5,
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       );

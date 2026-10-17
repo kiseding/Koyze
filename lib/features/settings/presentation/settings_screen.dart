@@ -438,10 +438,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Text(
             title,
             style: TextStyle(
-              fontSize: 10,
+              // 与首页「快捷方式」、歌单页「自定义歌单」同一档：
+              // 分区标签是路标，不是注脚。10pt 加 1.2 字距在中文字面下
+              // 几乎读不出字形，45% 黑的对比度也不够。
+              fontSize: 12,
               fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: AppColors.mutedText(context),
+              letterSpacing: 0.4,
+              color: AppColors.secondaryText(context),
             ),
           ),
         ),
@@ -489,7 +492,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w500,
                     color: AppColors.onScaffold(context),
                   ),
@@ -498,8 +501,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.mutedText(context),
+                    fontSize: 11.5,
+                    color: AppColors.secondaryText(context),
                   ),
                 ),
               ],
@@ -982,7 +985,7 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
                   Text(
                     widget.title,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w500,
                       color: AppColors.onScaffold(context),
                     ),
@@ -992,8 +995,8 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
                     Text(
                       widget.subtitle,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.mutedText(context),
+                        fontSize: 11.5,
+                        color: AppColors.secondaryText(context),
                       ),
                     ),
                   ],
@@ -1030,7 +1033,7 @@ class _SettingRow extends StatelessWidget {
             child: Text(
               name,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 14.5,
                 fontWeight: FontWeight.w500,
                 color: AppColors.onScaffold(context),
               ),
@@ -1038,7 +1041,7 @@ class _SettingRow extends StatelessWidget {
           ),
           Text(
             value,
-            style: TextStyle(fontSize: 12, color: AppColors.mutedText(context)),
+            style: TextStyle(fontSize: 12.5, color: AppColors.secondaryText(context)),
           ),
         ],
       ),
@@ -1073,7 +1076,7 @@ class _DeviceIdRow extends StatelessWidget {
             Text(
               S.of(context).deviceUuid,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 14.5,
                 fontWeight: FontWeight.w500,
                 color: AppColors.onScaffold(context),
               ),
@@ -1282,7 +1285,7 @@ class _PlatformOptionTile extends StatelessWidget {
                     name,
                     style: TextStyle(
                       color: selected ? accent : AppColors.onScaffold(context),
-                      fontSize: 14,
+                      fontSize: 14.5,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
@@ -1290,8 +1293,8 @@ class _PlatformOptionTile extends StatelessWidget {
                   Text(
                     description,
                     style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
+                      color: AppColors.secondaryText(context),
+                      fontSize: 11.5,
                     ),
                   ),
                 ],
@@ -1472,7 +1475,7 @@ class _QualityOptionTile extends StatelessWidget {
                     name,
                     style: TextStyle(
                       color: selected ? accent : AppColors.onScaffold(context),
-                      fontSize: 14,
+                      fontSize: 14.5,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
@@ -1480,8 +1483,8 @@ class _QualityOptionTile extends StatelessWidget {
                   Text(
                     description,
                     style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
+                      color: AppColors.secondaryText(context),
+                      fontSize: 11.5,
                     ),
                   ),
                 ],
@@ -1708,7 +1711,7 @@ class _LanguageOptionTile extends StatelessWidget {
                     name,
                     style: TextStyle(
                       color: selected ? accent : AppColors.onScaffold(context),
-                      fontSize: 15,
+                      fontSize: 14.5,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
@@ -1716,8 +1719,8 @@ class _LanguageOptionTile extends StatelessWidget {
                   Text(
                     description,
                     style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
+                      color: AppColors.secondaryText(context),
+                      fontSize: 11.5,
                     ),
                   ),
                 ],
