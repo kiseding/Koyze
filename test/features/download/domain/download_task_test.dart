@@ -52,8 +52,9 @@ void main() {
       if (dir.existsSync()) dir.deleteSync(recursive: true);
     });
     const base = 'song123';
-    final part = File('${dir.path}/$base.part');
-    final finalPath = '${dir.path}/$base.mp3';
+    final separator = Platform.pathSeparator;
+    final part = File('${dir.path}$separator$base.part');
+    final finalPath = '${dir.path}$separator$base.mp3';
     // 模拟旧 bug：cleanup 删掉 .part
     await part
         .writeAsBytes(List<int>.filled(4096, 1)..setAll(0, [0x49, 0x44, 0x33]));
@@ -73,7 +74,8 @@ void main() {
       if (name == '$base.part') {
         fail('must not keep deleting part after promote');
       }
-      if (name.startsWith('$base.') && e.path != finalPath) {
+      if (name.startsWith('$base.') &&
+          File(e.path).absolute.path != File(finalPath).absolute.path) {
         await e.delete();
       }
     }

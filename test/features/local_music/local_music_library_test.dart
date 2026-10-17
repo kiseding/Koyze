@@ -254,7 +254,7 @@ void main() {
       final songs = library.songs;
       expect(songs, hasLength(1));
       final song = songs.single;
-      expect(song.url, 'file://$path');
+      expect(song.url, Uri.file(path).toString());
       expect(song.platform, 'tx');
       expect(song.songmid, 'mid123');
       expect(song.hash, 'hash456');

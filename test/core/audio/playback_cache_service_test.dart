@@ -917,13 +917,15 @@ void main() {
   );
 
   test('rejects dot-dot and sibling-prefix persisted paths', () async {
-    final parent = tempDir.parent;
+    final separator = Platform.pathSeparator;
     final sibling = Directory('${tempDir.path}_sibling')..createSync();
     addTearDown(() => sibling.deleteSync(recursive: true));
-    final escaped = File(
-      '${parent.path}/${tempDir.path.split('/').last}/../escape.mp3',
-    )..writeAsBytesSync(List<int>.filled(32, 1));
-    final siblingFile = File('${sibling.path}/song.mp3')
+    final escapedPath =
+        '${tempDir.path}${separator}..${separator}escape_${tempDir.path.hashCode}.mp3';
+    final escaped = File(escapedPath)
+      ..writeAsBytesSync(List<int>.filled(32, 1));
+    addTearDown(() => escaped.deleteSync());
+    final siblingFile = File('${sibling.path}${separator}song.mp3')
       ..writeAsBytesSync(List<int>.filled(32, 1));
     for (final record in [
       ('dot-dot', escaped.path),
@@ -1973,7 +1975,10 @@ void main() {
       await cache.init();
 
       final repaired = (jsonDecode(store.value!) as List).single as Map;
-      expect(repaired['path'], file.path);
+      expect(
+        (repaired['path'] as String).replaceAll(r'\', '/'),
+        file.path.replaceAll(r'\', '/'),
+      );
       expect(repaired['sizeBytes'], 37);
     },
   );

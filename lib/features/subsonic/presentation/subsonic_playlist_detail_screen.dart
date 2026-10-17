@@ -14,7 +14,6 @@ import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import 'subsonic_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
-import '../../../core/widgets/origo_chrome.dart';
 
 class SubsonicPlaylistDetailScreen extends ConsumerWidget {
   const SubsonicPlaylistDetailScreen({

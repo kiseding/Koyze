@@ -22,7 +22,7 @@ class MusicScrapeStore {
   int get length => _identities.length;
 
   Map<String, dynamic>? identityOf(String key) {
-    final value = _identities[key];
+    final value = _identities[_canonicalKey(key)];
     return value == null ? null : Map<String, dynamic>.unmodifiable(value);
   }
 
@@ -50,7 +50,7 @@ class MusicScrapeStore {
     final entries = _storage.getJsonList(key);
     if (legacy && entries.isNotEmpty) _hadLegacy = true;
     for (final entry in entries) {
-      final storedKey = _keyOf(entry);
+      final storedKey = _canonicalKey(_keyOf(entry));
       if (storedKey.isEmpty) continue;
       _identities[storedKey] = Map<String, dynamic>.from(entry)
         ..remove('key')
@@ -64,17 +64,24 @@ class MusicScrapeStore {
     return entry['path']?.toString().trim() ?? '';
   }
 
+  static String _canonicalKey(String key) {
+    final trimmed = key.trim();
+    if (trimmed.isEmpty || trimmed.startsWith('content://')) return trimmed;
+    return trimmed.replaceAll(r'\', '/');
+  }
+
   Future<void> save(String key, Map<String, dynamic> identity) async {
     await init();
-    if (key.isEmpty) return;
-    _identities[key] = Map<String, dynamic>.from(identity)
+    final canonicalKey = _canonicalKey(key);
+    if (canonicalKey.isEmpty) return;
+    _identities[canonicalKey] = Map<String, dynamic>.from(identity)
       ..remove('key')
       ..remove('path');
     await _persist();
   }
 
   void discard(String key) {
-    if (_identities.remove(key) != null) _dirty = true;
+    if (_identities.remove(_canonicalKey(key)) != null) _dirty = true;
   }
 
   void discardWhere(bool Function(String key) test) {
@@ -123,7 +130,9 @@ class MusicScrapeStore {
         'scrapedSongmid': identity['songmid'],
     };
     return song.copyWith(
-      name: song.name.trim().isNotEmpty ? song.name : (scrapedName ?? song.name),
+      name: song.name.trim().isNotEmpty
+          ? song.name
+          : (scrapedName ?? song.name),
       singer: song.singer.trim().isNotEmpty
           ? song.singer
           : (scrapedSinger ?? song.singer),

@@ -271,8 +271,6 @@ class _SubsonicSettingsScreenState
         : nasConfig!.username;
     final on = AppColors.onScaffold(context);
     final muted = AppColors.mutedText(context);
-    final accent = AppColors.accentOf(context);
-
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(

@@ -8,7 +8,6 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
-import '../../../core/widgets/origo_chrome.dart';
 
 OverlayEntry? _diagnosticLogEntry;
 final _diagnosticLogKey = GlobalKey<_DiagnosticLogOverlayState>();

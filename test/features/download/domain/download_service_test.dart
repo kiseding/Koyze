@@ -116,7 +116,11 @@ void main() {
     expect(downloader.active, 2);
     expect(downloader.started, hasLength(2));
     downloader.complete(downloader.started.first);
-    await Future<void>.delayed(Duration.zero);
+    for (var attempt = 0;
+        attempt < 20 && downloader.started.length < 3;
+        attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+    }
     expect(downloader.started, hasLength(3));
   });
 
@@ -610,7 +614,12 @@ void main() {
       await service.init();
 
       expect(service.tasks.single.status, DownloadStatus.completed);
-      expect(service.tasks.single.savePath, recoverable.path);
+      expect(
+        File(
+          service.tasks.single.savePath!,
+        ).absolute.path.replaceAll(r'\', '/'),
+        recoverable.absolute.path.replaceAll(r'\', '/'),
+      );
       expect(orphan.existsSync(), isFalse);
       expect(part.existsSync(), isFalse);
       expect(unrelated.existsSync(), isTrue);

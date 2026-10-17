@@ -859,8 +859,28 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   bool _leaseMatchesUrl(PlaybackCacheLease lease, String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.scheme != 'file') return false;
+    // Resolver-owned leases normally return their own URI. Keep this exact
+    // check first; it also preserves POSIX-style test paths on Windows, where
+    // Uri.toFilePath() assigns the current drive to a leading slash path.
+    if (url == lease.playableUri) return true;
     try {
-      return uri.toFilePath() == lease.path;
+      String comparablePath(String path) => path.replaceAll('\\', '/');
+
+      var uriPath = comparablePath(uri.toFilePath());
+      var leasePath = comparablePath(lease.path);
+      final uriHasDrive = RegExp(r'^[A-Za-z]:/').hasMatch(uriPath);
+      final leaseHasDrive = RegExp(r'^[A-Za-z]:/').hasMatch(leasePath);
+      // A URI parsed from `/cache/song.mp3` becomes `C:/cache/song.mp3` on
+      // Windows, while a lease created from the original POSIX spelling keeps
+      // `/cache/song.mp3`. Remove the synthetic drive only for this mixed form;
+      // real drive-qualified paths remain strict and cannot cross-match.
+      if (Platform.isWindows && uriHasDrive != leaseHasDrive) {
+        if (uriHasDrive) uriPath = uriPath.substring(2);
+        if (leaseHasDrive) leasePath = leasePath.substring(2);
+      }
+      return Platform.isWindows
+          ? uriPath.toLowerCase() == leasePath.toLowerCase()
+          : uriPath == leasePath;
     } on FormatException {
       return false;
     }

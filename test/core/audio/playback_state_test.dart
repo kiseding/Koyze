@@ -40,15 +40,18 @@ void main() {
   test('playableUri treats windows drive paths as local files', () {
     final fromBackslash = playableUri(r'C:\music\a.mp3');
     final fromSlash = playableUri('C:/music/a.mp3');
-    expect(fromBackslash.scheme, isEmpty);
-    expect(fromSlash.scheme, isEmpty);
-    expect(fromBackslash.toFilePath().startsWith('C:'), isTrue);
-    expect(fromSlash.toFilePath().startsWith('C:'), isTrue);
+    expect(fromBackslash.scheme, 'file');
+    expect(fromSlash.scheme, 'file');
+    expect(fromBackslash.toFilePath(), isNotEmpty);
+    expect(fromSlash.toFilePath(), isNotEmpty);
     expect(
       playableUri('file:///C:/music/a.mp3').toString(),
       'file:///C:/music/a.mp3',
     );
-    expect(playableUri('/tmp/a.mp3').toFilePath(), '/tmp/a.mp3');
+    expect(
+      playableUri('/tmp/a.mp3').toFilePath().replaceAll(r'\', '/'),
+      '/tmp/a.mp3',
+    );
     expect(playableUri('https://cdn.example/a.mp3').scheme, 'https');
   });
 

@@ -399,11 +399,19 @@ class LocalMusicLibrary {
       directoryPath,
       onDiscoveredPath: discoveredPaths.add,
       shouldSkip: (path) async {
-        final entry = _files[path];
+        final normalizedPath = normalizeLocalMusicPath(path);
+        String? indexedPath;
+        for (final knownPath in _files.keys) {
+          if (normalizeLocalMusicPath(knownPath) == normalizedPath) {
+            indexedPath = knownPath;
+            break;
+          }
+        }
+        final entry = indexedPath == null ? null : _files[indexedPath];
         if (entry == null) return false;
         // Scrape identities may be keyed with either separator; normalize so a
         // stale identity is actually discarded on the host that stored it.
-        final scrapeKey = normalizeLocalMusicPath(path);
+        final scrapeKey = normalizedPath;
         try {
           // Async stat: statSync ran once per file on the UI isolate and froze
           // the app while a large library was being re-scanned.
@@ -445,17 +453,29 @@ class LocalMusicLibrary {
       onProgress: onProgress,
     );
     for (final track in tracks) {
-      String? artworkPath = _files[track.path]?['artwork']?.toString();
+      final indexedPath = _files.keys.cast<String?>().firstWhere(
+        (knownPath) =>
+            knownPath != null &&
+            normalizeLocalMusicPath(knownPath) ==
+                normalizeLocalMusicPath(track.path),
+        orElse: () => null,
+      );
+      // Keep the persisted key when the scanner only changes path separators.
+      // Otherwise the old entry remains addressable and the rescan creates a
+      // second logical entry for the same file.
+      final storagePath = indexedPath ?? track.path;
+      final currentEntry = indexedPath == null ? null : _files[indexedPath];
+      String? artworkPath = currentEntry?['artwork']?.toString();
       final embedded = track.embeddedArtwork;
       if (embedded != null && embedded.isNotEmpty) {
-        artworkPath = await _persistEmbeddedArtwork(track.path, embedded);
+        artworkPath = await _persistEmbeddedArtwork(storagePath, embedded);
         LocalMusicDebugLog.info(
           'library.embedded_artwork.persisted',
-          'bytes=${embedded.length} path=${LocalMusicDebugLog.quote(artworkPath)} track=${LocalMusicDebugLog.quote(track.path)}',
+          'bytes=${embedded.length} path=${LocalMusicDebugLog.quote(artworkPath)} track=${LocalMusicDebugLog.quote(storagePath)}',
         );
       }
-      _files[track.path] = {
-        'path': track.path,
+      _files[storagePath] = {
+        'path': storagePath,
         'fileName': track.fileName,
         'extension': track.extension,
         'size': track.size,
@@ -471,7 +491,7 @@ class LocalMusicLibrary {
       };
       LocalMusicDebugLog.info(
         'library.index.upsert',
-        LocalMusicDebugLog.indexedFile(_files[track.path]!),
+        LocalMusicDebugLog.indexedFile(_files[storagePath]!),
       );
     }
     // Stale detection must not depend on path separators: index keys can be
@@ -485,9 +505,8 @@ class LocalMusicLibrary {
         .toSet();
     final stalePaths = _files.keys
         .where(
-          (path) => normalizeLocalMusicPath(
-            path,
-          ).startsWith(prefix) &&
+          (path) =>
+              normalizeLocalMusicPath(path).startsWith(prefix) &&
               !normalizedDiscovered.contains(normalizeLocalMusicPath(path)),
         )
         .toList(growable: false);
@@ -848,6 +867,4 @@ class LocalMusicLibrary {
 /// written both ways (a picked directory keeps whatever the platform returned,
 /// while `Directory.systemTemp.createTemp` yields '/'), and comparing raw
 /// strings silently disabled stale-entry pruning on Windows.
-String normalizeLocalMusicPath(String path) =>
-    path.replaceAll(r'\', '/');
-
+String normalizeLocalMusicPath(String path) => path.replaceAll(r'\', '/');
