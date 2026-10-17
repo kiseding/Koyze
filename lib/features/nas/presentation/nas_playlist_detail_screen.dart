@@ -15,7 +15,6 @@ import '../../player/presentation/player_provider.dart';
 import '../domain/nas_kind.dart';
 import 'nas_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
-import '../../../core/widgets/origo_chrome.dart';
 
 class NasPlaylistDetailScreen extends ConsumerWidget {
   const NasPlaylistDetailScreen({

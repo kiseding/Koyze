@@ -22,7 +22,6 @@ import '../../playlist/presentation/playlist_provider.dart';
 import 'leaderboard_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../core/theme/app_tokens.dart';
-import '../../../core/widgets/origo_chrome.dart';
 
 const Map<String, String> kLeaderboardPlatformNames = {
   'tx': 'QQ音乐',

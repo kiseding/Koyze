@@ -11,7 +11,6 @@ import '../../search/presentation/search_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/loading_widget.dart';
-import '../../../core/widgets/origo_chrome.dart';
 
 class SongListDetailScreen extends ConsumerStatefulWidget {
   final MusicItem songList;

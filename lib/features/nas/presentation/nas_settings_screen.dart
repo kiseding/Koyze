@@ -8,7 +8,6 @@ import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/fx_icon_button.dart';
-import '../../../core/widgets/origo_chrome.dart';
 import '../domain/nas_config.dart';
 import '../domain/nas_kind.dart';
 import '../domain/nas_url.dart';
