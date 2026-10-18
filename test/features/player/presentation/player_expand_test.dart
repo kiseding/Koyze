@@ -207,10 +207,13 @@ void main() {
     },
   );
 
-  test('search sheet closes via default bottom-sheet animation', () {
+  test('search sheet closes through its own route reverse animation', () {
     final sheet = File('lib/core/widgets/search_sheet.dart').readAsStringSync();
 
-    expect(sheet, contains('Navigator.pop(context)'));
+    // 关闭不再是「先算一段位移再 pop」，而是直接交给路由反向动画，
+    // 拖动到一半松手也不会先弹回原位再淡出。
+    expect(sheet, contains('Navigator.of(context).maybePop()'));
+    expect(sheet, contains('reverseTransitionDuration'));
     expect(sheet, isNot(contains('_closing')));
   });
 

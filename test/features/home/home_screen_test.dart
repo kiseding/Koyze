@@ -79,16 +79,19 @@ void main() {
 
     expect(sheet, contains('autofocusDelay'));
     expect(sheet, contains('topInset'));
-    expect(sheet, contains('useRootNavigator: true'));
-    expect(sheet, contains('isDismissible: true'));
+    expect(sheet, contains('rootNavigator: true'));
+    expect(sheet, contains('barrierDismissible'));
     expect(
       sheet,
       isNot(contains('margin: EdgeInsets.only(top: widget.topInset)')),
     );
-    // 系统 bottom sheet 负责顶部拖拽，列表到顶后的下拉由弹窗自身接管。
-    expect(sheet, contains('enableDrag: true'));
+    // 拖拽、回弹和退场都由自绘路由的同一进度驱动，不再叠系统弹层手势。
+    expect(sheet, contains('class _SearchSheetRoute extends PopupRoute'));
+    expect(sheet, contains('onVerticalDragUpdate'));
+    expect(sheet, contains('_endDrag'));
     expect(sheet, contains('Transform.translate'));
-    expect(sheet, contains('_closeThreshold'));
+    expect(sheet, contains('_settleBack'));
+    expect(sheet, isNot(contains('showModalBottomSheet')));
     expect(search, contains('autofocusDelay'));
     expect(search, contains('Timer(delay'));
     // Origo 式搜索面板把返回按钮放在输入行左侧，同时仍支持下滑关闭。

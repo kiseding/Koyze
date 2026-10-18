@@ -101,11 +101,14 @@ MusicItem _song(String id) => MusicItem(
 void main() {
   test('never starts more than maxConcurrent downloads', () async {
     final downloader = _GatedDownloader();
+    // 时间戳工厂在同一微秒内会产出重复 ID，任务会被 `_activeTaskIds` 判重跳过，
+    // 让「补位」用例假失败；这里用递增序列保证每首歌都有独立任务。
+    var nextTaskId = 0;
     final service = DownloadService(
       maxConcurrent: 2,
       downloader: downloader.call,
       storage: _MemoryStorage(),
-      taskIdFactory: () => 'id-${DateTime.now().microsecondsSinceEpoch}',
+      taskIdFactory: () => 'task-${nextTaskId++}',
     );
     addTearDown(() async {
       downloader.completeAll();
@@ -116,10 +119,11 @@ void main() {
     expect(downloader.active, 2);
     expect(downloader.started, hasLength(2));
     downloader.complete(downloader.started.first);
+    // 队列补位要跨若干次异步调度：让事件队列彻底空转，避免只看一次微任务。
     for (var attempt = 0;
-        attempt < 20 && downloader.started.length < 3;
+        attempt < 50 && downloader.started.length < 3;
         attempt++) {
-      await Future<void>.delayed(const Duration(milliseconds: 1));
+      await pumpEventQueue(times: 10);
     }
     expect(downloader.started, hasLength(3));
   });
