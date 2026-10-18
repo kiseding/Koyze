@@ -45,7 +45,105 @@ class _MiniLyricText extends ConsumerWidget {
   }
 }
 
-/// 迷你播放条。进度条去掉后，封面和控件按空出的高度等比放大。
+/// 迷你播放控件行：三个按钮居中、悬浮、不铺底板。
+///
+/// 竖屏的封面已经移到 tab dock 中间，迷你条不再需要卡片；只有这三个
+/// 控件浮在内容之上，页面背景可以直接透出来。
+class MiniPlayerControls extends ConsumerWidget {
+  const MiniPlayerControls({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentMusic = ref.watch(currentMusicProvider);
+    final isPlaying = ref.watch(isPlayingProvider);
+    final enabled = currentMusic != null;
+    final onScaffold = AppColors.onScaffold(context);
+
+    // 没有歌时这几个按钮无事可做，直接不出现：dock 中间的唱片才是入口。
+    if (!enabled) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 46,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _BareControl(
+            semanticLabel: S.of(context).openLyrics,
+            icon: Icons.subject_rounded,
+            size: 25,
+            color: onScaffold,
+            onTap: () => pushPlayerRoute(
+              context,
+              hasSong: true,
+              openLyrics: true,
+            ),
+          ),
+          const SizedBox(width: 34),
+          PlayPulseButton(
+            isPlaying: isPlaying.value ?? false,
+            onPressed: () => ref.read(playerServiceProvider).togglePlay(),
+            enabled: true,
+            size: 44,
+            iconSize: 25,
+            mini: true,
+          ),
+          const SizedBox(width: 34),
+          _BareControl(
+            semanticLabel: S.of(context).next,
+            icon: Icons.skip_next_rounded,
+            size: 30,
+            color: onScaffold,
+            onTap: () => ref.read(playerServiceProvider).next(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 无底板的图标控件：只留按压缩放，不画形状。
+class _BareControl extends StatelessWidget {
+  const _BareControl({
+    required this.icon,
+    required this.size,
+    required this.color,
+    required this.onTap,
+    required this.semanticLabel,
+  });
+
+  final IconData icon;
+  final double size;
+  final Color color;
+  final VoidCallback? onTap;
+  final String semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      semanticLabel: semanticLabel,
+      onTap: onTap,
+      scale: 0.88,
+      borderRadius: BorderRadius.circular(22),
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Icon(
+          icon,
+          size: size,
+          color: color,
+          shadows: [
+            Shadow(
+              color: Colors.black.withValues(alpha: 0.28),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 class MiniPlayer extends ConsumerStatefulWidget {
   final bool floating;
@@ -57,8 +155,7 @@ class MiniPlayer extends ConsumerStatefulWidget {
   ConsumerState<MiniPlayer> createState() => _MiniPlayerState();
 }
 
-class _MiniPlayerState extends ConsumerState<MiniPlayer> {
-  @override
+class _MiniPlayerState extends ConsumerState<MiniPlayer> {  @override
   Widget build(BuildContext context) {
     final currentMusic = ref.watch(currentMusicProvider);
     final isPlaying = ref.watch(isPlayingProvider);

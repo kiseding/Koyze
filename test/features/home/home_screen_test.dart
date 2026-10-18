@@ -131,7 +131,7 @@ void main() {
 
   test('bottom navigation second tab is leaderboard', () {
     final source = File(
-      'lib/features/home/presentation/main_scaffold.dart',
+      'lib/features/home/presentation/widgets/bottom_dock.dart',
     ).readAsStringSync();
 
     expect(source, contains('Icons.leaderboard_outlined'));
@@ -140,8 +140,9 @@ void main() {
       File('lib/l10n/app_strings.dart').readAsStringSync(),
       contains("en ? 'Charts' : '榜单'"),
     );
-    expect(source, contains('BoxConstraints(minHeight: 48)'));
-    expect(source, contains('(textScale - 1) * 20'));
+    // 图标 tab 不再带文字标签，选中态靠胶囊底色区分。
+    expect(source, contains('AnimatedIconSwitch'));
+    expect(source, contains('MotionCurve.iosSpring'));
   });
 
   test('leaderboard renders list with settings entry and one-tap play', () {

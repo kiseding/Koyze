@@ -13,10 +13,10 @@ import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/root_shell_layout.dart';
-import '../../../core/widgets/origo_chrome.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 import '../../player/presentation/widgets/mini_player.dart';
 import '../../settings/presentation/settings_provider.dart';
+import 'widgets/bottom_dock.dart';
 
 class MainScaffold extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
@@ -61,11 +61,8 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     final bottomInset = media.padding.bottom > media.viewPadding.bottom
         ? media.padding.bottom
         : media.viewPadding.bottom;
-    final bottomSpacing = bottomInset == 0 ? 2.0 : 0.0;
-    final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
-    final navHeight = 36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
-    const miniHeight = 78.0;
-    const miniGap = 11.0;
+    // 竖屏 dock 的几何与播放页 morph 共用同一份数字。
+    final dock = KoyzeDockMetrics(screen: media.size, bottomInset: bottomInset);
     final trailingInset = media.padding.right > media.viewPadding.right
         ? media.padding.right
         : media.viewPadding.right;
@@ -77,14 +74,12 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     // The side rail is outside this navigator, and the media size already
     // excludes it. Do not reserve the rail width a second time.
     const sideRailWidth = 0.0;
-    // The side layout has no bottom tab bar, so only reserve space for the
-    // mini-player and a small breathing room below it.
-    final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
+    // 横屏/桌面没有底部 dock：迷你播放条仍是一张完整卡片（封面 + 标题 +
+    // 控件）；竖屏只有 dock 上方的三个悬浮控件。
+    final miniHeight = usesSideNavigation ? 78.0 : kMiniControlsHeight;
     final miniBottom = usesSideNavigation
         ? (bottomInset == 0 ? 8.0 : 6.0)
-        : bottomInset == 0
-        ? navHeight + 16 + bottomClearance + miniGap
-        : navHeight + miniGap;
+        : dock.controlsBottom;
     final selectedIndex = navigationShell.currentIndex;
     if (rootBranchIndex.value != selectedIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -93,8 +88,9 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
         }
       });
     }
-    final chromeBottom =
-        miniBottom + miniHeight + (usesSideNavigation ? 8.0 : 0.0);
+    final chromeBottom = usesSideNavigation
+        ? miniBottom + miniHeight + 8.0
+        : dock.contentObstruction;
     final pageWidth = media.size.width - sideRailWidth - contentRightInset;
     final miniInset = miniPlayerSideInset(
       pageWidth: pageWidth,
@@ -153,35 +149,37 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: bottomClearance,
+                  bottom: dock.dockWidgetBottom,
+                  height: kDockDiscSize,
                   child: Opacity(
                     opacity: chromeOpacity,
                     child: Transform.translate(
                       offset: Offset(0, navPush * eased),
-                      child: _BottomNav(
-                        height: navHeight,
-                        bottomSpacing: bottomSpacing,
-                        selectedIndex: selectedIndex,
-                        onTap: onBranchTap,
+                      child: Center(
+                        child: KoyzeBottomDock(
+                          metrics: dock,
+                          selectedIndex: selectedIndex,
+                          onTap: onBranchTap,
+                        ),
                       ),
                     ),
                   ),
                 ),
               Positioned(
-                // Match the home tab column. Narrow windows keep the small
-                // floating inset; wide windows use the same centered width.
-                left: miniInset,
-                right: contentRightInset + miniInset,
+                // 竖屏控件行横跨整屏，靠 Row 自身居中；横屏卡片沿用内容宽度。
+                left: usesSideNavigation ? miniInset : 0,
+                right: usesSideNavigation
+                    ? contentRightInset + miniInset
+                    : contentRightInset,
                 bottom: miniBottom,
                 child: Transform.scale(
                   alignment: Alignment.bottomCenter,
                   scale: 1 + 0.035 * eased,
                   child: Opacity(
                     opacity: chromeOpacity,
-                    child: const MiniPlayer(
-                      floating: true,
-                      alwaysShow: true,
-                    ),
+                    child: usesSideNavigation
+                        ? const MiniPlayer(floating: true, alwaysShow: true)
+                        : const MiniPlayerControls(),
                   ),
                 ),
               ),
@@ -886,138 +884,5 @@ class RootSideNav extends ConsumerWidget {
         ),
       ],
     ];
-  }
-}
-
-class _BottomNav extends StatelessWidget {
-  final double height;
-  final double bottomSpacing;
-  final int selectedIndex;
-  final ValueChanged<int> onTap;
-
-  const _BottomNav({
-    required this.height,
-    required this.bottomSpacing,
-    required this.selectedIndex,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final s = S.of(context);
-    final width = MediaQuery.sizeOf(context).width;
-    final dockWidth = (width - 28).clamp(300.0, 520.0);
-    return SizedBox(
-      height: height + 22,
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Padding(
-          padding: EdgeInsets.only(bottom: bottomSpacing),
-          child: SizedBox(
-            width: dockWidth,
-            child: OrigoChromeSurface(
-              borderRadius: BorderRadius.circular(26),
-              padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
-              emphasized: true,
-              child: Row(
-                children: [
-                  _item(context, 0, Icons.home_outlined, Icons.home, s.home),
-                  _item(
-                    context,
-                    1,
-                    Icons.leaderboard_outlined,
-                    Icons.leaderboard,
-                    s.charts,
-                  ),
-                  _item(
-                    context,
-                    2,
-                    Icons.library_music_outlined,
-                    Icons.library_music,
-                    s.playlists,
-                  ),
-                  _item(
-                    context,
-                    3,
-                    Icons.settings_outlined,
-                    Icons.settings,
-                    s.settings,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _item(
-    BuildContext context,
-    int index,
-    IconData icon,
-    IconData activeIcon,
-    String label,
-  ) {
-    final isSelected = index == selectedIndex;
-    final accent = Theme.of(context).colorScheme.primary;
-    final isDark = AppColors.isDark(context);
-    // Muted labels still need contrast against translucent glass, but pure
-    // black at 90% makes the unselected tabs look heavier than the selected.
-    final muted = isDark ? const Color(0xCCFFFFFF) : const Color(0xCC000000);
-    return Expanded(
-      child: Pressable(
-        semanticLabel: label,
-        selected: isSelected,
-        onTap: () => onTap(index),
-        scale: 0.92,
-        borderRadius: BorderRadius.circular(19),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: AnimatedContainer(
-            duration: motionDuration(context, MotionDuration.normal),
-            curve: MotionCurve.iosSpring,
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? accent.withValues(alpha: isDark ? 0.20 : 0.12)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(19),
-              border: Border.all(
-                color: isSelected
-                    ? accent.withValues(alpha: isDark ? 0.30 : 0.20)
-                    : Colors.transparent,
-                width: 0.8,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AnimatedIconSwitch(
-                  icon: isSelected ? activeIcon : icon,
-                  keyValue: isSelected ? activeIcon : icon,
-                  size: isSelected ? 24 : 22,
-                  color: isSelected ? accent : muted,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                    color: isSelected ? accent : muted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

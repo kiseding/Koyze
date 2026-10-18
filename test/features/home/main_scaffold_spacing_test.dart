@@ -3,26 +3,47 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('bottom chrome stays plain and preserves mini-player clearance', () {
+  test('bottom chrome is the GZ-style dock plus a floating control row', () {
     final source = File(
       'lib/features/home/presentation/main_scaffold.dart',
     ).readAsStringSync();
 
-    expect(source, contains('bottomInset == 0 ? 2.0 : 0.0'));
-    expect(source, contains('final navHeight = 36.0'));
-    expect(source, contains('const miniGap = 11.0'));
-    expect(source, contains('bottomInset == 0 ? 11.0 : 0.0'));
-    expect(
-      source,
-      contains(
-        'bottomInset == 0\n'
-        '        ? navHeight + 16 + bottomClearance + miniGap',
-      ),
-    );
-    expect(source, contains('bottom: miniBottom'));
-    expect(source, contains('bottom: bottomClearance'));
-    expect(source, contains('height: height + 22'));
+    expect(source, contains('KoyzeDockMetrics'));
+    expect(source, contains('KoyzeBottomDock'));
+    expect(source, contains('MiniPlayerControls'));
+    // 内容底部让位由 dock 几何统一给出，避免三处手算漂移。
+    expect(source, contains('dock.contentObstruction'));
+    expect(source, contains('dock.dockWidgetBottom'));
+    expect(source, isNot(contains('_BottomNav')));
     expect(source, isNot(contains('GlassSurface(')));
     expect(source, isNot(contains('AppGlassStyle.bar')));
+  });
+
+  test('dock keeps the artwork in the middle cell and opens the player', () {
+    final dock = File(
+      'lib/features/home/presentation/widgets/bottom_dock.dart',
+    ).readAsStringSync();
+
+    expect(dock, contains('const double kDockBarHeight'));
+    expect(dock, contains('const double kDockDiscSize'));
+    // 五格等宽：中间一格留白给封面。
+    expect(dock, contains('const Expanded(child: SizedBox.expand())'));
+    expect(dock, contains('const DockArtworkDisc()'));
+    // 点封面仍是进全屏播放器。
+    expect(dock, contains('pushPlayerRoute(context, hasSong: true)'));
+  });
+
+  test('control row has no surface behind it', () {
+    final mini = File(
+      'lib/features/player/presentation/widgets/mini_player.dart',
+    ).readAsStringSync();
+    final controls = mini.substring(
+      mini.indexOf('class MiniPlayerControls'),
+      mini.indexOf('class MiniPlayer extends'),
+    );
+
+    expect(controls, contains('MainAxisAlignment.center'));
+    expect(controls, isNot(contains('OrigoChromeSurface')));
+    expect(controls, isNot(contains('GlassSurface')));
   });
 }

@@ -28,6 +28,7 @@ import '../../playlist/data/playlist_repository.dart';
 import '../../download/presentation/download_provider.dart';
 import '../../lyric/presentation/lyric_view.dart';
 import '../../lyric/presentation/lyric_provider.dart';
+import '../../home/presentation/widgets/bottom_dock.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
@@ -941,12 +942,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           0.0,
           screenW,
         );
-        final miniRect = Rect.fromLTWH(
-          miniInset,
-          screenH - miniBottom - miniHeight,
-          miniWidth,
-          miniHeight,
+        // 竖屏收起目标是底部 dock（条形 + 中间封面）；横屏仍是迷你卡片。
+        final dock = KoyzeDockMetrics(
+          screen: Size(screenW, screenH),
+          bottomInset: bottomInset,
         );
+        final miniRect =
+            usesSideNavigation
+            ? Rect.fromLTWH(
+                miniInset,
+                screenH - miniBottom - miniHeight,
+                miniWidth,
+                miniHeight,
+              )
+            : dock.barRect;
         final fullRect = Offset.zero & Size(screenW, screenH);
         final portraitLyrics = _currentPage == 1 && !landscape;
         final lyricCollapsing =
@@ -958,14 +967,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 _settleController.isAnimating ||
                 edgeDragActive);
         final closeT = 1 - progress;
-        // 对称收起（卡片式）：矩形从全屏线性收向目标——封面页→迷你栏，
-        // 歌词页→迷你栏歌词行同款长条；内容以矩形中心锚定并按宽度比
-        // 等比缩放，上下从两侧对称裁剪（焦点 = 矩形中心）。
-        final collapseTarget = lyricCollapsing
+        // 对称收起（卡片式）：矩形从全屏线性收向目标——封面页→底部 dock，
+        // 歌词页→dock 上方的控件行；内容以矩形中心锚定并按宽度比等比缩放，
+        // 上下从两侧对称裁剪（焦点 = 矩形中心）。
+        final lyricCollapseRect = usesSideNavigation
             ? _miniLyricRowRect(miniRect)
-            : miniRect;
+            : Rect.fromCenter(
+                center: dock.controlsPlayRect.center,
+                width: 210,
+                height: 18,
+              );
+        final collapseTarget = lyricCollapsing ? lyricCollapseRect : miniRect;
         final currentRect = Rect.lerp(collapseTarget, fullRect, progress)!;
-        final miniArtworkRect = _miniArtworkRect(miniRect);
+        final miniArtworkRect = usesSideNavigation
+            ? _miniArtworkRect(miniRect)
+            : dock.discRect;
         final fullArtworkRect =
             _artworkRect ??
             _fullArtworkRect(context, screenW: screenW, screenH: screenH);
@@ -974,7 +990,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           fullArtworkRect,
           progress,
         )!;
-        final miniPlayButtonRect = _miniPlayButtonRect(miniRect);
+        final miniPlayButtonRect = usesSideNavigation
+            ? _miniPlayButtonRect(miniRect)
+            : dock.controlsPlayRect;
         final lyricTargetRect =
             _lyricPlayRect ??
             _fullLyricPlayButtonRect(

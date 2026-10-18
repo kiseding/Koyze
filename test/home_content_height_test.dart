@@ -16,11 +16,12 @@ import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 /// 由各平台的 breathingRoom 吸收。改动首页布局后重新跑本测试即可拿到新值。
 const int homeContentMinHeight = 728;
 
-/// 底部 chrome 在桌面端占用的高度。来自
-/// `lib/features/home/presentation/main_scaffold.dart`：
-/// navHeight 38（36 基准 + bottomSpacing 2）+ miniGap 11 + miniHeight 78
-/// + bottomClearance 11 + mini 内外间隙 16 = 154。桌面端没有系统底栏 inset，取的是这条分支。
-const int desktopChromeHeight = 154;
+/// 底部 chrome 在竖屏占用的高度。来自
+/// `lib/features/home/presentation/widgets/bottom_dock.dart`：
+/// dock 条 56 + 上下各 3 溢出 + bottomSpacing 2 + bottomClearance 11
+/// + 控件行间隙 8 + 控件行 46 + 4 余量 = 127。
+/// 桌面端走侧栏布局，chrome 更矮，这里取竖屏值作为保守上界。
+const int desktopChromeHeight = 127;
 
 /// 各平台 runner 里的默认窗口高度常数 -> 定义它的源文件与变量名。
 const nativeHeights = <String, (String, String)>{
