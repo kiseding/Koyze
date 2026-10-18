@@ -1088,17 +1088,23 @@ class _SettingsOptionPanel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Origo 的选项面板：标题只比选项略重一点，右侧是一颗很轻的关闭键，
+        // 标题和第一行之间不留大块空白。
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+          padding: const EdgeInsets.fromLTRB(20, 18, 10, 6),
           child: Row(
             children: [
               Expanded(
                 child: Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: AppColors.onScaffold(context),
-                    fontSize: 17,
+                    fontSize: 16,
+                    height: 1.2,
                     fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
                   ),
                 ),
               ),
@@ -1106,13 +1112,13 @@ class _SettingsOptionPanel extends StatelessWidget {
                 tooltip: S.of(context).close,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints.tightFor(
-                  width: 40,
-                  height: 40,
+                  width: 34,
+                  height: 34,
                 ),
                 icon: Icon(
                   Icons.close_rounded,
-                  color: AppColors.mutedText(context),
-                  size: 21,
+                  color: AppColors.mutedText(context).withValues(alpha: 0.8),
+                  size: 19,
                 ),
                 onPressed: () => Navigator.pop(context),
               ),
@@ -1211,80 +1217,93 @@ class _SettingsOptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: selected
-                    ? accent.withValues(alpha: 0.18)
-                    : AppColors.fill(context),
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: Icon(
-                icon,
-                color: selected ? accent : AppColors.mutedText(context),
-                size: 20,
-              ),
+    final isDark = AppColors.isDark(context);
+    // 选中态学 Origo 的菜单：整行铺一层很淡的强调色，文字转强调色，
+    // 右侧只留一个勾。原来那颗"实心绿方块 + 黑勾"在玻璃上太重，
+    // 也把行尾压得比行首还显眼。
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 2, 10, 2),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              color: selected
+                  ? accent.withValues(alpha: isDark ? 0.14 : 0.10)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: selected ? accent : AppColors.onScaffold(context),
-                      fontSize: 14.5,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.secondaryText(context),
-                      fontSize: 11.5,
-                      height: 1.25,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: AnimatedScale(
-                scale: selected ? 1 : 0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutBack,
-                child: DecoratedBox(
+            padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(12),
+                    color: selected
+                        ? accent.withValues(alpha: isDark ? 0.20 : 0.16)
+                        : AppColors.fill(context),
+                    borderRadius: BorderRadius.circular(11),
                   ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    size: 16,
-                    color: Colors.black,
+                  child: Icon(
+                    icon,
+                    color: selected ? accent : AppColors.mutedText(context),
+                    size: 19,
                   ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: selected
+                              ? accent
+                              : AppColors.onScaffold(context),
+                          fontSize: 14.5,
+                          height: 1.15,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.secondaryText(context),
+                          fontSize: 11.5,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: AnimatedScale(
+                    scale: selected ? 1 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutBack,
+                    child: Icon(Icons.check_rounded, size: 20, color: accent),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

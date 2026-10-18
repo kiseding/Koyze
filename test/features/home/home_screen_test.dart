@@ -94,8 +94,9 @@ void main() {
     expect(sheet, isNot(contains('showModalBottomSheet')));
     expect(search, contains('autofocusDelay'));
     expect(search, contains('Timer(delay'));
-    // Origo 式搜索面板把返回按钮放在输入行左侧，同时仍支持下滑关闭。
-    expect(controls, contains('Icons.arrow_back_rounded'));
+    // 面板靠下滑关闭，输入行左侧不再挂返回箭头；清空交给右侧胶囊。
+    expect(controls, isNot(contains('Icons.arrow_back_rounded')));
+    expect(search, contains('onCancel: clear'));
     expect(sheet, contains('liveSearch: true'));
     expect(search, contains('Timer(const Duration(milliseconds: 250)'));
     // 控件整体做轻微上浮淡入，不再左右对冲。
@@ -103,7 +104,7 @@ void main() {
     // 输入行与平台胶囊各自成组件，弹窗里固定上下堆叠，独立页横屏才并排。
     expect(controls, contains('class SearchFieldBar'));
     expect(controls, contains('class SearchSourceChips'));
-    expect(controls, contains('onBack'));
+    expect(controls, contains('onCancel'));
     expect(controls, contains('onChanged'));
     expect(search, contains('final wide = size.width > size.height * 1.15;'));
   });

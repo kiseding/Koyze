@@ -274,54 +274,42 @@ class DockArtworkDisc extends ConsumerWidget {
                 ),
                 child: const SizedBox.expand(),
               ),
-              // 两道浅槽，唱片才不像一块黑色圆片。
-              _groove(size * 0.90),
-              _groove(size * 0.80),
-              // 盘心标签 = 当前封面。底色常驻，封面加载中也不会是黑洞。
-              ClipOval(
-                child: Container(
-                  width: labelSide,
-                  height: labelSide,
-                  color: accent.withValues(alpha: hasTrack ? 0.62 : 0.46),
-                  child: artwork != null && artwork.isNotEmpty
-                      ? ArtworkImage(
-                          artwork,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _placeholder(),
-                        )
-                      : _placeholder(),
+              // 盘体纹理：细密同心纹 + 两道斜向反光，黑胶才不像一块黑饼。
+              RepaintBoundary(
+                child: CustomPaint(
+                  size: Size.square(size),
+                  painter: const _VinylGroovePainter(),
                 ),
               ),
-              // 轴孔。
-              Container(
-                width: 4,
-                height: 4,
+              // 盘心标签 = 当前封面。底色常驻，封面加载中也不会是黑洞。
+              // 外面套一层柔和的暗影，标签才像"陷"在盘面里，不然是贴上去的圆片。
+              DecoratedBox(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF0B0B0D),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.24),
-                    width: 0.7,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.42),
+                      blurRadius: 7,
+                      spreadRadius: 0.5,
+                    ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: Container(
+                    width: labelSide,
+                    height: labelSide,
+                    color: accent.withValues(alpha: hasTrack ? 0.62 : 0.46),
+                    child: artwork != null && artwork.isNotEmpty
+                        ? ArtworkImage(
+                            artwork,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _placeholder(),
+                          )
+                        : _placeholder(),
                   ),
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _groove(double side) {
-    return IgnorePointer(
-      child: Container(
-        width: side,
-        height: side,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.055),
-            width: 0.7,
           ),
         ),
       ),
@@ -337,4 +325,72 @@ class DockArtworkDisc extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 黑胶盘面的纹路。
+///
+/// 盘心被封面盖住，所以这里只画环带：一圈圈很淡的同心纹（唱片沟槽），
+/// 外加两束斜向反光。原来那两道"槽"和中心那个轴孔在 60dp 的尺寸下会缩成
+/// 一个死黑点，看着像屏幕上的脏东西，索性去掉，改用整片纹理。
+class _VinylGroovePainter extends CustomPainter {
+  const _VinylGroovePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final outer = size.width / 2;
+    // 盘心（封面）半径 0.32，留 1dp 余量让第一圈沟槽贴着封面外面。
+    final inner = size.width * 0.32 + 1;
+
+    final groove = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.55
+      ..color = Colors.white.withValues(alpha: 0.055);
+    for (var radius = inner; radius < outer - 1.2; radius += 2.1) {
+      canvas.drawCircle(center, radius, groove);
+    }
+
+    // 两道略亮的主沟槽，给密纹一点节奏。
+    final accentGroove = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.7
+      ..color = Colors.white.withValues(alpha: 0.10);
+    canvas.drawCircle(center, inner + (outer - inner) * 0.42, accentGroove);
+    canvas.drawCircle(center, inner + (outer - inner) * 0.74, accentGroove);
+
+    // 斜向反光：两束很窄的扇形高光，像唱片转到某个角度时的那道亮边。
+    final sheen = Paint()
+      ..shader = SweepGradient(
+        transform: const GradientRotation(-0.62),
+        colors: [
+          Colors.white.withValues(alpha: 0),
+          Colors.white.withValues(alpha: 0.13),
+          Colors.white.withValues(alpha: 0),
+          Colors.white.withValues(alpha: 0),
+          Colors.white.withValues(alpha: 0.09),
+          Colors.white.withValues(alpha: 0),
+        ],
+        stops: const [0, 0.07, 0.19, 0.55, 0.63, 0.78],
+      ).createShader(Rect.fromCircle(center: center, radius: outer));
+    canvas.drawCircle(center, outer, sheen);
+
+    // 外沿一圈极淡的反光收边，和玻璃条接触的地方不会出现硬边。
+    final rim = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..shader = SweepGradient(
+        transform: const GradientRotation(-2.2),
+        colors: [
+          Colors.white.withValues(alpha: 0.16),
+          Colors.white.withValues(alpha: 0),
+          Colors.white.withValues(alpha: 0.10),
+          Colors.white.withValues(alpha: 0),
+        ],
+        stops: const [0, 0.34, 0.55, 0.92],
+      ).createShader(Rect.fromCircle(center: center, radius: outer));
+    canvas.drawCircle(center, outer - 0.5, rim);
+  }
+
+  @override
+  bool shouldRepaint(covariant _VinylGroovePainter oldDelegate) => false;
 }

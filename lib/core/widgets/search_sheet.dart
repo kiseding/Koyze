@@ -26,7 +26,7 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
       ? 0.68
       : landscape
       ? 0.94
-      : 0.78;
+      : 0.74;
   // 横屏和桌面已经有足够的顶部上下文，不再把首页标题位置当作
   // 面板高度的扣除项；手机仍按标题位置留出明显的上下文。
   final topClearance = landscape ? 8.0 : topInset;
@@ -124,7 +124,13 @@ class _SearchSheetPanel extends StatefulWidget {
 class _SearchSheetPanelState extends State<_SearchSheetPanel>
     with SingleTickerProviderStateMixin {
   static const double _sideGap = 16;
-  static const double _bottomGap = 12;
+
+  /// 面板直接贴到屏幕底边。
+  ///
+  /// 之前留了 12dp 缝，结果底部 dock 的黑胶唱片正好从缝里探出半颗黑弧，
+  /// 像面板破了个洞。贴底后面板自己把底部 chrome 盖住，手势条照常压在
+  /// 面板上，观感和系统 sheet 一致。
+  static const double _bottomGap = 0;
   static const double _handleHeight = 14;
 
   /// 0 = 完全展开，1 = 完全拖出屏幕。拖动、回弹和关闭动画都只改这一个值。
@@ -164,10 +170,7 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
     return max(160.0, widget.height - keyboard);
   }
 
-  double get _bottomInset {
-    final safe = MediaQuery.paddingOf(context).bottom;
-    return max(_bottomGap, safe + 4);
-  }
+  double get _bottomInset => _bottomGap;
 
   /// 面板完全离开屏幕所需的位移，用于把像素增量折算成进度。
   double get _travel => _panelHeight + _bottomInset;
@@ -371,7 +374,6 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
                   embedded: true,
                   liveSearch: true,
                   reserveKeyboardInset: false,
-                  onDismiss: _dismiss,
                   autofocusDelay: _focusDelay(),
                   canAutofocus: () => !_dismissing,
                 ),
@@ -382,6 +384,16 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
                 right: 0,
                 height: _handleHeight,
                 child: _dragHandle(context),
+              ),
+              // 底部收口：面板下沿正好压在 dock 的唱片上方，玻璃透出来的是
+              // 一块黑色圆盘，看着像面板破了个洞。用一层同色渐隐把最后
+              // ~100dp 收紧，顺手也让列表在这里淡出而不是被硬切一刀。
+              const Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 88,
+                child: IgnorePointer(child: _PanelBottomFade()),
               ),
             ],
           ),
@@ -417,4 +429,29 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
   /// 等待路由进场动画结束后再交给输入框聚焦，避免焦点在转场期间
   /// 被底层页面重新夺回，导致键盘刚弹出就关闭。
   Duration _focusDelay() => const Duration(milliseconds: 650);
+}
+
+/// 面板底部的同色渐隐。只叠颜色，不加第二层模糊。
+class _PanelBottomFade extends StatelessWidget {
+  const _PanelBottomFade();
+
+  @override
+  Widget build(BuildContext context) {
+    final base = AppGlass.tintBase(context);
+    final dark = AppColors.isDark(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            base.withValues(alpha: 0),
+            base.withValues(alpha: dark ? 0.22 : 0.20),
+            base.withValues(alpha: dark ? 0.94 : 0.90),
+          ],
+          stops: const [0, 0.55, 1],
+        ),
+      ),
+    );
+  }
 }

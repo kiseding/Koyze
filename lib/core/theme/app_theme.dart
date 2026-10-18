@@ -226,11 +226,14 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.lightBorder),
         ),
+        // 聚焦只用中性深一档的边线：主题级强调色描边会在搜索面板、重命名、
+        // 自定义音源这些玻璃/浮层输入框上同时亮成一圈绿边，很刺眼。
+        // 需要"聚焦感"的地方（搜索行）由组件自己画边和投影。
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-            color: AppColors.lightAccent,
-            width: 1.5,
+            color: Color(0x4D3C3C43),
+            width: 1.2,
           ),
         ),
         errorBorder: OutlineInputBorder(

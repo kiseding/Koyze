@@ -8,8 +8,12 @@ import 'search_provider.dart';
 /// 搜索弹窗顶部的输入行。
 ///
 /// Origo-x 的搜索栏是一条浮在磨砂面板上的胶囊：左侧放大镜、右侧随输入
-/// 出现的清除与提交按钮，聚焦时边线变亮而不是整条变实心。这里复刻这套
-/// 层次，并把「取消」做成分离的玻璃胶囊，避免整条控件被三等分成方块。
+/// 出现的清除与提交按钮。这里复刻这套层次，并把「清空」做成分离的玻璃
+/// 胶囊，避免整条控件被三等分成方块。
+///
+/// 聚焦时不再给整条描一圈强调色——那层绿边和面板自己的边线叠在一起，像
+/// 贴了一层塑料膜。焦点只由更亮的中性边、微微加深的投影和变成强调色的
+/// 放大镜来表示。
 class SearchFieldBar extends StatefulWidget {
   const SearchFieldBar({
     super.key,
@@ -19,8 +23,6 @@ class SearchFieldBar extends StatefulWidget {
     required this.onSubmit,
     required this.onClear,
     this.onChanged,
-    this.onBack,
-    this.backTooltip,
     this.onCancel,
     this.cancelLabel,
     this.clearTooltip,
@@ -34,8 +36,6 @@ class SearchFieldBar extends StatefulWidget {
   final ValueChanged<String> onSubmit;
   final VoidCallback onClear;
   final ValueChanged<String>? onChanged;
-  final VoidCallback? onBack;
-  final String? backTooltip;
   final VoidCallback? onCancel;
   final String? cancelLabel;
   final String? clearTooltip;
@@ -83,140 +83,139 @@ class _SearchFieldBarState extends State<SearchFieldBar> {
     final muted = AppColors.mutedText(context);
     final primary = AppColors.onScaffold(context);
     final accent = AppColors.accentOf(context);
-    // 浅色下输入行的白底和面板几乎同色，只靠 hairline 是分不出边界的；
-    // 补一条更实的边 + 一层浅投影，聚焦时边线转成强调色。
-    final edge = _focused
-        ? accent.withValues(alpha: 0.48)
-        : (isDark
-              ? Colors.white.withValues(alpha: 0.14)
-              : const Color(0xFF3C3C43).withValues(alpha: 0.16));
+    final radius = BorderRadius.circular(SearchFieldBar.height / 2);
+    // 输入行的底子直接画在这层玻璃上，不再套第二个 BackdropFilter：
+    // 两层模糊叠在一起会把面板的层次糊平，聚焦时还会出现"环套环"。
+    final fill = isDark
+        ? Colors.white.withValues(alpha: _focused ? 0.105 : 0.07)
+        : const Color(0xFF3C3C43).withValues(alpha: _focused ? 0.075 : 0.05);
+    final edge = isDark
+        ? Colors.white.withValues(alpha: _focused ? 0.24 : 0.14)
+        : const Color(0xFF3C3C43).withValues(alpha: _focused ? 0.20 : 0.13);
 
     return Row(
       children: [
-        if (widget.onBack != null) ...[
-          IconButton(
-            tooltip: widget.backTooltip,
-            onPressed: widget.onBack,
-            icon: Icon(Icons.arrow_back_rounded, size: 21, color: primary),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-            visualDensity: VisualDensity.compact,
-          ),
-          const SizedBox(width: 8),
-        ],
         Expanded(
           child: SizedBox(
             height: SearchFieldBar.height,
-            // 返回箭头与搜索图标属于同一条 chrome，不再悬在输入框左侧形成
-            // 第二条基线；这样输入栏、平台栏和结果区可以共用外层内缩。
-            child: AnimatedScale(
-              scale: _focused ? 1 : 0.995,
+            child: AnimatedContainer(
               duration: motionDuration(context, MotionDuration.micro),
               curve: MotionCurve.easeOutQuart,
-              child: GlassSurface(
-                style: AppGlassStyle.chrome,
-                borderRadius: BorderRadius.circular(18),
-                emphasized: _focused,
-                border: Border.all(color: edge, width: _focused ? 1 : 0.8),
+              decoration: BoxDecoration(
+                color: fill,
+                borderRadius: radius,
+                border: Border.all(color: edge, width: 0.9),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.06),
-                    blurRadius: 12,
+                    color: Colors.black.withValues(
+                      alpha: isDark
+                          ? (_focused ? 0.22 : 0.14)
+                          : (_focused ? 0.07 : 0.04),
+                    ),
+                    blurRadius: _focused ? 14 : 9,
                     offset: const Offset(0, 3),
                   ),
                 ],
-                child: Row(
-                  children: [
-                    const SizedBox(width: 14),
-                    Icon(
-                      Icons.search_rounded,
-                      size: 17,
-                      color: _focused ? accent : muted,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: widget.controller,
-                        focusNode: widget.focusNode,
-                        autofocus: widget.autofocus,
-                        textInputAction: TextInputAction.search,
-                        onChanged: widget.onChanged,
-                        onSubmitted: widget.onSubmit,
-                        cursorColor: accent,
-                        cursorWidth: 1.6,
-                        cursorRadius: const Radius.circular(2),
-                        style: TextStyle(
-                          color: primary,
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 15),
+                  Icon(
+                    Icons.search_rounded,
+                    size: 17,
+                    color: _focused ? accent : muted,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: widget.focusNode,
+                      autofocus: widget.autofocus,
+                      textInputAction: TextInputAction.search,
+                      onChanged: widget.onChanged,
+                      onSubmitted: widget.onSubmit,
+                      cursorColor: accent,
+                      cursorWidth: 1.6,
+                      cursorRadius: const Radius.circular(2),
+                      style: TextStyle(
+                        color: primary,
+                        fontSize: 15,
+                        height: 1.2,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.1,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: widget.hintText,
+                        hintStyle: TextStyle(
+                          color: muted.withValues(alpha: 0.86),
                           fontSize: 15,
                           height: 1.2,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: -0.1,
+                          fontWeight: FontWeight.w400,
                         ),
-                        decoration: InputDecoration(
-                          hintText: widget.hintText,
-                          hintStyle: TextStyle(
-                            color: muted,
-                            fontSize: 15,
-                            height: 1.2,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          border: InputBorder.none,
-                          isDense: true,
-                          filled: false,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                          ),
+                        // 主题里的 focusedBorder 会盖掉 border，所以每个状态
+                        // 都要显式清空——否则聚焦时会在胶囊内部再描一圈
+                        // 主题色的圆角框，看着像套了个塑料壳。
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        isDense: true,
+                        filled: false,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
                         ),
                       ),
                     ),
-                    // 清除 / 提交都用直径小于行高的圆形按钮：靠右对齐时
-                    // 视觉重心才落在输入行中线上。
-                    // 直接监听 controller：父级是否 setState 都不会漏掉
-                    // 「有 / 无文字」，也不必为两个小按钮重建整个页面。
-                    ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: widget.controller,
-                      builder: (context, value, _) => AnimatedSize(
-                        duration: motionDuration(context, MotionDuration.micro),
-                        curve: MotionCurve.easeOutQuart,
-                        alignment: Alignment.centerRight,
-                        child: value.text.isEmpty
-                            ? const SizedBox.shrink()
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _CircleAction(
-                                    tooltip: widget.clearTooltip ?? '',
-                                    size: 20,
-                                    background: primary.withValues(alpha: 0.10),
-                                    icon: Icon(
-                                      Icons.close_rounded,
-                                      size: 13,
-                                      color: primary.withValues(alpha: 0.72),
-                                    ),
-                                    onTap: widget.onClear,
+                  ),
+                  // 清除 / 提交都用直径小于行高的圆形按钮：靠右对齐时
+                  // 视觉重心才落在输入行中线上。
+                  // 直接监听 controller：父级是否 setState 都不会漏掉
+                  // 「有 / 无文字」，也不必为两个小按钮重建整个页面。
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: widget.controller,
+                    builder: (context, value, _) => AnimatedSize(
+                      duration: motionDuration(context, MotionDuration.micro),
+                      curve: MotionCurve.easeOutQuart,
+                      alignment: Alignment.centerRight,
+                      child: value.text.isEmpty
+                          ? const SizedBox.shrink()
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _CircleAction(
+                                  tooltip: widget.clearTooltip ?? '',
+                                  size: 20,
+                                  background: primary.withValues(alpha: 0.10),
+                                  icon: Icon(
+                                    Icons.close_rounded,
+                                    size: 13,
+                                    color: primary.withValues(alpha: 0.72),
                                   ),
-                                  const SizedBox(width: 6),
-                                  _CircleAction(
-                                    tooltip: widget.submitTooltip ?? '',
-                                    size: 30,
-                                    background: accent,
-                                    icon: Icon(
-                                      Icons.arrow_forward_rounded,
-                                      size: 17,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onPrimary,
-                                    ),
-                                    onTap: () =>
-                                        widget.onSubmit(widget.controller.text),
+                                  onTap: widget.onClear,
+                                ),
+                                const SizedBox(width: 6),
+                                _CircleAction(
+                                  tooltip: widget.submitTooltip ?? '',
+                                  size: 28,
+                                  background: accent,
+                                  icon: Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 16,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimary,
                                   ),
-                                ],
-                              ),
-                      ),
+                                  onTap: () =>
+                                      widget.onSubmit(widget.controller.text),
+                                ),
+                              ],
+                            ),
                     ),
-                    const SizedBox(width: 10),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
               ),
             ),
           ),

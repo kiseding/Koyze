@@ -52,6 +52,47 @@ final allSearchSourcesProvider = Provider<List<SearchSourceItem>>((ref) {
 });
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
+
+/// 上次在搜索面板里手动选过的音源，持久化。
+///
+/// 和设置页的「默认搜索平台」分开：默认平台是"没选过时用哪个"，这里是
+/// "上次我选了哪个"。两者冲突时以用户最近一次手动选择为准。
+final lastSearchSourceProvider =
+    StateNotifierProvider<LastSearchSourceNotifier, String>((ref) {
+      return LastSearchSourceNotifier();
+    });
+
+class LastSearchSourceNotifier extends StateNotifier<String> {
+  LastSearchSourceNotifier({StorageLoader? storage})
+    : _storage = storage ?? (() => StorageService.instance),
+      super('') {
+    _load();
+  }
+
+  static const storageKey = 'last_search_source';
+
+  final StorageLoader _storage;
+
+  Future<void> _load() async {
+    try {
+      final value = (await _storage()).getString(storageKey) ?? '';
+      if (mounted && state.isEmpty && value.isNotEmpty) state = value;
+    } catch (_) {
+      // 读不到就保持空，仍然回落到默认平台。
+    }
+  }
+
+  Future<void> remember(String id) async {
+    if (id.isEmpty || id == state) return;
+    state = id;
+    try {
+      await (await _storage()).setString(storageKey, id);
+    } catch (_) {
+      // 写失败不影响本次会话里的选择。
+    }
+  }
+}
+
 // 默认腾讯；设置页可改 defaultSearchPlatform 并同步到此。
 // 未连接 NAS 时不能停在 subsonic，否则搜索会打空源。
 final selectedSourceIdProvider = StateProvider<String>((ref) {
@@ -70,13 +111,24 @@ final selectedSourceIdProvider = StateProvider<String>((ref) {
       fallbackIfNasGone(_anyNasConnected(ref));
     });
   }
-  final initial = canonicalSearchPlatform(
+  final initialDefault = canonicalSearchPlatform(
     ref.watch(defaultSearchPlatformProvider),
   );
-  if (initial == 'subsonic' && !_anyNasConnected(ref)) {
+  // 上次手动选的源读盘是异步的，回来后补上；此时状态还停在默认平台上
+  // 才套用，用户已经点过别的胶囊就不覆盖。
+  ref.listen<String>(lastSearchSourceProvider, (previous, next) {
+    if (next.isEmpty) return;
+    final current = canonicalSearchPlatform(ref.controller.state);
+    if (current != initialDefault) return;
+    final wanted = canonicalSearchPlatform(next);
+    if (wanted == current) return;
+    if (wanted == 'subsonic' && !_anyNasConnected(ref)) return;
+    ref.controller.state = wanted;
+  });
+  if (initialDefault == 'subsonic' && !_anyNasConnected(ref)) {
     return 'all';
   }
-  return initial;
+  return initialDefault;
 });
 
 // 搜索状态类

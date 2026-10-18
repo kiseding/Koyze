@@ -32,7 +32,6 @@ class SearchScreen extends ConsumerStatefulWidget {
     this.embedded = false,
     this.liveSearch = false,
     this.reserveKeyboardInset = true,
-    this.onDismiss,
   });
 
   /// 进入后延迟聚焦输入框并弹出输入法。
@@ -48,9 +47,6 @@ class SearchScreen extends ConsumerStatefulWidget {
   /// 内容底部是否为输入法留白。搜索弹窗会让面板整体缩到键盘上沿，
   /// 此时再垫一层就是双倍空白；独立页面则需要它。
   final bool reserveKeyboardInset;
-
-  /// 嵌在弹窗里时，由弹窗提供「带下滑动画的关闭」；独立页面直接 pop 路由。
-  final Future<void> Function()? onDismiss;
 
   /// Sheet dismissal can begin while the delayed focus retry is still pending.
   /// The caller can veto focus to avoid re-opening the iOS keyboard mid-close.
@@ -102,6 +98,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         setState(() {});
       }
     });
+    // 每次都从「历史 + 热搜」开始。搜索状态存在 provider 里，关掉面板再打开
+    // 时输入框是空的、列表却还是上一次的结果，看着像点击没生效。
+    if (widget.embedded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _searchController.text.isNotEmpty) return;
+        if (ref.read(searchStateProvider).query.isEmpty) return;
+        ref.read(searchQueryProvider.notifier).state = '';
+        ref.read(searchStateProvider.notifier).reset();
+      });
+    }
   }
 
   bool get _canAutofocus => widget.canAutofocus?.call() ?? true;
@@ -153,6 +159,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
   }
 
+  /// 清空关键词和结果，回到历史与热搜；顺手收起键盘，面板也跟着收短。
+  void _clearResults() {
+    _searchDebounce?.cancel();
+    _searchController.clear();
+    ref.read(searchQueryProvider.notifier).state = '';
+    ref.read(searchStateProvider.notifier).reset();
+    _searchFocus.unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final searchState = ref.watch(searchStateProvider);
@@ -162,7 +177,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     final content = Column(
       children: [
-        _buildHeader(context, allSources, selectedSourceId),
+        _buildHeader(context, allSources, selectedSourceId, searchState),
         if (searchState.isLoading)
           LinearProgressIndicator(
             minHeight: 2,
@@ -196,19 +211,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     BuildContext context,
     List<SearchSourceItem> sources,
     String selectedSourceId,
+    SearchState searchState,
   ) {
     final size = MediaQuery.sizeOf(context);
     final wide = size.width > size.height * 1.15;
-    final cancel = widget.embedded
-        ? () {
-            final dismiss = widget.onDismiss;
-            if (dismiss != null) {
-              unawaited(dismiss());
-            } else {
-              Navigator.maybePop(context);
-            }
-          }
-        : null;
+    // 面板里没有"退出"箭头：下滑或点遮罩就能关。独立搜索页仍然需要一个
+    // 返回入口，这里给它一颗取消胶囊。
+    final exit = widget.embedded
+        ? null
+        : () {
+            Navigator.maybePop(context);
+          };
+    // 有结果时，输入行右侧给一颗"清空"：一键把关键词和列表一起收掉。
+    final canClear =
+        searchState.query.isNotEmpty || searchState.items.isNotEmpty;
+    final clear = widget.embedded
+        ? (canClear ? _clearResults : null)
+        : exit;
 
     final field = SearchFieldBar(
       controller: _searchController,
@@ -217,12 +236,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       autofocus: widget.autofocusDelay == null,
       clearTooltip: S.of(context).clearSearch,
       submitTooltip: S.of(context).searchAction,
-      cancelLabel: S.of(context).cancel,
+      cancelLabel: widget.embedded ? S.of(context).clearResults : S.of(context).cancel,
       // 横屏时取消按钮搬到行尾，让输入框和平台胶囊紧挨着。
       onChanged: widget.liveSearch ? _onQueryChanged : null,
-      onBack: cancel,
-      backTooltip: S.of(context).cancel,
-      onCancel: null,
+      onCancel: clear,
       onClear: () {
         _searchController.clear();
         _onSearch('');
@@ -239,6 +256,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           : const EdgeInsets.symmetric(horizontal: 16),
       onSelected: (id) {
         ref.read(selectedSourceIdProvider.notifier).state = id;
+        // 记住这次选源，下次打开搜索面板直接落在这里。
+        unawaited(ref.read(lastSearchSourceProvider.notifier).remember(id));
         if (_searchController.text.isNotEmpty) {
           _onSearch(_searchController.text);
         }
@@ -286,11 +305,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     Expanded(flex: 5, child: field),
                     const SizedBox(width: 12),
                     Expanded(flex: 7, child: chips),
-                    if (cancel != null) ...[
+                    if (clear != null) ...[
                       const SizedBox(width: 10),
                       SearchCancelButton(
-                        label: S.of(context).cancel,
-                        onTap: cancel,
+                        label: widget.embedded
+                            ? S.of(context).clearResults
+                            : S.of(context).cancel,
+                        onTap: clear,
                       ),
                     ],
                   ],
@@ -915,7 +936,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 _HotRow(
                   index: i,
                   label: hots[i],
-                  last: i == hots.length - 1,
                   onTap: () {
                     _searchController.text = hots[i];
                     _onSearch(hots[i]);
@@ -929,22 +949,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  void _showSongMenu(dynamic item, List playableItems) {
+  /// 结果行的操作菜单。用强类型而不是 `dynamic`：之前写成动态类型，
+  /// 读错字段名（artist / singer）要到运行时才炸。
+  void _showSongMenu(MusicItem item, List<MusicItem> playableItems) {
     showKoyzeSheet(
       context: context,
       builder: (ctx) => SafeArea(
+        top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: Icon(
-                Icons.play_arrow,
-                color: AppColors.onScaffold(context),
-              ),
-              title: Text(
-                S.of(context).playNow,
-                style: TextStyle(color: AppColors.onScaffold(context)),
-              ),
+            KoyzeSheetHeader(
+              title: item.name,
+              subtitle: item.singer,
+              artwork: item.artwork,
+              onClose: () => Navigator.pop(ctx),
+            ),
+            koyzeSheetActionGap,
+            KoyzeSheetAction(
+              icon: Icons.play_arrow_rounded,
+              label: S.of(context).playNow,
               onTap: () {
                 Navigator.pop(ctx);
                 final pIndex = playableItems.indexWhere(
@@ -959,29 +983,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     );
               },
             ),
-            ListTile(
-              leading: Icon(
-                Icons.playlist_add,
-                color: AppColors.onScaffold(context),
-              ),
-              title: Text(
-                S.of(context).addToPlaylist,
-                style: TextStyle(color: AppColors.onScaffold(context)),
-              ),
+            KoyzeSheetAction(
+              icon: Icons.playlist_add_rounded,
+              label: S.of(context).addToPlaylist,
               onTap: () {
                 Navigator.pop(ctx);
                 showPlaylistPicker(context: context, ref: ref, song: item);
               },
             ),
-            ListTile(
-              leading: Icon(
-                Icons.favorite_border,
-                color: AppColors.onScaffold(context),
-              ),
-              title: Text(
-                S.of(context).favorite,
-                style: TextStyle(color: AppColors.onScaffold(context)),
-              ),
+            KoyzeSheetAction(
+              icon: Icons.favorite_border_rounded,
+              label: S.of(context).favorite,
               onTap: () async {
                 Navigator.pop(ctx);
                 try {
@@ -995,20 +1007,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 }
               },
             ),
-            ListTile(
-              leading: Icon(
-                Icons.download,
-                color: AppColors.onScaffold(context),
-              ),
-              title: Text(
-                S.of(context).download,
-                style: TextStyle(color: AppColors.onScaffold(context)),
-              ),
+            KoyzeSheetAction(
+              icon: Icons.download_rounded,
+              label: S.of(context).download,
               onTap: () {
                 Navigator.pop(ctx);
                 ref.read(downloadSongProvider)(item);
               },
             ),
+            const SizedBox(height: 10),
           ],
         ),
       ),
@@ -1206,80 +1213,67 @@ class _HotRow extends StatelessWidget {
   const _HotRow({
     required this.index,
     required this.label,
-    required this.last,
     required this.onTap,
   });
 
   final int index;
   final String label;
-  final bool last;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final primary = AppColors.onScaffold(context);
+    final accent = AppColors.accentOf(context);
     final top = index < 3;
+    // 不加分隔线：十条通栏细线会把热搜压成一张表格。序号列本身就是节奏，
+    // 行高留足、按压时整行浮起一层浅色就够了。
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: SizedBox(
-          height: 46,
-          child: Stack(
-            children: [
-              // 分隔线从榜名那一列起，而不是横贯整块面板：七条通栏线会把
-              // 热搜压成一张表格，序号和名字之间的留白也被切断。
-              if (!last)
-                Positioned(
-                  left: 32,
-                  right: 0,
-                  bottom: 0,
-                  child: SizedBox(
-                    height: 0.6,
-                    child: ColoredBox(
-                      color: AppColors.cardBorder(
-                        context,
-                      ).withValues(alpha: 0.55),
+          height: 48,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 22,
+                  child: Text(
+                    '${index + 1}',
+                    textAlign: TextAlign.left,
+                    style: TextStyle(
+                      color: top ? accent : primary.withValues(alpha: 0.66),
+                      fontSize: top ? 15 : 14,
+                      height: 1.0,
+                      fontWeight: top ? FontWeight.w800 : FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
                 ),
-              Row(
-                children: [
-                  SizedBox(
-                    width: 20,
-                    child: Text(
-                      '${index + 1}',
-                      textAlign: TextAlign.left,
-                      style: TextStyle(
-                        color: top
-                            ? AppColors.accentOf(context)
-                            : primary.withValues(alpha: 0.72),
-                        fontSize: top ? 15 : 14,
-                        height: 1.0,
-                        fontWeight: top ? FontWeight.w800 : FontWeight.w600,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: primary.withValues(alpha: top ? 0.94 : 0.88),
+                      fontSize: 14.5,
+                      height: 1.0,
+                      fontWeight: top ? FontWeight.w600 : FontWeight.w500,
+                      letterSpacing: -0.1,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: primary.withValues(alpha: 0.92),
-                        fontSize: 14.5,
-                        height: 1.0,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: -0.1,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+                Icon(
+                  Icons.north_east_rounded,
+                  size: 13,
+                  color: AppColors.mutedText(context).withValues(alpha: 0.5),
+                ),
+              ],
+            ),
           ),
         ),
       ),

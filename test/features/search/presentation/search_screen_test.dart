@@ -36,8 +36,10 @@ void main() {
 
     expect(source, contains('this.liveSearch = false'));
     expect(source, contains('Timer(const Duration(milliseconds: 250)'));
-    expect(source, contains('onBack: cancel'));
-    expect(controls, contains('Icons.arrow_back_rounded'));
+    // 面板里没有退出箭头，改用输入行右侧的「清空」胶囊收掉结果。
+    expect(source, contains('onCancel: clear'));
+    expect(source, contains('_clearResults'));
+    expect(controls, isNot(contains('Icons.arrow_back_rounded')));
     expect(controls, contains('onChanged: widget.onChanged'));
   });
 

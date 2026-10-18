@@ -2112,74 +2112,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     showKoyzeSheet(
       context: context,
       builder: (context) => SafeArea(
+        top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 32,
-              height: 4,
-              margin: EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.mutedText(context),
-                borderRadius: BorderRadius.circular(2),
-              ),
+            KoyzeSheetHeader(
+              title: music.name,
+              subtitle: music.singer,
+              artwork: music.artwork,
+              onClose: () => Navigator.pop(context),
             ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.fill(context),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.music_note,
-                      color: AppColors.mutedText(context),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          music.name,
-                          style: TextStyle(
-                            color: AppColors.onScaffold(context),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          music.singer,
-                          style: TextStyle(
-                            color: AppColors.mutedText(context),
-                            fontSize: 12,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Divider(color: AppColors.cardBorder(context), height: 1),
-            ListTile(
-              leading: Icon(
-                Icons.favorite_border,
-                color: AppColors.onScaffold(context),
-              ),
-              title: Text(
-                S.of(context).favorite,
-                style: TextStyle(color: AppColors.onScaffold(context)),
-              ),
+            koyzeSheetActionGap,
+            KoyzeSheetAction(
+              icon: Icons.favorite_border_rounded,
+              label: S.of(context).favorite,
               onTap: () async {
                 Navigator.pop(context);
                 try {
@@ -2193,15 +2139,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 }
               },
             ),
-            ListTile(
-              leading: Icon(
-                Icons.thumb_down_alt_outlined,
-                color: AppColors.onScaffold(context),
-              ),
-              title: Text(
-                S.of(context).dislikeAndSkip,
-                style: TextStyle(color: AppColors.onScaffold(context)),
-              ),
+            KoyzeSheetAction(
+              icon: Icons.thumb_down_alt_outlined,
+              label: S.of(context).dislikeAndSkip,
               onTap: () async {
                 Navigator.pop(context);
                 try {
@@ -2223,29 +2163,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 }
               },
             ),
-            ListTile(
-              leading: Icon(
-                Icons.playlist_add,
-                color: AppColors.onScaffold(context),
-              ),
-              title: Text(
-                S.of(context).addToPlaylist,
-                style: TextStyle(color: AppColors.onScaffold(context)),
-              ),
+            KoyzeSheetAction(
+              icon: Icons.playlist_add_rounded,
+              label: S.of(context).addToPlaylist,
               onTap: () {
                 Navigator.pop(context);
                 showPlaylistPicker(context: pageContext, ref: ref, song: music);
               },
             ),
-            ListTile(
-              leading: Icon(
-                Icons.download,
-                color: AppColors.onScaffold(context),
-              ),
-              title: Text(
-                S.of(context).download,
-                style: TextStyle(color: AppColors.onScaffold(context)),
-              ),
+            KoyzeSheetAction(
+              icon: Icons.download_rounded,
+              label: S.of(context).download,
               onTap: () async {
                 Navigator.pop(context);
                 try {
@@ -2264,6 +2192,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 }
               },
             ),
+            const SizedBox(height: 10),
           ],
         ),
       ),

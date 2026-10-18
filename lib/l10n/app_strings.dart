@@ -305,6 +305,7 @@ class S {
   String get searchLibraryHint =>
       en ? 'Search songs or playlists' : '在库中搜索歌曲/歌单';
   String get clearSearch => en ? 'Clear search' : '清除搜索内容';
+  String get clearResults => en ? 'Clear' : '清空';
   String get customPlaylists => en ? 'Custom playlists' : '自定义歌单';
   String songsHeader(int count) => en ? 'Songs ($count)' : '歌曲 ($count)';
   String playlistsHeader(int count) =>

@@ -137,6 +137,212 @@ Future<T?> showKoyzeSheet<T>({
 /// 值，否则弹层家族里会混出两套圆角。
 const double koyzeSheetRadius = 26;
 
+/// 弹层里的动作行（播放 / 加入歌单 / 收藏 / 下载…）。
+///
+/// 不再直接用 ListTile：它的 56dp 行高和裸图标在玻璃面板上显得很"系统"。
+/// 这里统一成 36dp 的圆角色块图标 + 15 号标签，行高收到 48，整组行读起来
+/// 和设置里的选项面板是同一套语言。
+class KoyzeSheetAction extends StatelessWidget {
+  const KoyzeSheetAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.subtitle,
+    this.tone,
+    this.danger = false,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final String? subtitle;
+
+  /// 图标色块的主色，默认取强调色。
+  final Color? tone;
+  final bool danger;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = danger
+        ? Theme.of(context).colorScheme.error
+        : (tone ?? AppColors.accentOf(context));
+    final primary = AppColors.onScaffold(context);
+    final muted = AppColors.mutedText(context);
+    const radius = BorderRadius.all(Radius.circular(14));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 7, 12, 7),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(
+                      alpha: AppColors.isDark(context) ? 0.18 : 0.12,
+                    ),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(icon, size: 18, color: accent),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: danger ? accent : primary,
+                          fontSize: 15,
+                          height: 1.25,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: muted,
+                            fontSize: 12,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (trailing != null) trailing!,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 弹层标题行：封面（或图标）+ 主副标题 + 关闭键。
+class KoyzeSheetHeader extends StatelessWidget {
+  const KoyzeSheetHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.artwork,
+    this.icon,
+    this.onClose,
+  });
+
+  final String title;
+  final String? subtitle;
+  final String? artwork;
+  final IconData? icon;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = AppColors.onScaffold(context);
+    final muted = AppColors.mutedText(context);
+    final hasCover = artwork != null && artwork!.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 12, 10, 8),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 40,
+              height: 40,
+              color: AppColors.accentOf(context).withValues(alpha: 0.16),
+              child: hasCover
+                  ? Image.network(
+                      artwork!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          Icon(icon ?? Icons.music_note_rounded,
+                              size: 19, color: primary),
+                    )
+                  : Icon(
+                      icon ?? Icons.music_note_rounded,
+                      size: 19,
+                      color: primary,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: primary,
+                    fontSize: 15,
+                    height: 1.25,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: muted, fontSize: 12, height: 1.25),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (onClose != null)
+            Material(
+              type: MaterialType.transparency,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onClose,
+                child: SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 19,
+                    color: muted.withValues(alpha: 0.9),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 弹层里分组之间的细分隔。
+const SizedBox koyzeSheetActionGap = SizedBox(height: 6);
+
 /// 左右留白：手机上面板不贴边，宽屏由 640 的宽度上限居中留出。
 const double _sideGap = 12;
 
