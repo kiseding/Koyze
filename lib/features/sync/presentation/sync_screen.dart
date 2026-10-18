@@ -583,53 +583,15 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         isScrollControlled: true,
         builder: (ctx) {
           return SafeArea(
+            top: false,
             child: SizedBox(
               height: MediaQuery.of(ctx).size.height * 0.7,
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.amber.withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.people_alt_rounded,
-                            color: AppColors.amber,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            S.of(context).userList,
-                            style: TextStyle(
-                              color: AppColors.onScaffold(context),
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: S.of(context).close,
-                          icon: Icon(
-                            Icons.close_rounded,
-                            color: AppColors.mutedText(context),
-                          ),
-                          onPressed: () => Navigator.pop(ctx),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Divider(
-                    height: 1,
-                    thickness: 0.5,
-                    color: AppColors.cardBorder(context),
+                  const KoyzeSheetGrabber(),
+                  KoyzeSheetTitle(
+                    title: S.of(context).userList,
+                    onClose: () => Navigator.pop(ctx),
                   ),
                   Expanded(
                     child: ListView.builder(

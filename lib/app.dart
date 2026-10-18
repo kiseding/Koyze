@@ -40,8 +40,14 @@ class _PlayerMessageListenerState extends ConsumerState<PlayerMessageListener> {
     ref.listenManual<String?>(
       playerMessageProvider,
       (previous, next) => _deliver(next),
-      fireImmediately: true,
     );
+    // 首帧之后再处理已经存在的消息。`fireImmediately: true` 会在 initState
+    // 里同步把 provider 写回 null，树被锁定时会触发"build 期间修改
+    // provider"的断言——整棵树重建（横竖屏切换、主题切换）时必现。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _deliver(ref.read(playerMessageProvider));
+    });
   }
 
   void _deliver(String? next) {

@@ -8,6 +8,7 @@ import 'package:koyze/core/audio/equalizer_bridge.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/widgets/koyze_modal.dart';
+import 'package:koyze/core/widgets/koyze_sheet.dart';
 import 'package:koyze/features/equalizer/presentation/equalizer_provider.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
 import 'package:koyze/features/settings/presentation/settings_provider.dart';
@@ -60,14 +61,29 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(target);
       await tester.pumpAndSettle();
-      expect(find.byType(KoyzeDialog), findsOneWidget);
+      // 选项面板统一走底部玻璃弹层：有把手、大标题、圆形关闭键，
+      // 左右留白而不是贴边铺满。
+      final sheet = find.byType(BottomSheet);
+      expect(sheet, findsOneWidget);
+      expect(
+        find.descendant(of: sheet, matching: find.byType(KoyzeSheetTitle)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.byType(KoyzeSheetGrabber)),
+        findsOneWidget,
+      );
       final panel = tester.getRect(find.byType(GlassSurface).last);
-      expect(panel.left, greaterThanOrEqualTo(24));
-      expect(panel.right, lessThanOrEqualTo(390 - 24));
-      expect(find.byIcon(Icons.close_rounded), findsOneWidget);
-      await tester.tap(find.byIcon(Icons.close_rounded));
+      expect(panel.left, greaterThanOrEqualTo(12));
+      expect(panel.right, lessThanOrEqualTo(390 - 12));
+      final close = find.descendant(
+        of: sheet,
+        matching: find.byIcon(Icons.close_rounded),
+      );
+      expect(close, findsOneWidget);
+      await tester.tap(close);
       await tester.pumpAndSettle();
-      expect(find.byType(KoyzeDialog), findsNothing);
+      expect(find.byType(BottomSheet), findsNothing);
     }
 
     await open('Audio quality');
@@ -108,15 +124,16 @@ void main() {
 
     await tester.tap(find.text('Audio quality').first);
     await tester.pumpAndSettle();
-    final dialog = find.byType(KoyzeDialog);
-    expect(dialog, findsOneWidget);
+    final sheet = find.byType(BottomSheet);
+    expect(sheet, findsOneWidget);
     expect(
-      find.descendant(of: dialog, matching: find.text('High (320 kbps)')),
+      find.descendant(of: sheet, matching: find.text('High (320 kbps)')),
       findsOneWidget,
     );
+    // 每一行都预置了勾，只有选中项的勾被放大到 1。
     expect(
       find.descendant(
-        of: dialog,
+        of: sheet,
         matching: find.byWidgetPredicate(
           (widget) => widget is AnimatedScale && widget.scale == 1,
         ),
@@ -125,12 +142,12 @@ void main() {
     );
 
     await tester.tap(
-      find.descendant(of: dialog, matching: find.text('Lossless (FLAC)')),
+      find.descendant(of: sheet, matching: find.text('Lossless (FLAC)')),
     );
     await tester.pumpAndSettle();
 
     expect(container.read(audioQualityProvider), AudioQualityOption.lossless);
-    expect(find.byType(KoyzeDialog), findsNothing);
+    expect(find.byType(BottomSheet), findsNothing);
   });
 
   test('settings page routes capture their tile expansion origin', () {

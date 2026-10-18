@@ -125,6 +125,7 @@ class RootHeader {
 /// Page titles and portrait header actions, shown in the side rail.
 class RootHeaderController extends ChangeNotifier {
   final _headers = List<RootHeader?>.filled(4, null);
+  bool _disposed = false;
 
   RootHeader? headerFor(int index) {
     if (index < 0 || index >= _headers.length) return null;
@@ -132,17 +133,26 @@ class RootHeaderController extends ChangeNotifier {
   }
 
   void publish(int index, RootHeader header) {
-    if (index < 0 || index >= _headers.length) return;
+    if (_disposed || index < 0 || index >= _headers.length) return;
     _headers[index] = header;
     notifyListeners();
   }
 
   void clear(int index) {
-    if (index < 0 || index >= _headers.length || _headers[index] == null) {
+    if (_disposed ||
+        index < 0 ||
+        index >= _headers.length ||
+        _headers[index] == null) {
       return;
     }
     _headers[index] = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
 
@@ -201,7 +211,16 @@ class _RootHeaderPublisherState extends State<RootHeaderPublisher> {
 
   @override
   void dispose() {
-    _controller?.clear(widget.index);
+    final controller = _controller;
+    final index = widget.index;
+    if (controller != null) {
+      // 卸载经常发生在整块子树一起重建的时候（横竖屏切换、路由替换），
+      // 此刻树是锁着的，直接 clear 会让还在树上的侧栏标脏并触发断言。
+      // 延到帧末再清：侧栏这一帧仍显示旧标题，下一帧就被新页面覆盖。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        controller.clear(index);
+      });
+    }
     super.dispose();
   }
 

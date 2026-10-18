@@ -772,7 +772,17 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
             t >= 0.87 &&
             t < 0.99;
         if (cardExpandSourceHidden.value != hideSource) {
-          cardExpandSourceHidden.value = hideSource;
+          // 不能在 build 里直接写这个全局 notifier：它的监听者
+          // （Pressable 的 ValueListenableBuilder）会在本帧的构建过程中被
+          // 标脏，`Element.rebuild` 结束时 `!_dirty` 断言就会失败——横竖屏
+          // 切换时整棵树重建，正好踩中这条路径，表现为旋转即红屏。
+          // 放到帧末写入，交接只晚一帧，肉眼看不出来。
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (cardExpandSourceHidden.value != hideSource) {
+              cardExpandSourceHidden.value = hideSource;
+            }
+          });
         }
         if (dragging) {
           currentRect = Rect.fromLTWH(

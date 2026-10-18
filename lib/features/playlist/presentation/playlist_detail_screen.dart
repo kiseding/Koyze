@@ -794,15 +794,22 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                 onPressed: () {
                                   showKoyzeSheet(
                                     context: context,
+                                    isScrollControlled: true,
                                     builder: (ctx) => SafeArea(
+                                      top: false,
                                       child: Column(
                                         mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
                                         children: [
-                                          ListTile(
-                                            leading: const Icon(
-                                              Icons.play_arrow,
-                                            ),
-                                            title: Text(S.of(context).play),
+                                          const KoyzeSheetGrabber(),
+                                          KoyzeSheetTitle(
+                                            title: S.of(context).moreActions,
+                                            onClose: () => Navigator.pop(ctx),
+                                          ),
+                                          KoyzeSheetAction(
+                                            icon: Icons.play_arrow_rounded,
+                                            label: S.of(context).play,
                                             onTap: () {
                                               Navigator.pop(ctx);
                                               _playSong(
@@ -812,13 +819,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                               );
                                             },
                                           ),
-                                          ListTile(
-                                            leading: const Icon(
-                                              Icons.delete_outline,
-                                            ),
-                                            title: Text(
-                                              S.of(context).removeFromPlaylist,
-                                            ),
+                                          KoyzeSheetAction(
+                                            icon: Icons.playlist_remove_rounded,
+                                            label: S
+                                                .of(context)
+                                                .removeFromPlaylist,
+                                            danger: true,
                                             onTap: () async {
                                               try {
                                                 await ref
@@ -842,6 +848,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                               Navigator.pop(ctx);
                                             },
                                           ),
+                                          const SizedBox(height: 4),
                                         ],
                                       ),
                                     ),

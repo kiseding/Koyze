@@ -151,6 +151,7 @@ class KoyzeSheetAction extends StatelessWidget {
     this.subtitle,
     this.tone,
     this.danger = false,
+    this.selected = false,
     this.trailing,
   });
 
@@ -162,6 +163,9 @@ class KoyzeSheetAction extends StatelessWidget {
   /// 图标色块的主色，默认取强调色。
   final Color? tone;
   final bool danger;
+
+  /// 当前生效的选项：标签转强调色，字重加一档。
+  final bool selected;
   final Widget? trailing;
 
   @override
@@ -206,10 +210,12 @@ class KoyzeSheetAction extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: danger ? accent : primary,
+                          color: danger || selected ? accent : primary,
                           fontSize: 15,
                           height: 1.25,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: selected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
                           letterSpacing: -0.1,
                         ),
                       ),
@@ -239,6 +245,149 @@ class KoyzeSheetAction extends StatelessWidget {
   }
 }
 
+/// 弹层大标题行：一级标题 + 可选副标题 + 圆形关闭键。
+///
+/// 带封面的歌曲菜单用 [KoyzeSheetHeader]；选项面板（音质、搜索源、语言、
+/// 睡眠定时）用这一套：标题走 headline 尺寸，副标题补一句当前状态，
+/// 关掉面板的按钮是 36 的圆钮而不是一颗裸叉。
+class KoyzeSheetTitle extends StatelessWidget {
+  const KoyzeSheetTitle({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.subtitleWidget,
+    this.action,
+    this.onClose,
+    this.closeTooltip,
+  });
+
+  final String title;
+  final String? subtitle;
+
+  /// 需要自己刷新的副标题（例如倒计时），优先于 [subtitle]。
+  final Widget? subtitleWidget;
+
+  /// 标题右侧、关闭键左侧的附加动作（例如"新建歌单"）。
+  final Widget? action;
+  final VoidCallback? onClose;
+
+  /// 关闭键的提示文案（无障碍朗读用）。
+  final String? closeTooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = AppColors.mutedText(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 12, 12, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.onScaffold(context),
+                    fontSize: 21,
+                    height: 1.15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                if (subtitleWidget != null) ...[
+                  const SizedBox(height: 3),
+                  subtitleWidget!,
+                ] else if (subtitle != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: muted,
+                      fontSize: 12.5,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (action != null) ...[const SizedBox(width: 8), action!],
+          if (onClose != null) ...[
+            const SizedBox(width: 10),
+            KoyzeSheetClose(onTap: onClose!, tooltip: closeTooltip),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 弹层右上角的圆形关闭键，与标题行、选项面板共用。
+class KoyzeSheetClose extends StatelessWidget {
+  const KoyzeSheetClose({super.key, required this.onTap, this.tooltip});
+
+  final VoidCallback onTap;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = Material(
+      type: MaterialType.transparency,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.fill(context),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.close_rounded,
+            size: 19,
+            color: AppColors.mutedText(context),
+          ),
+        ),
+      ),
+    );
+    if (tooltip == null) return button;
+    return Tooltip(message: tooltip!, child: button);
+  }
+}
+
+/// 顶部的拖动把手。Origo 的每个弹层都有一条 36×4 的浅色横条，
+/// 它比任何阴影都更能说明"这是一张可以往下推走的浮层"。
+class KoyzeSheetGrabber extends StatelessWidget {
+  const KoyzeSheetGrabber({super.key, this.margin});
+
+  final EdgeInsetsGeometry? margin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 4,
+      margin: margin ?? const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        // 深色玻璃上 0.32 的灰几乎看不见，把手要稍微实一点才读得出"可拖动"。
+        color: AppColors.secondaryText(
+          context,
+        ).withValues(alpha: AppColors.isDark(context) ? 0.44 : 0.30),
+        borderRadius: BorderRadius.circular(99),
+      ),
+    );
+  }
+}
+
 /// 弹层标题行：封面（或图标）+ 主副标题 + 关闭键。
 class KoyzeSheetHeader extends StatelessWidget {
   const KoyzeSheetHeader({
@@ -261,81 +410,77 @@ class KoyzeSheetHeader extends StatelessWidget {
     final primary = AppColors.onScaffold(context);
     final muted = AppColors.mutedText(context);
     final hasCover = artwork != null && artwork!.isNotEmpty;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 12, 10, 8),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 40,
-              height: 40,
-              color: AppColors.accentOf(context).withValues(alpha: 0.16),
-              child: hasCover
-                  ? Image.network(
-                      artwork!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          Icon(icon ?? Icons.music_note_rounded,
-                              size: 19, color: primary),
-                    )
-                  : Icon(
-                      icon ?? Icons.music_note_rounded,
-                      size: 19,
-                      color: primary,
-                    ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: primary,
-                    fontSize: 15,
-                    height: 1.25,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: muted, fontSize: 12, height: 1.25),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (onClose != null)
-            Material(
-              type: MaterialType.transparency,
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onClose,
-                child: SizedBox(
-                  width: 34,
-                  height: 34,
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 19,
-                    color: muted.withValues(alpha: 0.9),
-                  ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const KoyzeSheetGrabber(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 10, 8),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  color: AppColors.accentOf(context).withValues(alpha: 0.16),
+                  child: hasCover
+                      ? Image.network(
+                          artwork!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                            icon ?? Icons.music_note_rounded,
+                            size: 19,
+                            color: primary,
+                          ),
+                        )
+                      : Icon(
+                          icon ?? Icons.music_note_rounded,
+                          size: 19,
+                          color: primary,
+                        ),
                 ),
               ),
-            ),
-        ],
-      ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: primary,
+                        fontSize: 15,
+                        height: 1.25,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: muted,
+                          fontSize: 12,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (onClose != null) KoyzeSheetClose(onTap: onClose!),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

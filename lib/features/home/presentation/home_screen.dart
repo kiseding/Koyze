@@ -13,7 +13,6 @@ import '../../../core/widgets/sleep_timer_sheet.dart';
 import '../../settings/presentation/settings_provider.dart';
 import 'home_hero_card.dart';
 import 'home_quick_provider.dart';
-import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/fx_switch.dart';
 import '../../../core/motion/list_entrance.dart';
@@ -431,27 +430,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required String title,
     required String closeLabel,
   }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: AppColors.onScaffold(context),
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          FxIconButton(
-            tooltip: closeLabel,
-            icon: const Icon(Icons.close_rounded),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const KoyzeSheetGrabber(),
+        KoyzeSheetTitle(
+          title: title,
+          closeTooltip: closeLabel,
+          onClose: () => Navigator.pop(context),
+        ),
+      ],
     );
   }
 

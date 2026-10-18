@@ -26,6 +26,7 @@ import '../../download/presentation/download_provider.dart';
 import '../domain/playlist_backup.dart';
 import 'app_log_screen.dart';
 import '../../../core/widgets/fx_switch.dart';
+import '../../../core/widgets/koyze_sheet.dart';
 import '../../../l10n/app_strings.dart';
 import '../../sync/data/sync_identity_store.dart';
 import '../../nas/domain/nas_url.dart';
@@ -552,26 +553,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       platformDisplayName(id, locale: Localizations.localeOf(context));
 
   void _showDefaultPlatformDialog(BuildContext context, WidgetRef ref) {
-    showKoyzeDialog<void>(
+    showKoyzeSheet<void>(
       context: context,
-      builder: (_) => const KoyzeDialog(
-        maxWidth: settingsOptionMaxWidth,
-        contentPadding: EdgeInsets.zero,
-        insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-        content: _PlatformPickerDialog(),
-      ),
+      isScrollControlled: true,
+      builder: (_) => const _PlatformPickerDialog(),
     );
   }
 
   void _showLanguageDialog(BuildContext context) {
-    showKoyzeDialog<void>(
+    showKoyzeSheet<void>(
       context: context,
-      builder: (_) => const KoyzeDialog(
-        maxWidth: settingsOptionMaxWidth,
-        contentPadding: EdgeInsets.zero,
-        insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-        content: _LanguagePickerDialog(),
-      ),
+      isScrollControlled: true,
+      builder: (_) => const _LanguagePickerDialog(),
     );
   }
 
@@ -589,14 +582,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     String title,
     bool isDownload,
   ) {
-    showKoyzeDialog<void>(
+    showKoyzeSheet<void>(
       context: context,
-      builder: (_) => KoyzeDialog(
-        maxWidth: settingsOptionMaxWidth,
-        contentPadding: EdgeInsets.zero,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-        content: _QualityPickerDialog(title: title, isDownload: isDownload),
-      ),
+      isScrollControlled: true,
+      builder: (_) =>
+          _QualityPickerDialog(title: title, isDownload: isDownload),
     );
   }
 
@@ -1084,51 +1074,25 @@ class _SettingsOptionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 选项面板挂在底部弹层里（`showKoyzeSheet`），所以外观按 Origo 的
+    // 弹层语言来：一条拖动把手 + 一栏 headline 尺寸的大标题 + 圆形关闭键，
+    // 而不是弹窗那种"小字标题 + 右上角裸叉"。标题和第一行之间只留一点点，
+    // 面板看起来是"一整个列表"，不是"一个框里的若干行"。
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Origo 的选项面板：标题只比选项略重一点，右侧是一颗很轻的关闭键，
-        // 标题和第一行之间不留大块空白。
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 10, 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.onScaffold(context),
-                    fontSize: 16,
-                    height: 1.2,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.2,
-                  ),
+        const KoyzeSheetGrabber(),
+        KoyzeSheetTitle(title: title, onClose: () => Navigator.pop(context)),
+        Flexible(
+          child: maxHeight == null
+              ? child
+              : ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxHeight!),
+                  child: child,
                 ),
-              ),
-              IconButton(
-                tooltip: S.of(context).close,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(
-                  width: 34,
-                  height: 34,
-                ),
-                icon: Icon(
-                  Icons.close_rounded,
-                  color: AppColors.mutedText(context).withValues(alpha: 0.8),
-                  size: 19,
-                ),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
         ),
-        ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: maxHeight ?? 520),
-          child: child,
-        ),
+        const SizedBox(height: 4),
       ],
     );
   }
@@ -1222,7 +1186,7 @@ class _SettingsOptionTile extends StatelessWidget {
     // 右侧只留一个勾。原来那颗"实心绿方块 + 黑勾"在玻璃上太重，
     // 也把行尾压得比行首还显眼。
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 2, 10, 2),
+      padding: const EdgeInsets.fromLTRB(10, 3, 10, 3),
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
@@ -1236,6 +1200,14 @@ class _SettingsOptionTile extends StatelessWidget {
                   ? accent.withValues(alpha: isDark ? 0.14 : 0.10)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
+              // 选中态只加一道极细的强调色描边：玻璃底上放大色块会脏，
+              // 一道 0.9pt 的边就足够把这一行从列表里拎出来。
+              border: Border.all(
+                color: selected
+                    ? accent.withValues(alpha: isDark ? 0.26 : 0.20)
+                    : Colors.transparent,
+                width: 0.9,
+              ),
             ),
             padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
             child: Row(

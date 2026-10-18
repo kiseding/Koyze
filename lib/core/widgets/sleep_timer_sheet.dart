@@ -9,69 +9,46 @@ import '../../l10n/app_strings.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 
 /// 睡眠定时弹窗（设置页与首页快捷入口共用）。
+///
+/// 和选项面板同一套排版：把手 + 大标题 + 关闭键 + 图标块行，倒计时直接
+/// 挂在标题下面，运行时多一行"取消定时"。
 void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
   showKoyzeSheet(
     context: context,
-    builder: (context) => SafeArea(
-      child: Consumer(
-        builder: (context, ref, _) {
-          final state = ref.watch(sleepTimerProvider);
-          final s = S.of(context);
-          const options = [10, 15, 30, 60, 90];
-          return Column(
+    isScrollControlled: true,
+    builder: (context) => Consumer(
+      builder: (context, ref, _) {
+        final state = ref.watch(sleepTimerProvider);
+        final s = S.of(context);
+        final accent = AppColors.accentOf(context);
+        final running = state is SleepTimerRunning;
+        const options = [10, 15, 30, 60, 90];
+        return SafeArea(
+          top: false,
+          child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: 32,
-                height: 4,
-                margin: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.mutedText(context),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.bedtime_outlined,
-                      color: AppColors.accentOf(context),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        s.sleepTimer,
-                        style: TextStyle(
-                          color: AppColors.onScaffold(context),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
+              const KoyzeSheetGrabber(),
+              KoyzeSheetTitle(
+                title: s.sleepTimer,
+                subtitleWidget: running ? _TickingSubtitle(state: state) : null,
+                subtitle: running
+                    ? null
+                    : sleepTimerSubtitle(
+                        state,
+                        locale: Localizations.localeOf(context),
                       ),
-                    ),
-                    if (state case SleepTimerRunning())
-                      _TickingSubtitle(state: state),
-                  ],
-                ),
+                onClose: () => Navigator.pop(context),
               ),
-              Divider(color: AppColors.cardBorder(context), height: 1),
               for (final minutes in options)
-                ListTile(
-                  leading: Icon(
-                    Icons.timer_outlined,
-                    color: AppColors.onScaffold(context),
-                  ),
-                  title: Text(
-                    s.minutes(minutes),
-                    style: TextStyle(color: AppColors.onScaffold(context)),
-                  ),
+                KoyzeSheetAction(
+                  icon: Icons.timer_outlined,
+                  label: s.minutes(minutes),
                   trailing:
                       state is SleepTimerRunning &&
                           state.duration == Duration(minutes: minutes)
-                      ? Icon(Icons.check, color: AppColors.accentOf(context))
+                      ? Icon(Icons.check_rounded, size: 20, color: accent)
                       : null,
                   onTap: () {
                     Navigator.pop(context);
@@ -84,25 +61,21 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
                     );
                   },
                 ),
-              if (state case SleepTimerRunning())
-                ListTile(
-                  leading: Icon(
-                    Icons.timer_off_outlined,
-                    color: AppColors.onScaffold(context),
-                  ),
-                  title: Text(
-                    s.cancelSleepTimer,
-                    style: TextStyle(color: AppColors.onScaffold(context)),
-                  ),
+              if (running)
+                KoyzeSheetAction(
+                  icon: Icons.timer_off_outlined,
+                  label: s.cancelSleepTimer,
+                  danger: true,
                   onTap: () {
                     Navigator.pop(context);
                     ref.read(sleepTimerProvider.notifier).cancelTimer();
                   },
                 ),
+              const SizedBox(height: 4),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
     ),
   );
 }

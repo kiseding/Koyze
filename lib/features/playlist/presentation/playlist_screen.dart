@@ -1045,48 +1045,37 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
   void _showSortMenu(BuildContext context) {
     showKoyzeSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) => SafeArea(
+        top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 32,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.mutedText(context),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                S.of(context).sortBy,
-                style: TextStyle(
-                  color: AppColors.onScaffold(context),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+            const KoyzeSheetGrabber(),
+            KoyzeSheetTitle(
+              title: S.of(context).sortBy,
+              onClose: () => Navigator.pop(context),
             ),
             _sortOption(
               context,
               PlaylistSortMode.recent,
-              Icons.access_time,
+              Icons.schedule_rounded,
               S.of(context).recentlyAdded,
             ),
             _sortOption(
               context,
               PlaylistSortMode.name,
-              Icons.sort_by_alpha,
+              Icons.sort_by_alpha_rounded,
               S.of(context).sortByName,
             ),
             _sortOption(
               context,
               PlaylistSortMode.songCount,
-              Icons.music_note,
+              Icons.music_note_rounded,
               S.of(context).sortByCount,
             ),
+            const SizedBox(height: 4),
           ],
         ),
       ),
@@ -1100,24 +1089,13 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     String label,
   ) {
     final isSelected = _sortMode == mode;
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: isSelected
-            ? AppColors.accentOf(context)
-            : AppColors.onScaffold(context),
-      ),
-      title: Text(
-        label,
-        style: TextStyle(
-          color: isSelected
-              ? AppColors.accentOf(context)
-              : AppColors.onScaffold(context),
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-        ),
-      ),
+    final accent = AppColors.accentOf(context);
+    return KoyzeSheetAction(
+      icon: icon,
+      label: label,
+      selected: isSelected,
       trailing: isSelected
-          ? Icon(Icons.check, color: AppColors.accentOf(context), size: 20)
+          ? Icon(Icons.check_rounded, color: accent, size: 20)
           : null,
       onTap: () {
         setState(() => _sortMode = mode);
