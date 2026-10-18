@@ -17,7 +17,10 @@ enum AppGlassStyle {
   /// Nav / tab / mini player: the widest surfaces.
   bar,
 
-  /// Sheets, dialogs, toasts.
+  /// Sheets and dialogs: low-opacity iOS material with no elevation shadow.
+  sheet,
+
+  /// Cards, toasts, and other regular glass surfaces.
   regular,
 
   /// Compact controls sitting on artwork or other glass.
@@ -28,6 +31,7 @@ abstract final class AppGlass {
   // Blur is deliberately lower than a "frosted panel" default: heavy blur
   // removes the colour behind the glass and the result reads as grey.
   static const double blurBar = 20;
+  static const double blurSheet = 16;
   static const double blurRegular = 26;
   static const double blurChrome = 14;
 
@@ -36,6 +40,7 @@ abstract final class AppGlass {
 
   static double blurFor(AppGlassStyle style) => switch (style) {
     AppGlassStyle.bar => blurBar,
+    AppGlassStyle.sheet => blurSheet,
     AppGlassStyle.regular => blurRegular,
     AppGlassStyle.chrome => blurChrome,
   };
@@ -57,6 +62,7 @@ abstract final class AppGlass {
     // low: a green-tinted white card on a white page reads as dirty.
     final strength = switch (style) {
       AppGlassStyle.bar => isDark ? 0.040 : 0.030,
+      AppGlassStyle.sheet => isDark ? 0.012 : 0.010,
       AppGlassStyle.regular => isDark ? 0.035 : 0.034,
       AppGlassStyle.chrome => isDark ? 0.030 : 0.026,
     };
@@ -79,6 +85,12 @@ abstract final class AppGlass {
         isDark
             ? (emphasized ? 0.58 : 0.44, emphasized ? 0.42 : 0.30)
             : (emphasized ? 0.80 : 0.66, emphasized ? 0.62 : 0.46),
+      // Sheets should reveal the page below. The blur does the separation;
+      // the tint only lifts contrast enough for text and controls.
+      AppGlassStyle.sheet =>
+        isDark
+            ? (emphasized ? 0.18 : 0.14, emphasized ? 0.12 : 0.09)
+            : (emphasized ? 0.24 : 0.18, emphasized ? 0.16 : 0.12),
       AppGlassStyle.regular =>
         isDark
             ? (emphasized ? 0.66 : 0.52, emphasized ? 0.50 : 0.36)
@@ -111,8 +123,8 @@ abstract final class AppGlass {
         emphasized ? 0.28 : 0.06,
       )!;
       return BorderSide(
-        color: color.withValues(alpha: emphasized ? 0.22 : 0.13),
-        width: emphasized ? 0.9 : 0.7,
+        color: color.withValues(alpha: emphasized ? 0.16 : 0.10),
+        width: emphasized ? 0.7 : 0.6,
       );
     }
     final color = Color.lerp(
@@ -121,8 +133,8 @@ abstract final class AppGlass {
       emphasized ? 0.55 : 0.14,
     )!;
     return BorderSide(
-      color: color.withValues(alpha: emphasized ? 0.34 : 0.18),
-      width: emphasized ? 0.9 : 0.7,
+      color: color.withValues(alpha: emphasized ? 0.24 : 0.14),
+      width: emphasized ? 0.7 : 0.6,
     );
   }
 
@@ -137,17 +149,17 @@ abstract final class AppGlass {
     final isDark = AppColors.isDark(context);
     final source = accent ?? Theme.of(context).colorScheme.primary;
     final color = isDark
-        ? Colors.black.withValues(alpha: emphasized ? 0.34 : 0.22)
+        ? Colors.black.withValues(alpha: emphasized ? 0.22 : 0.14)
         : Color.lerp(
             source,
             Colors.black,
             0.45,
-          )!.withValues(alpha: emphasized ? 0.16 : 0.10);
+          )!.withValues(alpha: emphasized ? 0.08 : 0.05);
     return [
       BoxShadow(
         color: color,
-        blurRadius: emphasized ? 28 : 18,
-        offset: Offset(0, emphasized ? 12 : 6),
+        blurRadius: emphasized ? 18 : 12,
+        offset: Offset(0, emphasized ? 7 : 4),
       ),
     ];
   }
@@ -169,10 +181,7 @@ abstract final class AppGlass {
   /// not as grey mush. Content stays recognisable underneath — that is the
   /// whole point of the tab bar sitting on top of the page instead of beside
   /// it.
-  static ImageFilter liquidFilter({
-    double blur = 26,
-    double saturation = 1.7,
-  }) {
+  static ImageFilter liquidFilter({double blur = 26, double saturation = 1.7}) {
     return ImageFilter.compose(
       outer: ImageFilter.blur(
         sigmaX: blur,
@@ -311,7 +320,8 @@ class GlassSurface extends StatelessWidget {
     );
     final shadows =
         boxShadow ??
-        (style == AppGlassStyle.bar || emphasized
+        (style == AppGlassStyle.bar ||
+                (emphasized && style != AppGlassStyle.sheet)
             ? AppGlass.shadowFor(
                 context,
                 style: style,
@@ -360,7 +370,7 @@ class GlassSurface extends StatelessWidget {
     );
     final lead = (leading * alphaScale).clamp(0.0, 1.0);
     final trail = (trailing * alphaScale).clamp(0.0, 1.0);
-    final highlight = Color.lerp(base, Colors.white, isDark ? 0.16 : 0.28)!;
+    final highlight = Color.lerp(base, Colors.white, isDark ? 0.10 : 0.16)!;
     return BoxDecoration(
       borderRadius: radius,
       border: border,

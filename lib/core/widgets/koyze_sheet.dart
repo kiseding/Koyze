@@ -37,8 +37,8 @@ Future<T?> showKoyzeSheet<T>({
     // nested navigator 内关闭的调用点可显式关闭它。
     useRootNavigator: useRootNavigator,
     backgroundColor: Colors.transparent,
-    // 深色下压得更重，浅色只轻压：否则白底页面会被压成灰。
-    barrierColor: Colors.black.withValues(alpha: isDark ? 0.50 : 0.26),
+    // iOS 的 sheet 只压住背景，不把页面压成一整块黑/灰。
+    barrierColor: Colors.black.withValues(alpha: isDark ? 0.26 : 0.12),
     isScrollControlled: true,
     enableDrag: enableDrag,
     requestFocus: false,
@@ -97,22 +97,13 @@ Future<T?> showKoyzeSheet<T>({
       final themed = Theme(data: rowsTheme, child: content);
       final panel = useGlass
           ? GlassSurface(
-              style: AppGlassStyle.regular,
+              // Sheet uses a transparent iOS material: the backdrop is the
+              // visual fill, while this layer only lifts contrast slightly.
+              style: AppGlassStyle.sheet,
               borderRadius: BorderRadius.circular(koyzeSheetRadius),
               color: backgroundColor,
               emphasized: true,
-              // 面板四周都离屏，投影四向都要有，否则左右两侧会和页面糊在
-              // 一起，看不出这是一张浮起来的卡片。
-              boxShadow: [
-                BoxShadow(
-                  color: isDark
-                      ? Colors.black.withValues(alpha: 0.44)
-                      : Colors.black.withValues(alpha: 0.14),
-                  blurRadius: 32,
-                  spreadRadius: -2,
-                  offset: const Offset(0, -6),
-                ),
-              ],
+              boxShadow: const <BoxShadow>[],
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(koyzeSheetRadius),
                 child: themed,
@@ -364,8 +355,10 @@ class KoyzeSheetClose extends StatelessWidget {
   }
 }
 
-/// 顶部的拖动把手。Origo 的每个弹层都有一条 36×4 的浅色横条，
-/// 它比任何阴影都更能说明"这是一张可以往下推走的浮层"。
+/// Sheet 顶部的透明拖拽命中区。
+///
+/// 保留这个组件名是为了让已有弹层的触摸区域和布局不跳变，但不再绘制
+/// 粗横线：面板的层级由透明玻璃和细边缘表达，符合 iOS 的轻量材质。
 class KoyzeSheetGrabber extends StatelessWidget {
   const KoyzeSheetGrabber({super.key, this.margin});
 
@@ -373,16 +366,11 @@ class KoyzeSheetGrabber extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 4,
-      margin: margin ?? const EdgeInsets.only(top: 8),
-      decoration: BoxDecoration(
-        // 深色玻璃上 0.32 的灰几乎看不见，把手要稍微实一点才读得出"可拖动"。
-        color: AppColors.secondaryText(
-          context,
-        ).withValues(alpha: AppColors.isDark(context) ? 0.44 : 0.30),
-        borderRadius: BorderRadius.circular(99),
+    return SizedBox(
+      height: 12,
+      child: Padding(
+        padding: margin ?? EdgeInsets.zero,
+        child: const SizedBox.expand(),
       ),
     );
   }
@@ -414,9 +402,8 @@ class KoyzeSheetHeader extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const KoyzeSheetGrabber(),
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 8, 10, 8),
+          padding: const EdgeInsets.fromLTRB(18, 14, 10, 8),
           child: Row(
             children: [
               ClipRRect(

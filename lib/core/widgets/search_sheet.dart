@@ -270,8 +270,7 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
     return false;
   }
 
-  double get _scrimAlpha =>
-      AppColors.isDark(context) ? 0.54 : 0.30;
+  double get _scrimAlpha => AppColors.isDark(context) ? 0.26 : 0.12;
 
   @override
   Widget build(BuildContext context) {
@@ -304,9 +303,7 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
           children: [
             Positioned.fill(
               child: IgnorePointer(
-                child: ColoredBox(
-                  color: Colors.black.withValues(alpha: scrim),
-                ),
+                child: ColoredBox(color: Colors.black.withValues(alpha: scrim)),
               ),
             ),
             Positioned(
@@ -343,27 +340,19 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
   }
 
   Widget _panel(BuildContext context) {
-    final dark = AppColors.isDark(context);
     const radius = 28.0;
     // 自绘路由不再自带 Material，输入框和 InkWell 需要一个透明的材质祖先。
     return Material(
       type: MaterialType.transparency,
       child: GlassSurface(
-        style: AppGlassStyle.regular,
+        // Search is the same iOS material as the other sheets. The backdrop,
+        // not a painted card or shadow, gives the panel its depth.
+        style: AppGlassStyle.sheet,
         borderRadius: BorderRadius.circular(radius),
         emphasized: true,
-        // 浅色面板降低基底不透明度，保留首页的色块层次而不是整块发白；
-        // 深色保持更高对比，让结果行和面板边界稳定。
         vivid: false,
-        alphaScale: dark ? 0.92 : 1.0,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: dark ? 0.48 : 0.16),
-            blurRadius: 30,
-            spreadRadius: -4,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        alphaScale: 1.0,
+        boxShadow: const <BoxShadow>[],
         child: ClipRRect(
           borderRadius: BorderRadius.circular(radius),
           child: Stack(
@@ -385,16 +374,6 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
                 height: _handleHeight,
                 child: _dragHandle(context),
               ),
-              // 底部收口：面板下沿正好压在 dock 的唱片上方，玻璃透出来的是
-              // 一块黑色圆盘，看着像面板破了个洞。用一层同色渐隐把最后
-              // ~100dp 收紧，顺手也让列表在这里淡出而不是被硬切一刀。
-              const Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: 88,
-                child: IgnorePointer(child: _PanelBottomFade()),
-              ),
             ],
           ),
         ),
@@ -402,7 +381,7 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
     );
   }
 
-  /// 顶部细抓条既是拖拽把手，也给「这块可以往下拽」一个可看见的暗示。
+  /// 顶部透明命中区负责拖拽，不再绘制横线，避免把材质做成系统卡片。
   Widget _dragHandle(BuildContext context) {
     return GestureDetector(
       key: const ValueKey('search-sheet-drag-handle'),
@@ -411,47 +390,11 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
       onVerticalDragUpdate: (details) => _dragBy(details.delta.dy),
       onVerticalDragEnd: (details) => _endDrag(details.primaryVelocity ?? 0),
       onVerticalDragCancel: () => _endDrag(0),
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: Container(
-          width: 34,
-          height: 4,
-          margin: const EdgeInsets.only(top: 4),
-          decoration: BoxDecoration(
-            color: AppColors.mutedText(context).withValues(alpha: 0.34),
-            borderRadius: BorderRadius.circular(99),
-          ),
-        ),
-      ),
+      child: const SizedBox.expand(),
     );
   }
 
   /// 等待路由进场动画结束后再交给输入框聚焦，避免焦点在转场期间
   /// 被底层页面重新夺回，导致键盘刚弹出就关闭。
   Duration _focusDelay() => const Duration(milliseconds: 650);
-}
-
-/// 面板底部的同色渐隐。只叠颜色，不加第二层模糊。
-class _PanelBottomFade extends StatelessWidget {
-  const _PanelBottomFade();
-
-  @override
-  Widget build(BuildContext context) {
-    final base = AppGlass.tintBase(context);
-    final dark = AppColors.isDark(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            base.withValues(alpha: 0),
-            base.withValues(alpha: dark ? 0.22 : 0.20),
-            base.withValues(alpha: dark ? 0.94 : 0.90),
-          ],
-          stops: const [0, 0.55, 1],
-        ),
-      ),
-    );
-  }
 }

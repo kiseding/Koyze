@@ -1074,15 +1074,12 @@ class _SettingsOptionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 选项面板挂在底部弹层里（`showKoyzeSheet`），所以外观按 Origo 的
-    // 弹层语言来：一条拖动把手 + 一栏 headline 尺寸的大标题 + 圆形关闭键，
-    // 而不是弹窗那种"小字标题 + 右上角裸叉"。标题和第一行之间只留一点点，
-    // 面板看起来是"一整个列表"，不是"一个框里的若干行"。
+    // 选择面板保持 iOS 的轻量标题区：没有额外的粗横线，
+    // 只用标题、关闭按钮和玻璃边缘来表达层级。
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const KoyzeSheetGrabber(),
         KoyzeSheetTitle(title: title, onClose: () => Navigator.pop(context)),
         Flexible(
           child: maxHeight == null

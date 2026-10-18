@@ -25,7 +25,7 @@ Future<T?> showKoyzeDialog<T>({
       (MediaQuery.maybeOf(context)?.disableAnimations ?? false) ||
       LowMemory.active;
   final scrim = (isDark ? Colors.black : const Color(0xFF11131A)).withValues(
-    alpha: isDark ? 0.50 : 0.24,
+    alpha: isDark ? 0.26 : 0.12,
   );
   return showGeneralDialog<T>(
     context: context,
@@ -152,7 +152,6 @@ class KoyzeDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final radius = _radius(shape);
     final media = MediaQuery.sizeOf(context);
     // 键盘弹起时要把面板整体顶上去，否则带输入框的弹窗会被输入法盖住。
@@ -236,20 +235,17 @@ class KoyzeDialog extends StatelessWidget {
               child: Material(
                 type: MaterialType.transparency,
                 child: GlassSurface(
-                  style: AppGlassStyle.regular,
+                  // iOS modal material: the page remains visible through the
+                  // blur; the edge, not a heavy drop shadow, defines the panel.
+                  style: AppGlassStyle.sheet,
                   borderRadius: BorderRadius.circular(radius),
                   emphasized: true,
                   color: backgroundColor,
                   border: Border.all(
                     color: AppGlass.hairline(context, emphasized: true).color,
-                    width: 0.9,
+                    width: 0.7,
                   ),
-                  boxShadow: AppGlass.shadowFor(
-                    context,
-                    style: AppGlassStyle.regular,
-                    emphasized: true,
-                    accent: scheme.primary,
-                  ),
+                  boxShadow: const <BoxShadow>[],
                   child: scrollable
                       ? ConstrainedBox(
                           constraints: BoxConstraints(

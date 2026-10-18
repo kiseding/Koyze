@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:koyze/core/audio/equalizer_bridge.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
-import 'package:koyze/core/widgets/koyze_modal.dart';
 import 'package:koyze/core/widgets/koyze_sheet.dart';
 import 'package:koyze/features/equalizer/presentation/equalizer_provider.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
@@ -71,7 +70,7 @@ void main() {
       );
       expect(
         find.descendant(of: sheet, matching: find.byType(KoyzeSheetGrabber)),
-        findsOneWidget,
+        findsNothing,
       );
       final panel = tester.getRect(find.byType(GlassSurface).last);
       expect(panel.left, greaterThanOrEqualTo(12));
