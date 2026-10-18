@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/animations/micro_animations.dart';
 import '../../../../core/motion/motion_tokens.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/widgets/artwork_image.dart';
-import '../../../../core/widgets/origo_chrome.dart';
+import '../../../../core/widgets/liquid_glass.dart';
 import '../../../../core/widgets/pressable.dart';
 import '../../../../l10n/app_strings.dart';
 import '../../../../router/app_router.dart';
@@ -13,20 +14,21 @@ import '../../../player/presentation/player_provider.dart';
 
 /// GZ-Music 式底部 dock：图标 tab + 中间悬浮的唱片封面。
 ///
-/// 竖屏只有这一条 chrome：四个图标 tab 均分，中间一格留给封面，封面比
-/// 玻璃条高出 3dp，四面留出的浅色柔边就是它的"浮起"感。迷你播放条的三个
-/// 控件不再占一条卡片，而是浮在这条 dock 上方。
-const double kDockBarHeight = 52;
-const double kDockDiscSize = 58;
+/// 竖屏只有这一条 chrome：四个图标 tab 均分，中间一格留给封面。条身是
+/// 液态玻璃——页面内容从它底下穿过，模糊后透出颜色和形状，靠顶部亮面与
+/// 0.9px 边缘线勾出轮廓，而不是靠底色盖住。上方三个播放控件是独立的一层，
+/// 不挂在条上。
+const double kDockBarHeight = 58;
+const double kDockDiscSize = 64;
 const double kDockTopOverhang = (kDockDiscSize - kDockBarHeight) / 2;
-const double kDockSideMargin = 16;
+const double kDockSideMargin = 14;
 
-/// 迷你播放控件行：居中、无底板。
+/// 迷你播放控件行：居中、无底板，和 dock 隔开一段空气。
 const double kMiniControlsHeight = 46;
-const double kMiniControlsGap = 14;
+const double kMiniControlsGap = 20;
 
 double koyzeDockWidth(double screenWidth) {
-  return (screenWidth - kDockSideMargin * 2).clamp(280.0, 560.0);
+  return (screenWidth - kDockSideMargin * 2).clamp(280.0, 520.0);
 }
 
 /// dock 与迷你控件行的几何。壳层与播放页 morph 共用同一份数字，
@@ -62,12 +64,18 @@ class KoyzeDockMetrics {
 
   /// 中间唱片封面：水平居中，垂直对齐玻璃条中线。
   Rect get discRect => Rect.fromCenter(
-    center: Offset(screen.width / 2, screen.height - barBottom - kDockBarHeight / 2),
+    center: Offset(
+      screen.width / 2,
+      screen.height - barBottom - kDockBarHeight / 2,
+    ),
     width: kDockDiscSize,
     height: kDockDiscSize,
   );
 
-  /// dock 组件（62 高，含上下各 3dp 溢出）在 Stack 里的 bottom 偏移。
+  /// dock 组件高度：玻璃条 + 封面上下各溢出的部分。
+  double get widgetHeight => kDockDiscSize;
+
+  /// dock 组件在 Stack 里的 bottom 偏移。
   double get dockWidgetBottom => barBottom - kDockTopOverhang;
 
   /// 迷你控件行底边距屏幕底边。
@@ -114,9 +122,13 @@ class KoyzeBottomDock extends ConsumerWidget {
             right: 0,
             top: kDockTopOverhang,
             bottom: kDockTopOverhang,
-            child: OrigoChromeSurface(
+            child: LiquidGlassSurface(
               borderRadius: BorderRadius.circular(kDockBarHeight / 2),
-              emphasized: true,
+              boxShadow: AppGlass.shadowFor(
+                context,
+                style: AppGlassStyle.bar,
+                emphasized: true,
+              ),
               child: Row(
                 children: [
                   _tab(
@@ -177,20 +189,20 @@ class KoyzeBottomDock extends ConsumerWidget {
         selected: selected,
         onTap: () => onTap(index),
         scale: 0.9,
-        borderRadius: BorderRadius.circular(19),
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 8),
           child: AnimatedContainer(
             duration: motionDuration(context, MotionDuration.normal),
             curve: MotionCurve.iosSpring,
             decoration: BoxDecoration(
               color: selected
-                  ? accent.withValues(alpha: isDark ? 0.20 : 0.13)
+                  ? accent.withValues(alpha: isDark ? 0.26 : 0.16)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(19),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: selected
-                    ? accent.withValues(alpha: isDark ? 0.32 : 0.18)
+                    ? accent.withValues(alpha: isDark ? 0.40 : 0.24)
                     : Colors.transparent,
                 width: 0.8,
               ),
@@ -199,7 +211,7 @@ class KoyzeBottomDock extends ConsumerWidget {
               child: AnimatedIconSwitch(
                 icon: selected ? active : icon,
                 keyValue: selected ? active : icon,
-                size: 22,
+                size: 23,
                 color: selected ? accent : muted,
               ),
             ),
@@ -222,7 +234,7 @@ class DockArtworkDisc extends ConsumerWidget {
     final hasTrack = track != null;
     final artwork = track?.artwork;
     final accent = AppColors.accentOf(context);
-    final labelSide = size * 0.60;
+    final labelSide = size * 0.64;
     final s = S.of(context);
 
     return Semantics(
@@ -254,17 +266,17 @@ class DockArtworkDisc extends ConsumerWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.38),
-                      blurRadius: 18,
-                      offset: const Offset(0, 5),
+                      color: Colors.black.withValues(alpha: 0.30),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: const SizedBox.expand(),
               ),
               // 两道浅槽，唱片才不像一块黑色圆片。
-              _groove(size * 0.86),
-              _groove(size * 0.74),
+              _groove(size * 0.90),
+              _groove(size * 0.80),
               // 盘心标签 = 当前封面。底色常驻，封面加载中也不会是黑洞。
               ClipOval(
                 child: Container(

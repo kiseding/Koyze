@@ -164,6 +164,25 @@ abstract final class AppGlass {
     );
   }
 
+  /// Filter for the liquid-glass dock: a wider blur than the cards use, with
+  /// extra saturation so the colours that survive the blur read as colour and
+  /// not as grey mush. Content stays recognisable underneath — that is the
+  /// whole point of the tab bar sitting on top of the page instead of beside
+  /// it.
+  static ImageFilter liquidFilter({
+    double blur = 26,
+    double saturation = 1.7,
+  }) {
+    return ImageFilter.compose(
+      outer: ImageFilter.blur(
+        sigmaX: blur,
+        sigmaY: blur,
+        tileMode: TileMode.mirror,
+      ),
+      inner: ColorFilter.matrix(_saturationMatrix(saturation)),
+    );
+  }
+
   /// 5x4 color matrix that scales saturation around Rec.709 luma.
   static List<double> _saturationMatrix(double s) {
     const r = 0.2126, g = 0.7152, b = 0.0722;

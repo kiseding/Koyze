@@ -31,6 +31,21 @@ void main() {
     expect(dock, contains('const DockArtworkDisc()'));
     // 点封面仍是进全屏播放器。
     expect(dock, contains('pushPlayerRoute(context, hasSong: true)'));
+    // 条身是液态玻璃，不是磨砂卡片：液玻璃才有"透出底部元素"的效果。
+    expect(dock, contains('LiquidGlassSurface('));
+    expect(dock, isNot(contains('OrigoChromeSurface(')));
+  });
+
+  test('页面一直画到屏幕底边，滚动内容从 dock 后面经过', () {
+    final source = File(
+      'lib/features/home/presentation/main_scaffold.dart',
+    ).readAsStringSync();
+
+    // 底部让位只能通过 RootShellLayout.obscuredBottom 告诉滚动列表，
+    // 不能把整个导航区从底边裁掉——裁掉之后玻璃后面就是空的。
+    expect(source, contains('obscuredBottom: chromeBottom'));
+    expect(source, isNot(contains('bottom: chromeBottom')));
+    expect(source, isNot(contains('bottom: usesSideNavigation')));
   });
 
   test('control row has no surface behind it', () {

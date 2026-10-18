@@ -18,10 +18,10 @@ const int homeContentMinHeight = 728;
 
 /// 底部 chrome 在竖屏占用的高度。来自
 /// `lib/features/home/presentation/widgets/bottom_dock.dart`：
-/// dock 条 56 + 上下各 3 溢出 + bottomSpacing 2 + bottomClearance 11
-/// + 控件行间隙 8 + 控件行 46 + 4 余量 = 127。
+/// bottomSpacing 2 + bottomClearance 11 + 玻璃条 58 + 控件间隙 20
+/// + 控件行 46 + 4 余量 = 141。
 /// 桌面端走侧栏布局，chrome 更矮，这里取竖屏值作为保守上界。
-const int desktopChromeHeight = 127;
+const int desktopChromeHeight = 141;
 
 /// 各平台 runner 里的默认窗口高度常数 -> 定义它的源文件与变量名。
 const nativeHeights = <String, (String, String)>{

@@ -124,7 +124,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
           final tabPush = chromeBottom * 0.6;
           final shell = RootShellLayout(
             usesSideNavigation: usesSideNavigation,
-            obscuredBottom: usesSideNavigation ? chromeBottom : 0,
+            // 底部 chrome 不再"占位"：页面一直画到屏幕底边，dock 是浮在上面
+            // 的一层液态玻璃，滚动内容从它后面经过并透出来。各根页面用这个
+            // 高度给自己的滚动列表留出底部安全距离。
+            obscuredBottom: chromeBottom,
             child: navigationShell,
           );
 
@@ -136,10 +139,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                   child: Transform.translate(
                     offset: Offset(0, -tabPush * eased),
                     child: Padding(
-                      padding: EdgeInsets.only(
-                        right: contentRightInset,
-                        bottom: usesSideNavigation ? 0 : chromeBottom,
-                      ),
+                      padding: EdgeInsets.only(right: contentRightInset),
                       child: shell,
                     ),
                   ),
@@ -150,7 +150,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                   left: 0,
                   right: 0,
                   bottom: dock.dockWidgetBottom,
-                  height: kDockDiscSize,
+                  height: dock.widgetHeight,
                   child: Opacity(
                     opacity: chromeOpacity,
                     child: Transform.translate(
