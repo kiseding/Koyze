@@ -718,16 +718,6 @@ class _HeroStage extends StatelessWidget {
   final Color color;
   final Color onAccent;
 
-  /// 旋转色相，给单色卡面制造第二束光。低饱和的强调色在这里会退化成灰色，
-  /// 所以同时把饱和度抬一点，保证色相位移看得见。
-  static Color _hueShift(Color base, [double degrees = 32]) {
-    final hsl = HSLColor.fromColor(base);
-    return hsl
-        .withHue((hsl.hue + degrees) % 360)
-        .withSaturation((hsl.saturation + 0.08).clamp(0.0, 1.0))
-        .toColor();
-  }
-
   @override
   Widget build(BuildContext context) {
     final muted = onAccent.withValues(alpha: 0.74);
@@ -793,37 +783,6 @@ class _HeroStage extends StatelessWidget {
                     colors: [
                       onAccent.withValues(alpha: compact ? 0.10 : 0.16),
                       onAccent.withValues(alpha: 0),
-                    ],
-                  ),
-                ),
-              ),
-              // 品牌色只有一种，铺满一大块就是一块油漆。错一个色相再补两团
-              // 光，表面才有「调过色的封面」的层次，而不是单色填充。
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(26),
-                  gradient: RadialGradient(
-                    center: const Alignment(0.8, -0.9),
-                    radius: 1.05,
-                    colors: [
-                      _hueShift(color).withValues(alpha: compact ? 0.16 : 0.24),
-                      _hueShift(color).withValues(alpha: 0),
-                    ],
-                  ),
-                ),
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(26),
-                  gradient: RadialGradient(
-                    center: const Alignment(-0.95, 0.85),
-                    radius: 0.9,
-                    colors: [
-                      _hueShift(
-                        color,
-                        300,
-                      ).withValues(alpha: compact ? 0.12 : 0.18),
-                      _hueShift(color, 300).withValues(alpha: 0),
                     ],
                   ),
                 ),

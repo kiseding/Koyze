@@ -205,18 +205,16 @@ class OrigoAmbientBackdrop extends StatelessWidget {
   }
 }
 
-/// Chrome backdrop whose blur radius tapers to zero toward the bottom.
+/// Chrome backdrop: one full-width blur with the tint fading out downward.
 ///
-/// A uniform `BackdropFilter` over a tall header leaves a hard edge where the
-/// blur stops, which reads as a grey band. Stacking narrow filters with a
-/// decreasing radius — the fallback Origo uses when shader filters are absent
-/// — costs a handful of extra layers but removes that edge entirely.
+/// 早先按 6 条窄带做「模糊半径渐变」，想消掉糊边；但每条带都是在已经模糊过的
+/// 结果上再采样，叠加后并不是真正的渐变，只是一条条更糊的横条。改成单层
+/// [BackdropFilter] 后，边缘由染色层的淡出负责——那才是 iOS 标题栏的做法，
+/// 也少采样五次。
 class GradientFrost extends StatelessWidget {
   const GradientFrost({
     super.key,
     required this.child,
-    this.height,
-    this.bands = 6,
     this.sigma = 16,
     this.base,
     this.leadingAlpha,
@@ -224,12 +222,6 @@ class GradientFrost extends StatelessWidget {
 
   final Widget child;
 
-  /// Total frosted height. Falls back to the incoming constraint.
-  final double? height;
-
-  /// Narrow filters approximating the radius curve. Kept low: every band is a
-  /// full backdrop sample.
-  final int bands;
   final double sigma;
 
   /// Tint colour; defaults to the themed bar base.
@@ -245,66 +237,55 @@ class GradientFrost extends StatelessWidget {
       context,
       style: AppGlassStyle.bar,
     );
-    final alpha = leadingAlpha ?? defaultAlpha;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final frostedHeight = height ?? constraints.maxHeight;
-        final safeHeight = frostedHeight.isFinite && frostedHeight > 0
-            ? frostedHeight
-            : 0.0;
-        final tintLayer = IgnorePointer(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                stops: const [0, 0.58, 1],
-                colors: [
-                  tint.withValues(alpha: alpha),
-                  tint.withValues(alpha: alpha * 0.52),
-                  tint.withValues(alpha: 0),
-                ],
+    // 简化特效时不能只留一层 18% 的染色：底下的列表文字会清晰地压在标题上，
+    // 读起来像标题栏没画完。退回接近不透明的底色，只在最后 15% 淡出。
+    final reduce = LowMemory.active || sigma <= 0;
+    final solidTint = reduce
+        ? Color.alphaBlend(
+            tint.withValues(alpha: 0.97),
+            AppColors.scaffold(context),
+          )
+        : tint;
+    final alpha = reduce ? 1.0 : (leadingAlpha ?? defaultAlpha);
+    final tintLayer = IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: reduce ? const [0, 0.85, 1] : const [0, 0.58, 1],
+            colors: [
+              solidTint.withValues(alpha: alpha),
+              solidTint.withValues(alpha: alpha * (reduce ? 0.92 : 0.52)),
+              solidTint.withValues(alpha: 0),
+            ],
+          ),
+        ),
+      ),
+    );
+    return Stack(
+      children: [
+        // 整条栏共用一个 BackdropFilter。之前按 6 条横带做「渐变模糊」，
+        // 但每次采样都建立在上一层已模糊的结果上，叠加后并没有变清楚，反而
+        // 在真机上出现条带接缝；一条完整的模糊配合染色淡出更接近 iOS。
+        if (!reduce)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(
+                    sigmaX: sigma,
+                    sigmaY: sigma,
+                    tileMode: TileMode.mirror,
+                  ),
+                  child: const ColoredBox(color: Color(0x00000000)),
+                ),
               ),
             ),
           ),
-        );
-        if (LowMemory.active || safeHeight <= 0 || sigma <= 0) {
-          return Stack(
-            children: [
-              Positioned.fill(child: tintLayer),
-              child,
-            ],
-          );
-        }
-        // Bottom-up: a stronger band must not sample through a weaker one.
-        final bandCount = bands.clamp(1, 24);
-        final bandHeight = safeHeight / bandCount;
-        return Stack(
-          children: [
-            for (var i = bandCount - 1; i >= 0; i--)
-              Positioned(
-                top: bandHeight * i,
-                height: bandHeight,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: ClipRect(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(
-                        sigmaX: sigma * (1 - (i + 0.5) / bandCount),
-                        sigmaY: sigma * (1 - (i + 0.5) / bandCount),
-                        tileMode: TileMode.mirror,
-                      ),
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                ),
-              ),
-            Positioned.fill(child: tintLayer),
-            child,
-          ],
-        );
-      },
+        Positioned.fill(child: tintLayer),
+        child,
+      ],
     );
   }
 }

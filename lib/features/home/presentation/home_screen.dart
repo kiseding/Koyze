@@ -503,7 +503,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       final active = enabled.contains(feature.id);
                       return ListTile(
                         key: ValueKey(feature.id),
-                        leading: Icon(feature.icon, color: feature.color),
+                        leading: Icon(
+                          feature.icon,
+                          color: AppColors.accentOf(context),
+                        ),
                         title: Text(
                           S.of(context).quickTitle(feature.id),
                           style: TextStyle(
@@ -574,7 +577,9 @@ class _QuickEntryCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final color = entry.color;
+    // 快捷卡只用一个强调色：origo-x 的界面里没有第二套色相，每张卡各配一个
+    // 自定义颜色会把 M3 的单色板拆成一排彩虹色块。
+    final color = AppColors.accentOf(context);
     final isPageEntry = entry.action == null && entry.route.isNotEmpty;
     return Pressable(
       borderRadius: BorderRadius.circular(14),
