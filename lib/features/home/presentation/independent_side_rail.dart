@@ -203,14 +203,21 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
         ? media.viewPadding.left * (1 - fraction)
         : media.viewPadding.left;
 
+    // 栏这一列在页面导航器之外，底下没有任何东西——不铺色就是窗口默认的
+    // 黑，浅色主题下白卡片会被套一圈黑框，连状态栏那一段也是黑的。
+    // 铺页面底色，栏才像是浮在同一张纸上。
+    final backdrop = Theme.of(context).scaffoldBackgroundColor;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
           key: const ValueKey('side-rail'),
           width: railWidth,
-          // 宽度跟着播放器进度收，但栏内容保持原宽并往左滑出，避免文字被挤扁。
-          child: showRail
+          child: ColoredBox(
+            color: backdrop,
+            // 宽度跟着播放器进度收，但栏内容保持原宽并往左滑出，避免文字被挤扁。
+            child: showRail
               ? ClipRect(
                   child: OverflowBox(
                     alignment: Alignment.centerLeft,
@@ -274,6 +281,7 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
                   ),
                 )
               : const SizedBox.shrink(),
+          ),
         ),
         Expanded(
           key: const ValueKey('side-content'),

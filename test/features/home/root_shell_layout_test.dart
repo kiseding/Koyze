@@ -196,6 +196,39 @@ void main() {
     );
   });
 
+  testWidgets('the rail column paints the page backdrop, not the window black', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 420);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: ThemeData(brightness: Brightness.light),
+          builder: (context, child) =>
+              IndependentSideRail(child: child ?? const SizedBox.shrink()),
+          home: const SizedBox.expand(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final rail = find.byKey(const ValueKey('side-rail'));
+    expect(rail, findsOneWidget);
+    // 栏这一列在导航器之外，底下什么都没有。不铺色露出的就是窗口默认黑，
+    // 浅色主题下白卡片会被套一圈黑框。
+    final backdrop = tester.widget<ColoredBox>(
+      find.descendant(of: rail, matching: find.byType(ColoredBox)).first,
+    );
+    final theme = Theme.of(tester.element(rail));
+    expect(theme.brightness, Brightness.light);
+    expect(backdrop.color, theme.scaffoldBackgroundColor);
+    expect(backdrop.color, isNot(const Color(0xFF000000)));
+  });
+
   testWidgets('pages and dialogs stay in the pane beside the side rail', (
     tester,
   ) async {
