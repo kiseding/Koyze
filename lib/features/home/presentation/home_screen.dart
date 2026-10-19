@@ -652,12 +652,12 @@ class _QuickEntryCard extends ConsumerWidget {
                   ),
                   if (!dense) ...[
                     const SizedBox(height: 3.5),
-                    // Two lines: at 2 columns the caption only gets ~96pt, and
-                    // every longer English label ("Tasks and progress") was
-                    // cut in the middle of a word.
+                    // One line: the caption is short enough to sit under the
+                    // title without wrapping; a second line only stretched the
+                    // card taller against its neighbours.
                     Text(
                       S.of(context).quickSubtitle(entry.id),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 10.8,

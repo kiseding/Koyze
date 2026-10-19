@@ -23,16 +23,16 @@ Future<void> showSearchSheet(BuildContext context, {required double topInset}) {
   // 搜索面板只占主要工作区，顶部明确留出首页上下文；结果继续滚动，
   // 不用靠一块接近全屏的空玻璃来撑高度。
   final ratio = desktop
-      ? 0.68
+      ? 0.75
       : landscape
-      ? 0.94
-      : 0.74;
+      ? 0.96
+      : 0.82;
   // 横屏和桌面已经有足够的顶部上下文，不再把首页标题位置当作
   // 面板高度的扣除项；手机仍按标题位置留出明显的上下文。
   final topClearance = landscape ? 8.0 : topInset;
   var height = min(size.height - topClearance, size.height * ratio);
   // 桌面按内容密度收敛到一张工作面板，不让结果贴在上方、空白拖到底部。
-  if (desktop) height = min(height, 430);
+  if (desktop) height = min(height, 500);
   // 宽度按设备收窄：搜索面板不需要桌面级的宽度，720 已经足够放下
   // 两列结果，再宽只会让每行拉得太空。
   final maxWidth = size.width >= 1100

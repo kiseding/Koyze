@@ -1234,7 +1234,7 @@ class _HeroSampleList extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: onAccent.withValues(alpha: 0.86),
-                  fontSize: compact ? 10.5 : 11.5,
+                  fontSize: compact ? 21.0 : 23.0,
                   fontWeight: FontWeight.w500,
                   height: 1.1,
                   letterSpacing: -0.1,
