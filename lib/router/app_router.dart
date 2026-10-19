@@ -144,13 +144,11 @@ final appRouter = GoRouter(
         return MainScaffold(
           navigationShell: navigationShell,
           onBranchTap: (index) {
-            final state = _swipeBranchKey.currentState;
-            if (state != null) {
-              state.select(index);
-            } else {
-              AppLog.instance.record('navigation', 'select branch=$index');
-              navigationShell.goBranch(index);
-            }
+            // 顶栏固定在壳层里，点击不再让页面横移：栏和内容同帧换，
+            // 只有分段里的药丸滑过去。横移留给手势——跟手才讲得通，
+            // 点击时让页面慢慢滑而栏纹丝不动，两者节奏会脱节。
+            AppLog.instance.record('navigation', 'select branch=$index');
+            navigationShell.goBranch(index);
           },
         );
       },

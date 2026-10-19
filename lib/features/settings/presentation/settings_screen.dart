@@ -440,22 +440,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
             ),
-            if (isLandscapeShell)
-              RootHeaderPublisher(index: 3, title: s.settings)
-            else
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: FrostedTabHeader(
-                  title: s.settings,
-                  leadingIcon: Icons.settings_rounded,
-                  // 列表从栏下穿过。去掉饱和度那一层，模糊半径也收一点，
-                  // 磨砂还在，滚动时不用每帧算两遍滤镜。
-                  blur: 16,
-                  vivid: false,
-                ),
-              ),
+            // 只发布标题：顶栏由根壳层渲染，切 tab 时不会跟着页面走。
+            RootHeaderPublisher(index: 3, title: s.settings),
           ],
         ),
       ),

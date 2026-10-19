@@ -38,10 +38,10 @@ void main() {
       isNot(contains('GradientAppBarBackground')),
     );
     // 四个入口，药丸在四等分之间滑动，不再是一块玻璃胶囊。
-    expect(tabs, contains("s.home"));
-    expect(tabs, contains("s.charts"));
-    expect(tabs, contains("s.playlists"));
-    expect(tabs, contains("s.settings"));
+    expect(tabs, contains('s.home'));
+    expect(tabs, contains('s.charts'));
+    expect(tabs, contains('s.playlists'));
+    expect(tabs, contains('s.settings'));
     expect(tabs, contains('AnimatedPositioned('));
     expect(tabs, isNot(contains('LiquidGlassSurface(')));
   });
@@ -68,5 +68,40 @@ void main() {
     // 不能把整个导航区从底边裁掉——裁掉之后玻璃后面就是空的。
     expect(source, contains('obscuredBottom: chromeBottom'));
     expect(source, isNot(contains('bottom: chromeBottom')));
+  });
+
+  test('顶部栏只在壳层渲染一次，四个根页面只发布标题', () {
+    final shell = _read('lib/features/home/presentation/main_scaffold.dart');
+
+    // 壳层读控制器里的当前页标题，栏本身画在 SwipeBranchContainer 之外。
+    expect(shell, contains('rootHeaderController.headerFor('));
+    expect(shell, contains('if (!usesSideNavigation)'));
+    expect(shell, contains('FrostedTabHeader('));
+
+    const pages = [
+      'lib/features/home/presentation/home_screen.dart',
+      'lib/features/leaderboard/presentation/leaderboard_screen.dart',
+      'lib/features/playlist/presentation/playlist_screen.dart',
+      'lib/features/settings/presentation/settings_screen.dart',
+    ];
+    for (final page in pages) {
+      final source = _read(page);
+      // 栏一旦留在页面子树里，切 tab 时就会跟着页面横移。
+      expect(source, isNot(contains('FrostedTabHeader(')), reason: page);
+      expect(source, contains('RootHeaderPublisher('), reason: page);
+    }
+  });
+
+  test('点击 tab 瞬时切换，横移只留给手势', () {
+    final router = _read('lib/router/app_router.dart');
+    final tap = router.substring(
+      router.indexOf('onBranchTap:'),
+      router.indexOf('navigatorContainerBuilder'),
+    );
+
+    // 栏不跟着页面走，页面再慢慢滑 280ms 就和栏脱节了：点击同帧换，
+    // 只有药丸滑过去。拖拽切页仍然走 SwipeBranchContainer 的跟手动画。
+    expect(tap, contains('goBranch(index)'));
+    expect(tap, isNot(contains('state.select(')));
   });
 }

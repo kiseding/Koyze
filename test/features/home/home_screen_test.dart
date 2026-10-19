@@ -17,7 +17,9 @@ void main() {
 
     expect(source, contains('showSearchSheet'));
     expect(source, contains("title: 'Koyze'"));
-    expect(source, contains('Icons.home_rounded'));
+    // 顶栏由根壳层统一渲染，首页只发布品牌标题和动作。
+    expect(source, contains('RootHeaderPublisher('));
+    expect(source, isNot(contains('FrostedTabHeader(')));
     expect(source, isNot(contains('免费的音乐查找助手')));
     expect(source, contains('HomeHeroCard'));
     expect(source, contains('HomeHeroCardSettings'));

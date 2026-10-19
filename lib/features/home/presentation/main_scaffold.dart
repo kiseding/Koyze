@@ -101,6 +101,22 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       usesSideNavigation: usesSideNavigation,
     );
 
+    /// 页面还没发布标题时的兜底。取值和它马上要发布的一致，
+    /// 所以页面补上标题时不会看到文字跳一下。
+    String fallbackTitle(int index) {
+      final s = S.of(context);
+      switch (index) {
+        case 0:
+          return 'Koyze';
+        case 1:
+          return s.charts;
+        case 2:
+          return s.playlists;
+        default:
+          return s.settings;
+      }
+    }
+
     void onBranchTap(int index) {
       if (widget.onBranchTap != null) {
         widget.onBranchTap!(index);
@@ -134,6 +150,38 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             child: navigationShell,
           );
 
+          // 顶部栏固定在壳层里，不跟着页面走。四个根页面只把标题和动作
+          // 发布到 rootHeaderController，栏本身在这里渲染一次——切 tab 时
+          // 页面在下面横移，栏原地不动，只有文字和药丸换位置。
+          final chrome = Stack(
+            fit: StackFit.expand,
+            children: [
+              shell,
+              if (!usesSideNavigation)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: ListenableBuilder(
+                    listenable: rootHeaderController,
+                    builder: (context, _) {
+                      final header = rootHeaderController.headerFor(
+                        selectedIndex,
+                      );
+                      return FrostedTabHeader(
+                        // 页面第一次被访问时还没发布过标题，这一帧会空。
+                        // 用栏目名兜底，和页面马上要发布的值是同一个，
+                        // 补上时看不出变化。
+                        title: header?.title ?? fallbackTitle(selectedIndex),
+                        titleKey: header?.titleKey,
+                        actions: header?.actions ?? const [],
+                      );
+                    },
+                  ),
+                ),
+            ],
+          );
+
           final content = Stack(
             children: [
               Positioned.fill(
@@ -143,7 +191,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                     offset: Offset(0, -tabPush * eased),
                     child: Padding(
                       padding: EdgeInsets.only(right: contentRightInset),
-                      child: shell,
+                      child: chrome,
                     ),
                   ),
                 ),

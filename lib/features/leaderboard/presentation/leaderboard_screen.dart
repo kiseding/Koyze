@@ -148,43 +148,25 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                         },
                       ),
                     ),
-                    if (isLandscapeShell)
-                      Positioned(
-                        left: 0,
-                        top: 0,
-                        width: 0,
-                        height: 0,
-                        child: RootHeaderPublisher(
-                          index: 1,
-                          title: S.of(context).charts,
-                          actions: [
-                            FrostedHeaderButton(
-                              icon: Icons.tune_rounded,
-                              semanticLabel: S.of(context).chartSettings,
-                              onTap: () =>
-                                  context.push('/leaderboard-settings'),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        child: FrostedTabHeader(
-                          title: S.of(context).charts,
-                          leadingIcon: Icons.leaderboard_rounded,
-                          actions: [
-                            FrostedHeaderButton(
-                              icon: Icons.tune_rounded,
-                              semanticLabel: S.of(context).chartSettings,
-                              onTap: () =>
-                                  context.push('/leaderboard-settings'),
-                            ),
-                          ],
-                        ),
+                    // 只发布标题：顶栏由根壳层渲染，切 tab 时不会跟着页面走。
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      width: 0,
+                      height: 0,
+                      child: RootHeaderPublisher(
+                        index: 1,
+                        title: S.of(context).charts,
+                        actions: [
+                          FrostedHeaderButton(
+                            icon: Icons.tune_rounded,
+                            semanticLabel: S.of(context).chartSettings,
+                            onTap: () =>
+                                context.push('/leaderboard-settings'),
+                          ),
+                        ],
                       ),
+                    ),
                   ],
                 ),
               ),

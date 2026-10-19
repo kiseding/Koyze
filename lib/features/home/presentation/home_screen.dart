@@ -90,37 +90,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     columns: isWide ? 4 : 2,
                     quickIds: quickIds,
                   ),
-                if (isLandscapeShell)
-                  RootHeaderPublisher(
-                    index: 0,
-                    title: 'Koyze',
-                    titleKey: _brandKey,
-                    actions: [
-                      FrostedHeaderButton(
-                        icon: Icons.tune_rounded,
-                        semanticLabel: S.of(context).heroCardSettingsAction,
-                        onTap: () => _showHeroCardSettings(context),
-                      ),
-                    ],
-                  )
-                else
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: FrostedTabHeader(
-                      title: 'Koyze',
-                      titleKey: _brandKey,
-                      leadingIcon: Icons.home_rounded,
-                      actions: [
-                        FrostedHeaderButton(
-                          icon: Icons.tune_rounded,
-                          semanticLabel: S.of(context).heroCardSettingsAction,
-                          onTap: () => _showHeroCardSettings(context),
-                        ),
-                      ],
+                // 竖屏和侧栏都只发布标题：顶栏由根壳层渲染，页面自己不画，
+                // 这样切 tab 时栏不会跟着页面横移。
+                RootHeaderPublisher(
+                  index: 0,
+                  title: 'Koyze',
+                  titleKey: _brandKey,
+                  actions: [
+                    FrostedHeaderButton(
+                      icon: Icons.tune_rounded,
+                      semanticLabel: S.of(context).heroCardSettingsAction,
+                      onTap: () => _showHeroCardSettings(context),
                     ),
-                  ),
+                  ],
+                ),
               ],
             );
           },

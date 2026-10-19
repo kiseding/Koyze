@@ -111,12 +111,15 @@ void main() {
     }
   });
 
-  test('leaderboard tab header also frosts over its list', () {
+  test('leaderboard tab publishes its title to the shell chrome', () {
     final source = File(
       'lib/features/leaderboard/presentation/leaderboard_screen.dart',
     ).readAsStringSync();
-    expect(source, contains('FrostedTabHeader('));
+    // 顶栏固定在根壳层里，页面只发布标题和动作——切 tab 时栏不跟着页面走。
+    expect(source, contains('RootHeaderPublisher('));
+    expect(source, contains('index: 1'));
     expect(source, contains('title: S.of(context).charts'));
+    expect(source, isNot(contains('FrostedTabHeader(')));
     expect(source, contains('FrostedTabHeader.extent(context)'));
     expect(source, contains('Positioned.fill('));
     expect(source, isNot(contains('fadeStart:')));

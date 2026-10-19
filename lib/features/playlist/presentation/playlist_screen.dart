@@ -110,30 +110,21 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         resizeToAvoidBottomInset: false,
         body: Column(
           children: [
-            if (isLandscapeShell)
-              RootHeaderPublisher(
-                index: 2,
-                title: S.of(context).playlists,
-                actions: [
-                  FrostedHeaderButton(
-                    icon: Icons.playlist_add_rounded,
-                    semanticLabel: S.of(context).importPlaylist,
-                    onTap: () => _showImportDialog(context, ref),
-                  ),
-                ],
-              )
-            else
-              FrostedTabHeader(
-                title: S.of(context).playlists,
-                leadingIcon: Icons.library_music_rounded,
-                actions: [
-                  FrostedHeaderButton(
-                    icon: Icons.playlist_add_rounded,
-                    semanticLabel: S.of(context).importPlaylist,
-                    onTap: () => _showImportDialog(context, ref),
-                  ),
-                ],
-              ),
+            // 只发布标题：顶栏由根壳层渲染，切 tab 时不会跟着页面走。
+            // 这个页面是 Column 布局而不是 Stack，所以要显式让出栏的高度。
+            RootHeaderPublisher(
+              index: 2,
+              title: S.of(context).playlists,
+              actions: [
+                FrostedHeaderButton(
+                  icon: Icons.playlist_add_rounded,
+                  semanticLabel: S.of(context).importPlaylist,
+                  onTap: () => _showImportDialog(context, ref),
+                ),
+              ],
+            ),
+            if (!isLandscapeShell)
+              SizedBox(height: FrostedTabHeader.extent(context)),
             Expanded(
               child: ShellContentFrame(
                 child: Column(
