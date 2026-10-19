@@ -607,20 +607,18 @@ class _QuickEntryCard extends ConsumerWidget {
     // Height is fixed rather than content-driven: the tiles live in a Wrap, so
     // a two-line caption on one card would otherwise make its whole run taller
     // and leave the neighbours floating against different baselines.
-    // 图标 34 在卡内垂直居中，上下留白天然等于 (height - 34) / 2——常规卡
-    // 17、横屏紧凑档 9。左右必须跟上下同宽，否则图标看起来是"贴左"而不是
-    // "居中于卡"：之前左右 11 对上下的 17，每张卡都差 6pt。
+    // 图标在卡内垂直居中，上下留白天然等于 (height - iconExtent) / 2，也
+    // 就是卡片的内容区高度——内容区正好等于图标，所以"把图标放大"和"把留白
+    // 压小"是同一件事。常规卡 68 高配 52 图标，留白 8（原来 34/17）；横屏
+    // 紧凑档 52 高配 40 图标，留白 6。
     final height = tileHeight ?? (dense ? 52.0 : 68.0);
-    const iconExtent = 34.0;
+    final iconExtent = dense ? 40.0 : 52.0;
     final inset = (height - iconExtent) / 2;
     return SizedBox(
       height: height,
       child: OrigoChromeSurface(
         borderRadius: BorderRadius.circular(18),
-        padding: EdgeInsets.symmetric(
-          horizontal: inset,
-          vertical: dense ? 8 : 10,
-        ),
+        padding: EdgeInsets.all(inset),
         child: Row(
           children: [
             Container(
@@ -628,12 +626,12 @@ class _QuickEntryCard extends ConsumerWidget {
               height: iconExtent,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(iconExtent * 0.29),
                 border: Border.all(color: color.withValues(alpha: 0.20)),
               ),
-              child: Icon(entry.icon, color: color, size: 18),
+              child: Icon(entry.icon, color: color, size: iconExtent * 0.5),
             ),
-            const SizedBox(width: 9),
+            SizedBox(width: dense ? 9 : 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,7 +643,7 @@ class _QuickEntryCard extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: dense ? 13.5 : 14.5,
                       fontWeight: FontWeight.w700,
                       height: 1.15,
                       letterSpacing: -0.2,
@@ -653,8 +651,8 @@ class _QuickEntryCard extends ConsumerWidget {
                     ),
                   ),
                   if (!dense) ...[
-                    const SizedBox(height: 3),
-                    // Two lines: at 2 columns the caption only gets ~106pt, and
+                    const SizedBox(height: 3.5),
+                    // Two lines: at 2 columns the caption only gets ~96pt, and
                     // every longer English label ("Tasks and progress") was
                     // cut in the middle of a word.
                     Text(
@@ -662,10 +660,10 @@ class _QuickEntryCard extends ConsumerWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 9.8,
+                        fontSize: 10.8,
                         height: 1.16,
                         letterSpacing: 0,
-                        // mutedText is 45% black in the light theme — at 9.8pt
+                        // mutedText is 45% black in the light theme — at 10.8pt
                         // that lands around 2.5:1 on a white card.
                         color: AppColors.secondaryText(context),
                       ),

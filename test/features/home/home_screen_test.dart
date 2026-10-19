@@ -173,7 +173,7 @@ void main() {
     expect(source, isNot(contains('!_animating &&\n        !_dragging')));
   });
 
-  test('快捷卡的左右内边距由卡片高度与图标推出来', () {
+  test('快捷卡的留白由卡片高度与图标推出来，四边同一个数', () {
     final source = File(
       'lib/features/home/presentation/home_screen.dart',
     ).readAsStringSync();
@@ -182,10 +182,16 @@ void main() {
       source.indexOf('class _QuickEditPenPainter'),
     );
 
-    // 图标在卡内垂直居中，上下留白 = (高 - 图标) / 2；左右沿用同一个值，
+    // 图标在卡内垂直居中，上下留白 = (高 - 图标) / 2；四边沿用同一个值，
     // 否则图标看起来是"贴左"而不是"居中于卡"。
+    expect(card, contains('final height = tileHeight ?? (dense ? 52.0 : 68.0);'));
+    expect(card, contains('final iconExtent = dense ? 40.0 : 52.0;'));
     expect(card, contains('final inset = (height - iconExtent) / 2;'));
-    expect(card, contains('horizontal: inset'));
+    expect(card, contains('padding: EdgeInsets.all(inset)'));
     expect(card, isNot(contains('EdgeInsets.fromLTRB(11,')));
+
+    // 卡高 68 上图标取 52，内容区正好等于图标，留白落到 8——原先图标 34、
+    // 四边各 17，看着像一排空盒子。留白再涨回去就等于把这条又改回去了。
+    expect((68.0 - 52.0) / 2, 8.0);
   });
 }

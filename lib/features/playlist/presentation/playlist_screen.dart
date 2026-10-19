@@ -1646,11 +1646,11 @@ class _PresetCard extends StatelessWidget {
   final VoidCallback? onPlay;
 
   static const double _height = 72;
-  static const double _iconExtent = 38;
+  static const double _iconExtent = 52;
 
-  /// 图标在卡内垂直居中，上下留白必然等于 (_height - _iconExtent) / 2 = 17。
-  /// 左右如果还按 12 排，图标就比上下更贴边——一行五张看下来是齐的，但
-  /// 每张卡自己左上、左下的呼吸不一样。左右改用同一个 17，四边才对得上。
+  /// 图标在卡内垂直居中，上下留白必然等于 (_height - _iconExtent) / 2 = 10。
+  /// 原来图标只有 38，四边各空 17，一行看下来像五条空盒子；图标放大到 52
+  /// 后留白减半，左右仍用同一个 10，四边才对得上。
   static const double _inset = (_height - _iconExtent) / 2;
 
   @override
@@ -1667,12 +1667,8 @@ class _PresetCard extends StatelessWidget {
           child: OrigoChromeSurface(
             borderRadius: BorderRadius.circular(18),
             accent: tone,
-            // 纵向仍是 12：内容区留 48，图标 38 居中后自然落成上下各 17。
-            // 横向给满 17，与上下同宽——四边视觉边距一致。
-            padding: const EdgeInsets.symmetric(
-              horizontal: _inset,
-              vertical: 12,
-            ),
+            // 四边同一个 10：内容区 52 正好等于图标，图标即卡的内边界。
+            padding: const EdgeInsets.all(_inset),
             child: Row(
               children: [
                 Container(
@@ -1680,11 +1676,11 @@ class _PresetCard extends StatelessWidget {
                   height: _iconExtent,
                   decoration: BoxDecoration(
                     color: tone.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(_iconExtent * 0.29),
                   ),
-                  child: Icon(icon, color: tone, size: 20),
+                  child: Icon(icon, color: tone, size: _iconExtent * 0.5),
                 ),
-                const SizedBox(width: 11),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -1696,19 +1692,19 @@ class _PresetCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: AppColors.onScaffold(context),
-                          fontSize: 14.5,
+                          fontSize: 15,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.1,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 2.5),
                       Text(
                         subtitle,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: AppColors.secondaryText(context),
-                          fontSize: 11.5,
+                          fontSize: 11.8,
                           height: 1.2,
                         ),
                       ),
