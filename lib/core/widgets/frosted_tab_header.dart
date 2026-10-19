@@ -9,9 +9,9 @@ import 'origo_chrome.dart';
 
 /// 根页面的顶部 chrome。
 ///
-/// 在根壳层里（存在 [RootTabScope]）它渲染的是**液态玻璃 tab 胶囊**：栏本身
-/// 完全透明，只有胶囊采样背后的内容，页面标题不再占一行——四个 tab 的名字
-/// 就是当前的栏目名。不在根壳层里（独立预览、推送页）退回原来的标题栏。
+/// 在根壳层里（存在 [RootTabScope]）它分两行：第一行是页面大标题加右侧动作，
+/// 第二行是一条分段控件（[RootTabBar]）。标题是标题、导航是导航，两者不再
+/// 挤在同一行里互相抢位置。不在根壳层里（独立预览、推送页）退回原来的标题栏。
 class FrostedTabHeader extends StatelessWidget {
   const FrostedTabHeader({
     super.key,
@@ -32,13 +32,31 @@ class FrostedTabHeader extends StatelessWidget {
   final double? blur;
   final bool vivid;
 
-  /// Content height below the status bar.
-  static const double barHeight = 72;
+  /// 根壳层里的状态栏以下高度：标题行 + 分段控件。
+  static const double barHeight =
+      _topPadding +
+      _titleRowHeight +
+      _titleToTabsGap +
+      kRootTabBarHeight +
+      _tabsBottomPadding;
+
+  /// 回退标题栏（推送页、独立预览）的状态栏以下高度。
+  static const double _plainBarHeight = 72;
+
+  static const double _topPadding = 6;
+  static const double _titleRowHeight = 46;
+  static const double _titleToTabsGap = 2;
+  static const double _tabsBottomPadding = 8;
+
   static const double bottomPadding = 10;
-  static const double _barBottomPadding = 12;
 
   static double extent(BuildContext context, {double extra = 0}) {
-    return MediaQuery.paddingOf(context).top + barHeight + extra;
+    // 有分段控件的壳层比回退标题栏高一条分段的高度，滚动留白必须跟着走，
+    // 否则列表会从分段控件底下钻出来。
+    final hasTabs = RootTabScope.readOf(context) != null;
+    return MediaQuery.paddingOf(context).top +
+        (hasTabs ? barHeight : _plainBarHeight) +
+        extra;
   }
 
   @override
@@ -46,29 +64,27 @@ class FrostedTabHeader extends StatelessWidget {
     final top = MediaQuery.paddingOf(context).top;
     final tabs = RootTabScope.maybeOf(context);
     if (tabs != null) {
-      // 右侧留一个固定宽度的槽位：设置页没有动作按钮时也占着位置，切 tab
-      // 时胶囊宽度不会来回跳。
-      final slots = actions.isEmpty ? 1 : actions.length;
       final surface = AppColors.scaffold(context);
       return Stack(
         children: [
-          // 状态栏那一条只做中性渐隐：内容滚到时钟底下会糊成一片，
-          // 但整条栏不铺毛玻璃——玻璃只留给胶囊。
+          // 标题区需要一层底：列表滚上来时是从标题文字背后穿过的，
+          // 没有这层渐隐，标题会和歌词/歌名糊在一起。只盖到标题行底部，
+          // 分段控件下面就是干净的内容。
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: top + 18,
+            height: top + 58,
             child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0, 0.62, 1],
+                    stops: const [0, 0.6, 1],
                     colors: [
                       surface,
-                      surface.withValues(alpha: 0.86),
+                      surface.withValues(alpha: 0.88),
                       surface.withValues(alpha: 0),
                     ],
                   ),
@@ -77,25 +93,61 @@ class FrostedTabHeader extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(12, top + 6, 12, _barBottomPadding),
-            child: Row(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              top + _topPadding,
+              12,
+              _tabsBottomPadding,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Expanded(child: RootTabBar()),
-                const SizedBox(width: 8),
                 SizedBox(
-                  width: slots * 44,
+                  height: _titleRowHeight,
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      for (final action in actions)
-                        SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Center(child: action),
+                      // 标题自己占满剩余宽度：右侧没有动作按钮时也不留空槽，
+                      // 切 tab 时不会有宽度跳变。
+                      Expanded(
+                        child: Text(
+                          title,
+                          key: titleKey,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                            height: 1.05,
+                            letterSpacing: -0.5,
+                            color: AppColors.onScaffold(context),
+                            shadows: [
+                              Shadow(
+                                color: surface.withValues(
+                                  alpha: AppColors.isDark(context)
+                                      ? 0.62
+                                      : 0.42,
+                                ),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
                         ),
+                      ),
+                      if (actions.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        for (final action in actions)
+                          SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Center(child: action),
+                          ),
+                      ],
                     ],
                   ),
                 ),
+                const SizedBox(height: _titleToTabsGap),
+                const RootTabBar(),
               ],
             ),
           ),

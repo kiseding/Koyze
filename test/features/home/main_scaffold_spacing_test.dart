@@ -20,26 +20,30 @@ void main() {
     expect(source, isNot(contains('_BottomNav')));
   });
 
-  test('顶部 tab 栏挂在根壳层的选中态上，取代标题栏', () {
+  test('顶部是「大标题 + 分段控件」两行，取代原来的标题栏', () {
     final header = _read('lib/core/widgets/frosted_tab_header.dart');
     final tabs = _read('lib/core/widgets/root_tab_bar.dart');
     final shell = _read('lib/features/home/presentation/main_scaffold.dart');
 
-    // 壳层提供 RootTabScope；标题栏在根壳层里渲染 tab 胶囊。
+    // 壳层提供 RootTabScope；标题栏在根壳层里渲染标题 + 分段控件。
     expect(shell, contains('RootTabScope('));
     expect(header, contains('RootTabScope.maybeOf'));
     expect(header, contains('RootTabBar()'));
-    // 胶囊之外整条栏是透明的：不再有铺满宽度的磨砂底。
+    // 栏本身仍然不铺满宽度的磨砂底：底留给标题区一层中性渐隐。
     expect(
-      header.substring(header.indexOf('if (tabs != null)'), header.indexOf('Widget _titleBar')),
+      header.substring(
+        header.indexOf('if (tabs != null)'),
+        header.indexOf('Widget _titleBar'),
+      ),
       isNot(contains('GradientAppBarBackground')),
     );
-    // 四个入口 + 选中态药丸。
-    expect(tabs, contains("label: s.home"));
-    expect(tabs, contains("label: s.charts"));
-    expect(tabs, contains("label: s.playlists"));
-    expect(tabs, contains("label: s.settings"));
-    expect(tabs, contains('LiquidGlassSurface('));
+    // 四个入口，药丸在四等分之间滑动，不再是一块玻璃胶囊。
+    expect(tabs, contains("s.home"));
+    expect(tabs, contains("s.charts"));
+    expect(tabs, contains("s.playlists"));
+    expect(tabs, contains("s.settings"));
+    expect(tabs, contains('AnimatedPositioned('));
+    expect(tabs, isNot(contains('LiquidGlassSurface(')));
   });
 
   test('迷你栏几何与 MiniPlayer 的真实布局一致（morph 起落点）', () {

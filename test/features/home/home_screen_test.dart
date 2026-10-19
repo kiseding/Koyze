@@ -130,19 +130,18 @@ void main() {
     expect(source, contains('/leaderboard/detail'));
   });
 
-  test('bottom navigation second tab is leaderboard', () {
+  test('top segmented control second slot is leaderboard', () {
     final source = File(
       'lib/core/widgets/root_tab_bar.dart',
     ).readAsStringSync();
 
-    expect(source, contains('Icons.leaderboard_outlined'));
     expect(source, contains('s.charts'));
     expect(
       File('lib/l10n/app_strings.dart').readAsStringSync(),
       contains("en ? 'Charts' : '榜单'"),
     );
-    // 选中态换成胶囊底 + 弹性曲线。
-    expect(source, contains('AnimatedIconSwitch'));
+    // 选中态是四等分之间滑动的药丸 + 弹性曲线。
+    expect(source, contains('AnimatedPositioned'));
     expect(source, contains('MotionCurve.iosSpring'));
   });
 
