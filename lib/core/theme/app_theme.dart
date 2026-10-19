@@ -1,288 +1,120 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'app_colors.dart';
 
+import 'app_themes.dart';
+
+/// 主题构建，照搬 origo-x：一个种子色 + Material 3 默认组件外观。
+///
+/// origo-x 的 `ThemeData` 里只有 `colorSchemeSeed` / `brightness` / `useMaterial3`
+/// 三项，其余全部交给 M3 的默认值。这里保留同样的结构，只补上三类必须显式
+/// 指定的东西：
+/// - 页面底色用 `colorScheme.surface`，避免 Material 默认的浅紫偏色；
+/// - 状态栏图标随明暗切换；
+/// - 输入框聚焦不套强调色描边（强调色描边会让搜索、重命名这类浮层同时亮圈）。
 abstract final class AppTheme {
-  static ThemeData darkTheme() {
-    return ThemeData(
+  static ThemeData darkTheme({Color seedColor = AppThemes.defaultAccentColor}) =>
+      _build(seedColor, Brightness.dark);
+
+  static ThemeData lightTheme({
+    Color seedColor = AppThemes.defaultAccentColor,
+  }) => _build(seedColor, Brightness.light);
+
+  static ThemeData _build(Color seedColor, Brightness brightness) {
+    final scheme = brightness == Brightness.dark
+        ? AppThemes.darkScheme(seedColor)
+        : AppThemes.lightScheme(seedColor);
+    final base = ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: AppColors.bg,
-      canvasColor: AppColors.bg,
-      dialogTheme: DialogThemeData(
-        backgroundColor: AppColors.surfaceDark,
-        surfaceTintColor: Colors.transparent,
-        elevation: 12,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: const BorderSide(color: AppColors.border),
-        ),
-        titleTextStyle: const TextStyle(
-          color: AppColors.textPrimary,
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-        ),
-        contentTextStyle: const TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 14,
-          height: 1.4,
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-      ),
-      colorScheme: const ColorScheme.dark(
-        primary: AppColors.amber,
-        onPrimary: Color(0xFF000000),
-        primaryContainer: AppColors.amberDim,
-        secondary: AppColors.amber,
-        surface: AppColors.surfaceDark,
-        onSurface: AppColors.textPrimary,
-        onSurfaceVariant: AppColors.textSecondary,
-        outline: AppColors.border,
-        error: AppColors.error,
-      ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.bg,
-        foregroundColor: AppColors.textPrimary,
+      brightness: brightness,
+      colorScheme: scheme,
+    );
+    final isDark = brightness == Brightness.dark;
+    final radius = BorderRadius.circular(12);
+
+    return base.copyWith(
+      scaffoldBackgroundColor: scheme.surface,
+      canvasColor: scheme.surface,
+      dividerColor: scheme.outlineVariant,
+      appBarTheme: AppBarTheme(
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         centerTitle: true,
-        systemOverlayStyle: SystemUiOverlayStyle.light,
-      ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.bg,
-        selectedItemColor: AppColors.amber,
-        unselectedItemColor: AppColors.textMuted,
+        systemOverlayStyle: isDark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
       ),
       cardTheme: CardThemeData(
-        color: AppColors.surfaceDark,
+        color: scheme.surfaceContainerLow,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
+        margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.border),
+          side: BorderSide(color: scheme.outlineVariant, width: 0.6),
         ),
       ),
-      listTileTheme: const ListTileThemeData(
-        iconColor: AppColors.textSecondary,
-        textColor: AppColors.textPrimary,
-        subtitleTextStyle: TextStyle(color: AppColors.textMuted, fontSize: 12),
+      dialogTheme: DialogThemeData(
+        backgroundColor: scheme.surfaceContainerHigh,
+        surfaceTintColor: Colors.transparent,
+        elevation: 6,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+          side: BorderSide(color: scheme.outlineVariant, width: 0.6),
+        ),
       ),
-      iconTheme: const IconThemeData(color: AppColors.textSecondary),
-      primaryIconTheme: const IconThemeData(color: AppColors.textPrimary),
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: AppColors.textPrimary),
-        bodyMedium: TextStyle(color: AppColors.textPrimary),
-        bodySmall: TextStyle(color: AppColors.textMuted),
-        titleLarge: TextStyle(color: AppColors.textPrimary),
-        titleMedium: TextStyle(color: AppColors.textPrimary),
-        titleSmall: TextStyle(color: AppColors.textSecondary),
-        labelLarge: TextStyle(color: AppColors.textPrimary),
-        labelMedium: TextStyle(color: AppColors.textSecondary),
-        labelSmall: TextStyle(color: AppColors.textMuted),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: scheme.surfaceContainerLow,
+        surfaceTintColor: Colors.transparent,
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surfaceContainer,
+        surfaceTintColor: Colors.transparent,
+        textStyle: TextStyle(color: scheme.onSurface),
+        position: PopupMenuPosition.under,
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        menuPadding: const EdgeInsets.symmetric(vertical: 6),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surface,
-        hintStyle: const TextStyle(color: AppColors.textMuted),
-        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        fillColor: scheme.surfaceContainerHighest,
+        hintStyle: TextStyle(color: scheme.onSurfaceVariant),
+        labelStyle: TextStyle(color: scheme.onSurfaceVariant),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: radius,
           borderSide: BorderSide.none,
         ),
-      ),
-      popupMenuTheme: PopupMenuThemeData(
-        color: AppColors.surfaceDark,
-        textStyle: const TextStyle(color: AppColors.textPrimary),
-        position: PopupMenuPosition.under,
-        elevation: 8,
-        shadowColor: Colors.black.withValues(alpha: 0.28),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        menuPadding: const EdgeInsets.symmetric(vertical: 6),
-      ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: AppColors.surfaceDark,
-        surfaceTintColor: Colors.transparent,
-      ),
-      tabBarTheme: const TabBarThemeData(
-        labelColor: AppColors.amber,
-        unselectedLabelColor: AppColors.textSecondary,
-        indicatorColor: AppColors.amber,
-        dividerColor: Colors.transparent,
-        dividerHeight: 0,
-      ),
-      switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? AppColors.amber
-              : AppColors.textMuted,
-        ),
-        trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? AppColors.amberDim
-              : AppColors.surface2,
-        ),
-      ),
-      dividerTheme: const DividerThemeData(
-        color: AppColors.border,
-        thickness: 0.5,
-      ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.amber,
-      ),
-    );
-  }
-
-  static ThemeData lightTheme() {
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.light,
-      scaffoldBackgroundColor: AppColors.lightBg,
-      canvasColor: AppColors.lightBg,
-      dialogTheme: DialogThemeData(
-        backgroundColor: AppColors.lightSurface,
-        surfaceTintColor: Colors.transparent,
-        elevation: 12,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: const BorderSide(color: AppColors.lightBorder),
-        ),
-        titleTextStyle: const TextStyle(
-          color: AppColors.lightText,
-          fontSize: 20,
-          fontWeight: FontWeight.w700,
-        ),
-        contentTextStyle: const TextStyle(
-          color: AppColors.lightTextSecondary,
-          fontSize: 14,
-          height: 1.4,
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-      ),
-      colorScheme: const ColorScheme.light(
-        primary: AppColors.lightAccent,
-        onPrimary: Color(0xFFFFFFFF),
-        primaryContainer: Color(0x331DB954),
-        secondary: AppColors.lightAccent,
-        surface: AppColors.lightSurface,
-        onSurface: AppColors.lightText,
-        onSurfaceVariant: AppColors.lightTextSecondary,
-        outline: AppColors.lightBorder,
-        error: AppColors.error,
-      ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.lightBg,
-        foregroundColor: AppColors.lightText,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: true,
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
-      ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.lightBg,
-        selectedItemColor: AppColors.lightAccent,
-        unselectedItemColor: AppColors.lightTextMuted,
-      ),
-      cardTheme: CardThemeData(
-        color: AppColors.lightSurface,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.lightBorder),
-        ),
-      ),
-      listTileTheme: const ListTileThemeData(
-        iconColor: AppColors.lightTextSecondary,
-        textColor: AppColors.lightText,
-        subtitleTextStyle: TextStyle(
-          color: AppColors.lightTextMuted,
-          fontSize: 12,
-        ),
-      ),
-      iconTheme: const IconThemeData(color: AppColors.lightTextSecondary),
-      primaryIconTheme: const IconThemeData(color: AppColors.lightText),
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: AppColors.lightText),
-        bodyMedium: TextStyle(color: AppColors.lightText),
-        bodySmall: TextStyle(color: AppColors.lightTextMuted),
-        titleLarge: TextStyle(color: AppColors.lightText),
-        titleMedium: TextStyle(color: AppColors.lightText),
-        titleSmall: TextStyle(color: AppColors.lightTextSecondary),
-        labelLarge: TextStyle(color: AppColors.lightText),
-        labelMedium: TextStyle(color: AppColors.lightTextSecondary),
-        labelSmall: TextStyle(color: AppColors.lightTextMuted),
-      ),
-      // 浅色：白底对话框上若无边框+纯白填充会看不见输入框边缘
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: AppColors.lightSurface2,
-        hintStyle: const TextStyle(color: AppColors.lightTextMuted),
-        labelStyle: const TextStyle(color: AppColors.lightTextSecondary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.lightBorder),
-        ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.lightBorder),
+          borderRadius: radius,
+          borderSide: BorderSide(color: scheme.outlineVariant),
         ),
-        // 聚焦只用中性深一档的边线：主题级强调色描边会在搜索面板、重命名、
-        // 自定义音源这些玻璃/浮层输入框上同时亮成一圈绿边，很刺眼。
-        // 需要"聚焦感"的地方（搜索行）由组件自己画边和投影。
+        // 聚焦只用中性色描边：主题级强调色描边会在搜索面板、重命名、
+        // 自定义音源这些浮层输入框上同时亮成一圈，很刺眼。
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: Color(0x4D3C3C43),
-            width: 1.2,
-          ),
+          borderRadius: radius,
+          borderSide: BorderSide(color: scheme.outline, width: 1.2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.error),
+          borderRadius: radius,
+          borderSide: BorderSide(color: scheme.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+          borderRadius: radius,
+          borderSide: BorderSide(color: scheme.error, width: 1.5),
         ),
       ),
-      popupMenuTheme: PopupMenuThemeData(
-        color: AppColors.lightSurface,
-        textStyle: const TextStyle(color: AppColors.lightText),
-        position: PopupMenuPosition.under,
-        elevation: 10,
-        shadowColor: Colors.black.withValues(alpha: 0.16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        menuPadding: const EdgeInsets.symmetric(vertical: 6),
-      ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: AppColors.lightSurface,
-        surfaceTintColor: Colors.transparent,
-      ),
-      tabBarTheme: const TabBarThemeData(
-        labelColor: AppColors.lightAccent,
-        unselectedLabelColor: AppColors.lightTextSecondary,
-        indicatorColor: AppColors.lightAccent,
+      tabBarTheme: TabBarThemeData(
+        labelColor: scheme.primary,
+        unselectedLabelColor: scheme.onSurfaceVariant,
+        indicatorColor: scheme.primary,
         dividerColor: Colors.transparent,
         dividerHeight: 0,
       ),
-      switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? AppColors.lightAccent
-              : AppColors.lightTextMuted,
-        ),
-        trackColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected)
-              ? const Color(0x331DB954)
-              : const Color(0x1A000000),
-        ),
-      ),
-      dividerTheme: const DividerThemeData(
-        color: AppColors.lightBorder,
-        thickness: 0.5,
-      ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.lightAccent,
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: scheme.primary,
       ),
     );
   }

@@ -4,39 +4,37 @@ import 'package:flutter/material.dart';
 
 import '../performance/low_memory.dart';
 import 'app_colors.dart';
+import 'glass_config.dart';
 
-/// Glass materials, modelled on Origo-x's chrome.
+/// 玻璃材质，照搬 origo-x 的 `GlassControlSurface`。
 ///
-/// The material is a single gradient laid over a modest blur — never a solid
-/// fill plus a second white wash. Three rules keep it from looking like
-/// painted plastic:
-/// - the base colour is the theme surface with a light primary tint;
-/// - both ends of the gradient stay below ~0.85 alpha so the backdrop shows;
-/// - shadows borrow the accent hue in light theme instead of neutral black.
+/// 关键差别只有一条：**整块渐变被去掉了**。origo-x 的玻璃是一层单色低 alpha
+/// 染色 + 高斯模糊 + 一条细边缘高光；斜向的白色渐变（左上亮到右下暗）正是
+/// "复古玻璃"的来源——它把面板画成一片有高光的塑料。去掉渐变后，面板的明暗
+/// 完全来自背后内容被模糊后的颜色，这就是 iOS 那种透明玻璃。
 enum AppGlassStyle {
-  /// Nav / tab / mini player: the widest surfaces.
+  /// 导航栏 / 底部 dock / 迷你播放条：最宽的悬浮面。
   bar,
 
-  /// Sheets and dialogs: low-opacity iOS material with no elevation shadow.
+  /// 弹窗与面板：低透明度、无投影。
   sheet,
 
-  /// Cards, toasts, and other regular glass surfaces.
+  /// 卡片、提示条等常规玻璃面。
   regular,
 
-  /// Compact controls sitting on artwork or other glass.
+  /// 压在封面或其它玻璃上的小控件。
   chrome,
 }
 
 abstract final class AppGlass {
-  // Blur is deliberately lower than a "frosted panel" default: heavy blur
-  // removes the colour behind the glass and the result reads as grey.
-  static const double blurBar = 20;
-  static const double blurSheet = 16;
-  static const double blurRegular = 26;
-  static const double blurChrome = 14;
+  /// 模糊半径统一取自 [GlassEffectConfig]，性能模式下会整体缩放。
+  static double get blurBar => GlassEffectConfig.navigationBarBlur;
+  static double get blurSheet => GlassEffectConfig.modalBlur;
+  static double get blurRegular => GlassEffectConfig.lightCardBlur;
+  static double get blurChrome => GlassEffectConfig.appBarBlur;
 
-  /// 1.8 over-saturates low-alpha glass; 1.3 keeps the tint believable.
-  static const double saturate = 1.3;
+  /// 饱和度只轻微提一点：完全不加会糊成灰，加多了又变彩色塑料。
+  static const double saturate = 1.15;
 
   static double blurFor(AppGlassStyle style) => switch (style) {
     AppGlassStyle.bar => blurBar,
@@ -45,121 +43,93 @@ abstract final class AppGlass {
     AppGlassStyle.chrome => blurChrome,
   };
 
-  /// Opaque base colour behind the gradient.
+  /// 玻璃的基色（不含 alpha）：主题 surface 朝 primary 轻染。
   ///
-  /// Origo tints chrome with `surface` lerped toward `primary`, so switching
-  /// the accent colour re-tints every glass surface instead of leaving a
-  /// fixed white card behind.
+  /// origo 用 `surface.lerp(primary, 0.06~0.08)` 而不是纯白或纯黑，所以换强调
+  /// 色时每一块玻璃会一起变色。
   static Color tintBase(
     BuildContext context, {
     AppGlassStyle style = AppGlassStyle.regular,
   }) {
     final scheme = Theme.of(context).colorScheme;
-    final isDark = AppColors.isDark(context);
-    final card = AppColors.card(context);
-    // Wider chrome takes a little more tint than a small control, otherwise
-    // large surfaces look washed out next to compact ones. Both values stay
-    // low: a green-tinted white card on a white page reads as dirty.
-    final strength = switch (style) {
-      AppGlassStyle.bar => isDark ? 0.040 : 0.030,
-      AppGlassStyle.sheet => isDark ? 0.012 : 0.010,
-      AppGlassStyle.regular => isDark ? 0.035 : 0.034,
-      AppGlassStyle.chrome => isDark ? 0.030 : 0.026,
-    };
-    final toned = Color.lerp(card, scheme.primary, strength)!;
-    if (!isDark) return toned;
-    // Pure #1C1C1E disappears on a black background; lift it just enough for
-    // the glass edge to register without turning the panel grey.
-    return Color.lerp(toned, const Color(0xFF2A2A2C), 0.38)!;
+    final isDark = scheme.brightness == Brightness.dark;
+    return Color.lerp(scheme.surface, scheme.primary, isDark ? 0.06 : 0.08)!;
   }
 
-  /// Opacity of the leading (top-left) and trailing (bottom-right) ends.
+  /// 染色透明度：深色 0.30、浅色 0.60（origo 的 chrome 档位）。
   static (double, double) overlayAlphas(
     BuildContext context, {
     AppGlassStyle style = AppGlassStyle.regular,
     bool emphasized = false,
   }) {
-    final isDark = AppColors.isDark(context);
-    return switch (style) {
-      AppGlassStyle.bar =>
-        isDark
-            ? (emphasized ? 0.58 : 0.44, emphasized ? 0.42 : 0.30)
-            : (emphasized ? 0.80 : 0.66, emphasized ? 0.62 : 0.46),
-      // Sheets should reveal the page below. The blur does the separation;
-      // the tint only lifts contrast enough for text and controls.
-      AppGlassStyle.sheet =>
-        isDark
-            ? (emphasized ? 0.18 : 0.14, emphasized ? 0.12 : 0.09)
-            : (emphasized ? 0.24 : 0.18, emphasized ? 0.16 : 0.12),
-      AppGlassStyle.regular =>
-        isDark
-            ? (emphasized ? 0.66 : 0.52, emphasized ? 0.50 : 0.36)
-            : (emphasized ? 0.80 : 0.70, emphasized ? 0.64 : 0.52),
-      AppGlassStyle.chrome =>
-        isDark
-            ? (emphasized ? 0.50 : 0.36, emphasized ? 0.36 : 0.24)
-            : (emphasized ? 0.74 : 0.58, emphasized ? 0.56 : 0.42),
-    };
+    final scheme = Theme.of(context).colorScheme;
+    final alpha =
+        GlassEffectConfig.chromeOpacityFor(scheme.brightness) +
+        (emphasized ? 0.06 : 0);
+    final clamped = alpha.clamp(0.0, 1.0);
+    return (clamped, clamped);
   }
 
-  /// Flat colour for callers that need a solid stand-in (toasts, opaque
-  /// fallbacks). Keeps the tint but resolves to the gradient's strong end.
+  /// 玻璃面最终颜色：单色，不是渐变。
+  static Color fillColor(
+    BuildContext context, {
+    AppGlassStyle style = AppGlassStyle.regular,
+    bool emphasized = false,
+    double alphaScale = 1,
+  }) {
+    final base = tintBase(context, style: style);
+    final isDark = AppColors.isDark(context);
+    final lifted = emphasized
+        ? Color.lerp(base, Colors.white, isDark ? 0.05 : 0.14)!
+        : base;
+    final (alpha, _) = overlayAlphas(
+      context,
+      style: style,
+      emphasized: emphasized,
+    );
+    return lifted.withValues(alpha: (alpha * alphaScale).clamp(0.0, 1.0));
+  }
+
+  /// 实色代替（提示条、无模糊回退）。
   static Color fill(
     BuildContext context, {
     AppGlassStyle style = AppGlassStyle.regular,
-  }) {
-    final (leading, _) = overlayAlphas(context, style: style);
-    return tintBase(context, style: style).withValues(alpha: leading);
-  }
+  }) => fillColor(context, style: style);
 
-  /// Hairline edge: reflected light in dark theme, a grouped-cell rule in
-  /// light theme. A white edge on a near-white page simply disappears.
+  /// 细边缘：深色是反光，浅色是分组边框。
   static BorderSide hairline(BuildContext context, {bool emphasized = false}) {
     final scheme = Theme.of(context).colorScheme;
-    if (!AppColors.isDark(context)) {
-      final color = Color.lerp(
-        const Color(0xFF3C3C43),
-        scheme.primary,
-        emphasized ? 0.28 : 0.06,
-      )!;
-      return BorderSide(
-        color: color.withValues(alpha: emphasized ? 0.16 : 0.10),
-        width: emphasized ? 0.7 : 0.6,
-      );
-    }
-    final color = Color.lerp(
+    final isDark = scheme.brightness == Brightness.dark;
+    final source = emphasized ? scheme.primary : scheme.outlineVariant;
+    final highlighted = Color.lerp(
+      source,
       Colors.white,
-      scheme.primary,
-      emphasized ? 0.55 : 0.14,
+      isDark ? 0.24 : 0.16,
     )!;
     return BorderSide(
-      color: color.withValues(alpha: emphasized ? 0.24 : 0.14),
-      width: emphasized ? 0.7 : 0.6,
+      color: highlighted.withValues(alpha: emphasized ? 0.62 : 0.42),
+      width: 0.8,
     );
   }
 
-  /// Floating shadow. Light theme leans on the accent so the shadow belongs
-  /// to the palette; a neutral black shadow over the warm backdrop looks dirty.
+  /// 悬浮投影。浅色借用强调色的极淡影子，纯黑投影在暖色背景上会发脏。
   static List<BoxShadow> shadowFor(
     BuildContext context, {
     AppGlassStyle style = AppGlassStyle.regular,
     bool emphasized = false,
     Color? accent,
   }) {
-    final isDark = AppColors.isDark(context);
-    final source = accent ?? Theme.of(context).colorScheme.primary;
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
+    final source = accent ?? scheme.primary;
     final color = isDark
-        ? Colors.black.withValues(alpha: emphasized ? 0.22 : 0.14)
-        : Color.lerp(
-            source,
-            Colors.black,
-            0.45,
-          )!.withValues(alpha: emphasized ? 0.08 : 0.05);
+        ? Colors.black.withValues(alpha: emphasized ? 0.20 : 0.12)
+        : source.withValues(alpha: emphasized ? 0.07 : 0.045);
     return [
       BoxShadow(
         color: color,
-        blurRadius: emphasized ? 18 : 12,
-        offset: Offset(0, emphasized ? 7 : 4),
+        blurRadius: emphasized ? 22 : 16,
+        offset: Offset(0, emphasized ? 8 : 5),
       ),
     ];
   }
@@ -176,12 +146,8 @@ abstract final class AppGlass {
     );
   }
 
-  /// Filter for the liquid-glass dock: a wider blur than the cards use, with
-  /// extra saturation so the colours that survive the blur read as colour and
-  /// not as grey mush. Content stays recognisable underneath — that is the
-  /// whole point of the tab bar sitting on top of the page instead of beside
-  /// it.
-  static ImageFilter liquidFilter({double blur = 26, double saturation = 1.7}) {
+  /// dock 专用：模糊更宽、饱和度更高，底下的内容才不会糊成灰浆。
+  static ImageFilter liquidFilter({double blur = 26, double saturation = 1.45}) {
     return ImageFilter.compose(
       outer: ImageFilter.blur(
         sigmaX: blur,
@@ -192,7 +158,7 @@ abstract final class AppGlass {
     );
   }
 
-  /// 5x4 color matrix that scales saturation around Rec.709 luma.
+  /// 5x4 颜色矩阵，围绕 Rec.709 亮度缩放饱和度。
   static List<double> _saturationMatrix(double s) {
     const r = 0.2126, g = 0.7152, b = 0.0722;
     final ir = 1 - s;
@@ -221,8 +187,7 @@ abstract final class AppGlass {
   }
 }
 
-/// iOS navigation chrome fades frost toward the scrolling content:
-/// top bars are stronger at the bottom edge, tab bars at the top edge.
+/// iOS 式渐隐：顶栏向下淡出、底栏向上淡出，滚动内容不会撞上一条硬边。
 enum AppGlassFade { none, down, up }
 
 class GlassSurface extends StatelessWidget {
@@ -246,8 +211,8 @@ class GlassSurface extends StatelessWidget {
   final BorderRadius? borderRadius;
   final EdgeInsetsGeometry? padding;
 
-  /// Optional base tint. Its RGB replaces the themed base; opacity is still
-  /// governed by [AppGlassStyle] so every surface stays equally translucent.
+  /// 可选的基色提示。只用来给某一块面一点色相，透明度仍由 [AppGlassStyle]
+  /// 决定，避免一块面比旁边的更实。
   final Color? color;
   final Border? border;
   final AppGlassStyle style;
@@ -255,15 +220,13 @@ class GlassSurface extends StatelessWidget {
   final List<BoxShadow>? boxShadow;
   final AppGlassFade fade;
 
-  /// 为 false 时只做模糊，不再叠饱和度矩阵。滚动内容从栏下穿过时，
-  /// 每帧少一次全栏滤镜。
+  /// 为 false 时不叠饱和度矩阵，滚动时每帧少一次全栏滤镜。
   final bool vivid;
 
-  /// Brighter edge and a deeper shadow, used by floating chrome.
+  /// 更亮的边和更深的投影，用于悬浮 chrome。
   final bool emphasized;
 
-  /// 整体透明度倍率（0–1）。近全屏的面板压在页面上时，0.7 的基底会把
-  /// 底层完全糊成一块色；压到 0.85 左右仍能透出页面结构。
+  /// 整体透明度倍率（0–1）。
   final double alphaScale;
 
   @override
@@ -279,9 +242,15 @@ class GlassSurface extends StatelessWidget {
     final content = padding == null
         ? child
         : Padding(padding: padding!, child: child);
-    if (LowMemory.active) {
-      final surface = AppColors.card(context);
-      final opaque = Color.alphaBlend(base.withValues(alpha: 0.94), surface);
+    // 玻璃是有底色的 DecoratedBox，ListTile 的水波纹要画在最近的 Material 上。
+    // 不给它一层透明 Material，Flutter 会直接断言"ink 可能不可见"，而且点击
+    // 反馈会被这层底色盖住。
+    final material = Material(type: MaterialType.transparency, child: content);
+    if (LowMemory.active || sigma <= 0) {
+      final opaque = Color.alphaBlend(
+        base.withValues(alpha: 0.94),
+        AppColors.scaffold(context),
+      );
       return DecoratedBox(
         decoration: BoxDecoration(
           color: opaque,
@@ -292,7 +261,7 @@ class GlassSurface extends StatelessWidget {
         child: ClipRRect(
           borderRadius: radius,
           clipBehavior: Clip.antiAlias,
-          child: content,
+          child: material,
         ),
       );
     }
@@ -303,19 +272,22 @@ class GlassSurface extends StatelessWidget {
           ? BackdropFilter(
               filter: _filter(sigma, vivid: vivid),
               child: DecoratedBox(
-                decoration: _decoration(context, radius: radius, border: side),
-                child: content,
+                decoration: BoxDecoration(
+                  color: base,
+                  borderRadius: radius,
+                  border: side,
+                ),
+                child: material,
               ),
             )
           : _FadingFrost(
               sigma: sigma,
               fade: fade,
               base: base,
-              leadingAlpha: _leadingAlpha(context),
               radius: radius,
               border: side,
               vivid: vivid,
-              child: content,
+              child: material,
             ),
     );
     final shadows =
@@ -335,54 +307,17 @@ class GlassSurface extends StatelessWidget {
     );
   }
 
-  /// Base tint, optionally nudged by [color]'s hue.
+  /// 玻璃面颜色：[color] 只做轻微色相偏移，不接管透明度。
   Color _baseColor(BuildContext context) {
-    final themed = AppGlass.tintBase(context, style: style);
+    final themed = AppGlass.fillColor(
+      context,
+      style: style,
+      emphasized: emphasized,
+      alphaScale: alphaScale,
+    );
     if (color == null) return themed;
-    // Replacing the base with the accent turns every card into its own
-    // saturated panel, which reads as a patchwork. Nudge instead — just
-    // enough that a row of cards shares a family resemblance.
-    final nudge = AppColors.isDark(context) ? 0.045 : 0.030;
-    return Color.lerp(themed, color!, nudge)!;
-  }
-
-  double _leadingAlpha(BuildContext context) {
-    final (leading, _) = AppGlass.overlayAlphas(
-      context,
-      style: style,
-      emphasized: emphasized,
-    );
-    return (leading * alphaScale).clamp(0.0, 1.0);
-  }
-
-  /// One gradient, top-left highlight into the base tint. No second wash.
-  BoxDecoration _decoration(
-    BuildContext context, {
-    required BorderRadius radius,
-    required Border border,
-  }) {
-    final isDark = AppColors.isDark(context);
-    final base = _baseColor(context);
-    final (leading, trailing) = AppGlass.overlayAlphas(
-      context,
-      style: style,
-      emphasized: emphasized,
-    );
-    final lead = (leading * alphaScale).clamp(0.0, 1.0);
-    final trail = (trailing * alphaScale).clamp(0.0, 1.0);
-    final highlight = Color.lerp(base, Colors.white, isDark ? 0.10 : 0.16)!;
-    return BoxDecoration(
-      borderRadius: radius,
-      border: border,
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          highlight.withValues(alpha: lead),
-          base.withValues(alpha: trail),
-        ],
-      ),
-    );
+    final nudge = AppColors.isDark(context) ? 0.05 : 0.04;
+    return Color.lerp(themed, color!.withValues(alpha: themed.a), nudge)!;
   }
 
   static ImageFilter _filter(double sigma, {bool vivid = true}) {
@@ -404,7 +339,6 @@ class _FadingFrost extends StatelessWidget {
     required this.sigma,
     required this.fade,
     required this.base,
-    required this.leadingAlpha,
     required this.radius,
     required this.border,
     required this.vivid,
@@ -414,7 +348,6 @@ class _FadingFrost extends StatelessWidget {
   final double sigma;
   final AppGlassFade fade;
   final Color base;
-  final double leadingAlpha;
   final BorderRadius radius;
   final Border border;
   final bool vivid;
@@ -423,9 +356,8 @@ class _FadingFrost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final down = fade == AppGlassFade.down;
-    // Solid at the chrome end so the title/status area stays readable, clear
-    // toward the scrolling edge so content does not end on a hard band.
-    final solid = base.withValues(alpha: leadingAlpha);
+    // 靠近 chrome 的一端保持实，朝滚动边淡出，内容不会以一条线结尾。
+    final solid = base;
     final clear = base.withValues(alpha: 0);
     return Stack(
       clipBehavior: Clip.hardEdge,

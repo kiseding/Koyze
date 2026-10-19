@@ -49,7 +49,14 @@ class HomeHeroCardOption {
   final IconData icon;
   final Color? color;
 
-  Color colorOf(BuildContext context) => color ?? AppColors.accentOf(context);
+  /// 卡片会从这颜色一路压到近黑，所以起点必须是"深一档"的强调色。
+  /// M3 深色主题的 primary 是提亮值（浅蓝），直接用它会把卡片洗成一片灰白；
+  /// 深色下改用 primaryContainer，浅色下 primary 本身就是深色，正好对应。
+  Color colorOf(BuildContext context) {
+    if (color != null) return color!;
+    final scheme = Theme.of(context).colorScheme;
+    return AppColors.isDark(context) ? scheme.primaryContainer : scheme.primary;
+  }
 
   String titleFor(S s) => switch (id) {
     HomeHeroCardId.favorites => s.favorites,

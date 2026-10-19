@@ -173,9 +173,8 @@ class OrigoAmbientBackdrop extends StatelessWidget {
     final base = AppColors.scaffold(context);
     final leading = leadingColor ?? AppColors.accentOf(context);
     final trailing = trailingColor ?? Theme.of(context).colorScheme.secondary;
-    // The wash is a hint of the accent near the chrome, not a page-wide tint:
-    // a wide tint at high alpha turns black into green fog and white into
-    // grey-green paper.
+    // origo-x 的页面底色就是 `colorScheme.surface`，没有整屏染色。这里只留
+    // 极淡的一点顶部色晕，让玻璃有层次可透——再重就变成彩色雾，而不是背景。
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -188,11 +187,11 @@ class OrigoAmbientBackdrop extends StatelessWidget {
               stops: const [0, 0.44, 1],
               colors: [
                 Color.alphaBlend(
-                  leading.withValues(alpha: isDark ? 0.11 : 0.040),
+                  leading.withValues(alpha: isDark ? 0.045 : 0.020),
                   base,
                 ),
                 Color.alphaBlend(
-                  trailing.withValues(alpha: isDark ? 0.045 : 0.018),
+                  trailing.withValues(alpha: isDark ? 0.018 : 0.010),
                   base,
                 ),
                 base,

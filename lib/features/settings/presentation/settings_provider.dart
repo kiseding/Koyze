@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/performance/low_memory.dart';
+import '../../../core/theme/app_themes.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../nas/domain/nas_url.dart';
@@ -33,6 +34,12 @@ final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>((
 ) {
   return ThemeModeNotifier();
 });
+
+/// 主题强调色。照 origo-x：全应用只有一个种子色，浅/深色板都由它生成。
+final accentColorProvider =
+    StateNotifierProvider<AccentColorNotifier, Color>((ref) {
+      return AccentColorNotifier();
+    });
 
 final audioQualityProvider =
     StateNotifierProvider<AudioQualityNotifier, AudioQualityOption>((ref) {
@@ -142,6 +149,26 @@ abstract class _PersistedSettingNotifier<T> extends StateNotifier<T> {
   void applyCommittedValue(T value) {
     ++_generation;
     state = value;
+  }
+}
+
+class AccentColorNotifier extends _PersistedSettingNotifier<Color> {
+  AccentColorNotifier({StorageLoader? storage})
+    : super(AppThemes.defaultAccentColor, storage: storage) {
+    _load((storage) {
+      final value = storage.getInt(_storageKey);
+      return value == null ? null : Color(value);
+    });
+  }
+
+  static const String _storageKey = 'app_accent_color';
+
+  Future<void> setAccentColor(Color color) async {
+    if (state.toARGB32() == color.toARGB32()) return;
+    await _persist(
+      color,
+      (storage) => storage.setInt(_storageKey, color.toARGB32()),
+    );
   }
 }
 

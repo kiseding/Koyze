@@ -71,6 +71,7 @@ class LxMusicApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    final accentColor = ref.watch(accentColorProvider);
     final language = ref.watch(appLanguageProvider);
     LowMemory.active = ref.watch(simplifyEffectsProvider);
     ref.watch(playbackSessionRecorderProvider);
@@ -88,8 +89,8 @@ class LxMusicApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Koyze',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme(),
-      darkTheme: AppTheme.darkTheme(),
+      theme: AppTheme.lightTheme(seedColor: accentColor),
+      darkTheme: AppTheme.darkTheme(seedColor: accentColor),
       themeMode: themeMode,
       locale: language.materialLocale,
       supportedLocales: AppLanguage.supportedLocales,

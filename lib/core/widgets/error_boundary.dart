@@ -102,8 +102,8 @@ class _DefaultErrorWidget extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onRetry,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.amber,
-                  foregroundColor: AppColors.black,
+                  backgroundColor: AppColors.accentOf(context),
+                  foregroundColor: AppColors.onAccentOf(context),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999),
                   ),

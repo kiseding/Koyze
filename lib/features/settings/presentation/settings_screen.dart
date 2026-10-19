@@ -9,6 +9,7 @@ import '../../../core/card_expand.dart';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_themes.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
@@ -337,6 +338,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           }
                         },
                       ),
+                      _buildNavTile(
+                        context,
+                        ref,
+                        s.themeColor,
+                        s.themeColorSubtitle,
+                        () => _showThemeColorDialog(context),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: ref.watch(accentColorProvider),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.cardBorder(context),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.chevron_right,
+                              color: AppColors.mutedText(context),
+                            ),
+                          ],
+                        ),
+                      ),
                     ]),
                     _buildSection(context, s.downloads, [
                       _buildNavTile(
@@ -565,6 +594,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       isScrollControlled: true,
       builder: (_) => const _LanguagePickerDialog(),
+    );
+  }
+
+  void _showThemeColorDialog(BuildContext context) {
+    showKoyzeSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _ThemeColorPickerDialog(),
     );
   }
 
@@ -1454,6 +1491,82 @@ class _LanguagePickerDialog extends ConsumerWidget {
               },
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// 主题色选择：origo-x 的强调色列表，选一个就换整套 M3 色板。
+class _ThemeColorPickerDialog extends ConsumerWidget {
+  const _ThemeColorPickerDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(accentColorProvider);
+    return _SettingsOptionPanel(
+      title: S.of(context).themeColor,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 22),
+        child: Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: [
+            for (final color in AppThemes.accentColors)
+              _AccentSwatch(
+                color: color,
+                selected: current.toARGB32() == color.toARGB32(),
+                onTap: () {
+                  ref
+                      .read(accentColorProvider.notifier)
+                      .setAccentColor(color);
+                  Navigator.pop(context);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AccentSwatch extends StatelessWidget {
+  const _AccentSwatch({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected
+                  ? AppColors.onScaffold(context)
+                  : AppColors.cardBorder(context),
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: selected
+              ? const Icon(Icons.check, size: 18, color: Colors.white)
+              : null,
+        ),
       ),
     );
   }

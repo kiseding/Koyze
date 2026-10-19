@@ -75,6 +75,10 @@ class S {
   String get followSystemLanguageSubtitle => en
       ? 'Use the device language when it is Chinese or English'
       : '设备为中文或英文时自动跟随';
+  String get themeColor => en ? 'Theme colour' : '主题色';
+  String get themeColorSubtitle => en
+      ? 'One accent builds the whole Material 3 palette'
+      : '由一个强调色生成整套浅色/深色色板';
 
   String get downloads => en ? 'Downloads' : '下载';
   String get downloadManager => en ? 'Download manager' : '下载管理';
