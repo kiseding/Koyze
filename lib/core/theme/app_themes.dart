@@ -15,11 +15,17 @@ import 'app_colors.dart';
 ///   因此任何强调色下页面都是同一张灰阶；
 /// - `primary` 直接取强调色（深色下按亮度提亮），只落在关键元素上。
 abstract final class AppThemes {
-  /// origo-x 的默认强调色（Material Blue 700）。
-  static const Color defaultAccentColor = Color(0xFF1976D2);
+  /// origo-x 的默认强调色（Material Green 800）。
+  ///
+  /// 暖色在深色底上会发灰，蓝紫又太像系统控件；这支深绿在浅色下是
+  /// 5.2:1 的实心绿，深色下经 [keyColor] 提到 0.66 明度后变成一枚
+  /// 干净的浅绿，两个主题都是同一支色相。
+  static const Color defaultAccentColor = Color(0xFF2E7D32);
 
   /// 设置页中的快捷强调色。任意颜色仍可通过色盘或十六进制输入选择。
+  /// 默认色排在第一格，选中态才不会落在一块看起来"随机"的色板上。
   static const List<Color> accentColors = [
+    Color(0xFF2E7D32),
     Color(0xFF1976D2),
     Color(0xFF3F51B5),
     Color(0xFF6750A4),
@@ -30,7 +36,6 @@ abstract final class AppThemes {
     Color(0xFFFB8C00),
     Color(0xFFF9A825),
     Color(0xFF7CB342),
-    Color(0xFF2E7D32),
     Color(0xFF00897B),
     Color(0xFF0097A7),
     Color(0xFF0288D1),
@@ -62,19 +67,17 @@ abstract final class AppThemes {
       primaryContainer: isDark
           ? Color.alphaBlend(key.withValues(alpha: 0.24), AppColors.surfaceDark)
           : Color.alphaBlend(key.withValues(alpha: 0.14), Colors.white),
-      onPrimaryContainer: isDark
-          ? AppColors.textPrimary
-          : AppColors.lightText,
-      secondary: isDark ? AppColors.textSecondary : AppColors.lightTextSecondary,
+      onPrimaryContainer: isDark ? AppColors.textPrimary : AppColors.lightText,
+      secondary: isDark
+          ? AppColors.textSecondary
+          : AppColors.lightTextSecondary,
       onSecondary: isDark ? AppColors.bg : Colors.white,
       surface: isDark ? AppColors.bg : AppColors.lightBg,
       onSurface: isDark ? AppColors.textPrimary : AppColors.lightText,
       onSurfaceVariant: isDark
           ? AppColors.textSecondary
           : AppColors.lightTextSecondary,
-      surfaceContainerLowest: isDark
-          ? const Color(0xFF0C0E12)
-          : Colors.white,
+      surfaceContainerLowest: isDark ? const Color(0xFF0C0E12) : Colors.white,
       surfaceContainerLow: isDark
           ? const Color(0xFF181A1F)
           : AppColors.lightSurface2,

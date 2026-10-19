@@ -85,4 +85,24 @@ void main() {
     expect(source, contains('_bodyItems('));
     expect(source, contains('_buildBodyItem('));
   });
+
+  test('预设卡的左右内边距跟上下留白取同一个数', () {
+    final source = File(
+      'lib/features/playlist/presentation/playlist_screen.dart',
+    ).readAsStringSync();
+    final card = source.substring(source.indexOf('class _PresetCard'));
+
+    // 图标 38 在高 72 的卡里垂直居中，上下各留 17；左右如果写死 12，
+    // 图标就会比上下更贴边——这正是这张卡看起来"歪"的原因。
+    expect(card, contains('static const double _height = 72;'));
+    expect(card, contains('static const double _iconExtent = 38;'));
+    expect(
+      card,
+      contains(
+        'static const double _inset = (_height - _iconExtent) / 2;',
+      ),
+    );
+    expect(card, contains('horizontal: _inset'));
+    expect(card, contains('height: _height'));
+  });
 }

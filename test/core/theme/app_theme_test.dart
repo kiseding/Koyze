@@ -56,5 +56,18 @@ void main() {
       expect(side.style, isNot(BorderStyle.none));
       expect(side.color.a, greaterThan(0));
     });
+
+    test('默认强调色是一支绿，且排在色板第一格', () {
+      final hsl = HSLColor.fromColor(AppThemes.defaultAccentColor);
+      expect(hsl.hue, inInclusiveRange(90, 150));
+      expect(hsl.saturation, greaterThan(0.3));
+
+      // 色板第一格就是默认值：选中态才不会落在一块看起来"随机"的色板上。
+      expect(AppThemes.accentColors.first, AppThemes.defaultAccentColor);
+      expect(
+        AppThemes.accentColors.toSet().length,
+        AppThemes.accentColors.length,
+      );
+    });
   });
 }

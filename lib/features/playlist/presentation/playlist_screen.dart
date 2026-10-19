@@ -1645,6 +1645,14 @@ class _PresetCard extends StatelessWidget {
   /// 为 null 时按钮仍在位（禁用态），避免卡片右侧塌成一块空白。
   final VoidCallback? onPlay;
 
+  static const double _height = 72;
+  static const double _iconExtent = 38;
+
+  /// 图标在卡内垂直居中，上下留白必然等于 (_height - _iconExtent) / 2 = 17。
+  /// 左右如果还按 12 排，图标就比上下更贴边——一行五张看下来是齐的，但
+  /// 每张卡自己左上、左下的呼吸不一样。左右改用同一个 17，四边才对得上。
+  static const double _inset = (_height - _iconExtent) / 2;
+
   @override
   Widget build(BuildContext context) {
     return HoverFloat(
@@ -1655,16 +1663,21 @@ class _PresetCard extends StatelessWidget {
         // 固定高度：五个入口的副标题长短不一（"3 songs" / "Choose a folder
         // to scan this device"），高度随内容走会让并排两张卡的基线错开。
         child: SizedBox(
-          height: 72,
+          height: _height,
           child: OrigoChromeSurface(
             borderRadius: BorderRadius.circular(18),
             accent: tone,
-            padding: const EdgeInsets.all(12),
+            // 纵向仍是 12：内容区留 48，图标 38 居中后自然落成上下各 17。
+            // 横向给满 17，与上下同宽——四边视觉边距一致。
+            padding: const EdgeInsets.symmetric(
+              horizontal: _inset,
+              vertical: 12,
+            ),
             child: Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: _iconExtent,
+                  height: _iconExtent,
                   decoration: BoxDecoration(
                     color: tone.withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(12),

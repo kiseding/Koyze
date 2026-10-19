@@ -607,16 +607,25 @@ class _QuickEntryCard extends ConsumerWidget {
     // Height is fixed rather than content-driven: the tiles live in a Wrap, so
     // a two-line caption on one card would otherwise make its whole run taller
     // and leave the neighbours floating against different baselines.
+    // 图标 34 在卡内垂直居中，上下留白天然等于 (height - 34) / 2——常规卡
+    // 17、横屏紧凑档 9。左右必须跟上下同宽，否则图标看起来是"贴左"而不是
+    // "居中于卡"：之前左右 11 对上下的 17，每张卡都差 6pt。
+    final height = tileHeight ?? (dense ? 52.0 : 68.0);
+    const iconExtent = 34.0;
+    final inset = (height - iconExtent) / 2;
     return SizedBox(
-      height: tileHeight ?? (dense ? 52 : 68),
+      height: height,
       child: OrigoChromeSurface(
         borderRadius: BorderRadius.circular(18),
-        padding: EdgeInsets.fromLTRB(11, dense ? 8 : 10, 11, dense ? 8 : 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: inset,
+          vertical: dense ? 8 : 10,
+        ),
         child: Row(
           children: [
             Container(
-              width: 34,
-              height: 34,
+              width: iconExtent,
+              height: iconExtent,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(11),

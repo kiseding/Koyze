@@ -172,4 +172,20 @@ void main() {
     expect(source, contains('oldWidget.currentIndex != widget.currentIndex'));
     expect(source, isNot(contains('!_animating &&\n        !_dragging')));
   });
+
+  test('快捷卡的左右内边距由卡片高度与图标推出来', () {
+    final source = File(
+      'lib/features/home/presentation/home_screen.dart',
+    ).readAsStringSync();
+    final card = source.substring(
+      source.indexOf('class _QuickEntryCard'),
+      source.indexOf('class _QuickEditPenPainter'),
+    );
+
+    // 图标在卡内垂直居中，上下留白 = (高 - 图标) / 2；左右沿用同一个值，
+    // 否则图标看起来是"贴左"而不是"居中于卡"。
+    expect(card, contains('final inset = (height - iconExtent) / 2;'));
+    expect(card, contains('horizontal: inset'));
+    expect(card, isNot(contains('EdgeInsets.fromLTRB(11,')));
+  });
 }
