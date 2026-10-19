@@ -20,23 +20,26 @@ void main() {
     expect(source, isNot(contains('_BottomNav')));
   });
 
-  test('顶部是「大标题 + 图标 tab」两行，取代原来的标题栏', () {
+  test('顶部只有一条 tab 行，导航占据原来标题的位置', () {
     final header = _read('lib/core/widgets/frosted_tab_header.dart');
     final tabs = _read('lib/core/widgets/root_tab_bar.dart');
     final shell = _read('lib/features/home/presentation/main_scaffold.dart');
 
-    // 壳层提供 RootTabScope；标题栏在根壳层里渲染标题 + 分段控件。
+    // 壳层提供 RootTabScope；标题栏在根壳层里渲染 tab 行。
     expect(shell, contains('RootTabScope('));
     expect(header, contains('RootTabScope.maybeOf'));
     expect(header, contains('RootTabBar()'));
-    // 栏本身仍然不铺满宽度的磨砂底：底留给标题区一层中性渐隐。
-    expect(
-      header.substring(
-        header.indexOf('if (tabs != null)'),
-        header.indexOf('Widget _titleBar'),
-      ),
-      isNot(contains('GradientAppBarBackground')),
+    // 栏本身仍然不铺满宽度的磨砂底：底留给导航行一层中性渐隐。
+    final navBranch = header.substring(
+      header.indexOf('if (tabs != null)'),
+      header.indexOf('Widget _titleBar'),
     );
+    expect(navBranch, isNot(contains('GradientAppBarBackground')));
+    // 大标题不再出现在这一支里：选中的 tab 展开后就是页面名，
+    // 再画一次 26 号标题只是重复。
+    expect(navBranch, isNot(contains('fontSize: 26')));
+    // 动作按钮和 tab 同排，靠右。
+    expect(navBranch, contains('actions.isNotEmpty'));
     // 四个入口：收起只留图标，选中项向右展开成胶囊。
     expect(tabs, contains('s.home'));
     expect(tabs, contains('s.charts'));

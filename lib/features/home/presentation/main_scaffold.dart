@@ -101,22 +101,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       usesSideNavigation: usesSideNavigation,
     );
 
-    /// 页面还没发布标题时的兜底。取值和它马上要发布的一致，
-    /// 所以页面补上标题时不会看到文字跳一下。
-    String fallbackTitle(int index) {
-      final s = S.of(context);
-      switch (index) {
-        case 0:
-          return 'Koyze';
-        case 1:
-          return s.charts;
-        case 2:
-          return s.playlists;
-        default:
-          return s.settings;
-      }
-    }
-
     void onBranchTap(int index) {
       if (widget.onBranchTap != null) {
         widget.onBranchTap!(index);
@@ -169,10 +153,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                         selectedIndex,
                       );
                       return FrostedTabHeader(
-                        // 页面第一次被访问时还没发布过标题，这一帧会空。
-                        // 用栏目名兜底，和页面马上要发布的值是同一个，
-                        // 补上时看不出变化。
-                        title: header?.title ?? fallbackTitle(selectedIndex),
+                        // 竖屏里标题不再渲染：选中的那个 tab 展开后就是
+                        // 这一页的名字，再写一遍大标题只是重复。title 仍
+                        // 传过去，回退标题栏（推送页）才用得到。
+                        title: header?.title ?? '',
                         titleKey: header?.titleKey,
                         actions: header?.actions ?? const [],
                       );

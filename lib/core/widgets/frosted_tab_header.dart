@@ -9,10 +9,10 @@ import 'origo_chrome.dart';
 
 /// 根页面的顶部 chrome。
 ///
-/// 在根壳层里（存在 [RootTabScope]）它分两行：第一行是页面大标题加右侧动作，
-/// 第二行是一条图标 tab（[RootTabBar]）。导航收成图标后不再需要一条横贯全宽
-/// 的轨道，标题也就把整行还给了自己。不在根壳层里（独立预览、推送页）退回
-/// 原来的标题栏。
+/// 在根壳层里（存在 [RootTabScope]）它只有一行：图标 tab（[RootTabBar]）
+/// 占住原来标题的位置，动作按钮留在右侧。选中的那一项展开后本身就是这一页
+/// 的名字，不必再写一遍大标题。不在根壳层里（独立预览、推送页）退回原来的
+/// 标题栏。
 class FrostedTabHeader extends StatelessWidget {
   const FrostedTabHeader({
     super.key,
@@ -33,21 +33,15 @@ class FrostedTabHeader extends StatelessWidget {
   final double? blur;
   final bool vivid;
 
-  /// 根壳层里的状态栏以下高度：标题行 + tab 条。
-  static const double barHeight =
-      _topPadding +
-      _titleRowHeight +
-      _titleToTabsGap +
-      kRootTabBarHeight +
-      _tabsBottomPadding;
+  /// 根壳层里的状态栏以下高度：一条导航行。
+  static const double barHeight = _topPadding + _navRowHeight + _bottomPadding;
 
   /// 回退标题栏（推送页、独立预览）的状态栏以下高度。
   static const double _plainBarHeight = 72;
 
   static const double _topPadding = 6;
-  static const double _titleRowHeight = 46;
-  static const double _titleToTabsGap = 2;
-  static const double _tabsBottomPadding = 8;
+  static const double _navRowHeight = 46;
+  static const double _bottomPadding = 8;
 
   static const double bottomPadding = 10;
 
@@ -68,10 +62,10 @@ class FrostedTabHeader extends StatelessWidget {
       final surface = AppColors.scaffold(context);
       return Stack(
         children: [
-          // 标题和图标条需要一层底：列表滚上来时是从文字和图标背后穿过的，
-          // 没有这层渐隐，标题会和歌词/歌名糊在一起。整块 chrome 高度上保持
-          // 实心，只在最后一段淡出——半透明会把封面上的亮色漏到图标之间，
-          // 看着像栏「脏了」。
+          // 导航行需要一层底：列表滚上来时是从图标和药丸背后穿过的，
+          // 没有这层渐隐，文字会和歌词/歌名糊在一起。整块 chrome 高度上
+          // 保持实心，只在最后一段淡出——半透明会把封面上的亮色漏到
+          // 图标之间，看着像栏「脏了」。
           Positioned(
             top: 0,
             left: 0,
@@ -95,62 +89,38 @@ class FrostedTabHeader extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              top + _topPadding,
-              12,
-              _tabsBottomPadding,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  height: _titleRowHeight,
-                  child: Row(
-                    children: [
-                      // 标题自己占满剩余宽度：右侧没有动作按钮时也不留空槽，
-                      // 切 tab 时不会有宽度跳变。
-                      Expanded(
-                        child: Text(
-                          title,
-                          key: titleKey,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w700,
-                            height: 1.05,
-                            letterSpacing: -0.5,
-                            color: AppColors.onScaffold(context),
-                            shadows: [
-                              Shadow(
-                                color: surface.withValues(
-                                  alpha: AppColors.isDark(context)
-                                      ? 0.62
-                                      : 0.42,
-                                ),
-                                blurRadius: 10,
-                              ),
-                            ],
-                          ),
+            padding: EdgeInsets.fromLTRB(16, top + _topPadding, 12, _bottomPadding),
+            child: SizedBox(
+              height: _navRowHeight,
+              // 标题不再画出来，但定位锚点还得有落点：首页搜索弹窗用这个
+              // key 量顶部留白。挂在导航行上，量到的仍是整条栏的位置。
+              child: KeyedSubtree(
+                key: titleKey,
+                child: Row(
+                  children: [
+                    // tab 条从左起排。展开项会让整条变宽，窄屏上等比缩一下，
+                    // 比让 Row 溢出好看。
+                    const Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: RootTabBar(),
                         ),
                       ),
-                      if (actions.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        for (final action in actions)
-                          SizedBox(
-                            width: 44,
-                            height: 44,
-                            child: Center(child: action),
-                          ),
-                      ],
+                    ),
+                    if (actions.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      for (final action in actions)
+                        SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Center(child: action),
+                        ),
                     ],
-                  ),
+                  ],
                 ),
-                const SizedBox(height: _titleToTabsGap),
-                const RootTabBar(),
-              ],
+              ),
             ),
           ),
         ],
