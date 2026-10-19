@@ -231,12 +231,16 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
                           // Floating card, not a docked panel. An inset on
                           // every side keeps the rail reading as one object
                           // above the page — in landscape and on desktop.
-                          // 右侧也要留缝：贴到内容边上，卡片就变成"被裁掉
-                          // 一半的侧栏"，和左边 8 的浮起感对不上。
+                          //
+                          // 右侧留得比左侧宽：卡片投影 blur 22、下偏 8，往右
+                          // 铺出去二十来点，而这一列到此为止——右边紧挨着的
+                          // 内容面板会盖掉溢出的部分，投影就在一条竖线上被
+                          // 齐齐切断。右侧留 20 让投影自然衰减完，切点落在
+                          // 几乎透明的地方，接缝就看不见了。
                           padding: EdgeInsets.fromLTRB(
                             leadingInset + 8,
                             topInset + 8,
-                            8,
+                            20,
                             bottomInset + 8,
                           ),
                           child: OrigoChromeSurface(

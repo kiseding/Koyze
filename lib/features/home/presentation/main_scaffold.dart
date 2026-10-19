@@ -584,6 +584,7 @@ class RootSideNav extends ConsumerWidget {
                 ? _sideNavTitleCompactExtent
                 : _sideNavTitleExtent;
             final bodyExtent =
+                tabGap +
                 tabExtent * 3 +
                 tabGap * 2 +
                 _sideNavRuleExtent +
@@ -601,6 +602,9 @@ class RootSideNav extends ConsumerWidget {
                   _rule(context),
                 ] else
                   const SizedBox(height: 8),
+                // 选中态的绿色药丸是 14 圆角，紧贴分隔线时上缘会把线压住，
+                // 看着像"高亮溢出到线上"。空出与 tab 之间相同的间距，节奏也一致。
+                SizedBox(height: tabGap),
                 _item(
                   context,
                   0,
