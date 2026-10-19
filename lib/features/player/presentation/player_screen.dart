@@ -10,6 +10,7 @@ import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/glass_config.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/favorite_button.dart';
@@ -2792,10 +2793,17 @@ class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
           maxWidth: side,
           minHeight: side,
           maxHeight: side,
+          // 背景不是「稍微虚化的封面」，而应该是一整片从封面里长出来的颜色，
+          // 所以用播放页自己的档位（~50）而不是卡片档的 8。封面同时按 360 宽
+          // 解码再拉满屏，细节在模糊之前就已经没了，也省掉一次全分辨率解码。
           child: ImageFiltered(
-            imageFilter: AppGlass.filterFor(AppGlassStyle.regular),
+            imageFilter: AppGlass.liquidFilter(
+              blur: GlassEffectConfig.playerBackdropBlur,
+              saturation: 1.45,
+            ),
             child: ArtworkImage(
               artwork,
+              cacheWidth: 360,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => const SizedBox.shrink(),
             ),
@@ -2813,9 +2821,11 @@ class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
 
   @override
   Widget build(BuildContext context) {
+    // 糊到这个程度以后，背后已经是一整片色场，再压 54% 黑会把颜色一起压死，
+    // 只剩一片灰玻璃。压到 32%/36%，色相留着，字仍然读得清。
     final dim = AppColors.isDark(context)
-        ? const Color(0x8A000000)
-        : const Color(0x73FFFFFF);
+        ? const Color(0x52000000)
+        : const Color(0x5CFFFFFF);
     final reduced = reduceMotion(context);
     final curved = CurvedAnimation(
       parent: _controller,

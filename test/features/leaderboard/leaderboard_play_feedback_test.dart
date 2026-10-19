@@ -14,7 +14,8 @@ void main() {
 
     expect(button, contains('CardPlayButton('));
     expect(button, contains('size: diameter'));
-    expect(button, contains('size: 40'));
+    // 按钮直径 40：卡片高度只有 ~113，54 的圆会盖掉近一半封面。
+    expect(button, contains('const diameter = 40.0'));
     expect(button, contains('onPressed: onPressed'));
 
     expect(source, contains('leaderboardId: category.id'));

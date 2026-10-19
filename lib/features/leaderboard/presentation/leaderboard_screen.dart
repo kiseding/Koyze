@@ -181,6 +181,10 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   static const double _cardMaxSize = 200;
   static const int _minColumns = 2;
 
+  /// 平台标题条：34 是内容高度，后面 12 是渐隐，卡片从它下面穿过去。
+  static const double _headerExtent = 46;
+  static const double _headerContentExtent = 34;
+
   static int _columnsFor(double contentWidth) {
     final available = max(0.0, contentWidth - 24);
     var columns = _minColumns;
@@ -200,124 +204,133 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     bool isLandscapeShell,
   ) {
     final columns = _columnsFor(contentWidth);
-    final rows = _packLeaderboardRows(visible, columns);
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(
-        12,
-        isLandscapeShell ? 12 : FrostedTabHeader.extent(context),
-        12,
-        16 + RootShellLayout.obscuredBottomOf(context),
-      ),
-      cacheExtent: 520,
-      itemCount: rows.length,
-      itemBuilder: (context, index) =>
-          _buildPackedItem(context, rows[index], categoryByKey, columns),
-    );
-  }
-
-  List<_LeaderboardPackedItem> _packLeaderboardRows(
-    List<LeaderboardLayoutItem> visible,
-    int columns,
-  ) {
-    final rows = <_LeaderboardPackedItem>[];
-    final pending = <LeaderboardLayoutItem>[];
-
-    void flushCards() {
-      for (var i = 0; i < pending.length; i += columns) {
-        final end = min(i + columns, pending.length);
-        rows.add(_LeaderboardPackedItem.cards(pending.sublist(i, end)));
-      }
-      pending.clear();
-    }
-
-    for (var i = 0; i < visible.length; i++) {
-      final item = visible[i];
-      if (item.isPlatform) {
-        flushCards();
-        final isLastOfBlock =
-            i == visible.length - 1 || visible[i + 1].isPlatform;
-        rows.add(_LeaderboardPackedItem.header(item, isLastOfBlock));
-      } else {
-        pending.add(item);
-      }
-    }
-    flushCards();
-    return rows;
-  }
-
-  Widget _buildPackedItem(
-    BuildContext context,
-    _LeaderboardPackedItem row,
-    Map<String, LeaderboardCategory> categoryByKey,
-    int columns,
-  ) {
-    if (row.header != null) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: _buildPlatformHeader(context, row.header!, row.isLastOfBlock),
-      );
-    }
-    final cards = row.cards;
+    final sections = _groupByPlatform(visible, categoryByKey);
+    final background = Theme.of(context).scaffoldBackgroundColor;
+    // 视口从磨砂顶栏下面开始：吸顶的平台标题才不会被顶栏盖住。代价是
+    // 卡片不再从顶栏底下钻过去，但这一页有吸顶条，留白换结构更划算。
+    // 横屏没有顶栏，但要躲开状态栏，否则吸顶条会压在电量图标上。
+    final topInset = isLandscapeShell
+        ? 12 + MediaQuery.paddingOf(context).top
+        : FrostedTabHeader.extent(context);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          for (var i = 0; i < columns; i++) ...[
-            if (i > 0) const SizedBox(width: _cardGap),
-            Expanded(
-              child: i < cards.length
-                  ? _buildLeaderboardCard(context, categoryByKey[cards[i].key])
-                  : const SizedBox.shrink(),
+      padding: EdgeInsets.only(top: topInset),
+      child: CustomScrollView(
+        cacheExtent: 520,
+        slivers: [
+          for (final section in sections)
+            // 每个平台是一个 sliver 组：组的结束会把组头的吸顶状态一起推走，
+            // 否则每个段的标题都会一直叠在顶上（一次能看到三四条）。
+            SliverMainAxisGroup(
+              slivers: [
+                if (section.platform != null)
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _PlatformHeaderDelegate(
+                      extent: _headerExtent,
+                      contentExtent: _headerContentExtent,
+                      background: background,
+                      child: _buildPlatformHeader(context, section),
+                    ),
+                  )
+                else
+                  SliverToBoxAdapter(
+                    child: SizedBox(height: isLandscapeShell ? 12 : 8),
+                  ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+                  sliver: SliverGrid(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      mainAxisSpacing: _cardGap,
+                      crossAxisSpacing: _cardGap,
+                      childAspectRatio: 3 / 2,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) =>
+                          _buildLeaderboardCard(context, section.cards[index]),
+                      childCount: section.cards.length,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: 16 + RootShellLayout.obscuredBottomOf(context),
+            ),
+          ),
         ],
       ),
     );
   }
 
+  /// 按平台切段：平台标题卡出一个新段，段内是这一平台的全部榜单。
+  /// 段头可能为 null（第一个榜单之前没有平台标题），此时不吸顶。
+  List<_LeaderboardSection> _groupByPlatform(
+    List<LeaderboardLayoutItem> visible,
+    Map<String, LeaderboardCategory> categoryByKey,
+  ) {
+    final sections = <_LeaderboardSection>[];
+    LeaderboardLayoutItem? header;
+    var cards = <LeaderboardCategory>[];
+
+    void flush() {
+      if (cards.isNotEmpty) {
+        sections.add(_LeaderboardSection(header: header, cards: cards));
+      }
+      cards = <LeaderboardCategory>[];
+      header = null;
+    }
+
+    for (final item in visible) {
+      if (item.isPlatform) {
+        flush();
+        header = item;
+        continue;
+      }
+      final category = categoryByKey[item.key];
+      if (category != null) cards.add(category);
+    }
+    flush();
+    return sections;
+  }
+
+  /// 平台标题：吸顶时也要能盖住下面滚上来的封面，所以是实底 + 末尾渐隐，
+  /// 不用 BackdropFilter（滚动中每帧重新采样太贵）。
   Widget _buildPlatformHeader(
     BuildContext context,
-    LeaderboardLayoutItem item,
-    bool isLastOfBlock,
+    _LeaderboardSection section,
   ) {
-    final platform = item.platformId ?? 'other';
+    final platform = section.platform ?? 'other';
     final name = S.of(context).platformName(platform);
     final color = _platformColor(context, platform);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Icon(_platformIcon(platform), color: color, size: 17),
+    return Row(
+      children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(7),
           ),
-          const SizedBox(width: 10),
-          Text(
-            name,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.onScaffold(context),
-            ),
+          child: Icon(_platformIcon(platform), color: color, size: 13),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          name,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.1,
+            color: AppColors.onScaffold(context),
           ),
-          const Spacer(),
-          Text(
-            isLastOfBlock ? S.of(context).charts : S.of(context).featured,
-            style: TextStyle(fontSize: 11, color: color),
-          ),
-        ],
-      ),
+        ),
+        const Spacer(),
+        Text(
+          S.of(context).chartCount(section.cards.length),
+          style: TextStyle(fontSize: 11, color: AppColors.mutedText(context)),
+        ),
+      ],
     );
   }
 
@@ -336,85 +349,83 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
 
   Widget _buildLeaderboardCard(
     BuildContext context,
-    LeaderboardCategory? category,
+    LeaderboardCategory category,
   ) {
-    if (category == null) return const SizedBox.shrink();
     final cover = category.coverUrl;
     final platform = category.platform ?? 'other';
-    const radius = 18.0;
-    return AspectRatio(
-      // 高度是原来正方形的 2/3，封面按 cover 居中裁切。
-      aspectRatio: 3 / 2,
-      child: Pressable(
+    const radius = 16.0;
+    return Pressable(
+      borderRadius: BorderRadius.circular(radius),
+      captureExpandRect: true,
+      onTap: () {
+        context.push(
+          '/leaderboard/detail?id=${Uri.encodeComponent(category.id)}'
+          '&name=${Uri.encodeComponent(category.name)}',
+        );
+      },
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),
-        captureExpandRect: true,
-        onTap: () {
-          context.push(
-            '/leaderboard/detail?id=${Uri.encodeComponent(category.id)}'
-            '&name=${Uri.encodeComponent(category.name)}',
-          );
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(radius),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              cover != null && cover.isNotEmpty
-                  ? ArtworkImage(
-                      cover,
-                      cacheWidth: 400,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
-                        platform: platform,
-                        name: category.name,
-                      ),
-                    )
-                  : _LeaderboardPlaceholder(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            cover != null && cover.isNotEmpty
+                ? ArtworkImage(
+                    cover,
+                    cacheWidth: 400,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
                       platform: platform,
                       name: category.name,
                     ),
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x99000000),
-                      Color(0x14000000),
-                      Color(0xB3000000),
-                    ],
-                    stops: [0.0, 0.45, 1.0],
+                  )
+                : _LeaderboardPlaceholder(
+                    platform: platform,
+                    name: category.name,
                   ),
+            // 只在底部压一层：标题挪到图下以后，上半张封面不再需要压暗，
+            // 于是不再出现「顶部灰带 + 中间亮 + 底部再暗」的三段横缝。
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0x00000000),
+                    Color(0x00000000),
+                    Color(0x8A000000),
+                    Color(0xD9000000),
+                  ],
+                  stops: [0.0, 0.46, 0.76, 1.0],
                 ),
               ),
-              Positioned(
-                top: 10,
-                left: 10,
-                right: 10,
-                child: Text(
-                  category.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
-                    height: 1.25,
-                    shadows: [Shadow(color: Color(0x66000000), blurRadius: 8)],
-                  ),
+            ),
+            Positioned(
+              left: 10,
+              right: 54,
+              bottom: 11,
+              child: Text(
+                category.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.1,
+                  height: 1.2,
+                  shadows: [Shadow(color: Color(0x59000000), blurRadius: 6)],
                 ),
               ),
-              Positioned(
-                right: 8,
-                bottom: 8,
-                child: _LeaderboardPlayButton(
-                  category: category,
-                  onPressed: () => _playLeaderboard(ref, category),
-                ),
+            ),
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: _LeaderboardPlayButton(
+                category: category,
+                onPressed: () => _playLeaderboard(ref, category),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -458,17 +469,86 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   }
 }
 
-class _LeaderboardPackedItem {
-  const _LeaderboardPackedItem.header(this.header, this.isLastOfBlock)
-    : cards = const [];
-
-  const _LeaderboardPackedItem.cards(this.cards)
-    : header = null,
-      isLastOfBlock = false;
+/// 一个平台段：平台标题（可能为 null）+ 该平台下的全部榜单。
+class _LeaderboardSection {
+  const _LeaderboardSection({required this.header, required this.cards});
 
   final LeaderboardLayoutItem? header;
-  final bool isLastOfBlock;
-  final List<LeaderboardLayoutItem> cards;
+  final List<LeaderboardCategory> cards;
+
+  /// 布局项的平台标识；`null` 段没有标题，不会吸顶。
+  String? get platform => header?.platformId;
+}
+
+/// 吸顶平台标题。上半段是实底（盖住滚上来的封面），下半段渐隐，
+/// 让卡片看起来是从标题底下滑过去的。
+class _PlatformHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _PlatformHeaderDelegate({
+    required this.extent,
+    required this.contentExtent,
+    required this.background,
+    required this.child,
+  });
+
+  final double extent;
+  final double contentExtent;
+  final Color background;
+  final Widget child;
+
+  @override
+  double get minExtent => extent;
+
+  @override
+  double get maxExtent => extent;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Stack(
+      children: [
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          height: contentExtent,
+          child: ColoredBox(color: background),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: contentExtent,
+          bottom: 0,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [background, background.withValues(alpha: 0)],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 12,
+          right: 12,
+          top: 0,
+          height: contentExtent,
+          child: Align(alignment: Alignment.centerLeft, child: child),
+        ),
+      ],
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PlatformHeaderDelegate oldDelegate) {
+    return oldDelegate.extent != extent ||
+        oldDelegate.contentExtent != contentExtent ||
+        oldDelegate.background != background ||
+        oldDelegate.child != child;
+  }
 }
 
 /// 封面加载失败或无封面时的渐变占位。
@@ -604,15 +684,15 @@ class _LeaderboardPlayButton extends ConsumerWidget {
     final iconColor = isNowPlaying
         ? Colors.white
         : (isDark ? AppColors.textPrimary : AppColors.lightText);
-    const diameter = 54.0;
+    const diameter = 40.0;
     return DecoratedBox(
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Color(0x47000000),
-            blurRadius: 14,
-            offset: Offset(0, 4),
+            color: Color(0x33000000),
+            blurRadius: 10,
+            offset: Offset(0, 3),
           ),
         ],
       ),
@@ -646,10 +726,10 @@ class _LeaderboardPlayButton extends ConsumerWidget {
                       child: Icon(
                         Icons.music_note,
                         color: Colors.white,
-                        size: 36,
+                        size: 26,
                       ),
                     )
-                  : Icon(Icons.play_arrow_rounded, color: iconColor, size: 40),
+                  : Icon(Icons.play_arrow_rounded, color: iconColor, size: 29),
             ),
           ],
         ),

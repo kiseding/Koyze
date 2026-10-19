@@ -13,6 +13,9 @@ abstract final class GlassEffectConfig {
   static const double _chromeBlurBase = 15.0;
   static const double _lightCardBlurBase = 8.0; // 轻量级容器（图标背景等）
   static const double _modalBlurBase = 25.0; // 底部弹出菜单
+  // 全屏播放页背景：整块屏幕都糊，档位必须比面板高一档，否则封面上的字还
+  // 能认出来，看着是「没模糊干净」而不是「设计」。
+  static const double _playerBackdropBlurBase = 60.0;
 
   static double _blurScale = 0.85;
   static bool _reduceEffects = false;
@@ -44,6 +47,7 @@ abstract final class GlassEffectConfig {
   static double get readingBottomBarBlur => navigationBarBlur;
   static double get lightCardBlur => _scaled(_lightCardBlurBase);
   static double get modalBlur => _scaled(_modalBlurBase);
+  static double get playerBackdropBlur => _scaled(_playerBackdropBlurBase);
 
   // ============ 透明度 (alpha: 0.0-1.0) ============
   static const double _chromeOpacityBase = 0.3;
