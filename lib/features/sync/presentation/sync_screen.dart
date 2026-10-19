@@ -65,7 +65,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         children: [
           _card(
             child: ListTile(
-              leading: const Icon(Icons.dns_outlined, color: AppColors.amber),
+              leading: Icon(Icons.dns_outlined, color: AppColors.accentOf(context)),
               title: Text(
                 S.of(context).workersServer,
                 style: TextStyle(color: AppColors.onScaffold(context)),
@@ -219,12 +219,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.amber.withValues(alpha: 0.16),
+                    color: AppColors.accentOf(context).withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.account_circle_rounded,
-                    color: AppColors.amber,
+                    color: AppColors.accentOf(context),
                     size: 26,
                   ),
                 ),
@@ -252,12 +252,12 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                     style: ButtonStyle(
                       backgroundColor: WidgetStateProperty.resolveWith(
                         (states) => states.contains(WidgetState.selected)
-                            ? AppColors.amber.withValues(alpha: 0.18)
+                            ? AppColors.accentOf(context).withValues(alpha: 0.18)
                             : null,
                       ),
                       foregroundColor: WidgetStateProperty.resolveWith(
                         (states) => states.contains(WidgetState.selected)
-                            ? AppColors.amber
+                            ? AppColors.accentOf(context)
                             : AppColors.mutedText(context),
                       ),
                     ),
@@ -440,7 +440,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   Widget _buildAdminSection() {
     return _card(
       child: ListTile(
-        leading: const Icon(Icons.admin_panel_settings, color: AppColors.amber),
+        leading: Icon(Icons.admin_panel_settings, color: AppColors.accentOf(context)),
         title: Text(
           S.of(context).userAdmin,
           style: TextStyle(color: AppColors.onScaffold(context)),
@@ -502,7 +502,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                   onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
                   child: Text(
                     S.of(context).save,
-                    style: TextStyle(color: AppColors.amber),
+                    style: TextStyle(color: AppColors.accentOf(context)),
                   ),
                 ),
               ],
@@ -604,7 +604,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                           leading: CircleAvatar(
                             radius: 18,
                             backgroundColor: role == 'admin'
-                                ? AppColors.amber.withValues(alpha: 0.2)
+                                ? AppColors.accentOf(context).withValues(alpha: 0.2)
                                 : AppColors.fill(context),
                             child: Icon(
                               role == 'admin'
@@ -612,7 +612,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                   : Icons.person_rounded,
                               size: 20,
                               color: role == 'admin'
-                                  ? AppColors.amber
+                                  ? AppColors.accentOf(context)
                                   : AppColors.mutedText(context),
                             ),
                           ),
@@ -747,7 +747,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
                                       child: Text(
                                         S.of(context).create,
                                         style: TextStyle(
-                                          color: AppColors.amber,
+                                          color: AppColors.accentOf(context),
                                         ),
                                       ),
                                     ),

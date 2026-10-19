@@ -43,17 +43,20 @@ abstract final class AppGlass {
     AppGlassStyle.chrome => blurChrome,
   };
 
-  /// 玻璃的基色（不含 alpha）：主题 surface 朝 primary 轻染。
+  /// 玻璃的基色（不含 alpha）。
   ///
-  /// origo 用 `surface.lerp(primary, 0.06~0.08)` 而不是纯白或纯黑，所以换强调
-  /// 色时每一块玻璃会一起变色。
+  /// 固定中性色，不再往 primary 上染：换主题色时玻璃、卡片、弹窗都保持同一
+  /// 张灰阶，只有关键元素（选中项、播放键、主按钮）才跟强调色走。
   static Color tintBase(
     BuildContext context, {
     AppGlassStyle style = AppGlassStyle.regular,
   }) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = scheme.brightness == Brightness.dark;
-    return Color.lerp(scheme.surface, scheme.primary, isDark ? 0.06 : 0.08)!;
+    final isDark = AppColors.isDark(context);
+    return switch (style) {
+      AppGlassStyle.chrome =>
+        isDark ? const Color(0xFF1C1F25) : const Color(0xFFF7F7FB),
+      _ => isDark ? const Color(0xFF14161B) : Colors.white,
+    };
   }
 
   /// 染色透明度：深色 0.30、浅色 0.60（origo 的 chrome 档位）。
@@ -96,35 +99,33 @@ abstract final class AppGlass {
     AppGlassStyle style = AppGlassStyle.regular,
   }) => fillColor(context, style: style);
 
-  /// 细边缘：深色是反光，浅色是分组边框。
+  /// 细边缘：深色是反光，浅色是分组边框。始终中性，不跟着强调色走。
   static BorderSide hairline(BuildContext context, {bool emphasized = false}) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = scheme.brightness == Brightness.dark;
-    final source = emphasized ? scheme.primary : scheme.outlineVariant;
+    final isDark = AppColors.isDark(context);
+    final source = AppColors.cardBorder(context);
     final highlighted = Color.lerp(
       source,
       Colors.white,
       isDark ? 0.24 : 0.16,
     )!;
     return BorderSide(
-      color: highlighted.withValues(alpha: emphasized ? 0.62 : 0.42),
+      color: highlighted.withValues(alpha: emphasized ? 0.52 : 0.38),
       width: 0.8,
     );
   }
 
-  /// 悬浮投影。浅色借用强调色的极淡影子，纯黑投影在暖色背景上会发脏。
+  /// 悬浮投影。中性黑，浅色下也不用强调色——彩色投影会让玻璃看起来是
+  /// 一块染了色的小卡，而不是透明的介质。
   static List<BoxShadow> shadowFor(
     BuildContext context, {
     AppGlassStyle style = AppGlassStyle.regular,
     bool emphasized = false,
     Color? accent,
   }) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = scheme.brightness == Brightness.dark;
-    final source = accent ?? scheme.primary;
+    final isDark = AppColors.isDark(context);
     final color = isDark
-        ? Colors.black.withValues(alpha: emphasized ? 0.20 : 0.12)
-        : source.withValues(alpha: emphasized ? 0.07 : 0.045);
+        ? Colors.black.withValues(alpha: emphasized ? 0.22 : 0.14)
+        : Colors.black.withValues(alpha: emphasized ? 0.10 : 0.06);
     return [
       BoxShadow(
         color: color,

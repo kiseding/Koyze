@@ -152,9 +152,9 @@ class KoyzeChoicePill extends StatelessWidget {
 
 /// Full-bleed ambient wash behind root pages.
 ///
-/// Built the way Origo builds page backgrounds: the surface blended toward the
-/// accent at the top, a second, weaker blend in the middle, then the plain
-/// surface. Three smooth stops, no overlay band with a visible edge.
+/// 只画一层中性页面底色。以前这里会在顶部掺一点强调色，换主题色时整页跟着
+/// 变蓝/变绿，看起来像全局染色；现在强调色只出现在关键元素上，页面底色
+/// 保持中性。参数保留是为了不惊动调用点。
 class OrigoAmbientBackdrop extends StatelessWidget {
   const OrigoAmbientBackdrop({
     super.key,
@@ -169,35 +169,11 @@ class OrigoAmbientBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppColors.isDark(context);
-    final base = AppColors.scaffold(context);
-    final leading = leadingColor ?? AppColors.accentOf(context);
-    final trailing = trailingColor ?? Theme.of(context).colorScheme.secondary;
-    // origo-x 的页面底色就是 `colorScheme.surface`，没有整屏染色。这里只留
-    // 极淡的一点顶部色晕，让玻璃有层次可透——再重就变成彩色雾，而不是背景。
     return Stack(
       fit: StackFit.expand,
       children: [
-        DecoratedBox(decoration: BoxDecoration(color: base)),
         DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomCenter,
-              stops: const [0, 0.44, 1],
-              colors: [
-                Color.alphaBlend(
-                  leading.withValues(alpha: isDark ? 0.045 : 0.020),
-                  base,
-                ),
-                Color.alphaBlend(
-                  trailing.withValues(alpha: isDark ? 0.018 : 0.010),
-                  base,
-                ),
-                base,
-              ],
-            ),
-          ),
+          decoration: BoxDecoration(color: AppColors.scaffold(context)),
         ),
         child,
       ],

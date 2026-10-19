@@ -527,8 +527,8 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                       child: LinearProgressIndicator(
                         value: task.progress,
                         backgroundColor: AppColors.border,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          AppColors.amber,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.accentOf(context),
                         ),
                         minHeight: 2,
                       ),
@@ -596,7 +596,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
           child: AppLoadingIndicator(
             value: task.progress,
             strokeWidth: 2,
-            color: AppColors.amber,
+            color: AppColors.accentOf(context),
           ),
         );
       case DownloadStatus.paused:

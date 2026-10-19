@@ -305,11 +305,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _openSearchSheet(BuildContext context) {
-    // 弹窗顶部对齐首页 Koyze 文字顶部上方 3px。
+    // 弹窗顶部对齐首页标题上方 3px。顶部 tab 栏接管标题后这里不再有 "Koyze"
+    // 文本，退回状态栏下方那一条，位置基本一致。
     double topInset = 0;
     final box = _brandKey.currentContext?.findRenderObject() as RenderBox?;
     if (box != null && box.hasSize && box.attached) {
       topInset = box.localToGlobal(Offset.zero).dy - 3;
+    }
+    if (topInset <= 0) {
+      topInset = MediaQuery.paddingOf(context).top + 18;
     }
     showSearchSheet(context, topInset: topInset > 0 ? topInset : 0);
   }

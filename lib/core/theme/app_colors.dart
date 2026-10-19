@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// 主题色板，照搬 origo-x：全部取自 `ColorScheme.fromSeed(#1976D2)`。
+/// 主题色板。
 ///
-/// 深浅两套色值不是手调的，而是 Material 3 从同一个种子算出来的 surface /
-/// surfaceContainer / onSurface / outlineVariant 序列。手写一组"接近 iOS"的
-/// 灰阶会得到一张塑料卡片；用 M3 的 tonal palette，玻璃、卡片、分隔线才会
-/// 落在同一条明度阶梯上。
-///
-/// 这里保留 `amber` / `amberDim` 旧名，只是为了让既有调用点不必改名——它们
-/// 现在就是主题的 primary，不再是那支 Spotify 绿。
+/// 结构性颜色（页面底、卡片、描边、文字）是固定的中性灰阶，不随主题色变化：
+/// 换一支强调色时页面不应该整体发蓝或发绿，只有关键元素跟着变。
+/// 强调色本身请用 [accentOf]（读 `colorScheme.primary`），不要再新增静态常量。
 abstract final class AppColors {
   // ---------------- 深色 =================
   /// ColorScheme.surface
@@ -28,14 +24,6 @@ abstract final class AppColors {
 
   /// outlineVariant：M3 的卡片描边 / 分隔线
   static const Color border = Color(0xFF43474E);
-
-  /// ColorScheme.primary（深色下是提亮后的强调色）
-  static const Color accent = Color(0xFFA6C8FF);
-  static const Color accentDim = Color(0x33A6C8FF);
-
-  /// 旧名兼容：等同于 [accent]。
-  static const Color amber = accent;
-  static const Color amberDim = accentDim;
 
   /// ColorScheme.onSurface
   static const Color textPrimary = Color(0xFFE1E2E9);
@@ -68,8 +56,6 @@ abstract final class AppColors {
   static const Color lightTextSecondary = Color(0xFF43474E);
   static const Color lightTextMuted = Color(0xFF74777F); // outline
 
-  /// 浅色主题的 primary：种子压深一档，白字压得住
-  static const Color lightAccent = Color(0xFF3C6090);
   static const Color lightMiniBar = Color(0xF2FFFFFF);
 
   static bool isDark(BuildContext c) =>

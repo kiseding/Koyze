@@ -132,7 +132,7 @@ void main() {
 
   test('bottom navigation second tab is leaderboard', () {
     final source = File(
-      'lib/features/home/presentation/widgets/bottom_dock.dart',
+      'lib/core/widgets/root_tab_bar.dart',
     ).readAsStringSync();
 
     expect(source, contains('Icons.leaderboard_outlined'));
@@ -141,7 +141,7 @@ void main() {
       File('lib/l10n/app_strings.dart').readAsStringSync(),
       contains("en ? 'Charts' : '榜单'"),
     );
-    // 图标 tab 不再带文字标签，选中态靠胶囊底色区分。
+    // 选中态换成胶囊底 + 弹性曲线。
     expect(source, contains('AnimatedIconSwitch'));
     expect(source, contains('MotionCurve.iosSpring'));
   });

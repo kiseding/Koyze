@@ -68,14 +68,14 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                   children: [
                     Positioned.fill(
                       child: categoriesAsync.when(
-                        loading: () => const Center(
+                        loading: () => Center(
                           child: SizedBox(
                             width: 24,
                             height: 24,
                             child: AppLoadingIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                AppColors.amber,
+                                AppColors.accentOf(context),
                               ),
                             ),
                           ),

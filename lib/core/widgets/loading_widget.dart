@@ -52,7 +52,7 @@ class LoadingWidget extends StatelessWidget {
             height: 24,
             child: AppLoadingIndicator(
               strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.amber),
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.accentOf(context)),
             ),
           ),
           if (hint != null) ...[

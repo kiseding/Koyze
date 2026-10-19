@@ -13,10 +13,11 @@ import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/root_shell_layout.dart';
+import '../../../core/widgets/root_tab_bar.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 import '../../player/presentation/widgets/mini_player.dart';
 import '../../settings/presentation/settings_provider.dart';
-import 'widgets/bottom_dock.dart';
+import 'widgets/mini_bar.dart';
 
 class MainScaffold extends ConsumerStatefulWidget {
   final StatefulNavigationShell navigationShell;
@@ -61,8 +62,11 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     final bottomInset = media.padding.bottom > media.viewPadding.bottom
         ? media.padding.bottom
         : media.viewPadding.bottom;
-    // 竖屏 dock 的几何与播放页 morph 共用同一份数字。
-    final dock = KoyzeDockMetrics(screen: media.size, bottomInset: bottomInset);
+    // 竖屏底部只有一条迷你播放条，几何与播放页 morph 共用同一份数字。
+    final miniBar = KoyzeMiniBarMetrics(
+      screen: media.size,
+      bottomInset: bottomInset,
+    );
     final trailingInset = media.padding.right > media.viewPadding.right
         ? media.padding.right
         : media.viewPadding.right;
@@ -74,12 +78,12 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     // The side rail is outside this navigator, and the media size already
     // excludes it. Do not reserve the rail width a second time.
     const sideRailWidth = 0.0;
-    // 横屏/桌面没有底部 dock：迷你播放条仍是一张完整卡片（封面 + 标题 +
-    // 控件）；竖屏只有 dock 上方的三个悬浮控件。
-    final miniHeight = usesSideNavigation ? 78.0 : kMiniControlsHeight;
+    // 横屏/桌面没有底部导航：迷你播放条仍是一张完整卡片；竖屏是横跨
+    // 内容区的一条玻璃栏。
+    final miniHeight = usesSideNavigation ? 78.0 : kMiniBarHeight;
     final miniBottom = usesSideNavigation
         ? (bottomInset == 0 ? 8.0 : 6.0)
-        : dock.controlsBottom;
+        : miniBar.bottom;
     final selectedIndex = navigationShell.currentIndex;
     if (rootBranchIndex.value != selectedIndex) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -90,7 +94,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     }
     final chromeBottom = usesSideNavigation
         ? miniBottom + miniHeight + 8.0
-        : dock.contentObstruction;
+        : miniBar.contentObstruction;
     final pageWidth = media.size.width - sideRailWidth - contentRightInset;
     final miniInset = miniPlayerSideInset(
       pageWidth: pageWidth,
@@ -120,7 +124,6 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
               ? (visibleProgress == 0 ? 0.0 : 1.0)
               : Curves.easeOutCubic.transform(visibleProgress);
           final chromeOpacity = 1 - visibleProgress;
-          final navPush = miniBottom + miniHeight;
           final tabPush = chromeBottom * 0.6;
           final shell = RootShellLayout(
             usesSideNavigation: usesSideNavigation,
@@ -145,50 +148,34 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                   ),
                 ),
               ),
-              if (!usesSideNavigation)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: dock.dockWidgetBottom,
-                  height: dock.widgetHeight,
-                  child: Opacity(
-                    opacity: chromeOpacity,
-                    child: Transform.translate(
-                      offset: Offset(0, navPush * eased),
-                      child: Center(
-                        child: KoyzeBottomDock(
-                          metrics: dock,
-                          selectedIndex: selectedIndex,
-                          onTap: onBranchTap,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
               Positioned(
-                // 竖屏控件行横跨整屏，靠 Row 自身居中；横屏卡片沿用内容宽度。
-                left: usesSideNavigation ? miniInset : 0,
+                left: usesSideNavigation ? miniInset : kMiniBarSideMargin,
                 right: usesSideNavigation
                     ? contentRightInset + miniInset
-                    : contentRightInset,
+                    : kMiniBarSideMargin,
                 bottom: miniBottom,
                 child: Transform.scale(
                   alignment: Alignment.bottomCenter,
                   scale: 1 + 0.035 * eased,
                   child: Opacity(
                     opacity: chromeOpacity,
-                    child: usesSideNavigation
-                        ? const MiniPlayer(floating: true, alwaysShow: true)
-                        : const MiniPlayerControls(),
+                    child: MiniPlayer(
+                      floating: usesSideNavigation,
+                      alwaysShow: true,
+                    ),
                   ),
                 ),
               ),
             ],
           );
 
-          return RootHeaderScope(
-            controller: rootHeaderController,
-            child: content,
+          return RootTabScope(
+            selectedIndex: selectedIndex,
+            onTap: onBranchTap,
+            child: RootHeaderScope(
+              controller: rootHeaderController,
+              child: content,
+            ),
           );
         },
       ),
@@ -328,7 +315,13 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
   }
 
   Future<void> select(int target) async {
-    if (target < 0 || target >= widget.children.length || _animating) return;
+    if (target < 0 || target >= widget.children.length) return;
+    // 动画状态可能因为上一条手势被中断而残留：没有位移、控制器也没在跑时
+    // 直接复位，否则一次误触就能让 tab 栏在本次会话里永久点不动。
+    if (_animating && !_anim.isAnimating && _dx.abs() < 0.5) {
+      _animating = false;
+    }
+    if (_animating) return;
     final current = widget.currentIndex;
     if (target == current) {
       widget.onSelect(target);
@@ -445,8 +438,11 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
                     if (_animating) return;
                     _finish(width, details.primaryVelocity ?? 0);
                   }
+                  // 只有真正拖动过的指针才需要收尾：点击时横向识别器会被
+                  // 判负并回调 onCancel，若在这里也跑一次归位动画，就会在
+                  // 同一帧把 _animating 置为 true，把随后的 tab 点击吞掉。
                   ..onCancel = () {
-                    if (_animating) return;
+                    if (_animating || !_dragging) return;
                     _finish(width, 0);
                   };
               },
@@ -634,12 +630,12 @@ class RootSideNav extends ConsumerWidget {
             key: headers.headerFor(0)?.titleKey,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 26,
               height: 1,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.5,
-              color: AppColors.amber,
+              color: AppColors.accentOf(context),
             ),
           ),
         ),

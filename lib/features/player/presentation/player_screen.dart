@@ -28,7 +28,7 @@ import '../../playlist/data/playlist_repository.dart';
 import '../../download/presentation/download_provider.dart';
 import '../../lyric/presentation/lyric_view.dart';
 import '../../lyric/presentation/lyric_provider.dart';
-import '../../home/presentation/widgets/bottom_dock.dart';
+import '../../home/presentation/widgets/mini_bar.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
@@ -467,8 +467,16 @@ const kFullPlayerTrackSwitchDuration = Duration(milliseconds: 880);
 const kFullPlayerTrackSwitchReverseDuration = MotionDuration.playerReverse;
 
 Rect _miniArtworkRect(Rect miniRect) {
-  // 迷你栏实际布局：顶部 20px 进度条 + 内容 58px 内垂直居中 42px 封面。
-  return Rect.fromLTWH(miniRect.left + 12, miniRect.top + 25, 42, 42);
+  // 迷你栏两种高度：78（悬浮卡片，横屏/桌面）与 66（竖屏玻璃栏）。
+  final floating = miniRect.height > 70;
+  final cover = floating ? 62.0 : 50.0;
+  final left = floating ? 10.0 : 8.0;
+  return Rect.fromLTWH(
+    miniRect.left + left,
+    miniRect.top + (miniRect.height - cover) / 2,
+    cover,
+    cover,
+  );
 }
 
 Rect _fullArtworkRect(
@@ -504,30 +512,33 @@ Rect _fullArtworkRect(
 }
 
 Rect _miniPlayButtonRect(Rect miniRect) {
-  const miniButton = 36.0;
-  const rightControlsWidth = 128.0;
-  final centerX = miniRect.right - 6 - rightControlsWidth / 2;
-  final centerY = miniRect.top + 25 + 42 / 2;
+  final floating = miniRect.height > 70;
+  final controls = floating ? 164.0 : kMiniBarControlsWidth;
+  final size = floating ? 44.0 : 38.0;
   return Rect.fromCenter(
-    center: Offset(centerX, centerY),
-    width: miniButton,
-    height: miniButton,
+    center: Offset(
+      miniRect.right - kMiniBarPaddingRight - controls / 2,
+      miniRect.center.dy,
+    ),
+    width: size,
+    height: size,
   );
 }
 
-/// 迷你栏"歌词行"区域：歌词页退出动效整页对称收成这个长条落位
-/// （12 内边距 + 42 封面 + 10 间距起，到右侧 128 按钮区；歌词文本行
-/// 位于内容行下半部 ≈ miniTop+48，高 14）。
+/// 迷你栏"歌词行"区域：歌词页退出动效整页对称收成这个长条落位。
+/// 起点在封面右侧，到右侧控件区之前，纵向落在标题/歌词那一行的下半部。
 Rect _miniLyricRowRect(Rect miniRect) {
-  const rowLeft = 12.0 + 42.0 + 10.0;
-  const rowTop = 48.0;
-  const rowHeight = 14.0;
-  final width = miniRect.width - rowLeft - 6.0 - 128.0;
+  final floating = miniRect.height > 70;
+  final cover = floating ? 62.0 : 50.0;
+  final gap = floating ? 12.0 : 12.0;
+  final left = (floating ? 10.0 : 8.0) + cover + gap;
+  final controls = floating ? 164.0 : kMiniBarControlsWidth;
+  final width = miniRect.width - left - kMiniBarPaddingRight - controls - 8;
   return Rect.fromLTWH(
-    miniRect.left + rowLeft,
-    miniRect.top + rowTop,
+    miniRect.left + left,
+    miniRect.center.dy + 2,
     width.clamp(0.0, miniRect.width),
-    rowHeight,
+    14,
   );
 }
 
@@ -942,20 +953,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           0.0,
           screenW,
         );
-        // 竖屏收起目标是底部 dock（条形 + 中间封面）；横屏仍是迷你卡片。
-        final dock = KoyzeDockMetrics(
+        // 竖屏收起目标是底部迷你播放条；横屏是浮动迷你卡片。
+        final miniBar = KoyzeMiniBarMetrics(
           screen: Size(screenW, screenH),
           bottomInset: bottomInset,
         );
-        final miniRect =
-            usesSideNavigation
+        final miniRect = usesSideNavigation
             ? Rect.fromLTWH(
                 miniInset,
                 screenH - miniBottom - miniHeight,
                 miniWidth,
                 miniHeight,
               )
-            : dock.barRect;
+            : miniBar.barRect;
         final fullRect = Offset.zero & Size(screenW, screenH);
         final portraitLyrics = _currentPage == 1 && !landscape;
         final lyricCollapsing =
@@ -973,7 +983,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final lyricCollapseRect = usesSideNavigation
             ? _miniLyricRowRect(miniRect)
             : Rect.fromCenter(
-                center: dock.controlsPlayRect.center,
+                center: miniRect.center,
                 width: 210,
                 height: 18,
               );
@@ -981,7 +991,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final currentRect = Rect.lerp(collapseTarget, fullRect, progress)!;
         final miniArtworkRect = usesSideNavigation
             ? _miniArtworkRect(miniRect)
-            : dock.discRect;
+            : miniBar.artworkRect;
         final fullArtworkRect =
             _artworkRect ??
             _fullArtworkRect(context, screenW: screenW, screenH: screenH);
@@ -992,7 +1002,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         )!;
         final miniPlayButtonRect = usesSideNavigation
             ? _miniPlayButtonRect(miniRect)
-            : dock.controlsPlayRect;
+            : miniBar.playRect;
         final lyricTargetRect =
             _lyricPlayRect ??
             _fullLyricPlayButtonRect(

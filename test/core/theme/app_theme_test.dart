@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/theme/app_theme.dart';
 import 'package:koyze/core/theme/app_colors.dart';
+import 'package:koyze/core/theme/app_themes.dart';
 
 void main() {
   group('AppTheme', () {
@@ -16,9 +17,32 @@ void main() {
       expect(theme.scaffoldBackgroundColor, AppColors.bg);
     });
 
-    test('darkTheme has correct primary color', () {
+    test('darkTheme primary is the accent, lifted for a dark surface', () {
       final theme = AppTheme.darkTheme();
-      expect(theme.colorScheme.primary, AppColors.amber);
+      expect(
+        theme.colorScheme.primary,
+        AppThemes.keyColor(
+          AppThemes.defaultAccentColor,
+          isDark: true,
+        ),
+      );
+    });
+
+    test('changing the accent leaves page surfaces neutral', () {
+      final blue = AppTheme.lightTheme();
+      final magenta = AppTheme.lightTheme(
+        seedColor: const Color(0xFFD81B60),
+      );
+
+      expect(magenta.scaffoldBackgroundColor, blue.scaffoldBackgroundColor);
+      expect(magenta.colorScheme.surface, blue.colorScheme.surface);
+      expect(
+        magenta.colorScheme.surfaceContainer,
+        blue.colorScheme.surfaceContainer,
+      );
+      expect(magenta.colorScheme.outlineVariant, blue.colorScheme.outlineVariant);
+      // 只有 primary 这一路跟着强调色走。
+      expect(magenta.colorScheme.primary, isNot(blue.colorScheme.primary));
     });
 
     test('light input fields keep a visible edge on white surfaces', () {

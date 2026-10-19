@@ -162,9 +162,9 @@ void main() {
       player,
       contains('final bottomClearance = bottomInset == 0 ? 11.0 : 0.0'),
     );
-    // 主壳联动：底栏挤出、Tab 上移、迷你栏扩张。
+    // 主壳联动：底栏淡出、Tab 上移、内容被顶起。
     expect(scaffold, contains('playerRouteProgress'));
-    expect(scaffold, contains('navPush'));
+    expect(scaffold, contains('chromeOpacity'));
     expect(scaffold, contains('tabPush'));
   });
 

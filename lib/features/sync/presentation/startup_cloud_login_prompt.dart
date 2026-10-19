@@ -148,9 +148,9 @@ class _StartupCloudLoginPageState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.cloud_sync_rounded,
-                    color: AppColors.amber,
+                    color: AppColors.accentOf(context),
                     size: 56,
                   ),
                   const SizedBox(height: 18),

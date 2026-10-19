@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import 'gradient_bar_backgrounds.dart';
+import 'liquid_glass.dart';
 import 'pressable.dart';
+import 'root_tab_bar.dart';
 import 'origo_chrome.dart';
 
-/// Shared large-title chrome for the four root tabs.
-/// Frosted bar pinned to the status bar; list content should pad by [extent].
+/// 根页面的顶部 chrome。
+///
+/// 在根壳层里（存在 [RootTabScope]）它渲染的是**液态玻璃 tab 胶囊**：栏本身
+/// 完全透明，只有胶囊采样背后的内容，页面标题不再占一行——四个 tab 的名字
+/// 就是当前的栏目名。不在根壳层里（独立预览、推送页）退回原来的标题栏。
 class FrostedTabHeader extends StatelessWidget {
   const FrostedTabHeader({
     super.key,
@@ -27,10 +32,10 @@ class FrostedTabHeader extends StatelessWidget {
   final double? blur;
   final bool vivid;
 
-  /// Content height below the status bar. A single title row, no eyebrow copy:
-  /// the app name already appears on the hero card.
+  /// Content height below the status bar.
   static const double barHeight = 72;
   static const double bottomPadding = 10;
+  static const double _barBottomPadding = 12;
 
   static double extent(BuildContext context, {double extra = 0}) {
     return MediaQuery.paddingOf(context).top + barHeight + extra;
@@ -39,6 +44,68 @@ class FrostedTabHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
+    final tabs = RootTabScope.maybeOf(context);
+    if (tabs != null) {
+      // 右侧留一个固定宽度的槽位：设置页没有动作按钮时也占着位置，切 tab
+      // 时胶囊宽度不会来回跳。
+      final slots = actions.isEmpty ? 1 : actions.length;
+      final surface = AppColors.scaffold(context);
+      return Stack(
+        children: [
+          // 状态栏那一条只做中性渐隐：内容滚到时钟底下会糊成一片，
+          // 但整条栏不铺毛玻璃——玻璃只留给胶囊。
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: top + 18,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0, 0.62, 1],
+                    colors: [
+                      surface,
+                      surface.withValues(alpha: 0.86),
+                      surface.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(12, top + 6, 12, _barBottomPadding),
+            child: Row(
+              children: [
+                const Expanded(child: RootTabBar()),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: slots * 44,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      for (final action in actions)
+                        SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Center(child: action),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    return _titleBar(context, top);
+  }
+
+  Widget _titleBar(BuildContext context, double top) {
     final accent = AppColors.accentOf(context);
     final isDark = AppColors.isDark(context);
     return GradientAppBarBackground(
@@ -78,8 +145,6 @@ class FrostedTabHeader extends StatelessWidget {
                         height: 1.05,
                         letterSpacing: -0.4,
                         color: AppColors.onScaffold(context),
-                        // Keeps the title legible where artwork scrolls under
-                        // the tapered frost. Cheaper than a solid panel.
                         shadows: [
                           Shadow(
                             color: AppColors.scaffold(
@@ -155,14 +220,17 @@ class FrostedHeaderButton extends StatelessWidget {
         ),
       );
     }
+    // tab 胶囊旁边的按钮用同一块液态玻璃，避免一栏里出现两种材质。
     return Pressable(
       semanticLabel: semanticLabel,
       onTap: onTap,
       borderRadius: BorderRadius.circular(19),
-      child: OrigoChromeSurface(
+      child: LiquidGlassSurface(
         borderRadius: BorderRadius.circular(19),
-        padding: padding,
-        child: iconWidget,
+        blur: 18,
+        opacity: 0.9,
+        sheen: false,
+        child: Padding(padding: padding, child: iconWidget),
       ),
     );
   }

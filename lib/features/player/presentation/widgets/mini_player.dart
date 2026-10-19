@@ -4,9 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/motion/motion_tokens.dart';
 import '../../../../core/player_route_progress.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/widgets/artwork_image.dart';
+import '../../../../core/widgets/liquid_glass.dart';
 import '../../../../core/widgets/pressable.dart';
-import '../../../../core/widgets/origo_chrome.dart';
 import '../../../../router/app_router.dart';
 import '../../../../core/widgets/play_pulse_button.dart';
 import '../player_provider.dart';
@@ -45,106 +46,10 @@ class _MiniLyricText extends ConsumerWidget {
   }
 }
 
-/// 迷你播放控件行：三个按钮居中、悬浮、不铺底板。
+/// 迷你播放条（v3.0.7 的排布）：一条玻璃栏，左侧封面 + 曲名/歌词，
+/// 右侧作词、播放、下一首三个控件。
 ///
-/// 竖屏的封面已经移到 tab dock 中间，迷你条不再需要卡片；只有这三个
-/// 控件浮在内容之上，页面背景可以直接透出来。
-class MiniPlayerControls extends ConsumerWidget {
-  const MiniPlayerControls({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentMusic = ref.watch(currentMusicProvider);
-    final isPlaying = ref.watch(isPlayingProvider);
-    final enabled = currentMusic != null;
-    final onScaffold = AppColors.onScaffold(context);
-
-    // 没有歌时这几个按钮无事可做，直接不出现：dock 中间的唱片才是入口。
-    if (!enabled) return const SizedBox.shrink();
-
-    return SizedBox(
-      height: 46,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _BareControl(
-            semanticLabel: S.of(context).openLyrics,
-            icon: Icons.subject_rounded,
-            size: 25,
-            color: onScaffold,
-            onTap: () => pushPlayerRoute(
-              context,
-              hasSong: true,
-              openLyrics: true,
-            ),
-          ),
-          const SizedBox(width: 34),
-          PlayPulseButton(
-            isPlaying: isPlaying.value ?? false,
-            onPressed: () => ref.read(playerServiceProvider).togglePlay(),
-            enabled: true,
-            size: 44,
-            iconSize: 25,
-            mini: true,
-          ),
-          const SizedBox(width: 34),
-          _BareControl(
-            semanticLabel: S.of(context).next,
-            icon: Icons.skip_next_rounded,
-            size: 30,
-            color: onScaffold,
-            onTap: () => ref.read(playerServiceProvider).next(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 无底板的图标控件：只留按压缩放，不画形状。
-class _BareControl extends StatelessWidget {
-  const _BareControl({
-    required this.icon,
-    required this.size,
-    required this.color,
-    required this.onTap,
-    required this.semanticLabel,
-  });
-
-  final IconData icon;
-  final double size;
-  final Color color;
-  final VoidCallback? onTap;
-  final String semanticLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      semanticLabel: semanticLabel,
-      onTap: onTap,
-      scale: 0.88,
-      borderRadius: BorderRadius.circular(22),
-      child: SizedBox(
-        width: 44,
-        height: 44,
-        child: Icon(
-          icon,
-          size: size,
-          color: color,
-          shadows: [
-            Shadow(
-              color: Colors.black.withValues(alpha: 0.28),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-
+/// 材质换成和顶部 tab 胶囊同一块液态玻璃，两处 chrome 才像同一套系统。
 class MiniPlayer extends ConsumerStatefulWidget {
   final bool floating;
   final bool alwaysShow;
@@ -155,7 +60,8 @@ class MiniPlayer extends ConsumerStatefulWidget {
   ConsumerState<MiniPlayer> createState() => _MiniPlayerState();
 }
 
-class _MiniPlayerState extends ConsumerState<MiniPlayer> {  @override
+class _MiniPlayerState extends ConsumerState<MiniPlayer> {
+  @override
   Widget build(BuildContext context) {
     final currentMusic = ref.watch(currentMusicProvider);
     final isPlaying = ref.watch(isPlayingProvider);
@@ -178,10 +84,14 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {  @override
       color: Colors.transparent,
       child: SizedBox(
         height: widget.floating ? 78 : 66,
-        child: OrigoChromeSurface(
+        child: LiquidGlassSurface(
           borderRadius: BorderRadius.circular(widget.floating ? 24 : 20),
-          accent: currentMusic == null ? AppColors.accentOf(context) : null,
-          emphasized: widget.floating,
+          blur: 22,
+          boxShadow: AppGlass.shadowFor(
+            context,
+            style: AppGlassStyle.bar,
+            emphasized: widget.floating,
+          ),
           child: Padding(
             padding: EdgeInsets.fromLTRB(widget.floating ? 10 : 8, 7, 7, 7),
             child: Row(
@@ -208,6 +118,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {  @override
                               color: surface,
                               border: Border.all(
                                 color: AppColors.cardBorder(context),
+                                width: 0.6,
                               ),
                             ),
                             clipBehavior: Clip.antiAlias,
@@ -271,8 +182,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {  @override
                                 Text(
                                   title,
                                   style: TextStyle(
-                                    fontSize: widget.floating ? 15 : 15,
-                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
                                     color: titleColor,
                                   ),
                                   maxLines: 1,
