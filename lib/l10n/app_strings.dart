@@ -205,6 +205,12 @@ class S {
   String recommendedSongs(int count) =>
       en ? '$count songs for you' : '为你推荐 $count 首歌曲';
   String songCount(int count) => en ? '$count songs' : '$count 首歌曲';
+  // 大卡副标题：数量已经由上面那行 songCount 单独给了，这里只讲"这是什么"。
+  // 副标题再写一遍「N 首歌曲」，一张卡上就出现了一大一小两个数量。
+  String get heroLocalHint => en ? 'Scanned on this device' : '本机已扫描的歌曲';
+  String get heroRecentHint => en ? 'Pick up where you left off' : '从上次的位置继续';
+  String get heroRecommendHint => en ? 'Picked from your favorites' : '根据你的收藏挑选';
+  String get heroRecentEmpty => en ? 'Nothing played yet' : '还没有播放记录';
   String get chooseFolderToScan =>
       en ? 'Choose a folder to scan this device' : '选择文件夹扫描设备歌曲';
   String get nasHosts => en

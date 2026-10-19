@@ -533,7 +533,7 @@ class HomeHeroCard extends ConsumerWidget {
         return _HeroModel(
           color: color,
           subtitle: count > 0
-              ? S.of(context).recommendedSongs(count)
+              ? S.of(context).heroRecommendHint
               : S.of(context).recommendAfterFavorites,
           count: count,
           canPlay: count > 0,
@@ -570,7 +570,7 @@ class HomeHeroCard extends ConsumerWidget {
           color: color,
           subtitle: count == 0
               ? S.of(context).chooseFolderToScan
-              : S.of(context).songCount(count),
+              : S.of(context).heroLocalHint,
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
@@ -640,7 +640,9 @@ class HomeHeroCard extends ConsumerWidget {
             0;
         return _HeroModel(
           color: color,
-          subtitle: S.of(context).songCount(count),
+          subtitle: count > 0
+              ? S.of(context).heroRecentHint
+              : S.of(context).heroRecentEmpty,
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
@@ -880,14 +882,18 @@ class _HeroStage extends ConsumerWidget {
           final pad = compact ? 16.0 : 20.0;
           final badge = compact ? 36.0 : (tall ? 46.0 : 42.0);
           final playSize = compact ? 42.0 : (tall ? 50.0 : 46.0);
-          // 右边这列只在真抽到歌、且卡够宽时出现：横屏窄档的 hero 只有
-          // 两百多点宽，硬塞两列会把歌名压成两个字。
+          // 右边这列只在真抽到歌时出现。宽度是量出来的：361 宽的竖屏卡，
+          // 左边「徽标 42 + 间距 13 + 标题」在英文下要 180 左右
+          // （"Recent plays" 20pt ≈ 125），再扣掉两边各 20 的内边距和 12 的
+          // 列间距，只够给右手 130。
           //
-          // 宽度是量出来的：361 宽的竖屏卡，左边「徽标 42 + 间距 13 + 标题」
-          // 在英文下要 180 左右（"Recent plays" 20pt ≈ 125），再扣掉两边各 20
-          // 的内边距和 12 的列间距，只够给右手 130。给宽了标题会被挤成
-          // "Recent…"，卡片就没了主标题。
-          final showSamples = samples.isNotEmpty && constraints.maxWidth >= 300;
+          // 阈值原来写的是 300，横屏的 hero 只有 283 左右宽（竖屏是 336），
+          // 于是横屏整列都画不出来——卡片中段空着一大块，却连一行歌名都没
+          // 有。宽度不够时改成把这三首铺在标题下面，信息不丢。
+          final hasSamples = samples.isNotEmpty;
+          final wideEnough = constraints.maxWidth >= 300;
+          final showSamples = hasSamples && wideEnough;
+          final stackedSamples = hasSamples && !wideEnough && !compact;
           final sampleWidth = (constraints.maxWidth * 0.36).clamp(118.0, 150.0);
           return Stack(
             fit: StackFit.expand,
@@ -1161,27 +1167,32 @@ class _HeroStage extends ConsumerWidget {
                       // Poster: a tall stage keeps the top to the gradient and
                       // stacks badge, eyebrow and headline at the bottom the
                       // way a cover carries its caption.
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                      final caption = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                badgeBox,
-                                const SizedBox(height: 14),
-                                if (!compact) ...[
-                                  eyebrow,
-                                  const SizedBox(height: 6),
-                                ],
-                                titleText,
-                                const SizedBox(height: 16),
-                                metaRow,
-                              ],
+                          badgeBox,
+                          const SizedBox(height: 14),
+                          if (!compact) ...[
+                            eyebrow,
+                            const SizedBox(height: 6),
+                          ],
+                          titleText,
+                          const SizedBox(height: 16),
+                          metaRow,
+                        ],
+                      );
+                      if (showSamples) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [caption],
+                              ),
                             ),
-                          ),
-                          if (showSamples) ...[
                             const SizedBox(width: 18),
                             SizedBox(
                               width: sampleWidth,
@@ -1193,6 +1204,50 @@ class _HeroStage extends ConsumerWidget {
                               ),
                             ),
                           ],
+                        );
+                      }
+                      if (stackedSamples) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _HeroSampleList(
+                                samples: samples,
+                                onPlayAt: model.onPlayAt,
+                                onAccent: onAccent,
+                                compact: false,
+                                maxRowHeight: 34,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            caption,
+                          ],
+                        );
+                      }
+                      return Align(
+                        alignment: Alignment.bottomLeft,
+                        child: caption,
+                      );
+                    }
+                    if (stackedSamples) {
+                      // 窄而高的那张（横屏）：标题钉顶，三首歌铺在中间那块
+                      // 原本空着的色块里，底部照旧是数量 / 说明 + 播放键。
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          titleRow,
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: _HeroSampleList(
+                              samples: samples,
+                              onPlayAt: model.onPlayAt,
+                              onAccent: onAccent,
+                              compact: false,
+                              maxRowHeight: 38,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          metaRow,
                         ],
                       );
                     }
@@ -1250,12 +1305,17 @@ class _HeroSampleList extends StatelessWidget {
     required this.onPlayAt,
     required this.onAccent,
     required this.compact,
+    this.maxRowHeight,
   });
 
   final List<HomeHeroSample> samples;
   final ValueChanged<int> onPlayAt;
   final Color onAccent;
   final bool compact;
+
+  /// 整行铺在标题下面时（横屏窄卡）能有更大的行距，曲目表才铺得开；
+  /// 塞在标题右边时高度本来就紧，用默认值。
+  final double? maxRowHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -1266,7 +1326,7 @@ class _HeroSampleList extends StatelessWidget {
         final rowHeight =
             ((available - gap * (samples.length - 1)) / samples.length).clamp(
               compact ? 18.0 : 20.0,
-              compact ? 24.0 : 26.0,
+              maxRowHeight ?? (compact ? 24.0 : 26.0),
             );
         // 撑满父给的高度再居中：只有一两首时贴着顶边会和 kicker 挤在一起，
         // 读成它属于那行小字。

@@ -14,6 +14,14 @@ import 'main_scaffold.dart';
 /// whole window and the side rail steps aside.
 const double fullscreenPlayerSideRailAspectRatio = 2.5;
 
+/// 侧栏卡片相对这一列的左右留白。
+///
+/// 左边 14 / 右边 20：卡片的投影 blur 22、往下偏 8，两侧都要有地方让它
+/// 衰减完。左边原来是 8，卡片贴着窗口左缘，横屏看过去整排 tab 像被挤在
+/// 边上；右边 20 是上一次为了不让投影被右侧面板切断才调宽的。
+const double _railLeadingInset = 14;
+const double _railTrailingInset = 20;
+
 /// Longer side divided by the shorter side. Orientation does not matter.
 double screenAspectRatio(Size size) {
   final width = size.width.abs();
@@ -237,10 +245,15 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
                           // 内容面板会盖掉溢出的部分，投影就在一条竖线上被
                           // 齐齐切断。右侧留 20 让投影自然衰减完，切点落在
                           // 几乎透明的地方，接缝就看不见了。
+                          //
+                          // 左侧原来只有 8，卡片贴着窗口左缘，选中的那颗 tab
+                          // 药丸看着像被挤在边上；挪到 14，卡片往右一点点，
+                          // 左边也有地方放投影（原来 8 点连 blur 22 的一半都
+                          // 不到）。
                           padding: EdgeInsets.fromLTRB(
-                            leadingInset + 8,
+                            leadingInset + _railLeadingInset,
                             topInset + 8,
-                            20,
+                            _railTrailingInset,
                             bottomInset + 8,
                           ),
                           child: OrigoChromeSurface(

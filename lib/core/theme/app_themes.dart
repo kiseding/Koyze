@@ -15,17 +15,18 @@ import 'app_colors.dart';
 ///   因此任何强调色下页面都是同一张灰阶；
 /// - `primary` 直接取强调色（深色下按亮度提亮），只落在关键元素上。
 abstract final class AppThemes {
-  /// origo-x 的默认强调色（Material Green 800）。
+  /// origo-x 的默认强调色：v3.0.7 那支绿（浅色 #1DB954 / 深色 #1ED760）。
   ///
-  /// 暖色在深色底上会发灰，蓝紫又太像系统控件；这支深绿在浅色下是
-  /// 5.2:1 的实心绿，深色下经 [keyColor] 提到 0.66 明度后变成一枚
-  /// 干净的浅绿，两个主题都是同一支色相。
-  static const Color defaultAccentColor = Color(0xFF2E7D32);
+  /// 之前用的是 Material Green 800（#2E7D32），色相偏黄、明度压得低，摆在
+  /// 白底上像一块墨绿补丁。v3.0.7 这支绿亮度更高、色相更偏青，选中态和
+  /// 播放键才不像"深色按钮"。浅色主题直接用 #1DB954；深色下 [keyColor]
+  /// 会把它提到 0.66 明度，落点正好是原来深色主题的 #1ED760 一带。
+  static const Color defaultAccentColor = Color(0xFF1DB954);
 
   /// 设置页中的快捷强调色。任意颜色仍可通过色盘或十六进制输入选择。
   /// 默认色排在第一格，选中态才不会落在一块看起来"随机"的色板上。
   static const List<Color> accentColors = [
-    Color(0xFF2E7D32),
+    Color(0xFF1DB954),
     Color(0xFF1976D2),
     Color(0xFF3F51B5),
     Color(0xFF6750A4),
