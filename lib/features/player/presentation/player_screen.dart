@@ -492,6 +492,23 @@ Rect _fullArtworkRect(
   const topGap = 12.0;
   const infoHeight = 128.0;
   const controlsHeight = 170.0;
+  // 横屏是「封面列 6 : 信息列 5」的两栏，封面按左列可用区域铺满。
+  // 竖屏那套「扣掉信息区和控件区」的算法在横屏会扣成负数，
+  // clamp 的下界大于上界会直接抛 Invalid argument(s)。
+  if (screenW > screenH) {
+    final columnW = screenW * 6 / 11;
+    final columnH = screenH - safeTop - safeBottom - appBarHeight;
+    final widthBudget = columnW - 20;
+    final heightBudget = columnH - 20;
+    final budget = widthBudget < heightBudget ? widthBudget : heightBudget;
+    final box = budget > 0 ? budget * 0.9 : 0.0;
+    return Rect.fromLTWH(
+      (columnW - box) / 2,
+      safeTop + appBarHeight + (columnH - box) / 2,
+      box,
+      box,
+    );
+  }
   final available =
       screenH -
       safeTop -
@@ -501,7 +518,8 @@ Rect _fullArtworkRect(
       infoHeight -
       controlsHeight;
   final side = (screenW - 64).clamp(240.0, 420.0);
-  final box = side.clamp(0.0, available - 8);
+  final limit = available - 8;
+  final box = limit <= 0 ? 0.0 : side.clamp(0.0, limit);
   final left = (screenW - box) / 2;
   final top = safeTop + appBarHeight + topGap + ((available - box) / 2);
   return Rect.fromLTWH(
