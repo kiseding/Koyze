@@ -78,6 +78,9 @@ void main() {
     }
     await gesture.up();
     await tester.pump();
+    // 关闭分两段：面板先从当前位置滑出屏幕（~200ms），路由再 pop 并播放
+    // 反向动画（260ms）。等到路由完全拆除再断言。
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.byType(SearchScreen), findsNothing);

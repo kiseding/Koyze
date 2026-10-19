@@ -263,7 +263,15 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _transitionTargetIndex = null;
       _animating = false;
       _dragging = false;
+      rootBranchDrag.value = 0;
+      rootBranchDragTarget.value = null;
     }
+  }
+
+  /// 把当前位移折算成 tab 条用的进度（向下一页为正）。
+  void _syncDragProgress(double width) {
+    if (width <= 0) return;
+    rootBranchDrag.value = (-_dx / width).clamp(-1.0, 1.0);
   }
 
   Future<void> _animateTo(double end) async {
@@ -282,7 +290,9 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       end: end,
     ).animate(CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic));
     void tick() {
-      if (mounted) setState(() => _dx = tween.value);
+      if (!mounted) return;
+      setState(() => _dx = tween.value);
+      _syncDragProgress(MediaQuery.sizeOf(context).width);
     }
 
     tween.addListener(tick);
@@ -319,11 +329,13 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
         _animating = false;
         _dx = 0;
       });
+      rootBranchDrag.value = 0;
       return;
     }
 
     final end = _neighborEntersFromRight(idx, target) ? -width : width;
     _transitionTargetIndex = target;
+    rootBranchDragTarget.value = target;
     await _animateTo(end);
     if (!mounted) return;
     // 切页时同时清零位移：新页以静止态显示，无回弹
@@ -333,6 +345,8 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _dx = 0;
       _transitionTargetIndex = null;
     });
+    rootBranchDrag.value = 0;
+    rootBranchDragTarget.value = null;
     widget.onSelect(target);
   }
 
@@ -362,6 +376,7 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
 
     final width = MediaQuery.sizeOf(context).width;
     _transitionTargetIndex = target;
+    rootBranchDragTarget.value = target;
     await _animateTo(target > current ? -width : width);
     if (!mounted) return;
     setState(() {
@@ -370,6 +385,8 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _dx = 0;
       _transitionTargetIndex = null;
     });
+    rootBranchDrag.value = 0;
+    rootBranchDragTarget.value = null;
     widget.onSelect(target);
   }
 
@@ -452,7 +469,10 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
               (_EditableAwareHorizontalDragGestureRecognizer instance) {
                 // ignore: invalid_use_of_protected_member
                 instance.gestureSettings = const DeviceGestureSettings(
-                  touchSlop: 28,
+                  // 28 的 slop 让「已经开始滑了」和「页面开始动」之间隔着
+                  // 近一指宽，手感就是迟滞。收到 16：仍能和纵向列表区分，
+                  // 跟手却明显更快。
+                  touchSlop: 16,
                 );
                 instance
                   ..onStart = (details) {
@@ -461,10 +481,12 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
                       _dragging = true;
                       _dx = 0;
                     });
+                    rootBranchDrag.value = 0;
                   }
                   ..onUpdate = (details) {
                     if (_animating || !_dragging) return;
                     setState(() => _dx += details.delta.dx);
+                    _syncDragProgress(width);
                   }
                   ..onEnd = (details) {
                     if (_animating) return;

@@ -95,17 +95,18 @@ void main() {
     }
   });
 
-  test('点击 tab 瞬时切换，横移只留给手势', () {
+  test('点击 tab 与手势共用 select 动画，走最短路径', () {
     final router = _read('lib/router/app_router.dart');
     final tap = router.substring(
       router.indexOf('onBranchTap:'),
       router.indexOf('navigatorContainerBuilder'),
     );
 
-    // 栏不跟着页面走，页面再慢慢滑 280ms 就和栏脱节了：点击同帧换，
-    // 只有药丸滑过去。拖拽切页仍然走 SwipeBranchContainer 的跟手动画。
-    expect(tap, contains('goBranch(index)'));
-    expect(tap, isNot(contains('state.select(')));
+    // 点击不再硬切（goBranch 同帧换页没有任何可看的过渡），统一交给
+    // selectRootBranch → SwipeBranchContainer.select：页面沿最短方向
+    // 滑一屏到目标页，tab 胶囊通过 rootBranchDrag 同步跟手。
+    expect(tap, contains('selectRootBranch(index)'));
+    expect(tap, isNot(contains('goBranch(index)')));
   });
 
   test('横屏侧栏是实色面板，不是采样不到内容的玻璃', () {

@@ -16,6 +16,20 @@ import '../theme/app_colors.dart';
 import '../../l10n/app_strings.dart';
 import 'pressable.dart';
 
+/// 手势 / 点击切换 tab 的实时进度：-1..1。
+///
+/// 0 = 静止在选中页；正值表示正在滑向下一个 tab（页面向左），负值表示
+/// 滑向上一个。定义在 tab 条这一侧（而不是壳层）避免 core→features 的
+/// 反向依赖：壳层与手势容器本来就 import 本文件。
+final rootBranchDrag = ValueNotifier<double>(0);
+
+/// 滑动 / 点击动画的实际目标 tab。
+///
+/// 手势拖动时为 null（方向由进度符号决定，目标是相邻项）；点击远处的
+/// tab 时是那个 tab 的下标——跳两页的动画同样只滑一屏，胶囊必须直接
+/// 在「起点 → 目标」之间过渡，而不是先冒出中间那颗再跳过去。
+final rootBranchDragTarget = ValueNotifier<int?>(null);
+
 /// 把根 tab 的选中态与切换回调传给页面顶部的 tab 条。
 class RootTabScope extends InheritedWidget {
   const RootTabScope({
@@ -182,6 +196,46 @@ class _RootTabBarState extends State<RootTabBar>
     return 0;
   }
 
+  /// 滑动进行中的插值：胶囊从当前选中项连续让位给相邻项。
+  ///
+  /// 手势进度 rootBranchDrag 决定「另一颗」是谁、吃多少展开度；点击
+  /// 触发的补齐动画照旧走 [AnimationController]，两者不同时发生——
+  /// 点击动画由 [_animating]/goBranch 驱动，drag 在那之前已归零。
+  ({int other, double t})? get _dragSplit {
+    final p = rootBranchDrag.value;
+    if (p.abs() < 0.005) return null;
+    final count = _labels.length;
+    final current = _to.clamp(0, count - 1);
+    // 优先用动画的真实目标（点击跳两页时直接过渡到目标页）；纯手势
+    // 拖动没有预定目标，按方向取相邻项。
+    final other =
+        rootBranchDragTarget.value ??
+        (p > 0
+            ? (current + 1) % count
+            : (current + count - 1) % count);
+    return (other: other, t: p.abs().clamp(0.0, 1.0));
+  }
+
+  double _spreadFor(int index) {
+    final split = _dragSplit;
+    if (split != null) {
+      if (index == _to) return 1 - split.t;
+      if (index == split.other) return split.t;
+      return 0;
+    }
+    return _spread(index);
+  }
+
+  double _textOpacityFor(int index) {
+    final split = _dragSplit;
+    if (split != null) {
+      if (index == _to) return 1 - split.t;
+      if (index == split.other) return split.t;
+      return 0;
+    }
+    return _textOpacity(index);
+  }
+
   @override
   Widget build(BuildContext context) {
     final scope = RootTabScope.maybeOf(context);
@@ -208,8 +262,10 @@ class _RootTabBarState extends State<RootTabBar>
 
     return SizedBox(
       height: widget.height,
-      child: AnimatedBuilder(
-        animation: _controller,
+      child: ListenableBuilder(
+        // 胶囊的两条时间线：点击切换的 [AnimationController]，和手势滑动
+        // 的实时进度。任何一个变动都要重算展开度。
+        listenable: Listenable.merge([_controller, rootBranchDrag]),
         builder: (context, _) {
           return Row(
             mainAxisSize: MainAxisSize.min,
@@ -252,12 +308,12 @@ class _RootTabBarState extends State<RootTabBar>
     required TextStyle style,
     required VoidCallback? onTap,
   }) {
-    final spread = _spread(index);
+    final spread = _spreadFor(index);
     final expandedWidth = _kTextLeft + textWidth + _kRightPadding;
     final width =
         _kCollapsedWidth + (expandedWidth - _kCollapsedWidth) * spread;
     final fill = spread.clamp(0.0, 1.0);
-    final opacity = _textOpacity(index).clamp(0.0, 1.0);
+    final opacity = _textOpacityFor(index).clamp(0.0, 1.0);
 
     return Pressable(
       key: ValueKey<String>('root-tab-$index'),

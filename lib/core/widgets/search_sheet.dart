@@ -231,14 +231,32 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
     });
   }
 
-  /// 关闭交给路由的反向动画：进度从当前 `_extent` 接着往 1 走，
-  /// 不会出现「先弹回原位再整体淡出」的二次位移。
+  /// 先把面板从当前位置滑出屏幕，再交给路由 pop。
+  ///
+  /// 之前直接 pop：路由的反向动画走 emphasized 曲线，起步段几乎不动，
+  /// 拖到一半松手的面板会在原地停一小截才继续下滑——读起来像卡住。
+  /// 现在关闭的位移由 [_settle] 从手指离开的位置接着走完，路由 pop 时
+  /// 面板已经在屏幕外，反向动画怎么跑都看不见。
   Future<void> _dismiss() async {
     if (_dismissing || !mounted) return;
     _dismissing = true;
     if (_settle.isAnimating) _settle.stop();
     FocusManager.instance.primaryFocus?.unfocus();
     if (!mounted) return;
+    // 剩余距离越短收得越快：全行程 ~240ms，已经拉到一半时 ~120ms。
+    final remaining = (1 - _drag).clamp(0.0, 1.0);
+    _settleFrom = _drag;
+    _settleTo = 1;
+    _settle.duration = motionDuration(
+      context,
+      Duration(milliseconds: (120 + 120 * remaining).round()),
+    );
+    await _settle.forward(from: 0);
+    if (!mounted) return;
+    setState(() {
+      _extent = 1;
+      _settle.reset();
+    });
     unawaited(Navigator.of(context).maybePop());
   }
 

@@ -497,11 +497,8 @@ class HomeHeroCard extends ConsumerWidget {
             0;
         return _HeroModel(
           color: color,
-          subtitle: count == 0
-              ? S.of(context).noFavoritesYet
-              : S
-                    .of(context)
-                    .heroFavoritesHint(playMode.titleFor(S.of(context))),
+          // 播放态不再显示提示行，subtitle 只服务空态。
+          subtitle: S.of(context).noFavoritesYet,
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
@@ -532,9 +529,7 @@ class HomeHeroCard extends ConsumerWidget {
         final count = recommendations.length;
         return _HeroModel(
           color: color,
-          subtitle: count > 0
-              ? S.of(context).heroRecommendHint
-              : S.of(context).recommendAfterFavorites,
+          subtitle: S.of(context).recommendAfterFavorites,
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
@@ -568,9 +563,7 @@ class HomeHeroCard extends ConsumerWidget {
             0;
         return _HeroModel(
           color: color,
-          subtitle: count == 0
-              ? S.of(context).chooseFolderToScan
-              : S.of(context).heroLocalHint,
+          subtitle: S.of(context).chooseFolderToScan,
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
@@ -608,16 +601,17 @@ class HomeHeroCard extends ConsumerWidget {
         final songs = songsAsync.valueOrNull ?? const <MusicItem>[];
         final count = songs.length;
         final config = ref.watch(subsonicConfigProvider);
+        // subtitle 只服务空态：未配置 / 加载中给出说明，已连接但为空时
+        // 什么都不写（播放态本来也不显示这行）。
         final subtitle = !connected
             ? S.of(context).nasHosts
             : subsonicConnected && songsAsync.isLoading
             ? S.of(context).loadingHost(config.hostLabel)
-            : 'NAS';
+            : '';
         return _HeroModel(
           color: color,
           subtitle: subtitle,
           count: count,
-          showCountInTitle: false,
           canPlay: subsonicConnected && count > 0,
           actionIcon: actionIcon,
           actionLabel: S
@@ -640,9 +634,7 @@ class HomeHeroCard extends ConsumerWidget {
             0;
         return _HeroModel(
           color: color,
-          subtitle: count > 0
-              ? S.of(context).heroRecentHint
-              : S.of(context).heroRecentEmpty,
+          subtitle: S.of(context).heroRecentEmpty,
           count: count,
           canPlay: count > 0,
           actionIcon: actionIcon,
@@ -888,12 +880,8 @@ class _HeroStage extends ConsumerWidget {
           // 列间距，只够给右手 130。
           //
           // 阈值原来写的是 300，横屏的 hero 只有 283 左右宽（竖屏是 336），
-          // 于是横屏整列都画不出来——卡片中段空着一大块，却连一行歌名都没
-          // 有。宽度不够时改成把这三首铺在标题下面，信息不丢。
-          final hasSamples = samples.isNotEmpty;
-          final wideEnough = constraints.maxWidth >= 300;
-          final showSamples = hasSamples && wideEnough;
-          final stackedSamples = hasSamples && !wideEnough && !compact;
+          // 于是横屏整列都画不出来。现在右列统一画（这是新布局的半壁江山），
+          // 左列靠 FittedBox 缩标题兜底。
           final sampleWidth = (constraints.maxWidth * 0.36).clamp(118.0, 150.0);
           return Stack(
             fit: StackFit.expand,
@@ -980,15 +968,6 @@ class _HeroStage extends ConsumerWidget {
                         size: compact ? 21 : (tall ? 25 : 24),
                       ),
                     );
-                    final eyebrow = Text(
-                      'KOYZE / HOME',
-                      style: TextStyle(
-                        color: muted,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.4,
-                      ),
-                    );
                     // 右手那列吃掉一百三十点宽度后，英文标题（"Recently
                     // played"）在 20pt 下放不进剩下的位置了。scaleDown 让标题
                     // 按需缩半档，而不是变成 "Recently p…"；中文四字标题
@@ -1008,7 +987,13 @@ class _HeroStage extends ConsumerWidget {
                         ),
                       ),
                     );
-                    final titleRow = Row(
+                    // 图标右侧就两行：标题，和作为副标题的歌曲数量。
+                    // 「KOYZE / HOME」眉行和操作提示都不再画——前者是装饰，
+                    // 后者与播放键的语义重复；数量是唯一有用的元信息。
+                    final countText = model.count > 0
+                        ? S.of(context).songCount(model.count)
+                        : null;
+                    final header = Row(
                       children: [
                         badgeBox,
                         SizedBox(width: compact ? 11 : 13),
@@ -1017,84 +1002,55 @@ class _HeroStage extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (!compact) ...[
-                                eyebrow,
-                                const SizedBox(height: 5),
-                              ],
                               titleText,
+                              if (countText != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  countText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: muted,
+                                    fontSize: compact ? 11.5 : 12.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
                       ],
                     );
-                    final metaRow = Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (model.showCountInTitle && model.count > 0)
-                                Text(
-                                  S.of(context).songCount(model.count),
-                                  style: TextStyle(
-                                    color: muted,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              if (model.showCountInTitle && model.count > 0)
-                                const SizedBox(height: 3),
-                              Text(
-                                model.subtitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: onAccent.withValues(alpha: 0.92),
-                                  fontSize: compact ? 12 : 12.5,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.2,
-                                ),
-                              ),
-                            ],
-                          ),
+                    // 播放键钉在左下角，右侧整列让给那三首歌。
+                    final playButton = Pressable(
+                      scale: 0.92,
+                      semanticLabel: model.actionLabel,
+                      onTap: model.onPlay,
+                      child: AnimatedContainer(
+                        duration: motionDuration(
+                          context,
+                          MotionDuration.normal,
                         ),
-                        const SizedBox(width: 12),
-                        Pressable(
-                          scale: 0.92,
-                          semanticLabel: model.actionLabel,
-                          onTap: model.canPlay ? model.onPlay : null,
-                          child: AnimatedContainer(
-                            duration: motionDuration(
-                              context,
-                              MotionDuration.normal,
+                        curve: MotionCurve.iosSpring,
+                        width: playSize,
+                        height: playSize,
+                        decoration: BoxDecoration(
+                          color: onAccent,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: deep.withValues(alpha: 0.34),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
                             ),
-                            curve: MotionCurve.iosSpring,
-                            width: playSize,
-                            height: playSize,
-                            decoration: BoxDecoration(
-                              color: model.canPlay
-                                  ? onAccent
-                                  : onAccent.withValues(alpha: 0.26),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                if (model.canPlay)
-                                  BoxShadow(
-                                    color: deep.withValues(alpha: 0.34),
-                                    blurRadius: 16,
-                                    offset: const Offset(0, 6),
-                                  ),
-                              ],
-                            ),
-                            child: Icon(
-                              model.actionIcon,
-                              color: model.canPlay ? deep : muted,
-                              size: compact ? 21 : 23,
-                            ),
-                          ),
+                          ],
                         ),
-                      ],
+                        child: Icon(
+                          model.actionIcon,
+                          color: deep,
+                          size: compact ? 21 : 23,
+                        ),
+                      ),
                     );
                     if (!model.canPlay) {
                       // 空态整块居中：标题钉顶、说明钉底会在大片纯色中间留出
@@ -1126,7 +1082,7 @@ class _HeroStage extends ConsumerWidget {
                             // 空卡没有数量可以压底，跟着底部排会剩一大片纯色；
                             // 整块居中，卡片再高也像一张「空封面」而不是漏渲染。
                             //
-                            // 但平板横屏的 hero 有 340pt 高，居中的四行文案
+                            // 但平板横屏的 hero 有 340pt 高，居中的文案
                             // 会浮在色块正中间，上下各空一百多 pt——那才是真的
                             // 漏渲染感。高卡改回海报式：标题压底，色彩留给上半。
                             mainAxisAlignment: tall
@@ -1135,153 +1091,61 @@ class _HeroStage extends ConsumerWidget {
                             children: [
                               badgeBox,
                               SizedBox(height: compact ? 10 : 14),
-                              if (!compact) ...[
-                                eyebrow,
-                                const SizedBox(height: 6),
-                              ],
                               Align(
                                 alignment: Alignment.centerLeft,
                                 child: titleText,
                               ),
-                              const SizedBox(height: 8),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Text(
-                                  model.subtitle,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: onAccent.withValues(alpha: 0.88),
-                                    fontSize: compact ? 12 : 12.5,
-                                    fontWeight: FontWeight.w500,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      );
-                    }
-                    if (tall) {
-                      // Poster: a tall stage keeps the top to the gradient and
-                      // stacks badge, eyebrow and headline at the bottom the
-                      // way a cover carries its caption.
-                      final caption = Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          badgeBox,
-                          const SizedBox(height: 14),
-                          if (!compact) ...[
-                            eyebrow,
-                            const SizedBox(height: 6),
-                          ],
-                          titleText,
-                          const SizedBox(height: 16),
-                          metaRow,
-                        ],
-                      );
-                      if (showSamples) {
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [caption],
-                              ),
-                            ),
-                            const SizedBox(width: 18),
-                            SizedBox(
-                              width: sampleWidth,
-                              child: _HeroSampleList(
-                                samples: samples,
-                                onPlayAt: model.onPlayAt,
-                                onAccent: onAccent,
-                                compact: false,
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-                      if (stackedSamples) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: _HeroSampleList(
-                                samples: samples,
-                                onPlayAt: model.onPlayAt,
-                                onAccent: onAccent,
-                                compact: false,
-                                maxRowHeight: 34,
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            caption,
-                          ],
-                        );
-                      }
-                      return Align(
-                        alignment: Alignment.bottomLeft,
-                        child: caption,
-                      );
-                    }
-                    if (stackedSamples) {
-                      // 窄而高的那张（横屏）：标题钉顶，三首歌铺在中间那块
-                      // 原本空着的色块里，底部照旧是数量 / 说明 + 播放键。
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          titleRow,
-                          const SizedBox(height: 12),
-                          Expanded(
-                            child: _HeroSampleList(
-                              samples: samples,
-                              onPlayAt: model.onPlayAt,
-                              onAccent: onAccent,
-                              compact: false,
-                              maxRowHeight: 38,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          metaRow,
-                        ],
-                      );
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Align(
-                                  alignment: Alignment.topLeft,
-                                  child: titleRow,
-                                ),
-                              ),
-                              // 右手这列原本是整块空白，只剩背景渐变；压三首
-                              // 真实的歌进去，卡片才有内容可看、可点。
-                              if (showSamples) ...[
-                                const SizedBox(width: 12),
-                                SizedBox(
-                                  width: sampleWidth,
-                                  child: _HeroSampleList(
-                                    samples: samples,
-                                    onPlayAt: model.onPlayAt,
-                                    onAccent: onAccent,
-                                    compact: compact,
+                              if (model.subtitle.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    model.subtitle,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: onAccent.withValues(alpha: 0.88),
+                                      fontSize: compact ? 12 : 12.5,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.3,
+                                    ),
                                   ),
                                 ),
                               ],
                             ],
                           ),
+                        ],
+                      );
+                    }
+                    // 统一的播放态布局：左列 = 顶部「图标 + 标题/数量」、
+                    // 底部播放键；右列整高给那三首歌。竖屏、横屏、高卡都走
+                    // 这一套——右侧列表被拉伸到全卡高度，窄卡的左列由
+                    // FittedBox 把标题缩进来兜底，不再需要单独的堆叠分支。
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              header,
+                              const Spacer(),
+                              playButton,
+                            ],
+                          ),
                         ),
-                        metaRow,
+                        if (samples.isNotEmpty) ...[
+                          const SizedBox(width: 14),
+                          SizedBox(
+                            width: sampleWidth,
+                            child: _HeroSampleList(
+                              samples: samples,
+                              onPlayAt: model.onPlayAt,
+                              onAccent: onAccent,
+                              compact: compact,
+                            ),
+                          ),
+                        ],
                       ],
                     );
                   },
@@ -1395,13 +1259,13 @@ class _HeroModel {
     required this.onOpen,
     required this.onPlay,
     required this.onPlayAt,
-    this.showCountInTitle = true,
   });
 
   final Color color;
+
+  /// 空态说明（"还没有收藏" / "选择文件夹扫描"）。播放态不显示这行。
   final String subtitle;
   final int count;
-  final bool showCountInTitle;
   final bool canPlay;
   final IconData actionIcon;
   final String actionLabel;

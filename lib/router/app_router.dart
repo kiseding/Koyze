@@ -144,11 +144,11 @@ final appRouter = GoRouter(
         return MainScaffold(
           navigationShell: navigationShell,
           onBranchTap: (index) {
-            // 顶栏固定在壳层里，点击不再让页面横移：栏和内容同帧换，
-            // 只有分段里的药丸滑过去。横移留给手势——跟手才讲得通，
-            // 点击时让页面慢慢滑而栏纹丝不动，两者节奏会脱节。
+            // 点击也走 [selectRootBranch]：页面沿最短方向滑到目标页（一次
+            // 一屏的位移，方向由前后关系决定），tab 条与手势滑动共用同一
+            // 套进度。直接 goBranch 是硬切，页面上没有连续的位移可看。
             AppLog.instance.record('navigation', 'select branch=$index');
-            navigationShell.goBranch(index);
+            selectRootBranch(index);
           },
         );
       },
