@@ -170,7 +170,14 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                     // 实心 surface（浅色主题下是白色）。
                                     filled: false,
                                     isCollapsed: true,
+                                    // 光改 border 不够：主题给 enabledBorder 描了
+                                    // 一圈 outlineVariant，TextField 会用它。
+                                    // 外层玻璃条已经是这条搜索框的边界，里面再
+                                    // 描一圈就是「框里套框」。
                                     border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    disabledBorder: InputBorder.none,
                                     contentPadding: EdgeInsets.zero,
                                     hintText: S.of(context).searchLibraryHint,
                                     hintStyle: TextStyle(

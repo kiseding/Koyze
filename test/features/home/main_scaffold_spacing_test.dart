@@ -107,4 +107,21 @@ void main() {
     expect(tap, contains('goBranch(index)'));
     expect(tap, isNot(contains('state.select(')));
   });
+
+  test('横屏侧栏是实色面板，不是采样不到内容的玻璃', () {
+    final rail = _read(
+      'lib/features/home/presentation/independent_side_rail.dart',
+    );
+    final shell = _read('lib/features/home/presentation/main_scaffold.dart');
+
+    // 侧栏是 Row 的左列，下面没有内容可采样：BackdropFilter 只会混出一层
+    // 黑（浅色变中灰、深色近乎纯黑）。必须走实色分支。
+    expect(rail, contains('blur: 0'));
+    // 右侧也要留 8 的缝，否则卡片贴在内容边上，浮起关系断掉。
+    expect(rail, contains('topInset + 8,'));
+    // 矮屏（手机横屏）换紧凑档：标题不再整段被判掉，tab 行高与间距各收一档。
+    expect(shell, contains('constraints.maxHeight < _sideNavCompactBelow'));
+    expect(shell, contains('_sideNavTitleCompactExtent'));
+    expect(shell, contains('_sideNavTabCompactExtent'));
+  });
 }

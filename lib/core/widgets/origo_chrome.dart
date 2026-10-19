@@ -22,6 +22,7 @@ class OrigoChromeSurface extends StatelessWidget {
     this.style = AppGlassStyle.chrome,
     this.emphasized = false,
     this.boxShadow,
+    this.blur,
   });
 
   final Widget child;
@@ -36,6 +37,10 @@ class OrigoChromeSurface extends StatelessWidget {
   final bool emphasized;
   final List<BoxShadow>? boxShadow;
 
+  /// 模糊半径覆盖。传 0 就退化成一块实色面板——没有东西可以采样时
+  /// （横屏侧栏左边就是空的）必须这样做，原因见侧栏那边的注释。
+  final double? blur;
+
   @override
   Widget build(BuildContext context) {
     final tint = accent ?? AppColors.accentOf(context);
@@ -44,6 +49,7 @@ class OrigoChromeSurface extends StatelessWidget {
       style: style,
       borderRadius: borderRadius,
       emphasized: emphasized,
+      blur: blur,
       border: Border.fromBorderSide(
         AppGlass.hairline(context, emphasized: emphasized),
       ),

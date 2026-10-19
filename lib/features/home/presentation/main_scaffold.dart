@@ -530,14 +530,15 @@ const _sideNavTabGap = 8.0;
 const _sideNavShortcutExtent = 36.0;
 const _sideNavFooterPadding = 16.0;
 
-/// 三个标签、设置和登录入口，按舒适字号排开的高度。
-const _sideNavBodyExtent =
-    _sideNavTabExtent * 3 +
-    _sideNavTabGap * 2 +
-    _sideNavRuleExtent +
-    _sideNavFooterPadding +
-    _sideNavTabExtent +
-    _sideNavShortcutExtent;
+/// 手机横屏（393pt 高）放不下常规档：标题整段会被判掉，栏顶直接从第一个
+/// tab 开始，看上去像少了一块。矮屏换成紧凑档——标题留着但压扁，行高和
+/// 间距各收一档，五个入口仍然一次排开。
+const _sideNavTitleCompactExtent = 58.0;
+const _sideNavTabCompactExtent = 46.0;
+const _sideNavTabCompactGap = 6.0;
+
+/// 低于这个高度就换紧凑档（手机横屏 393、折叠屏展开后才回到常规）。
+const double _sideNavCompactBelow = 420;
 
 /// Selected rail item: an accent wash, not an opaque card. A solid white pill
 /// on top of glass reads as a different material.
@@ -574,33 +575,57 @@ class RootSideNav extends ConsumerWidget {
         final username = session.username?.trim() ?? '';
         return LayoutBuilder(
           builder: (context, constraints) {
+            final compact = constraints.maxHeight < _sideNavCompactBelow;
+            final tabExtent = compact
+                ? _sideNavTabCompactExtent
+                : _sideNavTabExtent;
+            final tabGap = compact ? _sideNavTabCompactGap : _sideNavTabGap;
+            final titleExtent = compact
+                ? _sideNavTitleCompactExtent
+                : _sideNavTitleExtent;
+            final bodyExtent =
+                tabExtent * 3 +
+                tabGap * 2 +
+                _sideNavRuleExtent +
+                _sideNavFooterPadding +
+                tabExtent +
+                _sideNavShortcutExtent;
             final showTitle =
                 constraints.maxHeight >=
-                _sideNavTitleExtent + _sideNavRuleExtent + _sideNavBodyExtent;
+                titleExtent + _sideNavRuleExtent + bodyExtent;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (showTitle) ...[
-                  _title(context),
+                  _title(context, compact: compact),
                   _rule(context),
                 ] else
                   const SizedBox(height: 8),
-                _item(context, 0, Icons.home_outlined, Icons.home, s.home),
-                const SizedBox(height: _sideNavTabGap),
+                _item(
+                  context,
+                  0,
+                  Icons.home_outlined,
+                  Icons.home,
+                  s.home,
+                  extent: tabExtent,
+                ),
+                SizedBox(height: tabGap),
                 _item(
                   context,
                   1,
                   Icons.leaderboard_outlined,
                   Icons.leaderboard,
                   s.charts,
+                  extent: tabExtent,
                 ),
-                const SizedBox(height: _sideNavTabGap),
+                SizedBox(height: tabGap),
                 _item(
                   context,
                   2,
                   Icons.library_music_outlined,
                   Icons.library_music,
                   s.playlists,
+                  extent: tabExtent,
                 ),
                 const Spacer(),
                 _rule(context),
@@ -614,6 +639,7 @@ class RootSideNav extends ConsumerWidget {
                         Icons.settings_outlined,
                         Icons.settings,
                         s.settings,
+                        extent: tabExtent,
                       ),
                       _shortcut(
                         context,
@@ -645,16 +671,16 @@ class RootSideNav extends ConsumerWidget {
     );
   }
 
-  Widget _title(BuildContext context) {
+  Widget _title(BuildContext context, {required bool compact}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         _sideNavItemOuterPadding + _sideNavItemInnerPadding,
-        18,
+        compact ? 12 : 18,
         8,
-        10,
+        compact ? 6 : 10,
       ),
       child: SizedBox(
-        height: 52,
+        height: compact ? 40 : 52,
         child: Align(
           alignment: Alignment.centerLeft,
           child: Text(
@@ -663,7 +689,7 @@ class RootSideNav extends ConsumerWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 26,
+              fontSize: compact ? 21 : 26,
               height: 1,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.5,
@@ -800,8 +826,9 @@ class RootSideNav extends ConsumerWidget {
     int index,
     IconData icon,
     IconData activeIcon,
-    String label,
-  ) {
+    String label, {
+    required double extent,
+  }) {
     final isSelected = index == selectedIndex;
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = AppColors.isDark(context);
@@ -809,7 +836,7 @@ class RootSideNav extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: _sideNavItemOuterPadding),
       child: SizedBox(
-        height: _sideNavTabExtent,
+        height: extent,
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: isSelected

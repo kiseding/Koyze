@@ -224,16 +224,29 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
                           // Floating card, not a docked panel. An inset on
                           // every side keeps the rail reading as one object
                           // above the page — in landscape and on desktop.
+                          // 右侧也要留缝：贴到内容边上，卡片就变成"被裁掉
+                          // 一半的侧栏"，和左边 8 的浮起感对不上。
                           padding: EdgeInsets.fromLTRB(
                             leadingInset + 8,
                             topInset + 8,
-                            0,
+                            8,
                             bottomInset + 8,
                           ),
                           child: OrigoChromeSurface(
                             borderRadius: BorderRadius.circular(24),
                             style: AppGlassStyle.bar,
                             emphasized: true,
+                            // 这里不能用玻璃，必须实色。
+                            //
+                            // BackdropFilter 采样的是"自己下面压着的东西"。
+                            // 侧栏是 Row 的左列，页面在右列——侧栏底下什么
+                            // 都没有，于是采样结果是一层黑：浅色下白 76%
+                            // 叠黑 = 中灰 (193,193,193)，深色下几乎纯黑。
+                            // 表现就是"背景像一块死板的灰片，跟页面无关"。
+                            //
+                            // blur 0 走实色分支：浅色白、深色比页面亮一档，
+                            // 配合 0.8px 亮边和投影，浮起关系才是对的。
+                            blur: 0,
                             child: Material(
                               type: MaterialType.transparency,
                               child: Padding(
