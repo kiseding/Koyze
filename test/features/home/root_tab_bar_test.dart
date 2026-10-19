@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -145,17 +147,25 @@ void main() {
     expect(tapped, 3);
   });
 
-  testWidgets('强调色只落在选中项，收起项仍是中性灰', (tester) async {
+  testWidgets('导航不沾强调色，选中只靠明度和字重', (tester) async {
     await pumpBar(tester, onTap: (_) {});
 
     final context = tester.element(find.byType(RootTabBar));
-    final accent = AppColors.accentOf(context);
+    final onSurface = AppColors.onScaffold(context);
     final idle = AppColors.secondaryText(context);
 
-    expect(tester.widget<Icon>(find.byIcon(Icons.home_rounded)).color, accent);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.home_rounded)).color,
+      onSurface,
+    );
     expect(
       tester.widget<Icon>(find.byIcon(Icons.leaderboard_outlined)).color,
       idle,
+    );
+    // 换主题色时这条栏不该跟着变，所以源码里不该出现 accentOf。
+    expect(
+      File('lib/core/widgets/root_tab_bar.dart').readAsStringSync(),
+      isNot(contains('accentOf')),
     );
   });
 

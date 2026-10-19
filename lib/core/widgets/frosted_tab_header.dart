@@ -69,21 +69,21 @@ class FrostedTabHeader extends StatelessWidget {
       return Stack(
         children: [
           // 标题和图标条需要一层底：列表滚上来时是从文字和图标背后穿过的，
-          // 没有这层渐隐，标题会和歌词/歌名糊在一起。整个 chrome 高度上都
-          // 保持实心，只在最后 28 像素里淡出——半透明会把封面上的亮色漏到
-          // 图标之间，看着像栏「脏了」。
+          // 没有这层渐隐，标题会和歌词/歌名糊在一起。整块 chrome 高度上保持
+          // 实心，只在最后一段淡出——半透明会把封面上的亮色漏到图标之间，
+          // 看着像栏「脏了」。
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: top + barHeight + 24,
+            height: top + barHeight + 28,
             child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    stops: const [0, 0.84, 1],
+                    stops: const [0, 0.82, 1],
                     colors: [
                       surface,
                       surface,

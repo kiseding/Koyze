@@ -185,15 +185,26 @@ class _RootTabBarState extends State<RootTabBar>
   @override
   Widget build(BuildContext context) {
     final scope = RootTabScope.maybeOf(context);
-    final accent = AppColors.accentOf(context);
     final isDark = AppColors.isDark(context);
+    final onSurface = AppColors.onScaffold(context);
     final idle = AppColors.secondaryText(context);
     const style = _kTextStyle;
 
-    // 胶囊底：强调色只用在这一小块上。导航是结构，但「你现在在哪」算关键
-    // 元素——这是整条栏里唯一带颜色的地方。
-    final pillFill = accent.withValues(alpha: isDark ? 0.20 : 0.13);
-    final pillEdge = accent.withValues(alpha: isDark ? 0.26 : 0.18);
+    // 药丸沿用原来的中性面：浅色纯白，深色一层薄白。导航是结构，不蘸
+    // 强调色——换主题时这条栏不该跟着变。
+    final pillFill = isDark ? const Color(0x28FFFFFF) : Colors.white;
+    final pillEdge = isDark
+        ? const Color(0x24FFFFFF)
+        : const Color(0x12000000);
+    final pillShadow = isDark
+        ? null
+        : const [
+            BoxShadow(
+              color: Color(0x12000000),
+              blurRadius: 6,
+              offset: Offset(0, 2),
+            ),
+          ];
 
     return SizedBox(
       height: widget.height,
@@ -211,10 +222,11 @@ class _RootTabBarState extends State<RootTabBar>
                   label: _labels[i],
                   textWidth: _textWidths[i],
                   selected: _to == i,
-                  accent: accent,
+                  onSurface: onSurface,
                   idle: idle,
                   pillFill: pillFill,
                   pillEdge: pillEdge,
+                  pillShadow: pillShadow,
                   style: style,
                   onTap: scope == null ? null : () => scope.onTap(i),
                 ),
@@ -232,10 +244,11 @@ class _RootTabBarState extends State<RootTabBar>
     required String label,
     required double textWidth,
     required bool selected,
-    required Color accent,
+    required Color onSurface,
     required Color idle,
     required Color pillFill,
     required Color pillEdge,
+    required List<BoxShadow>? pillShadow,
     required TextStyle style,
     required VoidCallback? onTap,
   }) {
@@ -260,7 +273,7 @@ class _RootTabBarState extends State<RootTabBar>
           borderRadius: BorderRadius.circular(widget.height / 2),
           child: Stack(
             children: [
-              // 胶囊底随展开淡入，收起时不留一个空壳。
+              // 药丸随展开淡入，收起时不留一个空壳。
               Positioned.fill(
                 child: Opacity(
                   opacity: fill,
@@ -269,6 +282,7 @@ class _RootTabBarState extends State<RootTabBar>
                       color: pillFill,
                       borderRadius: BorderRadius.circular(widget.height / 2),
                       border: Border.all(color: pillEdge, width: 0.8),
+                      boxShadow: pillShadow,
                     ),
                   ),
                 ),
@@ -300,7 +314,7 @@ class _RootTabBarState extends State<RootTabBar>
                         selected ? _iconsSelected[index] : _icons[index],
                         key: ValueKey<bool>(selected),
                         size: _kIconSize,
-                        color: Color.lerp(idle, accent, fill),
+                        color: Color.lerp(idle, onSurface, fill),
                       ),
                     ),
                   ),
@@ -323,7 +337,7 @@ class _RootTabBarState extends State<RootTabBar>
                         maxLines: 1,
                         softWrap: false,
                         overflow: TextOverflow.clip,
-                        style: style.copyWith(color: accent),
+                        style: style.copyWith(color: onSurface),
                       ),
                     ),
                   ),
