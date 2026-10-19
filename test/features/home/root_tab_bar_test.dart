@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:koyze/core/theme/app_colors.dart';
 import 'package:koyze/core/theme/app_theme.dart';
 import 'package:koyze/core/widgets/liquid_glass.dart';
 import 'package:koyze/core/widgets/root_tab_bar.dart';
@@ -14,6 +15,7 @@ void main() {
     WidgetTester tester, {
     required void Function(int) onTap,
     int selected = 0,
+    bool settle = true,
   }) async {
     tester.view.physicalSize = screen;
     tester.view.devicePixelRatio = 1.0;
@@ -36,7 +38,11 @@ void main() {
         ),
       ),
     );
-    await tester.pump();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
   }
 
   S stringsOf(WidgetTester tester) {
@@ -48,65 +54,115 @@ void main() {
     return <String>[s.home, s.charts, s.playlists, s.settings];
   }
 
-  testWidgets('四个栏目名并排，点击回调带正确索引', (tester) async {
+  Finder tabFinder(int index) => find.byKey(ValueKey<String>('root-tab-$index'));
+
+  Size tabSize(WidgetTester tester, int index) =>
+      tester.getSize(tabFinder(index));
+
+  /// 文字外面那层 Opacity 就是它的显隐。收起态是 0 而不是「不存在」——
+  /// 文字始终在树上，这样展开时才有得淡入，也不会在切 tab 时长出来。
+  double textOpacity(WidgetTester tester, String label) {
+    final finder = find.ancestor(
+      of: find.text(label),
+      matching: find.byType(Opacity),
+    );
+    return tester.widget<Opacity>(finder.first).opacity;
+  }
+
+  testWidgets('未选中只有图标，选中项才把名字显出来', (tester) async {
+    await pumpBar(tester, onTap: (_) {});
+
+    final labels = labelsOf(tester);
+    // 四个名字都在树上，但只有选中那个不透明。
+    expect(textOpacity(tester, labels[0]), 1);
+    for (final label in labels.skip(1)) {
+      expect(textOpacity(tester, label), 0, reason: label);
+    }
+
+    // 图标：选中是实心，其余是描边。
+    expect(find.byIcon(Icons.home_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.home_outlined), findsNothing);
+    expect(find.byIcon(Icons.leaderboard_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.leaderboard_rounded), findsNothing);
+  });
+
+  testWidgets('选中项向外展开，收起项只有图标那么宽', (tester) async {
+    await pumpBar(tester, onTap: (_) {});
+
+    final selected = tabSize(tester, 0);
+    final idle = tabSize(tester, 1);
+    expect(selected.width, greaterThan(idle.width + 20));
+    expect(selected.height, kRootTabBarHeight);
+    expect(idle.height, kRootTabBarHeight);
+
+    // 整条从左起排，和标题同一条轴线。
+    final barLeft = tester.getTopLeft(find.byType(RootTabBar)).dx;
+    expect(tester.getTopLeft(tabFinder(0)).dx, barLeft);
+  });
+
+  testWidgets('切换时一收一放走同一条时间线，中间态确实在动', (tester) async {
+    await pumpBar(tester, onTap: (_) {});
+    final openWidth = tabSize(tester, 0).width;
+    final idleWidth = tabSize(tester, 1).width;
+
+    await pumpBar(tester, onTap: (_) {}, selected: 1, settle: false);
+    // 起点仍在原处：动画刚起步。
+    expect(tabSize(tester, 0).width, closeTo(openWidth, 0.5));
+
+    await tester.pump(const Duration(milliseconds: 110));
+    final leaving = tabSize(tester, 0).width;
+    final arriving = tabSize(tester, 1).width;
+    // 两边都停在中间，而不是瞬切。
+    expect(leaving, lessThan(openWidth));
+    expect(leaving, greaterThan(idleWidth));
+    expect(arriving, greaterThan(idleWidth));
+
+    await tester.pumpAndSettle();
+    expect(tabSize(tester, 0).width, closeTo(idleWidth, 0.5));
+    expect(tabSize(tester, 1).width, greaterThan(idleWidth + 20));
+    expect(textOpacity(tester, labelsOf(tester)[1]), 1);
+    expect(textOpacity(tester, labelsOf(tester)[0]), 0);
+  });
+
+  testWidgets('四个图标加一个展开项不会撑破整条', (tester) async {
+    await pumpBar(tester, onTap: (_) {});
+
+    // 展开宽度由文字宽度决定，中英文都不该把整条撑到溢出。
+    final total = [
+      for (var i = 0; i < 4; i++) tabSize(tester, i).width,
+    ].fold<double>(0, (a, b) => a + b);
+    expect(total, lessThan(barWidth));
+  });
+
+  testWidgets('点击回调带正确索引，图标本身就是热区', (tester) async {
     var tapped = -1;
     await pumpBar(tester, onTap: (index) => tapped = index);
 
-    final labels = labelsOf(tester);
-    for (final label in labels) {
-      expect(find.text(label), findsOneWidget);
-    }
-
-    // 没有中间封面，也没有图标——分段控件只靠文字。
-    expect(find.byIcon(Icons.music_note_rounded), findsNothing);
-    expect(find.byIcon(Icons.home_rounded), findsNothing);
-
-    await tester.tap(find.text(labels[1]));
+    await tester.tap(find.byIcon(Icons.leaderboard_outlined));
     expect(tapped, 1);
 
-    await tester.tap(find.text(labels[3]));
+    await tester.tap(find.byIcon(Icons.settings_outlined));
     expect(tapped, 3);
   });
 
-  testWidgets('分段控件撑满宽度，高度是 kRootTabBarHeight', (tester) async {
+  testWidgets('强调色只落在选中项，收起项仍是中性灰', (tester) async {
     await pumpBar(tester, onTap: (_) {});
 
-    final bar = tester.getSize(find.byType(RootTabBar));
-    expect(bar.width, barWidth);
-    expect(bar.height, kRootTabBarHeight);
+    final context = tester.element(find.byType(RootTabBar));
+    final accent = AppColors.accentOf(context);
+    final idle = AppColors.secondaryText(context);
 
-    // 导航是结构件，不该再包一层毛玻璃。
+    expect(tester.widget<Icon>(find.byIcon(Icons.home_rounded)).color, accent);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.leaderboard_outlined)).color,
+      idle,
+    );
+  });
+
+  testWidgets('导航不再铺玻璃，也不再是分段轨道', (tester) async {
+    await pumpBar(tester, onTap: (_) {});
+
     expect(find.byType(LiquidGlassSurface), findsNothing);
-  });
-
-  testWidgets('四格等宽', (tester) async {
-    await pumpBar(tester, onTap: (_) {});
-
-    final labels = labelsOf(tester);
-    final centers = [
-      for (final label in labels) tester.getCenter(find.text(label)).dx,
-    ];
-
-    final gap1 = centers[1] - centers[0];
-    final gap2 = centers[2] - centers[1];
-    final gap3 = centers[3] - centers[2];
-    expect(gap1, greaterThan(80));
-    expect(gap2, closeTo(gap1, 0.5));
-    expect(gap3, closeTo(gap1, 0.5));
-  });
-
-  testWidgets('选中药丸停在被选中的那一格', (tester) async {
-    await pumpBar(tester, onTap: (_) {});
-    const segment = (barWidth - 6) / 4;
-
-    AnimatedPositioned pill() =>
-        tester.widget<AnimatedPositioned>(find.byType(AnimatedPositioned));
-
-    // 首格时药丸贴左边（轨道内边距 3 由 Padding 给出，left 从 0 起算）。
-    expect(pill().left, 0);
-
-    await pumpBar(tester, onTap: (_) {}, selected: 2);
-    expect(pill().left, closeTo(segment * 2, 0.01));
-    expect(pill().width, closeTo(segment, 0.01));
+    expect(tester.getSize(find.byType(RootTabBar)).height, kRootTabBarHeight);
   });
 }

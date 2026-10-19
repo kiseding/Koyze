@@ -142,9 +142,9 @@ void main() {
       File('lib/l10n/app_strings.dart').readAsStringSync(),
       contains("en ? 'Charts' : '榜单'"),
     );
-    // 选中态是四等分之间滑动的药丸 + 弹性曲线。
-    expect(source, contains('AnimatedPositioned'));
-    expect(source, contains('MotionCurve.iosSpring'));
+    // 选中态是向右展开的图标胶囊：实心图标切换 + 末尾过冲的弹性曲线。
+    expect(source, contains('AnimatedSwitcher'));
+    expect(source, contains('MotionCurve.emphasize'));
   });
 
   test('leaderboard renders list with settings entry and one-tap play', () {

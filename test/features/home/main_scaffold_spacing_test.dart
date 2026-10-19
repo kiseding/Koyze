@@ -20,7 +20,7 @@ void main() {
     expect(source, isNot(contains('_BottomNav')));
   });
 
-  test('顶部是「大标题 + 分段控件」两行，取代原来的标题栏', () {
+  test('顶部是「大标题 + 图标 tab」两行，取代原来的标题栏', () {
     final header = _read('lib/core/widgets/frosted_tab_header.dart');
     final tabs = _read('lib/core/widgets/root_tab_bar.dart');
     final shell = _read('lib/features/home/presentation/main_scaffold.dart');
@@ -37,12 +37,12 @@ void main() {
       ),
       isNot(contains('GradientAppBarBackground')),
     );
-    // 四个入口，药丸在四等分之间滑动，不再是一块玻璃胶囊。
+    // 四个入口：收起只留图标，选中项向右展开成胶囊。
     expect(tabs, contains('s.home'));
     expect(tabs, contains('s.charts'));
     expect(tabs, contains('s.playlists'));
     expect(tabs, contains('s.settings'));
-    expect(tabs, contains('AnimatedPositioned('));
+    expect(tabs, contains('MotionCurve.emphasize'));
     expect(tabs, isNot(contains('LiquidGlassSurface(')));
   });
 
