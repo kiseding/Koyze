@@ -324,6 +324,96 @@ class HomeHeroCardSettings extends ConsumerWidget {
   }
 }
 
+/// 大卡右侧抽样用的一首歌：歌本身 + 它在源歌单里的下标。
+///
+/// 下标必须留着——点某一首时要从这首歌开始播整张卡对应的队列，而不是
+/// 只播它一个。
+class HomeHeroSample {
+  const HomeHeroSample({required this.song, required this.index});
+
+  final MusicItem song;
+  final int index;
+}
+
+/// 当前卡片里随机抽 3 首，给大卡右侧那列用。
+///
+/// 之前右侧是空的，只剩一枚声波水印；一张 380×168 的色块里只放左上角
+/// 四行字，看着像没渲染完。抽三首真实的歌摆在右手，卡片就有了内容。
+///
+/// 按卡片 id 分槽并且 autoDispose：切到别的卡重新抽一批，但停在同一张
+/// 卡上时不会因为父级 rebuild 又换一茬——刚看清歌名就变掉比空着更糟。
+final homeHeroSamplesProvider = FutureProvider.autoDispose
+    .family<List<HomeHeroSample>, HomeHeroCardId>((ref, id) async {
+      final playlists = ref.watch(playlistsProvider);
+
+      switch (id) {
+        case HomeHeroCardId.favorites:
+        case HomeHeroCardId.local:
+        case HomeHeroCardId.recent:
+          final playlistId = switch (id) {
+            HomeHeroCardId.favorites => 'favorites',
+            HomeHeroCardId.local => 'local',
+            _ => 'recent',
+          };
+          final count =
+              playlists
+                  .where((playlist) => playlist.id == playlistId)
+                  .firstOrNull
+                  ?.songCount ??
+              0;
+          if (count == 0) return const <HomeHeroSample>[];
+          final offsets = _randomOffsets(count, 3);
+          final service = ref.read(playlistServiceProvider);
+          // 一页一首：歌单可能有几千首，拉整页再挑会把首页拖慢。
+          final pages = await Future.wait([
+            for (final offset in offsets)
+              service.getSongsPage(playlistId, offset: offset, limit: 1),
+          ]);
+          return <HomeHeroSample>[
+            for (var i = 0; i < offsets.length; i++)
+              if (pages[i].songs.isNotEmpty)
+                HomeHeroSample(song: pages[i].songs.first, index: offsets[i]),
+          ];
+        case HomeHeroCardId.recommend:
+          final songs =
+              ref
+                  .watch(recommendationProvider)
+                  .valueOrNull
+                  ?.map((item) => item.song)
+                  .toList() ??
+              const <MusicItem>[];
+          return _sampleFrom(songs);
+        case HomeHeroCardId.nas:
+          final songs =
+              ref.watch(subsonicLibrarySongsProvider).valueOrNull ??
+              const <MusicItem>[];
+          return _sampleFrom(songs);
+      }
+    });
+
+/// 从 0..count-1 里挑不重复的若干个下标，升序返回。
+List<int> _randomOffsets(int count, int wanted) {
+  final random = Random();
+  final picked = <int>{};
+  final total = min(count, wanted);
+  while (picked.length < total) {
+    picked.add(random.nextInt(count));
+  }
+  return picked.toList()..sort();
+}
+
+/// 已经在内存里的歌（推荐 / NAS）：洗牌取 3 首，再按下标升序摆回来。
+List<HomeHeroSample> _sampleFrom(List<MusicItem> songs) {
+  if (songs.isEmpty) return const <HomeHeroSample>[];
+  final indices = List<int>.generate(songs.length, (index) => index)
+    ..shuffle(Random());
+  final picked = indices.take(3).toList()..sort();
+  return [
+    for (final index in picked)
+      HomeHeroSample(song: songs[index], index: index),
+  ];
+}
+
 /// 首页那张大卡片：外观跟现在的收藏卡一致，内容随所选歌单卡切换。
 class HomeHeroCard extends ConsumerWidget {
   const HomeHeroCard({super.key, this.height = defaultHeight});
@@ -426,6 +516,15 @@ class HomeHeroCard extends ConsumerWidget {
             pathParameters: {'playlistId': 'favorites'},
           ),
           onPlay: () => _playFavorites(context, ref, playMode),
+          // 点右侧某一首：还是这张卡的队列，只是从那一首开始。
+          onPlayAt: (index) => _playPaged(
+            context,
+            ref,
+            'favorites',
+            count,
+            playMode,
+            startIndex: index,
+          ),
         );
       case HomeHeroCardId.recommend:
         final recommendations =
@@ -451,6 +550,13 @@ class HomeHeroCard extends ConsumerWidget {
             ref,
             recommendations.map((item) => item.song).toList(),
             playMode,
+          ),
+          onPlayAt: (index) => _playRecommend(
+            context,
+            ref,
+            recommendations.map((item) => item.song).toList(),
+            playMode,
+            index: index,
           ),
         );
       case HomeHeroCardId.local:
@@ -479,6 +585,14 @@ class HomeHeroCard extends ConsumerWidget {
             pathParameters: {'playlistId': 'local'},
           ),
           onPlay: () => _playPaged(context, ref, 'local', count, playMode),
+          onPlayAt: (index) => _playPaged(
+            context,
+            ref,
+            'local',
+            count,
+            playMode,
+            startIndex: index,
+          ),
         );
       case HomeHeroCardId.nas:
         final subsonicConnected = ref.watch(subsonicConnectedProvider);
@@ -514,6 +628,8 @@ class HomeHeroCard extends ConsumerWidget {
               ),
           onOpen: () => context.push('/subsonic'),
           onPlay: () => _playNas(context, ref, songs, playMode),
+          onPlayAt: (index) =>
+              _playNas(context, ref, songs, playMode, index: index),
         );
       case HomeHeroCardId.recent:
         final count =
@@ -539,6 +655,14 @@ class HomeHeroCard extends ConsumerWidget {
             pathParameters: {'playlistId': 'recent'},
           ),
           onPlay: () => _playPaged(context, ref, 'recent', count, playMode),
+          onPlayAt: (index) => _playPaged(
+            context,
+            ref,
+            'recent',
+            count,
+            playMode,
+            startIndex: index,
+          ),
         );
     }
   }
@@ -611,8 +735,11 @@ class HomeHeroCard extends ConsumerWidget {
     WidgetRef ref,
     String playlistId,
     int songCount,
-    HomeHeroPlayMode mode,
-  ) async {
+    HomeHeroPlayMode mode, {
+
+    /// 点右侧某一首时给进来：从这一首开始，不再按播放模式随机落点。
+    int? startIndex,
+  }) async {
     if (songCount <= 0) return;
     try {
       final playlistService = ref.read(playlistServiceProvider);
@@ -620,7 +747,7 @@ class HomeHeroCard extends ConsumerWidget {
       await _applyPlayMode(playerService, mode);
       await playerService.playPagedPlaylist(
         songCount: songCount,
-        startIndex: _startIndex(mode, songCount),
+        startIndex: startIndex ?? _startIndex(mode, songCount),
         playlistId: playlistId,
         manual: true,
         loadPage: (offset, limit) async {
@@ -645,17 +772,18 @@ class HomeHeroCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     List<MusicItem> songs,
-    HomeHeroPlayMode mode,
-  ) async {
+    HomeHeroPlayMode mode, {
+    int? index,
+  }) async {
     if (songs.isEmpty) return;
     try {
       final playerService = ref.read(playerServiceProvider);
       await _applyPlayMode(playerService, mode);
-      final index = _startIndex(mode, songs.length);
+      final start = index ?? _startIndex(mode, songs.length);
       await playerService.playPlaylist(
         songs,
-        index: index,
-        manualPlayName: songs[index].name,
+        index: start,
+        manualPlayName: songs[start].name,
       );
     } catch (error) {
       if (!context.mounted) return;
@@ -670,8 +798,9 @@ class HomeHeroCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     List<MusicItem> songs,
-    HomeHeroPlayMode mode,
-  ) async {
+    HomeHeroPlayMode mode, {
+    int? index,
+  }) async {
     try {
       var queue = songs;
       if (queue.isEmpty) {
@@ -686,11 +815,11 @@ class HomeHeroCard extends ConsumerWidget {
       }
       final playerService = ref.read(playerServiceProvider);
       await _applyPlayMode(playerService, mode);
-      final index = _startIndex(mode, queue.length);
+      final start = index ?? _startIndex(mode, queue.length);
       await playerService.playPlaylist(
         queue,
-        index: index,
-        manualPlayName: queue[index].name,
+        index: start,
+        manualPlayName: queue[start].name,
       );
     } catch (error) {
       if (!context.mounted) return;
@@ -702,7 +831,7 @@ class HomeHeroCard extends ConsumerWidget {
   }
 }
 
-class _HeroStage extends StatelessWidget {
+class _HeroStage extends ConsumerWidget {
   const _HeroStage({
     super.key,
     required this.spec,
@@ -719,12 +848,16 @@ class _HeroStage extends StatelessWidget {
   final Color onAccent;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final muted = onAccent.withValues(alpha: 0.74);
     final iconColor = spec.id == HomeHeroCardId.favorites
         ? const Color(0xFFFF8A8A)
         : onAccent;
     final deep = Color.lerp(color, Colors.black, 0.58)!;
+    // 抽样还没到（或这张卡是空的）就先不画——比画一个占位骨架安静。
+    final samples =
+        ref.watch(homeHeroSamplesProvider(spec.id)).valueOrNull ??
+        const <HomeHeroSample>[];
     return OrigoChromeSurface(
       borderRadius: BorderRadius.circular(26),
       accent: color,
@@ -747,6 +880,15 @@ class _HeroStage extends StatelessWidget {
           final pad = compact ? 16.0 : 20.0;
           final badge = compact ? 36.0 : (tall ? 46.0 : 42.0);
           final playSize = compact ? 42.0 : (tall ? 50.0 : 46.0);
+          // 右边这列只在真抽到歌、且卡够宽时出现：横屏窄档的 hero 只有
+          // 两百多点宽，硬塞两列会把歌名压成两个字。
+          //
+          // 宽度是量出来的：361 宽的竖屏卡，左边「徽标 42 + 间距 13 + 标题」
+          // 在英文下要 180 左右（"Recent plays" 20pt ≈ 125），再扣掉两边各 20
+          // 的内边距和 12 的列间距，只够给右手 130。给宽了标题会被挤成
+          // "Recent…"，卡片就没了主标题。
+          final showSamples = samples.isNotEmpty && constraints.maxWidth >= 300;
+          final sampleWidth = (constraints.maxWidth * 0.36).clamp(118.0, 150.0);
           return Stack(
             fit: StackFit.expand,
             children: [
@@ -841,16 +983,23 @@ class _HeroStage extends StatelessWidget {
                         letterSpacing: 1.4,
                       ),
                     );
-                    final titleText = Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: onAccent,
-                        fontSize: compact ? 17 : (tall ? 25 : 20),
-                        fontWeight: FontWeight.w800,
-                        height: 1.05,
-                        letterSpacing: -0.3,
+                    // 右手那列吃掉一百三十点宽度后，英文标题（"Recently
+                    // played"）在 20pt 下放不进剩下的位置了。scaleDown 让标题
+                    // 按需缩半档，而不是变成 "Recently p…"；中文四字标题
+                    // 本来就够宽，一点都不缩。
+                    final titleText = FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: onAccent,
+                          fontSize: compact ? 17 : (tall ? 25 : 20),
+                          fontWeight: FontWeight.w800,
+                          height: 1.05,
+                          letterSpacing: -0.3,
+                        ),
                       ),
                     );
                     final titleRow = Row(
@@ -958,7 +1107,11 @@ class _HeroStage extends StatelessWidget {
                             bottom: tall ? null : (compact ? -8 : -16),
                             child: Icon(
                               Icons.graphic_eq_rounded,
-                              size: compact ? 84 : tall ? 148 : 118,
+                              size: compact
+                                  ? 84
+                                  : tall
+                                  ? 148
+                                  : 118,
                               color: onAccent.withValues(alpha: 0.13),
                             ),
                           ),
@@ -1008,16 +1161,38 @@ class _HeroStage extends StatelessWidget {
                       // Poster: a tall stage keeps the top to the gradient and
                       // stacks badge, eyebrow and headline at the bottom the
                       // way a cover carries its caption.
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          badgeBox,
-                          const SizedBox(height: 14),
-                          if (!compact) ...[eyebrow, const SizedBox(height: 6)],
-                          titleText,
-                          const SizedBox(height: 16),
-                          metaRow,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                badgeBox,
+                                const SizedBox(height: 14),
+                                if (!compact) ...[
+                                  eyebrow,
+                                  const SizedBox(height: 6),
+                                ],
+                                titleText,
+                                const SizedBox(height: 16),
+                                metaRow,
+                              ],
+                            ),
+                          ),
+                          if (showSamples) ...[
+                            const SizedBox(width: 18),
+                            SizedBox(
+                              width: sampleWidth,
+                              child: _HeroSampleList(
+                                samples: samples,
+                                onPlayAt: model.onPlayAt,
+                                onAccent: onAccent,
+                                compact: false,
+                              ),
+                            ),
+                          ],
                         ],
                       );
                     }
@@ -1025,9 +1200,30 @@ class _HeroStage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Align(
-                            alignment: Alignment.topLeft,
-                            child: titleRow,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.topLeft,
+                                  child: titleRow,
+                                ),
+                              ),
+                              // 右手这列原本是整块空白，只剩背景渐变；压三首
+                              // 真实的歌进去，卡片才有内容可看、可点。
+                              if (showSamples) ...[
+                                const SizedBox(width: 12),
+                                SizedBox(
+                                  width: sampleWidth,
+                                  child: _HeroSampleList(
+                                    samples: samples,
+                                    onPlayAt: model.onPlayAt,
+                                    onAccent: onAccent,
+                                    compact: compact,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                         metaRow,
@@ -1044,6 +1240,90 @@ class _HeroStage extends StatelessWidget {
   }
 }
 
+/// 大卡右手那三首：像唱片背面的曲目表，一行一首，点一行就从那首开播。
+///
+/// 行高不写死，按父给的可用高度均分再夹在 18~24 之间——竖屏 168 的卡
+/// 分到 22 左右，横屏那种被拉高的 hero 也不会散成三段。
+class _HeroSampleList extends StatelessWidget {
+  const _HeroSampleList({
+    required this.samples,
+    required this.onPlayAt,
+    required this.onAccent,
+    required this.compact,
+  });
+
+  final List<HomeHeroSample> samples;
+  final ValueChanged<int> onPlayAt;
+  final Color onAccent;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        final gap = compact ? 2.0 : 5.0;
+        final available = box.hasBoundedHeight ? box.maxHeight : 84.0;
+        final rowHeight =
+            ((available - gap * (samples.length - 1)) / samples.length).clamp(
+              compact ? 18.0 : 20.0,
+              compact ? 24.0 : 26.0,
+            );
+        // 撑满父给的高度再居中：只有一两首时贴着顶边会和 kicker 挤在一起，
+        // 读成它属于那行小字。
+        return SizedBox(
+          height: available,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < samples.length; i++) ...[
+                if (i > 0) SizedBox(height: gap),
+                // Flexible：卡再矮也只会把行压薄，不会撑出 overflow 的黄条。
+                Flexible(child: _row(context, samples[i], rowHeight)),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _row(BuildContext context, HomeHeroSample sample, double height) {
+    return Pressable(
+      borderRadius: BorderRadius.circular(7),
+      semanticLabel: sample.song.name,
+      onTap: () => onPlayAt(sample.index),
+      child: SizedBox(
+        height: height,
+        child: Row(
+          children: [
+            Icon(
+              Icons.play_arrow_rounded,
+              size: compact ? 11 : 12,
+              color: onAccent.withValues(alpha: 0.50),
+            ),
+            const SizedBox(width: 3),
+            Expanded(
+              child: Text(
+                sample.song.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: onAccent.withValues(alpha: 0.86),
+                  fontSize: compact ? 10.5 : 11.5,
+                  fontWeight: FontWeight.w500,
+                  height: 1.1,
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _HeroModel {
   const _HeroModel({
     required this.color,
@@ -1054,6 +1334,7 @@ class _HeroModel {
     required this.actionLabel,
     required this.onOpen,
     required this.onPlay,
+    required this.onPlayAt,
     this.showCountInTitle = true,
   });
 
@@ -1066,4 +1347,7 @@ class _HeroModel {
   final String actionLabel;
   final VoidCallback onOpen;
   final VoidCallback onPlay;
+
+  /// 右侧抽出来的某一首：从它在源歌单里的下标开始播。
+  final ValueChanged<int> onPlayAt;
 }
