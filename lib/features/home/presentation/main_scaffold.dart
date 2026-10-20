@@ -877,6 +877,7 @@ class RootSideNav extends ConsumerWidget {
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = AppColors.isDark(context);
     final muted = isDark ? const Color(0xCCFFFFFF) : const Color(0xCC000000);
+    final actions = _tabActions(index, isSelected);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: _sideNavItemOuterPadding),
       child: SizedBox(
@@ -888,49 +889,68 @@ class RootSideNav extends ConsumerWidget {
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: _sideNavItemInnerPadding,
-            ),
-            child: Row(
-              children: [
-                Expanded(
+          // 热区要整块，不能只落在图标和文字那条线上。
+          //
+          // 原来 Pressable 直接包 Row，它的盒子只有内容高（约 23），而行高
+          // 是 46（紧凑档）或 54——上下各有一半是"看着在这一行里、点下去
+          // 没反应"。横屏侧栏本来就窄，这一个来回就是"tab 很难点"。
+          // 现在给 Pressable 一个等于行高的 SizedBox，并把内边距收进热区，
+          // 视觉位置一点没动，可点的却是整个高亮块。
+          child: Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: extent,
                   child: Pressable(
                     semanticLabel: label,
                     selected: isSelected,
                     onTap: () => onTap(index),
                     scale: 0.97,
                     borderRadius: BorderRadius.circular(14),
-                    child: Row(
-                      children: [
-                        AnimatedIconSwitch(
-                          icon: isSelected ? activeIcon : icon,
-                          keyValue: isSelected ? activeIcon : icon,
-                          size: 23,
-                          color: isSelected ? accent : muted,
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isSelected ? accent : muted,
-                              fontSize: 14.5,
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w600,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: _sideNavItemInnerPadding,
+                      ),
+                      child: Row(
+                        children: [
+                          AnimatedIconSwitch(
+                            icon: isSelected ? activeIcon : icon,
+                            keyValue: isSelected ? activeIcon : icon,
+                            size: 23,
+                            color: isSelected ? accent : muted,
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isSelected ? accent : muted,
+                                fontSize: 14.5,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                ..._tabActions(index, isSelected),
-              ],
-            ),
+              ),
+              // 动作按钮不进热区，但右侧那点内边距要自己补回来。
+              for (var i = 0; i < actions.length; i++)
+                Padding(
+                  padding: EdgeInsets.only(
+                    right: i == actions.length - 1
+                        ? _sideNavItemInnerPadding
+                        : 0,
+                  ),
+                  child: actions[i],
+                ),
+            ],
           ),
         ),
       ),
