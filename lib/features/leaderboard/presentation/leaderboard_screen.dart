@@ -31,10 +31,12 @@ const Map<String, String> kLeaderboardPlatformNames = {
 
 /// 每个平台段里挑出来当主卡的榜。
 ///
-/// 三个平台都有且只有这一个恰好的名字（酷我另有一个「抖音热歌榜」，所以
-/// 只能精确比对，不能用 contains）。它也是这一页唯一会被反复回访的榜，
-/// 其余的榜大多是一次性浏览，压成小卡就够。
-const String kHeroChartName = '热歌榜';
+/// 三个平台都有这三个榜，而且名字完全一致，所以只能精确比对：酷我另有
+/// 「抖音热歌榜」「网红新歌榜」「ACG新歌榜」，用 contains 会把它们也认成主卡。
+///
+/// 这三个也是这一页唯一会被反复回访的榜，其余大多是一次性浏览，压成小卡就够。
+/// 列表顺序即展示顺序，热歌榜固定第一行——它比另两个更常被点。
+const List<String> kHeroChartNames = ['热歌榜', '新歌榜', '飙升榜'];
 
 /// 榜单页：固定 QQ、酷我、网易云平台顺序，支持隐藏平台/榜单。
 class LeaderboardScreen extends ConsumerStatefulWidget {
@@ -222,6 +224,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
 
   static const double _rowGap = 14;
   static const double _heroRowHeight = 68;
+  static const double _heroGap = 8;
   static const double _chartRowHeight = 34;
 
   /// 窄屏两列、宽屏三列。辅卡只剩榜名，210 以上放长榜名才不用省略号。
@@ -275,11 +278,20 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (section.hero != null) ...[
-                          _buildHeroRow(context, section.hero!),
-                          const SizedBox(height: 10),
+                        // 三张主卡紧挨着排，只留 8pt：它们是同一组「这个平台的
+                        // 正榜」，拉太开就会被读成三张互不相干的卡。最后再补
+                        // 2pt，凑成 10pt 和下面的纯文字行拉开层级。
+                        for (final hero in section.heroes) ...[
+                          _buildHeroRow(context, hero),
+                          const SizedBox(height: _heroGap),
                         ],
-                        ..._buildChartRows(context, section.cards, columns),
+                        if (section.heroes.isNotEmpty) const SizedBox(height: 2),
+                        ..._buildChartRows(
+                          context,
+                          section.cards,
+                          columns,
+                          section.heroes.length + 1,
+                        ),
                       ],
                     ),
                   ),
@@ -296,12 +308,14 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 
-  /// 辅卡排成等宽列。编号按阅读顺序从左到右数，不是榜单名次——名次是
-  /// 详情页里那 100 首歌的事，这里只是「第几个」。
+  /// 辅卡排成等宽列。编号是「这一段里的第几个」，按阅读顺序从左到右数，
+  /// 不是榜单名次——名次是详情页里那 100 首歌的事。编号接着上面的主卡往下走
+  /// （三张主卡占 01..03），否则第一行辅卡又从 01 开始，会读成榜首。
   List<Widget> _buildChartRows(
     BuildContext context,
     List<LeaderboardCategory> cards,
     int columns,
+    int firstOrdinal,
   ) {
     final rows = <Widget>[];
     for (var i = 0; i < cards.length; i += columns) {
@@ -312,7 +326,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         cells.add(
           Expanded(
             child: index < cards.length
-                ? _buildChartCell(context, cards[index], index + 1)
+                ? _buildChartCell(context, cards[index], firstOrdinal + index)
                 : const SizedBox.shrink(),
           ),
         );
@@ -336,21 +350,25 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       // 只剩平台头也要留着这一段：某个平台的分类没拿到时，宁可显示一个空段，
       // 也不要让整个平台凭空消失——用户会以为设置里丢了他的榜单。
       if (cards.isNotEmpty || header != null) {
-        // 段里精确叫「热歌榜」的那个当主卡，其余保持用户排好的顺序。
-        // 用户把它隐藏了、或者平台以后改了名，hero 就是 null，这一段退回
-        // 纯列表——不要拿别的榜顶替，否则「最大的那张」含义就不成立了。
-        LeaderboardCategory? hero;
-        for (final card in cards) {
-          if (card.name == kHeroChartName) {
-            hero = card;
-            break;
+        // 段里精确叫「热歌榜 / 新歌榜 / 飙升榜」的三个当主卡，按
+        // kHeroChartNames 的顺序排，其余保持用户排好的顺序。
+        // 用户隐藏了某一个、或者平台以后改了名，就少那一行——不要拿别的榜
+        // 顶替，否则「段首这几张」的含义就不成立了。
+        final heroes = <LeaderboardCategory>[];
+        for (final name in kHeroChartNames) {
+          for (final card in cards) {
+            if (card.name == name) {
+              heroes.add(card);
+              break;
+            }
           }
         }
-        final rest = hero == null
-            ? cards
-            : cards.where((card) => card.id != hero!.id).toList(growable: false);
+        final heroIds = {for (final hero in heroes) hero.id};
+        final rest = cards
+            .where((card) => !heroIds.contains(card.id))
+            .toList(growable: false);
         sections.add(
-          _LeaderboardSection(header: header, hero: hero, cards: rest),
+          _LeaderboardSection(header: header, heroes: heroes, cards: rest),
         );
       }
       cards = <LeaderboardCategory>[];
@@ -415,8 +433,9 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 
-  /// 段首主行：热歌榜。它拿走了这一页唯一的一块平台色，所以其余榜
-  /// 退成纯文字——封面在三个平台之间没有统一风格，只有这一行需要露脸。
+  /// 段首主行：热歌榜 / 新歌榜 / 飙升榜各占一行。这三行拿走了整段唯一的
+  /// 平台色和封面，其余榜退成纯文字——封面在三个平台之间没有统一风格，
+  /// 铺得越多越像拼贴，只给这三行露脸刚好够用。
   Widget _buildHeroRow(BuildContext context, LeaderboardCategory category) {
     final platform = category.platform ?? 'other';
     final color = _platformColor(context, platform);
@@ -622,19 +641,20 @@ class _LeaderboardSection {
   const _LeaderboardSection({
     required this.header,
     required this.cards,
-    this.hero,
+    this.heroes = const <LeaderboardCategory>[],
   });
 
   final LeaderboardLayoutItem? header;
 
-  /// 段首主卡（热歌榜）。为 null 时这一段只有辅卡。
-  final LeaderboardCategory? hero;
+  /// 段首主卡（热歌榜 / 新歌榜 / 飙升榜），按 [kHeroChartNames] 的顺序，
+  /// 缺哪个就少一行。空列表时这一段只有辅卡。
+  final List<LeaderboardCategory> heroes;
 
-  /// 辅卡，已排除 [hero]。
+  /// 辅卡，已排除 [heroes]。
   final List<LeaderboardCategory> cards;
 
   /// 这一段实际展示的榜单总数，含主卡。
-  int get chartCount => cards.length + (hero == null ? 0 : 1);
+  int get chartCount => cards.length + heroes.length;
 
   /// 布局项的平台标识；`null` 段没有标题，不会吸顶。
   String? get platform => header?.platformId;
