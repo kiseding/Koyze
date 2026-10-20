@@ -75,6 +75,15 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     final contentRightInset = usesSideNavigation
         ? (trailingInset > 20 ? trailingInset : 20.0)
         : 0.0;
+    // 竖屏顶部有一根毛玻璃标题栏，它自己吃掉状态栏高度；横屏/桌面走侧栏时
+    // 那根栏不画，页面只按「没有标题栏」留十来点间距——于是右上角的搜索框
+    // 直接顶到状态栏下沿，读起来像内容压在了系统栏上。这里把状态栏安全区
+    // 补到壳层上，页面的间距就变成「状态栏下面再留一段」。
+    // 迷你播放条是另一个 Positioned 层，位置不受这段内边距影响。
+    final topInset = media.padding.top > media.viewPadding.top
+        ? media.padding.top
+        : media.viewPadding.top;
+    final contentTopInset = usesSideNavigation ? topInset : 0.0;
     // The side rail is outside this navigator, and the media size already
     // excludes it. Do not reserve the rail width a second time.
     const sideRailWidth = 0.0;
@@ -174,7 +183,10 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                   child: Transform.translate(
                     offset: Offset(0, -tabPush * eased),
                     child: Padding(
-                      padding: EdgeInsets.only(right: contentRightInset),
+                      padding: EdgeInsets.only(
+                        right: contentRightInset,
+                        top: contentTopInset,
+                      ),
                       child: chrome,
                     ),
                   ),
