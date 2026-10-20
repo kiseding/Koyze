@@ -873,7 +873,9 @@ class _HeroStage extends ConsumerWidget {
           final tall = constraints.maxHeight > 300;
           final pad = compact ? 16.0 : 20.0;
           final badge = compact ? 36.0 : (tall ? 46.0 : 42.0);
-          final playSize = compact ? 42.0 : (tall ? 50.0 : 46.0);
+          // 播放键与左上角的徽标同尺寸：同一张卡上出现两个体量接近的圆角块
+          // 会抢主体，等大之后它读成「卡片的第二枚图标」而不是独立按钮。
+          final playSize = badge;
           // 右边这列只在真抽到歌时出现。宽度是量出来的：361 宽的竖屏卡，
           // 左边「徽标 42 + 间距 13 + 标题」在英文下要 180 左右
           // （"Recent plays" 20pt ≈ 125），再扣掉两边各 20 的内边距和 12 的
@@ -1048,7 +1050,8 @@ class _HeroStage extends ConsumerWidget {
                         child: Icon(
                           model.actionIcon,
                           color: deep,
-                          size: compact ? 21 : 23,
+                          // 跟着圆钮缩：36 的钮配 17 的字重感才不挤。
+                          size: playSize * 0.46,
                         ),
                       ),
                     );
@@ -1223,7 +1226,7 @@ class _HeroSampleList extends StatelessWidget {
           children: [
             Icon(
               Icons.play_arrow_rounded,
-              size: compact ? 11 : 12,
+              size: compact ? 15 : 16,
               color: onAccent.withValues(alpha: 0.50),
             ),
             const SizedBox(width: 3),
@@ -1234,7 +1237,9 @@ class _HeroSampleList extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: onAccent.withValues(alpha: 0.86),
-                  fontSize: compact ? 21.0 : 23.0,
+                  // 比标题（20）小一档：右列是曲目列表，压过标题就成了
+                  // 第二主标题；再小回 11.5 又读不出歌名。
+                  fontSize: compact ? 15.5 : 17.0,
                   fontWeight: FontWeight.w500,
                   height: 1.1,
                   letterSpacing: -0.1,
