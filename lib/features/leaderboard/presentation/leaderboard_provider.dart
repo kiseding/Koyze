@@ -58,8 +58,13 @@ class LeaderboardCategoriesNotifier
       final builtIn = _ref.read(builtInSourcesProvider);
       final fresh = await builtIn.getAllLeaderboardCategories();
       if (!mounted) return;
-      state = AsyncValue.data(fresh);
-      await _persist(fresh);
+      // getAllLeaderboardCategories 把单个平台的超时或异常当成空列表吞掉
+      // （每个平台 12 秒）。如果拿回来的结果直接覆盖并落盘，一次网络抖动
+      // 就会把那个平台的榜单从缓存里抹掉——酷我 41 个榜曾经因此整段消失，
+      // 而且之后再启动永远只有另外两个平台。没拿到的平台沿用上一次的数据。
+      final merged = _keepPlatformsMissingFrom(fresh);
+      state = AsyncValue.data(merged);
+      await _persist(merged);
     } catch (error, stackTrace) {
       if (!mounted) return;
       if (state is! AsyncData) {
@@ -68,6 +73,23 @@ class LeaderboardCategoriesNotifier
     } finally {
       _refreshing = false;
     }
+  }
+
+  /// 这次没返回的平台，用上一次已经拿到的补回来。
+  List<LeaderboardCategory> _keepPlatformsMissingFrom(
+    List<LeaderboardCategory> fresh,
+  ) {
+    final previous = state.valueOrNull ?? const <LeaderboardCategory>[];
+    if (previous.isEmpty) return fresh;
+    if (fresh.isEmpty) return previous;
+    final freshPlatforms = <String?>{
+      for (final category in fresh) category.platform,
+    };
+    final missing = previous
+        .where((category) => !freshPlatforms.contains(category.platform))
+        .toList(growable: false);
+    if (missing.isEmpty) return fresh;
+    return [...fresh, ...missing];
   }
 
   /// 手动刷新入口（重试按钮 / 刷新按钮经 invalidate 重建也可）。

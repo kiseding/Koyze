@@ -480,19 +480,8 @@ class WySource extends MusicPlatform {
       LeaderboardCategory(id: 'wy:745956260', name: '韩语榜', platform: 'wy'),
       LeaderboardCategory(id: 'wy:60198', name: '美国Billboard榜', platform: 'wy'),
     ];
-    // 统一：榜单封面 = 榜内首曲 artwork
-    final results = await Future.wait(base.map((c) async {
-      try {
-        final songs = await getLeaderboardSongs(c.id, limit: 1);
-        final art = songs.isNotEmpty ? songs.first.artwork : null;
-        var cover = (art != null && art.isNotEmpty) ? art : null;
-        cover = cover == null ? null : _normalizeArtwork(cover);
-        return c.copyWith(coverUrl: cover);
-      } catch (_) {
-        return c;
-      }
-    }));
-    return results;
+    // 同 tx：分类只返回静态列表，封面交给消费方按需取。
+    return base;
   }
 
   @override

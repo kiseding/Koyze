@@ -29,6 +29,13 @@ const Map<String, String> kLeaderboardPlatformNames = {
   'wy': '网易云',
 };
 
+/// 每个平台段里挑出来当主卡的榜。
+///
+/// 三个平台都有且只有这一个恰好的名字（酷我另有一个「抖音热歌榜」，所以
+/// 只能精确比对，不能用 contains）。它也是这一页唯一会被反复回访的榜，
+/// 其余的榜大多是一次性浏览，压成小卡就够。
+const String kHeroChartName = '热歌榜';
+
 /// 榜单页：固定 QQ、酷我、网易云平台顺序，支持隐藏平台/榜单。
 class LeaderboardScreen extends ConsumerStatefulWidget {
   const LeaderboardScreen({super.key});
@@ -38,6 +45,22 @@ class LeaderboardScreen extends ConsumerStatefulWidget {
 }
 
 class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
+  bool _layoutScheduled = false;
+
+  /// 默认布局要等当前帧建完才能生成：它内部会写 provider 状态，在 build
+  /// 期间写会被 Riverpod 拦下来（清数据后首次进入必现红屏）。
+  void _scheduleDefaultLayout(List<LeaderboardCategory> categories) {
+    if (_layoutScheduled) return;
+    _layoutScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _layoutScheduled = false;
+      if (!mounted) return;
+      ref
+          .read(leaderboardLayoutProvider.notifier)
+          .ensureDefaultLayout(categories);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(leaderboardCategoriesProvider);
@@ -117,11 +140,27 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                               ),
                             );
                           }
-                          // 首次加载生成默认布局。
-                          ref
-                              .read(leaderboardLayoutProvider.notifier)
-                              .ensureDefaultLayout(categories);
+                          // 首次进入时还没有本地布局。生成默认布局会改 provider
+                          // 状态，不能在 build 期间做——清空数据后第一次打开这
+                          // 一页，Riverpod 会抛「Tried to modify a provider
+                          // while the widget tree was building」并整页红屏。
+                          // 放到这一帧结束之后再生成，当前帧先显示加载态。
                           final layout = ref.watch(leaderboardLayoutProvider);
+                          if (layout.isEmpty) {
+                            _scheduleDefaultLayout(categories);
+                            return Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: AppLoadingIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppColors.accentOf(context),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
                           final visible = <LeaderboardLayoutItem>[];
                           for (final item in layout) {
                             if (!item.hidden) visible.add(item);
@@ -177,24 +216,16 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 
-  static const double _cardGap = 10;
-  static const double _cardMaxSize = 200;
-  static const int _minColumns = 2;
-
-  /// 平台标题条：34 是内容高度，后面 12 是渐隐，卡片从它下面穿过去。
+  /// 平台标题条：34 是内容高度，后面 12 是渐隐，内容从它下面穿过去。
   static const double _headerExtent = 46;
   static const double _headerContentExtent = 34;
 
-  static int _columnsFor(double contentWidth) {
-    final available = max(0.0, contentWidth - 24);
-    var columns = _minColumns;
-    while (columns < 8) {
-      final size = (available - _cardGap * (columns - 1)) / columns;
-      if (size <= _cardMaxSize) return columns;
-      columns += 1;
-    }
-    return columns;
-  }
+  static const double _rowGap = 14;
+  static const double _heroRowHeight = 68;
+  static const double _chartRowHeight = 34;
+
+  /// 窄屏两列、宽屏三列。辅卡只剩榜名，210 以上放长榜名才不用省略号。
+  static int _columnsFor(double contentWidth) => contentWidth >= 520 ? 3 : 2;
 
   Widget _buildLeaderboardList(
     BuildContext context,
@@ -207,7 +238,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     final sections = _groupByPlatform(visible, categoryByKey);
     final background = Theme.of(context).scaffoldBackgroundColor;
     // 视口从磨砂顶栏下面开始：吸顶的平台标题才不会被顶栏盖住。代价是
-    // 卡片不再从顶栏底下钻过去，但这一页有吸顶条，留白换结构更划算。
+    // 内容不再从顶栏底下钻过去，但这一页有吸顶条，留白换结构更划算。
     // 横屏没有顶栏，但要躲开状态栏，否则吸顶条会压在电量图标上。
     final topInset = isLandscapeShell
         ? 12 + MediaQuery.paddingOf(context).top
@@ -237,18 +268,19 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                     child: SizedBox(height: isLandscapeShell ? 12 : 8),
                   ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
-                  sliver: SliverGrid(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      mainAxisSpacing: _cardGap,
-                      crossAxisSpacing: _cardGap,
-                      childAspectRatio: 3 / 2,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) =>
-                          _buildLeaderboardCard(context, section.cards[index]),
-                      childCount: section.cards.length,
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+                  // 整段一次建完：辅卡只剩编号和榜名，40 个榜也就是几十行文本，
+                  // 懒加载省下来的那点开销还不够两层 sliver 的复杂度。
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (section.hero != null) ...[
+                          _buildHeroRow(context, section.hero!),
+                          const SizedBox(height: 10),
+                        ],
+                        ..._buildChartRows(context, section.cards, columns),
+                      ],
                     ),
                   ),
                 ),
@@ -264,6 +296,32 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 
+  /// 辅卡排成等宽列。编号按阅读顺序从左到右数，不是榜单名次——名次是
+  /// 详情页里那 100 首歌的事，这里只是「第几个」。
+  List<Widget> _buildChartRows(
+    BuildContext context,
+    List<LeaderboardCategory> cards,
+    int columns,
+  ) {
+    final rows = <Widget>[];
+    for (var i = 0; i < cards.length; i += columns) {
+      final cells = <Widget>[];
+      for (var column = 0; column < columns; column++) {
+        if (column > 0) cells.add(const SizedBox(width: _rowGap));
+        final index = i + column;
+        cells.add(
+          Expanded(
+            child: index < cards.length
+                ? _buildChartCell(context, cards[index], index + 1)
+                : const SizedBox.shrink(),
+          ),
+        );
+      }
+      rows.add(Row(children: cells));
+    }
+    return rows;
+  }
+
   /// 按平台切段：平台标题卡出一个新段，段内是这一平台的全部榜单。
   /// 段头可能为 null（第一个榜单之前没有平台标题），此时不吸顶。
   List<_LeaderboardSection> _groupByPlatform(
@@ -275,8 +333,25 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     var cards = <LeaderboardCategory>[];
 
     void flush() {
-      if (cards.isNotEmpty) {
-        sections.add(_LeaderboardSection(header: header, cards: cards));
+      // 只剩平台头也要留着这一段：某个平台的分类没拿到时，宁可显示一个空段，
+      // 也不要让整个平台凭空消失——用户会以为设置里丢了他的榜单。
+      if (cards.isNotEmpty || header != null) {
+        // 段里精确叫「热歌榜」的那个当主卡，其余保持用户排好的顺序。
+        // 用户把它隐藏了、或者平台以后改了名，hero 就是 null，这一段退回
+        // 纯列表——不要拿别的榜顶替，否则「最大的那张」含义就不成立了。
+        LeaderboardCategory? hero;
+        for (final card in cards) {
+          if (card.name == kHeroChartName) {
+            hero = card;
+            break;
+          }
+        }
+        final rest = hero == null
+            ? cards
+            : cards.where((card) => card.id != hero!.id).toList(growable: false);
+        sections.add(
+          _LeaderboardSection(header: header, hero: hero, cards: rest),
+        );
       }
       cards = <LeaderboardCategory>[];
       header = null;
@@ -306,125 +381,198 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     final color = _platformColor(context, platform);
     return Row(
       children: [
+        // 段头只留一个色点：平台色是这一页唯一的颜色来源，方块加图标
+        // 会和下面的热歌榜行抢注意力。
         Container(
-          width: 20,
-          height: 20,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(7),
-          ),
-          child: Icon(_platformIcon(platform), color: color, size: 13),
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 8),
         Text(
           name,
           style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.1,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
             color: AppColors.onScaffold(context),
           ),
         ),
         const Spacer(),
-        Text(
-          S.of(context).chartCount(section.cards.length),
-          style: TextStyle(fontSize: 11, color: AppColors.mutedText(context)),
-        ),
+        if (section.chartCount > 0)
+          Text(
+            S.of(context).chartCount(section.chartCount),
+            style: TextStyle(fontSize: 11, color: AppColors.mutedText(context)),
+          ),
       ],
     );
   }
 
-  IconData _platformIcon(String platform) {
-    switch (platform) {
-      case 'tx':
-        return Icons.music_note_rounded;
-      case 'kw':
-        return Icons.graphic_eq_rounded;
-      case 'wy':
-        return Icons.album_rounded;
-      default:
-        return Icons.library_music_rounded;
-    }
+  void _openCategory(BuildContext context, LeaderboardCategory category) {
+    context.push(
+      '/leaderboard/detail?id=${Uri.encodeComponent(category.id)}'
+      '&name=${Uri.encodeComponent(category.name)}',
+    );
   }
 
-  Widget _buildLeaderboardCard(
+  /// 段首主行：热歌榜。它拿走了这一页唯一的一块平台色，所以其余榜
+  /// 退成纯文字——封面在三个平台之间没有统一风格，只有这一行需要露脸。
+  Widget _buildHeroRow(BuildContext context, LeaderboardCategory category) {
+    final platform = category.platform ?? 'other';
+    final color = _platformColor(context, platform);
+    final isDark = AppColors.isDark(context);
+    // 首歌数来自已有的 provider：加载完就有，没加载完就不显示，
+    // 不拿「每日更新」这种编出来的文案占位。
+    final songs = ref
+        .watch(leaderboardSongsProvider(category.id))
+        .valueOrNull;
+    final songCount = songs?.length;
+    // 分类接口不再逐榜拉封面，主行封面直接取榜单首曲的封面。
+    final cover = category.coverUrl ??
+        (songs != null && songs.isNotEmpty ? songs.first.artwork : null);
+    return Pressable(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => _openCategory(context, category),
+      child: Container(
+        height: _heroRowHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: isDark ? 0.20 : 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: color.withValues(alpha: isDark ? 0.36 : 0.18),
+            width: 0.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox.square(
+                dimension: 52,
+                child: cover != null && cover.isNotEmpty
+                    ? ArtworkImage(
+                        cover,
+                        cacheWidth: 160,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
+                          platform: platform,
+                          name: category.name,
+                          iconSize: 22,
+                        ),
+                      )
+                    : _LeaderboardPlaceholder(
+                        platform: platform,
+                        name: category.name,
+                        iconSize: 22,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    category.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                      height: 1.2,
+                      color: AppColors.onScaffold(context),
+                    ),
+                  ),
+                  if (songCount != null && songCount > 0) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      // 平台名上面段头已经写了，这里只补歌数。
+                      S.of(context).songCount(songCount),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.mutedText(context),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _LeaderboardPlayButton(
+              category: category,
+              diameter: 34,
+              onPressed: () => _playLeaderboard(ref, category),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 辅卡：一整行只有编号和榜名。封面缩到这个尺寸以后既认不出内容，
+  /// 又要为每张图留 10pt 内边距，不如干脆不要。
+  Widget _buildChartCell(
     BuildContext context,
     LeaderboardCategory category,
+    int ordinal,
   ) {
-    final cover = category.coverUrl;
     final platform = category.platform ?? 'other';
-    const radius = 16.0;
+    final color = _platformColor(context, platform);
+    final divider = AppColors.onScaffold(context).withValues(alpha: 0.07);
     return Pressable(
-      borderRadius: BorderRadius.circular(radius),
-      captureExpandRect: true,
-      onTap: () {
-        context.push(
-          '/leaderboard/detail?id=${Uri.encodeComponent(category.id)}'
-          '&name=${Uri.encodeComponent(category.name)}',
-        );
-      },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: Stack(
-          fit: StackFit.expand,
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => _openCategory(context, category),
+      child: Container(
+        height: _chartRowHeight,
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: divider, width: 0.5)),
+        ),
+        child: Row(
           children: [
-            cover != null && cover.isNotEmpty
-                ? ArtworkImage(
-                    cover,
-                    cacheWidth: 400,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
-                      platform: platform,
-                      name: category.name,
-                    ),
-                  )
-                : _LeaderboardPlaceholder(
-                    platform: platform,
-                    name: category.name,
-                  ),
-            // 只在底部压一层：标题挪到图下以后，上半张封面不再需要压暗，
-            // 于是不再出现「顶部灰带 + 中间亮 + 底部再暗」的三段横缝。
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x00000000),
-                    Color(0x00000000),
-                    Color(0x8A000000),
-                    Color(0xD9000000),
-                  ],
-                  stops: [0.0, 0.46, 0.76, 1.0],
+            SizedBox(
+              width: 18,
+              child: Text(
+                ordinal.toString().padLeft(2, '0'),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  height: 1.1,
+                  color: AppColors.mutedText(context),
+                  // 等宽数字，两列的编号才对得齐。
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ),
-            Positioned(
-              left: 10,
-              right: 54,
-              bottom: 11,
+            const SizedBox(width: 6),
+            Expanded(
               child: Text(
                 category.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.1,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
                   height: 1.2,
-                  shadows: [Shadow(color: Color(0x59000000), blurRadius: 6)],
+                  color: AppColors.onScaffold(context),
                 ),
               ),
             ),
-            Positioned(
-              right: 8,
-              bottom: 8,
-              child: _LeaderboardPlayButton(
-                category: category,
-                onPressed: () => _playLeaderboard(ref, category),
-              ),
-            ),
+            if (ref.watch(
+              currentMusicProvider.select((music) {
+                if (music == null) return false;
+                return ref.read(playerServiceProvider).nowPlayingLeaderboardId ==
+                    category.id;
+              }),
+            ))
+              Icon(Icons.graphic_eq_rounded, size: 13, color: color),
+            // 最长的榜名（香港电台中文歌曲龙虎榜）会顶到列边界，留一点气口。
+            const SizedBox(width: 6),
           ],
         ),
       ),
@@ -469,12 +617,24 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   }
 }
 
-/// 一个平台段：平台标题（可能为 null）+ 该平台下的全部榜单。
+/// 一个平台段：平台标题（可能为 null）+ 该平台的主卡 + 其余榜单的辅卡。
 class _LeaderboardSection {
-  const _LeaderboardSection({required this.header, required this.cards});
+  const _LeaderboardSection({
+    required this.header,
+    required this.cards,
+    this.hero,
+  });
 
   final LeaderboardLayoutItem? header;
+
+  /// 段首主卡（热歌榜）。为 null 时这一段只有辅卡。
+  final LeaderboardCategory? hero;
+
+  /// 辅卡，已排除 [hero]。
   final List<LeaderboardCategory> cards;
+
+  /// 这一段实际展示的榜单总数，含主卡。
+  int get chartCount => cards.length + (hero == null ? 0 : 1);
 
   /// 布局项的平台标识；`null` 段没有标题，不会吸顶。
   String? get platform => header?.platformId;
@@ -555,8 +715,13 @@ class _PlatformHeaderDelegate extends SliverPersistentHeaderDelegate {
 class _LeaderboardPlaceholder extends StatelessWidget {
   final String platform;
   final String name;
+  final double iconSize;
 
-  const _LeaderboardPlaceholder({required this.platform, required this.name});
+  const _LeaderboardPlaceholder({
+    required this.platform,
+    required this.name,
+    this.iconSize = 48,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -584,7 +749,7 @@ class _LeaderboardPlaceholder extends StatelessWidget {
         child: Icon(
           Icons.leaderboard,
           color: Colors.white.withAlpha(220),
-          size: 48,
+          size: iconSize,
         ),
       ),
     );
@@ -662,10 +827,14 @@ class _LeaderboardPlayButton extends ConsumerWidget {
   const _LeaderboardPlayButton({
     required this.category,
     required this.onPressed,
+    this.diameter = 40,
   });
 
   final LeaderboardCategory category;
   final VoidCallback onPressed;
+
+  /// 主卡上放大到 52，让「播这个榜」成为那一屏最明确的操作。
+  final double diameter;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -684,7 +853,6 @@ class _LeaderboardPlayButton extends ConsumerWidget {
     final iconColor = isNowPlaying
         ? Colors.white
         : (isDark ? AppColors.textPrimary : AppColors.lightText);
-    const diameter = 40.0;
     return DecoratedBox(
       decoration: const BoxDecoration(
         shape: BoxShape.circle,
@@ -722,14 +890,18 @@ class _LeaderboardPlayButton extends ConsumerWidget {
               backgroundColor: Colors.transparent,
               onPressed: onPressed,
               icon: isNowPlaying
-                  ? const _NowPlayingSpin(
+                  ? _NowPlayingSpin(
                       child: Icon(
                         Icons.music_note,
                         color: Colors.white,
-                        size: 26,
+                        size: diameter * 0.65,
                       ),
                     )
-                  : Icon(Icons.play_arrow_rounded, color: iconColor, size: 29),
+                  : Icon(
+                      Icons.play_arrow_rounded,
+                      color: iconColor,
+                      size: diameter * 0.72,
+                    ),
             ),
           ],
         ),

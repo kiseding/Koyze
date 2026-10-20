@@ -442,18 +442,9 @@ class TxSource extends MusicPlatform {
       LeaderboardCategory(id: 'tx:3', name: '欧美榜', platform: 'tx'),
       LeaderboardCategory(id: 'tx:16', name: '韩国榜', platform: 'tx'),
     ];
-    // 用榜单首曲封面作为榜单封面
-    final results = await Future.wait(base.map((c) async {
-      try {
-        final songs = await getLeaderboardSongs(c.id, limit: 1);
-        final cover = songs.isNotEmpty ? songs.first.artwork : null;
-        return c.copyWith(
-            coverUrl: (cover != null && cover.isNotEmpty) ? cover : null);
-      } catch (_) {
-        return c;
-      }
-    }));
-    return results;
+    // 分类接口只返回静态分类：为 8 个榜各拉一次歌曲只为了拿一张封面，
+    // 首屏要多等 8 个请求，封面由消费方按需取（榜单页用热歌榜首曲）。
+    return base;
   }
 
   @override

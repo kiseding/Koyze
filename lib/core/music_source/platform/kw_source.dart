@@ -606,19 +606,11 @@ class KwSource extends MusicPlatform {
       LeaderboardCategory(id: 'kw:8', name: '香港电台中文歌曲龙虎榜', platform: 'kw'),
     ];
 
-    // 统一：榜单封面 = 榜内首曲 artwork
-    // 并发池限制：41 个榜单全部并发会打请求风暴，改为最多 6 路并发
-    return _withConcurrency(fallback, 6, (c) async {
-      try {
-        final songs = await getLeaderboardSongs(c.id, limit: 1);
-        final art = songs.isNotEmpty ? songs.first.artwork : null;
-        return c.copyWith(
-          coverUrl: (art != null && art.isNotEmpty) ? art : null,
-        );
-      } catch (_) {
-        return c;
-      }
-    });
+    // 只返回静态分类，不再为每个榜拉首曲取封面。
+    // 41 个榜 × 6 路并发 = 至少 7 轮请求，而调用方（榜单页）给整个平台的
+    // 超时只有 12 秒，几乎必然超时被当成空列表——酷我整段榜单由此消失，
+    // 残缺结果还会覆盖缓存。封面改由消费方按需取（榜单页用热歌榜首曲）。
+    return fallback;
   }
 
   @override
@@ -715,28 +707,4 @@ class KwSource extends MusicPlatform {
     closeReusedServiceClients();
   }
 
-  /// 以固定的最大并发数处理一个列表，保持返回顺序与输入一致。
-  static Future<List<T>> _withConcurrency<T>(
-    List<T> items,
-    int concurrency,
-    Future<T> Function(T item) task,
-  ) async {
-    if (items.isEmpty) return items;
-    final results = List<T?>.filled(items.length, null, growable: false);
-    var nextIndex = 0;
-    Future<void> worker() async {
-      while (true) {
-        final index = nextIndex++;
-        if (index >= items.length) return;
-        results[index] = await task(items[index]);
-      }
-    }
-
-    final workers = List.generate(
-      concurrency.clamp(1, items.length),
-      (_) => worker(),
-    );
-    await Future.wait(workers);
-    return results.cast<T>();
-  }
 }
