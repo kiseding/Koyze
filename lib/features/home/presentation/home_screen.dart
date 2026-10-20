@@ -611,8 +611,11 @@ class _QuickEntryCard extends ConsumerWidget {
     // 就是卡片的内容区高度——内容区正好等于图标，所以"把图标放大"和"把留白
     // 压小"是同一件事。常规卡 68 高配 52 图标，留白 8（原来 34/17）；横屏
     // 紧凑档 52 高配 40 图标，留白 6。
-    final height = tileHeight ?? (dense ? 52.0 : 68.0);
-    final iconExtent = dense ? 40.0 : 52.0;
+    // 卡高与图标一起收一档：68/52 的时候八张卡把竖屏这半屏塞得很满，
+    // 图标又几乎顶到卡边，读起来是一排实心方块。62/46、横屏 48/36 之后
+    // 留白仍是 8 和 6（(62-46)/2、(48-36)/2），节奏没变，只是整体轻了一点。
+    final height = tileHeight ?? (dense ? 48.0 : 62.0);
+    final iconExtent = dense ? 36.0 : 46.0;
     final inset = (height - iconExtent) / 2;
     return SizedBox(
       height: height,

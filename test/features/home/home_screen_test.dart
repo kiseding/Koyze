@@ -184,14 +184,18 @@ void main() {
 
     // 图标在卡内垂直居中，上下留白 = (高 - 图标) / 2；四边沿用同一个值，
     // 否则图标看起来是"贴左"而不是"居中于卡"。
-    expect(card, contains('final height = tileHeight ?? (dense ? 52.0 : 68.0);'));
-    expect(card, contains('final iconExtent = dense ? 40.0 : 52.0;'));
+    expect(
+      card,
+      contains('final height = tileHeight ?? (dense ? 48.0 : 62.0);'),
+    );
+    expect(card, contains('final iconExtent = dense ? 36.0 : 46.0;'));
     expect(card, contains('final inset = (height - iconExtent) / 2;'));
     expect(card, contains('padding: EdgeInsets.all(inset)'));
     expect(card, isNot(contains('EdgeInsets.fromLTRB(11,')));
 
-    // 卡高 68 上图标取 52，内容区正好等于图标，留白落到 8——原先图标 34、
-    // 四边各 17，看着像一排空盒子。留白再涨回去就等于把这条又改回去了。
-    expect((68.0 - 52.0) / 2, 8.0);
+    // 卡高收到 62、图标收到 46，留白仍是 8；(48-36)/2 也是 6，横屏同节奏。
+    // 再涨回去就等于把"一排太满"这条又改回来了。
+    expect((62.0 - 46.0) / 2, 8.0);
+    expect((48.0 - 36.0) / 2, 6.0);
   });
 }

@@ -1183,7 +1183,11 @@ class _HeroSampleList extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        final gap = compact ? 2.0 : 5.0;
+        // 三首之间要能点开。列高是固定的，gap 变大时行高会同比例变小，
+        // 所以行距 = 28 + gap/3，只有 g/3 的收益——2/5 的时候两行字读成
+        // 一整段，手指也常按到隔壁那首；推到 8/12 已经是行高能守住的极限
+        // （再大行高就压到字以下，字会被裁）。
+        final gap = compact ? 8.0 : 12.0;
         final available = box.hasBoundedHeight ? box.maxHeight : 84.0;
         final rowHeight =
             ((available - gap * (samples.length - 1)) / samples.length).clamp(
