@@ -14,9 +14,11 @@ void main() {
 
     expect(button, contains('CardPlayButton('));
     expect(button, contains('size: diameter'));
-    // 按钮直径 40：卡片高度只有 ~113，54 的圆会盖掉近一半封面。
-    expect(button, contains('const diameter = 40.0'));
+    // 直径是一个参数：主卡行高 68，用 34；默认 40。原来是写死的局部 const，
+    // 结果辅卡和主卡只能共用一个尺寸。
+    expect(button, contains('this.diameter = 40'));
     expect(button, contains('onPressed: onPressed'));
+    expect(source, contains('diameter: 34'));
 
     expect(source, contains('leaderboardId: category.id'));
     expect(
