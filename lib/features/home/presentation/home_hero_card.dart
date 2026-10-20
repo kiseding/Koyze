@@ -1172,17 +1172,12 @@ class _HeroSampleList extends StatelessWidget {
     required this.onPlayAt,
     required this.onAccent,
     required this.compact,
-    this.maxRowHeight,
   });
 
   final List<HomeHeroSample> samples;
   final ValueChanged<int> onPlayAt;
   final Color onAccent;
   final bool compact;
-
-  /// 整行铺在标题下面时（横屏窄卡）能有更大的行距，曲目表才铺得开；
-  /// 塞在标题右边时高度本来就紧，用默认值。
-  final double? maxRowHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -1193,7 +1188,7 @@ class _HeroSampleList extends StatelessWidget {
         final rowHeight =
             ((available - gap * (samples.length - 1)) / samples.length).clamp(
               compact ? 18.0 : 20.0,
-              maxRowHeight ?? (compact ? 24.0 : 26.0),
+              compact ? 24.0 : 26.0,
             );
         // 撑满父给的高度再居中：只有一两首时贴着顶边会和 kicker 挤在一起，
         // 读成它属于那行小字。
