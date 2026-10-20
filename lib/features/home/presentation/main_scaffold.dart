@@ -357,6 +357,9 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _dx = 0;
       _transitionTargetIndex = null;
     });
+    // 先把 tab 条钉到目标，再撤掉进度：两步在同一帧里完成，胶囊不会先弹
+    // 回旧 tab、再从 0 重播一遍展开动画（那正是"切完又跳一下"的来源）。
+    rootBranchSettle.value = target;
     rootBranchDrag.value = 0;
     rootBranchDragTarget.value = null;
     widget.onSelect(target);
@@ -397,6 +400,9 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _dx = 0;
       _transitionTargetIndex = null;
     });
+    // 先把 tab 条钉到目标，再撤掉进度：两步在同一帧里完成，胶囊不会先弹
+    // 回旧 tab、再从 0 重播一遍展开动画（那正是"切完又跳一下"的来源）。
+    rootBranchSettle.value = target;
     rootBranchDrag.value = 0;
     rootBranchDragTarget.value = null;
     widget.onSelect(target);

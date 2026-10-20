@@ -30,6 +30,14 @@ final rootBranchDrag = ValueNotifier<double>(0);
 /// 在「起点 → 目标」之间过渡，而不是先冒出中间那颗再跳过去。
 final rootBranchDragTarget = ValueNotifier<int?>(null);
 
+/// 一次切换「落定」时的目标 tab。
+///
+/// 位移动画（手势滑入或点击跳页）结束、页面已经到位时写入，tab 条据此把
+/// 选中态直接钉到目标上。没有这一步的话：拖动进度归零时 `_to` 还停在旧
+/// tab（要等路由真的切过去才更新），胶囊会先弹回旧 tab，再从头播一遍展开
+/// 动画——看起来就是切完之后又「跳」了一下。
+final rootBranchSettle = ValueNotifier<int?>(null);
+
 /// 把根 tab 的选中态与切换回调传给页面顶部的 tab 条。
 class RootTabScope extends InheritedWidget {
   const RootTabScope({
@@ -125,6 +133,12 @@ class _RootTabBarState extends State<RootTabBar>
   List<double> _textWidths = const [0, 0, 0, 0];
 
   @override
+  void initState() {
+    super.initState();
+    rootBranchSettle.addListener(_commitSettle);
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
@@ -162,8 +176,25 @@ class _RootTabBarState extends State<RootTabBar>
 
   @override
   void dispose() {
+    rootBranchSettle.removeListener(_commitSettle);
     _controller.dispose();
     super.dispose();
+  }
+
+  /// 位移已经落到目标页：把选中态钉死在那儿，不要再补一遍展开动画。
+  void _commitSettle() {
+    final next = rootBranchSettle.value;
+    if (next == null) return;
+    // 先清标记：赋值会同步再通知一次，靠这个判空退出重入。
+    rootBranchSettle.value = null;
+    if (!mounted) return;
+    final target = next.clamp(0, _labels.length - 1);
+    if (target == _to && _controller.value == 1) return;
+    setState(() {
+      _from = target;
+      _to = target;
+    });
+    _controller.value = 1;
   }
 
 
@@ -314,6 +345,9 @@ class _RootTabBarState extends State<RootTabBar>
         _kCollapsedWidth + (expandedWidth - _kCollapsedWidth) * spread;
     final fill = spread.clamp(0.0, 1.0);
     final opacity = _textOpacityFor(index).clamp(0.0, 1.0);
+    // 实心/描边跟着展开度走，而不是等 selected 翻面：否则图标要到位之后才
+    // 单独播一次「淡入 + 从 0.72 弹到 1」，切完还要再跳一下。
+    final filled = spread >= 0.5;
 
     return Pressable(
       key: ValueKey<String>('root-tab-$index'),
@@ -367,8 +401,8 @@ class _RootTabBarState extends State<RootTabBar>
                         ),
                       ),
                       child: Icon(
-                        selected ? _iconsSelected[index] : _icons[index],
-                        key: ValueKey<bool>(selected),
+                        filled ? _iconsSelected[index] : _icons[index],
+                        key: ValueKey<bool>(filled),
                         size: _kIconSize,
                         color: Color.lerp(idle, onSurface, fill),
                       ),
