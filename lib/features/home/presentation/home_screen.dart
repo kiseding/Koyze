@@ -386,7 +386,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final spacing = dense ? 8.0 : 10.0;
+        // 卡间留白比卡内更松：卡小了之后如果间隔还贴着 10，四行会读成
+        // 一张被切开的表，而不是八张独立的卡。
+        final spacing = dense ? 10.0 : 12.0;
         final tileWidth =
             (constraints.maxWidth - spacing * (columns - 1)) / columns;
         return Wrap(
@@ -611,11 +613,15 @@ class _QuickEntryCard extends ConsumerWidget {
     // 就是卡片的内容区高度——内容区正好等于图标，所以"把图标放大"和"把留白
     // 压小"是同一件事。常规卡 68 高配 52 图标，留白 8（原来 34/17）；横屏
     // 紧凑档 52 高配 40 图标，留白 6。
-    // 卡高与图标一起收一档：68/52 的时候八张卡把竖屏这半屏塞得很满，
-    // 图标又几乎顶到卡边，读起来是一排实心方块。62/46、横屏 48/36 之后
-    // 留白仍是 8 和 6（(62-46)/2、(48-36)/2），节奏没变，只是整体轻了一点。
-    final height = tileHeight ?? (dense ? 48.0 : 62.0);
-    final iconExtent = dense ? 36.0 : 46.0;
+    // 卡高与图标一起再收一档：62/46 的时候图标占掉卡高 74%，卡面上几乎
+    // 没有留白，八张摞起来是一堵方格墙。56/36 让上下各留 10（原来 8），
+    // 卡间也从 10 拉到 12——要的呼吸感是「留白变多」，不是「整块变小」，
+    // 所以卡压 6、图标压 10，留白反而涨了。
+    final height = tileHeight ?? (dense ? 46.0 : 56.0);
+    // 图标固定占卡高 2/3，剩下三分之一平分给上下留白。写死数值的话，
+    // 横屏那列是按可用高度撑开的（52~78 都可能），同一个 36 在矮卡里顶边、
+    // 在高卡里又会浮在中间。
+    final iconExtent = (height * 0.66).clamp(30.0, 46.0).toDouble();
     final inset = (height - iconExtent) / 2;
     return SizedBox(
       height: height,

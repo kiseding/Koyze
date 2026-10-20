@@ -55,7 +55,7 @@ Future<ProviderContainer> _container(List<String> songIds) async {
 }
 
 void main() {
-  test('大卡右手那三首不重复，且下标能在源歌单里对上', () async {
+  test('大卡右手那几首不重复，且下标能在源歌单里对上', () async {
     final ids = [for (var i = 0; i < 20; i++) 's$i'];
     final container = await _container(ids);
     addTearDown(container.dispose);
@@ -70,9 +70,12 @@ void main() {
       homeHeroSamplesProvider(HomeHeroCardId.favorites).future,
     );
 
-    expect(samples.length, 3);
-    // 三首互不相同——同一首歌出现两次会读成列表坏了。
-    expect(samples.map((sample) => sample.index).toSet().length, 3);
+    expect(samples.length, homeHeroSampleMaxCount);
+    // 几首互不相同——同一首出现两次会读成列表坏了。
+    expect(
+      samples.map((sample) => sample.index).toSet().length,
+      homeHeroSampleMaxCount,
+    );
     // 按源歌单顺序摆回来，不是抽到什么顺序就什么顺序。
     final indices = samples.map((sample) => sample.index).toList();
     expect(indices, [...indices]..sort());
@@ -81,7 +84,7 @@ void main() {
     }
   });
 
-  test('歌不够三首时有几首给几首，空歌单给空列表', () async {
+  test('歌不够时有多少给多少，空歌单给空列表', () async {
     final two = await _container(['a', 'b']);
     addTearDown(two.dispose);
     final twoSub = two.listen(

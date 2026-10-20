@@ -335,10 +335,12 @@ class HomeHeroSample {
   final int index;
 }
 
-/// 当前卡片里随机抽 3 首，给大卡右侧那列用。
+/// 当前卡片里随机抽 4 首，给大卡右侧那列用。
 ///
 /// 之前右侧是空的，只剩一枚声波水印；一张 380×168 的色块里只放左上角
-/// 四行字，看着像没渲染完。抽三首真实的歌摆在右手，卡片就有了内容。
+/// 四行字，看着像没渲染完。抽几首真实的歌摆在右手，卡片就有了内容。
+/// 三首时每行要留 12 的缝隙才不粘在一起，四首改成等分 + 发丝线，行距
+/// 反而更紧，信息却多一首。
 ///
 /// 按卡片 id 分槽并且 autoDispose：切到别的卡重新抽一批，但停在同一张
 /// 卡上时不会因为父级 rebuild 又换一茬——刚看清歌名就变掉比空着更糟。
@@ -362,7 +364,7 @@ final homeHeroSamplesProvider = FutureProvider.autoDispose
                   ?.songCount ??
               0;
           if (count == 0) return const <HomeHeroSample>[];
-          final offsets = _randomOffsets(count, 3);
+          final offsets = _randomOffsets(count, homeHeroSampleMaxCount);
           final service = ref.read(playlistServiceProvider);
           // 一页一首：歌单可能有几千首，拉整页再挑会把首页拖慢。
           final pages = await Future.wait([
@@ -391,6 +393,15 @@ final homeHeroSamplesProvider = FutureProvider.autoDispose
       }
     });
 
+/// 大卡曲目最多抽几首。横屏那张卡排两列，6 首正好三行铺满；竖屏 168 的卡
+/// 只排得下两行，用 [homeHeroPortraitSampleCount] 截掉后两首。这里统一按
+/// 上限抽，竖屏只截列表——同一张卡在两种方向下是同一批歌，转屏不会整体
+/// 换一批。
+const homeHeroSampleMaxCount = 6;
+
+/// 竖屏那张 168 高的卡显示几首：两列两行。
+const homeHeroPortraitSampleCount = 4;
+
 /// 从 0..count-1 里挑不重复的若干个下标，升序返回。
 List<int> _randomOffsets(int count, int wanted) {
   final random = Random();
@@ -402,12 +413,12 @@ List<int> _randomOffsets(int count, int wanted) {
   return picked.toList()..sort();
 }
 
-/// 已经在内存里的歌（推荐 / NAS）：洗牌取 3 首，再按下标升序摆回来。
+/// 已经在内存里的歌（推荐 / NAS）：洗牌取几首，再按下标升序摆回来。
 List<HomeHeroSample> _sampleFrom(List<MusicItem> songs) {
   if (songs.isEmpty) return const <HomeHeroSample>[];
   final indices = List<int>.generate(songs.length, (index) => index)
     ..shuffle(Random());
-  final picked = indices.take(3).toList()..sort();
+  final picked = indices.take(homeHeroSampleMaxCount).toList()..sort();
   return [
     for (final index in picked)
       HomeHeroSample(song: songs[index], index: index),
@@ -485,7 +496,6 @@ class HomeHeroCard extends ConsumerWidget {
   ) {
     final color = spec.colorOf(context);
     final playlists = ref.watch(playlistsProvider);
-    final actionIcon = playMode.icon;
 
     switch (spec.id) {
       case HomeHeroCardId.favorites:
@@ -501,7 +511,6 @@ class HomeHeroCard extends ConsumerWidget {
           subtitle: S.of(context).noFavoritesYet,
           count: count,
           canPlay: count > 0,
-          actionIcon: actionIcon,
           actionLabel: S
               .of(context)
               .playAction(
@@ -532,7 +541,6 @@ class HomeHeroCard extends ConsumerWidget {
           subtitle: S.of(context).recommendAfterFavorites,
           count: count,
           canPlay: count > 0,
-          actionIcon: actionIcon,
           actionLabel: S
               .of(context)
               .playAction(
@@ -566,7 +574,6 @@ class HomeHeroCard extends ConsumerWidget {
           subtitle: S.of(context).chooseFolderToScan,
           count: count,
           canPlay: count > 0,
-          actionIcon: actionIcon,
           actionLabel: S
               .of(context)
               .playAction(
@@ -613,7 +620,6 @@ class HomeHeroCard extends ConsumerWidget {
           subtitle: subtitle,
           count: count,
           canPlay: subsonicConnected && count > 0,
-          actionIcon: actionIcon,
           actionLabel: S
               .of(context)
               .playAction(
@@ -637,7 +643,6 @@ class HomeHeroCard extends ConsumerWidget {
           subtitle: S.of(context).heroRecentEmpty,
           count: count,
           canPlay: count > 0,
-          actionIcon: actionIcon,
           actionLabel: S
               .of(context)
               .playAction(
@@ -848,6 +853,11 @@ class _HeroStage extends ConsumerWidget {
         ? const Color(0xFFFF8A8A)
         : onAccent;
     final deep = Color.lerp(color, Colors.black, 0.58)!;
+    // 胶囊上写当前播放模式：「随机播放」读作「以随机方式播放」，比一枚
+    // 只有循环箭头的圆钮好认。
+    final playModeTitle = ref
+        .watch(homeHeroPlayModeProvider)
+        .titleFor(S.of(context));
     // 抽样还没到（或这张卡是空的）就先不画——比画一个占位骨架安静。
     final samples =
         ref.watch(homeHeroSamplesProvider(spec.id)).valueOrNull ??
@@ -871,20 +881,24 @@ class _HeroStage extends ConsumerWidget {
           // composition; pinning everything to the top and bottom leaves a
           // big coloured void in the middle.
           final tall = constraints.maxHeight > 300;
+          // 横屏那张卡有 240 高（竖屏只有 168），左列顶着一个标题、底压
+          // 一个按钮，中间会空出一整块纯色。数量单独拎到中间那一行，
+          // 高度用掉了，读起来也成了「标题 / 数量 / 操作」三段。
+          final spread = constraints.maxHeight > 200;
           final pad = compact ? 16.0 : 20.0;
-          final badge = compact ? 36.0 : (tall ? 46.0 : 42.0);
-          // 播放键与左上角的徽标同尺寸：同一张卡上出现两个体量接近的圆角块
-          // 会抢主体，等大之后它读成「卡片的第二枚图标」而不是独立按钮。
-          final playSize = badge;
-          // 右边这列只在真抽到歌时出现。宽度是量出来的：361 宽的竖屏卡，
-          // 左边「徽标 42 + 间距 13 + 标题」在英文下要 180 左右
-          // （"Recent plays" 20pt ≈ 125），再扣掉两边各 20 的内边距和 12 的
-          // 列间距，只够给右手 130。
-          //
-          // 阈值原来写的是 300，横屏的 hero 只有 283 左右宽（竖屏是 336），
-          // 于是横屏整列都画不出来。现在右列统一画（这是新布局的半壁江山），
-          // 左列靠 FittedBox 缩标题兜底。
-          final sampleWidth = (constraints.maxWidth * 0.36).clamp(118.0, 150.0);
+          final badge = compact ? 36.0 : (tall || spread ? 46.0 : 42.0);
+          // 播放键从圆钮换成胶囊：原来那枚圆钮画的是播放模式图标
+          // （顺序 / 随机 / 单曲），点下去却是「开始播放」，图标和动作对
+          // 不上，只能靠猜。现在三角 + 模式名摆在一起，一句话说完。
+          // 高度压在徽标之下（28/32 对 36/42），免得右下角那个块跟标题
+          // 抢体量。
+          final playChipHeight = compact ? 28.0 : 32.0;
+          // 横屏放 6 首（两列三行铺满），竖屏只放得下 4 首。provider 按上限
+          // 抽了 6 首，这里按当前高度截——两种方向下抽到的是同一批歌，只是
+          // 竖屏少显示后两首，转屏时不会整体换一批。
+          final visibleSamples = spread
+              ? samples
+              : samples.take(homeHeroPortraitSampleCount).toList();
           return Stack(
             fit: StackFit.expand,
             children: [
@@ -949,6 +963,25 @@ class _HeroStage extends ConsumerWidget {
                   ),
                 ),
               ),
+              // 卡片自己的图形水印，无论有没有歌都在。
+              //
+              // 原来它只挂在空态分支上：一旦抽到歌就整块消失，同一张卡在
+              // 「还没播」和「播过」之间换了一个底。现在提到背景层，尺寸
+              // 按卡高的 0.85 算（照空态时 118/168 那个比例放一点）。
+              // 曲目铺满下半张卡之后它整片压在歌名背后，所以出血从 0.20
+              // 推到 0.26、有歌时压到 0.075：剩下的是一道底纹，不是一块要
+              // 读的图形；到 0.12 就能看出白字被柱子切断。
+              Positioned(
+                right: -constraints.maxHeight * 0.26,
+                bottom: -constraints.maxHeight * 0.26,
+                child: Icon(
+                  Icons.graphic_eq_rounded,
+                  size: constraints.maxHeight * 0.85,
+                  color: onAccent.withValues(
+                    alpha: samples.isEmpty ? 0.13 : 0.075,
+                  ),
+                ),
+              ),
               Padding(
                 padding: EdgeInsets.fromLTRB(pad + 2, pad, pad, pad - 2),
                 child: Builder(
@@ -967,7 +1000,7 @@ class _HeroStage extends ConsumerWidget {
                       child: Icon(
                         spec.icon,
                         color: iconColor,
-                        size: compact ? 21 : (tall ? 25 : 24),
+                        size: compact ? 21 : (tall || spread ? 25 : 24),
                       ),
                     );
                     // 右手那列吃掉一百三十点宽度后，英文标题（"Recently
@@ -982,7 +1015,11 @@ class _HeroStage extends ConsumerWidget {
                         maxLines: 1,
                         style: TextStyle(
                           color: onAccent,
-                          fontSize: compact ? 17 : (tall ? 25 : 20),
+                          // 横屏那张卡有 240 高，20 的标题压不住整块面积，
+                          // 提到 22；竖屏 168 保持 20。
+                          fontSize: compact
+                              ? 17
+                              : (tall ? 25 : (spread ? 22 : 20)),
                           fontWeight: FontWeight.w800,
                           height: 1.05,
                           letterSpacing: -0.3,
@@ -1023,9 +1060,12 @@ class _HeroStage extends ConsumerWidget {
                         ),
                       ],
                     );
-                    // 播放键钉在左下角，右侧整列让给那三首歌。
+                    // 播放键钉在左下角，右侧整列让给那几首歌。宽度随文案
+                    // 走（中文四字 / 英文 "Repeat one"），横屏左列只剩 111
+                    // 的时候由 Flexible 收一点，不会把卡片撑破。
                     final playButton = Pressable(
-                      scale: 0.92,
+                      scale: 0.94,
+                      borderRadius: BorderRadius.circular(playChipHeight / 2),
                       semanticLabel: model.actionLabel,
                       onTap: model.onPlay,
                       child: AnimatedContainer(
@@ -1034,11 +1074,16 @@ class _HeroStage extends ConsumerWidget {
                           MotionDuration.normal,
                         ),
                         curve: MotionCurve.iosSpring,
-                        width: playSize,
-                        height: playSize,
+                        height: playChipHeight,
+                        padding: EdgeInsets.only(
+                          left: compact ? 10 : 12,
+                          right: compact ? 14 : 16,
+                        ),
                         decoration: BoxDecoration(
                           color: onAccent,
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(
+                            playChipHeight / 2,
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: deep.withValues(alpha: 0.34),
@@ -1047,11 +1092,30 @@ class _HeroStage extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        child: Icon(
-                          model.actionIcon,
-                          color: deep,
-                          // 跟着圆钮缩：36 的钮配 17 的字重感才不挤。
-                          size: playSize * 0.46,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.play_arrow_rounded,
+                              color: deep,
+                              size: compact ? 15 : 17,
+                            ),
+                            SizedBox(width: compact ? 2 : 4),
+                            Flexible(
+                              child: Text(
+                                playModeTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                                style: TextStyle(
+                                  color: deep,
+                                  fontSize: compact ? 12 : 13,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.1,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -1059,93 +1123,77 @@ class _HeroStage extends ConsumerWidget {
                       // 空态整块居中：标题钉顶、说明钉底会在大片纯色中间留出
                       // 一块空洞，看着像没渲染完；收成一枚居中的海报更清楚。
                       // 同时不再画播放键——禁用的圆钮浮在色块里像坏掉的控件。
-                      return Stack(
+                      // 空态只有一段说明，水印已经在背景层了，这里不再叠。
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        // 空卡没有数量可以压底，跟着底部排会剩一大片纯色；
+                        // 整块居中，卡片再高也像一张「空封面」而不是漏渲染。
+                        //
+                        // 但平板横屏的 hero 有 340pt 高，居中的文案
+                        // 会浮在色块正中间，上下各空一百多 pt——那才是真的
+                        // 漏渲染感。高卡改回海报式：标题压底，色彩留给上半。
+                        mainAxisAlignment: tall
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.center,
                         children: [
-                          // 文字只占左侧三分之一，右边全空，卡片就读成「左边有
-                          // 东西、右边没画完」。压一枚出血的声波水印把重量分到
-                          // 右边，透明度足够低，不抢标题。
-                          Positioned(
-                            right: compact ? -6 : -14,
-                            // 高卡把文案压到了底部，水印要挪到右上，否则和
-                            // 标题撞在一起。
-                            top: tall ? -18 : null,
-                            bottom: tall ? null : (compact ? -8 : -16),
-                            child: Icon(
-                              Icons.graphic_eq_rounded,
-                              size: compact
-                                  ? 84
-                                  : tall
-                                  ? 148
-                                  : 118,
-                              color: onAccent.withValues(alpha: 0.13),
-                            ),
+                          badgeBox,
+                          SizedBox(height: compact ? 10 : 14),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: titleText,
                           ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            // 空卡没有数量可以压底，跟着底部排会剩一大片纯色；
-                            // 整块居中，卡片再高也像一张「空封面」而不是漏渲染。
-                            //
-                            // 但平板横屏的 hero 有 340pt 高，居中的文案
-                            // 会浮在色块正中间，上下各空一百多 pt——那才是真的
-                            // 漏渲染感。高卡改回海报式：标题压底，色彩留给上半。
-                            mainAxisAlignment: tall
-                                ? MainAxisAlignment.end
-                                : MainAxisAlignment.center,
-                            children: [
-                              badgeBox,
-                              SizedBox(height: compact ? 10 : 14),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: titleText,
-                              ),
-                              if (model.subtitle.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    model.subtitle,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: onAccent.withValues(alpha: 0.88),
-                                      fontSize: compact ? 12 : 12.5,
-                                      fontWeight: FontWeight.w500,
-                                      height: 1.3,
-                                    ),
-                                  ),
+                          if (model.subtitle.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                model.subtitle,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: onAccent.withValues(alpha: 0.88),
+                                  fontSize: compact ? 12 : 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.3,
                                 ),
-                              ],
-                            ],
-                          ),
+                              ),
+                            ),
+                          ],
                         ],
                       );
                     }
-                    // 统一的播放态布局：左列 = 顶部「图标 + 标题/数量」、
-                    // 底部播放键；右列整高给那三首歌。竖屏、横屏、高卡都走
-                    // 这一套——右侧列表被拉伸到全卡高度，窄卡的左列由
-                    // FittedBox 把标题缩进来兜底，不再需要单独的堆叠分支。
-                    return Row(
+                    // 播放态：顶部一行（徽标 + 标题/数量 + 播放键），下面
+                    // 整片交给曲目。
+                    //
+                    // 旧结构是左右分栏——左列顶着标题、底压按钮、中间 Spacer。
+                    // 卡高 168 时那根 Spacer 会空出 56：它不是留白，是算剩
+                    // 的（标题 44 + 按钮 32，余下的全归它）。往 56 里塞任何
+                    // 部件都只能是「一行小字」，塞得越多越像没画完。改成
+                    // 上下两段之后，需要那块空间的格子被曲目占掉了。
+                    //
+                    // 两种方向都排两列：竖屏 294 宽每格 140，横屏 241 宽
+                    // 每格 113。横屏格子窄，序号间距和字号各收一档（dense
+                    // 由卡宽判定）；6 首正好两列三行，没有空格子。
+                    final dense = constraints.maxWidth < 300;
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              header,
-                              const Spacer(),
-                              playButton,
-                            ],
-                          ),
+                        Row(
+                          children: [
+                            Expanded(child: header),
+                            SizedBox(width: compact ? 8 : 10),
+                            playButton,
+                          ],
                         ),
-                        if (samples.isNotEmpty) ...[
-                          const SizedBox(width: 14),
-                          SizedBox(
-                            width: sampleWidth,
-                            child: _HeroSampleList(
-                              samples: samples,
+                        if (visibleSamples.isNotEmpty) ...[
+                          SizedBox(height: compact ? 8 : 12),
+                          Expanded(
+                            child: _HeroSampleGrid(
+                              samples: visibleSamples,
                               onPlayAt: model.onPlayAt,
                               onAccent: onAccent,
                               compact: compact,
+                              dense: dense,
                             ),
                           ),
                         ],
@@ -1162,16 +1210,17 @@ class _HeroStage extends ConsumerWidget {
   }
 }
 
-/// 大卡右手那三首：像唱片背面的曲目表，一行一首，点一行就从那首开播。
+/// 大卡下面那片曲目：两列铺满，点哪首就从哪首开播。
 ///
-/// 行高不写死，按父给的可用高度均分再夹在 18~24 之间——竖屏 168 的卡
-/// 分到 22 左右，横屏那种被拉高的 hero 也不会散成三段。
-class _HeroSampleList extends StatelessWidget {
-  const _HeroSampleList({
+/// 行高靠 Flexible 均分，不写死——竖屏四首两行各 39，横屏六首三行各 50；
+/// 卡被拉高到 340 时也只把行撑开，不会散成八行。
+class _HeroSampleGrid extends StatelessWidget {
+  const _HeroSampleGrid({
     required this.samples,
     required this.onPlayAt,
     required this.onAccent,
     required this.compact,
+    required this.dense,
   });
 
   final List<HomeHeroSample> samples;
@@ -1179,66 +1228,95 @@ class _HeroSampleList extends StatelessWidget {
   final Color onAccent;
   final bool compact;
 
+  /// 卡窄到 300 以下（横屏那张 283 的 hero）：每格只有 113 宽，序号间距
+  /// 和歌名字号各收一档，否则稍长的歌名一律带省略号。
+  final bool dense;
+
+  static const _columns = 2;
+
   @override
   Widget build(BuildContext context) {
+    final rows = (samples.length / _columns).ceil();
     return LayoutBuilder(
       builder: (context, box) {
-        // 三首之间要能点开。列高是固定的，gap 变大时行高会同比例变小，
-        // 所以行距 = 28 + gap/3，只有 g/3 的收益——2/5 的时候两行字读成
-        // 一整段，手指也常按到隔壁那首；推到 8/12 已经是行高能守住的极限
-        // （再大行高就压到字以下，字会被裁）。
-        final gap = compact ? 8.0 : 12.0;
-        final available = box.hasBoundedHeight ? box.maxHeight : 84.0;
-        final rowHeight =
-            ((available - gap * (samples.length - 1)) / samples.length).clamp(
-              compact ? 18.0 : 20.0,
-              compact ? 24.0 : 26.0,
-            );
-        // 撑满父给的高度再居中：只有一两首时贴着顶边会和 kicker 挤在一起，
-        // 读成它属于那行小字。
-        return SizedBox(
-          height: available,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < samples.length; i++) ...[
-                if (i > 0) SizedBox(height: gap),
-                // Flexible：卡再矮也只会把行压薄，不会撑出 overflow 的黄条。
-                Flexible(child: _row(context, samples[i], rowHeight)),
-              ],
+        final available = box.hasBoundedHeight ? box.maxHeight : 120.0;
+        // 行高均分，但有上限：只有一两首时均分会把一行撑到 78 高，字浮在
+        // 一个空盒子的正中间，比排得紧还难看。单行封在 56（一行字 + 上下
+        // 留白），多行给到 64——再多就会在卡片底部又留出一块空地，正是
+        // 这次要消掉的东西。
+        //
+        // 均分时要先把发丝线占的位置（0.5 × 行数-1）扣掉：不扣的话两行
+        // 竖屏正好超出 0.5，调试包里会画一条黄黑警示条。
+        final cap = rows == 1 ? 56.0 : 64.0;
+        final dividers = 0.5 * (rows - 1);
+        final rowHeight = ((available - dividers) / rows).clamp(0.0, cap);
+        return Column(
+          // 顶对齐而不是居中：只有一两首时（新装机的最近播放就是这样）
+          // 居中的单行会浮在卡片正中间，读成一张空卡加一行字；顶对齐时它
+          // 紧跟在标题下面，剩下的空地正好交给右下角那枚水印。
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var row = 0; row < rows; row++) ...[
+              if (row > 0)
+                // 发丝线贯通整行，不是每格各画一条：两列时也要一整条横线，
+                // 否则读成四张互不相干的小卡。
+                Container(height: 0.5, color: onAccent.withValues(alpha: 0.12)),
+              SizedBox(height: rowHeight, child: _rowOf(row)),
             ],
-          ),
+          ],
         );
       },
     );
   }
 
-  Widget _row(BuildContext context, HomeHeroSample sample, double height) {
+  Widget _rowOf(int row) {
+    final first = row * _columns;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: _cell(first)),
+        const SizedBox(width: 14),
+        // 奇数首时右格留空，不然后一首会被拉成两倍宽。
+        Expanded(child: _cell(first + 1)),
+      ],
+    );
+  }
+
+  Widget _cell(int index) {
+    if (index >= samples.length) return const SizedBox.shrink();
+    final sample = samples[index];
+    final ordinal = index + 1;
     return Pressable(
       borderRadius: BorderRadius.circular(7),
       semanticLabel: sample.song.name,
       onTap: () => onPlayAt(sample.index),
-      child: SizedBox(
-        height: height,
+      // 整格都是热区：格子铺满之后，手指按在哪都不会落到两首之间。
+      child: Align(
+        alignment: Alignment.centerLeft,
         child: Row(
           children: [
-            Icon(
-              Icons.play_arrow_rounded,
-              size: compact ? 15 : 16,
-              color: onAccent.withValues(alpha: 0.50),
+            // 序号把这几行读成一张曲目表；没有它，只是几段孤立的歌名。
+            Text(
+              ordinal.toString().padLeft(2, '0'),
+              style: TextStyle(
+                color: onAccent.withValues(alpha: 0.40),
+                fontSize: compact ? 11 : 11.5,
+                fontWeight: FontWeight.w600,
+                height: 1,
+              ),
             ),
-            const SizedBox(width: 3),
+            SizedBox(width: compact || dense ? 7 : 9),
             Expanded(
               child: Text(
                 sample.song.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: onAccent.withValues(alpha: 0.86),
-                  // 比标题（20）小一档：右列是曲目列表，压过标题就成了
-                  // 第二主标题；再小回 11.5 又读不出歌名。
-                  fontSize: compact ? 15.5 : 17.0,
+                  color: onAccent.withValues(alpha: 0.88),
+                  // 两列每格只有 113~140，15 号字放不下九字歌名：竖屏
+                  // 留 14，横屏再收半档到 13.5。
+                  fontSize: compact ? 13 : (dense ? 13.5 : 14.0),
                   fontWeight: FontWeight.w500,
                   height: 1.1,
                   letterSpacing: -0.1,
@@ -1258,7 +1336,6 @@ class _HeroModel {
     required this.subtitle,
     required this.count,
     required this.canPlay,
-    required this.actionIcon,
     required this.actionLabel,
     required this.onOpen,
     required this.onPlay,
@@ -1271,7 +1348,6 @@ class _HeroModel {
   final String subtitle;
   final int count;
   final bool canPlay;
-  final IconData actionIcon;
   final String actionLabel;
   final VoidCallback onOpen;
   final VoidCallback onPlay;

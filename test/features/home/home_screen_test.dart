@@ -186,9 +186,14 @@ void main() {
     // 否则图标看起来是"贴左"而不是"居中于卡"。
     expect(
       card,
-      contains('final height = tileHeight ?? (dense ? 48.0 : 62.0);'),
+      contains('final height = tileHeight ?? (dense ? 46.0 : 56.0);'),
     );
-    expect(card, contains('final iconExtent = dense ? 36.0 : 46.0;'));
+    expect(
+      card,
+      contains(
+        'final iconExtent = (height * 0.66).clamp(30.0, 46.0).toDouble();',
+      ),
+    );
     expect(card, contains('final inset = (height - iconExtent) / 2;'));
     expect(card, contains('padding: EdgeInsets.all(inset)'));
     expect(card, isNot(contains('EdgeInsets.fromLTRB(11,')));
