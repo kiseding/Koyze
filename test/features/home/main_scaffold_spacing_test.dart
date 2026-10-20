@@ -118,8 +118,10 @@ void main() {
     // 侧栏是 Row 的左列，下面没有内容可采样：BackdropFilter 只会混出一层
     // 黑（浅色变中灰、深色近乎纯黑）。必须走实色分支。
     expect(rail, contains('blur: 0'));
-    // 右侧也要留 8 的缝，否则卡片贴在内容边上，浮起关系断掉。
-    expect(rail, contains('topInset + 8,'));
+    // 顶部也要留缝：横屏安全区恒为 0，只留 8 时卡片贴到窗口上沿，第一颗
+    // tab 像被顶出去；现在走具名的 _railTopGap。
+    expect(rail, contains('topInset + _railTopGap,'));
+    expect(rail, contains('const double _railTopGap = 20;'));
     // 矮屏（手机横屏）换紧凑档：标题不再整段被判掉，tab 行高与间距各收一档。
     expect(shell, contains('constraints.maxHeight < _sideNavCompactBelow'));
     expect(shell, contains('_sideNavTitleCompactExtent'));

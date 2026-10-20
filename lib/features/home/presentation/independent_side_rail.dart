@@ -22,6 +22,14 @@ const double fullscreenPlayerSideRailAspectRatio = 2.5;
 const double _railLeadingInset = 14;
 const double _railTrailingInset = 20;
 
+/// 侧栏卡片的上留白。
+///
+/// 横屏时顶部安全区通常是 0，卡片贴到离窗口边只剩 8 点，第一颗 tab
+/// 读起来像被顶到屏幕上沿。抬到 20 之后卡片整体往下落一档，与左右留白
+/// 也接近了（左 14 / 右 20）。
+const double _railTopGap = 20;
+const double _railBottomGap = 8;
+
 /// Longer side divided by the shorter side. Orientation does not matter.
 double screenAspectRatio(Size size) {
   final width = size.width.abs();
@@ -252,9 +260,9 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
                           // 不到）。
                           padding: EdgeInsets.fromLTRB(
                             leadingInset + _railLeadingInset,
-                            topInset + 8,
+                            topInset + _railTopGap,
                             _railTrailingInset,
-                            bottomInset + 8,
+                            bottomInset + _railBottomGap,
                           ),
                           child: OrigoChromeSurface(
                             borderRadius: BorderRadius.circular(24),
