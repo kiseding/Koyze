@@ -83,10 +83,10 @@ dependency_overrides:
       path: just_audio
       ref: br_just_audio-v0.9.41_ohos
   audio_service:
-    git:
-      url: https://gitcode.com/openharmony-sig/fluttertpc_audio_service.git
-      path: audio_service
-      ref: br_v0.18.18_ohos
+    # 鸿蒙移植 vendored 在仓库里：上游仓库用 git-lfs 托管 example 大文件，
+    # 托管 runner 上 smudge 时 gitcode LFS 匿名 401，五个平台的 pub get 全挂。
+    # 见 third_party/audio_service_ohos/VENDORED.md。
+    path: third_party/audio_service_ohos
   audio_session:
     git:
       url: https://gitcode.com/openharmony-sig/flutter_audio_session.git

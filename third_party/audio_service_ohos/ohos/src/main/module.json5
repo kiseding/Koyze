@@ -1,0 +1,10 @@
+{
+  "module": {
+    "name": "audio_service",
+    "type": "har",
+    "deviceTypes": [
+      "default",
+      "tablet"
+    ]
+  }
+}
