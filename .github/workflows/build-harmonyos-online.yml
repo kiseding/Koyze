@@ -146,15 +146,29 @@ jobs:
       - name: 构建 HAP
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mode="${{ inputs.mode || 'debug' }}"
           extra=""
           # release 在 Windows 上还要绕开图标 tree-shaker：patched_sdk 与 dart-sdk
           # 的 SDK hash 不匹配，否则报 "Invalid SDK hash"
           [ "$mode" = "release" ] && extra="--no-tree-shake-icons"
+
+          set +e
           "$FLUTTER_OHOS_HOME/bin/flutter.bat" build hap \
             "--$mode" --target-platform ohos-arm64 $extra
-          find ohos/entry/build -name '*.hap' -type f -exec ls -lh {} \;
+          rc=$?
+          set -e
+
+          # 未配 signingConfigs 时，flutter 打完包仍会以 1 退出并提示去 DevEco 配签名。
+          # 所以判据是产物在不在，不是退出码。
+          haps="$(find ohos/entry/build -name '*.hap' -type f || true)"
+          if [ -z "$haps" ]; then
+            echo "::error::构建失败（exit $rc），没有产出 HAP"
+            exit $rc
+          fi
+          echo "flutter 退出码 $rc（未签名时的正常表现），产物："
+          echo "$haps" | while read -r f; do ls -lh "$f"; done
+          echo "产物是未签名 HAP，装机器需另配签名证书。"
 
       - uses: actions/upload-artifact@v4
         with:
