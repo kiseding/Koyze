@@ -34,15 +34,30 @@
 3. 环境变量：
 
    ```bash
-   export HOS_SDK_HOME="<DevEco>/sdk/default"
-   export PUB_HOSTED_URL=https://pub.flutter-io.cn   # 可选，加速 pub
+   # 注意是 sdk 目录，不是 sdk/default：工具会扫描该目录下含 sdk-pkg.json
+   # 的子目录（devEco 是 default），读里面的 data.apiVersion 来认版本。
+   export HOS_SDK_HOME="<DevEco>/sdk"
+   export PUB_HOSTED_URL=https://pub.flutter-io.cn
+   # 国内建议用官方 CN 镜像，直连 googleapis 只有 20KB/s
+   export FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn
    ```
 
-   **不要设置** `FLUTTER_STORAGE_BASE_URL`。设成鸿蒙 OBS 镜像会让
-   `engine_stamp.json` 404（该镜像不托管上游工具本体），`flutter --version`
-   报 `Unable to create dart snapshot for flutter tool`。默认官方源可用时留空。
+   **不要**把 `FLUTTER_STORAGE_BASE_URL` 设成鸿蒙 OBS 镜像
+   （`flutter-ohos.obs...`）：它不托管上游工具本体，`engine_stamp.json` 会 404，
+   `flutter --version` 报 `Unable to create dart snapshot for flutter tool`。
 
-4. 引擎工件：`bin/internal/dart-sdk-url.ohos` 里 11 个附件全部指向 atomgit Release。
+4. `flutter pub get` 需要跳过 git-lfs：TPC 移植仓库里带了 LFS 大文件
+   （`audio_service/example/assets/video2.mp4`），本机没装 git-lfs 时 checkout 会失败：
+
+   ```bash
+   printf '[filter "lfs"]\n\tprocess =\n\tsmudge =\n\tclean =\n\trequired = false\n' \
+     > /tmp/gitconfig_nolfs
+   export GIT_CONFIG_GLOBAL="/tmp/gitconfig_nolfs"
+   ```
+
+   我们只需要 Dart / ArkTS 源码，跳过 smudge 不影响依赖内容。
+
+5. 引擎工件：`bin/internal/dart-sdk-url.ohos` 里 11 个附件全部指向 atomgit Release。
    这些附件**匿名下载返回 401**，需要登录 atomgit 后从
    <https://atomgit.com/oh-flutter/flutter_flutter/releases/tag/3.47.7-ohos-1.0.0>
    手工下载并放进 `flutter_ohos/bin/cache/`。
@@ -92,14 +107,22 @@ dependency_overrides:
     git:
       url: https://gitcode.com/openharmony-sig/fluttertpc_just_audio.git
       path: just_audio
+      ref: br_just_audio-v0.9.41_ohos
   audio_service:
     git:
       url: https://gitcode.com/openharmony-sig/fluttertpc_audio_service.git
       path: audio_service
+      ref: br_v0.18.18_ohos
   audio_session:
     git:
       url: https://gitcode.com/openharmony-sig/flutter_audio_session.git
+      ref: br_v0.1.21_ohos
 ```
+
+**`audio_session` 的 ref 不能留空**（默认 master 是 0.1.18，依赖
+`rxdart >=0.26.0 <0.28.0`，与本项目的 `rxdart ^0.28.0` 冲突，pub 会直接
+version solving failed）。`br_v0.1.21_ohos` 与 `br_v0.2.2_ohos` 的约束是
+`>=0.26.0 <0.29.0`，都可用；本项目取 0.1.21（与原 `^0.1.25` 同一小版本线）。
 
 分支按上游版本选择：
 
@@ -140,10 +163,23 @@ Dart 侧无需改：`AudioService.init` / `BaseAudioHandler` / `MediaItem` /
 | `bmbxwbh/fu_sheng_music_ohos` | 只用 `just_audio_harmonyos`，没有接 audio_service，等于只有前台播放 |
 | `AnmSleepalone/bujuan-harmony` | `pubspec.lock` 内含 `fluttertpc_audio_service` |
 
-## 6. 尚未完成 / 风险
+## 6. 进度与缺口
 
-1. **引擎工件下载**：atomgit Release 匿名 401，本机尚未跑通 `flutter build hap`。
-2. **版本对齐**：TPC 移植的验证上限是 Flutter 3.35 + SDK 6.0.1（API 21），
-   本项目是 3.47.7 + API 26，需要实测；优先试 `br_3.41_dev`。
-3. **签名与发布渠道**。
-4. **真机矩阵**：社区目前只在 API 26 模拟器与 ALN-AL00 上有验证记录。
+已在分支 `ohos-audio-trial` 上验证：
+
+| 步骤 | 结果 |
+| --- | --- |
+| `flutter pub get` | ✅ 通过，`just_audio 0.9.41` / `audio_service 0.18.18` / `audio_session 0.1.21` 均来自 git 移植（锁文件可见 `source: git`） |
+| `flutter analyze` | ✅ 0 error / 0 warning（370 条 info 全是既有 lint，分布在 test 与 third_party） |
+| Dart 侧改代码 | ✅ 不需要，`AudioService.init` / `AudioHandler` / `MediaItem` 接口一致 |
+
+仍未完成：
+
+1. **引擎工件下载**：atomgit Release 匿名 401，`flutter build hap` 还没跑过。
+   需要登录 atomgit 手工取 11 个附件。
+2. **运行时验证**：AVSession 播控、后台保活、通知都在 ArkTS 侧，必须真机/模拟器
+   上跑一遍才算数；社区验证记录只到 API 26 模拟器与 ALN-AL00。
+3. **版本风险**：移植的验证上限是 Flutter 3.35 + SDK 6.0.1（API 21），本项目是
+   3.47.7 + API 26。`flutter analyze` 通过说明 API 面对得上，但运行时行为未知。
+4. **签名与发布渠道**。
+5. `audio_metadata_reader`（FFI）仍无 ohos 产物。
