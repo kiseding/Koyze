@@ -68,6 +68,30 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.4
 
+# 鸿蒙（HarmonyOS）平台的音频实现。
+#
+# pub 上的 just_audio / audio_service / audio_session 都没有 ohos 实现，社区
+# TPC 仓库把 ohos 实现直接并入了原包，所以必须整体覆盖，而不是新增独立包。
+# 分支按上游版本选：just_audio 用 0.9.41 线（本项目原本是 ^0.9.42，API 一致），
+# audio_service 用 0.18.18（本项目 ^0.18.17）；0.10.x / 3.41 线尚未在本项目验证。
+#
+# 参考实现：https://github.com/Aloereed/aloeplayer_ohos
+dependency_overrides:
+  just_audio:
+    git:
+      url: https://gitcode.com/openharmony-sig/fluttertpc_just_audio.git
+      path: just_audio
+      ref: br_just_audio-v0.9.41_ohos
+  audio_service:
+    git:
+      url: https://gitcode.com/openharmony-sig/fluttertpc_audio_service.git
+      path: audio_service
+      ref: br_v0.18.18_ohos
+  audio_session:
+    git:
+      url: https://gitcode.com/openharmony-sig/flutter_audio_session.git
+      ref: br_v0.1.21_ohos
+
 flutter_launcher_icons:
   android: true
   ios: true
