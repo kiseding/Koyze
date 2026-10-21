@@ -126,15 +126,20 @@ dependency_overrides:
       path: just_audio
       ref: br_just_audio-v0.9.41_ohos
   audio_service:
-    git:
-      url: https://gitcode.com/openharmony-sig/fluttertpc_audio_service.git
-      path: audio_service
-      ref: br_v0.18.18_ohos
+    # vendored 在仓库里，避开上游仓库的 git-lfs（见 third_party/audio_service_ohos/VENDORED.md）
+    path: third_party/audio_service_ohos
   audio_session:
     git:
       url: https://gitcode.com/openharmony-sig/flutter_audio_session.git
       ref: br_v0.1.21_ohos
 ```
+
+> **这套 override 只能出现在 `pubspec_ohos.yaml`，不能写进 `pubspec.yaml`。**
+> 移植包的 Dart 代码直接引用了 `TargetPlatform.ohos`，这个枚举只在鸿蒙 Flutter
+> fork 里存在；上游 Flutter（Android/iOS/桌面 CI 用的 3.44.9）会报
+> `Member not found: 'ohos'`，测试与构建全挂。构建 HAP 前由
+> `build-harmonyos.yml` 把 `pubspec_ohos.yaml` 复制为 `pubspec.yaml` 再执行
+> `pub get`。
 
 **`audio_session` 的 ref 不能留空**（默认 master 是 0.1.18，依赖
 `rxdart >=0.26.0 <0.28.0`，与本项目的 `rxdart ^0.28.0` 冲突，pub 会直接

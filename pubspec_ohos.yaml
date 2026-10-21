@@ -1,0 +1,120 @@
+# HarmonyOS 专用依赖清单：pubspec.yaml + 音频移植 dependency_overrides。
+# 由 build-harmonyos.yml 在构建 HAP 前复制为 pubspec.yaml 使用；
+# 普通（Android/iOS/桌面/Web）构建一律用 pubspec.yaml。
+#
+# 不能把 override 写进 pubspec.yaml：移植包的 Dart 代码引用了
+# TargetPlatform.ohos，这个枚举只在鸿蒙 Flutter fork 里存在，上游 Flutter
+# 的 analyze / 测试 / 构建会直接报 Member not found: 'ohos'。
+name: koyze
+description: Koyze - 一个免费的音乐查找助手
+publish_to: 'none'
+version: 3.0.7+38
+
+homepage: https://github.com/kiseding/koyze
+repository: https://github.com/kiseding/koyze
+issue_tracker: https://github.com/kiseding/koyze/issues
+
+# Apache 2.0 开源许可证
+license: Apache-2.0
+
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+  flutter: '>=3.44.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  
+  # 状态管理
+  flutter_riverpod: ^2.6.1
+  
+  # 路由
+  go_router: ^14.8.1
+  
+  # 音频播放
+  just_audio: ^0.9.42
+  just_audio_windows: ^0.2.2
+  audio_service: ^0.18.17
+  audio_session: ^0.1.25
+  rxdart: ^0.28.0
+  
+  # 网络
+  dio: ^5.7.0
+  connectivity_plus: ^6.1.0
+  
+  # 存储
+  path_provider: ^2.1.4
+  shared_preferences: ^2.2.3
+  shared_preferences_platform_interface: ^2.4.2
+  flutter_secure_storage: ^9.2.4
+  
+  # JS 引擎
+  flutter_js: ^0.8.2
+  
+  # 工具
+  crypto: ^3.0.3
+  uuid: ^4.4.0
+  file_picker: ^11.0.3
+  encrypt: ^5.0.3
+  pointycastle: ^3.9.1
+  charset: ^2.0.1
+
+  # iOS home widget and live activity
+  home_widget: ^0.6.0
+  flutter_app_group_directory: ^1.1.0
+  live_activities:
+    path: third_party/live_activities
+  audio_metadata_reader: ^1.7.1
+  permission_handler: ^12.0.3
+  animations: ^2.2.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# 鸿蒙（HarmonyOS）平台的音频实现。
+#
+# pub 上的 just_audio / audio_service / audio_session 都没有 ohos 实现，社区
+# TPC 仓库把 ohos 实现直接并入了原包，所以必须整体覆盖，而不是新增独立包。
+# 分支按上游版本选：just_audio 用 0.9.41 线（本项目原本是 ^0.9.42，API 一致），
+# audio_service 用 0.18.18（本项目 ^0.18.17）；0.10.x / 3.41 线尚未在本项目验证。
+#
+# 参考实现：https://github.com/Aloereed/aloeplayer_ohos
+dependency_overrides:
+  just_audio:
+    git:
+      url: https://gitcode.com/openharmony-sig/fluttertpc_just_audio.git
+      path: just_audio
+      ref: br_just_audio-v0.9.41_ohos
+  audio_service:
+    # 鸿蒙移植 vendored 在仓库里：上游仓库用 git-lfs 托管 example 大文件，
+    # 托管 runner 上 smudge 时 gitcode LFS 匿名 401，五个平台的 pub get 全挂。
+    # 见 third_party/audio_service_ohos/VENDORED.md。
+    path: third_party/audio_service_ohos
+  audio_session:
+    git:
+      url: https://gitcode.com/openharmony-sig/flutter_audio_session.git
+      ref: br_v0.1.21_ohos
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  macos:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 256
+
+flutter:
+  uses-material-design: true
+  config:
+    # Nested WorkBuddy/CodeBuddy sandboxes cannot resolve Swift packages
+    # (`sandbox-exec: sandbox_apply: Operation not permitted`). Force the
+    # existing CocoaPods path on iOS/macOS instead.
+    enable-swift-package-manager: false

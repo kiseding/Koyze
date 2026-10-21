@@ -123,6 +123,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # 音频移植的 override 只在鸿蒙工具链上能编译（移植代码引用了
+          # TargetPlatform.ohos），所以放在 pubspec_ohos.yaml 里，构建前换入。
+          cp pubspec_ohos.yaml pubspec.yaml
           # TPC 移植仓库带 git-lfs 大文件，机器上没装 git-lfs 时 checkout 会失败。
           # 这里只跳过 smudge（我们只要 Dart / ArkTS 源码），不改全局 git 配置。
           cfg="$RUNNER_TEMP/gitconfig_nolfs"
