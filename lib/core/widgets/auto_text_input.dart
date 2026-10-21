@@ -6,6 +6,10 @@ import 'package:flutter/services.dart';
 
 /// URL/email keyboard types on desktop swallow Shift for `;`/`:`, so typing
 /// `https://` becomes `https;//`. Keep a normal text keyboard there.
+///
+/// 分支保持「枚举值不加 ohos」：`TargetPlatform.ohos` 只在鸿蒙 Flutter fork 里
+/// 存在，上游 Flutter（五个平台的 CI 用的）没有这个常量，引用它会让 analyze
+/// 直接报 undefined_enum_constant。ohos 落进 default 分支，行为与移动端一致。
 TextInputType desktopSafeKeyboardType(TextInputType type) {
   switch (defaultTargetPlatform) {
     case TargetPlatform.windows:
@@ -15,10 +19,8 @@ TextInputType desktopSafeKeyboardType(TextInputType type) {
         return TextInputType.text;
       }
       return type;
-    case TargetPlatform.android:
-    case TargetPlatform.iOS:
-    case TargetPlatform.fuchsia:
-    case TargetPlatform.ohos:
+    default:
+      // Android / iOS / fuchsia / ohos：保持原键盘类型。
       return type;
   }
 }
