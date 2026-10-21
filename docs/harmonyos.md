@@ -1,10 +1,10 @@
 # 鸿蒙（HarmonyOS 7.0 / API 26）构建说明
 
-本文档记录 Koyze 的鸿蒙平台接入方式、工具链版本与当前已知缺口。
+本文档记录 Koyze 的鸿蒙平台接入方式、工具链版本与插件适配现状。
 
-> 状态：**工程骨架已接入，尚未完成真机验证**。`ohos/` 目录由
-> Flutter 3.47.7-ohos 的官方应用模板生成（`flutter create --platforms ohos`），
-> 目标 SDK 为 API 26（HarmonyOS 7.0）。音频链路尚未接入鸿蒙实现，见第 4 节。
+> 状态：**工程骨架已接入，构建链路未打通**。`ohos/` 目录按 Flutter
+> 3.47.7-ohos 的官方应用模板生成，目标 SDK 为 API 26（HarmonyOS 7.0）。
+> 音频链路的鸿蒙实现**已有现成方案**（见第 4 节），但版本尚未对齐到 3.47/API 26。
 
 ## 1. 版本矩阵
 
@@ -16,15 +16,14 @@
 | targetSdkVersion | `26.0.0` | 同上 |
 | bundleName | `com.koyze.app` | 与 Android applicationId、iOS bundle id 一致 |
 
-上游 `openharmony-sig/flutter_flutter` 已迁移，最新适配仓库是
-<https://atomgit.com/oh-flutter/flutter_flutter>。3.47.7 之后上游按版本列车跟进
-（3.44 滞后 4 个月，3.47 已缩短到同步批次）。
+上游 `openharmony-sig/flutter_flutter` 已停更（最后提交 2025-02，最高 3.22），
+现行仓库是 <https://atomgit.com/oh-flutter/flutter_flutter>，3.47 之后按上游版本列车跟进。
 
 ## 2. 环境准备（Windows）
 
 1. 安装 DevEco Studio 26.0.0，记下 SDK 路径（默认 `<DevEco>/sdk/default`，
-   其中含 `openharmony/` 与 `hms/`）。
-2. 拉取鸿蒙 Flutter SDK（放到非系统盘，SDK 本体约 540MB）：
+   内含 `openharmony/` 与 `hms/`）。
+2. 拉取鸿蒙 Flutter SDK（本体约 540MB，建议放非系统盘）：
 
    ```bash
    git clone --depth 1 -b 3.47.7-ohos-1.0.0 \
@@ -39,76 +38,112 @@
    export PUB_HOSTED_URL=https://pub.flutter-io.cn   # 可选，加速 pub
    ```
 
-   **不要设置** `FLUTTER_STORAGE_BASE_URL`。设为鸿蒙 OBS 镜像会导致
-   `engine_stamp.json` 404（该镜像不托管上游工具本体），
-   `flutter --version` 会报 `Unable to create dart snapshot for flutter tool`。
-   默认官方源 `storage.googleapis.com` 可用时直接留空。
+   **不要设置** `FLUTTER_STORAGE_BASE_URL`。设成鸿蒙 OBS 镜像会让
+   `engine_stamp.json` 404（该镜像不托管上游工具本体），`flutter --version`
+   报 `Unable to create dart snapshot for flutter tool`。默认官方源可用时留空。
 
-4. 引擎工件：`bin/internal/dart-sdk-url.ohos` 里全部指向 atomgit 的 Release 附件
-   （`flutter_patched_sdk.zip`、`ohos-arm64*-artifacts.zip`、定制 `dart-sdk-*.zip`）。
-   这些附件**匿名下载返回 401**，需要：
-
-   - 登录 atomgit 后在
-     <https://atomgit.com/oh-flutter/flutter_flutter/releases/tag/3.47.7-ohos-1.0.0>
-     手工下载 11 个附件；或
-   - 用带凭据的下载方式，把它们放进 `flutter_ohos/bin/cache/` 对应位置。
-
-   `flutter doctor -v` 会自检 `HarmonyOS toolchain`。
+4. 引擎工件：`bin/internal/dart-sdk-url.ohos` 里 11 个附件全部指向 atomgit Release。
+   这些附件**匿名下载返回 401**，需要登录 atomgit 后从
+   <https://atomgit.com/oh-flutter/flutter_flutter/releases/tag/3.47.7-ohos-1.0.0>
+   手工下载并放进 `flutter_ohos/bin/cache/`。
 
 ## 3. 构建
 
 ```bash
 flutter pub get
-flutter build hap --debug --target-platform ohos-arm64      # 调试
-flutter build hap --release --target-platform ohos-arm64    # 发布
+flutter build hap --debug --target-platform ohos-arm64
+flutter build hap --release --target-platform ohos-arm64
 ```
 
-产物在 `ohos/entry/build/default/outputs/default/`。安装到设备用
-DevEco 的 `hdc`：
-
-```bash
-hdc install entry-default-signed.hap
-```
-
-签名：`ohos/build-profile.json5` 的 `signingConfigs` 目前为空，本地调试可在
-DevEco Studio 里用「自动签名」（File → Project Structure → Signing Configs）生成，
-CI 上则需要单独的签名证书与 profile，因此本仓库暂未添加鸿蒙构建工作流
+产物在 `ohos/entry/build/default/outputs/default/`，用 `hdc install <hap>` 安装。
+签名：`ohos/build-profile.json5` 的 `signingConfigs` 为空，本地用 DevEco 的
+「自动签名」即可；CI 需要单独证书，因此仓库暂未添加鸿蒙构建工作流
 （GitHub 托管 runner 也没有 HarmonyOS SDK 与许可）。
 
-## 4. 插件适配矩阵
+## 4. 插件适配
 
-鸿蒙侧插件生态与 pub.dev 是两套：官方适配版多数以 `*_ohos` 发布，少数只在
-社区仓库里以 git 依赖提供。
+鸿蒙侧有三套来源：pub 上的 `*_harmonyos` / `*_ohos` 包、gitcode 上的 TPC
+移植仓库、以及确实没有实现的。
 
-### 已有鸿蒙实现
+### 4.1 pub 上直接可用
 
-| 依赖 | 鸿蒙方案 |
+| 依赖 | 鸿蒙包 |
 | --- | --- |
-| `shared_preferences` | `shared_preferences_ohos`（pub） |
-| `path_provider` | `path_provider_ohos`（pub） |
-| `connectivity_plus` | `connectivity_plus_ohos`（pub） |
-| `permission_handler` | `permission_handler_ohos`（pub） |
-| `file_picker` | `file_picker_ohos`（pub） |
-| `flutter_secure_storage` | `flutter_secure_storage_ohos`（pub） |
-| `flutter_js` | `flutter_js_ohos`（pub） |
+| `shared_preferences` | `shared_preferences_harmonyos` |
+| `path_provider` | `path_provider_harmonyos` |
+| `connectivity_plus` | `connectivity_plus_harmonyos` |
+| `permission_handler` | `permission_handler_ohos` |
+| `file_picker` | `file_picker_ohos` |
+| `flutter_secure_storage` | `flutter_secure_storage_ohos` |
+| `flutter_js` | `flutter_js_ohos` |
 
-### 需要替换/自建的
+`*_harmonyos` 系列普遍是 `0.0.1`、2025-08 ~ 2025-11 发布，SDK 约束
+`>=3.6.2 <4.0.0`，可用但版本号还在早期。
 
-| 依赖 | 现状 | 处理方式 |
+### 4.2 音频链路（gitcode TPC 移植，用 dependency_overrides 覆盖）
+
+`just_audio` / `audio_service` / `audio_session` 在 pub 上的官方包都没有
+ohos 实现，但社区 TPC 仓库提供了完整移植，做法是**整体覆盖原包**而不是新增
+独立包：
+
+```yaml
+dependency_overrides:
+  just_audio:
+    git:
+      url: https://gitcode.com/openharmony-sig/fluttertpc_just_audio.git
+      path: just_audio
+  audio_service:
+    git:
+      url: https://gitcode.com/openharmony-sig/fluttertpc_audio_service.git
+      path: audio_service
+  audio_session:
+    git:
+      url: https://gitcode.com/openharmony-sig/flutter_audio_session.git
+```
+
+分支按上游版本选择：
+
+| 上游 | just_audio 移植 | audio_service 移植 |
 | --- | --- | --- |
-| `just_audio` | pub 上的官方包无 ohos 实现，直接跑会卡在 Loading（MethodChannel 找不到宿主） | 改用社区适配版 `just_audio_ohos`（基于 just_audio 0.9.37）：`git: https://atomgit.com/openharmony-sig/fluttertpc_just_audio`，`path: just_audio/ohos` |
-| `audio_session` | 同上 | 社区仓库 `flutter_audio_session` 提供 ohos 实现 |
-| `audio_service` | **鸿蒙没有 MediaSession 等价物**，无适配版 | 需要自建：ArkTS 侧用通知服务发媒体通知 + `MethodChannel` 桥接；后台播放还要在 `module.json5` 声明 `ohos.permission.KEEP_BACKGROUND_RUNNING` 并在 `EntryAbility` 申请后台任务 |
-| `audio_metadata_reader` | 依赖 dart:ffi，需按 ohos ABI 重新编译 | 鸿蒙侧暂不读取本地音频元数据 |
-| `just_audio_windows` / `home_widget` / `live_activities` / `flutter_app_group_directory` | 桌面 / iOS 专用 | 鸿蒙构建时自然跳过，不影响 HAP |
+| 0.9.37 | `br_0.9.37_ohos` | — |
+| 0.9.41 | `br_just_audio-v0.9.41_ohos` | — |
+| 0.10.4 / 0.10.5 | `br_v0.10.4_ohos` / `br_v0.10.5_ohos` | — |
+| audio_service 0.18.18 | — | `br_v0.18.18_ohos` |
+| Flutter 3.41+ | `br_3.41_dev` | `br_3.41_dev`（0.18.19） |
 
-> 说明：`just_audio_ohos` 与 `audio_session` 的鸿蒙版**尚未写入 `pubspec.yaml`**。
-> 它们会改变所有平台的依赖解析（git 依赖 + 全局 override），在鸿蒙构建未跑通前
-> 加入会连累现有五个平台的 CI 稳定性，因此留到音频链路正式移植时一并引入。
+`audio_service` 的鸿蒙实现（`ohos/src/main/ets/AudioService.ets`，588 行）用的是：
 
-## 5. 尚未完成
+- `@kit.AVSessionKit`：`createAVSession` + `setAVMetadata` + `activate`，
+  并监听 `play` / `pause` / `stop` / `playNext` / `playPrevious` /
+  `fastForward` / `rewind` —— 这就是 MediaSession 的等价物，锁屏与播控中心都走它。
+- `@kit.BackgroundTasksKit`：`startBackgroundRunning(..., AUDIO_PLAYBACK)`，
+  对应后台播放。
+- `@kit.AbilityKit` 的 `WantAgent`：通知点击回到 App。
+- `pubspec.yaml` 里已声明 `ohos: pluginClass: AudioServicePlugin`，属于可插拔的
+  平台实现。
 
-1. 引擎工件下载（atomgit Release 需要登录），本机尚未跑通 `flutter build hap`。
-2. 音频播放与后台播控（见上表），这是"能装能开"和"能听歌"的分界线。
-3. 签名配置与发布渠道。
-4. 真机 / 模拟器验证矩阵（当前只在 API 26 模拟器与 ALN-AL00 上有社区验证记录）。
+Dart 侧无需改：`AudioService.init` / `BaseAudioHandler` / `MediaItem` /
+`PlaybackState` 的 API 与 0.18.17 一致。
+
+### 4.3 仍然没有鸿蒙实现
+
+| 依赖 | 现状 | 处理 |
+| --- | --- | --- |
+| `audio_metadata_reader` | 依赖 dart:ffi 读本地音频标签，无 ohos ABI 产物 | 鸿蒙侧暂不读本地元数据，或自行交叉编译 |
+| `just_audio_windows` / `home_widget` / `live_activities` / `flutter_app_group_directory` | 桌面 / iOS 专用 | HAP 构建时自然跳过，不影响打包 |
+
+## 5. 可以参考的开源实现
+
+| 仓库 | 做法 |
+| --- | --- |
+| `Aloereed/aloeplayer_ohos` | 同时 override `just_audio` 与 `audio_service`，是当前最完整的 Flutter 鸿蒙播放器参考 |
+| `bmbxwbh/fu_sheng_music_ohos` | 只用 `just_audio_harmonyos`，没有接 audio_service，等于只有前台播放 |
+| `AnmSleepalone/bujuan-harmony` | `pubspec.lock` 内含 `fluttertpc_audio_service` |
+
+## 6. 尚未完成 / 风险
+
+1. **引擎工件下载**：atomgit Release 匿名 401，本机尚未跑通 `flutter build hap`。
+2. **版本对齐**：TPC 移植的验证上限是 Flutter 3.35 + SDK 6.0.1（API 21），
+   本项目是 3.47.7 + API 26，需要实测；优先试 `br_3.41_dev`。
+3. **签名与发布渠道**。
+4. **真机矩阵**：社区目前只在 API 26 模拟器与 ALN-AL00 上有验证记录。
