@@ -286,10 +286,13 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
                                   horizontal: 2,
                                 ),
                                 child: ListenableBuilder(
-                                  listenable: rootBranchIndex,
+                                  // 和竖屏顶栏用同一个「视觉当前页」：页面一
+                                  // 滑进来，侧栏的高亮与该页的动作就跟着到位，
+                                  // 不用等路由补完。
+                                  listenable: rootHeaderBranchIndex,
                                   builder: (context, _) {
                                     return RootSideNav(
-                                      selectedIndex: rootBranchIndex.value,
+                                      selectedIndex: rootHeaderBranchIndex.value,
                                       headers: rootHeaderController,
                                       currentPath: _path,
                                       onTap: selectRootBranch,

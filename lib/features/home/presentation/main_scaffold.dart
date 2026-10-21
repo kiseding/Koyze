@@ -41,6 +41,17 @@ final rootHeaderController = RootHeaderController();
 /// covers the right pane.
 final rootBranchIndex = ValueNotifier<int>(0);
 
+/// 顶栏此刻该显示哪一页的标题与动作按钮。
+///
+/// 它**不是**路由的 currentIndex。点击 tab / 横滑时，目标页在补间一开始就
+/// 跟着手指进来了，而路由要等补间跑完才 `goBranch`——中间这 300~400ms 里
+/// 顶栏还挂着上一页的动作：看着榜单卡片已经铺满屏幕，右上角那颗「榜单设置」
+/// 却要再等一下才冒出来，在那之前根本点不到。
+///
+/// [SwipeBranchContainer] 在「决定去目标页」的那一刻（手指抬起判定通过、
+/// 或点击动画起跑）就把它切过去；被重新按住 / 取消时退回当前页。
+final rootHeaderBranchIndex = ValueNotifier<int>(0);
+
 class _MainScaffoldState extends ConsumerState<MainScaffold> {
   // 上一帧 progress：判定方向——下滑/关闭（progress 下降）时 chrome
   // 全程立即显示，迷你栏绝不"消失一下"；打开（上升）保留退场窗口。
@@ -156,19 +167,27 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: ListenableBuilder(
-                    listenable: rootHeaderController,
-                    builder: (context, _) {
-                      final header = rootHeaderController.headerFor(
-                        selectedIndex,
-                      );
-                      return FrostedTabHeader(
-                        // 竖屏里标题不再渲染：选中的那个 tab 展开后就是
-                        // 这一页的名字，再写一遍大标题只是重复。title 仍
-                        // 传过去，回退标题栏（推送页）才用得到。
-                        title: header?.title ?? '',
-                        titleKey: header?.titleKey,
-                        actions: header?.actions ?? const [],
+                  child: ValueListenableBuilder<int>(
+                    // 顶栏跟的是「视觉上的当前页」，不是路由索引：过渡一旦
+                    // 决定去目标页就换过来，右上角的动作按钮和页面同一帧
+                    // 到位，落地的瞬间就能点。
+                    valueListenable: rootHeaderBranchIndex,
+                    builder: (context, chromeIndex, _) {
+                      return ListenableBuilder(
+                        listenable: rootHeaderController,
+                        builder: (context, _) {
+                          final header = rootHeaderController.headerFor(
+                            chromeIndex,
+                          );
+                          return FrostedTabHeader(
+                            // 竖屏里标题不再渲染：选中的那个 tab 展开后就是
+                            // 这一页的名字，再写一遍大标题只是重复。title 仍
+                            // 传过去，回退标题栏（推送页）才用得到。
+                            title: header?.title ?? '',
+                            titleKey: header?.titleKey,
+                            actions: header?.actions ?? const [],
+                          );
+                        },
                       );
                     },
                   ),
@@ -283,6 +302,9 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
   void initState() {
     super.initState();
     _anim = AnimationController.unbounded(vsync: this)..addListener(_tick);
+    // 壳层可能是被深链直接建在某一页上的：先把顶栏对齐到当前页，
+    // 免得第一帧显示上一页残留的动作按钮。
+    rootHeaderBranchIndex.value = widget.currentIndex;
   }
 
   @override
@@ -320,6 +342,7 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _dragging = false;
       rootBranchDrag.value = 0;
       rootBranchDragTarget.value = null;
+      rootHeaderBranchIndex.value = widget.currentIndex;
     }
   }
 
@@ -376,6 +399,8 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     }
 
     if (target == null || target == idx) {
+      // 取消：被重新按住再放回原页时，顶栏要跟着退回来。
+      rootHeaderBranchIndex.value = idx;
       if (!await _settleTo(0, velocity)) return;
       if (!mounted) return;
       setState(() {
@@ -390,6 +415,9 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     final end = _neighborEntersFromRight(idx, target) ? -width : width;
     _transitionTargetIndex = target;
     rootBranchDragTarget.value = target;
+    // 手指抬起的这一帧就把顶栏换成目标页的：此时页面正顺着惯性滑进来，
+    // 右上角的动作按钮和它同时到位，落地的瞬间就能点。
+    rootHeaderBranchIndex.value = target;
     if (!await _settleTo(end, velocity)) return;
     if (!mounted) return;
     // 补间已经落到目标页：先把渲染索引切过去，再把路由推过去。
@@ -436,6 +464,9 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     final width = MediaQuery.sizeOf(context).width;
     _transitionTargetIndex = target;
     rootBranchDragTarget.value = target;
+    // 点击也是「页面开始滑 = 顶栏开始换」：动作按钮随页面一起进场，
+    // 而不是等补间跑完、路由切过去之后才补上。
+    rootHeaderBranchIndex.value = target;
     if (!await _settleTo(target > current ? -width : width, 0)) return;
     if (!mounted) return;
     setState(() {
@@ -541,6 +572,9 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
                       _anim.stop();
                       _transitionTargetIndex = null;
                       rootBranchDragTarget.value = null;
+                      // 顶栏退回屏幕上这一页的：刚才决定要走了，现在又被
+                      // 按住，最后可能滑回原页，动作按钮不能先跳过去。
+                      rootHeaderBranchIndex.value = _renderIndex;
                       _animating = false;
                     }
                     setState(() => _dragging = true);

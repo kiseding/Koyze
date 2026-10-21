@@ -164,12 +164,26 @@ final appRouter = GoRouter(
         );
       },
       branches: [
+        // 四个分支全部 preload。
+        //
+        // go_router 默认只在「第一次切过去」时才建这条分支的 Navigator，
+        // 在此之前 navigatorContainerBuilder 拿到的 children 里那一项是
+        // SizedBox.shrink()。横滑是两页同时在屏上的：一边滑走、一边滑入，
+        // 而滑入的那页此刻还是个空盒子——手指拖到哪都只看得到一片白，
+        // 等松手 goBranch 之后页面才被创建、才去请求数据，于是"滑过去了
+        // 还是没加载好"。
+        //
+        // preload 让四条分支在壳层第一次 build 时就全部建好：页面、列表、
+        // 图片请求都在启动阶段（还有启动画面挡着）跑完。之后无论往哪边滑，
+        // 邻页从第一像素起就是完整内容，落地即成品。
         StatefulShellBranch(
+          preload: true,
           routes: [
             GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
           ],
         ),
         StatefulShellBranch(
+          preload: true,
           routes: [
             GoRoute(
               path: '/leaderboard',
@@ -178,6 +192,7 @@ final appRouter = GoRouter(
           ],
         ),
         StatefulShellBranch(
+          preload: true,
           routes: [
             GoRoute(
               path: '/playlist',
@@ -202,6 +217,7 @@ final appRouter = GoRouter(
           ],
         ),
         StatefulShellBranch(
+          preload: true,
           routes: [
             GoRoute(
               path: '/settings',
