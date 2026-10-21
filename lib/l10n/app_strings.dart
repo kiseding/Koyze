@@ -299,6 +299,7 @@ class S {
   String get showAll => en ? 'Show all' : '全部显示';
   String get back => en ? 'Back' : '返回';
   String chartCount(int count) => en ? '$count charts' : '$count 个榜单';
+  String get allCharts => en ? 'All' : '全部';
   String get defaultFirst => en ? 'Shown first' : '默认优先';
   String hiddenUntil(String name) =>
       en ? 'Hidden until you turn on “$name”' : '已隐藏，勾选「$name」后显示';
