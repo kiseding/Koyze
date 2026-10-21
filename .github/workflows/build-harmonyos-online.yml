@@ -1,0 +1,164 @@
+name: Build HarmonyOS HAP (hosted runner)
+
+# 在线构建，不装 DevEco Studio、不用 self-hosted runner。
+#
+# 实测结论（2026-10-21）：
+#   - Flutter ohos fork 的引擎工件在 atomgit 上是**匿名可下**的（GET 302 → CDN，
+#     200 OK；之前的 401 只针对 HEAD 请求）。所以不用镜像、不用 token，
+#     `flutter --version` 自己就会把 dart-sdk / patched_sdk / har 全下齐。
+#   - 唯一必须自己搬的是华为 Command Line Tools（登录下载中心才能下），放到
+#     仓库 Release，下面用 GITHUB_TOKEN 取。
+#   - fork 只给 darwin-arm64 / windows-x64 发了定制 dart-sdk，没有 linux-x64，
+#     所以 runner 必须是 windows-latest。
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '构建模式'
+        type: choice
+        options: [debug, release]
+        default: debug
+  push:
+    branches: [ohos-audio-trial]
+    paths:
+      - 'lib/**'
+      - 'ohos/**'
+      - 'pubspec*.yaml'
+      - 'third_party/**'
+      - '.github/workflows/build-harmonyos-online.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ohos-online-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    env:
+      # 短路径：Flutter 仓库层级很深，配合 workspace 的长路径会撞 260 字符上限
+      FLUTTER_OHOS_HOME: C:/fo/flutter_ohos
+      # CLT 放 D 盘：分卷 2.6GB + 解压 7.8GB，C 盘只剩 ~14GB 不够；workspace 也在 D:
+      HOS_SDK_HOME: D:/fo/command-line-tools/sdk
+      DEVECO_SDK_HOME: D:/fo/command-line-tools/sdk
+      PUB_HOSTED_URL: https://pub.flutter-io.cn
+      FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
+      # 必须和 workspace 同盘！flutter-hvigor-plugin 用 path.relative 算插件
+      # srcPath，Windows 上跨盘符会返回绝对路径，hvigor 直接报
+      # "The srcPath is not a relative path"。workspace 在 D:，缓存也放 D:。
+      PUB_CACHE: D:/pc
+      TOOLCHAIN_TAG: toolchain-ohos-3.47.7
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 工具链放哪都行，凭据从仓库配置来：
+      #   同仓库 Release（默认）：什么都不用配，但公开仓库的 Release 附件也是公开的，
+      #     CLT 会被公开再分发，注意华为许可。
+      #   独立私有仓库：设 var TOOLCHAIN_REPO + secret TOOLCHAIN_TOKEN
+      #     （fine-grained PAT，只给那个仓库 Contents: Read）。
+      - name: 取 Command Line Tools（分卷）
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TOOLCHAIN_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tc_repo="${{ vars.TOOLCHAIN_REPO || github.repository }}"
+          mkdir -p /d/fo/dl
+          # CLT zip 2.6GB，超过 Release 单文件 2GB 上限，所以按 1.2GB 分卷存
+          gh release download "$TOOLCHAIN_TAG" --repo "$tc_repo" \
+            --pattern 'command-line-tools-windows.zip.part*' --dir /d/fo/dl --clobber
+          cd /d/fo/dl
+          ls -lh
+          cat command-line-tools-windows.zip.part* > clt.zip
+          rm -f command-line-tools-windows.zip.part*
+          7z x -y clt.zip -o/d/fo > /dev/null
+          rm -f clt.zip
+          sdk_pkg="$HOS_SDK_HOME/default/sdk-pkg.json"
+          if [ ! -f "$sdk_pkg" ]; then
+            echo "::error::CLT 里没有 sdk/default/sdk-pkg.json，检查压缩包顶层目录名是否为 command-line-tools/"
+            ls -la /d/fo; exit 1
+          fi
+          api="$(grep -o '"apiVersion"[^,]*' "$sdk_pkg" | head -1 | grep -o '[0-9]\+')"
+          echo "HarmonyOS SDK API: ${api:-unknown}"
+          if [ -n "${api:-}" ] && [ "$api" -lt 26 ]; then
+            echo "::warning::SDK API $api 低于项目要求的 26"
+          fi
+          # CLT 自带 node / ohpm / hvigor，优先用自带的
+          for d in tool/node node bin hvigor/bin ohpm/bin; do
+            [ -d "/d/fo/command-line-tools/$d" ] && echo "D:/fo/command-line-tools/$d" >> "$GITHUB_PATH"
+          done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: 拉鸿蒙 Flutter fork
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 -b 3.47.7-ohos-1.0.0 \
+            https://atomgit.com/oh-flutter/flutter_flutter.git "$FLUTTER_OHOS_HOME"
+
+      - name: 初始化工具链（自动拉 dart-sdk 与引擎工件）
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$FLUTTER_OHOS_HOME/bin/flutter.bat" --version
+          "$FLUTTER_OHOS_HOME/bin/flutter.bat" precache --ohos || true
+          ls "$FLUTTER_OHOS_HOME/bin/cache/artifacts/engine"
+
+      - name: 换入鸿蒙依赖清单并解析依赖
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp pubspec_ohos.yaml pubspec.yaml
+          # TPC 移植仓库带 git-lfs 大文件，跳过 smudge
+          printf '[filter "lfs"]\n\tprocess =\n\tsmudge =\n\tclean =\n\trequired = false\n' \
+            > "$RUNNER_TEMP/gitconfig_nolfs"
+          echo "GIT_CONFIG_GLOBAL=$RUNNER_TEMP/gitconfig_nolfs" >> "$GITHUB_ENV"
+          "$FLUTTER_OHOS_HOME/bin/flutter.bat" pub get
+
+      # release 专用：3.47.7-ohos-1.0.0 没挂 windows-x64 的 gen_snapshot，
+      # flutter 会退回旧引擎产物（kernel 130），AOT 直接报
+      # "Invalid kernel binary format version (expected 130, found 138)"。
+      # 3.47.4-ohos-1.0.4 里带了配套的，拉下来覆盖。
+      - name: 补 Windows gen_snapshot（仅 release）
+        if: ${{ (inputs.mode || 'debug') == 'release' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          B=https://atomgit.com/oh-flutter/flutter_flutter/releases/download/3.47.4-ohos-1.0.4
+          for pair in "ohos-arm64-release-windows-x64.zip:ohos-arm64-release" \
+                      "ohos-arm64-profile-windows-x64.zip:ohos-arm64-profile"; do
+            zip="${pair%%:*}"; dir="${pair##*:}"
+            curl -fsSL --retry 3 -m 300 "$B/$zip" -o "/tmp/$zip"
+            7z x -y "/tmp/$zip" -o"$FLUTTER_OHOS_HOME/bin/cache/artifacts/engine/$dir/windows-x64" > /dev/null
+          done
+          ls -l "$FLUTTER_OHOS_HOME/bin/cache/artifacts/engine/ohos-arm64-release/windows-x64"
+
+      - name: 构建 HAP
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode="${{ inputs.mode || 'debug' }}"
+          extra=""
+          # release 在 Windows 上还要绕开图标 tree-shaker：patched_sdk 与 dart-sdk
+          # 的 SDK hash 不匹配，否则报 "Invalid SDK hash"
+          [ "$mode" = "release" ] && extra="--no-tree-shake-icons"
+          "$FLUTTER_OHOS_HOME/bin/flutter.bat" build hap \
+            "--$mode" --target-platform ohos-arm64 $extra
+          find ohos/entry/build -name '*.hap' -type f -exec ls -lh {} \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Koyze-HarmonyOS-HAP
+          path: ohos/entry/build/**/*.hap
+          if-no-files-found: error
+          retention-days: 7
