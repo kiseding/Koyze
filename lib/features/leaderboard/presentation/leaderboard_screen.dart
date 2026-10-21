@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,9 +50,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
 
   /// 竖屏的平台筛选；null 表示「全部」。
   String? _platformFilter;
-
-  /// 横屏右栏里正在看的榜；null 时用第一段的第一张榜。
-  String? _selectedCategoryId;
 
   /// 默认布局要等当前帧建完才能生成：它内部会写 provider 状态，在 build
   /// 期间写会被 Riverpod 拦下来（清数据后首次进入必现红屏）。
@@ -115,7 +111,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.error_outline,
                                 color: AppColors.error,
                                 size: 48,
@@ -224,22 +220,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 
-  /// 平台标题条：34 是内容高度，后面 12 是渐隐，内容从它下面穿过去。
-  static const double _headerExtent = 46;
-  static const double _headerContentExtent = 34;
-
-  static const double _rowGap = 14;
-  static const double _chartRowHeight = 34;
-
-  /// 主榜卡片：148 宽，封面占 132，剩下 16 给左右内边距。
-  static const double _cardWidth = 148;
-  static const double _cardGap = 10;
-
-  /// 窄屏两列、宽屏三列。辅卡只剩榜名，210 以上放长榜名才不用省略号。
-  static int _columnsFor(double contentWidth) => contentWidth >= 520 ? 3 : 2;
-
-  /// 方案 1「双轴浏览」：竖屏纵向按平台分段、段内榜单横向滑动；
-  /// 横屏左栏平台 + 榜单目录、右栏选中榜单的歌曲。
+  /// 方案 A「极简列表」：竖屏单列按平台分段，横屏按平台三列并排。
   Widget _buildLeaderboardList(
     BuildContext context,
     List<LeaderboardLayoutItem> visible,
@@ -265,100 +246,289 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 
-  /// 竖屏：平台筛选 + 一列分段的自定义滚动区。
+  /// 竖屏：方案 A 的极简单列。
+  ///
+  /// 顶栏标题由根壳层发布（26px「榜单」），页面内不再重复大标题，只留
+  /// 一行 CHARTS 摘要 + 平台胶囊，避免同屏出现两个「榜单」。
   Widget _buildPortraitBrowse(
     BuildContext context,
     List<_LeaderboardSection> sections,
     double contentWidth,
   ) {
     final shown = _filteredSections(sections);
-    final columns = _columnsFor(contentWidth);
-    final tabs = _buildPlatformTabs(context, sections);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (tabs != null) tabs,
-        Expanded(
-          child: shown.isEmpty
-              ? Center(
-                  child: Text(
-                    S.of(context).chartsHidden,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: AppColors.mutedText(context)),
+    final rows = _buildBrowseRows(shown);
+    return CustomScrollView(
+      // 用旧参数：CI 的 Flutter 3.44.9 与鸿蒙 fork 3.47.7 都要能编，
+      // ScrollCacheExtent 只在 3.41+ 才有，跨版本时旧写法更保险。
+      // ignore: deprecated_member_use
+      cacheExtent: 400,
+      slivers: [
+        SliverToBoxAdapter(child: _buildChartsSummary(context, shown)),
+        if (rows.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Text(
+                S.of(context).chartsHidden,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.mutedText(context)),
+              ),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList.builder(
+              itemCount: rows.length,
+              itemBuilder: (context, index) {
+                final row = rows[index];
+                final section = row.section;
+                if (section != null) return _buildGroupLabel(context, section);
+                final chart = row.chart!;
+                return _LeaderboardChartTile(
+                  category: chart,
+                  platformColor: _platformColor(
+                    context,
+                    chart.platform ?? 'other',
                   ),
-                )
-              : CustomScrollView(
-                  cacheExtent: 520,
-                  slivers: [
-                    for (final section in shown)
-                      // 每个平台是一个 sliver 组：组的结束会把组头的吸顶状态
-                      // 一起推走，否则每个段的标题都会一直叠在顶上。
-                      SliverMainAxisGroup(
-                        slivers: [
-                          if (section.platform != null)
-                            SliverPersistentHeader(
-                              pinned: true,
-                              delegate: _PlatformHeaderDelegate(
-                                extent: _headerExtent,
-                                contentExtent: _headerContentExtent,
-                                background:
-                                    Theme.of(context).scaffoldBackgroundColor,
-                                child: _buildPlatformHeader(context, section),
-                              ),
-                            )
-                          else
-                            const SliverToBoxAdapter(
-                              child: SizedBox(height: 8),
-                            ),
-                          SliverToBoxAdapter(
-                            child: _buildSectionBody(
-                              context,
-                              section,
-                              columns,
-                            ),
-                          ),
-                        ],
-                      ),
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 16 + RootShellLayout.obscuredBottomOf(context),
-                      ),
-                    ),
-                  ],
-                ),
+                  onOpen: () => _openCategory(context, chart),
+                  onPlay: () => _playLeaderboard(ref, chart),
+                );
+              },
+            ),
+          ),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 20 + RootShellLayout.obscuredBottomOf(context),
+          ),
         ),
       ],
     );
   }
 
-  /// 横屏：左目录、右歌曲。左栏固定宽度，右栏吃掉剩下的空间。
+  /// 把分段摊平成一串「分组标题 / 榜单行」，交给 SliverList 懒构建。
+  ///
+  /// 让一行榜单决定「要不要拉详情」的是 [_LeaderboardChartTile] 自己的
+  /// build，而 SliverList 只构建可见范围（含 cacheExtent），所以四十多个榜
+  /// 不会一进页面就发四十多个请求——旧实现用 SliverToBoxAdapter + Column
+  /// 一次性构建全段，正是那段注释里担心的场景。
+  List<_BrowseRow> _buildBrowseRows(List<_LeaderboardSection> sections) {
+    final rows = <_BrowseRow>[];
+    for (final section in sections) {
+      if (section.platform != null) rows.add(_BrowseRow.section(section));
+      for (final chart in section.allCards) {
+        rows.add(_BrowseRow.chart(chart));
+      }
+    }
+    return rows;
+  }
+
+  /// 页面头部：CHARTS 小标 + 平台/榜单数量 + 平台胶囊。
+  Widget _buildChartsSummary(
+    BuildContext context,
+    List<_LeaderboardSection> sections,
+  ) {
+    var total = 0;
+    for (final section in sections) {
+      total += section.chartCount;
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'CHARTS',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 2.4,
+                  color: AppColors.accentOf(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  S.of(context).chartSummary(sections.length, total),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.mutedText(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildPlatformChips(context, sections),
+        ],
+      ),
+    );
+  }
+
+  /// 横屏：方案 A 的三列并排，一列一个平台。
+  ///
+  /// 横屏没有磨砂顶栏，所以这里补完整的 CHARTS / 榜单头部；竖屏那个
+  /// 大标题由根壳层负责，两处不重复。
   Widget _buildBrowseColumns(
     BuildContext context,
     List<_LeaderboardSection> sections,
     double contentWidth,
   ) {
     final shown = _filteredSections(sections);
-    final selected = _selectedCategory(shown);
-    final leftWidth = (contentWidth * 0.42).clamp(240.0, 320.0).toDouble();
+    if (shown.isEmpty) {
+      return Center(
+        child: Text(
+          S.of(context).chartsHidden,
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.mutedText(context)),
+        ),
+      );
+    }
+    // 三列是方案 A 的目标形态；窗口窄到装不下时降两列、再降单列，
+    // 宁可少一列也不要把榜名挤成省略号。
+    final maxColumns = contentWidth >= 700 ? 3 : (contentWidth >= 460 ? 2 : 1);
+    final visible = shown.length > maxColumns
+        ? shown.sublist(0, maxColumns)
+        : shown;
     final divider = AppColors.onScaffold(context).withValues(alpha: 0.07);
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          width: leftWidth,
-          child: _buildChartDirectory(context, shown, selected),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'CHARTS',
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 2.2,
+                            color: AppColors.accentOf(context),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          S.of(context).charts,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
+                            height: 1,
+                            color: AppColors.onScaffold(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    S.of(context).chartSummary(shown.length, _totalCharts(shown)),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppColors.mutedText(context),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _buildPlatformChips(context, sections, dense: true),
+            ],
+          ),
         ),
-        Container(width: 0.5, color: divider),
-        Expanded(child: _buildChartPane(context, selected)),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var index = 0; index < visible.length; index++) ...[
+                if (index > 0) Container(width: 0.5, color: divider),
+                Expanded(child: _buildPlatformColumn(context, visible[index])),
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  /// 平台筛选条：全部 + 每个平台一档。只有一个平台时整条不出现。
-  Widget? _buildPlatformTabs(
+  /// 横屏的一列：列头（平台色点 + 名称 + 数量）+ 该平台的榜单列表。
+  Widget _buildPlatformColumn(
     BuildContext context,
-    List<_LeaderboardSection> sections,
+    _LeaderboardSection section,
   ) {
+    final charts = section.allCards;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+          child: _buildColumnHeader(context, section),
+        ),
+        Expanded(
+          child: charts.isEmpty
+              ? Center(
+                  child: Text(
+                    S.of(context).noChartData,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.mutedText(context),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: EdgeInsets.only(
+                    left: 10,
+                    right: 10,
+                    bottom: 10 + RootShellLayout.obscuredBottomOf(context),
+                  ),
+                  itemCount: charts.length,
+                  itemBuilder: (context, index) {
+                    final chart = charts[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: _LeaderboardChartCell(
+                        category: chart,
+                        platformColor: _platformColor(
+                          context,
+                          chart.platform ?? 'other',
+                        ),
+                        onOpen: () => _openCategory(context, chart),
+                        onPlay: () => _playLeaderboard(ref, chart),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  int _totalCharts(List<_LeaderboardSection> sections) {
+    var total = 0;
+    for (final section in sections) {
+      total += section.chartCount;
+    }
+    return total;
+  }
+
+  /// 平台筛选：方案 A 的圆角胶囊（选中实底反色）。只有一个平台时不出现。
+  Widget _buildPlatformChips(
+    BuildContext context,
+    List<_LeaderboardSection> sections, {
+    bool dense = false,
+  }) {
     final platforms = <String>[];
     for (final section in sections) {
       final platform = section.platform;
@@ -366,125 +536,69 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         platforms.add(platform);
       }
     }
-    if (platforms.length < 2) return null;
-    final divider = AppColors.onScaffold(context).withValues(alpha: 0.07);
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: divider, width: 0.5)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            _buildFilterTab(
+    if (platforms.length < 2) return const SizedBox.shrink();
+    final filters = <MapEntry<String?, String>>[
+      MapEntry<String?, String>(null, S.of(context).allCharts),
+      for (final platform in platforms)
+        MapEntry<String?, String>(platform, S.of(context).platformName(platform)),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var index = 0; index < filters.length; index++) ...[
+            if (index > 0) SizedBox(width: dense ? 6 : 8),
+            _buildChip(
               context,
-              S.of(context).allCharts,
-              _platformFilter == null,
-              () {
-                if (_platformFilter != null) {
-                  setState(() => _platformFilter = null);
-                }
-              },
+              filters[index].value,
+              _platformFilter == filters[index].key,
+              () => setState(() => _platformFilter = filters[index].key),
+              dense: dense,
             ),
-            for (final platform in platforms)
-              _buildFilterTab(
-                context,
-                S.of(context).platformName(platform),
-                _platformFilter == platform,
-                () => setState(
-                  () => _platformFilter = _platformFilter == platform
-                      ? null
-                      : platform,
-                ),
-              ),
           ],
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildFilterTab(
+  /// 单颗胶囊。未选中用主文字的 6% 做底——直接拿卡片色会和页面底色糊在一起。
+  Widget _buildChip(
     BuildContext context,
     String label,
     bool selected,
-    VoidCallback onTap,
-  ) {
-    final color = selected
-        ? AppColors.onScaffold(context)
-        : AppColors.mutedText(context);
+    VoidCallback onTap, {
+    bool dense = false,
+  }) {
+    final onColor = AppColors.onScaffold(context);
+    final background = selected
+        ? onColor
+        : onColor.withValues(alpha: 0.06);
+    final foreground = selected
+        ? AppColors.scaffold(context)
+        : AppColors.secondaryText(context);
     return Pressable(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       selected: selected,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: dense ? 12 : 14,
+          vertical: dense ? 5 : 6,
+        ),
         decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected
-                  ? AppColors.onScaffold(context)
-                  : Colors.transparent,
-              width: 2,
-            ),
-          ),
+          color: background,
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 13,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            letterSpacing: 0.1,
-            color: color,
+            fontSize: dense ? 10.5 : 12,
+            fontWeight: FontWeight.w600,
+            height: 1.2,
+            color: foreground,
           ),
         ),
       ),
-    );
-  }
-
-  /// 一段的正文：主榜卡片横向滑动，其余榜单仍是两列文字行。
-  ///
-  /// 整段只给三张主榜拉封面：卡片里要放前三首歌，每张卡都要读一次榜单详情。
-  /// 酷我一共有四十多个榜，全铺成卡片就是四十多次请求，横向滑到底也很难
-  /// 找到想要的那个——主榜之外继续用纯文字行。
-  Widget _buildSectionBody(
-    BuildContext context,
-    _LeaderboardSection section,
-    int columns,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (section.heroes.isNotEmpty)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 10, 6, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final hero in section.heroes) ...[
-                  _buildHeroRow(context, hero),
-                  const SizedBox(width: _cardGap),
-                ],
-              ],
-            ),
-          ),
-        if (section.cards.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: _buildChartRows(
-                context,
-                section.cards,
-                columns,
-                section.heroes.length + 1,
-              ),
-            ),
-          )
-        else
-          const SizedBox(height: 6),
-      ],
     );
   }
 
@@ -499,34 +613,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         if (section.platform == filter) section,
     ];
     return matching.isEmpty ? sections : matching;
-  }
-
-  /// 辅卡排成等宽列。编号是「这一段里的第几个」，按阅读顺序从左到右数，
-  /// 不是榜单名次——名次是详情页里那 100 首歌的事。编号接着上面的主卡往下走
-  /// （三张主卡占 01..03），否则第一行辅卡又从 01 开始，会读成榜首。
-  List<Widget> _buildChartRows(
-    BuildContext context,
-    List<LeaderboardCategory> cards,
-    int columns,
-    int firstOrdinal,
-  ) {
-    final rows = <Widget>[];
-    for (var i = 0; i < cards.length; i += columns) {
-      final cells = <Widget>[];
-      for (var column = 0; column < columns; column++) {
-        if (column > 0) cells.add(const SizedBox(width: _rowGap));
-        final index = i + column;
-        cells.add(
-          Expanded(
-            child: index < cards.length
-                ? _buildChartCell(context, cards[index], firstOrdinal + index)
-                : const SizedBox.shrink(),
-          ),
-        );
-      }
-      rows.add(Row(children: cells));
-    }
-    return rows;
   }
 
   /// 按平台切段：平台标题卡出一个新段，段内是这一平台的全部榜单。
@@ -581,41 +667,86 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     return sections;
   }
 
-  /// 平台标题：吸顶时也要能盖住下面滚上来的封面，所以是实底 + 末尾渐隐，
-  /// 不用 BackdropFilter（滚动中每帧重新采样太贵）。
-  Widget _buildPlatformHeader(
+  /// 竖屏分组标题：方案 A 的纯文字小标，靠上方留白和上一段分开。
+  Widget _buildGroupLabel(BuildContext context, _LeaderboardSection section) {
+    final platform = section.platform ?? 'other';
+    final muted = AppColors.mutedText(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              S.of(context).platformName(platform),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+                color: muted,
+              ),
+            ),
+          ),
+          if (section.chartCount > 0)
+            Text(
+              S.of(context).chartCount(section.chartCount),
+              style: TextStyle(
+                fontSize: 10,
+                color: muted.withValues(alpha: 0.8),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 横屏列头：平台色点 + 名称 + 数量，底部一条细线（方案 A 的列头形态）。
+  Widget _buildColumnHeader(
     BuildContext context,
     _LeaderboardSection section,
   ) {
     final platform = section.platform ?? 'other';
-    final name = S.of(context).platformName(platform);
-    final color = _platformColor(context, platform);
-    return Row(
-      children: [
-        // 段头只留一个色点：平台色是这一页唯一的颜色来源，方块加图标
-        // 会和下面的热歌榜行抢注意力。
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          name,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
-            color: AppColors.onScaffold(context),
+    final divider = AppColors.onScaffold(context).withValues(alpha: 0.07);
+    return Container(
+      padding: const EdgeInsets.only(bottom: 7),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: divider, width: 0.5)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(
+              color: _platformColor(context, platform),
+              shape: BoxShape.circle,
+            ),
           ),
-        ),
-        const Spacer(),
-        if (section.chartCount > 0)
-          Text(
-            S.of(context).chartCount(section.chartCount),
-            style: TextStyle(fontSize: 11, color: AppColors.mutedText(context)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              S.of(context).platformName(platform),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+                color: AppColors.onScaffold(context),
+              ),
+            ),
           ),
-      ],
+          if (section.chartCount > 0)
+            Text(
+              '${section.chartCount}',
+              style: TextStyle(
+                fontSize: 9.5,
+                color: AppColors.mutedText(context),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -623,525 +754,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     context.push(
       '/leaderboard/detail?id=${Uri.encodeComponent(category.id)}'
       '&name=${Uri.encodeComponent(category.name)}',
-    );
-  }
-
-  /// 主榜卡片：封面 + 榜名 + 前三首歌，横向排成一条。
-  ///
-  /// 只有热歌榜 / 新歌榜 / 飙升榜进这条卡片带：卡片要读榜单详情拿前三首，
-  /// 让四十多个榜都进带子就是四十多次请求，横着滑到底也没人找得到。
-  Widget _buildHeroRow(BuildContext context, LeaderboardCategory category) {
-    final platform = category.platform ?? 'other';
-    final color = _platformColor(context, platform);
-    final isDark = AppColors.isDark(context);
-    // 首歌数来自已有的 provider：加载完就有，没加载完就不显示，
-    // 不拿「每日更新」这种编出来的文案占位。
-    final songs = ref.watch(leaderboardSongsProvider(category.id)).valueOrNull;
-    final songCount = songs?.length;
-    // 分类接口不再逐榜拉封面，卡片封面直接取榜单首曲的封面。
-    final cover =
-        category.coverUrl ??
-        (songs != null && songs.isNotEmpty ? songs.first.artwork : null);
-    final topSongs = songs == null
-        ? const <MusicItem>[]
-        : songs.take(3).toList(growable: false);
-    return Pressable(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => _openCategory(context, category),
-      child: Container(
-        width: _cardWidth,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: AppColors.card(context),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: color.withValues(alpha: isDark ? 0.34 : 0.16),
-            width: 0.5,
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(11),
-              child: SizedBox(
-                width: _cardWidth - 16,
-                height: _cardWidth - 16,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (cover != null && cover.isNotEmpty)
-                      ArtworkImage(
-                        cover,
-                        cacheWidth: 320,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
-                          platform: platform,
-                          name: category.name,
-                          iconSize: 30,
-                        ),
-                      )
-                    else
-                      _LeaderboardPlaceholder(
-                        platform: platform,
-                        name: category.name,
-                        iconSize: 30,
-                      ),
-                    Positioned(
-                      right: 4,
-                      bottom: 4,
-                      child: _LeaderboardPlayButton(
-                        category: category,
-                        diameter: 34,
-                        onPressed: () => _playLeaderboard(ref, category),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              category.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.1,
-                height: 1.2,
-                color: AppColors.onScaffold(context),
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              songCount != null && songCount > 0
-                  ? S.of(context).songCount(songCount)
-                  : S.of(context).platformName(platform),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: AppColors.mutedText(context),
-              ),
-            ),
-            if (topSongs.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              for (var index = 0; index < topSongs.length; index++)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 11,
-                        child: Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            height: 1.3,
-                            color: index == 0
-                                ? AppColors.onScaffold(context)
-                                : AppColors.mutedText(context),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          topSongs[index].name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 10,
-                            height: 1.3,
-                            color: AppColors.secondaryText(context),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 横屏右栏要显示哪一张榜：优先用户点过的，否则第一个平台的第一张榜。
-  LeaderboardCategory? _selectedCategory(
-    List<_LeaderboardSection> sections,
-  ) {
-    final wanted = _selectedCategoryId;
-    if (wanted != null) {
-      for (final section in sections) {
-        for (final category in section.allCards) {
-          if (category.id == wanted) return category;
-        }
-      }
-    }
-    for (final section in sections) {
-      for (final category in section.allCards) {
-        return category;
-      }
-    }
-    return null;
-  }
-
-  /// 横屏左栏：平台分组 + 榜单目录。
-  ///
-  /// 目录里不读榜单详情，只认分类接口带的封面：一整列四十多项如果每项都
-  /// watch 一次 songs provider，进页面就是四十多个并发请求。
-  Widget _buildChartDirectory(
-    BuildContext context,
-    List<_LeaderboardSection> sections,
-    LeaderboardCategory? selected,
-  ) {
-    final rows = <Widget>[];
-    for (final section in sections) {
-      final platform = section.platform;
-      if (platform != null) {
-        rows.add(
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-            child: Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: _platformColor(context, platform),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    S.of(context).platformName(platform),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                      color: AppColors.mutedText(context),
-                    ),
-                  ),
-                ),
-                if (section.chartCount > 0)
-                  Text(
-                    S.of(context).chartCount(section.chartCount),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.mutedText(context),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      }
-      for (final category in section.allCards) {
-        rows.add(
-          _buildDirectoryTile(
-            context,
-            category,
-            selected != null && category.id == selected.id,
-          ),
-        );
-      }
-    }
-    return ListView(
-      padding: EdgeInsets.only(
-        bottom: 16 + RootShellLayout.obscuredBottomOf(context),
-      ),
-      children: rows,
-    );
-  }
-
-  Widget _buildDirectoryTile(
-    BuildContext context,
-    LeaderboardCategory category,
-    bool selected,
-  ) {
-    final platform = category.platform ?? 'other';
-    final color = _platformColor(context, platform);
-    final isDark = AppColors.isDark(context);
-    final cover = category.coverUrl;
-    return Pressable(
-      borderRadius: BorderRadius.circular(10),
-      selected: selected,
-      onTap: () => setState(() => _selectedCategoryId = category.id),
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(8, 1, 8, 1),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? color.withValues(alpha: isDark ? 0.22 : 0.10)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: SizedBox(
-                width: 34,
-                height: 34,
-                child: cover != null && cover.isNotEmpty
-                    ? ArtworkImage(
-                        cover,
-                        cacheWidth: 120,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
-                          platform: platform,
-                          name: category.name,
-                          iconSize: 16,
-                        ),
-                      )
-                    : _LeaderboardPlaceholder(
-                        platform: platform,
-                        name: category.name,
-                        iconSize: 16,
-                      ),
-              ),
-            ),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(
-                category.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                  height: 1.25,
-                  color: AppColors.onScaffold(context),
-                ),
-              ),
-            ),
-            if (selected) ...[
-              const SizedBox(width: 6),
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 横屏右栏：选中榜的头部 + 歌曲列表。
-  Widget _buildChartPane(
-    BuildContext context,
-    LeaderboardCategory? category,
-  ) {
-    if (category == null) {
-      return Center(
-        child: Text(
-          S.of(context).noChartData,
-          style: TextStyle(color: AppColors.mutedText(context)),
-        ),
-      );
-    }
-    final platform = category.platform ?? 'other';
-    final songsAsync = ref.watch(leaderboardSongsProvider(category.id));
-    final songs = songsAsync.valueOrNull;
-    final songCount = songs?.length;
-    final cover =
-        category.coverUrl ??
-        (songs != null && songs.isNotEmpty ? songs.first.artwork : null);
-    final subtitle = songCount != null && songCount > 0
-        ? '${S.of(context).platformName(platform)} · '
-              '${S.of(context).songCount(songCount)}'
-        : S.of(context).platformName(platform);
-    final divider = AppColors.onScaffold(context).withValues(alpha: 0.07);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  width: 52,
-                  height: 52,
-                  child: cover != null && cover.isNotEmpty
-                      ? ArtworkImage(
-                          cover,
-                          cacheWidth: 180,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _LeaderboardPlaceholder(
-                                platform: platform,
-                                name: category.name,
-                                iconSize: 22,
-                              ),
-                        )
-                      : _LeaderboardPlaceholder(
-                          platform: platform,
-                          name: category.name,
-                          iconSize: 22,
-                        ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      category.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.2,
-                        height: 1.15,
-                        color: AppColors.onScaffold(context),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.mutedText(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              _LeaderboardPlayButton(
-                category: category,
-                diameter: 40,
-                onPressed: () => _playLeaderboard(ref, category),
-              ),
-            ],
-          ),
-        ),
-        Container(height: 0.5, color: divider),
-        Expanded(
-          child: songsAsync.when(
-            loading: () => Center(
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child: AppLoadingIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppColors.accentOf(context),
-                  ),
-                ),
-              ),
-            ),
-            error: (error, _) => Center(
-              child: Text(
-                '${S.of(context).loadSongsFailed}: $error',
-                style: TextStyle(color: AppColors.mutedText(context)),
-              ),
-            ),
-            data: (loaded) {
-              if (loaded.isEmpty) {
-                return Center(
-                  child: Text(
-                    S.of(context).noSongData,
-                    style: TextStyle(color: AppColors.mutedText(context)),
-                  ),
-                );
-              }
-              return ListView.builder(
-                itemCount: loaded.length,
-                itemExtent: 58,
-                padding: EdgeInsets.only(
-                  bottom: 12 + RootShellLayout.obscuredBottomOf(context),
-                ),
-                itemBuilder: (context, index) => _ChartPaneSongRow(
-                  songs: loaded,
-                  index: index,
-                  categoryId: category.id,
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// 辅卡：一整行只有编号和榜名。封面缩到这个尺寸以后既认不出内容，
-  /// 又要为每张图留 10pt 内边距，不如干脆不要。
-  Widget _buildChartCell(
-    BuildContext context,
-    LeaderboardCategory category,
-    int ordinal,
-  ) {
-    final platform = category.platform ?? 'other';
-    final color = _platformColor(context, platform);
-    final divider = AppColors.onScaffold(context).withValues(alpha: 0.07);
-    return Pressable(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () => _openCategory(context, category),
-      child: Container(
-        height: _chartRowHeight,
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: divider, width: 0.5)),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 18,
-              child: Text(
-                ordinal.toString().padLeft(2, '0'),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  height: 1.1,
-                  color: AppColors.mutedText(context),
-                  // 等宽数字，两列的编号才对得齐。
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                category.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  height: 1.2,
-                  color: AppColors.onScaffold(context),
-                ),
-              ),
-            ),
-            if (ref.watch(
-              currentMusicProvider.select((music) {
-                if (music == null) return false;
-                return ref.read(playerServiceProvider).nowPlayingLeaderboardId ==
-                    category.id;
-              }),
-            ))
-              Icon(Icons.graphic_eq_rounded, size: 13, color: color),
-            // 最长的榜名（香港电台中文歌曲龙虎榜）会顶到列边界，留一点气口。
-            const SizedBox(width: 6),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1183,123 +795,231 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   }
 }
 
-/// 横屏右栏的一行歌曲。
+/// 竖屏的一行榜单：封面 + 榜名 + 数量 + 前三首 + 播放键（方案 A 单列）。
 ///
-/// 单独做成 ConsumerWidget，而不是在 ListView 的 itemBuilder 里 watch：
-/// 列表子项是在布局阶段建造的，在那里注册依赖会被 Riverpod 判成
-/// 「build 之外改状态」。
-class _ChartPaneSongRow extends ConsumerWidget {
-  const _ChartPaneSongRow({
-    required this.songs,
-    required this.index,
-    required this.categoryId,
+/// 做成 ConsumerWidget 而不是在 SliverList.builder 的 itemBuilder 里
+/// `ref.watch`——itemBuilder 是在布局阶段跑的，在那里注册依赖会被 Riverpod
+/// 判成「build 之外改状态」。放进自己的 build 后还有个好处：只有真正被
+/// 构建出来的行才订阅 songs provider，四十多个榜不会一进页面就全量请求。
+class _LeaderboardChartTile extends ConsumerWidget {
+  const _LeaderboardChartTile({
+    required this.category,
+    required this.platformColor,
+    required this.onOpen,
+    required this.onPlay,
   });
 
-  final List<MusicItem> songs;
-  final int index;
-  final String categoryId;
+  final LeaderboardCategory category;
+  final Color platformColor;
+  final VoidCallback onOpen;
+  final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final song = songs[index];
-    final isPlaying = ref.watch(
-      currentMusicProvider.select(
-        (current) => current?.identityKey == song.identityKey,
-      ),
-    );
-    final divider = AppColors.onScaffold(context).withValues(alpha: 0.06);
+    final platform = category.platform ?? 'other';
+    final songs = ref.watch(leaderboardSongsProvider(category.id)).valueOrNull;
+    final songCount = songs?.length;
+    final cover =
+        category.coverUrl ??
+        (songs != null && songs.isNotEmpty ? songs.first.artwork : null);
+    final topSongs = songs == null
+        ? const <MusicItem>[]
+        : songs.take(3).toList(growable: false);
+    final divider = AppColors.onScaffold(context).withValues(alpha: 0.07);
+    final meta = songCount != null && songCount > 0
+        ? '${S.of(context).platformName(platform)} · '
+              '${S.of(context).songCount(songCount)}'
+        : S.of(context).platformName(platform);
+    final songLine = topSongs.isEmpty
+        ? null
+        : [
+            for (var index = 0; index < topSongs.length; index++)
+              '${index + 1} ${topSongs[index].name}',
+          ].join('   ');
+
     return Pressable(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () {
-        ref
-            .read(playerServiceProvider)
-            .setQueue(
-              songs,
-              startIndex: index,
-              manualPlayName: song.name,
-              leaderboardId: categoryId,
-            );
-      },
+      // 与首页、设置页同一套卡片展开转场：记下这一行的屏幕矩形，
+      // 详情页由 expandablePage 做矩形 morph，关闭时沿原路收拢回来。
+      captureExpandRect: true,
+      borderRadius: BorderRadius.circular(12),
+      onTap: onOpen,
+      semanticLabel: category.name,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: divider, width: 0.5)),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(
-              width: 22,
-              child: isPlaying
-                  ? Icon(
-                      Icons.graphic_eq_rounded,
-                      size: 15,
-                      color: AppColors.accentOf(context),
-                    )
-                  : Text(
-                      '${index + 1}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: index < 3
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        color: index < 3
-                            ? AppColors.accentOf(context)
-                            : AppColors.mutedText(context),
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 8),
             ClipRRect(
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(10),
               child: SizedBox(
-                width: 32,
-                height: 32,
-                child: song.artwork != null && song.artwork!.isNotEmpty
+                width: 48,
+                height: 48,
+                child: cover != null && cover.isNotEmpty
                     ? ArtworkImage(
-                        song.artwork!,
-                        cacheWidth: 96,
+                        cover,
+                        cacheWidth: 144,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
-                          Icons.music_note,
-                          size: 15,
-                          color: AppColors.mutedText(context),
+                        errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
+                          platform: platform,
+                          name: category.name,
+                          iconSize: 20,
                         ),
                       )
-                    : Icon(
-                        Icons.music_note,
-                        size: 15,
-                        color: AppColors.mutedText(context),
+                    : _LeaderboardPlaceholder(
+                        platform: platform,
+                        name: category.name,
+                        iconSize: 20,
                       ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    song.name,
+                    category.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.1,
+                      height: 1.2,
+                      color: AppColors.onScaffold(context),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    meta,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      height: 1.2,
+                      color: AppColors.mutedText(context),
+                    ),
+                  ),
+                  if (songLine != null) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      songLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.2,
+                        color: AppColors.secondaryText(context),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _TilePlayButton(
+              category: category,
+              onPressed: onPlay,
+              diameter: 32,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 横屏一列里的一行榜单：更紧凑，压在浅色块上（方案 A 的列内形态）。
+class _LeaderboardChartCell extends ConsumerWidget {
+  const _LeaderboardChartCell({
+    required this.category,
+    required this.platformColor,
+    required this.onOpen,
+    required this.onPlay,
+  });
+
+  final LeaderboardCategory category;
+  final Color platformColor;
+  final VoidCallback onOpen;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final platform = category.platform ?? 'other';
+    final songs = ref.watch(leaderboardSongsProvider(category.id)).valueOrNull;
+    final songCount = songs?.length;
+    final cover =
+        category.coverUrl ??
+        (songs != null && songs.isNotEmpty ? songs.first.artwork : null);
+    final tint = AppColors.onScaffold(context).withValues(alpha: 0.035);
+    final meta = songCount != null && songCount > 0
+        ? S.of(context).songCount(songCount)
+        : S.of(context).platformName(platform);
+
+    return Pressable(
+      captureExpandRect: true,
+      borderRadius: BorderRadius.circular(10),
+      onTap: onOpen,
+      semanticLabel: category.name,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        decoration: BoxDecoration(
+          color: tint,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: SizedBox(
+                width: 34,
+                height: 34,
+                child: cover != null && cover.isNotEmpty
+                    ? ArtworkImage(
+                        cover,
+                        cacheWidth: 102,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
+                          platform: platform,
+                          name: category.name,
+                          iconSize: 15,
+                        ),
+                      )
+                    : _LeaderboardPlaceholder(
+                        platform: platform,
+                        name: category.name,
+                        iconSize: 15,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    category.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                       height: 1.2,
-                      color: isPlaying
-                          ? AppColors.accentOf(context)
-                          : AppColors.onScaffold(context),
+                      color: AppColors.onScaffold(context),
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    song.singer,
+                    meta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 9,
                       height: 1.2,
                       color: AppColors.mutedText(context),
                     ),
@@ -1307,12 +1027,81 @@ class _ChartPaneSongRow extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
+            _TilePlayButton(
+              category: category,
+              onPressed: onPlay,
+              diameter: 22,
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+/// 列表行上的播放键。
+///
+/// 不复用 [_LeaderboardPlayButton]：那个带 BackdropFilter，卡片形态只有三张
+/// 时无所谓，铺成四十几行就是四十几层实时模糊。这里用纯色圆底，正在播放时
+/// 换成强调色 + 旋转音符，状态语义与卡片版一致。
+class _TilePlayButton extends ConsumerWidget {
+  const _TilePlayButton({
+    required this.category,
+    required this.onPressed,
+    required this.diameter,
+  });
+
+  final LeaderboardCategory category;
+  final VoidCallback onPressed;
+  final double diameter;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isNowPlaying = ref.watch(
+      currentMusicProvider.select((music) {
+        final service = ref.read(playerServiceProvider);
+        return music != null && service.nowPlayingLeaderboardId == category.id;
+      }),
+    );
+    final onColor = AppColors.onScaffold(context);
+    final accent = AppColors.accentOf(context);
+    final background = isNowPlaying
+        ? accent
+        : onColor.withValues(alpha: 0.06);
+    final iconColor = isNowPlaying ? Colors.white : onColor;
+    return CardPlayButton(
+      size: diameter,
+      tooltip: isNowPlaying
+          ? S.of(context).nowPlayingNamed(category.name)
+          : S.of(context).playNamed(category.name),
+      color: iconColor,
+      backgroundColor: background,
+      onPressed: onPressed,
+      icon: isNowPlaying
+          ? _NowPlayingSpin(
+              child: Icon(
+                Icons.music_note,
+                color: Colors.white,
+                size: diameter * 0.62,
+              ),
+            )
+          : Icon(
+              Icons.play_arrow_rounded,
+              color: iconColor,
+              size: diameter * 0.78,
+            ),
+    );
+  }
+}
+
+/// 摊平后的一行：要么是平台分组标题，要么是一张榜。
+class _BrowseRow {
+  const _BrowseRow.section(this.section) : chart = null;
+  const _BrowseRow.chart(this.chart) : section = null;
+
+  final _LeaderboardSection? section;
+  final LeaderboardCategory? chart;
 }
 
 /// 一个平台段：平台标题（可能为 null）+ 该平台的主卡 + 其余榜单的辅卡。
@@ -1340,77 +1129,6 @@ class _LeaderboardSection {
 
   /// 布局项的平台标识；`null` 段没有标题，不会吸顶。
   String? get platform => header?.platformId;
-}
-
-/// 吸顶平台标题。上半段是实底（盖住滚上来的封面），下半段渐隐，
-/// 让卡片看起来是从标题底下滑过去的。
-class _PlatformHeaderDelegate extends SliverPersistentHeaderDelegate {
-  _PlatformHeaderDelegate({
-    required this.extent,
-    required this.contentExtent,
-    required this.background,
-    required this.child,
-  });
-
-  final double extent;
-  final double contentExtent;
-  final Color background;
-  final Widget child;
-
-  @override
-  double get minExtent => extent;
-
-  @override
-  double get maxExtent => extent;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return Stack(
-      children: [
-        Positioned(
-          left: 0,
-          right: 0,
-          top: 0,
-          height: contentExtent,
-          child: ColoredBox(color: background),
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          top: contentExtent,
-          bottom: 0,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [background, background.withValues(alpha: 0)],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          left: 16,
-          right: 16,
-          top: 0,
-          height: contentExtent,
-          child: Align(alignment: Alignment.centerLeft, child: child),
-        ),
-      ],
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant _PlatformHeaderDelegate oldDelegate) {
-    return oldDelegate.extent != extent ||
-        oldDelegate.contentExtent != contentExtent ||
-        oldDelegate.background != background ||
-        oldDelegate.child != child;
-  }
 }
 
 /// 封面加载失败或无封面时的渐变占位。
@@ -1522,93 +1240,6 @@ class _NowPlayingSpinState extends State<_NowPlayingSpin>
   @override
   Widget build(BuildContext context) {
     return RotationTransition(turns: _controller, child: widget.child);
-  }
-}
-
-class _LeaderboardPlayButton extends ConsumerWidget {
-  const _LeaderboardPlayButton({
-    required this.category,
-    required this.onPressed,
-    this.diameter = 40,
-  });
-
-  final LeaderboardCategory category;
-  final VoidCallback onPressed;
-
-  /// 主卡上放大到 52，让「播这个榜」成为那一屏最明确的操作。
-  final double diameter;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isNowPlaying = ref.watch(
-      currentMusicProvider.select((music) {
-        final service = ref.read(playerServiceProvider);
-        return music != null && service.nowPlayingLeaderboardId == category.id;
-      }),
-    );
-    // 浅色主题浅底深图标，深色主题深底浅图标。底色要透，封面颜色才出得来。
-    final isDark = AppColors.isDark(context);
-    final accent = AppColors.accentOf(context);
-    final background = isNowPlaying
-        ? accent
-        : (isDark ? AppColors.bg : Colors.white);
-    final iconColor = isNowPlaying
-        ? Colors.white
-        : (isDark ? AppColors.textPrimary : AppColors.lightText);
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: SizedBox.square(
-        dimension: diameter,
-        child: Stack(
-          alignment: Alignment.center,
-          clipBehavior: Clip.none,
-          children: [
-            ClipOval(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: ColoredBox(
-                  color: background.withValues(
-                    alpha: isNowPlaying ? 0.88 : 0.34,
-                  ),
-                  child: const SizedBox.expand(),
-                ),
-              ),
-            ),
-            CardPlayButton(
-              size: diameter,
-              tooltip: isNowPlaying
-                  ? S.of(context).nowPlayingNamed(category.name)
-                  : S.of(context).playNamed(category.name),
-              color: iconColor,
-              backgroundColor: Colors.transparent,
-              onPressed: onPressed,
-              icon: isNowPlaying
-                  ? _NowPlayingSpin(
-                      child: Icon(
-                        Icons.music_note,
-                        color: Colors.white,
-                        size: diameter * 0.65,
-                      ),
-                    )
-                  : Icon(
-                      Icons.play_arrow_rounded,
-                      color: iconColor,
-                      size: diameter * 0.72,
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
