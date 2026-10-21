@@ -20,7 +20,7 @@ on:
         options: [debug, release]
         default: debug
   push:
-    branches: [ohos-audio-trial]
+    branches: [ohos-audio-trial, main]
     paths:
       - 'lib/**'
       - 'ohos/**'

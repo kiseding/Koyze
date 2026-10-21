@@ -21,11 +21,9 @@ name: Build HarmonyOS HAP
 # 产物默认是**未签名** HAP：签名需要 .p12/.cer/.p7b，见 docs/harmonyos.md 第 3 节。
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+  # 只在手动触发时跑：这个 job 要 self-hosted runner（标签 harmonyos），
+  # 仓库里没有这类 runner。挂在 push 上会永远排队、把 main 的检查卡成黄点，
+  # 而真正能在托管 runner 出包的是 build-harmonyos-online.yml。
   workflow_dispatch:
 
 permissions:

@@ -1716,7 +1716,9 @@ class _PresetCard extends StatelessWidget {
                 // 五颗同色的亮点，视线先落在按钮上而不是歌单名。左侧图标已经
                 // 承担了分类的颜色信息，这里只需要一个安静的播放 affordance。
                 CardPlayButton(
-                  size: 34,
+                  // 38 而不是 34：卡片高 72、内容 52，34 的按钮夹在中间
+                  // 明显偏小，和左边的 52 图标不成比例。
+                  size: 38,
                   color: AppColors.onScaffold(context),
                   backgroundColor: AppColors.isDark(context)
                       ? Colors.white.withValues(alpha: 0.07)
@@ -1727,7 +1729,7 @@ class _PresetCard extends StatelessWidget {
                     color: onPlay == null
                         ? AppColors.mutedText(context)
                         : AppColors.onScaffold(context).withValues(alpha: 0.72),
-                    size: 21,
+                    size: 24,
                   ),
                 ),
               ],

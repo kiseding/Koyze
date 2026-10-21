@@ -71,4 +71,10 @@ void main() {
   test('platform header shows how many charts are in the block', () {
     expect(source, contains('S.of(context).chartCount('));
   });
+
+  test('平台胶囊吃未筛选的分段', () {
+    // 传 shown 的话，选中某个平台后只剩一个平台，_buildPlatformChips 里的
+    // platforms.length < 2 会把整条标签藏掉，用户再也切不回「全部」。
+    expect(source, contains('_buildChartsSummary(context, sections)'));
+  });
 }

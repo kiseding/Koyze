@@ -263,7 +263,10 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       // ignore: deprecated_member_use
       cacheExtent: 400,
       slivers: [
-        SliverToBoxAdapter(child: _buildChartsSummary(context, shown)),
+        // 摘要与胶囊必须吃「未筛选」的分段：传 shown 的话，选中某个平台后
+        // 只剩一个平台，_buildPlatformChips 里的 platforms.length < 2 会把
+        // 整条标签藏起来，用户就再也切不回「全部」了。
+        SliverToBoxAdapter(child: _buildChartsSummary(context, sections)),
         if (rows.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
@@ -795,6 +798,21 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   }
 }
 
+/// 榜单卡的底色，与「歌单」页 `_PresetCard`（OrigoChromeSurface → chrome 档）
+/// 完全同一层。
+///
+/// 为什么不直接用那个 widget：它会挂一层 BackdropFilter，列表里同时可见
+/// 十几张卡就是十几层全宽实时模糊。卡下面只有页面底色、没有内容穿过去，
+/// 模糊本来也看不出差别——这里直接按 chrome 档的染色透明度把底色合成到
+/// 页面底色上，出图一致、开销为零。
+///
+/// 别改用 `GlassSurface` 的 `blur: 0` 分支：那条路把透明度强制成 0.94
+/// （低内存模式的兜底），比歌单卡实一档，颜色就差了两个色阶。
+Color _leaderboardCardFill(BuildContext context) => Color.alphaBlend(
+  AppGlass.fillColor(context, style: AppGlassStyle.chrome),
+  AppColors.scaffold(context),
+);
+
 /// 竖屏的一行榜单：封面 + 榜名 + 数量 + 前三首 + 播放键（方案 A 单列）。
 ///
 /// 做成 ConsumerWidget 而不是在 SliverList.builder 的 itemBuilder 里
@@ -818,18 +836,12 @@ class _LeaderboardChartTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final platform = category.platform ?? 'other';
     final songs = ref.watch(leaderboardSongsProvider(category.id)).valueOrNull;
-    final songCount = songs?.length;
     final cover =
         category.coverUrl ??
         (songs != null && songs.isNotEmpty ? songs.first.artwork : null);
     final topSongs = songs == null
         ? const <MusicItem>[]
         : songs.take(3).toList(growable: false);
-    final divider = AppColors.onScaffold(context).withValues(alpha: 0.07);
-    final meta = songCount != null && songCount > 0
-        ? '${S.of(context).platformName(platform)} · '
-              '${S.of(context).songCount(songCount)}'
-        : S.of(context).platformName(platform);
     final songLine = topSongs.isEmpty
         ? null
         : [
@@ -841,19 +853,26 @@ class _LeaderboardChartTile extends ConsumerWidget {
       // 与首页、设置页同一套卡片展开转场：记下这一行的屏幕矩形，
       // 详情页由 expandablePage 做矩形 morph，关闭时沿原路收拢回来。
       captureExpandRect: true,
-      borderRadius: BorderRadius.circular(12),
+      // 卡片规格对齐「歌单」页的 _PresetCard：圆角 18、内边距 12、
+      // 封面 48 圆角 14、标题 14.5。两个 tab 来回切时同一条目不该有两种
+      // 行高、两种字号，更不该有两种底色。
+      borderRadius: BorderRadius.circular(18),
       onTap: onOpen,
       semanticLabel: category.name,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: divider, width: 0.5)),
-        ),
-        child: Row(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _leaderboardCardFill(context),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.fromBorderSide(AppGlass.hairline(context)),
+          ),
+          child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(14),
               child: SizedBox(
                 width: 48,
                 height: 48,
@@ -886,26 +905,20 @@ class _LeaderboardChartTile extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w600,
                       letterSpacing: -0.1,
                       height: 1.2,
                       color: AppColors.onScaffold(context),
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    meta,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      height: 1.2,
-                      color: AppColors.mutedText(context),
-                    ),
-                  ),
+                  // 副标题（平台 · 榜单数量）已经去掉：平台在分组标题里
+                  // 写着，数量对听众没有决策价值，留白只给榜名和前三首。
                   if (songLine != null) ...[
-                    const SizedBox(height: 5),
+                    // 8 而不是 5：去掉副标题后两行贴得太紧，榜名和歌曲挤成
+                    // 一块。卡片高度由 48 的封面决定（两行文字加起来 38），
+                    // 加 3 也不会把行撑高。
+                    const SizedBox(height: 8),
                     Text(
                       songLine,
                       maxLines: 1,
@@ -924,9 +937,10 @@ class _LeaderboardChartTile extends ConsumerWidget {
             _TilePlayButton(
               category: category,
               onPressed: onPlay,
-              diameter: 32,
+              diameter: 38,
             ),
           ],
+        ),
         ),
       ),
     );
@@ -951,48 +965,52 @@ class _LeaderboardChartCell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final platform = category.platform ?? 'other';
     final songs = ref.watch(leaderboardSongsProvider(category.id)).valueOrNull;
-    final songCount = songs?.length;
     final cover =
         category.coverUrl ??
         (songs != null && songs.isNotEmpty ? songs.first.artwork : null);
-    final tint = AppColors.onScaffold(context).withValues(alpha: 0.035);
-    final meta = songCount != null && songCount > 0
-        ? S.of(context).songCount(songCount)
-        : S.of(context).platformName(platform);
+    // 与竖屏卡一致：只有榜名和前三首，不留平台 / 数量这类副标题。
+    final topSongs = songs == null
+        ? const <MusicItem>[]
+        : songs.take(3).toList(growable: false);
+    final songLine = topSongs.isEmpty
+        ? null
+        : [for (final song in topSongs) song.name].join(' · ');
 
     return Pressable(
       captureExpandRect: true,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       onTap: onOpen,
       semanticLabel: category.name,
+      // 和竖屏卡、歌单卡同一层底色，只是按列内尺寸收了一档。
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         decoration: BoxDecoration(
-          color: tint,
-          borderRadius: BorderRadius.circular(10),
+          color: _leaderboardCardFill(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.fromBorderSide(AppGlass.hairline(context)),
         ),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(7),
+              borderRadius: BorderRadius.circular(8),
               child: SizedBox(
-                width: 34,
-                height: 34,
+                width: 36,
+                height: 36,
                 child: cover != null && cover.isNotEmpty
                     ? ArtworkImage(
                         cover,
-                        cacheWidth: 102,
+                        cacheWidth: 108,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
                           platform: platform,
                           name: category.name,
-                          iconSize: 15,
+                          iconSize: 16,
                         ),
                       )
                     : _LeaderboardPlaceholder(
                         platform: platform,
                         name: category.name,
-                        iconSize: 15,
+                        iconSize: 16,
                       ),
               ),
             ),
@@ -1007,23 +1025,27 @@ class _LeaderboardChartCell extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w600,
                       height: 1.2,
                       color: AppColors.onScaffold(context),
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    meta,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 9,
-                      height: 1.2,
-                      color: AppColors.mutedText(context),
+                  if (songLine != null) ...[
+                    // 同竖屏卡：两行之间留一口气，别挤成一块。列内是紧凑
+                    // 档，收到 4。
+                    const SizedBox(height: 4),
+                    Text(
+                      songLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        height: 1.2,
+                        color: AppColors.mutedText(context),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -1031,7 +1053,7 @@ class _LeaderboardChartCell extends ConsumerWidget {
             _TilePlayButton(
               category: category,
               onPressed: onPlay,
-              diameter: 22,
+              diameter: 26,
             ),
           ],
         ),

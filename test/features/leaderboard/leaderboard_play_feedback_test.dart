@@ -22,9 +22,10 @@ void main() {
   });
 
   test('竖屏与横屏各用各的直径', () {
-    // 竖屏行 32、横屏列 22：两个尺寸都得从外面传进去，不能写死在组件里。
-    expect(source, contains('diameter: 32'));
-    expect(source, contains('diameter: 22'));
+    // 竖屏 38（对齐歌单卡的播放键）、横屏 26（三列窄栏）：两个尺寸都得从
+    // 外面传进去，不能写死在组件里。
+    expect(source, contains('diameter: 38'));
+    expect(source, contains('diameter: 26'));
   });
 
   test('播放走完整榜单队列，不是单曲', () {

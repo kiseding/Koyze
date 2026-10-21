@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
@@ -244,34 +245,76 @@ class SwipeBranchContainer extends StatefulWidget {
   State<SwipeBranchContainer> createState() => SwipeBranchContainerState();
 }
 
+/// 松手补间的弹簧：略过阻尼（ζ≈1.08），不回弹但保留手指速度。
+const _kSettleSpring = SpringDescription(mass: 1, stiffness: 340, damping: 40);
+
+/// 松手速度超过这个值就翻页（px/s）。比原来的 400 低——有了弹簧，
+/// 轻挑一下就能顺着惯性过去，不必甩得那么用力。
+const double _kFlickVelocity = 320;
+
+/// 弹簧初速度上限：极端甩动时不让页面甩出好几屏。
+const double _kMaxSettleVelocity = 3200;
+
 class SwipeBranchContainerState extends State<SwipeBranchContainer>
     with SingleTickerProviderStateMixin {
   double _dx = 0;
   bool _dragging = false;
   bool _animating = false;
   int? _transitionTargetIndex;
+
+  /// 视觉上的当前页。
+  ///
+  /// 补间刚落到目标页时要立刻切过来，不能等外层 goBranch 把 currentIndex
+  /// 推回来——中间那一帧会画成「旧页静止在原点」，收尾时闪一下旧页。
+  int? _visualIndex;
+
+  /// 每次新手势 / 新补间递增。旧的补间回来时用它判断自己是否已过期，
+  /// 过期就不再提交结果（否则会把手势中途接管的页又切走）。
+  int _epoch = 0;
+
+  /// 无界控制器：位移由 [SpringSimulation] 直接驱动。
+  ///
+  /// 之前是固定 280ms + easeOutCubic：松手瞬间曲线从零速度起步，页面会先
+  /// 顿一下再加速，而且不管还剩多少距离都走满 280ms。改成弹簧后松手速度
+  /// 被继承下来，剩得少就收得快，才是 iOS 那种「接着滑」的手感。
   late final AnimationController _anim;
 
   @override
   void initState() {
     super.initState();
-    _anim = AnimationController(vsync: this, duration: MotionDuration.normal);
+    _anim = AnimationController.unbounded(vsync: this)..addListener(_tick);
   }
 
   @override
   void dispose() {
+    _anim.removeListener(_tick);
     _anim.dispose();
     super.dispose();
   }
 
+  void _tick() {
+    if (!mounted) return;
+    setState(() => _dx = _anim.value);
+    _syncDragProgress(MediaQuery.sizeOf(context).width);
+  }
+
+  /// 渲染用的页码：手势刚落定时是目标页，其余时候跟路由一致。
+  int get _renderIndex => _visualIndex ?? widget.currentIndex;
+
   @override
   void didUpdateWidget(covariant SwipeBranchContainer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // 路由真的换页了：清掉视觉索引，交回 widget.currentIndex 控制。
+    if (_visualIndex != null && widget.currentIndex == _visualIndex) {
+      _visualIndex = null;
+    }
     // Route/goBranch changes must snap even if a swipe animation is in flight.
     // Otherwise the URI can move to /settings while the visible page stays home.
     if (oldWidget.currentIndex != widget.currentIndex) {
+      _epoch++;
       _anim.stop();
       _dx = 0;
+      _visualIndex = null;
       _transitionTargetIndex = null;
       _animating = false;
       _dragging = false;
@@ -286,59 +329,58 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     rootBranchDrag.value = (-_dx / width).clamp(-1.0, 1.0);
   }
 
-  Future<void> _animateTo(double end) async {
+  /// 用弹簧把位移收向 [end]，[velocity] 是松手瞬间的手指速度（px/s）。
+  ///
+  /// 返回 false 表示这段补间被新手势打断了，调用方不要再提交切页结果。
+  Future<bool> _settleTo(double end, double velocity) async {
+    final epoch = ++_epoch;
     if (reduceMotion(context)) {
+      _anim.value = end;
       setState(() {
         _dragging = false;
         _animating = true;
         _dx = end;
       });
-      return;
+      return epoch == _epoch;
     }
-    final start = _dx;
-    _anim.reset();
-    final tween = Tween<double>(
-      begin: start,
-      end: end,
-    ).animate(CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic));
-    void tick() {
-      if (!mounted) return;
-      setState(() => _dx = tween.value);
-      _syncDragProgress(MediaQuery.sizeOf(context).width);
-    }
-
-    tween.addListener(tick);
     setState(() {
       _dragging = false;
       _animating = true;
     });
-    try {
-      await _anim.forward();
-    } on TickerCanceled {
-      // 壳层在动画中销毁时静默退出，避免未捕获异步异常。
-    }
-    tween.removeListener(tick);
+    final simulation = SpringSimulation(
+      _kSettleSpring,
+      _dx,
+      end,
+      velocity.clamp(-_kMaxSettleVelocity, _kMaxSettleVelocity).toDouble(),
+    );
+    await _anim.animateWith(simulation);
+    if (!mounted || epoch != _epoch) return false;
+    _anim.value = end;
+    return true;
   }
 
   Future<void> _finish(double width, double velocity) async {
     if (_animating) return;
-    final idx = widget.currentIndex;
+    final idx = _renderIndex;
     final count = widget.children.length;
-    final threshold = width * 0.18;
+    // 位移过屏宽 20% 或甩得够快就翻页。有了弹簧，速度这一条是主角：
+    // 轻轻一挑就能过，慢慢拖到 20% 也让过。
+    final threshold = width * 0.2;
     int? target;
-    if (_dx < -threshold || velocity < -400) {
+    if (velocity < -_kFlickVelocity || _dx < -threshold) {
       // 左滑进入下一项；最后一页循环回首页。
       target = idx + 1 < count ? idx + 1 : 0;
-    } else if (_dx > threshold || velocity > 400) {
+    } else if (velocity > _kFlickVelocity || _dx > threshold) {
       // 右滑进入上一项；首页循环到最后一页。
       target = idx > 0 ? idx - 1 : count - 1;
     }
 
-    if (target == null) {
-      await _animateTo(0);
+    if (target == null || target == idx) {
+      if (!await _settleTo(0, velocity)) return;
       if (!mounted) return;
       setState(() {
         _animating = false;
+        _dragging = false;
         _dx = 0;
       });
       rootBranchDrag.value = 0;
@@ -348,13 +390,15 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     final end = _neighborEntersFromRight(idx, target) ? -width : width;
     _transitionTargetIndex = target;
     rootBranchDragTarget.value = target;
-    await _animateTo(end);
+    if (!await _settleTo(end, velocity)) return;
     if (!mounted) return;
-    // 切页时同时清零位移：新页以静止态显示，无回弹
+    // 补间已经落到目标页：先把渲染索引切过去，再把路由推过去。
+    // 两个动作在同一帧里完成，页面始终是静止的目标页，不会闪回旧页。
     setState(() {
       _animating = false;
       _dragging = false;
       _dx = 0;
+      _visualIndex = target;
       _transitionTargetIndex = null;
     });
     // 先把 tab 条钉到目标，再撤掉进度：两步在同一帧里完成，胶囊不会先弹
@@ -383,7 +427,7 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _animating = false;
     }
     if (_animating) return;
-    final current = widget.currentIndex;
+    final current = _renderIndex;
     if (target == current) {
       widget.onSelect(target);
       return;
@@ -392,12 +436,13 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     final width = MediaQuery.sizeOf(context).width;
     _transitionTargetIndex = target;
     rootBranchDragTarget.value = target;
-    await _animateTo(target > current ? -width : width);
+    if (!await _settleTo(target > current ? -width : width, 0)) return;
     if (!mounted) return;
     setState(() {
       _animating = false;
       _dragging = false;
       _dx = 0;
+      _visualIndex = target;
       _transitionTargetIndex = null;
     });
     // 先把 tab 条钉到目标，再撤掉进度：两步在同一帧里完成，胶囊不会先弹
@@ -420,7 +465,8 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
   /// 根因：父级 HorizontalDrag 只要 addAllowedPointer，就会进 gesture arena，
   /// 与 TextField 首击抢手势 → iOS 输入法秒关。落在可编辑区域时直接不参赛。
   bool _shouldParticipateInSwipe(Offset globalPosition) {
-    if (_animating) return false;
+    // 补间进行中也参赛：按住就能打断、接着拖，这是 iOS 的手感。
+    // 中断判定在 onStart 里做（那时才赢下 arena，不会误打断一次点击）。
     if (_imeActive) return false;
     if (_hitTestEditable(globalPosition)) return false;
     return true;
@@ -429,17 +475,20 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final idx = widget.currentIndex;
+    final idx = _renderIndex;
     final count = widget.children.length;
     final moving = _dragging || _animating;
 
     // 邻页：跟手预览（支持循环切换）
-    int? neighbor = _transitionTargetIndex;
+    int? neighbor;
     if (moving) {
-      if (neighbor == null && _dx < 0) {
-        neighbor = idx + 1 < count ? idx + 1 : 0;
-      } else if (neighbor == null && _dx > 0) {
-        neighbor = idx > 0 ? idx - 1 : count - 1;
+      neighbor = _transitionTargetIndex;
+      if (neighbor == null) {
+        if (_dx < 0) {
+          neighbor = idx + 1 < count ? idx + 1 : 0;
+        } else if (_dx > 0) {
+          neighbor = idx > 0 ? idx - 1 : count - 1;
+        }
       }
     }
 
@@ -447,23 +496,12 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (!moving)
-            for (var i = 0; i < count; i++)
-              Offstage(
-                offstage: i != idx,
-                child: TickerMode(enabled: i == idx, child: widget.children[i]),
-              ),
-          if (moving) ...[
-            if (neighbor != null)
-              Transform.translate(
-                offset: Offset(_dx < 0 ? width + _dx : -width + _dx, 0),
-                child: widget.children[neighbor],
-              ),
-            Transform.translate(
-              offset: Offset(_dx, 0),
-              child: widget.children[idx],
-            ),
-          ],
+          // 每页在树上占一个**固定位置**，起手/落手只改 offstage 和位移。
+          // 之前是「静止时挂 N 个 Offstage，滑动时换成另外两个 Transform」，
+          // 子树结构一变，全部页面的 element 就被销毁重建一次——一次滑动
+          // 起手和落手各卡一帧，这才是"慢半拍"的主因。
+          for (var i = 0; i < count; i++)
+            _buildLayer(i, idx: idx, neighbor: neighbor, width: width),
         ],
       ),
     );
@@ -493,13 +531,20 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
                   touchSlop: 16,
                 );
                 instance
+                  // 从按下点算起：否则识别成功时页面比手指永久落后一个
+                  // slop（16px），整段拖动都是"差半拍"。
+                  ..dragStartBehavior = DragStartBehavior.down
                   ..onStart = (details) {
-                    if (_animating) return;
-                    setState(() {
-                      _dragging = true;
-                      _dx = 0;
-                    });
-                    rootBranchDrag.value = 0;
+                    // 补间还没跑完就重新按住：立刻接管，从当前位移继续拖。
+                    if (_animating) {
+                      _epoch++;
+                      _anim.stop();
+                      _transitionTargetIndex = null;
+                      rootBranchDragTarget.value = null;
+                      _animating = false;
+                    }
+                    setState(() => _dragging = true);
+                    // 不重置 _dx：接管时要从页面当前的位置继续。
                   }
                   ..onUpdate = (details) {
                     if (_animating || !_dragging) return;
@@ -522,6 +567,34 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       },
       behavior: HitTestBehavior.translucent,
       child: stack,
+    );
+  }
+
+  /// 单页图层。位置固定，只有 offstage 与位移随手势变化。
+  Widget _buildLayer(
+    int i, {
+    required int idx,
+    required int? neighbor,
+    required double width,
+  }) {
+    final isCurrent = i == idx;
+    final isNeighbor = neighbor == i;
+    final hidden = !isCurrent && !isNeighbor;
+    final offset = isCurrent
+        ? _dx
+        : isNeighbor
+        ? (_dx < 0 ? width : -width) + _dx
+        : 0.0;
+    return Offstage(
+      offstage: hidden,
+      child: TickerMode(
+        // 滑入中的邻居页保持 ticker 运行（和原先一致），隐藏页停表。
+        enabled: !hidden,
+        child: Transform.translate(
+          offset: Offset(offset, 0),
+          child: widget.children[i],
+        ),
+      ),
     );
   }
 
