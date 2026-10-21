@@ -18,6 +18,7 @@ TextInputType desktopSafeKeyboardType(TextInputType type) {
     case TargetPlatform.android:
     case TargetPlatform.iOS:
     case TargetPlatform.fuchsia:
+    case TargetPlatform.ohos:
       return type;
   }
 }
