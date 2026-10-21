@@ -168,7 +168,41 @@ jobs:
           fi
           echo "flutter 退出码 $rc（未签名时的正常表现），产物："
           echo "$haps" | while read -r f; do ls -lh "$f"; done
-          echo "产物是未签名 HAP，装机器需另配签名证书。"
+
+      # 签名材料用 secrets 传，构建时才落到临时目录，不进仓库、不进缓存。
+      # 需要的 secrets（全部可留空，空则跳过签名，产物为未签名 HAP）：
+      #   SIGN_KEYSTORE_B64  koyze.p12 的 base64
+      #   SIGN_CERT_B64      koyze-release.cer 的 base64（AGC 下载的发布证书链）
+      #   SIGN_PROFILE_B64   Koyze-release.p7b 的 base64
+      #   SIGN_KEY_PWD       私钥密码
+      #   SIGN_STORE_PWD     密钥库密码（留空则同 SIGN_KEY_PWD）
+      - name: 签名 HAP（配了证书才签）
+        shell: bash
+        env:
+          SIGN_KEYSTORE_B64: ${{ secrets.SIGN_KEYSTORE_B64 }}
+          SIGN_CERT_B64: ${{ secrets.SIGN_CERT_B64 }}
+          SIGN_PROFILE_B64: ${{ secrets.SIGN_PROFILE_B64 }}
+          SIGN_KEY_PWD: ${{ secrets.SIGN_KEY_PWD }}
+          SIGN_STORE_PWD: ${{ secrets.SIGN_STORE_PWD }}
+          CLT_HOME: D:/fo/command-line-tools
+        run: |
+          set -euo pipefail
+          if [ -z "${SIGN_KEYSTORE_B64:-}" ]; then
+            echo "::warning::未配置 SIGN_KEYSTORE_B64，跳过签名。产物是未签名 HAP，装不上鸿蒙设备。"
+            exit 0
+          fi
+          S="$RUNNER_TEMP/signing"; mkdir -p "$S"
+          printf '%s' "$SIGN_KEYSTORE_B64" | base64 -d > "$S/koyze.p12"
+          printf '%s' "$SIGN_CERT_B64"     | base64 -d > "$S/koyze-release.cer"
+          printf '%s' "$SIGN_PROFILE_B64"  | base64 -d > "$S/Koyze-release.p7b"
+          export SIGN_DIR="$S"
+          export KEY_PWD="$SIGN_KEY_PWD"
+          export STORE_PWD="${SIGN_STORE_PWD:-$SIGN_KEY_PWD}"
+          hap="$(find ohos/entry/build -name 'entry-default-unsigned.hap' | head -1)"
+          bash scripts/ohos/sign-hap.sh "$hap" "${hap%-unsigned.hap}-signed.hap"
+          # 签完删掉未签名的，避免误下发
+          rm -f "$hap"
+          rm -rf "$S"
 
       - uses: actions/upload-artifact@v4
         with:
