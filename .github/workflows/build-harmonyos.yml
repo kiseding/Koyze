@@ -1,0 +1,173 @@
+name: Build HarmonyOS HAP
+
+# 与其他平台不同，鸿蒙构建跑不了 GitHub 托管 runner：
+#   1. HarmonyOS 命令行工具需要登录华为开发者账号才能下载，托管 runner 里没法
+#      匿名获取（把工具包塞进仓库又不合适）；
+#   2. 本项目必须用 Flutter 鸿蒙 fork（3.47.7-ohos），subosito/flutter-action
+#      装的是上游 Flutter，不认识 ohos 平台；
+#   3. 引擎工件挂在 atomgit Release，匿名下载 401。
+#
+# 所以这个 workflow 只跑自建 runner。准备一台装了以下内容的机器，注册为
+# self-hosted runner 并打上标签 `harmonyos`（Windows / macOS / Linux 均可）：
+#   - DevEco Studio（含 HarmonyOS SDK，API 26）
+#   - Flutter 鸿蒙 SDK：git clone -b 3.47.7-ohos-1.0.0 \
+#       https://atomgit.com/oh-flutter/flutter_flutter.git
+#   - 引擎工件：登录 atomgit 手工下载 11 个附件放进 bin/cache（见 docs/harmonyos.md）
+#
+# 可选仓库变量（Settings → Variables），不填则用下面的默认路径：
+#   FLUTTER_OHOS_HOME   鸿蒙 Flutter SDK 根目录
+#   HOS_SDK_HOME        DevEco 的 sdk 目录（含 default/sdk-pkg.json）
+#
+# 产物默认是**未签名** HAP：签名需要 .p12/.cer/.p7b，见 docs/harmonyos.md 第 3 节。
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-harmonyos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-harmonyos:
+    runs-on: [self-hosted, harmonyos]
+    timeout-minutes: 60
+
+    env:
+      # 用仓库变量覆盖默认值，避免把某台机器的绝对路径写死在仓库里。
+      FLUTTER_OHOS_HOME: ${{ vars.FLUTTER_OHOS_HOME || 'D:/flutter_ohos_parent/flutter_ohos' }}
+      HOS_SDK_HOME: ${{ vars.HOS_SDK_HOME || 'D:/DevEco Studio/sdk' }}
+      DEVECO_SDK_HOME: ${{ vars.HOS_SDK_HOME || 'D:/DevEco Studio/sdk' }}
+      PUB_HOSTED_URL: https://pub.flutter-io.cn
+      # 上游工件走 CN 镜像（直连 storage.googleapis.com 只有 ~20KB/s）；
+      # 鸿蒙专属工件由 bin/internal/dart-sdk-url.ohos 直接指向 atomgit，不受影响。
+      FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Verify release tag matches pubspec version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          ref_version="${GITHUB_REF_NAME#v}"
+          pubspec_version="$(awk '/^version:/{print $2; exit}' pubspec.yaml)"
+          if [ -z "$pubspec_version" ]; then
+            echo "::error::pubspec.yaml does not declare a version"
+            exit 1
+          fi
+          IFS=. read -r ref_major ref_minor _ <<< "$ref_version"
+          IFS=. read -r pubspec_major pubspec_minor _ <<< "${pubspec_version%%+*}"
+          if [ "$ref_major.$ref_minor" != "$pubspec_major.$pubspec_minor" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pubspec version $pubspec_version; bump pubspec.yaml before tagging"
+            exit 1
+          fi
+
+      - name: Resolve the HarmonyOS toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${FLUTTER_OHOS_HOME:-}" ] || [ ! -d "$FLUTTER_OHOS_HOME" ]; then
+            echo "::error::找不到鸿蒙 Flutter SDK：$FLUTTER_OHOS_HOME（设置仓库变量 FLUTTER_OHOS_HOME）"
+            exit 1
+          fi
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            flutter="$FLUTTER_OHOS_HOME/bin/flutter.bat"
+          else
+            flutter="$FLUTTER_OHOS_HOME/bin/flutter"
+          fi
+          if [ ! -f "$flutter" ]; then
+            echo "::error::$FLUTTER_OHOS_HOME 下没有 flutter 可执行文件"
+            exit 1
+          fi
+
+          # 工具链扫 HOS_SDK_HOME 的子目录读 sdk-pkg.json 认版本，指向
+          # sdk/default 会报 "No Hmos SDK found"。
+          sdk_pkg="$HOS_SDK_HOME/default/sdk-pkg.json"
+          if [ ! -f "$sdk_pkg" ]; then
+            echo "::error::$HOS_SDK_HOME 下没有 default/sdk-pkg.json；HOS_SDK_HOME 应指向 DevEco 的 sdk 目录"
+            exit 1
+          fi
+          api="$(grep -o '"apiVersion"[^,]*' "$sdk_pkg" | head -1 | grep -o '[0-9]\+')"
+          echo "HarmonyOS SDK API: ${api:-unknown}"
+          if [ -n "${api:-}" ] && [ "$api" -lt 26 ]; then
+            echo "::warning::SDK API $api 低于本项目要求的 26（HarmonyOS 7.0）"
+          fi
+
+          echo "FLUTTER_BIN=$flutter" >> "$GITHUB_ENV"
+          "$flutter" --version
+
+      - name: Verify HarmonyOS engine artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          engine="$FLUTTER_OHOS_HOME/bin/cache/artifacts/engine"
+          missing=0
+          ls "$engine" 2>/dev/null | grep -q '^ohos' || missing=1
+          [ -d "$engine/common/flutter_patched_sdk" ] || missing=1
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::缺少鸿蒙引擎工件。atomgit Release 匿名下载会 401，需登录后手工下载以下文件：flutter_patched_sdk.zip、flutter_patched_sdk_product.zip、ohos-arm64-artifacts.zip、ohos-arm64-profile-artifacts.zip、ohos-arm64-release-artifacts.zip、两个 gen_snapshot、两档 custom dart-sdk，放进 $FLUTTER_OHOS_HOME/bin/cache/。详见 docs/harmonyos.md 第 2 节。"
+            exit 1
+          fi
+
+      - name: Resolve Flutter dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # TPC 移植仓库带 git-lfs 大文件，机器上没装 git-lfs 时 checkout 会失败。
+          # 这里只跳过 smudge（我们只要 Dart / ArkTS 源码），不改全局 git 配置。
+          cfg="$RUNNER_TEMP/gitconfig_nolfs"
+          printf '[filter "lfs"]\n\tprocess =\n\tsmudge =\n\tclean =\n\trequired = false\n' > "$cfg"
+          export GIT_CONFIG_GLOBAL="$cfg"
+          "$FLUTTER_BIN" pub get
+
+      - name: Analyze Dart and Flutter sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_CONFIG_GLOBAL="$RUNNER_TEMP/gitconfig_nolfs"
+          "$FLUTTER_BIN" analyze --no-fatal-infos
+
+      - name: Build HarmonyOS release HAP
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$FLUTTER_BIN" build hap --release --target-platform ohos-arm64
+
+      - name: Verify HAP was produced
+        shell: bash
+        run: |
+          set -euo pipefail
+          haps="$(find ohos/entry/build -name '*.hap' -type f 2>/dev/null || true)"
+          if [ -z "$haps" ]; then
+            echo "::error::构建结束但没找到 .hap 产物"
+            exit 1
+          fi
+          echo "$haps" | while read -r f; do ls -lh "$f"; done
+          if echo "$haps" | grep -q 'unsigned'; then
+            echo "::warning::产物是未签名 HAP，只能作为构建产物存档，无法直接安装到设备"
+          fi
+
+      - name: Upload HarmonyOS HAP
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Koyze-HarmonyOS-HAP
+          path: ohos/entry/build/**/*.hap
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload HAP to Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: ohos/entry/build/**/*.hap

@@ -72,8 +72,25 @@ flutter build hap --release --target-platform ohos-arm64
 
 产物在 `ohos/entry/build/default/outputs/default/`，用 `hdc install <hap>` 安装。
 签名：`ohos/build-profile.json5` 的 `signingConfigs` 为空，本地用 DevEco 的
-「自动签名」即可；CI 需要单独证书，因此仓库暂未添加鸿蒙构建工作流
-（GitHub 托管 runner 也没有 HarmonyOS SDK 与许可）。
+「自动签名」即可；CI 上产出的就是**未签名 HAP**。
+
+### 3.1 CI：只跑自建 runner
+
+`.github/workflows/build-harmonyos.yml` 的 `runs-on` 是 `[self-hosted, harmonyos]`，
+不用 GitHub 托管 runner，原因有三个：
+
+1. HarmonyOS 命令行工具要登录华为开发者账号才能下载，托管 runner 里拿不到；
+   把工具包塞进仓库又有许可问题。
+2. 必须用 Flutter 鸿蒙 fork，而现有五个 workflow 用的 `subosito/flutter-action`
+   装的是上游 Flutter，不认识 `ohos` 平台。
+3. 引擎工件在 atomgit Release 上匿名 401。
+
+自建机器需要：DevEco Studio（API 26）、鸿蒙 Flutter SDK、以及第 2 节那 11 个
+引擎工件。可选仓库变量（Settings → Variables）：`FLUTTER_OHOS_HOME`、
+`HOS_SDK_HOME`；不填则用 workflow 里的默认路径。
+
+workflow 会在构建前检查 `default/sdk-pkg.json` 的 `apiVersion` 与引擎工件是否就位，
+缺了直接给出可执行的报错，不会抛出一堆 hvigor 噪音。
 
 ## 4. 插件适配
 
