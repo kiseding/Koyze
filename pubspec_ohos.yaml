@@ -8,7 +8,10 @@
 name: koyze
 description: Koyze - 一个免费的音乐查找助手
 publish_to: 'none'
-version: 3.0.7+38
+# 必须和 pubspec.yaml 同步：workflow 会把这份拷成 pubspec.yaml 再 build hap，
+# flutter 用这里的 version 覆盖 ohos/AppScope/app.json5 的 versionName /
+# versionCode。只改 pubspec.yaml 的话，装到鸿蒙设备上的包版本号还是旧的。
+version: 4.0.1+401
 
 homepage: https://github.com/kiseding/koyze
 repository: https://github.com/kiseding/koyze
