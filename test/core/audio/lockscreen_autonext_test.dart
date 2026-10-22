@@ -278,11 +278,15 @@ void main() {
     final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
     expect(source, contains('automaticallyWaitsToMinimizeStalling: false'));
     // The eager-start configuration must reach the player constructor, not
-    // sit on a detached factory nobody calls.
+    // sit on a detached factory nobody calls. It is scoped to Apple platforms:
+    // just_audio forwards automaticallyWaitsToMinimizeStalling to every
+    // platform and the OpenHarmony player does not implement
+    // setAutomaticallyWaitsToMinimizeStalling.
     expect(
       source,
-      contains('audioLoadConfiguration: const AudioLoadConfiguration('),
+      contains('audioLoadConfiguration: (Platform.isIOS || Platform.isMacOS)'),
     );
+    expect(source, contains('? const AudioLoadConfiguration('));
   });
 
   test(
