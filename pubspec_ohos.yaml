@@ -1,23 +1,16 @@
-# HarmonyOS 专用依赖清单：pubspec.yaml + 音频移植 dependency_overrides。
-# 由 build-harmonyos.yml 在构建 HAP 前复制为 pubspec.yaml 使用；
-# 普通（Android/iOS/桌面/Web）构建一律用 pubspec.yaml。
-#
-# 不能把 override 写进 pubspec.yaml：移植包的 Dart 代码引用了
-# TargetPlatform.ohos，这个枚举只在鸿蒙 Flutter fork 里存在，上游 Flutter
-# 的 analyze / 测试 / 构建会直接报 Member not found: 'ohos'。
+# HarmonyOS 专用依赖清单（本地改造版）：在原有音频移植基础上，
+# 补齐 shared_preferences / path_provider / connectivity_plus 的鸿蒙实现，
+# 并将 flutter_secure_storage、file_picker 替换为社区 ohos 移植包，
+# flutter_js 用桩降级（鸿蒙无原生移植）。
 name: koyze
 description: Koyze - 一个免费的音乐查找助手
 publish_to: 'none'
-# 必须和 pubspec.yaml 同步：workflow 会把这份拷成 pubspec.yaml 再 build hap，
-# flutter 用这里的 version 覆盖 ohos/AppScope/app.json5 的 versionName /
-# versionCode。只改 pubspec.yaml 的话，装到鸿蒙设备上的包版本号还是旧的。
 version: 4.0.1+401
 
 homepage: https://github.com/kiseding/koyze
 repository: https://github.com/kiseding/koyze
 issue_tracker: https://github.com/kiseding/koyze/issues
 
-# Apache 2.0 开源许可证
 license: Apache-2.0
 
 environment:
@@ -29,37 +22,41 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  
+
   # 状态管理
   flutter_riverpod: ^2.6.1
-  
+
   # 路由
   go_router: ^14.8.1
-  
+
   # 音频播放
   just_audio: ^0.9.42
   just_audio_windows: ^0.2.2
   audio_service: ^0.18.17
   audio_session: ^0.1.25
   rxdart: ^0.28.0
-  
+
   # 网络
   dio: ^5.7.0
   connectivity_plus: ^6.1.0
-  
+
   # 存储
   path_provider: ^2.1.4
   shared_preferences: ^2.2.3
   shared_preferences_platform_interface: ^2.4.2
-  flutter_secure_storage: ^9.2.4
-  
-  # JS 引擎
+  # flutter_secure_storage 替换为 ohos 移植（同 9.2.4 版本线）
+  flutter_secure_storage_ohos:
+    path: E:/kb/fss/flutter_secure_storage_ohos
+
+  # JS 引擎（鸿蒙无移植，见 dependency_overrides 的 flutter_js 桩）
   flutter_js: ^0.8.2
-  
+
   # 工具
   crypto: ^3.0.3
   uuid: ^4.4.0
-  file_picker: ^11.0.3
+  # file_picker 替换为 ohos 移植（10.3.8 线，API 兼容）
+  file_picker_ohos:
+    path: E:/kb/fpick
   encrypt: ^5.0.3
   pointycastle: ^3.9.1
   charset: ^2.0.1
@@ -72,20 +69,13 @@ dependencies:
   audio_metadata_reader: ^1.7.1
   permission_handler: ^12.0.3
   animations: ^2.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.4
 
-# 鸿蒙（HarmonyOS）平台的音频实现。
-#
-# pub 上的 just_audio / audio_service / audio_session 都没有 ohos 实现，社区
-# TPC 仓库把 ohos 实现直接并入了原包，所以必须整体覆盖，而不是新增独立包。
-# 分支按上游版本选：just_audio 用 0.9.41 线（本项目原本是 ^0.9.42，API 一致），
-# audio_service 用 0.18.18（本项目 ^0.18.17）；0.10.x / 3.41 线尚未在本项目验证。
-#
-# 参考实现：https://github.com/Aloereed/aloeplayer_ohos
 dependency_overrides:
   just_audio:
     git:
@@ -93,14 +83,29 @@ dependency_overrides:
       path: just_audio
       ref: br_just_audio-v0.9.41_ohos
   audio_service:
-    # 鸿蒙移植 vendored 在仓库里：上游仓库用 git-lfs 托管 example 大文件，
-    # 托管 runner 上 smudge 时 gitcode LFS 匿名 401，五个平台的 pub get 全挂。
-    # 见 third_party/audio_service_ohos/VENDORED.md。
     path: third_party/audio_service_ohos
   audio_session:
     git:
       url: https://gitcode.com/openharmony-sig/flutter_audio_session.git
       ref: br_v0.1.21_ohos
+
+  # ===== 新增：官方插件鸿蒙移植（本地已克隆）=====
+  shared_preferences:
+    path: E:/kb/fp/packages/shared_preferences/shared_preferences
+  shared_preferences_ohos:
+    path: E:/kb/fp/packages/shared_preferences/shared_preferences_ohos
+  path_provider:
+    path: E:/kb/fp/packages/path_provider/path_provider
+  path_provider_ohos:
+    path: E:/kb/fp/packages/path_provider/path_provider_ohos
+  connectivity_plus:
+    path: E:/kb/plus/packages/connectivity_plus/connectivity_plus
+  connectivity_plus_platform_interface:
+    path: E:/kb/plus/packages/connectivity_plus/connectivity_plus_platform_interface
+
+  # flutter_js 桩：鸿蒙无原生移植，编译期降级
+  flutter_js:
+    path: third_party/flutter_js_stub
 
 flutter_launcher_icons:
   android: true
@@ -117,7 +122,4 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   config:
-    # Nested WorkBuddy/CodeBuddy sandboxes cannot resolve Swift packages
-    # (`sandbox-exec: sandbox_apply: Operation not permitted`). Force the
-    # existing CocoaPods path on iOS/macOS instead.
     enable-swift-package-manager: false

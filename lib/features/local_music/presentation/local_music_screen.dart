@@ -3,7 +3,7 @@ import 'package:koyze/l10n/app_strings.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker_ohos/file_picker_ohos.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -394,7 +394,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       return;
     }
     try {
-      final path = await FilePicker.getDirectoryPath(
+      final path = await FilePicker.platform.getDirectoryPath(
         dialogTitle: S.of(context).chooseMusicFolder,
       );
       if (path == null || !mounted) return;

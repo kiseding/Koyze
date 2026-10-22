@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker_ohos/file_picker_ohos.dart';
 import 'dart:io';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/motion/motion_tokens.dart';
@@ -266,7 +266,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
 
   Future<void> _pickAndImportFile(BuildContext context, WidgetRef ref) async {
     try {
-      final result = await FilePicker.pickFiles(
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['js'],
       );

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_picker_ohos/file_picker_ohos.dart';
 import '../../../core/card_expand.dart';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
@@ -653,7 +653,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final bytes = Uint8List.fromList(utf8.encode(jsonStr));
       final fileName =
           'koyze_backup_${DateTime.now().millisecondsSinceEpoch}.json';
-      final savedPath = await FilePicker.saveFile(
+      final savedPath = await FilePicker.platform.saveFile(
         dialogTitle: S.of(context).exportBackupTitle,
         fileName: fileName,
         type: FileType.custom,
@@ -683,7 +683,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _restoreData(BuildContext context, WidgetRef ref) async {
     try {
-      final result = await FilePicker.pickFiles(
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
       );
