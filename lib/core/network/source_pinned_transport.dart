@@ -194,12 +194,16 @@ class SourcePinnedTransport {
         for (var i = 0; i < request.addresses.length; i++)
           request.addresses[(start + i) % request.addresses.length],
       ];
+      final attemptTimeout = request.timeout > _connectFailoverTimeout
+          ? _connectFailoverTimeout
+          : request.timeout;
       return starterWithFailover(
         rotated,
         uri.port,
         host: uri.host,
         useTls: uri.scheme.toLowerCase() == 'https',
         connect: starter,
+        attemptTimeout: attemptTimeout,
       );
     };
   }
@@ -224,7 +228,16 @@ class SourcePinnedTransport {
   /// 其中个别 IP 的 TCP 通但 TLS/HTTP 挂起。盲目轮流 pin 会导致
   /// “第一首能播、后续解析卡死”。这里对每个 IP 等连接+TLS 完成，
   /// 超时或失败立即 cancel 并换下一个。
-  static const _connectFailoverTimeout = Duration(seconds: 5);
+  /// 单个候选地址的建连（含 TLS）超时。
+  ///
+  /// 弱网/Wi-Fi 省电场景下，SYN 丢失或握手要 5s 以上都很常见：实测同一网络下
+  /// 有的地址 6.3s 才建连成功。旧值 5s 会让只有单个 IP 的音源直接判失败，
+  /// 所以放宽到 10s；同时用脚本给的 [ValidatedSourceRequest.timeout] 兜底，
+  /// 避免超过请求本身的超时。
+  static const _connectFailoverTimeout = Duration(seconds: 10);
+
+  /// 首轮全部失败且存在超时时，等待片刻再重试一轮（SYN 丢了重连通常能成）。
+  static const _connectRetryDelay = Duration(milliseconds: 250);
 
   static Future<ConnectionTask<Socket>> starterWithFailover(
     List<InternetAddress> addresses,
@@ -232,26 +245,35 @@ class SourcePinnedTransport {
     required String host,
     required bool useTls,
     SourceSocketStarter? connect,
+    Duration? attemptTimeout,
   }) async {
     final connectFn = connect ?? startPinnedSocket;
+    final perAttempt = attemptTimeout ?? _connectFailoverTimeout;
     Object? lastError;
-    for (final address in addresses) {
-      ConnectionTask<Socket>? task;
-      try {
-        // connectFn 是 async：await 它拿到 ConnectionTask 时 TCP 已建立，
-        // 但 TLS（SecureSocket.secure）仍在 task.socket 里推进。
-        // 必须在这里等 task.socket，才能确认 TLS 握手真正完成；
-        // 否则对“TCP通但TLS挂起”的 IP 会误判为成功。
-        task = await connectFn(address, port, host: host, useTls: useTls);
-        // 等连接（含 TLS）真正建立，确认该 IP 可用后再交给 Dio 使用。
-        await task.socket.timeout(_connectFailoverTimeout);
-        return task;
-      } catch (e) {
-        lastError = e;
+    var sawTimeout = false;
+    for (var pass = 0; pass < 2; pass++) {
+      for (final address in addresses) {
+        ConnectionTask<Socket>? task;
         try {
-          task?.cancel();
-        } catch (_) {}
+          // connectFn 是 async：await 它拿到 ConnectionTask 时 TCP 已建立，
+          // 但 TLS（SecureSocket.secure）仍在 task.socket 里推进。
+          // 必须在这里等 task.socket，才能确认 TLS 握手真正完成；
+          // 否则对“TCP通但TLS挂起”的 IP 会误判为成功。
+          task = await connectFn(address, port, host: host, useTls: useTls);
+          // 等连接（含 TLS）真正建立，确认该 IP 可用后再交给 Dio 使用。
+          await task.socket.timeout(perAttempt);
+          return task;
+        } catch (e) {
+          lastError = e;
+          if (e is TimeoutException) sawTimeout = true;
+          try {
+            task?.cancel();
+          } catch (_) {}
+        }
       }
+      // 只对超时重试：连接被拒绝 / 证书错误重试没有意义。
+      if (!sawTimeout || pass == 1) break;
+      await Future<void>.delayed(_connectRetryDelay);
     }
     if (lastError != null) throw lastError;
     throw const SocketException('No addresses to connect to');
