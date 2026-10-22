@@ -1,0 +1,25 @@
+name: flutter_js
+description: >-
+  A Javascript engine to use with Flutter. Uses QuickJS through dart:ffi on
+  OpenHarmony. Vendored from the OpenHarmony port (flutter_js_ohos 0.6.8) and
+  renamed so application code keeps importing
+  `package:flutter_js/flutter_js.dart`.
+version: 0.8.7
+homepage: https://github.com/yeliulee/flutter_js/tree/ohos
+repository: https://github.com/kiseding/Koyze
+
+environment:
+  sdk: '>=2.17.0 <4.0.0'
+  flutter: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ffi: ^2.0.0
+
+flutter:
+  plugin:
+    platforms:
+      ohos:
+        package: com.koyze.flutter_js
+        pluginClass: FlutterJsPlugin

@@ -26,6 +26,7 @@ analyzer:
     - third_party/path_provider_ohos/**
     - third_party/connectivity_plus/**
     - third_party/connectivity_plus_platform_interface/**
+    - third_party/flutter_js/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

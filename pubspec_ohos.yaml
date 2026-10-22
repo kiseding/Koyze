@@ -105,9 +105,9 @@ dependency_overrides:
   connectivity_plus_platform_interface:
     path: third_party/connectivity_plus_platform_interface
 
-  # flutter_js 桩：鸿蒙无原生移植，编译期降级
+  # flutter_js：QuickJS FFI 的鸿蒙移植（vendor，保持官方包名）
   flutter_js:
-    path: third_party/flutter_js_stub
+    path: third_party/flutter_js
 
 flutter_launcher_icons:
   android: true
