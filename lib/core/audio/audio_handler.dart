@@ -1000,11 +1000,18 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // a player that is not yet playing, so background auto-next stays muted
       // in buffering forever. Disabling it makes the rate kick start playback
       // immediately (trade-off: a slow stream may briefly stall).
-      audioLoadConfiguration: const AudioLoadConfiguration(
-        darwinLoadControl: DarwinLoadControl(
-          automaticallyWaitsToMinimizeStalling: false,
-        ),
-      ),
+      // Only send Darwin load control on Apple platforms: just_audio forwards
+      // `automaticallyWaitsToMinimizeStalling` to every platform, and the
+      // OpenHarmony player does not implement
+      // `setAutomaticallyWaitsToMinimizeStalling` (it throws
+      // MissingPluginException and aborts playback setup).
+      audioLoadConfiguration: (Platform.isIOS || Platform.isMacOS)
+          ? const AudioLoadConfiguration(
+              darwinLoadControl: DarwinLoadControl(
+                automaticallyWaitsToMinimizeStalling: false,
+              ),
+            )
+          : null,
       audioPipeline: effects.isEmpty
           ? null
           : AudioPipeline(androidAudioEffects: effects),
