@@ -15,6 +15,17 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+    # Vendored OpenHarmony ports keep upstream code/lints untouched; they are
+    # only consumed through pubspec_ohos.yaml and would otherwise flood
+    # `flutter analyze` with third-party warnings.
+    - third_party/file_picker/**
+    - third_party/flutter_secure_storage/**
+    - third_party/shared_preferences/**
+    - third_party/shared_preferences_ohos/**
+    - third_party/path_provider/**
+    - third_party/path_provider_ohos/**
+    - third_party/connectivity_plus/**
+    - third_party/connectivity_plus_platform_interface/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

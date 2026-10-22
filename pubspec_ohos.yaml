@@ -44,9 +44,8 @@ dependencies:
   path_provider: ^2.1.4
   shared_preferences: ^2.2.3
   shared_preferences_platform_interface: ^2.4.2
-  # flutter_secure_storage 替换为 ohos 移植（同 9.2.4 版本线）
-  flutter_secure_storage_ohos:
-    path: E:/kb/fss/flutter_secure_storage_ohos
+  # flutter_secure_storage 鸿蒙移植见 dependency_overrides（官方名指向 vendor）
+  flutter_secure_storage: ^9.2.4
 
   # JS 引擎（鸿蒙无移植，见 dependency_overrides 的 flutter_js 桩）
   flutter_js: ^0.8.2
@@ -54,9 +53,8 @@ dependencies:
   # 工具
   crypto: ^3.0.3
   uuid: ^4.4.0
-  # file_picker 替换为 ohos 移植（10.3.8 线，API 兼容）
-  file_picker_ohos:
-    path: E:/kb/fpick
+  # file_picker 鸿蒙移植见 dependency_overrides（官方名指向 vendor）
+  file_picker: ^11.0.3
   encrypt: ^5.0.3
   pointycastle: ^3.9.1
   charset: ^2.0.1
@@ -89,19 +87,23 @@ dependency_overrides:
       url: https://gitcode.com/openharmony-sig/flutter_audio_session.git
       ref: br_v0.1.21_ohos
 
-  # ===== 新增：官方插件鸿蒙移植（本地已克隆）=====
+  # ===== 官方插件鸿蒙移植（vendor 到 third_party，保持官方包名）=====
+  flutter_secure_storage:
+    path: third_party/flutter_secure_storage
+  file_picker:
+    path: third_party/file_picker
   shared_preferences:
-    path: E:/kb/fp/packages/shared_preferences/shared_preferences
+    path: third_party/shared_preferences
   shared_preferences_ohos:
-    path: E:/kb/fp/packages/shared_preferences/shared_preferences_ohos
+    path: third_party/shared_preferences_ohos
   path_provider:
-    path: E:/kb/fp/packages/path_provider/path_provider
+    path: third_party/path_provider
   path_provider_ohos:
-    path: E:/kb/fp/packages/path_provider/path_provider_ohos
+    path: third_party/path_provider_ohos
   connectivity_plus:
-    path: E:/kb/plus/packages/connectivity_plus/connectivity_plus
+    path: third_party/connectivity_plus
   connectivity_plus_platform_interface:
-    path: E:/kb/plus/packages/connectivity_plus/connectivity_plus_platform_interface
+    path: third_party/connectivity_plus_platform_interface
 
   # flutter_js 桩：鸿蒙无原生移植，编译期降级
   flutter_js:

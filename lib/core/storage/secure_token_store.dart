@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
-import 'package:flutter_secure_storage_ohos/flutter_secure_storage_ohos.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 String normalizedOrigin(String serviceUrl) {
@@ -71,7 +71,9 @@ final class FlutterSecureTokenStore implements SecureTokenStore {
   // macOS 默认走数据保护钥匙串，需要 keychain-access-groups 权限；
   // 当前 adhoc 签名不携带该权限，会返回 -34018。
   // 关闭后改用传统 login 钥匙串，无需开发者证书。
-  static const _macos = MacOsOptions();
+  static const _macos = MacOsOptions(
+    useDataProtectionKeyChain: false,
+  );
 
   final FlutterSecureStorage _storage;
 
