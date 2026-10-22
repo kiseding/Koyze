@@ -24,6 +24,21 @@
 -keep class io.flutter.plugins.flutter_plugin_android_lifecycle.** { *; }
 -keep class dev.fluttercommunity.plus.connectivity.** { *; }
 
+# Pigeon JNI plugins (shared_preferences_android 2.5+ and any future adopter)
+# are called from Dart through dart:jni, which looks members up by their
+# *original* JVM name and descriptor (JNI GetMethodID/GetFieldID). R8 renaming
+# any type that shows up in those descriptors breaks every lookup at startup:
+#   java.lang.NoSuchMethodError: no non-static method
+#   "Lio/flutter/plugins/sharedpreferences/SharedPreferencesApiRegistrar;.getAll(
+#      Ljava/lang/String;Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;"
+# So the Kotlin types in generated descriptors must keep their names, and the
+# few classes package:jni resolves by name must keep their members too.
+-keepnames class kotlin.**
+-keep class kotlin.coroutines.** { *; }
+-keep class kotlin.Result { *; }
+-keep class kotlin.Result$Failure { *; }
+-keep class kotlin.Unit { *; }
+
 # AGP 9 R8 strips WorkDatabase_Impl's no-arg constructor, so WorkManager
 # crashes during InitializationProvider before Flutter can start.
 -keep class androidx.startup.** { *; }
