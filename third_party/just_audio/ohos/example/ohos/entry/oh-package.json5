@@ -1,0 +1,13 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "Please describe the basic information.",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "audio_session": "file:../har/audio_session.har",
+    "path_provider_ohos": "file:../har/path_provider_ohos.har",
+    "just_audio_ohos": "file:../har/just_audio_ohos.har"
+  }
+}

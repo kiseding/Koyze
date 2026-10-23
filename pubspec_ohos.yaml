@@ -31,12 +31,9 @@ dependencies:
 
   # 音频播放
   just_audio: ^0.9.42
-  # 鸿蒙原生播放器（just_audio 的 ohos 联邦实现，注册 com.ryanheise.just_audio.methods）
+  # 鸿蒙原生播放器（固定 vendored 源码，便于修复 AVPlayer 缓冲与时序问题）
   just_audio_ohos:
-    git:
-      url: https://gitcode.com/openharmony-sig/fluttertpc_just_audio.git
-      path: just_audio/ohos
-      ref: br_just_audio-v0.9.41_ohos
+    path: third_party/just_audio/ohos
   just_audio_windows: ^0.2.2
   audio_service: ^0.18.17
   audio_session: ^0.1.25
@@ -84,11 +81,9 @@ dependency_overrides:
   # just_audio_ohos 声明 rxdart >=0.26.0 <0.28.0，与 app 的 ^0.28.0 冲突；
   # 它的 Dart 代码只用于接口定义，实际走原生插件，放宽版本不影响运行。
   rxdart: ^0.28.0
+  # 使用仓库内固定版本，便于修复并验证 HarmonyOS AVPlayer 行为。
   just_audio:
-    git:
-      url: https://gitcode.com/openharmony-sig/fluttertpc_just_audio.git
-      path: just_audio
-      ref: br_just_audio-v0.9.41_ohos
+    path: third_party/just_audio
   audio_service:
     path: third_party/audio_service_ohos
   audio_session:

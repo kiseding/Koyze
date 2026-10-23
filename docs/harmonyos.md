@@ -112,19 +112,22 @@ workflow 会在构建前检查 `default/sdk-pkg.json` 的 `apiVersion` 与引擎
 `*_harmonyos` 系列普遍是 `0.0.1`、2025-08 ~ 2025-11 发布，SDK 约束
 `>=3.6.2 <4.0.0`，可用但版本号还在早期。
 
-### 4.2 音频链路（gitcode TPC 移植，用 dependency_overrides 覆盖）
+### 4.2 音频链路（TPC 移植与本地覆盖）
 
 `just_audio` / `audio_service` / `audio_session` 在 pub 上的官方包都没有
-ohos 实现，但社区 TPC 仓库提供了完整移植，做法是**整体覆盖原包**而不是新增
-独立包：
+ohos 实现。社区 TPC 仓库提供完整移植；`just_audio` 已 vendor 到
+`third_party/just_audio`，并通过本地依赖覆盖，便于维护 AVPlayer 专项修复。
 
 ```yaml
+dependencies:
+  just_audio_ohos:
+    path: third_party/just_audio/ohos
+
 dependency_overrides:
+  # Vendored from fluttertpc_just_audio br_just_audio-v0.9.41_ohos
+  # at a873331a9ac59588ea4b3741566873051439ae91, with local playback fixes.
   just_audio:
-    git:
-      url: https://gitcode.com/openharmony-sig/fluttertpc_just_audio.git
-      path: just_audio
-      ref: br_just_audio-v0.9.41_ohos
+    path: third_party/just_audio
   audio_service:
     # vendored 在仓库里，避开上游仓库的 git-lfs（见 third_party/audio_service_ohos/VENDORED.md）
     path: third_party/audio_service_ohos
@@ -187,13 +190,15 @@ Dart 侧无需改：`AudioService.init` / `BaseAudioHandler` / `MediaItem` /
 
 ## 6. 进度与缺口
 
-已在分支 `ohos-audio-trial` 上验证：
+当前工作区的验证状态：
 
 | 步骤 | 结果 |
 | --- | --- |
-| `flutter pub get` | ✅ 通过，`just_audio 0.9.41` / `audio_service 0.18.18` / `audio_session 0.1.21` 均来自 git 移植（锁文件可见 `source: git`） |
-| `flutter analyze` | ✅ 0 error / 0 warning（370 条 info 全是既有 lint，分布在 test 与 third_party） |
-| Dart 侧改代码 | ✅ 不需要，`AudioService.init` / `AudioHandler` / `MediaItem` 接口一致 |
+| `git diff --check` | ✅ 通过 |
+| ArkTS / HAP 编译 | ⏳ 未执行：当前环境没有 Flutter 鸿蒙 SDK、DevEco/Hvigor 或 HDC |
+| `flutter pub get` | ⏳ 未执行：当前环境没有 `flutter` / `dart` 命令；现有 `pubspec.lock` 仍是此前上游配置生成的 hosted 锁定结果 |
+| `flutter analyze` / `flutter test` | ⏳ 未执行：当前环境没有 `flutter` 命令 |
+| 设备播放回归 | ⏳ 未执行：尚无可用鸿蒙设备或模拟器连接 |
 
 仍未完成：
 

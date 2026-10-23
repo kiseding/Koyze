@@ -48,10 +48,11 @@ export default class AudioServicePlugin implements FlutterPlugin, AbilityAware {
 
   onAttachedToEngine(binding: FlutterPluginBinding): void {
     this.flutterPluginBinding = binding;
-    if (this.audioServiceHandle == null && this.abilityPluginBinding != null) {
+    const abilityBinding = this.abilityPluginBinding;
+    if (this.audioServiceHandle == null && abilityBinding != null) {
       this.audioServiceHandle =
         new AudioServiceHandle(this.flutterPluginBinding.getBinaryMessenger(),
-          this.flutterPluginBinding.getApplicationContext(), this.abilityPluginBinding)
+          this.flutterPluginBinding.getApplicationContext(), abilityBinding)
     }
   }
 
@@ -63,15 +64,15 @@ export default class AudioServicePlugin implements FlutterPlugin, AbilityAware {
   onAttachedToAbility(binding: AbilityPluginBinding): void {
     Log.i(TAG, "onAttachedToAbility");
     this.abilityPluginBinding = binding
-    if (this.audioServiceHandle == null && this.flutterPluginBinding != null) {
+    const flutterBinding = this.flutterPluginBinding;
+    if (this.audioServiceHandle == null && flutterBinding != null) {
       this.audioServiceHandle =
-        new AudioServiceHandle(this.flutterPluginBinding.getBinaryMessenger(),
-          this.flutterPluginBinding.getApplicationContext(), this.abilityPluginBinding)
+        new AudioServiceHandle(flutterBinding.getBinaryMessenger(),
+          flutterBinding.getApplicationContext(), binding)
     }
   }
 
   onDetachedFromAbility(): void {
-    throw new Error('Method not implemented.');
   }
 }
 
@@ -93,18 +94,25 @@ class AudioServiceHandle implements MethodCallHandler, ServiceListener {
   }
 
   onMethodCall(call: MethodCall, result: MethodResult): void {
-    Log.i(TAG, "onMethodCall : " + call.method);
+    this.handleMethodCall(call, result).catch((e: Object) => {
+      Log.e(TAG, "onMethodCall failed: " + JSON.stringify(e));
+    });
+  }
+
+  private async handleMethodCall(call: MethodCall, result: MethodResult): Promise<void> {
     switch (call.method) {
       case 'configure':
         try {
           let config: Map<Any, Any> = call.argument('config');
           let fastForwardInterval: number = config.get('fastForwardInterval')
           let rewindInterval: number = config.get('rewindInterval')
-          if (audioService == null) {
+          if (audioService == null && this.abilityPluginBinding != null) {
             audioService = new AudioService(this.context, this.abilityPluginBinding.getAbility())
             audioService.setSessionCallback(this.sessionCallback.bind(this))
           }
-          audioService.setFastForwardInterval(fastForwardInterval)
+          if (audioService != null) {
+            audioService.setFastForwardInterval(fastForwardInterval)
+          }
         } catch (e) {
           Log.e(TAG, "onMethodCall configure catch : " + JSON.stringify(e));
         }
@@ -113,7 +121,9 @@ class AudioServiceHandle implements MethodCallHandler, ServiceListener {
       case 'setState':
         try {
           let state: Map<string, Any> = call.argument("state")
-          audioService?.setAVPlaybackState(state)
+          if (audioService != null) {
+            await audioService.setAVPlaybackState(state)
+          }
         } catch (e) {
           Log.e(TAG, "onMethodCall setState catch : " + JSON.stringify(e));
         }
@@ -126,7 +136,9 @@ class AudioServiceHandle implements MethodCallHandler, ServiceListener {
         break
       case 'setMediaItem':
         let mediaItem: Map<Any, Any> = call.argument("mediaItem")
-        audioService?.setMediaItem(mediaItem)
+        if (audioService != null) {
+          await audioService.setMediaItem(mediaItem)
+        }
         result.success(null)
         break
       case 'setPlaybackInfo':
@@ -193,7 +205,7 @@ class AudioServiceHandle implements MethodCallHandler, ServiceListener {
         this.onFastForward()
         break
       case 'setSpeed':
-        this.onSeekTo(sessionParameter.params as number)
+        this.onSetPlaybackSpeed(sessionParameter.params as number)
         break
       case 'setLoopMode':
         this.onSetRepeatMode(sessionParameter.params as number)

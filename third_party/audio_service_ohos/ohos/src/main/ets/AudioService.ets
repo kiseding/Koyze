@@ -37,12 +37,16 @@ export default class AudioService {
   private queueItems: avSession.AVQueueItem[] = []
   private fastForwardInterval: avSession.SkipIntervals = avSession.SkipIntervals.SECONDS_10
   private mediaType: avSession.AVSessionType = 'audio'
+  private sessionCreation: Promise<void> | null = null;
 
   // 在类属性声明部分添加
   private shuffleMode: number = 0; // 0: 正常模式, 1: 随机模式
   private originalQueue: avSession.AVQueueItem[] = [];
   private shuffledQueue: avSession.AVQueueItem[] = [];
   private currentQueueIndex: number = 0;
+  // AVSession 状态更新只保留最新的一条，避免位置更新在原生服务中堆积。
+  private pendingPlaybackState: Map<string, Any> | null = null;
+  private playbackStateDrain: Promise<void> | null = null;
 
   constructor(context: Context, ability: UIAbility) {
     this.context = context
@@ -150,15 +154,37 @@ export default class AudioService {
       Log.e(TAG, "AudioService setMediaItem " + JSON.stringify(this.avMetadata));
       if (this.session != null) {
         await this.session.setAVMetadata(this.avMetadata)
-        await this.session.activate()
       }
     } catch (e) {
       Log.e(TAG, "AudioService setMediaItem catch " + JSON.stringify(e));
     }
   }
 
-  async setAVPlaybackState(mediaItem: Map<string, Any>) {
-    Log.i(TAG, `aVPlaybackState mediaItem JSON  : ${JSON.stringify(Array.from(mediaItem))}`);
+  setAVPlaybackState(mediaItem: Map<string, Any>): Promise<void> {
+    this.pendingPlaybackState = new Map<string, Any>(mediaItem);
+    const activeDrain = this.playbackStateDrain;
+    if (activeDrain != null) {
+      return activeDrain;
+    }
+    const drain = this.drainPlaybackStates();
+    this.playbackStateDrain = drain;
+    return drain;
+  }
+
+  private async drainPlaybackStates(): Promise<void> {
+    while (this.pendingPlaybackState != null) {
+      const latest = this.pendingPlaybackState;
+      this.pendingPlaybackState = null;
+      try {
+        await this.applyAVPlaybackState(latest);
+      } catch (e) {
+        Log.e(TAG, "AudioService setAVPlaybackState catch " + JSON.stringify(e));
+      }
+    }
+    this.playbackStateDrain = null;
+  }
+
+  private async applyAVPlaybackState(mediaItem: Map<string, Any>): Promise<void> {
     let aVPlaybackState: avSession.AVPlaybackState = {}
     try {
       let playing: boolean = mediaItem.get('playing')
@@ -195,9 +221,7 @@ export default class AudioService {
       if (this.session == null && playing) {
         await this.createSession();
       }
-      Log.w(TAG, `aVPlaybackState  : ${JSON.stringify(aVPlaybackState)}`);
-      this.session?.setAVPlaybackState(aVPlaybackState)
-      await this.session?.activate()
+      await this.session?.setAVPlaybackState(aVPlaybackState)
     } catch (e) {
       Log.e(TAG, "AudioService setAVPlaybackState catch " + JSON.stringify(e));
     }
@@ -205,7 +229,6 @@ export default class AudioService {
   }
 
   async startContinuousTask() {
-    Log.d(TAG, `startContinuousTask`);
     if (this.isStartContinuousTask) {
       return;
     }
@@ -233,7 +256,6 @@ export default class AudioService {
   }
 
   async stopContinuousTask() {
-    Log.d(TAG, `stopContinuousTask`);
     if (!this.isStartContinuousTask) {
       return;
     }
@@ -246,14 +268,31 @@ export default class AudioService {
   }
 
   // 创建session
-  async createSession() {
+  async createSession(): Promise<void> {
+    if (this.sessionCreation != null) {
+      await this.sessionCreation;
+      return;
+    }
+    if (this.session != null) {
+      return;
+    }
+    this.sessionCreation = this.createSessionInternal();
     try {
-      this.session = await avSession.createAVSession(this.ability.context, 'SESSION_NAME', this.mediaType);
-      await this.session.setAVMetadata(this.avMetadata)
-      await this.session.activate()
+      await this.sessionCreation;
+    } finally {
+      this.sessionCreation = null;
+    }
+  }
+
+  private async createSessionInternal(): Promise<void> {
+    try {
+      const session = await avSession.createAVSession(this.ability.context, 'SESSION_NAME', this.mediaType);
+      this.session = session;
+      await session.setAVMetadata(this.avMetadata)
+      await session.activate()
       //监听事件
-      this.setListenerForMesFromController(this.session)
-      Log.i(TAG, `session create done : sessionId : ${this.session.sessionId}`);
+      this.setListenerForMesFromController(session)
+      Log.i(TAG, `session create done : sessionId : ${session.sessionId}`);
     } catch (e) {
       Log.i(TAG, "createSession err " + JSON.stringify(e));
     }

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <oatconfig>
+        <filefilterlist>
+            <filefilter name="copyrightPolicyFilter" desc="Filters for compatibility，license header policies">
+                <filteritem type="filename" name="LICENSE" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无版权头，不做侵入式修改"/>
+                <filteritem type="filename" name="*.dart" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无协议头，不做侵入式修改"/>
+                <filteritem type="filename" name="*.yaml" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无协议头，不做侵入式修改"/>
+                <filteritem type="filename" name="*.lock" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无协议头，不做侵入式修改"/>
+                <filteritem type="filename" name="*.metadata" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无版权头，不做侵入式修改"/>
+                <filteritem type="filename" name="*.json5" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无协议头，不做侵入式修改"/>
+                <filteritem type="filename" name="hvigorfile.ts" desc="just_audio_ohos开源库代码（或原库代码文件），版权头维持原样，不做侵入式修改"/>
+                <filteritem type="filename" name=".flutter-plugins" desc="just_audio_ohos开源库代码（或原库代码文件），版权头维持原样，不做侵入式修改"/>
+                <filteritem type="filename" name=".flutter-plugins-dependencies" desc="just_audio_ohos开源库代码（或原库代码文件），版权头维持原样，不做侵入式修改"/>
+            </filefilter>
+
+            <filefilter name="defaultPolicyFilter" desc="Filters for compatibility，license header policies">
+                <filteritem type="filename" name="LICENSE" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无版权头，不做侵入式修改"/>
+                <filteritem type="filename" name="*.dart" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无协议头，不做侵入式修改"/>
+                <filteritem type="filename" name="*.yaml" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无协议头，不做侵入式修改"/>
+                <filteritem type="filename" name="*.lock" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无协议头，不做侵入式修改"/>
+                <filteritem type="filename" name="*.metadata" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无协议头，不做侵入式修改"/>
+                <filteritem type="filename" name="*.json5" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无协议头，不做侵入式修改"/>
+                <filteritem type="filename" name="hvigorfile.ts" desc="just_audio_ohos开源库代码（或原库代码文件），原本就无协议头，不做侵入式修改"/>
+                <filteritem type="filename" name=".flutter-plugins" desc="just_audio_ohos开源库代码（或原库代码文件），版权头维持原样，不做侵入式修改"/>
+                <filteritem type="filename" name=".flutter-plugins-dependencies" desc="just_audio_ohos开源库代码（或原库代码文件），版权头维持原样，不做侵入式修改"/>
+            </filefilter>
+            <filefilter name="binaryFileTypePolicyFilter" desc="Filters for copyright header policies">
+                <filteritem type="filename" name="*.png|*.ttf|*.otf|*.so|*.mp3|*.bin|*.Z|*.frag|*.dat|vm_snapshot_data|isolate_snapshot_data" desc="desc files"/>
+            </filefilter>
+        </filefilterlist>
+
+        <policylist>
+            <policy name="projectPolicy" desc="">
+                <policyitem type="license" name="MIT" path=".*" group="defaultGroup" filefilter="defaultPolicyFilter" desc="当前项目兼容此协议" />
+                <policyitem type="copyright" name="Copyright (c) 2023 Hunan OpenValley Digital Industry Development Co., Ltd." path=".*" rule="may" group="defaultGroup" filefilter="copyrightPolicyFilter" desc="Developed by X Company 或 原开源库版权头，版权头维持原样，不做侵入式修改"/>
+            </policy>
+        </policylist>
+
+    </oatconfig>
+
+</configuration>

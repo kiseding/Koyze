@@ -1,0 +1,23 @@
+{
+  "modelVersion": "5.0.0",
+  "name": "just_audio_ohos_example",
+  "version": "1.0.0",
+  "description": "Please describe the basic information.",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "@ohos/flutter_ohos": "file:./har/flutter.har"
+  },
+  "devDependencies": {
+    "@ohos/hypium": "1.0.19",
+    "@ohos/hamock": "1.0.0"
+  },
+  "overrides": {
+    "@ohos/flutter_ohos": "file:./har/flutter.har",
+    "just_audio_ohos": "file:./har/just_audio_ohos.har",
+    "@ohos/flutter_module": "file:./entry",
+    "audio_session": "file:./har/audio_session.har",
+    "path_provider_ohos": "file:./har/path_provider_ohos.har"
+  }
+}
