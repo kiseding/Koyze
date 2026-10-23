@@ -172,8 +172,11 @@ export default class AudioService {
   }
 
   private async drainPlaybackStates(): Promise<void> {
-    while (this.pendingPlaybackState != null) {
-      const latest = this.pendingPlaybackState;
+    while (true) {
+      const latest: Map<string, Any> | null = this.pendingPlaybackState;
+      if (latest == null) {
+        break;
+      }
       this.pendingPlaybackState = null;
       try {
         await this.applyAVPlaybackState(latest);
