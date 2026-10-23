@@ -462,10 +462,10 @@ export class AudioPlayer implements MethodCallHandler, onChangeMediaAvPlayerStat
         break;
       case ProcessingState.loading:
         this.abortExistingConnection();
-        this.player?.stop();
+        await this.player?.stop();
         break;
       default:
-        this.player?.stop();
+        await this.player?.stop();
         break;
     }
     this.prepareResult = result;

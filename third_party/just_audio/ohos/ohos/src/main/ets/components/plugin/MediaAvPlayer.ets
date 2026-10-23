@@ -1025,8 +1025,21 @@ export class MediaAvPlayer {
     }
   }
 
-  public stop() {
-    this.avPlayer?.stop();
+  public async stop(): Promise<void> {
+    const player = this.avPlayer;
+    if (player == null || player.state == 'idle' || player.state == 'stopped' || player.state == 'released') {
+      this.completePendingPlay();
+      return;
+    }
+    try {
+      await player.stop();
+    } catch (err) {
+      // A reset/release may already have moved AVPlayer out of the stoppable states.
+      console.info(TAG, `AVPlayer stop ignored: ${JSON.stringify(err)}`);
+    }
+    if (this.avPlayer === player) {
+      this.completePendingPlay();
+    }
   }
 
   private start(seekMs?: number) {
