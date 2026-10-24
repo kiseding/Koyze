@@ -45,26 +45,28 @@ void main() {
       expect(geometry.fillWidth, 0);
     });
 
-    test('滑块离开起点后填充画到滑块左缘', () {
+    test('填充延伸到滑块圆心并由滑块覆盖交界', () {
       final geometry = PlayerProgressGeometry.resolve(
         trackWidth: 300,
         ratio: 0.5,
       );
 
       expect(geometry.thumbLeft, 140);
-      expect(geometry.fillWidth, 140);
+      expect(geometry.fillWidth, 150);
+      expect(
+        geometry.fillWidth,
+        geometry.thumbLeft + PlayerProgressGeometry.thumbRadius,
+      );
     });
 
-    test('低进度时填充不越过滑块左缘露出月牙', () {
-      // center = 20，滑块左缘在 10，进度很小但仍过阈值。
+    test('低进度时填充延伸到圆心并保持直角端点', () {
       final geometry = PlayerProgressGeometry.resolve(
         trackWidth: 300,
         ratio: 20 / 300,
       );
 
       expect(geometry.thumbLeft, 10);
-      // 填充只画到滑块左缘 10，而不是圆心 20，滑块左侧不会露出残影。
-      expect(geometry.fillWidth, 10);
+      expect(geometry.fillWidth, 20);
     });
 
     test('末端滑块不越出轨道', () {
@@ -85,17 +87,11 @@ void main() {
       expect(invalid.thumbLeft, 0);
       expect(invalid.fillWidth, 0);
 
-      final narrow = PlayerProgressGeometry.resolve(
-        trackWidth: 8,
-        ratio: 0.5,
-      );
+      final narrow = PlayerProgressGeometry.resolve(trackWidth: 8, ratio: 0.5);
       expect(narrow.thumbLeft, 0);
       expect(narrow.fillWidth, 0);
 
-      final over = PlayerProgressGeometry.resolve(
-        trackWidth: 300,
-        ratio: 2,
-      );
+      final over = PlayerProgressGeometry.resolve(trackWidth: 300, ratio: 2);
       expect(over.thumbLeft, 280);
       expect(over.fillWidth, 300);
     });
@@ -113,8 +109,8 @@ void main() {
       expect(thumb.left, bar.left);
     });
 
-    testWidgets('超过阈值后填充从轨道左端开始', (tester) async {
-      // center = 15，滑块左缘离开起点 5px，刚过阈值。
+    testWidgets('超过阈值后填充延伸到滑块下方', (tester) async {
+      // center = 15，滑块左缘离开起点 5px；填充延伸到圆心并被滑块盖住。
       await tester.pumpWidget(_app(ratio: 0.05));
       await tester.pumpAndSettle();
 
@@ -122,8 +118,7 @@ void main() {
       final fill = tester.getRect(find.byKey(PlayerProgressBar.fillKey));
 
       expect(fill.left, bar.left);
-      // 填充画到滑块左缘 5px，而非圆心 15px。
-      expect(fill.width, 5);
+      expect(fill.width, 15);
     });
 
     testWidgets('中途滑块位置对应进度且不越界', (tester) async {
@@ -145,15 +140,18 @@ void main() {
       final thumb = tester.widget<Container>(
         find.byKey(PlayerProgressBar.thumbKey),
       );
-      final thumbColor = (thumb.decoration! as BoxDecoration).color!;
-      final fill = tester.widget<DecoratedBox>(
+      final thumbDecoration = thumb.decoration! as BoxDecoration;
+      final thumbColor = thumbDecoration.color!;
+      final fill = tester.widget<ColoredBox>(
         find.byKey(PlayerProgressBar.fillKey),
       );
-      final fillColor = (fill.decoration as BoxDecoration).color;
 
-      expect(thumbColor.computeLuminance(),
-          lessThan(_accent.computeLuminance()));
-      expect(fillColor, _accent);
+      expect(
+        thumbColor.computeLuminance(),
+        lessThan(_accent.computeLuminance()),
+      );
+      expect(fill.color, _accent);
+      expect(thumbDecoration.boxShadow, isNull);
     });
   });
 }

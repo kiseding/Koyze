@@ -43,22 +43,13 @@ class PlayerProgressGeometry {
     final center = width * progress;
     final thumbLeft = (center - thumbRadius).clamp(0.0, maxLeft);
 
-    // 填充画到滑块左缘，滑块把填充左端完全盖住，低进度时不会在滑块
-    // 左侧露出一段浅色月牙。滑块还压在起点上时（左缘尚未离开起点）整段
-    // 不画，避免起点凸出细尖角。滑块已到最右端时画满整条轨道。
-    double fillWidth;
-    if (thumbLeft < minVisibleFill) {
-      fillWidth = 0.0;
-    } else if (thumbLeft >= maxLeft) {
-      fillWidth = width;
-    } else {
-      fillWidth = thumbLeft;
-    }
+    // 填充延伸到滑块圆心，滑块覆盖交界和上下边缘，避免圆形端头、
+    // 断层或轨道色细缝。滑块到达最右端时铺满轨道。
+    final fillWidth = thumbLeft < minVisibleFill
+        ? 0.0
+        : (thumbLeft >= maxLeft ? width : center);
 
-    return PlayerProgressGeometry(
-      thumbLeft: thumbLeft,
-      fillWidth: fillWidth,
-    );
+    return PlayerProgressGeometry(thumbLeft: thumbLeft, fillWidth: fillWidth);
   }
 }
 
@@ -78,7 +69,7 @@ class PlayerProgressBar extends StatelessWidget {
   /// 播放进度，0..1。
   final double ratio;
 
-  /// 已播放部分的颜色，同时用于滑块的辉光。
+  /// 已播放部分的颜色。
   final Color accentColor;
 
   /// 未播放轨道的颜色。
@@ -130,13 +121,8 @@ class PlayerProgressBar extends StatelessWidget {
                           top: 0,
                           bottom: 0,
                           width: geometry.fillWidth,
-                          child: DecoratedBox(
-                            key: fillKey,
-                            decoration: BoxDecoration(
-                              color: accentColor,
-                              borderRadius: BorderRadius.circular(trackRadius),
-                            ),
-                          ),
+                          // Keep the fill edge square; the thumb covers the join.
+                          child: ColoredBox(key: fillKey, color: accentColor),
                         ),
                     ],
                   ),
@@ -144,7 +130,8 @@ class PlayerProgressBar extends StatelessWidget {
               ),
               Positioned(
                 left: geometry.thumbLeft,
-                top: (PlayerProgressGeometry.trackHeight -
+                top:
+                    (PlayerProgressGeometry.trackHeight -
                         PlayerProgressGeometry.thumbSize) /
                     2,
                 child: AnimatedScale(
@@ -158,16 +145,6 @@ class PlayerProgressBar extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: thumbColor,
                       shape: BoxShape.circle,
-                      // 辉光要克制：过大半径 + 半透明深色在浅色背景上会
-                      // 扩散成一圈「发白灰绿」的残影，像滑块左侧多出一段
-                      // 月牙。这里用接近不透明的同色、紧贴滑块的小光晕。
-                      boxShadow: [
-                        BoxShadow(
-                          color: thumbColor.withValues(alpha: 0.9),
-                          blurRadius: 2,
-                          spreadRadius: 0.5,
-                        ),
-                      ],
                     ),
                   ),
                 ),
