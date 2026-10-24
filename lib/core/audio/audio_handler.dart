@@ -46,7 +46,14 @@ class AudioHandlerPlatformDefaults {
     required this.streamLocalFiles,
   });
 
-  /// Silence keepalive between tracks. Unsupported by `just_audio_windows`.
+  /// Silence keepalive between tracks.
+  ///
+  /// Only meaningful on iOS/macOS, where holding the audio session open across
+  /// a source change keeps background playback alive. `just_audio_windows`
+  /// does not support it, and the HarmonyOS port does not implement the
+  /// `silence` source type at all (`decodeAudioSource` throws
+  /// `Unknown AudioSource type: silence`), so enabling it there only adds a
+  /// failing `setAudioSource` round-trip before every manual skip.
   final bool useSilenceKeepalive;
 
   /// Stream local files over just_audio's local HTTP proxy. Windows WinRT
@@ -58,11 +65,15 @@ class AudioHandlerPlatformDefaults {
   /// Not `const`: `Platform.isWindows` is a runtime getter, not a constant.
   static final AudioHandlerPlatformDefaults host =
       AudioHandlerPlatformDefaults(
-        useSilenceKeepalive: !Platform.isWindows,
+        // Apple-only: the keepalive exists so iOS/macOS do not drop the audio
+        // session between tracks. HarmonyOS keeps playback alive through
+        // AVSession instead, and its just_audio port rejects `silence`
+        // sources outright.
+        useSilenceKeepalive: Platform.isIOS || Platform.isMacOS,
         streamLocalFiles: Platform.isWindows,
       );
 
-  /// The non-Windows behaviour, which is what the audio tests assert.
+  /// The Apple behaviour (keepalive on), which is what the audio tests assert.
   static const AudioHandlerPlatformDefaults posix =
       AudioHandlerPlatformDefaults(
         useSilenceKeepalive: true,

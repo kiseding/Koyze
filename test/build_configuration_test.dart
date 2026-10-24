@@ -251,7 +251,12 @@ void main() {
     expect(handler, contains('useSilenceKeepalive'));
     // Host-derived defaults now live in one seam so tests can pin them; the
     // production values must still come from the platform.
-    expect(handler, contains('useSilenceKeepalive: !Platform.isWindows'));
+    // 静音保活只对 Apple 平台有意义：just_audio_windows 不支持，鸿蒙移植
+    // 也没有实现 silence 源类型（会直接抛 Unknown AudioSource type）。
+    expect(
+      handler,
+      contains('useSilenceKeepalive: Platform.isIOS || Platform.isMacOS'),
+    );
     expect(handler, contains('streamLocalFiles: Platform.isWindows'));
     expect(handler, contains('useProxyForRequestHeaders: Platform.isWindows'));
   });
