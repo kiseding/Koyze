@@ -5,10 +5,12 @@ name: Build HarmonyOS HAP
 # 准备一台安装以下内容的机器，注册为 self-hosted runner，并打上标签
 # `harmonyos`、`Windows`、`X64`：
 #   - DevEco Studio（含 HarmonyOS SDK，API 26）
-#   - Flutter 鸿蒙 SDK：git clone -b 3.47.7-ohos-1.0.0 \
+#   - Flutter 鸿蒙 SDK：git clone -b 3.44.9+ohos-0.0.1-canary1 \
 #       https://atomgit.com/oh-flutter/flutter_flutter.git
-#   - 与该 SDK 版本匹配的 arm64/x64 HAR；Windows AOT 会在工作流中
-#     校验并按需要补齐到当前 Dart SDK 版本。
+#   - 该 SDK 必须自带完整的 arm64/x64 HAR 与四个 Windows gen_snapshot，
+#     且引擎内 Dart VM 版本要与 Dart SDK 一致。工作流会强制校验这一点，
+#     不再用 dart-sdk 的通用 gen_snapshot 顶替 ohos 专用生成器——那样会产出
+#     能安装但启动即报 "VM snapshot invalid" 的 HAP。
 #
 # 构建阶段关闭 Flutter 内置 codesign，release 由仓库签名脚本处理。
 # 在线 Windows runner 构建请使用 build-harmonyos-online.yml。
@@ -154,68 +156,88 @@ jobs:
                 exit 1
               }
             done
-            if [ "$arch" = arm64 ]; then
-              for mode in profile release; do
-                test -f "$engine/ohos-$arch-$mode/$host_dir/$host_file" || {
-                  echo "::error::缺少 ohos-$arch-$mode/$host_dir/$host_file"
-                  exit 1
-                }
-              done
-            fi
+            for mode in profile release; do
+              test -f "$engine/ohos-$arch-$mode/$host_dir/$host_file" || {
+                echo "::error::缺少 ohos-$arch-$mode/$host_dir/$host_file"
+                exit 1
+              }
+            done
           done
 
-      - name: Validate and normalize HarmonyOS AOT snapshotters
+      # 引擎里的 Dart VM 必须与 AOT 生成器同版本，否则 HAP 装得上、一启动就
+      # 报 "VM snapshot invalid" 并 SIGSEGV。这里只校验、不替换。
+      - name: Validate HarmonyOS engine / AOT snapshotter consistency
         shell: bash
         run: |
           set -euo pipefail
           engine="$FLUTTER_OHOS_HOME/bin/cache/artifacts/engine"
           dart_bin="$FLUTTER_OHOS_HOME/bin/cache/dart-sdk/bin/dart.exe"
-          sdk_snapshot="$FLUTTER_OHOS_HOME/bin/cache/dart-sdk/bin/utils/gen_snapshot.exe"
-          test -f "$dart_bin"
-          test -f "$sdk_snapshot"
 
           dart_version="$("$dart_bin" --version 2>&1 | tr -d '\r' | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p')"
           test -n "$dart_version" || {
             echo "::error::无法从 Dart SDK 读取版本"
             exit 1
           }
+          har_rev="$(tr -d '\r\n' < "$FLUTTER_OHOS_HOME/bin/internal/engine.ohos.har.version")"
           echo "Dart SDK version: $dart_version"
+          echo "engine.ohos.har revision: $har_rev"
 
-          snapshot_version() {
-            "$1" --version 2>&1 | tr -d '\r' | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p'
-          }
-
-          snapshot_host() {
-            "$1" --version 2>&1 | tr -d '\r' | sed -n 's/.* on "\([^"]*\)"/\1/p'
-          }
-
-          check_snapshot() {
-            local snapshot="$1"
-            local expected_host="$2"
-            local version
-            local host
-            version="$(snapshot_version "$snapshot")"
-            host="$(snapshot_host "$snapshot")"
-            echo "$(basename "$(dirname "$snapshot")")/$(basename "$snapshot"): Dart $version on $host"
-            [ "$version" = "$dart_version" ] && [ "$host" = "$expected_host" ]
-          }
-
-          arm64_snapshot="$engine/ohos-arm64-release/windows-x64/gen_snapshot.exe"
-          if ! check_snapshot "$arm64_snapshot" windows_simarm64; then
-            echo "::error::ohos-arm64-release gen_snapshot 与 Dart $dart_version 或 ARM64 目标不匹配"
-            exit 1
-          fi
-
-          for mode in profile release; do
-            x64_dir="$engine/ohos-x64-$mode/windows-x64"
-            x64_snapshot="$x64_dir/gen_snapshot.exe"
-            mkdir -p "$x64_dir"
-            cp "$sdk_snapshot" "$x64_snapshot"
-            check_snapshot "$x64_snapshot" windows_x64 || {
-              echo "::error::Dart SDK 自带 x64 gen_snapshot 与 Dart $dart_version 不匹配"
-              exit 1
-            }
+          for arch in arm64 x64; do
+            case "$arch" in
+              arm64) expected_host=windows_simarm64 ;;
+              x64)   expected_host=windows_x64 ;;
+            esac
+            for mode in profile release; do
+              snap="$engine/ohos-$arch-$mode/windows-x64/gen_snapshot.exe"
+              test -f "$snap" || {
+                echo "::error::缺少 ohos-$arch-$mode/windows-x64/gen_snapshot.exe"
+                exit 1
+              }
+              version="$("$snap" --version 2>&1 | tr -d '\r' | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p')"
+              host="$("$snap" --version 2>&1 | tr -d '\r' | sed -n 's/.* on "\([^"]*\)"/\1/p')"
+              echo "ohos-$arch-$mode gen_snapshot: Dart $version on $host"
+              if [ "$version" != "$dart_version" ] || [ "$host" != "$expected_host" ]; then
+                echo "::error::ohos-$arch-$mode gen_snapshot 应为 Dart $dart_version on $expected_host，实际 $version on $host"
+                exit 1
+              fi
+            done
           done
+
+          python - "$engine" "$dart_version" <<'PY'
+          import gzip
+          import io
+          import re
+          import sys
+          import tarfile
+          from pathlib import Path
+
+          engine = Path(sys.argv[1])
+          want = sys.argv[2]
+          pattern = re.compile(rb'(\d+\.\d+\.\d+) \([^)]*\) \([^)]*\) on "(ohos[^"]*)"')
+          problems = []
+          for arch, abi in (('arm64', 'arm64-v8a'), ('x64', 'x86_64')):
+              for mode in ('', '-profile', '-release'):
+                  har = engine / f'ohos-{arch}{mode}' / 'flutter.har'
+                  with gzip.open(har, 'rb') as handle:
+                      raw = handle.read()
+                  with tarfile.open(fileobj=io.BytesIO(raw)) as tar:
+                      name = next(
+                          (n for n in tar.getnames() if n.endswith(f'libs/{abi}/libflutter.so')),
+                          None,
+                      )
+                      if name is None:
+                          problems.append(f'ohos-{arch}{mode}: HAR 内没有 libs/{abi}/libflutter.so')
+                          continue
+                      data = tar.extractfile(name).read()
+                  versions = sorted({m.group(1).decode() for m in pattern.finditer(data)})
+                  print(f'ohos-{arch}{mode} libflutter.so: Dart {versions or "unknown"}')
+                  if versions != [want]:
+                      problems.append(
+                          f'ohos-{arch}{mode}: 引擎 VM 为 {versions or "unknown"}，AOT 生成器为 {want}'
+                      )
+          if problems:
+              raise SystemExit('::error::引擎与 AOT 生成器不一致：' + '; '.join(problems))
+          PY
 
       - name: Resolve Flutter dependencies
         shell: bash
@@ -314,20 +336,28 @@ jobs:
             echo "::error::release 产物仍包含 unsigned HAP"
             exit 1
           fi
-          python - "$out" <<'PY'
+          dart_version="$("$FLUTTER_OHOS_HOME/bin/cache/dart-sdk/bin/dart.exe" --version 2>&1 \
+            | tr -d '\r' | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p')"
+          test -n "$dart_version" || { echo "::error::无法从 Dart SDK 读取版本"; exit 1; }
+          python - "$out" "$dart_version" <<'PY'
+          import re
           import struct
           import sys
           import zipfile
           from pathlib import Path
 
           out = Path(sys.argv[1])
+          dart_version = sys.argv[2]
+          version_pattern = re.compile(rb'(\d+\.\d+\.\d+) \([^)]*\) \([^)]*\) on "ohos[^"]*"')
           expected = {
               'ohos-arm64': {
+                  'flutter': ('libs/arm64-v8a/libflutter.so', 183),
                   'app': ('libs/arm64-v8a/libapp.so', 183),
                   'quickjs': ('libs/arm64-v8a/libquickjs_c_bridge.so', 183),
                   'cxx': ('libs/arm64-v8a/libc++_shared.so', 183),
               },
               'ohos-x64': {
+                  'flutter': ('libs/x86_64/libflutter.so', 62),
                   'app': ('libs/x86_64/libapp.so', 62),
                   'quickjs': ('libs/x86_64/libquickjs_c_bridge.so', 62),
                   'cxx': ('libs/x86_64/libc++_shared.so', 62),
@@ -339,6 +369,19 @@ jobs:
                   raise SystemExit(f'Unexpected HAP name: {hap.name}')
               with zipfile.ZipFile(hap) as archive:
                   names = set(archive.namelist())
+                  flutter_member = expected[target]['flutter'][0]
+                  if flutter_member not in names:
+                      raise SystemExit(f'{hap.name} is missing {flutter_member}')
+                  versions = sorted({
+                      m.group(1).decode()
+                      for m in version_pattern.finditer(archive.read(flutter_member))
+                  })
+                  if versions != [dart_version]:
+                      raise SystemExit(
+                          f'{hap.name} 的 libflutter.so Dart VM 为 {versions or "unknown"}，'
+                          f'与 AOT 生成器 {dart_version} 不一致；该 HAP 安装后会报 '
+                          f'"VM snapshot invalid"'
+                      )
                   for label, (member, machine) in expected[target].items():
                       if member not in names:
                           raise SystemExit(f'{hap.name} is missing {member}')

@@ -135,6 +135,39 @@ void main() {
     expect(vendored, contains('x86_64/libc++_shared.so'));
   });
 
+  test('HarmonyOS CI pins a self-consistent engine/Dart toolchain', () {
+    final online = File(
+      '.github/workflows/build-harmonyos-online.yml',
+    ).readAsStringSync();
+
+    // 引擎工件只在 tag 3.44.9+ohos-0.0.1-canary1（har revision 7c82f544）上
+    // 完整；分支 HEAD 已换成只有 artifacts.zip 的 revision，按分支拉会缺
+    // AOT 生成器，所以必须按 tag 锁定。
+    expect(
+      online,
+      contains('FLUTTER_OHOS_REF: 3.44.9+ohos-0.0.1-canary1'),
+    );
+    expect(online, contains(r'-b "$FLUTTER_OHOS_REF"'));
+
+    for (final workflowName in [
+      '.github/workflows/build-harmonyos.yml',
+      '.github/workflows/build-harmonyos-online.yml',
+    ]) {
+      final workflow = File(workflowName).readAsStringSync();
+
+      // 绝不能用 dart-sdk 的通用 gen_snapshot 顶替 ohos 专用生成器：那会产出
+      // libflutter.so(3.12.2) + libapp.so(3.13.x) 的包，安装后报
+      // "VM snapshot invalid and could not be inferred from settings"。
+      expect(workflow, isNot(contains('sdk_snapshot')));
+
+      // 引擎 VM 版本与 AOT 生成器版本必须一致，且最终 HAP 还要再查一次。
+      expect(workflow, contains('libflutter.so'));
+      expect(workflow, contains('VM snapshot invalid'));
+      expect(workflow, contains('windows_simarm64'));
+      expect(workflow, contains('windows_x64'));
+    }
+  });
+
   test('Workers deployment does not print the login token response', () {
     final workflow = File(
       '.github/workflows/deploy-workers.yml',

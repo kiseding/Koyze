@@ -2,22 +2,30 @@
 
 本文档记录 Koyze 的鸿蒙平台接入方式、工具链版本与插件适配现状。
 
-> 状态：**HarmonyOS 双架构构建流程已接入，云端签名与实机安装仍待凭据和设备验证**。
-> `ohos/` 目录基于 Flutter 3.47.7-ohos，目标 SDK 为 API 26（HarmonyOS 7.0）。
+> 状态：**双架构 HAP 已在 x86_64 模拟器完成安装、启动与自定义音源启用验证**。
+> `ohos/` 目录基于 Flutter 3.44.9-ohos，目标 SDK 为 API 26（HarmonyOS 7.0）。
 > 音频链路使用现有鸿蒙移植方案（见第 4 节），运行时仍需持续进行真机回归。
 
 ## 1. 版本矩阵
 
 | 组件 | 版本 | 说明 |
 | --- | --- | --- |
-| Flutter | `3.47.7-ohos-1.0.0` | 上游 3.47.7 + 鸿蒙适配，Dart 3.13.3 |
+| Flutter | `3.44.9+ohos-0.0.1-canary1` | 上游 3.44.9 + 鸿蒙适配，Dart 3.12.2 |
+| 引擎 revision | `5a2a6a42`（HAR `7c82f544`） | `engine.version` / `engine.ohos.har.version` |
 | DevEco Studio | `26.0.0` | 自带 HarmonyOS SDK 26.0.0（API 26） |
 | compatibleSdkVersion | `26.0.0` | `ohos/build-profile.json5` |
 | targetSdkVersion | `26.0.0` | 同上 |
 | bundleName | `com.koyze.app` | 与 Android applicationId、iOS bundle id 一致 |
 
 上游 `openharmony-sig/flutter_flutter` 已停更（最后提交 2025-02，最高 3.22），
-现行仓库是 <https://atomgit.com/oh-flutter/flutter_flutter>，3.47 之后按上游版本列车跟进。
+现行仓库是 <https://atomgit.com/oh-flutter/flutter_flutter>。
+
+**选版本的前提是整套自洽，而不是版本号越新越好。** 3.47.x 分支的 OBS
+`engine.ohos.har` revision（如 `e068c218`）只有 `artifacts.zip`，没有配套的
+`windows-x64.zip` AOT 生成器、`dart-sdk` 和 `patched_sdk`；拿通用
+`gen_snapshot` 顶上就会产出「能安装、一启动就崩」的 HAP。`oh-3.44.9-dev`
+分支 HEAD（`4741be57`）同样退化成只有 `artifacts.zip`。目前唯一完整的是
+tag `3.44.9+ohos-0.0.1-canary1`（`har revision 7c82f544`），因此 CI 按 tag 锁定。
 
 ## 2. 环境准备（Windows）
 
@@ -26,7 +34,7 @@
 2. 拉取鸿蒙 Flutter SDK（本体约 540MB，建议放非系统盘）：
 
    ```bash
-   git clone --depth 1 -b 3.47.7-ohos-1.0.0 \
+   git clone --depth 1 -b 3.44.9+ohos-0.0.1-canary1 \
      https://atomgit.com/oh-flutter/flutter_flutter.git flutter_ohos
    export PATH="$PWD/flutter_ohos/bin:$PATH"
    ```
@@ -57,15 +65,23 @@
 
    我们只需要 Dart / ArkTS 源码，跳过 smudge 不影响依赖内容。
 
-5. 引擎工件：在线 workflow 会把 `bin/internal/dart-sdk-url.ohos` 中的六套
-   `flutter.har` 覆盖到 `engine.ohos.har.version` 对应的 HarmonyOS OBS 目录，再执行
-   `precache --ohos` 并逐项校验。当前公开 OBS 的 Windows AOT 仍是 Dart 3.12.2，
-   与本 fork 的 Dart 3.13.3 不兼容；因此在线 workflow 另外从已验证的
-   `3.47.4-ohos-1.0.4` 兼容 Release 下载 `ohos-arm64-{profile,release}` 的 Windows
-   `gen_snapshot`，并将 x64 profile/release 统一替换为同一 Dart SDK 自带的 Windows x64
-   生成器。self-hosted runner 需要预先准备相同版本的 Flutter 鸿蒙 SDK、六套 HAR 和
-   配套 ARM64 Windows AOT；工作流会在构建前运行 `gen_snapshot --version` 校验，避免
-   `expected 130, found 138`。
+5. 引擎工件：`flutter precache --ohos` 会按 fork 内的
+   `engine.ohos.har.version` 从 HarmonyOS OBS 一次性拉齐 dart-sdk、
+   `flutter_patched_sdk`、六套 `flutter.har` 和四个 Windows `gen_snapshot`
+   （arm64 用 `windows_simarm64`，x64 用 `windows_x64`）。不需要、也不允许
+   手工改写下载地址或用 dart-sdk 的通用生成器顶替。
+
+   构建前必须确认三件事完全一致，否则产物装得上但起不来：
+
+   - `bin/cache/dart-sdk/bin/dart.exe --version` 的版本；
+   - `ohos-{arm64,x64}-{profile,release}/windows-x64/gen_snapshot.exe --version`；
+   - `flutter.har` 里 `libs/<abi>/libflutter.so` 内嵌的 Dart VM 版本。
+
+   三者不一致时，x86_64 模拟器启动即报
+   `VM snapshot invalid and could not be inferred from settings` 并 SIGSEGV。
+   两个 workflow 都有对应的强制门禁（`校验引擎与 AOT 生成器自洽` /
+   `Validate HarmonyOS engine / AOT snapshotter consistency`），并且在最终
+   HAP 上再校验一次 `libflutter.so`，防止回归。
 
 ## 3. 构建
 
@@ -129,16 +145,19 @@ hdc install Koyze-4.0.1-ohos-arm64.hap
 及 macOS x64 工件，因此工作流固定为 Windows x64；在线构建优先使用上一节的
 `build-harmonyos-online.yml`。
 
-自建机器需要：DevEco Studio（API 26）、鸿蒙 Flutter SDK，以及该 SDK 对应的
-arm64/x64 debug、profile、release HAR 与 Windows profile/release AOT 工件。仓库变量
-（Settings → Variables）可配置 `FLUTTER_OHOS_HOME`、`HOS_SDK_HOME`、`CLT_HOME`；
-Windows runner 不填时使用 workflow 中的默认路径。
+自建机器需要：DevEco Studio（API 26）、按 tag `3.44.9+ohos-0.0.1-canary1`
+拉取的鸿蒙 Flutter SDK，以及该 SDK 对应的 arm64/x64 debug、profile、release
+HAR 与四个 Windows `gen_snapshot`。仓库变量（Settings → Variables）可配置
+`FLUTTER_OHOS_HOME`、`HOS_SDK_HOME`、`CLT_HOME`；Windows runner 不填时使用
+workflow 中的默认路径。
 
 workflow 会在构建前检查 `default/sdk-pkg.json`、六套 `flutter.har` 和四套
-`gen_snapshot.exe` 是否就位，缺失即失败。两种 CI 都先以 `--no-codesign` 构建，
+`gen_snapshot.exe` 是否就位，并强制要求引擎内 Dart VM 版本与 AOT 生成器一致
+（不一致即失败，不会自动替换生成器）。两种 CI 都先以 `--no-codesign` 构建，
 然后由签名脚本完成 release 签名与校验；没有完整签名 Secrets 时不会上传 release HAP。
-上传前还会解包检查 arm64 HAP 的 `libs/arm64-v8a/libapp.so` 和 x64 HAP 的
-`libs/x86_64/libapp.so`，并校验 ELF machine 分别为 AArch64 与 x86_64。
+上传前还会解包检查 arm64/x64 HAP 的 `libflutter.so`（版本必须等于 Dart SDK 版本）、
+`libapp.so`、QuickJS bridge 与 `libc++_shared.so`，并校验 ELF machine 分别为
+AArch64 与 x86_64。
 此外，两个 HAP 都必须携带与自身 ABI 匹配的 `flutter_js` QuickJS bridge 和
 `libc++_shared.so`；否则 HAP 虽能安装，启用自定义音源时仍会因 FFI 动态库加载失败而回滚。
 
@@ -255,7 +274,7 @@ Dart 侧无需改：`AudioService.init` / `BaseAudioHandler` / `MediaItem` /
 1. **运行时验证**：AVSession 播控、后台保活、通知都在 ArkTS 侧，仍应在真机和
    x86_64 模拟器上跑一遍；本轮已完成模拟器启动与本地音频扫描回归。
 2. **版本风险**：移植的验证上限是 Flutter 3.35 + SDK 6.0.1（API 21），本项目是
-   3.47.7 + API 26。`flutter analyze` 通过说明 API 面对得上，但运行时行为仍需持续观察。
+   3.44.9-ohos + API 26。`flutter analyze` 通过说明 API 面对得上，但运行时行为仍需持续观察。
 3. **签名与发布渠道**：GitHub release 需要配置 `SIGN_*` secrets，配置前不会生成可
    直接安装的 release HAP。
 4. `audio_metadata_reader`（FFI）仍无 ohos 产物。
