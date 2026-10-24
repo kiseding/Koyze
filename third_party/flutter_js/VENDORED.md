@@ -29,3 +29,12 @@
   报 `Error loading shared library libc++_shared.so (needed by libquickjs_c_bridge.so)`，
   表现为自定义音源初始化失败。该文件取自 DevEco Studio SDK
   `sdk/default/openharmony/native/llvm/lib/aarch64-linux-ohos/libc++_shared.so`。
+- `ohos/libs/x86_64/libquickjs_c_bridge.so`：使用同一份
+  `yeliulee/quickjs-c-bridge` 源码和 OpenHarmony SDK 交叉编译的 x86_64 bridge，
+  源码固定在提交 `42d8e31`。构建参数为
+  `-DOHOS_STL=c++_shared -DOHOS_ARCH=x86_64 -DOHOS_PLATFORM=OHOS`。
+  x86_64 模拟器必须有该库；只有 `arm64-v8a` 库时，`DynamicLibrary.open` 会失败，
+  自定义音源开关会回滚并显示初始化失败。
+- `ohos/libs/x86_64/libc++_shared.so`：x86_64 bridge 的 NEEDED 依赖，来自
+  `sdk/default/openharmony/native/llvm/lib/x86_64-linux-ohos/libc++_shared.so`。
+  ARM64 与 x86_64 的 C++ runtime 不能交叉复用。

@@ -322,23 +322,34 @@ jobs:
 
           out = Path(sys.argv[1])
           expected = {
-              'ohos-arm64': ('libs/arm64-v8a/libapp.so', 183),
-              'ohos-x64': ('libs/x86_64/libapp.so', 62),
+              'ohos-arm64': {
+                  'app': ('libs/arm64-v8a/libapp.so', 183),
+                  'quickjs': ('libs/arm64-v8a/libquickjs_c_bridge.so', 183),
+                  'cxx': ('libs/arm64-v8a/libc++_shared.so', 183),
+              },
+              'ohos-x64': {
+                  'app': ('libs/x86_64/libapp.so', 62),
+                  'quickjs': ('libs/x86_64/libquickjs_c_bridge.so', 62),
+                  'cxx': ('libs/x86_64/libc++_shared.so', 62),
+              },
           }
           for hap in sorted(out.glob('*.hap')):
               target = next((key for key in expected if key in hap.name), None)
               if target is None:
                   raise SystemExit(f'Unexpected HAP name: {hap.name}')
-              member, machine = expected[target]
               with zipfile.ZipFile(hap) as archive:
-                  if member not in archive.namelist():
-                      raise SystemExit(f'{hap.name} is missing {member}')
-                  data = archive.read(member)
-              if data[:4] != b'\x7fELF' or len(data) < 20:
-                  raise SystemExit(f'{hap.name} has a non-ELF {member}')
-              actual = struct.unpack_from('<H', data, 18)[0]
-              if actual != machine:
-                  raise SystemExit(f'{hap.name} has ELF machine {actual}, expected {machine}')
+                  names = set(archive.namelist())
+                  for label, (member, machine) in expected[target].items():
+                      if member not in names:
+                          raise SystemExit(f'{hap.name} is missing {member}')
+                      data = archive.read(member)
+                      if data[:4] != b'\x7fELF' or len(data) < 20:
+                          raise SystemExit(f'{hap.name} has a non-ELF {member}')
+                      actual = struct.unpack_from('<H', data, 18)[0]
+                      if actual != machine:
+                          raise SystemExit(
+                              f'{hap.name} {label} ELF machine {actual}, expected {machine}'
+                          )
           PY
           if command -v sha256sum >/dev/null 2>&1; then
             sha256sum "$out"/*.hap > "$out/SHA256SUMS.txt"

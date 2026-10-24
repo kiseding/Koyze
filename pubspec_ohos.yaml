@@ -1,7 +1,7 @@
 # HarmonyOS 专用依赖清单（本地改造版）：在原有音频移植基础上，
 # 补齐 shared_preferences / path_provider / connectivity_plus 的鸿蒙实现，
 # 并将 flutter_secure_storage、file_picker 替换为社区 ohos 移植包，
-# flutter_js 用桩降级（鸿蒙无原生移植）。
+# flutter_js 使用仓库内 QuickJS FFI 移植（同时提供 arm64 与 x86_64 原生库）。
 name: koyze
 description: Koyze - 一个免费的音乐查找助手
 publish_to: 'none'
@@ -50,7 +50,7 @@ dependencies:
   # flutter_secure_storage 鸿蒙移植见 dependency_overrides（官方名指向 vendor）
   flutter_secure_storage: ^9.2.4
 
-  # JS 引擎（鸿蒙无移植，见 dependency_overrides 的 flutter_js 桩）
+  # JS 引擎（实现位于 dependency_overrides 的仓库内 OHOS QuickJS 移植）
   flutter_js: ^0.8.2
 
   # 工具

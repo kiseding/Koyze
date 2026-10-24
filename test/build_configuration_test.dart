@@ -114,6 +114,27 @@ void main() {
     expect(appDelegate, contains('Self.isPrivateIPv4(bytes[12], bytes[13])'));
   });
 
+  test('HarmonyOS HAP validation requires ABI-matched QuickJS libraries', () {
+    for (final workflowName in [
+      '.github/workflows/build-harmonyos.yml',
+      '.github/workflows/build-harmonyos-online.yml',
+    ]) {
+      final workflow = File(workflowName).readAsStringSync();
+      expect(workflow, contains('libs/arm64-v8a/libquickjs_c_bridge.so'));
+      expect(workflow, contains('libs/arm64-v8a/libc++_shared.so'));
+      expect(workflow, contains('libs/x86_64/libquickjs_c_bridge.so'));
+      expect(workflow, contains('libs/x86_64/libc++_shared.so'));
+      expect(workflow, contains("'quickjs':"));
+      expect(workflow, contains("'cxx':"));
+    }
+
+    final vendored = File(
+      'third_party/flutter_js/VENDORED.md',
+    ).readAsStringSync();
+    expect(vendored, contains('x86_64/libquickjs_c_bridge.so'));
+    expect(vendored, contains('x86_64/libc++_shared.so'));
+  });
+
   test('Workers deployment does not print the login token response', () {
     final workflow = File(
       '.github/workflows/deploy-workers.yml',

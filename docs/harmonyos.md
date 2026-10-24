@@ -139,6 +139,8 @@ workflow 会在构建前检查 `default/sdk-pkg.json`、六套 `flutter.har` 和
 然后由签名脚本完成 release 签名与校验；没有完整签名 Secrets 时不会上传 release HAP。
 上传前还会解包检查 arm64 HAP 的 `libs/arm64-v8a/libapp.so` 和 x64 HAP 的
 `libs/x86_64/libapp.so`，并校验 ELF machine 分别为 AArch64 与 x86_64。
+此外，两个 HAP 都必须携带与自身 ABI 匹配的 `flutter_js` QuickJS bridge 和
+`libc++_shared.so`；否则 HAP 虽能安装，启用自定义音源时仍会因 FFI 动态库加载失败而回滚。
 
 ## 4. 插件适配
 
