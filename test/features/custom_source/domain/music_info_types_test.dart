@@ -89,4 +89,48 @@ void main() {
     expect(info['hash'], 'ABCDEF');
     expect(info['songmid'], 'audio-id');
   });
+
+  test('KuGou music info exposes the 320k and lossless hashes', () {
+    final info = buildLxMobileMusicInfo(
+      MusicItem(
+        id: 'audio-id',
+        name: 'song',
+        singer: 'singer',
+        source: 'custom',
+        platform: 'kg',
+        songmid: 'audio-id',
+        hash: 'HASH128',
+        meta: {
+          'kgHash320': 'HASH320',
+          'kgHashFlac': 'HASHFLAC',
+        },
+      ),
+      'kg',
+    );
+
+    // 音源脚本按 hash 请求对应音质，三档缺一不可。
+    expect(info['hash'], 'HASH128');
+    expect(info['kgHash320'], 'HASH320');
+    expect(info['kgHashFlac'], 'HASHFLAC');
+  });
+
+  test('KuGou music info hides empty high quality hashes', () {
+    final info = buildLxMobileMusicInfo(
+      MusicItem(
+        id: 'audio-id',
+        name: 'song',
+        singer: 'singer',
+        source: 'custom',
+        platform: 'kg',
+        songmid: 'audio-id',
+        hash: 'HASH128',
+        meta: const {'kgHash320': '', 'kgHashFlac': '   '},
+      ),
+      'kg',
+    );
+
+    expect(info['hash'], 'HASH128');
+    expect(info.containsKey('kgHash320'), isFalse);
+    expect(info.containsKey('kgHashFlac'), isFalse);
+  });
 }

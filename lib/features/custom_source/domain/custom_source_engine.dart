@@ -119,6 +119,25 @@ Map<String, dynamic> buildLxMobileMusicInfo(MusicItem music, String platform) {
       if (hash != null && hash.toString().isNotEmpty) {
         info['hash'] = hash.toString();
       }
+      // 酷狗的播放地址按 hash 区分音质：128k / 320k / 无损各有独立 hash。
+      // 只传 128k 的话音源脚本永远拿不到高音质，这里把另外两档一起透传。
+      final kgHash320 = (meta['kgHash320'] ??
+              meta['HQFileHash'] ??
+              meta['320hash'] ??
+              meta['hash_high'])
+          ?.toString()
+          .trim();
+      final kgHashFlac = (meta['kgHashFlac'] ??
+              meta['SQFileHash'] ??
+              meta['sqhash'])
+          ?.toString()
+          .trim();
+      if (kgHash320 != null && kgHash320.isNotEmpty) {
+        info['kgHash320'] = kgHash320;
+      }
+      if (kgHashFlac != null && kgHashFlac.isNotEmpty) {
+        info['kgHashFlac'] = kgHashFlac;
+      }
     case 'tx':
       info.addAll({
         'strMediaMid':
