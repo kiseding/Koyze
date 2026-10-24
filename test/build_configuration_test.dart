@@ -10,6 +10,38 @@ void main() {
     expect(pubspec, contains("flutter: '>=3.44.0'"));
   });
 
+  test('built-in platforms never resolve audio urls', () {
+    final dir = Directory('lib/core/music_source/platform');
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .toList();
+
+    expect(files, isNotEmpty);
+
+    // 本项目不内置任何音源。内置平台只允许提供元数据，一旦这些实现被加回来，
+    // 就等于把音频分发能力重新打包进应用。
+    const forbidden = [
+      'getMusicUrl(',
+      'trackercdn.kugou.com',
+      'fcg_music_express',
+      'antiserver.kuwo.cn',
+      'enhance/player/url',
+      'getSongInfo.php',
+    ];
+    for (final file in files) {
+      final source = file.readAsStringSync();
+      for (final token in forbidden) {
+        expect(
+          source.contains(token),
+          isFalse,
+          reason: '${file.path} 不应包含内置音频取址实现（$token）',
+        );
+      }
+    }
+  });
+
   test('settings about row shows the pubspec version', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final version = RegExp(

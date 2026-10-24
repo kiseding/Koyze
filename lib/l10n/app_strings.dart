@@ -293,6 +293,7 @@ class S {
     'tx' => en ? 'QQ Music' : 'QQ音乐',
     'kw' => en ? 'Kuwo' : '酷我音乐',
     'wy' => en ? 'NetEase' : '网易云',
+    'kg' => en ? 'Kugou' : '酷狗音乐',
     _ => otherPlatform,
   };
 
@@ -827,9 +828,11 @@ class S {
   String get importFromLink => en ? 'Import from a link' : '通过链接导入';
   String get addManually => en ? 'Add manually' : '手动添加';
   String get pasteScript => en ? 'Paste a script' : '粘贴脚本';
-  String get noCustomSources => en ? 'No custom sources' : '暂无自定义源';
-  String get addCustomSourceHint =>
-      en ? 'Use + to add a custom source' : '点击右上角 + 添加自定义源';
+  String get noCustomSources =>
+      en ? 'No custom sources' : '暂无自定义源';
+  String get addCustomSourceHint => en
+      ? 'Koyze ships no audio source. Use + to import and enable one before playing online songs.'
+      : 'Koyze 不内置任何音源。请点击右上角 + 导入并启用音源，否则在线歌曲无法播放。';
   String sourceInitFailed(String name) =>
       en ? '$name failed to start. Check the script.' : '$name 初始化失败，请检查脚本';
   String get importScriptOk => en ? 'Script imported' : '导入脚本成功';

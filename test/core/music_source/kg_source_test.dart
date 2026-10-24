@@ -68,25 +68,7 @@ void main() {
     });
   });
 
-  group('Kugou quality mapping', () {
-    test('lossless variants share the flac attempt key', () {
-      expect(KgSource.attemptKeyForQuality('flac'), 'flac');
-      expect(KgSource.attemptKeyForQuality('flac24bit'), 'flac');
-      expect(KgSource.attemptKeyForQuality('hires'), 'flac');
-      expect(KgSource.attemptKeyForQuality('320k'), '320');
-      expect(KgSource.attemptKeyForQuality('192k'), '320');
-      expect(KgSource.attemptKeyForQuality('128k'), '128');
-      expect(KgSource.attemptKeyForQuality('unknown'), isNull);
-    });
-
-    test('bit rate is normalised before naming the quality', () {
-      expect(KgSource.qualityForBitRate(128000, 'mp3'), '128k');
-      expect(KgSource.qualityForBitRate(320000, 'mp3'), '320k');
-      expect(KgSource.qualityForBitRate(128, 'mp3'), '128k');
-      expect(KgSource.qualityForBitRate(320, 'mp3'), '320k');
-      expect(KgSource.qualityForBitRate(1029, 'flac'), 'flac');
-    });
-
+  group('Kugou artwork', () {
     test('artwork URL applies the requested size over https', () {
       expect(
         kugouImageUrl('http://imge.kugou.com/stdmusic/{size}/a.jpg', size: 480),

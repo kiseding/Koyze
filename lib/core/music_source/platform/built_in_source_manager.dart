@@ -36,39 +36,6 @@ class BuiltInSourceManager {
     return platform.search(keyword, page: page, limit: limit);
   }
 
-  Future<String?> getMusicUrl(
-    String platformId,
-    MusicItem music, {
-    String quality = '320k',
-  }) async {
-    final platform = _platforms[platformId];
-    if (platform == null) return null;
-    return platform.getMusicUrl(music, quality: quality);
-  }
-
-  Future<String?> getMusicUrlExact(
-    String platformId,
-    MusicItem music, {
-    required String quality,
-  }) async {
-    final platform = _platforms[platformId];
-    if (platform == null) return null;
-    return platform.getMusicUrlExact(music, quality: quality);
-  }
-
-  Future<ExactPlayUrl?> getMusicUrlExactDetailed(
-    String platformId,
-    MusicItem music, {
-    required String quality,
-  }) async {
-    final platform = _platforms[platformId];
-    if (platform == null) return null;
-    return platform.getMusicUrlExactDetailed(music, quality: quality);
-  }
-
-  String? exactAttemptKey(String platformId, String quality) =>
-      _platforms[platformId]?.exactAttemptKey(quality);
-
   Future<String?> getLyric(String platformId, MusicItem music) async {
     final platform = _platforms[platformId];
     if (platform == null) return null;

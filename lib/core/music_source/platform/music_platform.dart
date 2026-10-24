@@ -155,19 +155,12 @@ abstract class MusicPlatform {
 
   Future<List<MusicItem>> search(String keyword,
       {int page = 1, int limit = 20});
-  Future<String?> getMusicUrl(MusicItem music, {String quality = '128k'});
 
-  /// Coordinator-only exact request. Legacy callers continue using getMusicUrl.
-  Future<String?> getMusicUrlExact(MusicItem music,
-          {required String quality}) async =>
-      null;
-  Future<ExactPlayUrl?> getMusicUrlExactDetailed(MusicItem music,
-      {required String quality}) async {
-    final url = await getMusicUrlExact(music, quality: quality);
-    return url == null ? null : ExactPlayUrl(url: url, actualQuality: quality);
-  }
-
-  String? exactAttemptKey(String quality) => null;
+  // 内置平台只提供元数据（搜索、歌单、榜单、歌词、封面）。
+  //
+  // 本项目不内置、也不实现任何音频地址解析：播放链接一律由用户自行导入
+  // 并在设置中启用的音源脚本提供。故意不在这里定义 getMusicUrl 之类的
+  // 方法，避免以后又把取址逻辑塞回内置平台。
   Future<String?> getLyric(MusicItem music);
   Future<String?> getArtwork(MusicItem music) async => null;
 
@@ -229,11 +222,4 @@ abstract class MusicPlatform {
   }
 
   MusicItem parseItem(Map<String, dynamic> raw, String source);
-}
-
-class ExactPlayUrl {
-  final String url;
-  final String actualQuality;
-
-  const ExactPlayUrl({required this.url, required this.actualQuality});
 }

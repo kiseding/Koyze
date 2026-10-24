@@ -49,7 +49,6 @@ class MusicSourceService {
   final List<String> Function()? _enabledCustomSourceIds;
   final QualityResolver? _customQualityResolver;
   final CustomSourceQualityResolver? _customSourceQualityResolver;
-  final QualityResolver? _builtInQualityResolver;
   final SubsonicService? _subsonicService;
   final Map<NasKind, NasService> _nasServices;
   final Duration playUrlResolutionTimeout;
@@ -63,7 +62,6 @@ class MusicSourceService {
     List<String> Function()? enabledCustomSourceIds,
     QualityResolver? customQualityResolver,
     CustomSourceQualityResolver? customSourceQualityResolver,
-    QualityResolver? builtInQualityResolver,
     BuiltInSourceManager? builtInSources,
     SubsonicService? subsonicService,
     Map<NasKind, NasService>? nasServices,
@@ -73,11 +71,17 @@ class MusicSourceService {
        _customQualityResolver = customQualityResolver,
        _customSourceQualityResolver = customSourceQualityResolver,
        _builtInSources = builtInSources ?? BuiltInSourceManager(),
-       _builtInQualityResolver = builtInQualityResolver,
        _subsonicService = subsonicService,
        _nasServices = nasServices ?? const {};
 
   BuiltInSourceManager get builtInSources => _builtInSources;
+
+  /// 是否有用户启用的音源。
+  ///
+  /// 本项目不内置任何音频地址解析，这里为 false 时所有在线歌曲都无法播放。
+  bool get hasEnabledCustomSource =>
+      _hasEnabledCustomSources?.call() ??
+      _customSourceService.enabledSources.isNotEmpty;
 
   /// 从高到低的音质降级链。优先 preferred，再依次更低档。
   static const qualityRank = [
@@ -323,27 +327,32 @@ class MusicSourceService {
         _customSourceQualityResolver != null ||
         (_hasEnabledCustomSources?.call() ??
             _customSourceService.enabledSources.isNotEmpty);
+    if (!hasCustom) {
+      // 本项目不内置任何音频地址解析。没有用户启用的音源时，这里必须
+      // 直接失败，而不是回落到任何内置通道。
+      debugPrint('[getPlayUrl] 未启用任何音源，无法解析音频地址');
+      return null;
+    }
+
     final customAttemptKeys = <String>{};
     final qualities = allowQualityFallback
         ? qualityChain(resolvedQuality)
         : [resolvedQuality];
-    final customResult = hasCustom
-        ? await _resolveQualityChain(
+    final customResult = await _resolveQualityChain(
+      music,
+      resolvedQuality,
+      qualities,
+      (music, quality, cancelToken, {required candidateIndex}) =>
+          _resolveCustomQuality(
             music,
-            resolvedQuality,
-            qualities,
-            (music, quality, cancelToken, {required candidateIndex}) =>
-                _resolveCustomQuality(
-                  music,
-                  quality,
-                  cancelToken,
-                  candidateIndex: candidateIndex,
-                  attemptKeys: customAttemptKeys,
-                ),
+            quality,
             cancelToken,
-            acceptDowngradeImmediately: true,
-          )
-        : null;
+            candidateIndex: candidateIndex,
+            attemptKeys: customAttemptKeys,
+          ),
+      cancelToken,
+      acceptDowngradeImmediately: true,
+    );
     if (customResult != null) return customResult;
 
     if (platform != 'kw' &&
@@ -352,24 +361,10 @@ class MusicSourceService {
         platform != 'kg') {
       return null;
     }
-    final builtInQualities = _builtInQualityResolver != null
-        ? qualities
-        : uniqueQualityCandidates(
-            resolvedQuality,
-            candidates: allowQualityFallback ? null : [resolvedQuality],
-            attemptKey: (quality) =>
-                _builtInSources.exactAttemptKey(platform, quality),
-          );
-    final builtInResult = await _resolveQualityChain(
-      music,
-      resolvedQuality,
-      builtInQualities,
-      _resolveBuiltInQuality,
-      cancelToken,
-      acceptDowngradeImmediately: false,
-    );
-    if (builtInResult != null) return builtInResult;
 
+    // 内置平台只提供元数据。以下两条路径补的是 songmid / hash 这类定位
+    // 字段，或在另一个平台找到同一首歌再试一次；音频地址始终由用户音源
+    // 解析，不会走任何内置实现。
     if (allowSamePlatformRefresh) {
       _throwIfCancelled(cancelToken);
       final matches = await _builtInSources
@@ -401,8 +396,8 @@ class MusicSourceService {
 
     debugPrint(
       allowCrossPlatformFallback
-          ? '[getPlayUrl] 当前平台及跨平台回退均无可播地址'
-          : '[getPlayUrl] 当前平台解析失败，跨平台回退已禁用',
+          ? '[getPlayUrl] 用户音源未能解析该歌曲，跨平台换源后仍失败'
+          : '[getPlayUrl] 用户音源未能解析该歌曲',
     );
     return null;
   }
@@ -697,60 +692,6 @@ class MusicSourceService {
       if (identical(_customUrlRequests[key], request)) {
         _customUrlRequests.removeWhere((requestKey, _) => requestKey == key);
       }
-    }
-  }
-
-  Future<_QualityAttempt?> _resolveBuiltInQuality(
-    MusicItem music,
-    String quality,
-    CancelToken? cancelToken, {
-    required int candidateIndex,
-  }) async {
-    if (_builtInQualityResolver != null) {
-      final result = await _builtInQualityResolver(music, quality, cancelToken);
-      return result == null
-          ? null
-          : _QualityAttempt(
-              result: PlayUrlResult(
-                url: result.url,
-                requestedQuality: result.requestedQuality,
-                actualQuality: result.actualQuality,
-                platform: resolvePlatform(music),
-                songId: result.songId,
-              ),
-              sourceIndex: 0,
-              candidateIndex: candidateIndex,
-              songId: result.songId,
-            );
-    }
-    final platform = resolvePlatform(music);
-    if (platform != 'kw' &&
-        platform != 'tx' &&
-        platform != 'wy' &&
-        platform != 'kg') {
-      return null;
-    }
-    try {
-      final detailed = await _builtInSources
-          .getMusicUrlExactDetailed(platform, music, quality: quality)
-          .timeout(const Duration(seconds: 8));
-      _throwIfCancelled(cancelToken);
-      final url = detailed == null ? null : normalizeMediaUrl(detailed.url);
-      if (!isPlayableMediaUrl(url)) return null;
-      return _QualityAttempt(
-        result: PlayUrlResult(
-          url: url!,
-          requestedQuality: quality,
-          actualQuality: detailed!.actualQuality,
-          platform: platform,
-          songId: songIdOf(music),
-        ),
-        sourceIndex: 0,
-        candidateIndex: candidateIndex,
-      );
-    } catch (error) {
-      if (error is DioException && CancelToken.isCancel(error)) rethrow;
-      return null;
     }
   }
 

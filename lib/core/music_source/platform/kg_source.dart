@@ -5,13 +5,10 @@ import 'package:flutter/foundation.dart';
 
 import '../../../features/player/domain/music_item.dart';
 import 'music_platform.dart';
-import 'source_utils.dart';
 
 /// 酷狗音乐匿名接口。全部走 HTTPS：`mobilecdn.kugou.com` 的证书不覆盖该
 /// 域名，`mobiles.kugou.com` 是同一套 v3 接口的可用 HTTPS 入口。
 const kugouSearchUrl = 'https://songsearch.kugou.com/song_search_v2';
-const kugouSongInfoUrl = 'https://m.kugou.com/app/i/getSongInfo.php';
-const kugouTrackerUrl = 'https://trackercdn.kugou.com/i/v2/';
 const kugouLyricSearchUrl = 'https://lyrics.kugou.com/search';
 const kugouLyricDownloadUrl = 'https://lyrics.kugou.com/download';
 const kugouMobileApiBase = 'https://mobiles.kugou.com/api/v3';
@@ -43,27 +40,6 @@ class _KgHashes {
   final String? h128;
   final String? h320;
   final String? hflac;
-
-  String? forKey(String key) {
-    final value = switch (key) {
-      'flac' => hflac,
-      '320' => h320,
-      _ => h128,
-    };
-    return (value == null || value.isEmpty) ? null : value;
-  }
-}
-
-class _KgTrackerResult {
-  const _KgTrackerResult({
-    required this.url,
-    required this.bitRate,
-    required this.extName,
-  });
-
-  final String url;
-  final int bitRate;
-  final String extName;
 }
 
 class KgSource extends MusicPlatform {
@@ -216,26 +192,6 @@ class KgSource extends MusicPlatform {
     );
   }
 
-  static _KgHashes _hashesOfMusic(MusicItem music) {
-    final meta = music.meta ?? const <String, dynamic>{};
-    String read(List<String> keys) {
-      for (final key in keys) {
-        final value = meta[key]?.toString().trim() ?? '';
-        if (value.isNotEmpty) return value;
-      }
-      return '';
-    }
-
-    final h128 = read(['kgHash128', 'FileHash', 'hash']);
-    final h320 = read(['kgHash320', 'HQFileHash', '320hash', 'hash_high']);
-    final hflac = read(['kgHashFlac', 'SQFileHash', 'sqhash']);
-    return _KgHashes(
-      h128: h128.isNotEmpty ? h128 : (music.hash ?? music.id),
-      h320: h320.isEmpty ? null : h320,
-      hflac: hflac.isEmpty ? null : hflac,
-    );
-  }
-
   static String _titleOf(Map<String, dynamic> raw) {
     final direct = (raw['SongName'] ?? raw['songname'] ?? '').toString().trim();
     if (direct.isNotEmpty) return direct;
@@ -293,163 +249,6 @@ class KgSource extends MusicPlatform {
   MusicItem parseItem(Map<String, dynamic> raw, String source) {
     return parseKugouItem(raw) ??
         MusicItem(id: '', name: '', singer: '', source: 'kg', platform: 'kg');
-  }
-
-  // ---------------------------------------------------------------------------
-  // 播放地址
-  // ---------------------------------------------------------------------------
-
-  static String? attemptKeyForQuality(String quality) {
-    switch (quality) {
-      case 'flac24bit':
-      case 'hires':
-      case 'flac':
-        return 'flac';
-      case '320k':
-      case '192k':
-        return '320';
-      case '128k':
-        return '128';
-      default:
-        return null;
-    }
-  }
-
-  @override
-  String? exactAttemptKey(String quality) => attemptKeyForQuality(quality);
-
-  @override
-  Future<String?> getMusicUrl(
-    MusicItem music, {
-    String quality = '128k',
-  }) async {
-    final seen = <String>{};
-    for (final candidate in [quality, '320k', '128k']) {
-      final key = attemptKeyForQuality(candidate);
-      if (key == null || !seen.add(key)) continue;
-      final detailed =
-          await getMusicUrlExactDetailed(music, quality: candidate);
-      if (detailed != null) return detailed.url;
-    }
-    return null;
-  }
-
-  @override
-  Future<String?> getMusicUrlExact(
-    MusicItem music, {
-    required String quality,
-  }) async {
-    final detailed = await getMusicUrlExactDetailed(music, quality: quality);
-    return detailed?.url;
-  }
-
-  @override
-  Future<ExactPlayUrl?> getMusicUrlExactDetailed(
-    MusicItem music, {
-    required String quality,
-  }) async {
-    final key = attemptKeyForQuality(quality);
-    if (key == null) return null;
-    final hash = _hashesOfMusic(music).forKey(key);
-    if (hash == null || hash.isEmpty) {
-      debugPrint('[KG] 缺少 $quality 对应的 hash');
-      return null;
-    }
-
-    final tracked = await _fetchTracker(hash);
-    if (tracked != null) {
-      return ExactPlayUrl(
-        url: tracked.url,
-        actualQuality: qualityForBitRate(tracked.bitRate, tracked.extName),
-      );
-    }
-
-    // tracker 只覆盖部分曲目；128k 再试一次移动端播放信息接口。
-    if (key == '128') {
-      final info = await _fetchSongInfo(hash);
-      if (info != null) {
-        final url = info['url']?.toString().trim() ?? '';
-        if (url.isNotEmpty) {
-          return ExactPlayUrl(
-            url: url,
-            actualQuality: qualityForBitRate(
-              _intOf(info['bitRate']),
-              info['extName']?.toString() ?? '',
-            ),
-          );
-        }
-        final error = info['error']?.toString() ?? '';
-        if (error.isNotEmpty) debugPrint('[KG] 播放受限: $error');
-      }
-    }
-    return null;
-  }
-
-  /// tracker 返回 bps（128000），getSongInfo 返回 kbps（128），先归一再比较。
-  static String qualityForBitRate(int bitRate, String extName) {
-    final ext = extName.toLowerCase();
-    if (ext == 'flac' || ext == 'ape' || ext == 'wav') return 'flac';
-    final kbps = bitRate > 10000 ? bitRate ~/ 1000 : bitRate;
-    if (kbps >= 300) return '320k';
-    if (kbps >= 160) return '192k';
-    return '128k';
-  }
-
-  Future<_KgTrackerResult?> _fetchTracker(String hash) async {
-    try {
-      final dio = createDioForService(
-        headers: {
-          'User-Agent': kugouMobileUserAgent,
-          'Referer': 'https://www.kugou.com/',
-        },
-      );
-      final response = await dio
-          .get(
-            kugouTrackerUrl,
-            queryParameters: {
-              'key': md5String('${hash}kgcloudv2'),
-              'behavior': 'play',
-              'pid': '2',
-              'cmd': '25',
-              'version': '9108',
-              'hash': hash,
-            },
-            options: Options(responseType: ResponseType.json),
-          )
-          .timeout(const Duration(seconds: 10));
-      final body = _asMap(response.data);
-      if (body == null || body['status'] != 1) return null;
-
-      final rawUrl = body['url'];
-      final url = rawUrl is List
-          ? (rawUrl.isEmpty ? '' : rawUrl.first?.toString() ?? '')
-          : rawUrl?.toString() ?? '';
-      if (url.isEmpty) return null;
-
-      return _KgTrackerResult(
-        url: url,
-        bitRate: _intOf(body['bitRate']),
-        extName: body['extName']?.toString() ?? '',
-      );
-    } catch (e) {
-      debugPrint('[KG] tracker 失败: $e');
-      return null;
-    }
-  }
-
-  Future<Map<String, dynamic>?> _fetchSongInfo(String hash) async {
-    try {
-      final response = await _mobileDio()
-          .get(
-            kugouSongInfoUrl,
-            queryParameters: {'cmd': 'playInfo', 'hash': hash},
-          )
-          .timeout(const Duration(seconds: 10));
-      return _asMap(response.data);
-    } catch (e) {
-      debugPrint('[KG] getSongInfo 失败: $e');
-      return null;
-    }
   }
 
   // ---------------------------------------------------------------------------
@@ -519,14 +318,8 @@ class KgSource extends MusicPlatform {
 
   @override
   Future<String?> getArtwork(MusicItem music) async {
-    final cached = kugouImageUrl((music.meta ?? const {})['kgArtwork']);
-    if (cached != null) return cached;
-
-    final hash = music.hash ?? music.songmid ?? music.id;
-    if (hash.isEmpty) return null;
-    final info = await _fetchSongInfo(hash);
-    if (info == null) return null;
-    return kugouImageUrl(info['album_img']);
+    // 只读搜索/榜单解析时写入的封面，不再调用任何播放信息接口。
+    return kugouImageUrl((music.meta ?? const {})['kgArtwork']);
   }
 
   // ---------------------------------------------------------------------------

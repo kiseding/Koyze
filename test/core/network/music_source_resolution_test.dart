@@ -24,12 +24,6 @@ class _LyricPlatform extends MusicPlatform {
   Future<String?> getLyric(MusicItem music) async => lyric;
 
   @override
-  Future<String?> getMusicUrl(
-    MusicItem music, {
-    String quality = '128k',
-  }) async => null;
-
-  @override
   MusicItem parseItem(Map<String, dynamic> raw, String source) => MusicItem(
     id: raw['id']?.toString() ?? '',
     name: raw['name']?.toString() ?? '',
@@ -72,12 +66,6 @@ class _SearchPlatform extends MusicPlatform {
 
   @override
   Future<String?> getLyric(MusicItem music) async => lyric;
-
-  @override
-  Future<String?> getMusicUrl(
-    MusicItem music, {
-    String quality = '128k',
-  }) async => null;
 
   @override
   MusicItem parseItem(Map<String, dynamic> raw, String source) => MusicItem(
@@ -229,7 +217,7 @@ void main() {
   );
 
   test(
-    'incomplete imported metadata is refreshed from the same platform',
+    'incomplete imported metadata is refreshed for the enabled source',
     () async {
       final refreshedSong = MusicItem(
         id: 'song-1',
@@ -242,7 +230,8 @@ void main() {
       );
       final service = MusicSourceService(
         CustomSourceService(),
-        builtInQualityResolver: (music, quality, cancelToken) async {
+        hasEnabledCustomSources: () => true,
+        customQualityResolver: (music, quality, cancelToken) async {
           if (music.meta?['strMediaMid'] != 'media-1') return null;
           return playable(quality);
         },
@@ -260,6 +249,7 @@ void main() {
 
       expect(result?.url, 'https://media.example/320k.mp3');
       expect(result?.platform, 'tx');
+      expect(result?.fromCustomSource, isTrue);
     },
   );
 
@@ -274,7 +264,8 @@ void main() {
     );
     final service = MusicSourceService(
       CustomSourceService(),
-      builtInQualityResolver: (music, quality, cancelToken) async => null,
+      hasEnabledCustomSources: () => true,
+      customQualityResolver: (music, quality, cancelToken) async => null,
       builtInSources: BuiltInSourceManager(
         platforms: [
           _TrackingSearchPlatform('tx', searched),
@@ -318,7 +309,6 @@ void main() {
             platform: 'tx',
           );
         },
-        builtInQualityResolver: (music, quality, cancelToken) async => null,
         builtInSources: BuiltInSourceManager(
           platforms: [
             _SearchPlatform(platformId: 'tx'),
@@ -432,16 +422,12 @@ void main() {
     },
   );
 
-  test('built-in source is used when every custom attempt fails', () async {
-    var builtInCalls = 0;
+  test('returns null when every enabled source fails', () async {
     final service = MusicSourceService(
       CustomSourceService(),
       hasEnabledCustomSources: () => true,
       customQualityResolver: (music, quality, cancelToken) async => null,
-      builtInQualityResolver: (music, quality, cancelToken) async {
-        builtInCalls++;
-        return playable(quality);
-      },
+      builtInSources: BuiltInSourceManager(platforms: const []),
     );
 
     final result = await service.resolvePlayableUrl(
@@ -449,21 +435,15 @@ void main() {
       preferredQuality: '320k',
     );
 
-    expect(result?.url, 'https://media.example/320k.mp3');
-    expect(builtInCalls, 1);
+    expect(result, isNull);
   });
 
-  test('successful custom source still prevents built-in fallback', () async {
-    var builtInCalls = 0;
+  test('successful custom source is used directly', () async {
     final service = MusicSourceService(
       CustomSourceService(),
       hasEnabledCustomSources: () => true,
       customQualityResolver: (music, quality, cancelToken) async =>
           playable(quality),
-      builtInQualityResolver: (music, quality, cancelToken) async {
-        builtInCalls++;
-        return playable(quality);
-      },
     );
 
     final result = await service.resolvePlayableUrl(
@@ -472,28 +452,7 @@ void main() {
     );
 
     expect(result?.url, 'https://media.example/320k.mp3');
-    expect(builtInCalls, 0);
-  });
-
-  test('built-in fallback skips the hidden 192k candidate', () async {
-    final calls = <String>[];
-    final service = MusicSourceService(
-      CustomSourceService(),
-      hasEnabledCustomSources: () => false,
-      builtInQualityResolver: (music, quality, cancelToken) async {
-        calls.add(quality);
-        return quality == '128k' ? playable(quality) : null;
-      },
-    );
-
-    final result = await service.resolvePlayableUrl(
-      item,
-      preferredQuality: '320k',
-    );
-
-    expect(calls, ['320k', '128k']);
-    expect(result?.requestedQuality, '320k');
-    expect(result?.actualQuality, '128k');
+    expect(result?.fromCustomSource, isTrue);
   });
 
   test('cancellation stops fallback before another quality attempt', () async {
@@ -722,11 +681,32 @@ void main() {
     },
   );
 
+  test('no enabled source returns null without searching', () async {
+    final searched = <String>[];
+    final service = MusicSourceService(
+      CustomSourceService(),
+      builtInSources: BuiltInSourceManager(
+        platforms: [
+          _TrackingSearchPlatform('tx', searched),
+          _TrackingSearchPlatform('kw', searched),
+        ],
+      ),
+    );
+
+    expect(
+      await service.resolvePlayableUrl(item, preferredQuality: '320k'),
+      isNull,
+    );
+    expect(searched, isEmpty);
+    expect(service.hasEnabledCustomSource, isFalse);
+  });
+
   test('overall playback URL timeout cancels the active resolution', () async {
     final cancelToken = CancelToken();
     final service = MusicSourceService(
       CustomSourceService(),
-      builtInQualityResolver: (music, quality, token) =>
+      hasEnabledCustomSources: () => true,
+      customQualityResolver: (music, quality, token) =>
           Completer<PlayUrlResult?>().future,
       playUrlResolutionTimeout: const Duration(milliseconds: 20),
     );

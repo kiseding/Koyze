@@ -22,13 +22,6 @@ import 'leaderboard_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../core/theme/app_tokens.dart';
 
-const Map<String, String> kLeaderboardPlatformNames = {
-  'tx': 'QQ音乐',
-  'kw': '酷我音乐',
-  'wy': '网易云',
-  'kg': '酷狗音乐',
-};
-
 /// 每个平台段里挑出来当主卡的榜。
 ///
 /// 三个平台都有这三个榜，而且名字完全一致，所以只能精确比对：酷我另有
@@ -839,9 +832,10 @@ class _LeaderboardChartTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final platform = category.platform ?? 'other';
     final songs = ref.watch(leaderboardSongsProvider(category.id)).valueOrNull;
+    // 与其他平台保持一致：优先用榜首歌曲的封面，没有时再退回榜单自带封面。
     final cover =
-        category.coverUrl ??
-        (songs != null && songs.isNotEmpty ? songs.first.artwork : null);
+        (songs != null && songs.isNotEmpty ? songs.first.artwork : null) ??
+        category.coverUrl;
     final topSongs = songs == null
         ? const <MusicItem>[]
         : songs.take(3).toList(growable: false);
@@ -968,9 +962,10 @@ class _LeaderboardChartCell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final platform = category.platform ?? 'other';
     final songs = ref.watch(leaderboardSongsProvider(category.id)).valueOrNull;
+    // 与其他平台保持一致：优先用榜首歌曲的封面，没有时再退回榜单自带封面。
     final cover =
-        category.coverUrl ??
-        (songs != null && songs.isNotEmpty ? songs.first.artwork : null);
+        (songs != null && songs.isNotEmpty ? songs.first.artwork : null) ??
+        category.coverUrl;
     // 与竖屏卡一致：只有榜名和前三首，不留平台 / 数量这类副标题。
     final topSongs = songs == null
         ? const <MusicItem>[]

@@ -620,6 +620,11 @@ Future<void> _bootstrapUnsafe(
               );
               if (resolution == null) {
                 debugPrint('[urlResolver] 源未返回可播地址(q=$requested)');
+                if (!sourceService.hasEnabledCustomSource) {
+                  lxHandler.onError?.call(
+                    '未启用任何音源，请先在「设置 → 高级 → 自定义源」导入并启用音源',
+                  );
+                }
                 return null;
               }
               if (resolutionGeneration is int) {
