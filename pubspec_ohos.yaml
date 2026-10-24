@@ -5,7 +5,7 @@
 name: koyze
 description: Koyze - 一个免费的音乐查找助手
 publish_to: 'none'
-version: 4.0.1+401
+version: 4.0.2+402
 
 homepage: https://github.com/kiseding/koyze
 repository: https://github.com/kiseding/koyze
