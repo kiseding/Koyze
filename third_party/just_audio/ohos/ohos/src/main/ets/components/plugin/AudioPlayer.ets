@@ -286,10 +286,38 @@ export class AudioPlayer implements MethodCallHandler, onChangeMediaAvPlayerStat
           break;
       }
     } catch (err) {
-      result.error("Error: " + err.getMessage(), null, null);
+      // `getMessage()` 是 Java 风格 API，ArkTS 的 Error 没有这个方法；在
+      // catch 里再抛一次会跳过 result.error，method channel 永不回包，
+      // Dart 侧只能等 sourceLoadTimeout（默认 20s）才失败。
+      if (this.prepareResult === result) {
+        // 避免后续就绪事件对同一个 result 二次回包（Reply already submitted）。
+        this.prepareResult = null;
+      }
+      try {
+        result.error("Error: " + AudioPlayer.describeError(err), null, null);
+      } catch (e) {
+        console.error(TAG, 'onMethodCall::reply failed');
+      }
     } finally {
       this.broadcastPendingPlaybackEvent();
     }
+  }
+
+  /**
+   * 从 catch 到的任意值里取出可读信息，任何情况下都不再抛异常。
+   */
+  private static describeError(err: Object | null): string {
+    if (err == null) {
+      return 'unknown error';
+    }
+    if (err instanceof Error) {
+      const message: string = err.message;
+      if (message.length > 0) {
+        return message;
+      }
+    }
+    const text: string = String(err);
+    return text.length > 0 ? text : 'unknown error';
   }
 
   onStartBuffering() {

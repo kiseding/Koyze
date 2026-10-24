@@ -662,4 +662,36 @@ void main() {
       expect(flutter, greaterThan(verify), reason: platform);
     }
   });
+
+  test('HarmonyOS audio plugin never throws while reporting an error', () {
+    // `err.getMessage()` 是 Java 风格 API，ArkTS 的 Error 没有这个方法。
+    // 在 catch 里二次抛错会跳过 result.error，method channel 永不回包，
+    // Dart 侧只能等满 sourceLoadTimeout（20s）。这个 bug 曾让鸿蒙每次
+    // 手动切歌都卡 20 秒才出声。
+    final pluginDir = Directory(
+      'third_party/just_audio/ohos/ohos/src/main/ets/components/plugin',
+    );
+    expect(pluginDir.existsSync(), isTrue);
+
+    final sources = pluginDir
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.ets'))
+        .toList();
+    expect(sources, isNotEmpty);
+    for (final source in sources) {
+      expect(
+        source.readAsStringSync(),
+        isNot(contains('.getMessage(')),
+        reason: '${source.path} 调用了 ArkTS 不存在的 Error.getMessage()',
+      );
+    }
+
+    final audioPlayer = File(
+      'third_party/just_audio/ohos/ohos/src/main/ets/components/plugin/'
+      'AudioPlayer.ets',
+    ).readAsStringSync();
+    expect(audioPlayer, contains('describeError'));
+    expect(audioPlayer, contains('prepareResult = null'));
+  });
 }
