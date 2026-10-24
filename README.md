@@ -5,17 +5,17 @@
 </p>
 
 <p align="center">
-  面向 Android、Windows、iOS、Mac、Linux 的跨平台音乐查找、播放和本地曲库管理工具。
+  面向 Android、Windows、iOS、macOS、Linux 与 HarmonyOS 的跨平台音乐查找、播放和本地曲库管理工具。
 </p>
 
-Koyze 使用 Flutter 构建，将 QQ 音乐、酷我音乐、网易云音乐、本地文件与自定义音源整合到同一套搜索和播放体验中。搜索、播放、下载、歌单和本地曲库均可在不登录、不部署服务端的情况下使用；Cloudflare Workers 后端只负责可选的账号与跨设备同步。
+Koyze 使用 Flutter 构建，将 QQ 音乐、酷我音乐、网易云音乐、本地文件、NAS 媒体库与自定义音源整合到同一套搜索和播放体验中。搜索、播放、下载、歌单和本地曲库均可在不登录、不部署服务端的情况下使用；Cloudflare Workers 后端只负责可选的账号与跨设备同步。
 
 > [!IMPORTANT]
 > 本项目基于 Apache 2.0 许可证开源。仅用于技术研究和个人学习。请遵守所在地法律、平台服务条款与内容版权要求，不要将它用于侵犯版权或绕过付费授权。
 
 ## 界面预览
 
-以下截图取自 iPhone 16 模拟器中的实际界面，深色主题。
+以下截图取自 HarmonyOS 7.0 x86_64 模拟器中的实际界面（Koyze 4.0.2，浅色主题），未做裁剪或合成。
 
 <table>
   <tr>
@@ -30,12 +30,29 @@ Koyze 使用 Flutter 构建，将 QQ 音乐、酷我音乐、网易云音乐、�
   </tr>
 </table>
 
+## 下载
+
+前往 [Releases](https://github.com/kiseding/Koyze/releases) 获取当前版本 `v4.0.2` 的构建产物：
+
+| 平台 | 文件 | 说明 |
+| --- | --- | --- |
+| Android | `Koyze-4.0.2-arm64-v8a.apk`<br>`Koyze-4.0.2-armeabi-v7a.apk`<br>`Koyze-4.0.2-x86_64.apk` | 按 ABI 拆分，已签名；按设备架构选择 |
+| Windows | `Koyze-Windows-x64.zip` | 免安装压缩包，解压后运行 `Koyze.exe` |
+| macOS | `Koyze-macOS.zip` | 未签名 `Koyze.app`，首次打开需在“隐私与安全性”中放行 |
+| Linux | `Koyze-Linux-x64.tar.gz` | 便携包，解压后运行 `koyze` |
+| iOS | `Koyze-Apple-ID-Sideload.ipa` | 未签名，需自行用 Apple ID 侧载；不含小组件与 Live Activity 扩展 |
+| HarmonyOS | `Koyze-4.0.2-ohos-arm64.hap`<br>`Koyze-4.0.2-ohos-x64.hap` | 已用发布证书签名，可直接 `hdc install`；真机用 arm64，x86_64 模拟器用 x64 |
+| 校验 | `SHA256SUMS.txt` | 全部产物的 SHA-256 |
+
+> [!TIP]
+> 鸿蒙 HAP 的架构必须与设备匹配：`ohos-arm64` 用于 ARM64 真机，`ohos-x64` 用于 x86_64 模拟器。装错架构会在启动时崩溃。校验示例：`sha256sum -c SHA256SUMS.txt`。
+
 ## 功能
 
 ### 搜索与音源
 
 - 聚合搜索 QQ 音乐、酷我音乐和网易云音乐，也可只搜索指定平台。
-- 同时检索本地曲库与收藏，支持搜索历史、热门搜索和分页加载。
+- 同时检索本地曲库、NAS 乐库与收藏，支持搜索历史、热门搜索和分页加载。
 - 播放地址不可用时，可在多个平台与较低音质间继续尝试。
 - 支持导入 LX Music 格式的 JavaScript 自定义音源，并提供启用、编辑、导出和运行日志。
 - 可从 QQ 音乐、酷我音乐和网易云音乐的歌单链接或数字 ID 导入公开歌单，无需登录对应平台。
@@ -46,6 +63,7 @@ Koyze 使用 Flutter 构建，将 QQ 音乐、酷我音乐、网易云音乐、�
 - 支持顺序播放、随机播放、单曲循环、播放队列、进度拖动与前后 10 秒跳转。
 - 自动预取后续歌曲并保存播放会话，可按设置在下次启动时恢复。
 - 支持 LRC、逐字歌词、翻译歌词、腾讯 QRC 与网易 YRC，逐字歌词可显示 KTV 填充效果。
+- 内置均衡器，提供预设与自定义频段调节；目前仅在 Android 上生效，iOS、macOS 与 Windows 的播放引擎未开放音频特效通道。
 - 提供 128 kbps、320 kbps、FLAC、FLAC 24-bit 和 Hi-Res 目标音质；界面显示最终实际使用的平台与音质。
 - 支持 10、15、30、60、90 分钟睡眠定时。
 
@@ -63,9 +81,15 @@ Koyze 使用 Flutter 构建，将 QQ 音乐、酷我音乐、网易云音乐、�
 - 下载任务支持并发、暂停、继续、重试、取消、进度与速度显示，以及仅 Wi-Fi 下载策略。
 - 下载完成的歌曲会自动加入本地曲库；播放缓存也可复用于下载。
 
+### NAS 与自建媒体库
+
+- 支持 Subsonic 兼容服务（Navidrome、Airsonic、Gonic）、Emby、Jellyfin、Plex 与群晖 Audio Station。
+- 连接后可浏览服务器上的歌单与音乐库，并可把该服务器作为搜索源参与统一检索与播放队列。
+- 账号密码或访问令牌只保存在本机钥匙串，不会上传到 Koyze 的同步后端。
+
 ### 歌单、统计与推荐
 
-- 内置“我的收藏”“最近播放”和“本地音乐”，并支持创建自定义歌单。
+- 内置“我的收藏”“最近播放”“本地音乐”和“NAS 乐库”，并支持创建自定义歌单。
 - 支持歌单内搜索、排序、拖动重排、批量收藏；收藏列表可检测重复歌曲并勾选要移除的版本。
 - 可导入或导出 JSON 备份；恢复过程带事务回滚，避免只写入部分数据。
 - 提供周、月、年和全部时间范围的播放统计，包括播放次数、时长、活跃天数、歌曲/歌手/专辑排行与每日趋势。
@@ -86,11 +110,14 @@ Koyze 使用 Flutter 构建，将 QQ 音乐、酷我音乐、网易云音乐、�
 
 | 平台 | 最低要求 | 平台能力与注意事项 |
 | --- | --- | --- |
-| Android | 由当前 Flutter 工具链支持的 Android 版本 | 后台播放、媒体通知、MediaStore、SAF 目录授权、音频文件打开与下载 |
+| Android | Android 7.0（API 24） | 后台播放、媒体通知、MediaStore、SAF 目录授权、音频文件打开、下载与均衡器 |
 | Windows | Windows 10/11 x64 | 本地曲库、系统托盘、关闭窗口时退出/隐藏选择、可选便携数据模式 |
-| iOS | iOS 13.0 | 后台音频与文件目录授权；桌面小组件、Live Activity 和灵动岛需要 iOS 16.1 及正确签名 |
+| iOS | iOS 15.0 | 后台音频与文件目录授权；小组件、Live Activity 和灵动岛需要 iOS 16.1 及正确签名 |
+| macOS | macOS 12.0 | 桌面窗口与本地曲库；发布包未签名，需手动放行 |
+| Linux | 带 GTK 3 的 x86_64 发行版 | 便携 tar.gz；运行依赖 GTK 3、libsecret、libjsoncpp 等系统库 |
+| HarmonyOS | HarmonyOS 7.0（API 26） | arm64 真机与 x86_64 模拟器双架构 HAP；后台播放与 AVSession 媒体控制，详见 [鸿蒙构建说明](docs/harmonyos.md) |
 
-当前仓库不包含 Web、macOS 或 Linux 目标。
+当前仓库不包含 Web 目标。
 
 ## 快速开始
 
@@ -100,7 +127,9 @@ Koyze 使用 Flutter 构建，将 QQ 音乐、酷我音乐、网易云音乐、�
 - Dart `3.12.0` 或更高版本（随 Flutter 提供）。
 - Android：Android Studio/SDK 与 JDK 17。
 - Windows：Visual Studio 2022，并安装“使用 C++ 的桌面开发”。
-- iOS：macOS、Xcode 与 CocoaPods。
+- iOS/macOS：macOS、Xcode 与 CocoaPods。
+- Linux：`clang`、`cmake`、`ninja-build`、`pkg-config`、`libgtk-3-dev`、`libsecret-1-dev`、`libjsoncpp-dev`。
+- HarmonyOS：DevEco Studio 26.0.0（API 26）与鸿蒙 Flutter fork，版本必须整套自洽，详见 [docs/harmonyos.md](docs/harmonyos.md)。
 
 ### 运行应用
 
@@ -118,7 +147,7 @@ flutter devices
 flutter run -d <device-id>
 ```
 
-首次启动时可以跳过登录。进入“设置”后可调整默认搜索平台、播放/下载音质、缓存、下载策略、本地目录和自定义音源。
+首次启动时可以跳过登录。进入“设置”后可调整默认搜索平台、播放/下载音质、缓存、下载策略、本地目录、NAS 服务器和自定义音源。
 
 ## 构建发行版
 
@@ -160,6 +189,26 @@ flutter build windows --release
 > [!TIP]
 > GitHub Actions 生成的 Windows ZIP 是免安装压缩包，但默认仍使用用户配置目录。需要数据也随目录移动时，请自行添加 `portable.flag`。
 
+### macOS
+
+```bash
+flutter build macos --release
+```
+
+输出位于 `build/macos/Build/Products/Release/Koyze.app`。仓库产出的 ZIP 未做代码签名与公证，分发前需自行配置开发者证书。
+
+### Linux
+
+```bash
+flutter build linux --release
+```
+
+输出位于 `build/linux/x64/release/bundle/`，需要连同 `lib/` 与 `data/` 一起分发：
+
+```bash
+tar -C build/linux/x64/release/bundle -czf Koyze-Linux-x64.tar.gz .
+```
+
 ### iOS
 
 ```bash
@@ -174,6 +223,17 @@ flutter build ios --release
 ```bash
 flutter build ios --release --no-codesign
 ```
+
+### HarmonyOS
+
+```bash
+flutter build hap --release --target-platform ohos-arm64
+flutter build hap --release --target-platform ohos-x64
+```
+
+`ohos-arm64` 用于 ARM64 真机，`ohos-x64` 用于 x86_64 模拟器，单次构建只产出一个架构。默认产物未签名，安装到真机前需要用 `scripts/ohos/sign-hap.sh` 配合发布证书与 profile 签名；CI 产出的 HAP 已完成签名，可直接 `hdc install`。
+
+工具链版本锁定、引擎与 AOT 生成器一致性门禁、签名所需 Secrets 等细节见 [docs/harmonyos.md](docs/harmonyos.md)。
 
 ## 自定义音源
 
@@ -299,15 +359,20 @@ npm run dev
 Koyze/
 ├─ lib/
 │  ├─ core/                 # 通用模型、服务、主题与基础组件
-│  ├─ features/             # 搜索、播放、歌单、本地曲库、下载、同步等功能
+│  ├─ features/             # 搜索、播放、歌单、本地曲库、NAS、下载、同步等功能
 │  └─ router/               # go_router 路由
 ├─ test/                    # Flutter 单元、组件与服务测试
 ├─ android/                 # Android 原生配置与桥接
 ├─ ios/                     # iOS 主应用、Widget 与 Live Activity
+├─ macos/                   # macOS Runner 与配置
+├─ linux/                   # Linux Runner 与 CMake 配置
 ├─ windows/                 # Windows Runner、系统托盘与便携模式
+├─ ohos/                    # HarmonyOS 工程（ArkTS 入口与签名配置）
 ├─ workers/                 # Cloudflare Workers 同步后端、迁移与测试
+├─ docs/                    # 鸿蒙构建说明、API 参考、ADR 与截图
+├─ scripts/ohos/            # HAP 签名脚本
 ├─ third_party/             # 仓库内使用的第三方源码
-└─ .github/workflows/       # 分析、测试、构建、发布与后端部署
+└─ .github/workflows/       # 各平台构建、发布与后端部署
 ```
 
 核心数据流：
@@ -318,6 +383,7 @@ flowchart LR
     State --> Sources[MusicSourceService]
     Sources --> BuiltIn[QQ / 酷我 / 网易内置源]
     Sources --> Custom[自定义 JavaScript 音源]
+    Sources --> Nas[NAS 媒体库]
     State --> Player[播放器与队列]
     Player --> Audio[audio_service / just_audio]
     Player --> Cache[播放缓存与下载]
@@ -352,18 +418,30 @@ npm ci
 npm run validate
 ```
 
-Pull Request 持续集成会执行 Flutter 分析、确定性测试和 Workers 校验。推送到主分支或版本标签时，工作流还会构建 Android、Windows 和 iOS 产物；正式 Android 产物需要在仓库 Secrets 中提供签名材料。
+持续集成按平台拆分，推送到 `main` 或 `v*` 标签时分别执行分析、测试与构建；标签构建会把产物上传到对应的 GitHub Release：
+
+| 工作流 | 覆盖平台 | 产物 |
+| --- | --- | --- |
+| `build-android.yml` | Android | `Koyze-<版本>-<abi>.apk` |
+| `build-windows.yml` | Windows | `Koyze-Windows-x64.zip` |
+| `build-macos.yml` | macOS | `Koyze-macOS.zip` |
+| `build-linux.yml` | Linux | `Koyze-Linux-x64.tar.gz` |
+| `build-ios.yml` | iOS | `Koyze-Apple-ID-Sideload.ipa` |
+| `build-harmonyos-online.yml` | HarmonyOS | `Koyze-<版本>-ohos-arm64.hap`、`Koyze-<版本>-ohos-x64.hap` |
+| `deploy-workers.yml` | 同步后端 | Cloudflare Worker |
+
+正式 Android 产物需要在仓库 Secrets 中提供签名材料；HarmonyOS 产物需要发布证书与 profile，缺少任意一项都会构建失败，不会上传无法安装的 unsigned HAP。
 
 ## 数据与隐私说明
 
-- 本地歌单、搜索历史、播放记录、下载记录、曲库索引与多数设置默认保存在设备上。
+- 本地歌单、搜索历史、播放记录、下载记录、曲库索引、NAS 凭据与多数设置默认保存在设备上。
 - 云同步是可选能力，不会代理搜索请求、播放地址、歌词或媒体文件。
 - JSON 备份可能包含歌单、自定义音源和设置，分享前请检查其中是否有不希望公开的信息。
 - 清除缓存不会等同于删除下载；退出云账号也不会自动删除本地曲库和歌单。
 
 ## 常见问题
 
-**必须部署 Workers 才能使用吗？** 不需要。只有账号与跨设备同步依赖 Workers；音乐搜索、播放、歌词、本地曲库、歌单和下载均可独立使用。
+**必须部署 Workers 才能使用吗？** 不需要。只有账号与跨设备同步依赖 Workers；音乐搜索、播放、歌词、本地曲库、NAS 乐库、歌单和下载均可独立使用。
 
 **为什么选择无损后最终播放的是较低音质？** 目标平台可能没有该音质，链接也可能暂时失效。Koyze 会继续尝试较低音质或其他平台，并在播放器中显示最终实际音质。
 
@@ -371,6 +449,8 @@ Pull Request 持续集成会执行 Flutter 分析、确定性测试和 Workers �
 
 **Windows 压缩包为什么没有把数据放在应用目录？** 免安装与便携数据模式是两回事。请在 `Koyze.exe` 同级创建 `portable.flag` 后再启动应用。
 
+**鸿蒙应该装哪个 HAP？** 真机（ARM64）用 `ohos-arm64`，x86_64 模拟器用 `ohos-x64`。装错架构会在启动时因引擎与快照不匹配而崩溃，卸载后重装正确架构即可。
+
 ## 许可证
 
-仓库根目录目前没有提供开源许可证。公开可见不等于自动获得复制、修改、分发或商业使用授权；如需复用代码，请先取得版权所有者许可。`third_party/` 中的组件按其各自许可证执行。
+本项目使用 [Apache License 2.0](LICENSE)。`third_party/` 中的组件按其各自许可证执行。
