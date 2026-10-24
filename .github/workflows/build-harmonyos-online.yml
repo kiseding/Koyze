@@ -4,9 +4,11 @@ name: Build HarmonyOS HAP (hosted runner)
 #
 # 构建策略：
 #   - Flutter fork 的定制 Dart/patch SDK 按 fork 自带的 dart-sdk-url.ohos 下载。
-#   - arm64/x64 的六套 flutter.har 与四套 Windows gen_snapshot 统一改从
-#     HarmonyOS OBS 下载；x64 AOT 工件还会和 Dart SDK 版本校验，不匹配时
-#     回退到同一 Dart SDK 自带的 x64 gen_snapshot，避免混入旧 kernel 工件。
+#   - arm64/x64 的六套 flutter.har 从当前 engine.ohos.har.version 对应的
+#     HarmonyOS OBS 下载；当前 3.47.7 fork 的 OBS Windows AOT 仍是 Dart 3.12.2，
+#     不可与本工作流的 Dart 3.13.3 混用。
+#   - arm64 的 Windows AOT 从已验证的 3.47.4-ohos-1.0.4 兼容 Release 下载，
+#     x64 的 profile/release AOT 统一使用同一 Dart SDK 自带的 Windows x64 生成器。
 #   - 华为 Command Line Tools 由仓库 Release 中的分卷提供，workflow 用 GITHUB_TOKEN
 #     下载并解压；这不等于绕过华为工具链许可，使用者需自行确认授权范围。
 #   - fork 只给 Windows 宿主提供完整的定制 Dart/AOT 工件，所以 runner 固定为
@@ -62,6 +64,9 @@ jobs:
       # "The srcPath is not a relative path"。workspace 在 D:，缓存也放 D:。
       PUB_CACHE: D:/pc
       TOOLCHAIN_TAG: toolchain-ohos-3.47.7
+      # 3.47.7 Release 没有 Windows AOT 附件；该 3.47.4 兼容批次仍使用
+      # Dart 3.13.3，并已在本机成功生成 ARM64 release HAP。
+      AOT_COMPAT_RELEASE_TAG: 3.47.4-ohos-1.0.4
       HAP_BUILD_MODE: ${{ inputs.mode || 'release' }}
 
     steps:
@@ -121,36 +126,29 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 定制 Dart/patch SDK 继续走 fork Release；引擎工件必须分别使用
-          # engine.ohos.version（宿主机 AOT）和 engine.ohos.har.version（HAR），
-          # 避免把不同 engine revision 的二进制混在一次构建里。
+          # 定制 Dart/patch SDK 继续走 fork Release；HAR 必须使用
+          # engine.ohos.har.version 对应的 OBS 工件，避免把不同 engine revision
+          # 的 Flutter 引擎混在一次构建里。Windows AOT 在下一步单独覆盖：当前
+          # engine.ohos.version 的 OBS 快照仍是 Dart 3.12.2，与本 fork 的 3.13.3
+          # kernel 不兼容。
           config="$FLUTTER_OHOS_HOME/bin/internal/dart-sdk-url.ohos"
           test -f "$config"
-          engine_version="$(tr -d '\r\n' < "$FLUTTER_OHOS_HOME/bin/internal/engine.ohos.version")"
           har_version="$(tr -d '\r\n' < "$FLUTTER_OHOS_HOME/bin/internal/engine.ohos.har.version")"
-          test -n "$engine_version"
           test -n "$har_version"
-          python - "$config" "$engine_version" "$har_version" <<'PY'
+          python - "$config" "$har_version" <<'PY'
           import pathlib
           import sys
 
           config = pathlib.Path(sys.argv[1])
-          engine_base = (
-              'https://flutter-ohos.obs.cn-south-1.myhuaweicloud.com/'
-              f'flutter_infra_release/flutter/{sys.argv[2]}'
-          )
           har_base = (
               'https://flutter-ohos.obs.cn-south-1.myhuaweicloud.com/'
-              f'flutter_infra_release/flutter/{sys.argv[3]}'
+              f'flutter_infra_release/flutter/{sys.argv[2]}'
           )
           replacements = {}
           for arch in ('arm64', 'x64'):
               for mode in ('', '-profile', '-release'):
                   key = f'ohos-{arch}{mode}/artifacts.zip'
                   replacements[key] = f'{har_base}/{key}'
-              for mode in ('profile', 'release'):
-                  key = f'ohos-{arch}-{mode}/windows-x64.zip'
-                  replacements[key] = f'{engine_base}/ohos-{arch}-{mode}/windows-x64.zip'
           lines = []
           found = set()
           for line in config.read_text(encoding='utf-8').splitlines():
@@ -159,7 +157,7 @@ jobs:
                   line = f'{key}:{replacements[key]}'
                   found.add(key)
               lines.append(line)
-          # 3.47.7 的仓库配置只预置了 arm64 键；x64 键必须追加，不能
+          # 3.47.7 的仓库配置只预置了 arm64 键；x64 HAR 键必须追加，不能
           # 让它们回退到默认地址，否则会重新混入旧的 kernel 工件。
           for key in sorted(set(replacements) - found):
               lines.append(f'{key}:{replacements[key]}')
@@ -177,6 +175,37 @@ jobs:
                  "$FLUTTER_OHOS_HOME/bin/cache/artifacts/engine/ohos-x64-release"
           "$FLUTTER_OHOS_HOME/bin/flutter.bat" precache --ohos
           ls "$FLUTTER_OHOS_HOME/bin/cache/artifacts/engine"
+
+      - name: 补齐配套 Windows AOT 工件（仅 release）
+        if: env.HAP_BUILD_MODE == 'release'
+        shell: bash
+        run: |
+          set -euo pipefail
+          engine="$FLUTTER_OHOS_HOME/bin/cache/artifacts/engine"
+          base="https://atomgit.com/oh-flutter/flutter_flutter/releases/download/$AOT_COMPAT_RELEASE_TAG"
+          for pair in \
+            'ohos-arm64-profile-windows-x64.zip:ohos-arm64-profile' \
+            'ohos-arm64-release-windows-x64.zip:ohos-arm64-release'; do
+            zip="${pair%%:*}"
+            dir="${pair##*:}"
+            target="$engine/$dir/windows-x64"
+            mkdir -p "$target"
+            curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 \
+              "$base/$zip" -o "$RUNNER_TEMP/$zip"
+            7z x -y "$RUNNER_TEMP/$zip" -o"$target" > /dev/null
+            test -s "$target/gen_snapshot.exe" || {
+              echo "::error::兼容 Release 缺少 $dir/gen_snapshot.exe"
+              exit 1
+            }
+          done
+          # x64 工件路径由引擎缓存仍会要求存在，但 OBS 版本是 Dart 3.12.2。
+          # 先用同一 Dart SDK 自带的 Windows x64 生成器占位，下一步还会再次校验。
+          sdk_snapshot="$FLUTTER_OHOS_HOME/bin/cache/dart-sdk/bin/utils/gen_snapshot.exe"
+          test -s "$sdk_snapshot"
+          for dir in ohos-x64-profile ohos-x64-release; do
+            mkdir -p "$engine/$dir/windows-x64"
+            cp "$sdk_snapshot" "$engine/$dir/windows-x64/gen_snapshot.exe"
+          done
 
       - name: 换入鸿蒙依赖清单并解析依赖
         shell: bash
@@ -226,7 +255,7 @@ jobs:
           test -f "$dart_bin"
           test -f "$sdk_snapshot"
 
-          dart_version="$("$dart_bin" --version 2>&1 | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p')"
+          dart_version="$("$dart_bin" --version 2>&1 | tr -d '\r' | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p')"
           test -n "$dart_version" || {
             echo "::error::无法从 Dart SDK 读取版本"
             exit 1
@@ -234,11 +263,11 @@ jobs:
           echo "Dart SDK version: $dart_version"
 
           snapshot_version() {
-            "$1" --version 2>&1 | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p'
+            "$1" --version 2>&1 | tr -d '\r' | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p'
           }
 
           snapshot_host() {
-            "$1" --version 2>&1 | sed -n 's/.* on "\([^"]*\)"/\1/p'
+            "$1" --version 2>&1 | tr -d '\r' | sed -n 's/.* on "\([^"]*\)"/\1/p'
           }
 
           check_snapshot() {
@@ -258,17 +287,19 @@ jobs:
             exit 1
           fi
 
-          # x64 OBS release 工件可能仍是旧的 Dart/kernel 版本；使用同一
-          # Dart SDK 自带的 Windows x64 生成器，保持 kernel 与 AOT 快照格式一致。
-          x64_snapshot="$engine/ohos-x64-release/windows-x64/gen_snapshot.exe"
-          if ! check_snapshot "$x64_snapshot" windows_x64; then
-            echo "::warning::ohos-x64-release AOT 工件版本或宿主架构不匹配，回退到 Dart SDK 自带 gen_snapshot"
+          # 当前公开 OBS 的 x64 Windows AOT 是旧 Dart 3.12.2；无论缓存是否
+          # 存在，都用同一 Dart SDK 自带的 Windows x64 生成器，保持 kernel 与
+          # AOT 快照格式一致。
+          for mode in profile release; do
+            x64_dir="$engine/ohos-x64-$mode/windows-x64"
+            x64_snapshot="$x64_dir/gen_snapshot.exe"
+            mkdir -p "$x64_dir"
             cp "$sdk_snapshot" "$x64_snapshot"
-          fi
-          check_snapshot "$x64_snapshot" windows_x64 || {
-            echo "::error::Dart SDK 自带 x64 gen_snapshot 仍不匹配"
-            exit 1
-          }
+            check_snapshot "$x64_snapshot" windows_x64 || {
+              echo "::error::Dart SDK 自带 x64 gen_snapshot 与 Dart $dart_version 不匹配"
+              exit 1
+            }
+          done
 
       - name: 要求 HarmonyOS release 签名材料
         if: env.HAP_BUILD_MODE == 'release'

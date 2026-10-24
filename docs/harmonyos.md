@@ -58,12 +58,14 @@
    我们只需要 Dart / ArkTS 源码，跳过 smudge 不影响依赖内容。
 
 5. 引擎工件：在线 workflow 会把 `bin/internal/dart-sdk-url.ohos` 中的六套
-   `flutter.har` 和四套 Windows `gen_snapshot` 覆盖到 HarmonyOS OBS 的对应版本目录，
-   再执行 `precache --ohos` 并逐项校验。定制 Dart/patch SDK 仍按 fork 配置下载。
-   self-hosted runner 需要预先准备相同版本的 Flutter 鸿蒙 SDK 和缓存工件；缺少任一
-   架构或宿主机工件时，workflow 会在构建前失败。工作流还会运行 `gen_snapshot --version`
-   校验：arm64 必须使用 Dart 版本一致的 ARM64 目标工件；若 x64 OBS 工件版本过旧，则自动
-   改用同一 Dart SDK 自带的 Windows x64 `gen_snapshot`，避免 `expected 130, found 138`。
+   `flutter.har` 覆盖到 `engine.ohos.har.version` 对应的 HarmonyOS OBS 目录，再执行
+   `precache --ohos` 并逐项校验。当前公开 OBS 的 Windows AOT 仍是 Dart 3.12.2，
+   与本 fork 的 Dart 3.13.3 不兼容；因此在线 workflow 另外从已验证的
+   `3.47.4-ohos-1.0.4` 兼容 Release 下载 `ohos-arm64-{profile,release}` 的 Windows
+   `gen_snapshot`，并将 x64 profile/release 统一替换为同一 Dart SDK 自带的 Windows x64
+   生成器。self-hosted runner 需要预先准备相同版本的 Flutter 鸿蒙 SDK、六套 HAR 和
+   配套 ARM64 Windows AOT；工作流会在构建前运行 `gen_snapshot --version` 校验，避免
+   `expected 130, found 138`。
 
 ## 3. 构建
 

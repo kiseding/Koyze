@@ -7,7 +7,8 @@ name: Build HarmonyOS HAP
 #   - DevEco Studio（含 HarmonyOS SDK，API 26）
 #   - Flutter 鸿蒙 SDK：git clone -b 3.47.7-ohos-1.0.0 \
 #       https://atomgit.com/oh-flutter/flutter_flutter.git
-#   - 与该 SDK 版本匹配的 arm64/x64 HAR 和 Windows AOT 工件
+#   - 与该 SDK 版本匹配的 arm64/x64 HAR；Windows AOT 会在工作流中
+#     校验并按需要补齐到当前 Dart SDK 版本。
 #
 # 构建阶段关闭 Flutter 内置 codesign，release 由仓库签名脚本处理。
 # 在线 Windows runner 构建请使用 build-harmonyos-online.yml。
@@ -153,12 +154,14 @@ jobs:
                 exit 1
               }
             done
-            for mode in profile release; do
-              test -f "$engine/ohos-$arch-$mode/$host_dir/$host_file" || {
-                echo "::error::缺少 ohos-$arch-$mode/$host_dir/$host_file"
-                exit 1
-              }
-            done
+            if [ "$arch" = arm64 ]; then
+              for mode in profile release; do
+                test -f "$engine/ohos-$arch-$mode/$host_dir/$host_file" || {
+                  echo "::error::缺少 ohos-$arch-$mode/$host_dir/$host_file"
+                  exit 1
+                }
+              done
+            fi
           done
 
       - name: Validate and normalize HarmonyOS AOT snapshotters
@@ -171,7 +174,7 @@ jobs:
           test -f "$dart_bin"
           test -f "$sdk_snapshot"
 
-          dart_version="$("$dart_bin" --version 2>&1 | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p')"
+          dart_version="$("$dart_bin" --version 2>&1 | tr -d '\r' | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p')"
           test -n "$dart_version" || {
             echo "::error::无法从 Dart SDK 读取版本"
             exit 1
@@ -179,11 +182,11 @@ jobs:
           echo "Dart SDK version: $dart_version"
 
           snapshot_version() {
-            "$1" --version 2>&1 | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p'
+            "$1" --version 2>&1 | tr -d '\r' | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p'
           }
 
           snapshot_host() {
-            "$1" --version 2>&1 | sed -n 's/.* on "\([^"]*\)"/\1/p'
+            "$1" --version 2>&1 | tr -d '\r' | sed -n 's/.* on "\([^"]*\)"/\1/p'
           }
 
           check_snapshot() {
@@ -203,15 +206,16 @@ jobs:
             exit 1
           fi
 
-          x64_snapshot="$engine/ohos-x64-release/windows-x64/gen_snapshot.exe"
-          if ! check_snapshot "$x64_snapshot" windows_x64; then
-            echo "::warning::ohos-x64-release AOT 工件版本或宿主架构不匹配，回退到 Dart SDK 自带 gen_snapshot"
+          for mode in profile release; do
+            x64_dir="$engine/ohos-x64-$mode/windows-x64"
+            x64_snapshot="$x64_dir/gen_snapshot.exe"
+            mkdir -p "$x64_dir"
             cp "$sdk_snapshot" "$x64_snapshot"
-          fi
-          check_snapshot "$x64_snapshot" windows_x64 || {
-            echo "::error::Dart SDK 自带 x64 gen_snapshot 仍不匹配"
-            exit 1
-          }
+            check_snapshot "$x64_snapshot" windows_x64 || {
+              echo "::error::Dart SDK 自带 x64 gen_snapshot 与 Dart $dart_version 不匹配"
+              exit 1
+            }
+          done
 
       - name: Resolve Flutter dependencies
         shell: bash
