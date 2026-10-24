@@ -43,10 +43,17 @@ class PlayerProgressGeometry {
     final center = width * progress;
     final thumbLeft = (center - thumbRadius).clamp(0.0, maxLeft);
 
-    // 填充画到滑块中心，滑块会盖住交界处，避免轨道上下缘露出缺口。
-    // 但滑块还压在起点上时（露出的宽度不足 [minVisibleFill]）整段不画，
-    // 否则会在滑块左侧凸出一小条圆角尖角。
-    final fillWidth = thumbLeft < minVisibleFill ? 0.0 : center;
+    // 填充画到滑块左缘，滑块把填充左端完全盖住，低进度时不会在滑块
+    // 左侧露出一段浅色月牙。滑块还压在起点上时（左缘尚未离开起点）整段
+    // 不画，避免起点凸出细尖角。滑块已到最右端时画满整条轨道。
+    double fillWidth;
+    if (thumbLeft < minVisibleFill) {
+      fillWidth = 0.0;
+    } else if (thumbLeft >= maxLeft) {
+      fillWidth = width;
+    } else {
+      fillWidth = thumbLeft;
+    }
 
     return PlayerProgressGeometry(
       thumbLeft: thumbLeft,
@@ -151,10 +158,14 @@ class PlayerProgressBar extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: thumbColor,
                       shape: BoxShape.circle,
+                      // 辉光要克制：过大半径 + 半透明深色在浅色背景上会
+                      // 扩散成一圈「发白灰绿」的残影，像滑块左侧多出一段
+                      // 月牙。这里用接近不透明的同色、紧贴滑块的小光晕。
                       boxShadow: [
                         BoxShadow(
-                          color: thumbColor.withValues(alpha: 0.45),
-                          blurRadius: 12,
+                          color: thumbColor.withValues(alpha: 0.9),
+                          blurRadius: 2,
+                          spreadRadius: 0.5,
                         ),
                       ],
                     ),

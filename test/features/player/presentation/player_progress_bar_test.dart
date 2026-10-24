@@ -45,14 +45,26 @@ void main() {
       expect(geometry.fillWidth, 0);
     });
 
-    test('滑块离开起点后按进度绘制到滑块中心', () {
+    test('滑块离开起点后填充画到滑块左缘', () {
       final geometry = PlayerProgressGeometry.resolve(
         trackWidth: 300,
         ratio: 0.5,
       );
 
       expect(geometry.thumbLeft, 140);
-      expect(geometry.fillWidth, 150);
+      expect(geometry.fillWidth, 140);
+    });
+
+    test('低进度时填充不越过滑块左缘露出月牙', () {
+      // center = 20，滑块左缘在 10，进度很小但仍过阈值。
+      final geometry = PlayerProgressGeometry.resolve(
+        trackWidth: 300,
+        ratio: 20 / 300,
+      );
+
+      expect(geometry.thumbLeft, 10);
+      // 填充只画到滑块左缘 10，而不是圆心 20，滑块左侧不会露出残影。
+      expect(geometry.fillWidth, 10);
     });
 
     test('末端滑块不越出轨道', () {
@@ -110,7 +122,8 @@ void main() {
       final fill = tester.getRect(find.byKey(PlayerProgressBar.fillKey));
 
       expect(fill.left, bar.left);
-      expect(fill.width, 15);
+      // 填充画到滑块左缘 5px，而非圆心 15px。
+      expect(fill.width, 5);
     });
 
     testWidgets('中途滑块位置对应进度且不越界', (tester) async {

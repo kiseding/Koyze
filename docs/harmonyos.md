@@ -98,8 +98,8 @@ flutter build hap --release --no-codesign --target-platform ohos-x64
 并将产物命名为：
 
 ```text
-Koyze-4.0.2-ohos-arm64.hap
-Koyze-4.0.2-ohos-x64.hap
+Koyze-4.0.3-ohos-arm64.hap
+Koyze-4.0.3-ohos-x64.hap
 ```
 
 产物在 `ohos/entry/build/default/outputs/default/`，用 `hdc install <hap>` 安装。
@@ -132,9 +132,9 @@ SIGN_STORE_PWD     # 密钥库密码；留空时使用 SIGN_KEY_PWD
 Release 中的对应架构 HAP 后，开发者模式和 HDC 连接正常时可以直接执行：
 
 ```bash
-hdc install Koyze-4.0.2-ohos-arm64.hap
+hdc install Koyze-4.0.3-ohos-arm64.hap
 # x86_64 模拟器使用：
-# hdc install Koyze-4.0.2-ohos-x64.hap
+# hdc install Koyze-4.0.3-ohos-x64.hap
 ```
 
 ### 3.2 构建门禁
