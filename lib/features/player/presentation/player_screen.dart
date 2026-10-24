@@ -962,11 +962,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // 上下从两侧对称裁剪（焦点 = 矩形中心）。
         final lyricCollapseRect = usesSideNavigation
             ? _miniLyricRowRect(miniRect)
-            : Rect.fromCenter(
-                center: miniRect.center,
-                width: 210,
-                height: 18,
-              );
+            : Rect.fromCenter(center: miniRect.center, width: 210, height: 18);
         final collapseTarget = lyricCollapsing ? lyricCollapseRect : miniRect;
         final currentRect = Rect.lerp(collapseTarget, fullRect, progress)!;
         final miniArtworkRect = usesSideNavigation
@@ -2800,11 +2796,11 @@ class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
 
   @override
   Widget build(BuildContext context) {
-    // 糊到这个程度以后，背后已经是一整片色场，再压 54% 黑会把颜色一起压死，
-    // 只剩一片灰玻璃。压到 32%/36%，色相留着，字仍然读得清。
-    final dim = AppColors.isDark(context)
-        ? const Color(0x52000000)
-        : const Color(0x5CFFFFFF);
+    // 背景罩层负责把封面极端亮/暗区域压回可读范围；前景文字和图标
+    // 保持各自的主题色，不需要逐个对比度补丁。
+    final dim = GlassEffectConfig.playerBackdropScrimFor(
+      Theme.of(context).brightness,
+    );
     final reduced = reduceMotion(context);
     final curved = CurvedAnimation(
       parent: _controller,

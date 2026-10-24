@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/theme/glass_config.dart';
 
@@ -21,6 +22,20 @@ void main() {
     GlassEffectConfig.applyPerformanceMode(reduceEffects: true);
     expect(GlassEffectConfig.playerBackdropBlur, lessThan(52));
     expect(GlassEffectConfig.playerBackdropBlur, greaterThan(30));
+  });
+
+  test('player backdrop scrim darkens dark themes', () {
+    expect(
+      GlassEffectConfig.playerBackdropScrimFor(Brightness.dark),
+      const Color(0xCC000000),
+    );
+  });
+
+  test('player backdrop scrim lightens light themes', () {
+    expect(
+      GlassEffectConfig.playerBackdropScrimFor(Brightness.light),
+      const Color(0xCCFFFFFF),
+    );
   });
 
   test('disabling glass effects turns the backdrop filter off', () {

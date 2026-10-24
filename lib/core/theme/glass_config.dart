@@ -49,6 +49,16 @@ abstract final class GlassEffectConfig {
   static double get modalBlur => _scaled(_modalBlurBase);
   static double get playerBackdropBlur => _scaled(_playerBackdropBlurBase);
 
+  /// 全屏播放器背景的可读性罩层。
+  ///
+  /// 封面在强模糊后仍可能出现整片高亮或深色区域；只靠普通玻璃透明度
+  /// 会让这些区域与前景文字/图标撞色。使用主题方向相反的中性罩层，保留
+  /// 少量封面色相，同时把背景亮度稳定在前景内容可读的范围内。
+  static Color playerBackdropScrimFor(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const Color(0xCC000000)
+      : const Color(0xCCFFFFFF);
+
   // ============ 透明度 (alpha: 0.0-1.0) ============
   static const double _chromeOpacityBase = 0.3;
   static const double _lightChromeOpacityBase = 0.60;
