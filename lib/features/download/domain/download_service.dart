@@ -1380,6 +1380,9 @@ class DownloadService {
     if (p == 'kw' || url.contains('kuwo')) {
       return 'https://www.kuwo.cn/';
     }
+    if (p == 'kg' || url.contains('kugou')) {
+      return 'https://www.kugou.com/';
+    }
     return 'https://www.google.com/';
   }
 

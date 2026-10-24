@@ -184,7 +184,7 @@ class LeaderboardLayoutNotifier
   static const _key = 'leaderboard_layout_v1';
   static const _orderVersionKey = 'leaderboard_layout_order_version';
   static const _orderVersion = 2;
-  static const defaultPlatformOrder = ['tx', 'kw', 'wy'];
+  static const defaultPlatformOrder = ['tx', 'kw', 'wy', 'kg'];
 
   LeaderboardLayoutNotifier({StorageLoader? storage})
     : _storage = storage ?? (() => StorageService.instance),
@@ -229,6 +229,7 @@ class LeaderboardLayoutNotifier
   void ensureDefaultLayout(List<LeaderboardCategory> categories) {
     if (state.isNotEmpty) {
       _migrateOldDefaultOrder();
+      _appendMissingPlatforms(categories);
       return;
     }
     const platformOrder = defaultPlatformOrder;
@@ -288,6 +289,53 @@ class LeaderboardLayoutNotifier
       reordered.addAll(block);
     }
     if (reordered.length == state.length) state = reordered;
+    _persist();
+  }
+
+  /// 已有布局时，把这次新出现的平台整块补到末尾。
+  ///
+  /// 新增音源（例如酷狗）不能让老用户看不到对应榜单，同时也不能打乱用户
+  /// 自己调过的顺序与隐藏状态，所以只追加、不重排。
+  void _appendMissingPlatforms(List<LeaderboardCategory> categories) {
+    final known = state
+        .where((item) => item.isPlatform)
+        .map((item) => item.platformId)
+        .whereType<String>()
+        .toSet();
+    final additions = <LeaderboardLayoutItem>[];
+
+    void addPlatform(String platform) {
+      if (known.contains(platform)) return;
+      final platformCategories = categories
+          .where((category) => category.platform == platform)
+          .toList();
+      if (platformCategories.isEmpty) return;
+      known.add(platform);
+      additions.add(
+        LeaderboardLayoutItem(key: 'platform:$platform', hidden: false),
+      );
+      for (final category in platformCategories) {
+        additions.add(
+          LeaderboardLayoutItem(
+            key: 'category:${category.id}',
+            hidden: false,
+          ),
+        );
+      }
+    }
+
+    for (final platform in defaultPlatformOrder) {
+      addPlatform(platform);
+    }
+    for (final platform in {
+      for (final category in categories)
+        if (category.platform != null) category.platform!,
+    }) {
+      addPlatform(platform);
+    }
+
+    if (additions.isEmpty) return;
+    state = [...state, ...additions];
     _persist();
   }
 

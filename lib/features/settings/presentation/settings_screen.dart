@@ -1175,6 +1175,7 @@ IconData platformPickerIcon(String id) {
     'tx' => Icons.music_note_rounded,
     'kw' => Icons.headphones_rounded,
     'wy' => Icons.cloud_rounded,
+    'kg' => Icons.graphic_eq_rounded,
     'local' => Icons.folder_rounded,
     'favorites' => Icons.favorite_rounded,
     'subsonic' => Icons.cloud_queue_rounded,
@@ -1362,6 +1363,8 @@ String platformDisplayName(String id, {Locale? locale}) {
       return en ? 'Kuwo' : '酷我';
     case 'wy':
       return en ? 'NetEase' : '网易云';
+    case 'kg':
+      return en ? 'Kugou' : '酷狗';
     case 'local':
       return en ? 'Local' : '本地';
     case 'favorites':
@@ -1382,6 +1385,8 @@ String platformPickerDescription(String id, {Locale? locale}) {
       return en ? 'Kuwo music source' : '酷我音乐源';
     case 'wy':
       return en ? 'NetEase Cloud Music source' : '网易云音乐源';
+    case 'kg':
+      return en ? 'Kugou Music source' : '酷狗音乐源';
     case 'local':
       return en ? 'Only songs scanned on this device' : '仅本地已扫描歌曲';
     case 'favorites':

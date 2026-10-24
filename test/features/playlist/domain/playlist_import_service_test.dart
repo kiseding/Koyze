@@ -31,6 +31,29 @@ void main() {
     );
   });
 
+  test('Kugou playlist links resolve to the special id', () {
+    expect(
+      PlaylistImportService.kugouPlaylistId(
+        'https://www.kugou.com/yy/special/single/547134.html',
+      ),
+      '547134',
+    );
+    expect(
+      PlaylistImportService.kugouPlaylistId(
+        'https://m.kugou.com/plist/list/6409645?type=0',
+      ),
+      '6409645',
+    );
+    expect(
+      PlaylistImportService.kugouPlaylistId(
+        'https://www.kugou.com/share/zlist.html?specialid=33160',
+      ),
+      '33160',
+    );
+    expect(PlaylistImportService.kugouPlaylistId('8888'), '8888');
+    expect(PlaylistImportService.kugouPlaylistId('not a link'), isEmpty);
+  });
+
   test('NetEase endpoints follow the Netease_url two step method', () {
     expect(
       PlaylistImportService.wyPlaylistDetailUrl,

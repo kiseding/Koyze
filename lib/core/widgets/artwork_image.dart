@@ -91,6 +91,20 @@ List<String> artworkFallbackUrls(String url) {
     add(url.replaceFirst('/500/', '/300/'));
     add(url.replaceFirst('/500/', '/120/'));
   }
+  if (lower.contains('imge.kugou.com')) {
+    add(
+      url.replaceFirstMapped(
+        RegExp(r'(imge\.kugou\.com/[^/]+/)\d+/'),
+        (match) => '${match[1]}480/',
+      ),
+    );
+    add(
+      url.replaceFirstMapped(
+        RegExp(r'(imge\.kugou\.com/[^/]+/)\d+/'),
+        (match) => '${match[1]}240/',
+      ),
+    );
+  }
   return fallbacks;
 }
 

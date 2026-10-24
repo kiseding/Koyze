@@ -338,11 +338,16 @@ class S {
   String get closeImport => en ? 'Close import' : '关闭导入歌单';
   String get sourcePlatform => en ? 'Source' : '来源平台';
   String get kuwoShort => en ? 'Kuwo' : '酷我';
+  String get kugouShort => en ? 'Kugou' : '酷狗';
   String get neteaseShort => en ? 'NetEase' : '网易';
   String get playlistLinkOrId => en ? 'Link or ID' : '歌单链接或 ID';
   String get playlistLinkExample => en
-      ? 'Example: https://y.qq.com/n/ryqq/playlist/123\nor a numeric ID'
-      : '例如：https://y.qq.com/n/ryqq/playlist/123\n或直接输入数字 ID';
+      ? 'Example: https://y.qq.com/n/ryqq/playlist/123\n'
+            'Kugou: https://www.kugou.com/yy/special/single/547134.html\n'
+            'or a numeric ID'
+      : '例如：https://y.qq.com/n/ryqq/playlist/123\n'
+            '酷狗：https://www.kugou.com/yy/special/single/547134.html\n'
+            '或直接输入数字 ID';
   String get enterLinkOrId => en ? 'Enter a link or ID' : '请输入链接或 ID';
   String importProgress(int loaded, int total) =>
       en ? '$loaded/$total' : '$loaded/$total 首';

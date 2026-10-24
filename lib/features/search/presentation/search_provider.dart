@@ -45,6 +45,7 @@ final allSearchSourcesProvider = Provider<List<SearchSourceItem>>((ref) {
     SearchSourceItem(id: 'tx', name: 'QQ'),
     SearchSourceItem(id: 'kw', name: '酷我'),
     SearchSourceItem(id: 'wy', name: '网易'),
+    SearchSourceItem(id: 'kg', name: '酷狗'),
     SearchSourceItem(id: 'local', name: '本地'),
     SearchSourceItem(id: 'favorites', name: '收藏'),
     SearchSourceItem(id: 'subsonic', name: 'NAS'),

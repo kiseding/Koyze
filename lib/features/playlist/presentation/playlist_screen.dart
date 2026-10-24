@@ -1219,12 +1219,18 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                   icon: const Icon(Icons.graphic_eq_rounded),
                                 ),
                                 ButtonSegment(
+                                  value: 'kg',
+                                  label: Text(S.of(context).kugouShort),
+                                  icon: const Icon(Icons.headphones_rounded),
+                                ),
+                                ButtonSegment(
                                   value: 'wy',
                                   label: Text(S.of(context).neteaseShort),
                                   icon: const Icon(Icons.album_rounded),
                                 ),
                               ],
                               selected: {platform},
+                              showSelectedIcon: false,
                               onSelectionChanged: busy
                                   ? null
                                   : (value) =>

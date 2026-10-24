@@ -6,10 +6,9 @@ void main() {
     final manager = BuiltInSourceManager();
     addTearDown(manager.dispose);
 
-    expect(manager.allIds, containsAll(['kw', 'tx', 'wy']));
-    expect(manager.allIds, isNot(contains('kg')));
+    expect(manager.allIds, containsAll(['kw', 'tx', 'wy', 'kg']));
     expect(manager.allIds, isNot(contains('mg')));
-    expect(manager.get('kg'), isNull);
+    expect(manager.get('kg'), isNotNull);
     expect(manager.get('mg'), isNull);
   });
 }

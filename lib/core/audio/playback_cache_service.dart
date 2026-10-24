@@ -52,11 +52,13 @@ Map<String, String> mediaRequestHeaders(String url, String platform) {
     'tx' => 'https://y.qq.com/',
     'wy' => 'https://music.163.com/',
     'kw' => 'https://www.kuwo.cn/',
+    'kg' => 'https://www.kugou.com/',
     _ when url.contains('qq.com') || url.contains('gtimg') =>
       'https://y.qq.com/',
     _ when url.contains('163.com') || url.contains('music.126') =>
       'https://music.163.com/',
     _ when url.contains('kuwo') => 'https://www.kuwo.cn/',
+    _ when url.contains('kugou') => 'https://www.kugou.com/',
     _ => 'https://www.google.com/',
   };
   return {'User-Agent': mediaUserAgent, 'Referer': referer, 'Accept': '*/*'};

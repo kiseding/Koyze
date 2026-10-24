@@ -18,6 +18,7 @@ void main() {
         'tx',
         'kw',
         'wy',
+        'kg',
         'local',
         'favorites',
         'subsonic',

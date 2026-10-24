@@ -1,5 +1,6 @@
 import '../../../features/player/domain/music_item.dart';
 import 'music_platform.dart';
+import 'kg_source.dart';
 import 'kw_source.dart';
 import 'tx_source.dart';
 import 'wy_source.dart';
@@ -8,7 +9,8 @@ class BuiltInSourceManager {
   final Map<String, MusicPlatform> _platforms = {};
 
   BuiltInSourceManager({List<MusicPlatform>? platforms}) {
-    for (final platform in platforms ?? [KwSource(), TxSource(), WySource()]) {
+    for (final platform
+        in platforms ?? [KwSource(), TxSource(), WySource(), KgSource()]) {
       _register(platform);
     }
   }
@@ -145,6 +147,7 @@ class BuiltInSourceManager {
       if (platform is KwSource) platform.dispose();
       if (platform is TxSource) platform.dispose();
       if (platform is WySource) platform.dispose();
+      if (platform is KgSource) platform.dispose();
     }
   }
 }

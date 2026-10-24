@@ -40,7 +40,7 @@ class _QualityAttempt {
 }
 
 class MusicSourceService {
-  static const fallbackPlatforms = ['tx', 'kw', 'wy'];
+  static const fallbackPlatforms = ['tx', 'kw', 'wy', 'kg'];
   static const _customFailureCooldown = Duration(seconds: 5);
 
   final CustomSourceService _customSourceService;
@@ -346,7 +346,12 @@ class MusicSourceService {
         : null;
     if (customResult != null) return customResult;
 
-    if (platform != 'kw' && platform != 'tx' && platform != 'wy') return null;
+    if (platform != 'kw' &&
+        platform != 'tx' &&
+        platform != 'wy' &&
+        platform != 'kg') {
+      return null;
+    }
     final builtInQualities = _builtInQualityResolver != null
         ? qualities
         : uniqueQualityCandidates(
@@ -719,7 +724,12 @@ class MusicSourceService {
             );
     }
     final platform = resolvePlatform(music);
-    if (platform != 'kw' && platform != 'tx' && platform != 'wy') return null;
+    if (platform != 'kw' &&
+        platform != 'tx' &&
+        platform != 'wy' &&
+        platform != 'kg') {
+      return null;
+    }
     try {
       final detailed = await _builtInSources
           .getMusicUrlExactDetailed(platform, music, quality: quality)

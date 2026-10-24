@@ -260,6 +260,8 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
         return const Color(0xFF2355C0);
       case 'wy':
         return const Color(0xFF9B3060);
+      case 'kg':
+        return const Color(0xFF2B7CD3);
       default:
         return AppColors.accentOf(context);
     }
@@ -273,6 +275,8 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
         return Icons.graphic_eq_rounded;
       case 'wy':
         return Icons.album_rounded;
+      case 'kg':
+        return Icons.headphones_rounded;
       default:
         return Icons.library_music_rounded;
     }

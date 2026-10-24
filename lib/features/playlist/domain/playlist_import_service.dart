@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../../../core/network/app_http_client.dart';
+import '../../../core/music_source/platform/kg_source.dart';
 import '../../../core/music_source/platform/source_utils.dart';
 import '../../player/domain/music_item.dart';
 
@@ -63,6 +64,9 @@ class PlaylistImportService {
         r'pid=(\d+)',
         r'detail/(\d+)',
       ]);
+    } else if (trimmed.contains('kugou.com')) {
+      source = 'kg';
+      listId = kugouPlaylistId(trimmed);
     } else if (trimmed.contains('music.163.com') ||
         trimmed.contains('163.com') ||
         trimmed.contains('163cn.tv')) {
@@ -90,6 +94,8 @@ class PlaylistImportService {
         return _importKw(listId);
       case 'wy':
         return _importWy(listId, onProgress: onProgress);
+      case 'kg':
+        return _importKg(listId, onProgress: onProgress);
       default:
         throw Exception('不支持的平台');
     }
@@ -134,6 +140,24 @@ class PlaylistImportService {
       if (m != null) return m.group(1)!;
     }
     return '';
+  }
+
+  /// 从酷狗分享链接里取歌单 ID。
+  ///
+  /// 支持 `www.kugou.com/yy/special/single/<id>.html`、
+  /// `m.kugou.com/plist/list/<id>?type=0` 以及带 `specialid=` 的分享链接。
+  static String kugouPlaylistId(String input) {
+    if (RegExp(r'^\d+$').hasMatch(input.trim())) return input.trim();
+    for (final pattern in [
+      r'special/single/(\d+)',
+      r'plist/list/(\d+)',
+      r'specialid=(\d+)',
+    ]) {
+      final match = RegExp(pattern).firstMatch(input);
+      if (match != null) return match.group(1)!;
+    }
+    final fallback = RegExp(r'/(\d{4,})(?:\.html)?').firstMatch(input);
+    return fallback?.group(1) ?? '';
   }
 
   static String txMediaMid(Map<String, dynamic> song) {
@@ -288,6 +312,86 @@ class PlaylistImportService {
     return ImportedPlaylist(
       name: (data['title'] ?? data['info']?['name'] ?? '酷我歌单').toString(),
       source: 'kw',
+      sourceId: id,
+      songs: songs,
+    );
+  }
+
+  Future<ImportedPlaylist> _importKg(
+    String id, {
+    void Function(int loaded, int total)? onProgress,
+  }) async {
+    const base = 'https://mobiles.kugou.com/api/v3';
+    Map<String, dynamic>? asMap(dynamic value) {
+      if (value is Map<String, dynamic>) return value;
+      if (value is Map) {
+        return value.map((key, item) => MapEntry(key.toString(), item));
+      }
+      if (value is String) {
+        try {
+          final decoded = jsonDecode(value);
+          return decoded is Map
+              ? decoded.map((key, item) => MapEntry(key.toString(), item))
+              : null;
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
+    }
+
+    final infoResponse = await _dio.get(
+      '$base/special/info',
+      queryParameters: {
+        'specialid': id,
+        'version': '9108',
+        'plat': '0',
+        'area_code': '1',
+      },
+    );
+    final infoBody = asMap(infoResponse.data);
+    final info = infoBody?['data'];
+    final name = info is Map ? (info['specialname'] ?? '').toString().trim() : '';
+    final total = info is Map ? (info['songcount'] as num?)?.toInt() ?? 0 : 0;
+
+    const pageSize = 100;
+    final songs = <MusicItem>[];
+    var page = 1;
+    while (page <= 30) {
+      final response = await _dio.get(
+        '$base/special/song',
+        queryParameters: {
+          'specialid': id,
+          'page': page.toString(),
+          'pagesize': pageSize.toString(),
+          'version': '9108',
+          'plat': '0',
+          'area_code': '1',
+        },
+      );
+      final body = asMap(response.data);
+      if (body == null || body['errcode'] != 0) break;
+      final data = body['data'];
+      final list = data is Map ? data['info'] : null;
+      if (list is! List || list.isEmpty) break;
+
+      for (final raw in list) {
+        if (raw is! Map) continue;
+        final song = KgSource.parseKugouItem(
+          Map<String, dynamic>.from(raw),
+        );
+        if (song != null) songs.add(song);
+      }
+      onProgress?.call(songs.length, total);
+      if (list.length < pageSize) break;
+      if (total > 0 && songs.length >= total) break;
+      page++;
+    }
+
+    if (songs.isEmpty) throw Exception('获取酷狗歌单失败');
+    return ImportedPlaylist(
+      name: name.isEmpty ? '酷狗歌单 $id' : name,
+      source: 'kg',
       sourceId: id,
       songs: songs,
     );

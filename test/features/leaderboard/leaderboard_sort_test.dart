@@ -30,7 +30,8 @@ void main() {
     ]);
   });
 
-  test('ensureDefaultLayout does not overwrite existing layout', () async {
+  test('ensureDefaultLayout keeps existing layout and appends new platforms',
+      () async {
     SharedPreferences.setMockInitialValues({});
     final storage = StorageService.forTesting(
       await SharedPreferences.getInstance(),
@@ -45,7 +46,10 @@ void main() {
       LeaderboardCategory(id: 'kw:93', name: 'A', platform: 'kw'),
     ]);
 
-    expect(notifier.state.map((item) => item.key).toList(), before);
+    final after = notifier.state.map((item) => item.key).toList();
+    expect(after.take(before.length).toList(), before);
+    expect(after, containsAll(['platform:kw', 'category:kw:93']));
+    expect(after.length, before.length + 2);
   });
 
   test('hiding platform hides its categories too', () async {

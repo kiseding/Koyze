@@ -32,7 +32,7 @@ List<String> recommendationSearchPlatforms({
   required String? dominantPlatform,
   required List<String> availablePlatforms,
 }) {
-  const preferredFallback = ['kw', 'tx', 'wy'];
+  const preferredFallback = ['kw', 'tx', 'wy', 'kg'];
   final result = <String>[];
   void add(String? platform) {
     if (platform == null || platform.isEmpty) return;

@@ -26,6 +26,7 @@ const Map<String, String> kLeaderboardPlatformNames = {
   'tx': 'QQ音乐',
   'kw': '酷我音乐',
   'wy': '网易云',
+  'kg': '酷狗音乐',
 };
 
 /// 每个平台段里挑出来当主卡的榜。
@@ -792,6 +793,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         return const Color(0xFF2355C0);
       case 'wy':
         return const Color(0xFF9B3060);
+      case 'kg':
+        return const Color(0xFF2B7CD3);
       default:
         return AppColors.accentOf(context);
     }
@@ -1205,6 +1208,8 @@ class _LeaderboardPlaceholder extends StatelessWidget {
         return const [Color(0xFF2355C0), Color(0xFF3498DB), Color(0xFF2980B9)];
       case 'wy':
         return const [Color(0xFF9B3060), Color(0xFFE74C3C), Color(0xFFC0392B)];
+      case 'kg':
+        return const [Color(0xFF2B7CD3), Color(0xFF4AA8E8), Color(0xFF1F66B8)];
       default:
         return const [Color(0xFF3D4A5A), Color(0xFF5D6D7E)];
     }

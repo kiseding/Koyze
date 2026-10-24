@@ -263,7 +263,7 @@ void main() {
     },
   );
 
-  test('automatic fallback only searches tx kw and wy', () async {
+  test('automatic fallback searches every built-in platform', () async {
     final searched = <String>[];
     final kgSong = MusicItem(
       id: 'kg-1',
@@ -293,7 +293,7 @@ void main() {
       ),
       isNull,
     );
-    expect(searched, ['kw', 'wy']);
+    expect(searched, ['kw', 'wy', 'kg']);
   });
 
   test(

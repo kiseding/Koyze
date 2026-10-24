@@ -231,7 +231,7 @@ class LocalMusicScraper {
           );
       var enriched = match;
       if (matchedSong != null &&
-          const {'kw', 'tx', 'wy'}.contains(matchedSong.platform)) {
+          const {'kw', 'tx', 'wy', 'kg'}.contains(matchedSong.platform)) {
         LocalMusicDebugLog.info(
           'scrape.artwork.api.start',
           'platform=${matchedSong.platform} song=${_songSummary(matchedSong)}',
@@ -584,6 +584,11 @@ class LocalMusicScraper {
         return '${artwork.split('?').first}?param=1000y1000';
       case 'kw':
         return artwork.replaceFirst('/120/', '/500/');
+      case 'kg':
+        return artwork.replaceFirstMapped(
+          RegExp(r'(imge\.kugou\.com/[^/]+/)\d+/'),
+          (match) => '${match[1]}1000/',
+        );
       default:
         return artwork;
     }
@@ -613,6 +618,20 @@ class LocalMusicScraper {
         candidates
           ..add(artwork.replaceFirst('/500/', '/300/'))
           ..add(artwork.replaceFirst('/500/', '/120/'));
+      case 'kg':
+        candidates
+          ..add(
+            artwork.replaceFirstMapped(
+              RegExp(r'(imge\.kugou\.com/[^/]+/)\d+/'),
+              (match) => '${match[1]}480/',
+            ),
+          )
+          ..add(
+            artwork.replaceFirstMapped(
+              RegExp(r'(imge\.kugou\.com/[^/]+/)\d+/'),
+              (match) => '${match[1]}240/',
+            ),
+          );
     }
     return candidates.where((value) => value.isNotEmpty).toList();
   }

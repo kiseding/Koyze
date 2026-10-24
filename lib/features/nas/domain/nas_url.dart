@@ -17,6 +17,7 @@ const allowedSearchPlatforms = {
   'tx',
   'kw',
   'wy',
+  'kg',
   'local',
   'favorites',
   ...nasSourceIds,
