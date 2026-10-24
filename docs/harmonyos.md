@@ -109,8 +109,7 @@ Koyze-4.0.2-ohos-x64.hap
 
 ### 3.1 GitHub Actions 双架构发布
 
-`.github/workflows/build-harmonyos-online.yml`（托管 Windows runner）和
-`.github/workflows/build-harmonyos.yml`（self-hosted runner）都会分别构建：
+`.github/workflows/build-harmonyos-online.yml`（托管 Windows runner）会分别构建：
 
 | 产物 | 目标 | 用途 |
 | --- | --- | --- |
@@ -138,28 +137,21 @@ hdc install Koyze-4.0.2-ohos-arm64.hap
 # hdc install Koyze-4.0.2-ohos-x64.hap
 ```
 
-### 3.2 CI：self-hosted 变体
-
-`.github/workflows/build-harmonyos.yml` 仅用于带有 `self-hosted`、`harmonyos`、
-`Windows`、`X64` 标签的自建 runner。当前 fork 配置的定制 Dart SDK 没有 Linux x64
-及 macOS x64 工件，因此工作流固定为 Windows x64；在线构建优先使用上一节的
-`build-harmonyos-online.yml`。
-
-自建机器需要：DevEco Studio（API 26）、按 tag `3.44.9+ohos-0.0.1-canary1`
-拉取的鸿蒙 Flutter SDK，以及该 SDK 对应的 arm64/x64 debug、profile、release
-HAR 与四个 Windows `gen_snapshot`。仓库变量（Settings → Variables）可配置
-`FLUTTER_OHOS_HOME`、`HOS_SDK_HOME`、`CLT_HOME`；Windows runner 不填时使用
-workflow 中的默认路径。
+### 3.2 构建门禁
 
 workflow 会在构建前检查 `default/sdk-pkg.json`、六套 `flutter.har` 和四套
 `gen_snapshot.exe` 是否就位，并强制要求引擎内 Dart VM 版本与 AOT 生成器一致
-（不一致即失败，不会自动替换生成器）。两种 CI 都先以 `--no-codesign` 构建，
-然后由签名脚本完成 release 签名与校验；没有完整签名 Secrets 时不会上传 release HAP。
+（不一致即失败，不会自动替换生成器）。构建先以 `--no-codesign` 完成，然后由
+签名脚本完成 release 签名与校验；没有完整签名 Secrets 时不会上传 release HAP。
 上传前还会解包检查 arm64/x64 HAP 的 `libflutter.so`（版本必须等于 Dart SDK 版本）、
 `libapp.so`、QuickJS bridge 与 `libc++_shared.so`，并校验 ELF machine 分别为
 AArch64 与 x86_64。
-此外，两个 HAP 都必须携带与自身 ABI 匹配的 `flutter_js` QuickJS bridge 和
+
+两个 HAP 都必须携带与自身 ABI 匹配的 `flutter_js` QuickJS bridge 和
 `libc++_shared.so`；否则 HAP 虽能安装，启用自定义音源时仍会因 FFI 动态库加载失败而回滚。
+
+> 早期还有一个 `build-harmonyos.yml`（self-hosted runner 变体）。仓库没有对应的
+> runner，它从未成功运行过，已删除；现在只剩 `build-harmonyos-online.yml` 一条路径。
 
 ## 4. 插件适配
 
@@ -210,7 +202,7 @@ dependency_overrides:
 > 移植包的 Dart 代码直接引用了 `TargetPlatform.ohos`，这个枚举只在鸿蒙 Flutter
 > fork 里存在；上游 Flutter（Android/iOS/桌面 CI 用的 3.44.9）会报
 > `Member not found: 'ohos'`，测试与构建全挂。构建 HAP 前由
-> `build-harmonyos.yml` 把 `pubspec_ohos.yaml` 复制为 `pubspec.yaml` 再执行
+> `build-harmonyos-online.yml` 把 `pubspec_ohos.yaml` 复制为 `pubspec.yaml` 再执行
 > `pub get`。
 
 **`audio_session` 的 ref 不能留空**（默认 master 是 0.1.18，依赖

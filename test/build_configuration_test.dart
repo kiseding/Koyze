@@ -116,7 +116,6 @@ void main() {
 
   test('HarmonyOS HAP validation requires ABI-matched QuickJS libraries', () {
     for (final workflowName in [
-      '.github/workflows/build-harmonyos.yml',
       '.github/workflows/build-harmonyos-online.yml',
     ]) {
       final workflow = File(workflowName).readAsStringSync();
@@ -150,7 +149,6 @@ void main() {
     expect(online, contains(r'-b "$FLUTTER_OHOS_REF"'));
 
     for (final workflowName in [
-      '.github/workflows/build-harmonyos.yml',
       '.github/workflows/build-harmonyos-online.yml',
     ]) {
       final workflow = File(workflowName).readAsStringSync();
