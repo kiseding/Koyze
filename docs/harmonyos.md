@@ -2,9 +2,9 @@
 
 本文档记录 Koyze 的鸿蒙平台接入方式、工具链版本与插件适配现状。
 
-> 状态：**工程骨架已接入，构建链路未打通**。`ohos/` 目录按 Flutter
-> 3.47.7-ohos 的官方应用模板生成，目标 SDK 为 API 26（HarmonyOS 7.0）。
-> 音频链路的鸿蒙实现**已有现成方案**（见第 4 节），但版本尚未对齐到 3.47/API 26。
+> 状态：**HarmonyOS 双架构构建流程已接入，云端签名与实机安装仍待凭据和设备验证**。
+> `ohos/` 目录基于 Flutter 3.47.7-ohos，目标 SDK 为 API 26（HarmonyOS 7.0）。
+> 音频链路使用现有鸿蒙移植方案（见第 4 节），运行时仍需持续进行真机回归。
 
 ## 1. 版本矩阵
 
@@ -57,40 +57,86 @@
 
    我们只需要 Dart / ArkTS 源码，跳过 smudge 不影响依赖内容。
 
-5. 引擎工件：`bin/internal/dart-sdk-url.ohos` 里 11 个附件全部指向 atomgit Release。
-   这些附件**匿名下载返回 401**，需要登录 atomgit 后从
-   <https://atomgit.com/oh-flutter/flutter_flutter/releases/tag/3.47.7-ohos-1.0.0>
-   手工下载并放进 `flutter_ohos/bin/cache/`。
+5. 引擎工件：在线 workflow 会把 `bin/internal/dart-sdk-url.ohos` 中的六套
+   `flutter.har` 和四套 Windows `gen_snapshot` 覆盖到 HarmonyOS OBS 的对应版本目录，
+   再执行 `precache --ohos` 并逐项校验。定制 Dart/patch SDK 仍按 fork 配置下载。
+   self-hosted runner 需要预先准备相同版本的 Flutter 鸿蒙 SDK 和缓存工件；缺少任一
+   架构或宿主机工件时，workflow 会在构建前失败。工作流还会运行 `gen_snapshot --version`
+   校验：arm64 必须使用 Dart 版本一致的 ARM64 目标工件；若 x64 OBS 工件版本过旧，则自动
+   改用同一 Dart SDK 自带的 Windows x64 `gen_snapshot`，避免 `expected 130, found 138`。
 
 ## 3. 构建
 
 ```bash
 flutter pub get
-flutter build hap --debug --target-platform ohos-arm64
-flutter build hap --release --target-platform ohos-arm64
+flutter build hap --debug --no-codesign --target-platform ohos-arm64
+flutter build hap --debug --no-codesign --target-platform ohos-x64
+flutter build hap --release --no-codesign --target-platform ohos-arm64
+flutter build hap --release --no-codesign --target-platform ohos-x64
+```
+
+`ohos-arm64` 是 ARM64 鸿蒙真机，`ohos-x64` 是 x86_64 鸿蒙模拟器。单次
+`flutter build hap` 只生成一个架构，CI 像 Android 的 split-per-ABI 一样分别构建，
+并将产物命名为：
+
+```text
+Koyze-4.0.1-ohos-arm64.hap
+Koyze-4.0.1-ohos-x64.hap
 ```
 
 产物在 `ohos/entry/build/default/outputs/default/`，用 `hdc install <hap>` 安装。
-签名：`ohos/build-profile.json5` 的 `signingConfigs` 为空，本地用 DevEco 的
-「自动签名」即可；CI 上产出的就是**未签名 HAP**。
+本地调试包可以是 unsigned HAP；要让下载后的 release HAP 直接安装到实机，必须用
+发布证书和可在目标设备安装的 release profile 签名。签名脚本为
+`scripts/ohos/sign-hap.sh`，签名后的文件名不含 `-unsigned`。
 
-### 3.1 CI：只跑自建 runner
+### 3.1 GitHub Actions 双架构发布
 
-`.github/workflows/build-harmonyos.yml` 的 `runs-on` 是 `[self-hosted, harmonyos]`，
-不用 GitHub 托管 runner，原因有三个：
+`.github/workflows/build-harmonyos-online.yml`（托管 Windows runner）和
+`.github/workflows/build-harmonyos.yml`（self-hosted runner）都会分别构建：
 
-1. HarmonyOS 命令行工具要登录华为开发者账号才能下载，托管 runner 里拿不到；
-   把工具包塞进仓库又有许可问题。
-2. 必须用 Flutter 鸿蒙 fork，而现有五个 workflow 用的 `subosito/flutter-action`
-   装的是上游 Flutter，不认识 `ohos` 平台。
-3. 引擎工件在 atomgit Release 上匿名 401。
+| 产物 | 目标 | 用途 |
+| --- | --- | --- |
+| `Koyze-<version>-ohos-arm64.hap` | `ohos-arm64` | 鸿蒙 ARM64 真机 |
+| `Koyze-<version>-ohos-x64.hap` | `ohos-x64` | 鸿蒙 x86_64 模拟器 |
 
-自建机器需要：DevEco Studio（API 26）、鸿蒙 Flutter SDK、以及第 2 节那 11 个
-引擎工件。可选仓库变量（Settings → Variables）：`FLUTTER_OHOS_HOME`、
-`HOS_SDK_HOME`；不填则用 workflow 里的默认路径。
+release 构建要求以下仓库 Secrets 全部存在，缺少任意一个都会失败，不会上传无法
+安装的 unsigned HAP；`SIGN_STORE_PWD` 为空时才回退使用 `SIGN_KEY_PWD`：
 
-workflow 会在构建前检查 `default/sdk-pkg.json` 的 `apiVersion` 与引擎工件是否就位，
-缺了直接给出可执行的报错，不会抛出一堆 hvigor 噪音。
+```text
+SIGN_KEYSTORE_B64  # koyze.p12 的 base64
+SIGN_CERT_B64      # 发布证书链 .cer 的 base64
+SIGN_PROFILE_B64   # 可安装 release profile .p7b 的 base64
+SIGN_KEY_PWD       # 私钥密码
+SIGN_STORE_PWD     # 密钥库密码；留空时使用 SIGN_KEY_PWD
+```
+
+`SIGN_PROFILE_B64` 应对应发布证书，并且不能限制到另一台设备；否则 HAP 虽然签名
+校验通过，仍会被目标设备拒绝。工作流还上传 `SHA256SUMS.txt`。下载 Artifact 或
+Release 中的对应架构 HAP 后，开发者模式和 HDC 连接正常时可以直接执行：
+
+```bash
+hdc install Koyze-4.0.1-ohos-arm64.hap
+# x86_64 模拟器使用：
+# hdc install Koyze-4.0.1-ohos-x64.hap
+```
+
+### 3.2 CI：self-hosted 变体
+
+`.github/workflows/build-harmonyos.yml` 仅用于带有 `self-hosted`、`harmonyos`、
+`Windows`、`X64` 标签的自建 runner。当前 fork 配置的定制 Dart SDK 没有 Linux x64
+及 macOS x64 工件，因此工作流固定为 Windows x64；在线构建优先使用上一节的
+`build-harmonyos-online.yml`。
+
+自建机器需要：DevEco Studio（API 26）、鸿蒙 Flutter SDK，以及该 SDK 对应的
+arm64/x64 debug、profile、release HAR 与 Windows profile/release AOT 工件。仓库变量
+（Settings → Variables）可配置 `FLUTTER_OHOS_HOME`、`HOS_SDK_HOME`、`CLT_HOME`；
+Windows runner 不填时使用 workflow 中的默认路径。
+
+workflow 会在构建前检查 `default/sdk-pkg.json`、六套 `flutter.har` 和四套
+`gen_snapshot.exe` 是否就位，缺失即失败。两种 CI 都先以 `--no-codesign` 构建，
+然后由签名脚本完成 release 签名与校验；没有完整签名 Secrets 时不会上传 release HAP。
+上传前还会解包检查 arm64 HAP 的 `libs/arm64-v8a/libapp.so` 和 x64 HAP 的
+`libs/x86_64/libapp.so`，并校验 ELF machine 分别为 AArch64 与 x86_64。
 
 ## 4. 插件适配
 
@@ -195,18 +241,17 @@ Dart 侧无需改：`AudioService.init` / `BaseAudioHandler` / `MediaItem` /
 | 步骤 | 结果 |
 | --- | --- |
 | `git diff --check` | ✅ 通过 |
-| ArkTS / HAP 编译 | ⏳ 未执行：当前环境没有 Flutter 鸿蒙 SDK、DevEco/Hvigor 或 HDC |
-| `flutter pub get` | ⏳ 未执行：当前环境没有 `flutter` / `dart` 命令；现有 `pubspec.lock` 仍是此前上游配置生成的 hosted 锁定结果 |
-| `flutter analyze` / `flutter test` | ⏳ 未执行：当前环境没有 `flutter` 命令 |
-| 设备播放回归 | ⏳ 未执行：尚无可用鸿蒙设备或模拟器连接 |
+| ArkTS / HAP 编译 | ⏳ 未执行：本机已有 Flutter 鸿蒙 SDK 和双架构引擎缓存，但缺少可识别的 DevEco SDK/Hvigor 与签名工具 |
+| `flutter pub get` | ⏳ 本轮未在主仓库重跑；现有 `pubspec.lock` 仍是此前上游配置生成的 hosted 锁定结果 |
+| `flutter analyze` / `flutter test` | ⏳ 本轮未重跑主仓库分析和测试 |
+| 设备播放回归 | ◐ 隔离工程已在 x86_64 模拟器完成启动和本地音频扫描；主仓库 release HAP、AVSession 与完整播放回归仍待完成 |
 
 仍未完成：
 
-1. **引擎工件下载**：atomgit Release 匿名 401，`flutter build hap` 还没跑过。
-   需要登录 atomgit 手工取 11 个附件。
-2. **运行时验证**：AVSession 播控、后台保活、通知都在 ArkTS 侧，必须真机/模拟器
-   上跑一遍才算数；社区验证记录只到 API 26 模拟器与 ALN-AL00。
-3. **版本风险**：移植的验证上限是 Flutter 3.35 + SDK 6.0.1（API 21），本项目是
-   3.47.7 + API 26。`flutter analyze` 通过说明 API 面对得上，但运行时行为未知。
-4. **签名与发布渠道**。
-5. `audio_metadata_reader`（FFI）仍无 ohos 产物。
+1. **运行时验证**：AVSession 播控、后台保活、通知都在 ArkTS 侧，仍应在真机和
+   x86_64 模拟器上跑一遍；本轮已完成模拟器启动与本地音频扫描回归。
+2. **版本风险**：移植的验证上限是 Flutter 3.35 + SDK 6.0.1（API 21），本项目是
+   3.47.7 + API 26。`flutter analyze` 通过说明 API 面对得上，但运行时行为仍需持续观察。
+3. **签名与发布渠道**：GitHub release 需要配置 `SIGN_*` secrets，配置前不会生成可
+   直接安装的 release HAP。
+4. `audio_metadata_reader`（FFI）仍无 ohos 产物。

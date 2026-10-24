@@ -1,24 +1,24 @@
 name: Build HarmonyOS HAP
 
-# 与其他平台不同，鸿蒙构建跑不了 GitHub 托管 runner：
-#   1. HarmonyOS 命令行工具需要登录华为开发者账号才能下载，托管 runner 里没法
-#      匿名获取（把工具包塞进仓库又不合适）；
-#   2. 本项目必须用 Flutter 鸿蒙 fork（3.47.7-ohos），subosito/flutter-action
-#      装的是上游 Flutter，不认识 ohos 平台；
-#   3. 引擎工件挂在 atomgit Release，匿名下载 401。
-#
-# 所以这个 workflow 只跑自建 runner。准备一台装了以下内容的机器，注册为
-# self-hosted runner 并打上标签 `harmonyos`（Windows / macOS / Linux 均可）：
+# 此 self-hosted 变体限定 Windows x64；当前 fork 仅为该宿主提供完整的定制 Dart SDK。
+# 在线 Windows runner 构建请使用 build-harmonyos-online.yml。
+# 准备一台安装以下内容的机器，注册为 self-hosted runner，并打上标签
+# `harmonyos`、`Windows`、`X64`：
 #   - DevEco Studio（含 HarmonyOS SDK，API 26）
 #   - Flutter 鸿蒙 SDK：git clone -b 3.47.7-ohos-1.0.0 \
 #       https://atomgit.com/oh-flutter/flutter_flutter.git
-#   - 引擎工件：登录 atomgit 手工下载 11 个附件放进 bin/cache（见 docs/harmonyos.md）
+#   - 与该 SDK 版本匹配的 arm64/x64 HAR 和 Windows AOT 工件
 #
-# 可选仓库变量（Settings → Variables），不填则用下面的默认路径：
-#   FLUTTER_OHOS_HOME   鸿蒙 Flutter SDK 根目录
+# 构建阶段关闭 Flutter 内置 codesign，release 由仓库签名脚本处理。
+# 在线 Windows runner 构建请使用 build-harmonyos-online.yml。
+#
+# 可选仓库变量（Settings → Variables）：
+#   FLUTTER_OHOS_HOME   鸿蒙 Flutter SDK 根目录；不填使用 Windows 默认路径
 #   HOS_SDK_HOME        DevEco 的 sdk 目录（含 default/sdk-pkg.json）
+#   CLT_HOME            DevEco/Command Line Tools 根目录
 #
-# 产物默认是**未签名** HAP：签名需要 .p12/.cer/.p7b，见 docs/harmonyos.md 第 3 节。
+# release 产物同时包含 arm64 真机 HAP 和 x64 模拟器 HAP。
+# release 必须配置签名 secrets；上传的 release HAP 均可直接用 hdc 安装。
 
 on:
   # 只在手动触发时跑：这个 job 要 self-hosted runner（标签 harmonyos），
@@ -35,18 +35,24 @@ concurrency:
 
 jobs:
   build-harmonyos:
-    runs-on: [self-hosted, harmonyos]
+    runs-on: [self-hosted, harmonyos, Windows, X64]
     timeout-minutes: 60
 
     env:
       # 用仓库变量覆盖默认值，避免把某台机器的绝对路径写死在仓库里。
-      FLUTTER_OHOS_HOME: ${{ vars.FLUTTER_OHOS_HOME || 'D:/flutter_ohos_parent/flutter_ohos' }}
-      HOS_SDK_HOME: ${{ vars.HOS_SDK_HOME || 'D:/DevEco Studio/sdk' }}
-      DEVECO_SDK_HOME: ${{ vars.HOS_SDK_HOME || 'D:/DevEco Studio/sdk' }}
+      FLUTTER_OHOS_HOME: ${{ vars.FLUTTER_OHOS_HOME }}
+      HOS_SDK_HOME: ${{ vars.HOS_SDK_HOME }}
+      DEVECO_SDK_HOME: ${{ vars.HOS_SDK_HOME }}
       PUB_HOSTED_URL: https://pub.flutter-io.cn
-      # 上游工件走 CN 镜像（直连 storage.googleapis.com 只有 ~20KB/s）；
-      # 鸿蒙专属工件由 bin/internal/dart-sdk-url.ohos 直接指向 atomgit，不受影响。
+      # 上游工件走 CN 镜像（直连 storage.googleapis.com 只有 ~20KB/s）。
       FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
+      FLUTTER_OHOS_STORAGE_BASE_URL: https://flutter-ohos.obs.cn-south-1.myhuaweicloud.com
+      SIGN_KEYSTORE_B64: ${{ secrets.SIGN_KEYSTORE_B64 }}
+      SIGN_CERT_B64: ${{ secrets.SIGN_CERT_B64 }}
+      SIGN_PROFILE_B64: ${{ secrets.SIGN_PROFILE_B64 }}
+      SIGN_KEY_PWD: ${{ secrets.SIGN_KEY_PWD }}
+      SIGN_STORE_PWD: ${{ secrets.SIGN_STORE_PWD }}
+      CLT_HOME: ${{ vars.CLT_HOME }}
 
     steps:
       - name: Check out repository
@@ -74,8 +80,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${FLUTTER_OHOS_HOME:-}" ] || [ ! -d "$FLUTTER_OHOS_HOME" ]; then
-            echo "::error::找不到鸿蒙 Flutter SDK：$FLUTTER_OHOS_HOME（设置仓库变量 FLUTTER_OHOS_HOME）"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            FLUTTER_OHOS_HOME="${FLUTTER_OHOS_HOME:-D:/flutter_ohos_parent/flutter_ohos}"
+            HOS_SDK_HOME="${HOS_SDK_HOME:-D:/DevEco Studio/sdk}"
+            CLT_HOME="${CLT_HOME:-D:/DevEco Studio}"
+          else
+            if [ -z "${FLUTTER_OHOS_HOME:-}" ]; then
+              echo "::error::非 Windows self-hosted runner 必须设置仓库变量 FLUTTER_OHOS_HOME"
+              exit 1
+            fi
+            if [ -z "${HOS_SDK_HOME:-}" ]; then
+              echo "::error::非 Windows self-hosted runner 必须设置仓库变量 HOS_SDK_HOME"
+              exit 1
+            fi
+            if [ -z "${CLT_HOME:-}" ]; then
+              echo "::error::非 Windows self-hosted runner 必须设置仓库变量 CLT_HOME"
+              exit 1
+            fi
+          fi
+          export FLUTTER_OHOS_HOME HOS_SDK_HOME CLT_HOME
+          DEVECO_SDK_HOME="$HOS_SDK_HOME"
+          export DEVECO_SDK_HOME
+
+          if [ ! -d "$FLUTTER_OHOS_HOME" ]; then
+            echo "::error::找不到鸿蒙 Flutter SDK：$FLUTTER_OHOS_HOME"
             exit 1
           fi
           if [ "$RUNNER_OS" = "Windows" ]; then
@@ -87,6 +115,9 @@ jobs:
             echo "::error::$FLUTTER_OHOS_HOME 下没有 flutter 可执行文件"
             exit 1
           fi
+
+          printf 'FLUTTER_OHOS_HOME=%s\nHOS_SDK_HOME=%s\nDEVECO_SDK_HOME=%s\nCLT_HOME=%s\n' \
+            "$FLUTTER_OHOS_HOME" "$HOS_SDK_HOME" "$DEVECO_SDK_HOME" "$CLT_HOME" >> "$GITHUB_ENV"
 
           # 工具链扫 HOS_SDK_HOME 的子目录读 sdk-pkg.json 认版本，指向
           # sdk/default 会报 "No Hmos SDK found"。
@@ -109,13 +140,78 @@ jobs:
         run: |
           set -euo pipefail
           engine="$FLUTTER_OHOS_HOME/bin/cache/artifacts/engine"
-          missing=0
-          ls "$engine" 2>/dev/null | grep -q '^ohos' || missing=1
-          [ -d "$engine/common/flutter_patched_sdk" ] || missing=1
-          if [ "$missing" -ne 0 ]; then
-            echo "::error::缺少鸿蒙引擎工件。atomgit Release 匿名下载会 401，需登录后手工下载以下文件：flutter_patched_sdk.zip、flutter_patched_sdk_product.zip、ohos-arm64-artifacts.zip、ohos-arm64-profile-artifacts.zip、ohos-arm64-release-artifacts.zip、两个 gen_snapshot、两档 custom dart-sdk，放进 $FLUTTER_OHOS_HOME/bin/cache/。详见 docs/harmonyos.md 第 2 节。"
+          if [ "$RUNNER_OS" != Windows ] || [ "$RUNNER_ARCH" != X64 ]; then
+            echo "::error::self-hosted HarmonyOS runner 必须是 Windows x64，当前为 $RUNNER_OS/$RUNNER_ARCH"
             exit 1
           fi
+          host_dir=windows-x64
+          host_file=gen_snapshot.exe
+          for arch in arm64 x64; do
+            for mode in '' -profile -release; do
+              test -f "$engine/ohos-$arch$mode/flutter.har" || {
+                echo "::error::缺少 ohos-$arch$mode/flutter.har"
+                exit 1
+              }
+            done
+            for mode in profile release; do
+              test -f "$engine/ohos-$arch-$mode/$host_dir/$host_file" || {
+                echo "::error::缺少 ohos-$arch-$mode/$host_dir/$host_file"
+                exit 1
+              }
+            done
+          done
+
+      - name: Validate and normalize HarmonyOS AOT snapshotters
+        shell: bash
+        run: |
+          set -euo pipefail
+          engine="$FLUTTER_OHOS_HOME/bin/cache/artifacts/engine"
+          dart_bin="$FLUTTER_OHOS_HOME/bin/cache/dart-sdk/bin/dart.exe"
+          sdk_snapshot="$FLUTTER_OHOS_HOME/bin/cache/dart-sdk/bin/utils/gen_snapshot.exe"
+          test -f "$dart_bin"
+          test -f "$sdk_snapshot"
+
+          dart_version="$("$dart_bin" --version 2>&1 | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p')"
+          test -n "$dart_version" || {
+            echo "::error::无法从 Dart SDK 读取版本"
+            exit 1
+          }
+          echo "Dart SDK version: $dart_version"
+
+          snapshot_version() {
+            "$1" --version 2>&1 | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p'
+          }
+
+          snapshot_host() {
+            "$1" --version 2>&1 | sed -n 's/.* on "\([^"]*\)"/\1/p'
+          }
+
+          check_snapshot() {
+            local snapshot="$1"
+            local expected_host="$2"
+            local version
+            local host
+            version="$(snapshot_version "$snapshot")"
+            host="$(snapshot_host "$snapshot")"
+            echo "$(basename "$(dirname "$snapshot")")/$(basename "$snapshot"): Dart $version on $host"
+            [ "$version" = "$dart_version" ] && [ "$host" = "$expected_host" ]
+          }
+
+          arm64_snapshot="$engine/ohos-arm64-release/windows-x64/gen_snapshot.exe"
+          if ! check_snapshot "$arm64_snapshot" windows_simarm64; then
+            echo "::error::ohos-arm64-release gen_snapshot 与 Dart $dart_version 或 ARM64 目标不匹配"
+            exit 1
+          fi
+
+          x64_snapshot="$engine/ohos-x64-release/windows-x64/gen_snapshot.exe"
+          if ! check_snapshot "$x64_snapshot" windows_x64; then
+            echo "::warning::ohos-x64-release AOT 工件版本或宿主架构不匹配，回退到 Dart SDK 自带 gen_snapshot"
+            cp "$sdk_snapshot" "$x64_snapshot"
+          fi
+          check_snapshot "$x64_snapshot" windows_x64 || {
+            echo "::error::Dart SDK 自带 x64 gen_snapshot 仍不匹配"
+            exit 1
+          }
 
       - name: Resolve Flutter dependencies
         shell: bash
@@ -138,37 +234,126 @@ jobs:
           export GIT_CONFIG_GLOBAL="$RUNNER_TEMP/gitconfig_nolfs"
           "$FLUTTER_BIN" analyze --no-fatal-infos
 
-      - name: Build HarmonyOS release HAP
+      - name: Require HarmonyOS release signing secrets
         shell: bash
         run: |
           set -euo pipefail
-          "$FLUTTER_BIN" build hap --release --target-platform ohos-arm64
+          for name in SIGN_KEYSTORE_B64 SIGN_CERT_B64 SIGN_PROFILE_B64 SIGN_KEY_PWD; do
+            test -n "${!name:-}" || {
+              echo "::error::缺少 HarmonyOS release 签名 secret: $name"
+              exit 1
+            }
+          done
 
-      - name: Verify HAP was produced
+      - name: Build HarmonyOS arm64 and x64 HAPs
         shell: bash
         run: |
           set -euo pipefail
-          haps="$(find ohos/entry/build -name '*.hap' -type f 2>/dev/null || true)"
-          if [ -z "$haps" ]; then
-            echo "::error::构建结束但没找到 .hap 产物"
+          version="$(awk '/^version:/{print $2; exit}' pubspec.yaml)"
+          version="${version%%+*}"
+          out="build/harmonyos-release"
+          rm -rf "$out"
+          mkdir -p "$out"
+          for arch in arm64 x64; do
+            rm -rf build/ohos ohos/entry/build ohos/entry/libs ohos/har
+            set +e
+            "$FLUTTER_BIN" build hap --release --no-codesign \
+              --target-platform "ohos-$arch" --no-tree-shake-icons
+            rc=$?
+            set -e
+            if [ "$rc" -ne 0 ]; then
+              echo "::error::ohos-$arch 构建失败（exit $rc）"
+              exit "$rc"
+            fi
+            mapfile -t haps < <(find ohos/entry/build -name '*-unsigned.hap' -type f)
+            if [ "${#haps[@]}" -ne 1 ]; then
+              echo "::error::ohos-$arch 应产出恰好一个 unsigned HAP，实际得到 ${#haps[@]} 个"
+              printf '%s\n' "${haps[@]}"
+              exit 1
+            fi
+            cp "${haps[0]}" "$out/Koyze-${version}-ohos-$arch-unsigned.hap"
+          done
+
+      - name: Sign HarmonyOS HAPs
+        shell: bash
+        run: |
+          set -euo pipefail
+          S="$RUNNER_TEMP/signing"; mkdir -p "$S"
+          trap 'rm -rf "$S"' EXIT
+          decode_b64() {
+            if [ "$RUNNER_OS" = "macOS" ]; then
+              base64 -D
+            else
+              base64 -d
+            fi
+          }
+          printf '%s' "$SIGN_KEYSTORE_B64" | decode_b64 > "$S/koyze.p12"
+          printf '%s' "$SIGN_CERT_B64"     | decode_b64 > "$S/koyze-release.cer"
+          printf '%s' "$SIGN_PROFILE_B64"  | decode_b64 > "$S/Koyze-release.p7b"
+          export SIGN_DIR="$S"
+          export KEY_PWD="$SIGN_KEY_PWD"
+          export STORE_PWD="${SIGN_STORE_PWD:-$SIGN_KEY_PWD}"
+          for hap in build/harmonyos-release/*-unsigned.hap; do
+            signed="${hap%-unsigned.hap}.hap"
+            bash scripts/ohos/sign-hap.sh "$hap" "$signed"
+            rm -f "$hap"
+          done
+
+      - name: Verify HAPs and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=build/harmonyos-release
+          count="$(find "$out" -maxdepth 1 -name '*.hap' -type f | wc -l)"
+          test "$count" -eq 2
+          if find "$out" -name '*-unsigned.hap' -type f -print -quit | grep -q .; then
+            echo "::error::release 产物仍包含 unsigned HAP"
             exit 1
           fi
-          echo "$haps" | while read -r f; do ls -lh "$f"; done
-          if echo "$haps" | grep -q 'unsigned'; then
-            echo "::warning::产物是未签名 HAP，只能作为构建产物存档，无法直接安装到设备"
-          fi
+          python - "$out" <<'PY'
+          import struct
+          import sys
+          import zipfile
+          from pathlib import Path
 
-      - name: Upload HarmonyOS HAP
+          out = Path(sys.argv[1])
+          expected = {
+              'ohos-arm64': ('libs/arm64-v8a/libapp.so', 183),
+              'ohos-x64': ('libs/x86_64/libapp.so', 62),
+          }
+          for hap in sorted(out.glob('*.hap')):
+              target = next((key for key in expected if key in hap.name), None)
+              if target is None:
+                  raise SystemExit(f'Unexpected HAP name: {hap.name}')
+              member, machine = expected[target]
+              with zipfile.ZipFile(hap) as archive:
+                  if member not in archive.namelist():
+                      raise SystemExit(f'{hap.name} is missing {member}')
+                  data = archive.read(member)
+              if data[:4] != b'\x7fELF' or len(data) < 20:
+                  raise SystemExit(f'{hap.name} has a non-ELF {member}')
+              actual = struct.unpack_from('<H', data, 18)[0]
+              if actual != machine:
+                  raise SystemExit(f'{hap.name} has ELF machine {actual}, expected {machine}')
+          PY
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$out"/*.hap > "$out/SHA256SUMS.txt"
+          else
+            shasum -a 256 "$out"/*.hap > "$out/SHA256SUMS.txt"
+          fi
+          ls -lh "$out"/*
+
+      - name: Upload HarmonyOS HAPs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: Koyze-HarmonyOS-HAP
-          path: ohos/entry/build/**/*.hap
+          name: Koyze-HarmonyOS-HAPs
+          path: build/harmonyos-release/*
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload HAP to Release
+      - name: Upload HAPs to Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: ohos/entry/build/**/*.hap
+          files: build/harmonyos-release/*

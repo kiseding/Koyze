@@ -48,7 +48,11 @@ fi
 [ -n "${STORE_PWD:-}" ] || STORE_PWD="$KEY_PWD"
 
 echo "== 签名 $(basename "$IN") =="
-java -jar "$TOOL" sign-app \
+VDIR="${TMPDIR:-/tmp}/hapverify.$$"
+mkdir -p "$VDIR"
+trap 'rm -rf "$VDIR"' EXIT
+rm -f "$OUT"
+if ! java -jar "$TOOL" sign-app \
   -keyAlias "$KEY_ALIAS" \
   -signAlg "SHA256withECDSA" \
   -mode "localSign" \
@@ -58,19 +62,26 @@ java -jar "$TOOL" sign-app \
   -keystoreFile "$STORE_FILE" \
   -outFile "$OUT" \
   -keyPwd "$KEY_PWD" \
-  -keystorePwd "$STORE_PWD" 2>&1 | grep -E "INFO - (Start sign-app|profile type|Sign successfully|Sign Hap success|sign-app success|error|ERROR)" || true
-
-[ -f "$OUT" ] || { echo "签名失败，没有产出 $OUT"; exit 1; }
+  -keystorePwd "$STORE_PWD" > "$VDIR/sign.log" 2>&1; then
+  cat "$VDIR/sign.log"
+  echo "签名工具执行失败"
+  exit 1
+fi
+grep -E "INFO - (Start sign-app|profile type|Sign successfully|Sign Hap success|sign-app success|error|ERROR)" "$VDIR/sign.log" || cat "$VDIR/sign.log"
+[ -s "$OUT" ] || { echo "签名失败，没有产出有效文件 $OUT"; exit 1; }
 
 echo "== 校验签名 =="
-VDIR="${TMPDIR:-/tmp}/hapverify.$$"
-mkdir -p "$VDIR"
-if java -jar "$TOOL" verify-app -inFile "$OUT" \
-     -outCertChain "$VDIR/chain.cer" -outProfile "$VDIR/profile.p7b" 2>&1 | grep -q "Verify success"; then
-  echo "签名校验通过"
-  rm -rf "$VDIR"
-else
-  echo "签名校验失败"; rm -rf "$VDIR"; exit 1
+if ! java -jar "$TOOL" verify-app -inFile "$OUT" \
+     -outCertChain "$VDIR/chain.cer" -outProfile "$VDIR/profile.p7b" > "$VDIR/verify.log" 2>&1; then
+  cat "$VDIR/verify.log"
+  echo "签名校验命令执行失败"
+  exit 1
 fi
+if ! grep -q "Verify success" "$VDIR/verify.log"; then
+  cat "$VDIR/verify.log"
+  echo "签名校验失败"
+  exit 1
+fi
+echo "签名校验通过"
 
 ls -lh "$OUT"
