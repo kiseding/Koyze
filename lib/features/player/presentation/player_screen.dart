@@ -33,6 +33,7 @@ import '../../home/presentation/widgets/mini_bar.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
+import 'widgets/player_progress_bar.dart';
 import 'widgets/player_volume_button.dart';
 import '../../../core/widgets/loading_widget.dart';
 
@@ -257,55 +258,15 @@ class _PlayerProgress extends ConsumerWidget {
                     child: SizedBox(
                       height: 45,
                       child: Center(
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Container(
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: AppColors.cardBorder(context),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            FractionallySizedBox(
-                              widthFactor: ratio,
-                              child: Container(
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: AppColors.accentOf(context),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              left: (width * ratio - 10).clamp(0.0, width - 20),
-                              top: -2,
-                              child: AnimatedScale(
-                                scale: seeking ? 1.35 : 1.0,
-                                duration: motionDuration(
-                                  context,
-                                  const Duration(milliseconds: 150),
-                                ),
-                                curve: MotionCurve.iosSpring,
-                                child: Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.accentOf(context),
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.accentOf(
-                                          context,
-                                        ).withAlpha(120),
-                                        blurRadius: 14,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                        child: PlayerProgressBar(
+                          ratio: ratio,
+                          accentColor: AppColors.accentOf(context),
+                          trackColor: AppColors.cardBorder(context),
+                          seeking: seeking,
+                          animationDuration: motionDuration(
+                            context,
+                            const Duration(milliseconds: 150),
+                          ),
                         ),
                       ),
                     ),
