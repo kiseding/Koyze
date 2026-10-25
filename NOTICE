@@ -1,0 +1,55 @@
+Koyze
+Copyright 2024-2026 Koyze Contributors
+
+This product includes software derived from LX-Music-Flutter-Mobile
+(https://github.com/yingjunda/LX-Music-Flutter-Mobile), Copyright the
+LX-Music-Flutter-Mobile authors.
+
+The upstream project did not declare an open-source license at the time this
+notice was written. As a result, the upstream-derived portions of this
+repository remain the property of their original authors and are NOT covered by
+the Apache License 2.0 that applies to Koyze's own additions. No additional
+rights to the upstream-derived code are granted here beyond what the upstream
+authors themselves permit.
+
+Files currently understood to contain upstream-derived code include, but are
+not limited to:
+
+  lib/app.dart
+  lib/main.dart
+  lib/router/app_router.dart
+  lib/core/audio/audio_handler.dart
+  lib/core/network/music_source_service.dart
+  lib/core/storage/storage_service.dart
+  lib/core/music_source/platform/*.dart
+  lib/core/theme/*.dart
+  lib/core/widgets/{empty_widget,error_boundary,loading_widget}.dart
+  lib/features/custom_source/domain/*.dart
+  lib/features/download/**/*.dart
+  lib/features/lyric/**/*.dart
+  lib/features/player/domain/{music_item,player_service}.dart
+  lib/features/player/presentation/**/*.dart
+  lib/features/playlist/**/*.dart
+  lib/features/search/**/*.dart
+  lib/features/settings/presentation/*.dart
+
+This list is a good-faith effort, not a legal determination. If you are a
+rights holder and believe a file is mis-attributed, please open an issue.
+
+---
+
+Third-party components vendored under third_party/ are covered by their own
+licenses; see the LICENSE files in each vendored package directory:
+
+  third_party/audio_service_ohos
+  third_party/connectivity_plus
+  third_party/connectivity_plus_platform_interface
+  third_party/file_picker
+  third_party/flutter_js
+  third_party/flutter_secure_storage
+  third_party/just_audio
+  third_party/live_activities
+  third_party/path_provider
+  third_party/path_provider_ohos
+  third_party/shared_preferences
+  third_party/shared_preferences_ohos

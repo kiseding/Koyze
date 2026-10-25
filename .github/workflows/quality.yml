@@ -1,0 +1,116 @@
+name: Quality gate
+
+# 现有的平台构建 workflow 只在 push 到 main 或打 tag 时触发，
+# 意味着 PR 在合并前没有任何自动检查——review 只能靠人眼。
+# 这个 workflow 补上合并前的门禁：分析 + 全量确定性测试 + Workers 校验。
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: Flutter analyze & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Verify every workflow pins the same Flutter patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 各平台 workflow 必须锁同一个 Flutter 版本，否则某个平台会悄悄
+          # 用另一套 SDK 构建，产出行为不一致的二进制。
+          versions="$(grep -rhoP "flutter-version:\s*'\K[0-9.]+" .github/workflows/*.yml | sort -u)"
+          count="$(printf '%s\n' "$versions" | wc -l)"
+          echo "pinned versions:"
+          printf '%s\n' "$versions"
+          if [ "$count" -ne 1 ]; then
+            echo "::error::工作流锁定了多个 Flutter 版本，必须统一"
+            exit 1
+          fi
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run tests
+        run: flutter test --exclude-tags live
+
+  workers:
+    name: Workers typecheck & test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: workers
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: workers/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate (test + typecheck + structure)
+        run: npm run validate
+
+  docs:
+    name: Docs consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Verify referenced docs exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          # CONTRIBUTING 曾经指向一个不存在的 CODE_OF_CONDUCT.md，
+          # 这类死链对贡献者很不友好。这里拦住所有本地 Markdown 相对链接。
+          fail=0
+          while IFS= read -r line; do
+            # 提取 markdown 链接里的相对路径（跳过 http/https/mailto/锚点）
+            while IFS= read -r target; do
+              case "$target" in
+                http*|https*|mailto:*|\#*|'') continue ;;
+              esac
+              # 去掉锚点与查询串
+              clean="${target%%#*}"
+              clean="${clean%%\?*}"
+              [ -z "$clean" ] && continue
+              if [ ! -e "$clean" ]; then
+                echo "::error file=$line::引用的文件不存在: $target"
+                fail=1
+              fi
+            done < <(grep -oP '\]\(\K[^)]+' "$line" 2>/dev/null || true)
+          done < <(git ls-files '*.md')
+          exit "$fail"

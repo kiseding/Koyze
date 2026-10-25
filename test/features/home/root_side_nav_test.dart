@@ -25,8 +25,7 @@ void main() {
         overrides: [
           // 默认会 refresh，测试里不要真去连网。
           cloudSessionProvider.overrideWith(
-            (ref) => CloudSessionNotifier(
-              ref.watch(cloudApiProvider),
+            () => CloudSessionNotifier(
               autoRefresh: false,
             ),
           ),

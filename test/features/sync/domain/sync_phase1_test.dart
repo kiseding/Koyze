@@ -448,7 +448,7 @@ void main() {
       'lib/features/sync/presentation/cloud_sync_provider.dart',
     ).readAsStringSync();
     expect(source, contains('if (!next.loaded) return'));
-    expect(source, contains('notifier.sessionChanged(next.loggedIn)'));
+    expect(source, contains('sessionChanged(next.loggedIn)'));
     expect(source, contains('sourceService.init().then'));
     expect(source, contains('if (!_sourcesReady)'));
   });

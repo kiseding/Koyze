@@ -26,7 +26,7 @@ void main() {
     expect(more, isNot(contains('child: GlassSurface(')));
     expect(more, contains('S.of(context).addAllToFavorites'));
     expect(
-      File('lib/l10n/app_strings.dart').readAsStringSync(),
+      File('lib/l10n/app_zh.arb').readAsStringSync(),
       contains('全部添加到收藏列表'),
     );
     expect(more, contains('await ref'));

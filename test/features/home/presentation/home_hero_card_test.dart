@@ -4,20 +4,20 @@ import 'package:koyze/features/home/presentation/home_hero_card.dart';
 void main() {
   test('defaults to favorites and select is exclusive', () {
     final notifier = HomeHeroCardNotifier();
-    expect(notifier.state, HomeHeroCardId.favorites);
+    expect(notifier.value, HomeHeroCardId.favorites);
 
     notifier.select(HomeHeroCardId.local);
-    expect(notifier.state, HomeHeroCardId.local);
+    expect(notifier.value, HomeHeroCardId.local);
 
     notifier.select(HomeHeroCardId.recommend);
-    expect(notifier.state, HomeHeroCardId.recommend);
-    expect(HomeHeroCardId.values.where((id) => id == notifier.state).length, 1);
+    expect(notifier.value, HomeHeroCardId.recommend);
+    expect(HomeHeroCardId.values.where((id) => id == notifier.value).length, 1);
   });
 
   test('selecting the current card is a no-op', () {
     final notifier = HomeHeroCardNotifier();
     notifier.select(HomeHeroCardId.favorites);
-    expect(notifier.state, HomeHeroCardId.favorites);
+    expect(notifier.value, HomeHeroCardId.favorites);
   });
 
   test('tryParse accepts known ids only', () {
@@ -41,14 +41,14 @@ void main() {
 
   test('play mode defaults to shuffle and is exclusive', () {
     final notifier = HomeHeroPlayModeNotifier();
-    expect(notifier.state, HomeHeroPlayMode.shuffle);
+    expect(notifier.value, HomeHeroPlayMode.shuffle);
 
     notifier.select(HomeHeroPlayMode.sequential);
-    expect(notifier.state, HomeHeroPlayMode.sequential);
+    expect(notifier.value, HomeHeroPlayMode.sequential);
     notifier.select(HomeHeroPlayMode.repeatOne);
-    expect(notifier.state, HomeHeroPlayMode.repeatOne);
+    expect(notifier.value, HomeHeroPlayMode.repeatOne);
     expect(
-      HomeHeroPlayMode.values.where((mode) => mode == notifier.state).length,
+      HomeHeroPlayMode.values.where((mode) => mode == notifier.value).length,
       1,
     );
   });

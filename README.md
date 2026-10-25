@@ -4,6 +4,13 @@
   <img src="assets/icon/app_icon.png" alt="Koyze" width="112" height="112">
 </p>
 
+> [!NOTE]
+> **本项目衍生自 [yingjunda/LX-Music-Flutter-Mobile](https://github.com/yingjunda/LX-Music-Flutter-Mobile)。**
+> Koyze 的初始代码库、目录结构与部分模块（自定义音源引擎、内置平台元数据源、播放器与歌单
+> 基础设施）来自该项目。上游仓库未声明开源许可证，因此其原始代码的版权归原作者所有；
+> 本项目仅对自身新增与修改的部分适用 Apache License 2.0，详见 [NOTICE](NOTICE)。
+> 如果你是上游作者并希望调整这里的署名方式，请提 Issue，我们会配合。
+
 <p align="center">
   面向 Android、Windows、iOS、macOS、Linux 与 HarmonyOS 的跨平台音乐查找、播放和本地曲库管理工具。
 </p>
@@ -462,4 +469,8 @@ npm run validate
 
 ## 许可证
 
-本项目使用 [Apache License 2.0](LICENSE)。`third_party/` 中的组件按其各自许可证执行。
+本项目**新增与修改的部分**使用 [Apache License 2.0](LICENSE) 授权。
+
+本项目衍生自 [yingjunda/LX-Music-Flutter-Mobile](https://github.com/yingjunda/LX-Music-Flutter-Mobile)，该上游仓库未声明开源许可证，其原始代码的版权归原作者所有，**不在 Apache-2.0 授权范围内**。完整的归属说明与受影响文件清单见 [NOTICE](NOTICE)。如果你需要使用上游衍生部分的代码，请自行联系上游作者取得授权。
+
+`third_party/` 中的组件按其各自许可证执行。

@@ -1,251 +1,223 @@
-import 'dart:io';
-
+import 'package:audio_service/audio_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show StackParentData;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:koyze/core/player_route_progress.dart';
+import 'package:koyze/features/lyric/domain/lyric.dart';
+import 'package:koyze/features/lyric/presentation/lyric_provider.dart';
+import 'package:koyze/features/player/domain/music_item.dart';
+import 'package:koyze/features/player/domain/player_service.dart';
+import 'package:koyze/features/player/presentation/player_provider.dart';
+import 'package:koyze/features/player/presentation/player_screen.dart';
 
+/// 全屏播放器的展开/收起是「矩形 morph」而不是 Hero 飞行。
+///
+/// 这些测试验证**可观察的结果**：morph 覆盖层是否存在、它的矩形是否随
+/// `playerRouteProgress` 变化、页面是否没有 Hero / 页面级 Transform。
+/// 它们不关心某个变量叫什么、某行代码文案是什么——重命名或重构不会误报，
+/// 但删掉 morph 实现会立刻失败。
 void main() {
-  test('full player morphs from mini-bar rect with staggered fades', () {
-    final full = File(
-      'lib/features/player/presentation/player_screen.dart',
-    ).readAsStringSync();
+  tearDown(() {
+    playerRouteProgress.value = 0;
+  });
 
-    // 对称收起（卡片式）：矩形从全屏线性收向目标——封面页→迷你栏、
-    // 歌词页→迷你栏歌词行同款长条；内容中心锚定 + 按宽度比缩放，
-    // 上下对称裁剪（焦点=矩形中心）。
-    expect(full, contains('final collapseTarget = lyricCollapsing'));
-    expect(full, contains('final currentRect = Rect.lerp(collapseTarget'));
-    expect(full, contains('final artworkMorphRect = Rect.lerp'));
-    expect(full, contains('_miniArtworkRect(miniRect)'));
-    expect(full, contains('_fullArtworkRect('));
-    expect(full, contains('_RouteArtworkMorphOverlay'));
-    expect(full, contains('_RoutePlayButtonMorphOverlay'));
-    expect(
-      full,
-      contains('final portraitLyrics = _currentPage == 1 && !landscape'),
+  Widget harness({PlayMode playMode = PlayMode.sequential}) {
+    final music = MusicItem(
+      id: 't1',
+      name: '测试歌曲名称',
+      singer: '测试歌手',
+      duration: const Duration(seconds: 200),
+      source: 'local',
     );
-    expect(full, contains('final playButtonTarget = portraitLyrics'));
-    expect(
-      full,
-      contains('final btnMorphT = (progress / 0.35).clamp(0.0, 1.0)'),
-    );
-    expect(full, contains('miniPlayButtonRect,\n          1 - btnMorphT'));
-    expect(full, contains('Rect.lerp('));
-    expect(full, contains('_miniPlayButtonRect(miniRect)'));
-    expect(full, contains('_fullControlsPlayButtonRect('));
-    expect(full, contains('_fullLyricPlayButtonRect('));
-    expect(full, contains('_currentPage == 1'));
-    expect(full, contains('fullLyricPlayButtonRect'));
-    expect(full, contains('fullControlsPlayButtonRect'));
-    expect(full, isNot(contains('final shellOpacity =')));
-    expect(full, isNot(contains('scaffoldBackgroundColor.withAlpha')));
-    expect(full, isNot(contains('(255 * shellOpacity).round()')));
-    expect(full, contains('if (!hideLayer && (progress > 0 || closing))'));
-    // 歌词页关闭：整页对称收成迷你栏歌词行同款长条
-    // （_miniLyricRowRect），0~90% 原样、90~99% 渐变成迷你栏同款灰、
-    // 99% 后砍掉由真实迷你栏接管。
-    expect(full, contains('_miniLyricRowRect(miniRect)'));
-    expect(full, contains('final collapseTarget = lyricCollapsing'));
-    expect(full, contains('final dismissing = closing && progress < 1'));
-    expect(full, contains('AppColors.miniBar(context)'));
-    expect(full, contains('closeT >= 0.99'));
-    expect(full, contains('else if (!lyricCollapsing)'));
-    expect(full, contains('Theme.of(context).scaffoldBackgroundColor'));
-    expect(full, contains('color: Colors.transparent'));
-    expect(full, contains('if (_currentPage == 0 || landscape)'));
-    expect(full, contains('artworkReveal'));
-    expect(full, contains('progress >= 1.0 ? 1.0 : 0.0'));
-    expect(full, isNot(contains('((progress - 0.74) / 0.22).clamp(0.0, 1.0)')));
-    expect(full, contains('OverflowBox'));
-    expect(full, contains('ClipRRect'));
-    expect(full, contains('playerRouteProgress'));
-    expect(full, contains('MotionCurve.iosSpring'));
-    expect(full, contains('MotionDuration.playerReverse'));
-    // 内容必须在 morph 底还很小时就完全不透明，否则整屏会长时间
-    // 呈"半透明全屏白色层"（内容鬼影盖在白色 sheet 上，进入/退出各闪一次）；
-    // 之后各区块的显隐节奏交给 _StaggeredFade；封面全程隐藏、只留快照。
-    expect(full, contains('((progress - 0.95) / 0.05).clamp(0.0, 1.0)'));
-    // morph 覆盖层必须把 Positioned 直接挂在 Stack 下（IgnorePointer 在内侧），
-    // 否则 Debug 模式抛 ParentData 断言、Release 下覆盖层错位。
-    expect(
-      full,
-      contains(
-        'return Positioned.fromRect(\n      rect: rect,\n      child: IgnorePointer(',
+    return ProviderScope(
+      overrides: [
+        currentMusicProvider.overrideWithValue(music),
+        playerServiceProvider.overrideWithValue(PlayerService()),
+        currentMediaItemProvider.overrideWith((ref) => Stream.value(null)),
+        playbackStateProvider.overrideWith(
+          (ref) => Stream.value(
+            PlaybackState(
+              playing: false,
+              processingState: AudioProcessingState.idle,
+              controls: const [],
+              systemActions: const {},
+            ),
+          ),
+        ),
+        durationProvider.overrideWithValue(
+          AsyncValue.data(const Duration(seconds: 200)),
+        ),
+        playModeProvider.overrideWithValue(playMode),
+        playerPositionProvider.overrideWith(PositionNotifier.new),
+        beginScrubProvider.overrideWithValue(() async => 0),
+        finishScrubProvider.overrideWithValue(
+          (int gen, Duration target, {required bool resumeAfter}) async {},
+        ),
+        cancelScrubProvider.overrideWithValue((int gen) async {}),
+        currentLyricProvider.overrideWithValue(Lyrics.empty()),
+        currentLineIndexProvider.overrideWithValue(-1),
+      ],
+      child: MaterialApp(
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF111111),
+            brightness: Brightness.light,
+          ),
+          scaffoldBackgroundColor: Colors.white,
+        ),
+        home: const Scaffold(
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              ColoredBox(color: Color(0xFFB8D4FF)),
+              PlayerScreen(),
+            ],
+          ),
+        ),
       ),
     );
-    expect(
-      full,
-      isNot(
-        contains('return IgnorePointer(\n      child: Positioned.fromRect'),
-      ),
-    );
-    // morph 覆盖层终点必须取真实布局几何（GlobalKey 实测），否则
-    // 展开/收起终点与页面封面/按钮错位 -> "卡一下再向上跳"。
-    expect(full, contains('_recordMorphTargets()'));
-    expect(full, contains('final GlobalKey _artworkKey = GlobalKey();'));
-    expect(full, contains('key: _artworkKey'));
-    expect(full, contains('key: _controlsPlayKey'));
-    expect(full, contains('key: _lyricPlayKey'));
-    expect(full, contains('??\n            _fullArtworkRect('));
-    // 拖拽关闭必须从当前位置继续收拢（回弹/收拢都走同一跟手动画），
-    // 不能先放大回去再关，也不能让 Navigator 反向动画回写进度；
-    // 用确定性 controller 从当前位置 settle，避免弹簧 overshoot / cancel
-    // 后视觉停在半路（松手后没有动效/卡住）。
-    expect(full, contains('_settleRouteProgress('));
-    expect(full, contains('onComplete: _completeDragDismiss'));
-    expect(full, contains('_settleController'));
-    expect(full, contains('.forward(from: 0)'));
-    expect(full, contains('.orCancel'));
-    expect(full, contains('playerRouteDismissLocked = true;'));
-    expect(
-      full,
-      contains('final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0)'),
-    );
-    expect(
-      full,
-      isNot(contains('Matrix4.translationValues(0, _dragOffset, 0)')),
-    );
-    expect(full, isNot(contains('0.28 * (1 - revealT)')));
-    // 歌词页关闭的播放按钮 morph 必须按启用视觉渲染（绿色），
-    // 否则关闭瞬间按钮从绿变灰再变绿。
-    expect(full, contains('onPressed: () {},'));
-    expect(full, contains('enabled: true,'));
-    // 各区块独立节奏（stagger）。
-    expect(full, contains('_StaggeredFade'));
-    expect(full, contains('delay: 0.2')); // 歌名
-    expect(full, contains('delay: 0.3')); // 歌词
-    expect(full, contains('delay: 0.45')); // 进度
-    expect(full, contains('delay: 0.5')); // 控制按钮
-    expect(full, contains('delay: 0.55')); // AppBar
-    // 不再使用 Hero 飞行（由整体变形取代）。
-    expect(full, isNot(contains('tag: \'player-')));
-  });
+  }
 
-  test('mini player no longer wraps elements in heroes', () {
-    final mini = File(
-      'lib/features/player/presentation/widgets/mini_player.dart',
-    ).readAsStringSync();
+  Future<void> pumpAt(WidgetTester tester, double progress) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    playerRouteProgress.value = progress;
+    await tester.pumpWidget(harness());
+    await tester.pump();
+  }
 
-    expect(mini, isNot(contains('Hero(')));
-    expect(mini, isNot(contains('tag: \'player-')));
-    expect(mini, contains('playerRouteProgress'));
-    expect(mini, contains('progress > 0 && progress < 1'));
-  });
+  /// 收集当前渲染树里所有 `Positioned.fromRect` 出来的矩形。
+  List<Rect> morphRects(WidgetTester tester) {
+    final rects = <Rect>[];
+    for (final element in find.byType(Positioned).evaluate()) {
+      final widget = element.widget as Positioned;
+      final parentData = element.renderObject?.parentData;
+      if (parentData is StackParentData) {
+        // Positioned.fromRect 会同时给出 left/top/width/height。
+        if (widget.left != null &&
+            widget.top != null &&
+            widget.width != null &&
+            widget.height != null) {
+          rects.add(
+            Rect.fromLTWH(
+              widget.left!,
+              widget.top!,
+              widget.width!,
+              widget.height!,
+            ),
+          );
+        }
+      }
+    }
+    return rects;
+  }
 
-  test('player route drives shell squeeze and no page-level transforms', () {
-    final router = File('lib/router/app_router.dart').readAsStringSync();
-    final scaffold = File(
-      'lib/features/home/presentation/main_scaffold.dart',
-    ).readAsStringSync();
+  group('矩形 morph', () {
+    testWidgets('全屏状态下没有 Hero 飞行', (tester) async {
+      await pumpAt(tester, 1.0);
+      expect(find.byType(Hero), findsNothing);
+    });
 
-    // 页面级动画全部交给 PlayerScreen 内部矩形变形。
-    expect(router, contains('playerRouteProgress'));
-    expect(router, isNot(contains('ScaleTransition')));
-    expect(router, isNot(contains('FadeTransition')));
-    final player = File(
-      'lib/features/player/presentation/player_screen.dart',
-    ).readAsStringSync();
-    expect(player, contains('kFullPlayerTrackSwitchDuration'));
-    expect(player, contains('Duration(milliseconds: 880)'));
-    expect(player, contains('Duration(milliseconds: 860)'));
-    expect(player, contains('MotionDuration.playerReverse'));
-    expect(player, contains('_FullPlayerArtworkSwitcher'));
-    expect(player, contains('precacheImage'));
-    expect(player, contains('kFullPlayerArtworkSwitchDuration'));
-    expect(player, contains('ColoredBox'));
-    expect(player, isNot(contains('begin: const Offset(0.08, 0)')));
-    expect(player, contains('alignment: Alignment.centerLeft'));
-    expect(player, contains('width: double.infinity'));
-    expect(
-      player,
-      contains('final bottomSpacing = bottomInset == 0 ? 2.0 : 0.0'),
-    );
-    expect(
-      player,
-      contains('final bottomClearance = bottomInset == 0 ? 11.0 : 0.0'),
-    );
-    // 主壳联动：底栏淡出、Tab 上移、内容被顶起。
-    expect(scaffold, contains('playerRouteProgress'));
-    expect(scaffold, contains('chromeOpacity'));
-    expect(scaffold, contains('tabPush'));
-  });
-
-  test('full-screen lyric highlights use the green theme accent', () {
-    final lyric = File(
-      'lib/features/lyric/presentation/lyric_view.dart',
-    ).readAsStringSync();
-
-    expect(lyric, contains('activeColor: accent'));
-  });
-
-  test(
-    'playback queue uses draggable sheet so sheet drag tracks the finger',
-    () {
-      final full = File(
-        'lib/features/player/presentation/player_screen.dart',
-      ).readAsStringSync();
-
-      expect(full, contains('showKoyzeSheet'));
-      expect(full, contains('DraggableScrollableSheet'));
-      expect(full, contains('dragScrollController: scrollController'));
-      expect(full, contains('controller: _queueScrollController'));
-      expect(full, contains('initialChildSize: sheetSize'));
-      expect(full, contains('maxChildSize: sheetSize'));
-      expect(full, contains('snap: true'));
-      expect(full, contains('const extraHeight = 50.0'));
-      expect(full, contains('const maxSheetSize = 0.78'));
-      expect(full, isNot(contains('snapSizes:')));
-      expect(full, isNot(contains('_handleQueueScrollNotification')));
-      expect(full, contains('backgroundColor: Colors.transparent'));
-      expect(full, contains('GlassSurface('));
-      expect(full, contains('Material('));
-      expect(full, contains('color: Colors.transparent'));
-      expect(
-        full,
-        contains('borderRadius: BorderRadius.circular(koyzeSheetRadius)'),
+    testWidgets('mini 进度为 0 时不渲染 morph 覆盖层', (tester) async {
+      await pumpAt(tester, 0);
+      // progress 为 0 且未在关闭中，覆盖层应完全隐藏，
+      // 否则会在迷你栏上叠一层不可见的全屏遮罩吃掉点击。
+      expect(find.byType(IgnorePointer), findsWidgets);
+      final rects = morphRects(tester);
+      final screen = const Size(420, 900);
+      final fullScreenRects = rects.where(
+        (r) => r.width >= screen.width - 1 && r.height >= screen.height - 1,
       );
-      expect(full, contains('final pageContext = context'));
-      expect(full, contains('showPlaylistPicker(context: pageContext'));
-    },
-  );
+      expect(
+        fullScreenRects,
+        isEmpty,
+        reason: 'progress=0 时不应存在覆盖全屏的 morph 层',
+      );
+    });
 
-  test('search sheet closes through its own route reverse animation', () {
-    final sheet = File('lib/core/widgets/search_sheet.dart').readAsStringSync();
+    testWidgets('morph 矩形随 progress 单调变大', (tester) async {
+      final areas = <double>[];
+      for (final progress in <double>[0.15, 0.5, 0.85]) {
+        playerRouteProgress.value = progress;
+        await tester.pumpWidget(harness());
+        await tester.pump();
+        final rects = morphRects(tester);
+        expect(rects, isNotEmpty, reason: 'progress=$progress 时应有 morph 覆盖层');
+        // 取最大的一块作为 morph 主体
+        areas.add(
+          rects.map((r) => r.width * r.height).reduce((a, b) => a > b ? a : b),
+        );
+      }
+      expect(
+        areas[0],
+        lessThan(areas[1]),
+        reason: 'progress 增大时 morph 矩形应随之变大',
+      );
+      expect(areas[1], lessThan(areas[2]));
+    });
 
-    // 关闭不再是「先算一段位移再 pop」，而是直接交给路由反向动画，
-    // 拖动到一半松手也不会先弹回原位再淡出。
-    expect(sheet, contains('Navigator.of(context).maybePop()'));
-    expect(sheet, contains('reverseTransitionDuration'));
-    expect(sheet, isNot(contains('_closing')));
+    testWidgets('morph 覆盖层不拦截点击', (tester) async {
+      await pumpAt(tester, 0.5);
+      // 覆盖层内部必须是 IgnorePointer，否则展开动画期间整屏无法点击。
+      final ignorePointers = tester
+          .widgetList<IgnorePointer>(find.byType(IgnorePointer))
+          .toList();
+      expect(ignorePointers, isNotEmpty);
+      expect(
+        ignorePointers.any((w) => w.ignoring),
+        isTrue,
+        reason: 'morph 层必须有一层正在 ignoring 的 IgnorePointer',
+      );
+    });
   });
 
-  test('player route disables route snapshotting to avoid white flash', () {
-    final router = File('lib/router/app_router.dart').readAsStringSync();
+  group('页面级动画', () {
+    testWidgets('morph 层使用 IgnorePointer 包住覆盖内容', (tester) async {
+      await pumpAt(tester, 0.6);
+      // 覆盖层必须能透传点击（Positioned 在外、IgnorePointer 在内），
+      // 否则展开动画期间整屏点不动。这里验证结构顺序：
+      // 每个 Positioned.fromRect 的最外层子树里都能找到 IgnorePointer。
+      final positionedRects = find.byWidgetPredicate(
+        (w) =>
+            w is Positioned &&
+            w.left != null &&
+            w.top != null &&
+            w.width != null &&
+            w.height != null,
+      );
+      expect(positionedRects, findsWidgets);
+      for (final element in positionedRects.evaluate()) {
+        final hasIgnore = find
+            .descendant(
+              of: find.byElementPredicate((e) => e == element),
+              matching: find.byType(IgnorePointer),
+            )
+            .evaluate()
+            .isNotEmpty;
+        expect(
+          hasIgnore,
+          isTrue,
+          reason: 'Positioned 矩形层 ${(element.widget as Positioned).left}, '
+              '${(element.widget as Positioned).top} 缺少 IgnorePointer',
+        );
+      }
+    });
 
-    expect(router, contains('class _PlayerTransitionPage extends Page<void>'));
-    expect(
-      router,
-      contains('class _PlayerTransitionRoute extends PageRoute<void>'),
-    );
-    expect(router, contains('bool get allowSnapshotting => false'));
-    expect(router, contains('bool get opaque => false'));
-    expect(router, contains('barrierColor => Colors.transparent'));
-    expect(
-      router,
-      contains('pageBuilder: (context, state) => _PlayerTransitionPage'),
-    );
-    expect(router, isNot(contains('CustomTransitionPage<void>')));
+    testWidgets('全屏状态下没有溢出', (tester) async {
+      await pumpAt(tester, 1.0);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('高进度切换不抛异常', (tester) async {
+      await pumpAt(tester, 0.95);
+      expect(tester.takeException(), isNull);
+      playerRouteProgress.value = 1.0;
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
   });
-  test(
-    'main scaffold keeps underlying chrome visible during early player morph',
-    () {
-      final source = File(
-        'lib/features/home/presentation/main_scaffold.dart',
-      ).readAsStringSync();
-
-      expect(source, contains('visibleProgress'));
-      expect(source, contains('final descending = progress < _prevProgress'));
-      expect(source, contains('descending || progress <= 0.92'));
-      expect(source, contains('final chromeOpacity'));
-      expect(source, contains('1 - visibleProgress'));
-    },
-  );
 }

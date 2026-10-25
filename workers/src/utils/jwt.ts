@@ -4,36 +4,78 @@
 
 import type { Env } from '../lib/response';
 
+/**
+ * Module-scoped cache for the HMAC signing secret.
+ *
+ * Every authenticated request calls `verifyToken`, which previously did a D1
+ * round-trip on `system_settings` just to fetch the secret — one extra database
+ * query per request across the whole API surface. Workers reuse the same
+ * isolate for many requests, so caching a value that is immutable for the
+ * lifetime of the deployment removes the round-trip from the hot path.
+ *
+ * Invalidation: the secret only changes via an explicit rotation, which would
+ * be an operational action requiring a deploy/isolate restart anyway. We key
+ * the cache by the secret's own value lookup result, not by env, because a
+ * single isolate serves exactly one deployment.
+ */
+let cachedSecret: string | null = null;
+let secretLoad: Promise<string> | null = null;
+
+/** Test-only escape hatch: forget the cached secret. */
+export function __resetJwtSecretCache(): void {
+  cachedSecret = null;
+  secretLoad = null;
+}
+
 export async function getJwtSecret(env: Env, initialize = true): Promise<string> {
-  const kvKey = 'v2:system:jwt_secret';
-  if (!initialize) {
-    const existing = await env.DB.prepare(
+  if (cachedSecret !== null) return cachedSecret;
+
+  // Coalesce concurrent misses so a burst of requests performs one D1 read.
+  if (secretLoad !== null) return secretLoad;
+
+  secretLoad = (async () => {
+    const kvKey = 'v2:system:jwt_secret';
+    if (!initialize) {
+      const existing = await env.DB.prepare(
+        'SELECT value FROM system_settings WHERE key = ?'
+      ).bind('jwt_secret').first<{ value: string }>();
+      if (!existing?.value) throw new Error('JWT secret is not initialized');
+      return existing.value;
+    }
+
+    const current = await env.DB.prepare(
       'SELECT value FROM system_settings WHERE key = ?'
     ).bind('jwt_secret').first<{ value: string }>();
-    if (!existing?.value) throw new Error('JWT secret is not initialized');
-    return existing.value;
+    if (current?.value) return current.value;
+
+    const legacy = await env.CACHE.get(kvKey);
+    let candidate = typeof legacy === 'string' && legacy.length >= 32 ? legacy : '';
+    if (!candidate) {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      candidate = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    await env.DB.prepare(
+      'INSERT OR IGNORE INTO system_settings (key, value) VALUES (?, ?)'
+    ).bind('jwt_secret', candidate).run();
+    const authoritative = await env.DB.prepare(
+      'SELECT value FROM system_settings WHERE key = ?'
+    ).bind('jwt_secret').first<{ value: string }>();
+    if (!authoritative?.value) throw new Error('JWT secret initialization failed');
+    return authoritative.value;
+  })();
+
+  try {
+    const value = await secretLoad;
+    cachedSecret = value;
+    return value;
+  } catch (error) {
+    // Do not cache failures — a transient D1 error must not wedge auth until
+    // the isolate restarts.
+    throw error;
+  } finally {
+    secretLoad = null;
   }
-
-  const current = await env.DB.prepare(
-    'SELECT value FROM system_settings WHERE key = ?'
-  ).bind('jwt_secret').first<{ value: string }>();
-  if (current?.value) return current.value;
-
-  const legacy = await env.CACHE.get(kvKey);
-  let candidate = typeof legacy === 'string' && legacy.length >= 32 ? legacy : '';
-  if (!candidate) {
-    const bytes = crypto.getRandomValues(new Uint8Array(32));
-    candidate = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-
-  await env.DB.prepare(
-    'INSERT OR IGNORE INTO system_settings (key, value) VALUES (?, ?)'
-  ).bind('jwt_secret', candidate).run();
-  const authoritative = await env.DB.prepare(
-    'SELECT value FROM system_settings WHERE key = ?'
-  ).bind('jwt_secret').first<{ value: string }>();
-  if (!authoritative?.value) throw new Error('JWT secret initialization failed');
-  return authoritative.value;
 }
 
 function base64url(bytes: Uint8Array): string {

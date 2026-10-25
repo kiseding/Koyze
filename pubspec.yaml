@@ -7,7 +7,9 @@ homepage: https://github.com/kiseding/koyze
 repository: https://github.com/kiseding/koyze
 issue_tracker: https://github.com/kiseding/koyze/issues
 
-# Apache 2.0 开源许可证
+# Apache-2.0 仅覆盖本项目新增与修改的部分。
+# 上游 LX-Music-Flutter-Mobile 未声明许可证，其原始代码版权归原作者，
+# 详见仓库根目录的 NOTICE 文件。
 license: Apache-2.0
 
 environment:
@@ -88,6 +90,10 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  # Required by `flutter gen-l10n`; without it the generated AppLocalizations
+  # class is not wired into the build. It was previously placed under
+  # flutter_launcher_icons, where it had no effect.
+  generate: true
   config:
     # Nested WorkBuddy/CodeBuddy sandboxes cannot resolve Swift packages
     # (`sandbox-exec: sandbox_apply: Operation not permitted`). Force the

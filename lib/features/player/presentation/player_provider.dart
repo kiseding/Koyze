@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/material.dart' show IconData, Icons;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/audio/playback_command_coordinator.dart';
+import '../../../core/state/buildless_notifier.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
@@ -93,13 +95,9 @@ final playbackStateProvider = StreamProvider<PlaybackState>((ref) {
 });
 
 // 实时进度：用 Timer 轮询 just_audio 的 position（比 StreamProvider 更可靠）
-final playerPositionProvider =
-    StateNotifierProvider<PositionNotifier, Duration>((ref) {
-      if (audioHandler is LxAudioHandler) {
-        return PositionNotifier(audioHandler as LxAudioHandler);
-      }
-      return PositionNotifier(null);
-    });
+final playerPositionProvider = NotifierProvider<PositionNotifier, Duration>(
+  PositionNotifier.new,
+);
 
 // 适配 MiniPlayer 的别名提供者
 final positionProvider = playerPositionProvider;
@@ -147,6 +145,36 @@ PlayMode playModeFromPlaybackState(PlaybackState state) {
   return PlayMode.sequential;
 }
 
+/// 点击播放模式按钮时循环切换的下一个模式。
+///
+/// 这个状态机放在模块级而不是 Widget 私有方法里，是为了能被单元测试直接覆盖：
+/// 它是最容易被"顺手改一下顺序"改坏、却只有在真机上点三下才能发现的地方。
+PlayMode nextPlayMode(PlayMode current) {
+  switch (current) {
+    case PlayMode.repeatOne:
+      return PlayMode.sequential;
+    case PlayMode.sequential:
+      return PlayMode.shuffle;
+    case PlayMode.shuffle:
+      return PlayMode.repeatOne;
+  }
+}
+
+/// 每种播放模式对应的图标。
+///
+/// 图标本身就是用户唯一能看到的模式指示，因此单独暴露以便测试钉住
+/// 「哪个模式配哪个图标」这一映射关系。
+IconData playModeIcon(PlayMode mode) {
+  switch (mode) {
+    case PlayMode.repeatOne:
+      return Icons.repeat_one;
+    case PlayMode.sequential:
+      return Icons.repeat;
+    case PlayMode.shuffle:
+      return Icons.shuffle;
+  }
+}
+
 // 播放模式只读 handler 已发布的 repeat/shuffle 状态。
 final playModeProvider = Provider<PlayMode>((ref) {
   final state = ref.watch(playbackStateProvider).value;
@@ -155,36 +183,61 @@ final playModeProvider = Provider<PlayMode>((ref) {
 
 /// 播放位置唯一真相：just_audio position + seek 不连续事件。
 /// 进度条 / 时间 / 歌词全部只读这里，禁止各自维护另一套时钟。
-class PositionNotifier extends StateNotifier<Duration>
+class PositionNotifier extends BuildlessNotifier<Duration>
     implements ScrubPosition {
-  final LxAudioHandler? _handler;
+  /// The handler is injected by tests. Provider-hosted instances pass nothing
+  /// and pick up the global [audioHandler] from [build].
+  PositionNotifier([LxAudioHandler? handler])
+    : _injectedHandler = handler,
+      super(Duration.zero) {
+    // Direct instantiation (tests) has no provider to build, so tracking
+    // starts here; provider-hosted instances start it from [build].
+    if (handler != null) _startTracking(handler);
+  }
+
+  final LxAudioHandler? _injectedHandler;
   AudioPlayer? _player;
   Timer? _timer;
   StreamSubscription<AudioPlayer>? _playerSub;
   StreamSubscription<Duration>? _posSub;
   StreamSubscription<PositionDiscontinuity>? _discSub;
   bool _frozen = false;
-  bool _disposed = false;
+  bool _trackingStarted = false;
   int _playerBindingGeneration = 0;
 
-  PositionNotifier(this._handler) : super(Duration.zero) {
-    final handler = _handler;
-    if (handler == null) return;
+  @override
+  Duration build() {
+    if (!_trackingStarted && _injectedHandler == null) {
+      // `audioHandler` is a `late` global; reading it before bootstrap throws.
+      // A widget test that overrides this provider has no handler at all.
+      try {
+        final handler = audioHandler;
+        if (handler is LxAudioHandler) _startTracking(handler);
+      } catch (_) {
+        // No handler yet: stay at zero until the provider is rebuilt.
+      }
+    }
+    return super.build();
+  }
+
+  void _startTracking(LxAudioHandler handler) {
+    if (_trackingStarted) return;
+    _trackingStarted = true;
     _bindPlayer(handler.player);
     _playerSub = handler.playerStream.listen(_bindPlayer);
 
     // 兜底轮询，覆盖部分 iOS 场景下 positionStream 间歇停更。
     _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (_disposed || _frozen) return;
+      if (!mounted || _frozen) return;
       final player = _player;
       if (player == null) return;
       final p = player.position;
-      if ((p - state).inMilliseconds.abs() >= 30) update(p);
+      if ((p - value).inMilliseconds.abs() >= 30) update(p);
     });
   }
 
   void _bindPlayer(AudioPlayer player) {
-    if (_disposed || identical(_player, player)) return;
+    if (!mounted || identical(_player, player)) return;
     final bindingGeneration = ++_playerBindingGeneration;
     final oldPositionSubscription = _posSub;
     final oldDiscontinuitySubscription = _discSub;
@@ -199,15 +252,15 @@ class PositionNotifier extends StateNotifier<Duration>
     }
     update(player.position);
     _posSub = player.positionStream.listen((position) {
-      if (_disposed ||
+      if (!mounted ||
           _frozen ||
           bindingGeneration != _playerBindingGeneration) {
         return;
       }
-      if ((position - state).inMilliseconds.abs() >= 16) update(position);
+      if ((position - value).inMilliseconds.abs() >= 16) update(position);
     });
     _discSub = player.positionDiscontinuityStream.listen((_) {
-      if (_disposed ||
+      if (!mounted ||
           _frozen ||
           bindingGeneration != _playerBindingGeneration) {
         return;
@@ -216,11 +269,11 @@ class PositionNotifier extends StateNotifier<Duration>
     });
   }
 
-  Duration get position => state;
+  Duration get position => value;
 
   void update(Duration next) {
-    if (_disposed || next == state) return;
-    state = next;
+    if (!mounted || next == value) return;
+    publish(next);
   }
 
   @override
@@ -240,14 +293,12 @@ class PositionNotifier extends StateNotifier<Duration>
   }
 
   @override
-  void dispose() {
-    _disposed = true;
+  void onTeardown() {
     _playerBindingGeneration++;
     _timer?.cancel();
     _playerSub?.cancel();
     _posSub?.cancel();
     _discSub?.cancel();
-    super.dispose();
   }
 }
 
@@ -398,34 +449,58 @@ final class SleepTimerFailed extends SleepTimerState {
   final Duration duration;
 }
 
-class SleepTimerNotifier extends StateNotifier<SleepTimerState> {
-  SleepTimerNotifier(this._pause) : super(const SleepTimerIdle());
+class SleepTimerNotifier extends BuildlessNotifier<SleepTimerState> {
+  /// The pause callback is injected by tests. Provider-hosted instances pass
+  /// nothing and use the global [audioHandler] from [build].
+  SleepTimerNotifier([Future<void> Function()? pause])
+    : _pauseOverride = pause,
+      _pause = pause ?? (() async {}),
+      super(const SleepTimerIdle());
 
-  final Future<void> Function() _pause;
+  final Future<void> Function()? _pauseOverride;
+  Future<void> Function() _pause;
   Timer? _timer;
   int _generation = 0;
+
+  @override
+  SleepTimerState build() {
+    if (_pauseOverride != null) {
+      _pause = _pauseOverride;
+    } else {
+      // `audioHandler` is a `late` global; a widget test can mount the sleep
+      // timer sheet before bootstrap has assigned it.
+      try {
+        _pause = audioHandler.pause;
+      } catch (_) {
+        // Leave the no-op pause in place.
+      }
+    }
+    return super.build();
+  }
 
   void startTimer(Duration duration) {
     _timer?.cancel();
     final generation = ++_generation;
-    state = SleepTimerRunning(duration, DateTime.now().add(duration));
+    publish(SleepTimerRunning(duration, DateTime.now().add(duration)));
 
     _timer = Timer(duration, () async {
       try {
         await _pause();
         if (!mounted || generation != _generation) return;
         _timer = null;
-        state = const SleepTimerIdle();
+        publish(const SleepTimerIdle());
       } catch (_) {
         if (!mounted || generation != _generation) return;
         _timer = null;
-        state = SleepTimerFailed(SleepTimerFailureReason.pauseFailed, duration);
+        publish(
+          SleepTimerFailed(SleepTimerFailureReason.pauseFailed, duration),
+        );
       }
     });
   }
 
   void retryTimer() {
-    if (state case SleepTimerFailed(:final duration)) {
+    if (value case SleepTimerFailed(:final duration)) {
       startTimer(duration);
     }
   }
@@ -434,22 +509,21 @@ class SleepTimerNotifier extends StateNotifier<SleepTimerState> {
     _generation++;
     _timer?.cancel();
     _timer = null;
-    state = const SleepTimerIdle();
+    publish(const SleepTimerIdle());
   }
 
   @override
-  void dispose() {
+  void onTeardown() {
     _generation++;
     _timer?.cancel();
     _timer = null;
-    super.dispose();
   }
 }
 
 final sleepTimerProvider =
-    StateNotifierProvider<SleepTimerNotifier, SleepTimerState>((ref) {
-      return SleepTimerNotifier(audioHandler.pause);
-    });
+    NotifierProvider<SleepTimerNotifier, SleepTimerState>(
+      SleepTimerNotifier.new,
+    );
 
 // 全局播放消息通知（用于展示顶部通知）
 final playerMessageProvider = StateProvider<String?>((ref) => null);

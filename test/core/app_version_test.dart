@@ -1,13 +1,12 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/app_version.dart';
+import '../support/source_text.dart';
 
 /// 版本号散落在四处：Dart 常量、pubspec、鸿蒙 pubspec、app.json5。
 /// 发版时漏改任意一处，产物里的版本就会互相打架（比如设置页显示 4.1.0
 /// 但 HAP 的 versionCode 还是旧的），这里把它们钉在一起。
 void main() {
-  String read(String path) => File(path).readAsStringSync();
+  String read(String path) => readSource(path);
 
   /// 从 `version: 4.1.0+410` 里取出版本名与构建号。
   (String, int) parsePubspecVersion(String yaml) {

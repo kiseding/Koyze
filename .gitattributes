@@ -1,0 +1,38 @@
+# 统一换行符为 LF。
+#
+# 背景：仓库里有若干测试会读取源码文件做断言（这类测试本身是有问题的，
+# 正在逐步替换为行为测试）。如果 Windows 上 git 把源文件检出为 CRLF，
+# `contains('...\n')` 这类断言就会误报失败。
+#
+# 即使以后这类测试全部清掉，Dart / TS / YAML 统一 LF 也能避免
+# 跨平台 diff 噪音。
+* text=auto eol=lf
+
+# 必须保持二进制原样
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.so binary
+*.a binary
+*.jar binary
+*.zip binary
+*.hap binary
+*.jks binary
+*.keystore binary
+
+# Gradle wrapper 必须是 LF，否则 Windows 上 `gradlew` 会因 \r 报错
+gradlew eol=lf
+gradlew.bat eol=crlf
+*.bat eol=crlf
+*.cmd eol=crlf
+*.ps1 eol=crlf
+
+# 锁文件保持 LF，减少跨平台 churn
+pubspec.lock eol=lf
+package-lock.json eol=lf

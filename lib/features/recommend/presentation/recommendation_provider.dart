@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/state/buildless_notifier.dart';
+
 import '../../leaderboard/presentation/leaderboard_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../../playlist/presentation/playlist_provider.dart';
@@ -60,23 +62,19 @@ const Duration kRecommendationCacheTtl = Duration(hours: 12);
 /// Top-N 排序；联网搜索仅为算法补充“未收藏候选”。结果带 12 小时 TTL，
 /// 播放行为不再触发刷新（避免点一首歌整页重建）。
 final recommendationProvider =
-    StateNotifierProvider<
-      RecommendationNotifier,
-      AsyncValue<List<RecommendedSong>>
-    >((ref) {
-      return RecommendationNotifier(loader: () => computeRecommendations(ref));
-    });
+    NotifierProvider<RecommendationNotifier, AsyncValue<List<RecommendedSong>>>(
+      RecommendationNotifier.new,
+    );
 
 class RecommendationNotifier
-    extends StateNotifier<AsyncValue<List<RecommendedSong>>> {
-  RecommendationNotifier({
-    required Future<List<RecommendedSong>> Function() loader,
-  }) : _loader = loader,
-       super(const AsyncValue.loading()) {
-    _ensureData();
-  }
+    extends BuildlessNotifier<AsyncValue<List<RecommendedSong>>> {
+  RecommendationNotifier({Future<List<RecommendedSong>> Function()? loader})
+    : _loaderOverride = loader,
+      super(const AsyncValue.loading());
 
-  final Future<List<RecommendedSong>> Function() _loader;
+  final Future<List<RecommendedSong>> Function()? _loaderOverride;
+  Future<List<RecommendedSong>> Function() _loader = () async => const [];
+  bool _loadStarted = false;
   Timer? _refreshTimer;
   DateTime? _loadedAt;
   bool _inFlight = false;
@@ -95,11 +93,11 @@ class RecommendationNotifier
       final result = await _loader();
       if (!mounted || generation != _generation) return;
       _loadedAt = DateTime.now();
-      state = AsyncValue.data(result);
+      publish(AsyncValue.data(result));
       _scheduleNextRefresh();
     } catch (error, stackTrace) {
       if (mounted && generation == _generation) {
-        state = AsyncValue.error(error, stackTrace);
+        publish(AsyncValue.error(error, stackTrace));
       }
     } finally {
       if (generation == _generation) _inFlight = false;
@@ -126,10 +124,19 @@ class RecommendationNotifier
   }
 
   @override
-  void dispose() {
+  AsyncValue<List<RecommendedSong>> build() {
+    _loader = _loaderOverride ?? (() => computeRecommendations(ref));
+    if (!_loadStarted) {
+      _loadStarted = true;
+      unawaited(_ensureData());
+    }
+    return super.build();
+  }
+
+  @override
+  void onTeardown() {
     _generation++;
     _refreshTimer?.cancel();
-    super.dispose();
   }
 }
 

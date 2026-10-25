@@ -4,6 +4,7 @@ import '../../player/domain/music_item.dart';
 import 'nas_client.dart';
 import 'nas_config.dart';
 import 'nas_kind.dart';
+import '../../../core/logging/app_log.dart';
 
 /// Shared Emby / Jellyfin MediaBrowser REST client.
 class MediaBrowserNasClient extends NasClient {
@@ -113,7 +114,9 @@ class MediaBrowserNasClient extends NasClient {
           ),
         );
         version = info?['Version']?.toString();
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('nas.ping', 'fetching server version failed: $error', level: AppLogLevel.info);
+      }
       return NasPingResult(
         ok: true,
         serverType: kind.title,

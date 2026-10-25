@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import '../../../core/storage/storage_service.dart';
 import 'music_item.dart';
 import 'playback_session.dart';
+import '../../../core/logging/app_log.dart';
 
 /// 播放会话的本地持久化，供下次启动时恢复上次播放状态。
 class PlaybackSessionStore {
@@ -74,7 +75,9 @@ class PlaybackSessionStore {
       if (storage.getString(_legacyKey) != null) {
         await storage.remove(_legacyKey);
       }
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('player.session', 'persisting playback session failed: $error', level: AppLogLevel.warning);
+    }
   }
 
   String _contextHash(String value) =>
@@ -145,6 +148,8 @@ class PlaybackSessionStore {
       await storage.remove(_contextKey);
       await storage.remove(_currentKey);
       _lastContextJson = null;
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('player.session', 'clearing playback session failed: $error', level: AppLogLevel.warning);
+    }
   }
 }

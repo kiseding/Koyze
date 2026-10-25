@@ -35,12 +35,12 @@ void main() {
     );
     await notifier.restored;
 
-    expect(notifier.state.loading, isFalse);
-    expect(notifier.state.supported, isTrue);
-    expect(notifier.state.settings.enabled, isTrue);
-    expect(notifier.state.settings.presetId, 'bass');
-    expect(notifier.state.layout, fiveBandLayout);
-    expect(notifier.state.gains, <double>[3, 1.5, -1, -2, -2.5]);
+    expect(notifier.value.loading, isFalse);
+    expect(notifier.value.supported, isTrue);
+    expect(notifier.value.settings.enabled, isTrue);
+    expect(notifier.value.settings.presetId, 'bass');
+    expect(notifier.value.layout, fiveBandLayout);
+    expect(notifier.value.gains, <double>[3, 1.5, -1, -2, -2.5]);
     expect(bridge.applies.single.enabled, isTrue);
     expect(bridge.applies.single.gains, <double>[3, 1.5, -1, -2, -2.5]);
   });
@@ -55,9 +55,9 @@ void main() {
     );
     await notifier.restored;
 
-    expect(notifier.state.settings, const EqualizerSettings());
-    expect(notifier.state.settings.enabled, isFalse);
-    expect(notifier.state.interactive, isFalse);
+    expect(notifier.value.settings, const EqualizerSettings());
+    expect(notifier.value.settings.enabled, isFalse);
+    expect(notifier.value.interactive, isFalse);
     expect(bridge.applies.single.enabled, isFalse);
   });
 
@@ -103,10 +103,10 @@ void main() {
 
     await notifier.setBandGain(1, 7.5);
 
-    expect(notifier.state.settings.isCustom, isTrue);
-    expect(notifier.state.settings.presetId, kCustomPresetId);
-    expect(notifier.state.gains, <double>[3, 7.5, -1, -2, -2.5]);
-    expect(notifier.state.settings.presetLabel, '自定义');
+    expect(notifier.value.settings.isCustom, isTrue);
+    expect(notifier.value.settings.presetId, kCustomPresetId);
+    expect(notifier.value.gains, <double>[3, 7.5, -1, -2, -2.5]);
+    expect(notifier.value.settings.presetLabel, '自定义');
   });
 
   test('频段增益被夹在设备允许范围内', () async {
@@ -119,14 +119,14 @@ void main() {
     await notifier.restored;
 
     await notifier.setBandGain(0, 999);
-    expect(notifier.state.gains[0], fiveBandLayout.maxDecibels);
+    expect(notifier.value.gains[0], fiveBandLayout.maxDecibels);
 
     await notifier.setBandGain(0, -999);
-    expect(notifier.state.gains[0], fiveBandLayout.minDecibels);
+    expect(notifier.value.gains[0], fiveBandLayout.minDecibels);
 
     // 越界索引直接忽略。
     await notifier.setBandGain(9, 3);
-    expect(notifier.state.gains[0], fiveBandLayout.minDecibels);
+    expect(notifier.value.gains[0], fiveBandLayout.minDecibels);
   });
 
   test('重置回到原声但保留总开关', () async {
@@ -148,9 +148,9 @@ void main() {
 
     await notifier.resetToFlat();
 
-    expect(notifier.state.settings.presetId, kDefaultPresetId);
-    expect(notifier.state.gains, List<double>.filled(5, 0));
-    expect(notifier.state.settings.enabled, isTrue);
+    expect(notifier.value.settings.presetId, kDefaultPresetId);
+    expect(notifier.value.gains, List<double>.filled(5, 0));
+    expect(notifier.value.settings.enabled, isTrue);
   });
 
   test('布局未就绪时按兜底布局展示，就绪后替换', () async {
@@ -166,18 +166,18 @@ void main() {
     );
     await notifier.restored;
 
-    expect(notifier.state.layoutReady, isFalse);
-    expect(notifier.state.effectiveLayout, kFallbackEqualizerLayout);
-    expect(notifier.state.gains.length, kFallbackEqualizerLayout.bandCount);
+    expect(notifier.value.layoutReady, isFalse);
+    expect(notifier.value.effectiveLayout, kFallbackEqualizerLayout);
+    expect(notifier.value.gains.length, kFallbackEqualizerLayout.bandCount);
 
     // 播放器激活后拿到真实布局：段数不同，增益按预设曲线重新采样。
     bridge.layout = tenBandLayout;
     await notifier.refreshLayout();
 
-    expect(notifier.state.layoutReady, isTrue);
-    expect(notifier.state.effectiveLayout, tenBandLayout);
-    expect(notifier.state.gains.length, 10);
-    expect(notifier.state.gains.first, closeTo(3, 0.5));
+    expect(notifier.value.layoutReady, isTrue);
+    expect(notifier.value.effectiveLayout, tenBandLayout);
+    expect(notifier.value.gains.length, 10);
+    expect(notifier.value.gains.first, closeTo(3, 0.5));
   });
 
   test('平台不支持时不施加但仍保留设置', () async {
@@ -189,8 +189,8 @@ void main() {
     );
     await notifier.restored;
 
-    expect(notifier.state.supported, isFalse);
-    expect(notifier.state.interactive, isFalse);
+    expect(notifier.value.supported, isFalse);
+    expect(notifier.value.interactive, isFalse);
     expect(bridge.applies, isEmpty);
 
     await notifier.setEnabled(true);
@@ -216,8 +216,8 @@ void main() {
     );
     await notifier.restored;
 
-    expect(notifier.state.loading, isFalse);
-    expect(notifier.state.settings, const EqualizerSettings());
+    expect(notifier.value.loading, isFalse);
+    expect(notifier.value.settings, const EqualizerSettings());
   });
 
   test('设置页副标题反映开关与预设', () async {

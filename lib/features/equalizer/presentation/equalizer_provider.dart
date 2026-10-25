@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:koyze/core/audio/audio_handler.dart';
 import 'package:koyze/core/audio/equalizer_bridge.dart';
+import 'package:koyze/core/state/buildless_notifier.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_preset.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_settings.dart';
@@ -113,29 +113,47 @@ final equalizerStorageProvider = Provider<StorageLoader>(
       () => StorageService.instance,
 );
 
-final equalizerProvider =
-    StateNotifierProvider<EqualizerNotifier, EqualizerState>((ref) {
-      return EqualizerNotifier(
-        bridge: ref.watch(equalizerBridgeProvider),
-        storage: ref.watch(equalizerStorageProvider),
-      );
-    });
+final equalizerProvider = NotifierProvider<EqualizerNotifier, EqualizerState>(
+  EqualizerNotifier.new,
+);
 
-class EqualizerNotifier extends StateNotifier<EqualizerState> {
-  EqualizerNotifier({required EqualizerBridge bridge, StorageLoader? storage})
-    : _bridge = bridge,
-      _storage = storage ?? (() => StorageService.instance),
-      super(EqualizerState(supported: bridge.isSupported)) {
-    _restored = _restore();
+class EqualizerNotifier extends BuildlessNotifier<EqualizerState> {
+  EqualizerNotifier({EqualizerBridge? bridge, StorageLoader? storage})
+    : _bridgeOverride = bridge,
+      _storageOverride = storage,
+      super(EqualizerState(supported: bridge?.isSupported ?? false)) {
+    // Direct instantiation (tests) has no provider to build, so the restore
+    // starts here; provider-hosted instances start it from [build].
+    if (bridge != null) {
+      _bridge = bridge;
+      if (storage != null) _storage = storage;
+      _restoreStarted = true;
+      _restored = _restore();
+    }
   }
 
-  final EqualizerBridge _bridge;
-  final StorageLoader _storage;
-  late final Future<void> _restored;
+  final EqualizerBridge? _bridgeOverride;
+  final StorageLoader? _storageOverride;
+  EqualizerBridge _bridge = const UnsupportedEqualizerBridge();
+  StorageLoader _storage = () => StorageService.instance;
+  Future<void> _restored = Future<void>.value();
+  bool _restoreStarted = false;
 
   /// 首次读取持久化设置完成的信号（测试用）。
   @visibleForTesting
   Future<void> get restored => _restored;
+
+  @override
+  EqualizerState build() {
+    _bridge = _bridgeOverride ?? ref.watch(equalizerBridgeProvider);
+    _storage = _storageOverride ?? ref.watch(equalizerStorageProvider);
+    if (!_restoreStarted) {
+      _restoreStarted = true;
+      publish(EqualizerState(supported: _bridge.isSupported));
+      _restored = _restore();
+    }
+    return super.build();
+  }
 
   Future<void> _restore() async {
     var settings = const EqualizerSettings();
@@ -146,36 +164,36 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
       // 读取失败按默认值处理，不影响进入页面。
     }
     if (!mounted) return;
-    state = state.copyWith(settings: settings, loading: false);
+    publish(value.copyWith(settings: settings, loading: false));
     if (!_bridge.isSupported) return;
     // 先登记并施加期望状态：播放器还没激活时桥会记下来，激活后自己补上，
     // 用户不必重进页面。
     await _bridge.apply(
       enabled: settings.enabled,
-      gains: settings.gainsFor(state.effectiveLayout),
+      gains: settings.gainsFor(value.effectiveLayout),
     );
     await _refreshLayout();
   }
 
   Future<void> setEnabled(bool enabled) =>
-      _commit(state.settings.copyWith(enabled: enabled));
+      _commit(value.settings.copyWith(enabled: enabled));
 
   /// 选择预设：按当前布局把曲线采样成频段增益。
   Future<void> selectPreset(String presetId) => _commit(
-    state.settings.copyWith(
+    value.settings.copyWith(
       presetId: presetId,
-      gains: gainsForPreset(presetId, state.effectiveLayout.centerFrequencies),
+      gains: gainsForPreset(presetId, value.effectiveLayout.centerFrequencies),
     ),
   );
 
   /// 拖动单个频段：切到「自定义」。
   Future<void> setBandGain(int index, double gain) async {
-    final layout = state.effectiveLayout;
+    final layout = value.effectiveLayout;
     if (index < 0 || index >= layout.bandCount) return;
-    final gains = List<double>.of(state.settings.gainsFor(layout));
+    final gains = List<double>.of(value.settings.gainsFor(layout));
     gains[index] = layout.clampGain(gain);
     await _commit(
-      state.settings.copyWith(presetId: kCustomPresetId, gains: gains),
+      value.settings.copyWith(presetId: kCustomPresetId, gains: gains),
     );
   }
 
@@ -186,20 +204,20 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
   Future<void> refreshLayout() => _refreshLayout();
 
   Future<void> _commit(EqualizerSettings settings) async {
-    state = state.copyWith(settings: settings);
+    publish(value.copyWith(settings: settings));
     await _persist(settings);
     if (!_bridge.isSupported) return;
     await _bridge.apply(
       enabled: settings.enabled,
-      gains: settings.gainsFor(state.effectiveLayout),
+      gains: settings.gainsFor(value.effectiveLayout),
     );
     await _refreshLayout();
   }
 
   Future<void> _refreshLayout() async {
     final layout = await _bridge.loadLayout();
-    if (!mounted || layout == null || layout == state.layout) return;
-    state = state.copyWith(layout: layout);
+    if (!mounted || layout == null || layout == value.layout) return;
+    publish(value.copyWith(layout: layout));
   }
 
   Future<void> _persist(EqualizerSettings settings) async {

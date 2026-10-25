@@ -1,6 +1,5 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
+import 'support/source_text.dart';
 
 /// Guards the release-build contract between Pigeon JNI plugins and R8.
 ///
@@ -20,7 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// `kotlin.Unit` by name, so those keep their members as well.
 void main() {
   test('release proguard rules keep the Kotlin types used by Pigeon JNI', () {
-    final rules = File('android/app/proguard-rules.pro').readAsStringSync();
+    final rules = readSource('android/app/proguard-rules.pro');
 
     // Descriptor types must never be renamed.
     expect(rules, contains('-keepnames class kotlin.**'));

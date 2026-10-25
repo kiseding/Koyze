@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/network/app_http_client.dart';
 import '../../../core/storage/secure_token_store.dart';
 import '../../../core/network/outbound_url.dart';
+import '../../../core/logging/app_log.dart';
 
 /// 对接 workers/ 子项目（lx-music-api）的客户端。
 enum CloudVerification { valid, unauthorized, unavailable, noSession }
@@ -274,7 +275,7 @@ class CloudApiClient {
             if (!_ownsBaseUrlRevision(baseUrlRevision)) return;
             _baseUrl = validated;
             _configurationError = null;
-          } catch (_) {
+          } catch (error) {
             try {
               await _restorePreference(
                 preferences,
@@ -282,7 +283,9 @@ class CloudApiClient {
                 previousMetaUsername,
               );
               await _restorePreference(preferences, _kRole, previousMetaRole);
-            } catch (_) {}
+            } catch (error) {
+              AppLog.instance.record('cloud.session', 'restoring previous session preferences failed: $error', level: AppLogLevel.warning);
+            }
             if (_ownsBaseUrlRevision(baseUrlRevision)) {
               _baseUrl = previousBaseUrl;
               _configurationError =
@@ -1043,7 +1046,9 @@ class CloudApiClient {
             queryParameters: {'operationId': operationId},
             options: _authOptions(),
           );
-        } catch (_) {}
+        } catch (error) {
+          AppLog.instance.record('cloud.sync', 'clearing staged sync operation failed: $error', level: AppLogLevel.info);
+        }
       }
     }
   }

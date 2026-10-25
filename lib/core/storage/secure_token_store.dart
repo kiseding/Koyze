@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../logging/app_log.dart';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -244,7 +245,9 @@ final class LegacyTokenMigrator {
         if (leftoverLegacy != null && leftoverLegacy.isNotEmpty) {
           try {
             await secureStore.delete(legacyKey);
-          } catch (_) {}
+          } catch (error) {
+            AppLog.instance.record('storage.secure', 'deleting leftover legacy token failed: $error', level: AppLogLevel.warning);
+          }
         }
         return originSecure;
       }
@@ -267,7 +270,9 @@ final class LegacyTokenMigrator {
 
       try {
         await runMutation(() => secureStore.delete(legacyKey));
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('storage.secure', 'deleting migrated legacy token failed: $error', level: AppLogLevel.warning);
+      }
 
       if (legacyPlain != null && legacyPlain.isNotEmpty) {
         var marked = false;
@@ -294,7 +299,9 @@ final class LegacyTokenMigrator {
     } catch (error) {
       try {
         await preferences.remove(legacyKey);
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('storage.secure', 'removing legacy preference after migration error failed: $error', level: AppLogLevel.warning);
+      }
       if (error is SecureTokenMigrationException) rethrow;
       throw SecureTokenMigrationException(originKey, error);
     }

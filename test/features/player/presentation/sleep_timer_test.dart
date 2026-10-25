@@ -14,15 +14,15 @@ void main() {
     addTearDown(notifier.dispose);
 
     notifier.startTimer(const Duration(seconds: 1));
-    expect(notifier.state, isA<SleepTimerRunning>());
+    expect(notifier.value, isA<SleepTimerRunning>());
     await tester.pump(const Duration(seconds: 1));
 
     expect(pauseCalls, 1);
-    expect(notifier.state, isA<SleepTimerRunning>());
+    expect(notifier.value, isA<SleepTimerRunning>());
 
     pause.complete();
     await tester.pump();
-    expect(notifier.state, isA<SleepTimerIdle>());
+    expect(notifier.value, isA<SleepTimerIdle>());
   });
 
   testWidgets('timer exposes pause failure deterministically', (tester) async {
@@ -37,7 +37,7 @@ void main() {
     await tester.pump(duration);
     await tester.pump();
 
-    final state = notifier.state;
+    final state = notifier.value;
     expect(state, isA<SleepTimerFailed>());
     expect(
       (state as SleepTimerFailed).reason,
@@ -60,18 +60,18 @@ void main() {
     notifier.startTimer(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
-    expect(notifier.state, isA<SleepTimerFailed>());
+    expect(notifier.value, isA<SleepTimerFailed>());
 
     notifier.retryTimer();
-    expect(notifier.state, isA<SleepTimerRunning>());
+    expect(notifier.value, isA<SleepTimerRunning>());
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
     expect(pauseCalls, 2);
-    expect(notifier.state, isA<SleepTimerIdle>());
+    expect(notifier.value, isA<SleepTimerIdle>());
 
     notifier.startTimer(const Duration(seconds: 1));
     notifier.cancelTimer();
-    expect(notifier.state, isA<SleepTimerIdle>());
+    expect(notifier.value, isA<SleepTimerIdle>());
   });
 
   testWidgets('reset prevents an old pause completion from publishing',
@@ -87,11 +87,11 @@ void main() {
     notifier.startTimer(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
     notifier.startTimer(const Duration(minutes: 1));
-    final replacement = notifier.state as SleepTimerRunning;
+    final replacement = notifier.value as SleepTimerRunning;
 
     oldPause.complete();
     await tester.pump();
-    expect(notifier.state, same(replacement));
+    expect(notifier.value, same(replacement));
     expect(pauseCalls, 1);
     notifier.cancelTimer();
   });
@@ -108,7 +108,7 @@ void main() {
 
     oldPause.completeError(StateError('late failure'));
     await tester.pump();
-    expect(notifier.state, isA<SleepTimerIdle>());
+    expect(notifier.value, isA<SleepTimerIdle>());
   });
 
   testWidgets('dispose prevents an old pause failure from escaping the zone',

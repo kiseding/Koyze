@@ -16,6 +16,7 @@ import '../../../core/network/source_request_policy.dart';
 import '../../../core/network/ios_source_transport.dart';
 import '../domain/custom_source.dart';
 import '../../player/domain/music_item.dart';
+import '../../../core/logging/app_log.dart';
 
 Map<String, dynamic> _decodeMap(String s) =>
     json.decode(s) as Map<String, dynamic>;
@@ -1163,7 +1164,9 @@ class CustomSourceEngine {
     while (_loadInFlight != null) {
       try {
         await _loadInFlight;
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('source.load', 'previous source load failed while serializing: $error', level: AppLogLevel.info);
+      }
     }
     final op = _loadSourceBody(source);
     _loadInFlight = op;

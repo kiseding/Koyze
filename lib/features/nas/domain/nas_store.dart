@@ -4,6 +4,7 @@ import '../../../core/storage/secure_token_store.dart';
 import '../../../core/storage/storage_service.dart';
 import 'nas_config.dart';
 import 'nas_kind.dart';
+import '../../../core/logging/app_log.dart';
 
 class NasStore {
   NasStore({
@@ -59,14 +60,18 @@ class NasStore {
     } else {
       try {
         await _tokenStore.delete(passwordKey);
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('nas.credentials', 'deleting unused NAS password failed: $error', level: AppLogLevel.warning);
+      }
     }
     if (secrets.hasToken) {
       await _tokenStore.write(tokenKey, secrets.token!);
     } else {
       try {
         await _tokenStore.delete(tokenKey);
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('nas.credentials', 'deleting unused NAS token failed: $error', level: AppLogLevel.warning);
+      }
     }
   }
 
@@ -74,10 +79,14 @@ class NasStore {
     if (baseUrl.trim().isEmpty) return;
     try {
       await _tokenStore.delete(originTokenKey(_passwordNs, baseUrl));
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('nas.credentials', 'deleting NAS password for $baseUrl failed: $error', level: AppLogLevel.warning);
+    }
     try {
       await _tokenStore.delete(originTokenKey(_tokenNs, baseUrl));
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('nas.credentials', 'deleting NAS token for $baseUrl failed: $error', level: AppLogLevel.warning);
+    }
   }
 
   Future<void> clear() async {
@@ -85,6 +94,8 @@ class NasStore {
     await deleteSecrets(config.baseUrl);
     try {
       await (await _storage()).remove(_configKey);
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('nas.config', 'clearing NAS config failed: $error', level: AppLogLevel.warning);
+    }
   }
 }

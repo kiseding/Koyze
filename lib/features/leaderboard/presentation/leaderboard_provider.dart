@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/music_source/platform/music_platform.dart';
 import '../../../core/music_source/platform/built_in_source_manager.dart';
+import '../../../core/state/buildless_notifier.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../search/presentation/search_provider.dart';
 import '../../player/domain/music_item.dart';
+import '../../../core/logging/app_log.dart';
 
 final builtInSourcesProvider = Provider<BuiltInSourceManager>((ref) {
   final musicSourceService = ref.watch(musicSourceServiceProvider);
@@ -15,35 +17,46 @@ final builtInSourcesProvider = Provider<BuiltInSourceManager>((ref) {
 // 排行榜分类列表：磁盘缓存优先（冷启动直接渲染上次的榜单），
 // 后台拉取最新覆盖并落盘；失败且无缓存才进入错误态。
 final leaderboardCategoriesProvider =
-    StateNotifierProvider<
+    NotifierProvider<
       LeaderboardCategoriesNotifier,
       AsyncValue<List<LeaderboardCategory>>
-    >((ref) {
-      return LeaderboardCategoriesNotifier(
-        ref,
-        () => StorageService.instance,
-      );
-    });
+    >(LeaderboardCategoriesNotifier.new);
 
 class LeaderboardCategoriesNotifier
-    extends StateNotifier<AsyncValue<List<LeaderboardCategory>>> {
-  LeaderboardCategoriesNotifier(this._ref, [StorageLoader? storage])
+    extends BuildlessNotifier<AsyncValue<List<LeaderboardCategory>>> {
+  LeaderboardCategoriesNotifier([StorageLoader? storage])
     : _storage = storage ?? (() => StorageService.instance),
       super(const AsyncValue.loading()) {
-    _init();
+    // A directly-constructed instance has no `build()`, so the load starts
+    // here. Provider-hosted instances skip this and start in [build].
+    if (storage != null) _startInit();
   }
 
   static const _cacheKey = 'leaderboard_categories_cache_v1';
 
-  final Ref _ref;
   final StorageLoader _storage;
+  Ref? _ref;
   bool _refreshing = false;
+  bool _initStarted = false;
+
+  @override
+  AsyncValue<List<LeaderboardCategory>> build() {
+    _ref = ref;
+    _startInit();
+    return super.build();
+  }
+
+  void _startInit() {
+    if (_initStarted) return;
+    _initStarted = true;
+    unawaited(_init());
+  }
 
   Future<void> _init() async {
     final cached = await _loadCache();
     if (!mounted) return;
     if (cached.isNotEmpty) {
-      state = AsyncValue.data(cached);
+      publish(AsyncValue.data(cached));
       unawaited(_refresh());
     } else {
       await _refresh();
@@ -55,7 +68,8 @@ class LeaderboardCategoriesNotifier
     if (_refreshing) return;
     _refreshing = true;
     try {
-      final builtIn = _ref.read(builtInSourcesProvider);
+      final builtIn = _ref?.read(builtInSourcesProvider);
+      if (builtIn == null) return;
       final fresh = await builtIn.getAllLeaderboardCategories();
       if (!mounted) return;
       // getAllLeaderboardCategories 把单个平台的超时或异常当成空列表吞掉
@@ -63,12 +77,12 @@ class LeaderboardCategoriesNotifier
       // 就会把那个平台的榜单从缓存里抹掉——酷我 41 个榜曾经因此整段消失，
       // 而且之后再启动永远只有另外两个平台。没拿到的平台沿用上一次的数据。
       final merged = _keepPlatformsMissingFrom(fresh);
-      state = AsyncValue.data(merged);
+      publish(AsyncValue.data(merged));
       await _persist(merged);
     } catch (error, stackTrace) {
       if (!mounted) return;
-      if (state is! AsyncData) {
-        state = AsyncValue.error(error, stackTrace);
+      if (value is! AsyncData) {
+        publish(AsyncValue.error(error, stackTrace));
       }
     } finally {
       _refreshing = false;
@@ -79,7 +93,7 @@ class LeaderboardCategoriesNotifier
   List<LeaderboardCategory> _keepPlatformsMissingFrom(
     List<LeaderboardCategory> fresh,
   ) {
-    final previous = state.valueOrNull ?? const <LeaderboardCategory>[];
+    final previous = value.valueOrNull ?? const <LeaderboardCategory>[];
     if (previous.isEmpty) return fresh;
     if (fresh.isEmpty) return previous;
     final freshPlatforms = <String?>{
@@ -131,7 +145,13 @@ class LeaderboardCategoriesNotifier
             'coverUrl': c.coverUrl,
           },
       ]);
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record(
+        'leaderboard.layout',
+        'saving leaderboard layout failed: $error',
+        level: AppLogLevel.info,
+      );
+    }
   }
 }
 
@@ -172,15 +192,12 @@ class LeaderboardLayoutItem {
 
 /// 榜单页布局：平台与榜单的固定平台顺序及显隐。
 final leaderboardLayoutProvider =
-    StateNotifierProvider<
-      LeaderboardLayoutNotifier,
-      List<LeaderboardLayoutItem>
-    >((ref) {
-      return LeaderboardLayoutNotifier();
-    });
+    NotifierProvider<LeaderboardLayoutNotifier, List<LeaderboardLayoutItem>>(
+      LeaderboardLayoutNotifier.new,
+    );
 
 class LeaderboardLayoutNotifier
-    extends StateNotifier<List<LeaderboardLayoutItem>> {
+    extends BuildlessNotifier<List<LeaderboardLayoutItem>> {
   static const _key = 'leaderboard_layout_v1';
   static const _orderVersionKey = 'leaderboard_layout_order_version';
   static const _orderVersion = 2;
@@ -189,12 +206,27 @@ class LeaderboardLayoutNotifier
   LeaderboardLayoutNotifier({StorageLoader? storage})
     : _storage = storage ?? (() => StorageService.instance),
       super(const []) {
-    _load();
+    // Direct instantiation (tests) has no provider to build, so the read
+    // starts here; provider-hosted instances start it from [build].
+    if (storage != null) _startLoad();
   }
 
   final StorageLoader _storage;
   int _generation = 0;
   bool _needsOrderMigration = false;
+  bool _loadStarted = false;
+
+  @override
+  List<LeaderboardLayoutItem> build() {
+    _startLoad();
+    return super.build();
+  }
+
+  void _startLoad() {
+    if (_loadStarted) return;
+    _loadStarted = true;
+    unawaited(_load());
+  }
 
   Future<void> _load() async {
     final generation = _generation;
@@ -204,12 +236,20 @@ class LeaderboardLayoutNotifier
       _needsOrderMigration =
           (storage.getInt(_orderVersionKey) ?? 1) < _orderVersion;
       if (generation == _generation && raw.isNotEmpty) {
-        state = raw
-            .map(LeaderboardLayoutItem.fromJson)
-            .where((item) => item.key.isNotEmpty)
-            .toList();
+        publish(
+          raw
+              .map(LeaderboardLayoutItem.fromJson)
+              .where((item) => item.key.isNotEmpty)
+              .toList(),
+        );
       }
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record(
+        'leaderboard.layout',
+        'loading leaderboard layout failed: $error',
+        level: AppLogLevel.info,
+      );
+    }
   }
 
   Future<void> _persist() async {
@@ -217,7 +257,7 @@ class LeaderboardLayoutNotifier
     try {
       await (await _storage()).setJsonList(
         _key,
-        state.map((item) => item.toJson()).toList(),
+        value.map((item) => item.toJson()).toList(),
       );
       await (await _storage()).setInt(_orderVersionKey, _orderVersion);
     } catch (_) {
@@ -227,7 +267,7 @@ class LeaderboardLayoutNotifier
 
   /// 用最新分类生成默认布局（仅当尚无布局时）。
   void ensureDefaultLayout(List<LeaderboardCategory> categories) {
-    if (state.isNotEmpty) {
+    if (value.isNotEmpty) {
       _migrateOldDefaultOrder();
       _appendMissingPlatforms(categories);
       return;
@@ -255,14 +295,14 @@ class LeaderboardLayoutNotifier
         LeaderboardLayoutItem(key: 'platform:$platform', hidden: false),
       );
     }
-    state = items;
+    publish(items);
     _persist();
   }
 
   void _migrateOldDefaultOrder() {
     if (!_needsOrderMigration) return;
     _needsOrderMigration = false;
-    final platforms = state
+    final platforms = value
         .where((item) => item.isPlatform)
         .map((item) => item.platformId)
         .whereType<String>()
@@ -275,7 +315,7 @@ class LeaderboardLayoutNotifier
     }
     final blocks = <String, List<LeaderboardLayoutItem>>{};
     String? currentPlatform;
-    for (final item in state) {
+    for (final item in value) {
       if (item.isPlatform) currentPlatform = item.platformId;
       if (currentPlatform != null) {
         blocks.putIfAbsent(currentPlatform, () => []).add(item);
@@ -288,7 +328,7 @@ class LeaderboardLayoutNotifier
     for (final block in blocks.values) {
       reordered.addAll(block);
     }
-    if (reordered.length == state.length) state = reordered;
+    if (reordered.length == value.length) publish(reordered);
     _persist();
   }
 
@@ -297,7 +337,7 @@ class LeaderboardLayoutNotifier
   /// 新增音源（例如酷狗）不能让老用户看不到对应榜单，同时也不能打乱用户
   /// 自己调过的顺序与隐藏状态，所以只追加、不重排。
   void _appendMissingPlatforms(List<LeaderboardCategory> categories) {
-    final known = state
+    final known = value
         .where((item) => item.isPlatform)
         .map((item) => item.platformId)
         .whereType<String>()
@@ -316,10 +356,7 @@ class LeaderboardLayoutNotifier
       );
       for (final category in platformCategories) {
         additions.add(
-          LeaderboardLayoutItem(
-            key: 'category:${category.id}',
-            hidden: false,
-          ),
+          LeaderboardLayoutItem(key: 'category:${category.id}', hidden: false),
         );
       }
     }
@@ -335,7 +372,7 @@ class LeaderboardLayoutNotifier
     }
 
     if (additions.isEmpty) return;
-    state = [...state, ...additions];
+    publish([...value, ...additions]);
     _persist();
   }
 
@@ -359,19 +396,19 @@ class LeaderboardLayoutNotifier
   }
 
   void restoreAll() {
-    state = [for (final item in state) item.copyWith(hidden: false)];
+    publish([for (final item in value) item.copyWith(hidden: false)]);
     _persist();
   }
 
   void _setHidden(bool Function(LeaderboardLayoutItem) match, bool hidden) {
     var changed = false;
-    state = [
-      for (final item in state)
+    publish([
+      for (final item in value)
         if (match(item) && item.hidden != hidden)
           (changed = true, item.copyWith(hidden: hidden)).$2
         else
           item,
-    ];
+    ]);
     if (changed) _persist();
   }
 }

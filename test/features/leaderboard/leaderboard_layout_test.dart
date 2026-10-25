@@ -1,15 +1,12 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/source_text.dart';
 
 /// 榜单页布局的护栏（方案 A：竖屏极简单列 / 横屏按平台三列）。
 ///
 /// 这些结构一旦被改回去，就会退回「一进页面把几十个榜一次建完、并发几十个
 /// 详情请求」，或者丢掉卡片展开转场。
 void main() {
-  final source = File(
-    'lib/features/leaderboard/presentation/leaderboard_screen.dart',
-  ).readAsStringSync();
+  final source = readSource('lib/features/leaderboard/presentation/leaderboard_screen.dart');
 
   test('竖屏用 SliverList 按行懒构建', () {
     final portrait = source.substring(

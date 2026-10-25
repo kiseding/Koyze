@@ -1,14 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
+import '../../../support/source_text.dart';
 
 void main() {
   test(
       'source-load messages are drained by Dart without evaluating native sendMessage',
       () {
-    final bridge = File(
-      'lib/features/custom_source/domain/custom_source_engine.dart',
-    ).readAsStringSync();
+    final bridge = readSource('lib/features/custom_source/domain/custom_source_engine.dart');
 
     expect(bridge, contains('_drainDeferredMessages'));
     expect(bridge, contains('_deferredMessages'));
@@ -21,9 +18,7 @@ void main() {
 
   test('zlib requests made while loading use an asynchronous deferred result',
       () {
-    final bridge = File(
-      'lib/features/custom_source/domain/custom_source_engine.dart',
-    ).readAsStringSync();
+    final bridge = readSource('lib/features/custom_source/domain/custom_source_engine.dart');
 
     expect(bridge, contains('_deferredResolvers'));
     expect(bridge, contains("channel === 'lx_zlib'"));
@@ -31,18 +26,14 @@ void main() {
   });
 
   test('deferred HTTP requests use the normal Dart request handler', () {
-    final bridge = File(
-      'lib/features/custom_source/domain/custom_source_engine.dart',
-    ).readAsStringSync();
+    final bridge = readSource('lib/features/custom_source/domain/custom_source_engine.dart');
 
     expect(bridge, contains("channel == 'lx_request'"));
     expect(bridge, contains('_handleLxRequest'));
   });
 
   test('keeps the dispatcher installed until deferred continuations drain', () {
-    final bridge = File(
-      'lib/features/custom_source/domain/custom_source_engine.dart',
-    ).readAsStringSync();
+    final bridge = readSource('lib/features/custom_source/domain/custom_source_engine.dart');
 
     expect(bridge, contains('_captureFrozenMessages'));
     expect(bridge, contains('_restoreSourceMessageDispatcher'));
@@ -53,9 +44,7 @@ void main() {
   });
 
   test('host request path keeps safe query merge without implicit cookies', () {
-    final bridge = File(
-      'lib/features/custom_source/domain/custom_source_engine.dart',
-    ).readAsStringSync();
+    final bridge = readSource('lib/features/custom_source/domain/custom_source_engine.dart');
 
     expect(bridge, isNot(contains('_cookieJar')));
     expect(bridge, isNot(contains('_applyStoredCookies')));

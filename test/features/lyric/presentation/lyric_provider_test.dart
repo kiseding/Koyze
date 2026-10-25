@@ -23,7 +23,7 @@ void main() {
     first.complete(_lyrics('A'));
     await loadA;
 
-    expect(notifier.state.lyrics.raw, 'B');
+    expect(notifier.value.lyrics.raw, 'B');
   });
 
   test('clearing selection invalidates an in-flight lyric request', () async {
@@ -36,9 +36,9 @@ void main() {
     pending.complete(_lyrics('A'));
     await load;
 
-    expect(notifier.state.lyrics.isEmpty, isTrue);
-    expect(notifier.state.isLoading, isFalse);
-    expect(notifier.state.error, isNull);
+    expect(notifier.value.lyrics.isEmpty, isTrue);
+    expect(notifier.value.isLoading, isFalse);
+    expect(notifier.value.error, isNull);
   });
 
   test('equal current music publication does not fetch twice', () async {
@@ -92,7 +92,7 @@ void main() {
     ));
 
     expect(calls, 2);
-    expect(notifier.state.lyrics.raw, 'tx');
+    expect(notifier.value.lyrics.raw, 'tx');
   });
 
   test('current error is state and retry starts a new successful generation',
@@ -107,15 +107,15 @@ void main() {
 
     await notifier.select(_music('A'));
 
-    expect(notifier.state.lyrics.isEmpty, isTrue);
-    expect(notifier.state.isLoading, isFalse);
-    expect(notifier.state.error, same(failure));
+    expect(notifier.value.lyrics.isEmpty, isTrue);
+    expect(notifier.value.isLoading, isFalse);
+    expect(notifier.value.error, same(failure));
 
     await notifier.retry();
 
     expect(calls, 2);
-    expect(notifier.state.lyrics.raw, 'retried');
-    expect(notifier.state.error, isNull);
+    expect(notifier.value.lyrics.raw, 'retried');
+    expect(notifier.value.error, isNull);
   });
 
   test('stale success and error do not publish or escape their zone', () async {
@@ -142,8 +142,8 @@ void main() {
     }, (error, _) => failures.add(error));
     addTearDown(notifier.dispose);
 
-    expect(notifier.state.lyrics.raw, 'C');
-    expect(notifier.state.error, isNull);
+    expect(notifier.value.lyrics.raw, 'C');
+    expect(notifier.value.error, isNull);
     expect(failures, isEmpty);
   });
 

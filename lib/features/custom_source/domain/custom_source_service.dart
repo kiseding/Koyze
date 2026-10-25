@@ -162,10 +162,14 @@ class CustomSourceService {
   ) async {
     try {
       await _storage!.setString(_quarantineKey, json.encode(quarantine));
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('source.quarantine', 'persisting quarantine list failed: $error', level: AppLogLevel.warning);
+    }
     try {
       await _saveSources(sources);
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('source.quarantine', 'saving sources after quarantine failed: $error', level: AppLogLevel.error);
+    }
   }
 
   List<Map<String, dynamic>> _loadQuarantine() {

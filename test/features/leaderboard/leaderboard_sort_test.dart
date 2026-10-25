@@ -21,7 +21,7 @@ void main() {
 
     notifier.ensureDefaultLayout(categories);
 
-    expect(notifier.state.map((item) => item.key).toList(), [
+    expect(notifier.value.map((item) => item.key).toList(), [
       'platform:tx',
       'category:tx:4',
       'platform:kw',
@@ -40,13 +40,13 @@ void main() {
     notifier.ensureDefaultLayout(const [
       LeaderboardCategory(id: 'tx:4', name: 'A', platform: 'tx'),
     ]);
-    final before = notifier.state.map((item) => item.key).toList();
+    final before = notifier.value.map((item) => item.key).toList();
 
     notifier.ensureDefaultLayout(const [
       LeaderboardCategory(id: 'kw:93', name: 'A', platform: 'kw'),
     ]);
 
-    final after = notifier.state.map((item) => item.key).toList();
+    final after = notifier.value.map((item) => item.key).toList();
     expect(after.take(before.length).toList(), before);
     expect(after, containsAll(['platform:kw', 'category:kw:93']));
     expect(after.length, before.length + 2);
@@ -66,7 +66,7 @@ void main() {
 
     notifier.hidePlatform('kw');
 
-    final hiddenKeys = notifier.state
+    final hiddenKeys = notifier.value
         .where((item) => item.hidden)
         .map((item) => item.key);
     expect(
@@ -74,7 +74,7 @@ void main() {
       containsAll(['platform:kw', 'category:kw:93', 'category:kw:17']),
     );
     expect(
-      notifier.state.where((item) => item.key == 'category:tx:4').single.hidden,
+      notifier.value.where((item) => item.key == 'category:tx:4').single.hidden,
       isFalse,
     );
   });
@@ -92,6 +92,6 @@ void main() {
 
     notifier.restoreAll();
 
-    expect(notifier.state.every((item) => !item.hidden), isTrue);
+    expect(notifier.value.every((item) => !item.hidden), isTrue);
   });
 }

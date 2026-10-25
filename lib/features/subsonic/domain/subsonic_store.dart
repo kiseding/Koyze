@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../../core/storage/secure_token_store.dart';
 import '../../../core/storage/storage_service.dart';
 import 'subsonic_config.dart';
+import '../../../core/logging/app_log.dart';
 
 const subsonicPasswordNamespace = 'subsonic_password';
 const subsonicConfigPrefsKey = 'subsonic_config';
@@ -60,7 +61,9 @@ class SubsonicStore {
       await _tokenStore.delete(
         originTokenKey(subsonicPasswordNamespace, baseUrl),
       );
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('subsonic.credentials', 'deleting Subsonic password for $baseUrl failed: $error', level: AppLogLevel.warning);
+    }
   }
 
   Future<void> clear() async {
@@ -68,6 +71,8 @@ class SubsonicStore {
     await deletePassword(config.baseUrl);
     try {
       await (await _storage()).remove(subsonicConfigPrefsKey);
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('subsonic.config', 'clearing Subsonic config failed: $error', level: AppLogLevel.warning);
+    }
   }
 }

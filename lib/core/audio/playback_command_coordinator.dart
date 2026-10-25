@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../logging/app_log.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -199,7 +200,9 @@ class PlaybackCommandCoordinator {
         if (error is TimeoutException) {
           try {
             await _player.stop();
-          } catch (_) {}
+          } catch (error) {
+            AppLog.instance.record('audio.command', 'stop after source load timeout failed: $error', level: AppLogLevel.warning);
+          }
         }
         _onError?.call('temporarySource', error, stackTrace);
         return false;
@@ -631,7 +634,9 @@ class PlaybackCommandCoordinator {
               error is ResolvedAudioTooShortException) {
             try {
               await _player.stop();
-            } catch (_) {}
+            } catch (error) {
+              AppLog.instance.record('audio.command', 'stop after playback failure failed: $error', level: AppLogLevel.warning);
+            }
           }
           if (_desiredSource?.token == desiredSource.token) {
             _onStateChanged?.call();
