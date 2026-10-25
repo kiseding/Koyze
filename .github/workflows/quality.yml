@@ -96,8 +96,18 @@ jobs:
           set -euo pipefail
           # CONTRIBUTING 曾经指向一个不存在的 CODE_OF_CONDUCT.md，
           # 这类死链对贡献者很不友好。这里拦住所有本地 Markdown 相对链接。
+          #
+          # 两个必须注意的点：
+          # 1. 链接是相对于**所在文件**的目录，不是仓库根目录——
+          #    docs/adr/0001 里的 ../../workers/... 从根目录看就是错的。
+          # 2. third_party/ 是 vendored 上游代码，它的 README 引用自己的
+          #    截图，和本仓库无关，不该拦。
           fail=0
-          while IFS= read -r line; do
+          while IFS= read -r file; do
+            case "$file" in
+              third_party/*) continue ;;
+            esac
+            dir="$(dirname "$file")"
             # 提取 markdown 链接里的相对路径（跳过 http/https/mailto/锚点）
             while IFS= read -r target; do
               case "$target" in
@@ -107,10 +117,14 @@ jobs:
               clean="${target%%#*}"
               clean="${clean%%\?*}"
               [ -z "$clean" ] && continue
-              if [ ! -e "$clean" ]; then
-                echo "::error file=$line::引用的文件不存在: $target"
+              # 绝对路径是站内链接，与仓库文件无关
+              case "$clean" in
+                /*) continue ;;
+              esac
+              if [ ! -e "$dir/$clean" ]; then
+                echo "::error file=$file::引用的文件不存在: $target"
                 fail=1
               fi
-            done < <(grep -oP '\]\(\K[^)]+' "$line" 2>/dev/null || true)
+            done < <(grep -oP '\]\(\K[^)]+' "$file" 2>/dev/null || true)
           done < <(git ls-files '*.md')
           exit "$fail"

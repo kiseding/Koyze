@@ -60,8 +60,8 @@ npm test
 
 在开始编码前，请先创建或认领一个 Issue：
 
-- **Bug Report**: 使用 [Bug 报告模板](.github/ISSUE_TEMPLATE/bug_report.md)
-- **Feature Request**: 使用 [功能请求模板](.github/ISSUE_TEMPLATE/feature_request.md)
+- **Bug Report**: 使用 [Bug 报告模板](.github/ISSUE_TEMPLATE/bug_report.yml)
+- **Feature Request**: 使用 [功能请求模板](.github/ISSUE_TEMPLATE/feature_request.yml)
 - **Documentation**: 直接创建 Issue
 
 ### 2. Fork 并创建分支
@@ -330,7 +330,7 @@ lib/
 
 ## 🐛 报告 Bug
 
-使用 [Bug 报告模板](.github/ISSUE_TEMPLATE/bug_report.md)，包含：
+使用 [Bug 报告模板](.github/ISSUE_TEMPLATE/bug_report.yml)，包含：
 
 - **复现步骤**: 详细的操作步骤
 - **期望行为**: 应该发生什么
@@ -344,7 +344,7 @@ lib/
 
 ## 💡 功能建议
 
-使用 [功能请求模板](.github/ISSUE_TEMPLATE/feature_request.md)，说明：
+使用 [功能请求模板](.github/ISSUE_TEMPLATE/feature_request.yml)，说明：
 
 - **问题描述**: 你想解决什么问题？
 - **建议方案**: 你期望的解决方案

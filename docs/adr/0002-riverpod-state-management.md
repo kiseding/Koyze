@@ -123,7 +123,8 @@ final playbackPositionProvider =
 ## 相关资源
 - [Riverpod 官方文档](https://riverpod.dev/)
 - [Riverpod Generator](https://pub.dev/packages/riverpod_generator)
-- [项目 Provider 列表](../../lib/core/providers/)
+- Provider 定义分散在各 feature 的 `presentation/` 目录下，见
+  [统一 Notifier 范式](0008-riverpod-notifier-idiom.md)
 
 ## 审查日期
 2023-06-01
