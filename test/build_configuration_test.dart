@@ -42,17 +42,17 @@ void main() {
     }
   });
 
-  test('settings about row shows the pubspec version', () {
-    final pubspec = File('pubspec.yaml').readAsStringSync();
-    final version = RegExp(
-      r'^version:\s*([0-9.]+)',
-      multiLine: true,
-    ).firstMatch(pubspec)!.group(1)!;
+  test('settings about row reads the single version constant', () {
     final settings = File(
       'lib/features/settings/presentation/settings_screen.dart',
     ).readAsStringSync();
     final strings = File('lib/l10n/app_strings.dart').readAsStringSync();
-    expect(settings, contains("name: s.version, value: 'v$version'"));
+
+    // 版本号只在 lib/core/app_version.dart 里写一次（具体数值与 pubspec 的
+    // 一致性由 test/core/app_version_test.dart 钉住），设置页引用常量而不是
+    // 再硬编码一份字符串，否则发版时两处会不同步。
+    expect(settings, contains('name: s.version, value: kAppVersionLabel'));
+    expect(settings, isNot(contains(RegExp(r"value: 'v[0-9]+\\.[0-9]+"))));
     expect(strings, contains("en ? 'Version' : '版本'"));
   });
 

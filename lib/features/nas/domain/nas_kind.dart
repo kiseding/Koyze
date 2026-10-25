@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/app_version.dart';
+
 enum NasKind {
   emby,
   jellyfin,
@@ -96,4 +98,6 @@ enum NasKind {
 }
 
 const nasClientName = 'Koyze';
-const nasClientVersion = '4.0.3';
+
+/// Plex / Emby / Jellyfin 请求头里上报的客户端版本，跟应用版本保持一致。
+const nasClientVersion = kAppVersion;

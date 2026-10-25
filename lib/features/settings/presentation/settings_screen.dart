@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
+import '../../../core/app_version.dart';
 import '../../../core/card_expand.dart';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
@@ -421,7 +422,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ]),
                     _buildSection(context, s.about, [
-                      _SettingRow(name: s.version, value: 'v4.0.3'),
+                      _SettingRow(name: s.version, value: kAppVersionLabel),
                       _DeviceIdRow(
                         deviceId: ref
                             .watch(settingsDeviceIdProvider)
@@ -1507,9 +1508,7 @@ class _ThemeColorPickerDialog extends ConsumerWidget {
                 color: color,
                 selected: current.toARGB32() == color.toARGB32(),
                 onTap: () {
-                  ref
-                      .read(accentColorProvider.notifier)
-                      .setAccentColor(color);
+                  ref.read(accentColorProvider.notifier).setAccentColor(color);
                   Navigator.pop(context);
                 },
               ),
