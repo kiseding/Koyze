@@ -5,6 +5,7 @@ import 'mediabrowser_client.dart';
 import 'nas_client.dart';
 import 'nas_kind.dart';
 import 'plex_client.dart';
+import 'webdav_client.dart';
 
 NasClient createNasClient(NasKind kind, {Dio? dio}) {
   switch (kind) {
@@ -16,5 +17,7 @@ NasClient createNasClient(NasKind kind, {Dio? dio}) {
       return PlexNasClient(dio: dio);
     case NasKind.audiostation:
       return AudioStationNasClient(dio: dio);
+    case NasKind.webdav:
+      return WebDavNasClient(dio: dio);
   }
 }

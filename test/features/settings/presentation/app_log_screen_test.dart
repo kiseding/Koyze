@@ -19,6 +19,31 @@ void main() {
     expect(tester.widget<IconButton>(copyButton).onPressed, isNotNull);
   });
 
+  testWidgets('opening diagnostics keeps existing entries', (tester) async {
+    final log = AppLog.instance;
+    log.clear();
+    log.record('custom_source.import', 'local file import failed');
+    addTearDown(log.clear);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => ElevatedButton(
+            onPressed: () => showDiagnosticLogOverlay(context),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pump();
+
+    expect(find.textContaining('local file import failed'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close diagnostics'));
+    await tester.pump();
+  });
+
   testWidgets(
     'diagnostic overlay minimizes while recording and stops on close',
     (tester) async {

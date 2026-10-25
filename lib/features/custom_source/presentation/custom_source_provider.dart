@@ -72,8 +72,15 @@ class CustomSourcesNotifier extends StateNotifier<List<CustomSource>> {
   }
 
   Future<bool> importLxMusicScript(String script) async {
+    final result = await importLxMusicScriptWithResult(script);
+    return result.success;
+  }
+
+  Future<CustomSourceImportResult> importLxMusicScriptWithResult(
+    String script,
+  ) async {
     final generation = ++_generation;
-    final result = await _service.importLxMusicScript(script);
+    final result = await _service.importLxMusicScriptWithResult(script);
     if (generation == _generation) state = _service.sources;
     return result;
   }

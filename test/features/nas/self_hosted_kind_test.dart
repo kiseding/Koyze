@@ -113,7 +113,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(KoyzeChoicePill), findsNWidgets(5));
+    expect(find.byType(KoyzeChoicePill), findsNWidgets(6));
     expect(find.text('Subsonic'), findsOneWidget);
     expect(find.text('群晖'), findsOneWidget);
 

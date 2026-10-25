@@ -498,6 +498,24 @@ Future<void> _bootstrapUnsafe(
                   );
                 },
             acquireOrDownload: playbackCache.acquireOrDownloadForResolution,
+            acquireOrDownloadWithHeaders:
+                ({
+                  required remoteUrl,
+                  required platform,
+                  required songId,
+                  required quality,
+                  required headers,
+                  fromCustomSource = false,
+                  trustedNetwork = false,
+                }) => playbackCache.acquireOrDownloadForResolution(
+                  remoteUrl: remoteUrl,
+                  platform: platform,
+                  songId: songId,
+                  quality: quality,
+                  fromCustomSource: fromCustomSource,
+                  trustedNetwork: trustedNetwork,
+                  headers: headers,
+                ),
             acquireCustomOrDownload:
                 ({
                   required remoteUrl,
@@ -512,6 +530,22 @@ Future<void> _bootstrapUnsafe(
                   fromCustomSource: true,
                 ),
             validateStream: playbackCache.validateStream,
+            validateStreamWithHeaders:
+                ({
+                  required remoteUrl,
+                  required platform,
+                  required quality,
+                  required headers,
+                  fromCustomSource = false,
+                  trustedNetwork = false,
+                }) => playbackCache.validateStream(
+                  remoteUrl: remoteUrl,
+                  platform: platform,
+                  quality: quality,
+                  fromCustomSource: fromCustomSource,
+                  trustedNetwork: trustedNetwork,
+                  headers: headers,
+                ),
             validateCustomStream:
                 ({required remoteUrl, required platform, required quality}) =>
                     playbackCache.validateStream(
@@ -520,6 +554,22 @@ Future<void> _bootstrapUnsafe(
                       quality: quality,
                       fromCustomSource: true,
                     ),
+            validateCustomStreamWithHeaders:
+                ({
+                  required remoteUrl,
+                  required platform,
+                  required quality,
+                  required headers,
+                  fromCustomSource = true,
+                  trustedNetwork = false,
+                }) => playbackCache.validateStream(
+                  remoteUrl: remoteUrl,
+                  platform: platform,
+                  quality: quality,
+                  fromCustomSource: fromCustomSource,
+                  trustedNetwork: trustedNetwork,
+                  headers: headers,
+                ),
             cancelCacheKey: playbackCache.cancelKey,
             songIdFor: (music) {
               if (music.songmid?.isNotEmpty == true) return music.songmid!;
@@ -621,9 +671,7 @@ Future<void> _bootstrapUnsafe(
               if (resolution == null) {
                 debugPrint('[urlResolver] 源未返回可播地址(q=$requested)');
                 if (!sourceService.hasEnabledCustomSource) {
-                  lxHandler.onError?.call(
-                    '未启用任何音源，请先在「设置 → 高级 → 自定义源」导入并启用音源',
-                  );
+                  lxHandler.onError?.call('未启用任何音源，请先在「设置 → 高级 → 自定义源」导入并启用音源');
                 }
                 return null;
               }

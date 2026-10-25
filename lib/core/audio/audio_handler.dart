@@ -63,15 +63,14 @@ class AudioHandlerPlatformDefaults {
   /// Resolved once at startup from the host platform.
   ///
   /// Not `const`: `Platform.isWindows` is a runtime getter, not a constant.
-  static final AudioHandlerPlatformDefaults host =
-      AudioHandlerPlatformDefaults(
-        // Apple-only: the keepalive exists so iOS/macOS do not drop the audio
-        // session between tracks. HarmonyOS keeps playback alive through
-        // AVSession instead, and its just_audio port rejects `silence`
-        // sources outright.
-        useSilenceKeepalive: Platform.isIOS || Platform.isMacOS,
-        streamLocalFiles: Platform.isWindows,
-      );
+  static final AudioHandlerPlatformDefaults host = AudioHandlerPlatformDefaults(
+    // Apple-only: the keepalive exists so iOS/macOS do not drop the audio
+    // session between tracks. HarmonyOS keeps playback alive through
+    // AVSession instead, and its just_audio port rejects `silence`
+    // sources outright.
+    useSilenceKeepalive: Platform.isIOS || Platform.isMacOS,
+    streamLocalFiles: Platform.isWindows,
+  );
 
   /// The Apple behaviour (keepalive on), which is what the audio tests assert.
   static const AudioHandlerPlatformDefaults posix =
@@ -327,10 +326,7 @@ class AudioInterruptionPolicy {
   bool get active => _depth > 0;
   int get depth => _depth;
 
-  InterruptionAction onBegin({
-    required bool wasPlaying,
-    bool duck = false,
-  }) {
+  InterruptionAction onBegin({required bool wasPlaying, bool duck = false}) {
     _depth++;
     if (_depth > 1) return InterruptionAction.none;
     _ownsPause = wasPlaying && !duck;
@@ -947,9 +943,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }) : assert(player == null || playerFactory == null),
        _prepareForPlayback = prepareForPlayback,
        _useSilenceKeepalive =
-           useSilenceKeepalive ?? AudioHandlerPlatformDefaults.current.useSilenceKeepalive,
+           useSilenceKeepalive ??
+           AudioHandlerPlatformDefaults.current.useSilenceKeepalive,
        _streamLocalFiles =
-           streamLocalFiles ?? AudioHandlerPlatformDefaults.current.streamLocalFiles,
+           streamLocalFiles ??
+           AudioHandlerPlatformDefaults.current.streamLocalFiles,
        _outputRouteRecoveryTimeout = outputRouteRecoveryTimeout,
        _resolveTimeout = resolveTimeout {
     // 均衡器必须在播放器之前就绪：音效只能经 AudioPipeline 在构造时注入，
@@ -994,9 +992,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final volume = _audioDucked
         ? _playbackVolume * duckedPlaybackVolumeFactor
         : _playbackVolume;
-    unawaited(
-      _player.setVolume(volume).then<void>((_) {}, onError: (_, _) {}),
-    );
+    unawaited(_player.setVolume(volume).then<void>((_) {}, onError: (_, _) {}));
   }
 
   /// 默认播放器。均衡器音效在这里注入。
@@ -3414,13 +3410,19 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           _leaseSession.holdPending(null);
         }
         sourceInstallAttempted = true;
-        final requestHeaders =
-            Uri.tryParse(url)?.scheme == 'http' ||
-                Uri.tryParse(url)?.scheme == 'https'
-            ? mediaRequestHeaders(
-                url,
-                updatedItem.extras?['platform']?.toString() ?? '',
-              )
+        final parsedUrl = Uri.tryParse(url);
+        final isRemoteUrl =
+            parsedUrl?.scheme == 'http' || parsedUrl?.scheme == 'https';
+        final resolutionHeaders =
+            _pendingResolutions[occurrenceId]?.requestHeaders;
+        final requestHeaders = isRemoteUrl
+            ? <String, String>{
+                ...mediaRequestHeaders(
+                  url,
+                  updatedItem.extras?['platform']?.toString() ?? '',
+                ),
+                if (resolutionHeaders != null) ...resolutionHeaders,
+              }
             : null;
         final commitResult = await _commands.commitSource(
           commandToken,

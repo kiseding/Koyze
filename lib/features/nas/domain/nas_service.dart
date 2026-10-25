@@ -9,14 +9,11 @@ import 'nas_store.dart';
 import 'nas_url.dart';
 
 class NasService {
-  NasService({
-    required NasKind kind,
-    NasStore? store,
-    NasClient? client,
-  })  : kind = kind,
-        _store = store ?? NasStore(kind: kind),
-        _client = client ?? createNasClient(kind),
-        _config = NasConfig.empty(kind);
+  NasService({required NasKind kind, NasStore? store, NasClient? client})
+    : kind = kind,
+      _store = store ?? NasStore(kind: kind),
+      _client = client ?? createNasClient(kind),
+      _config = NasConfig.empty(kind);
 
   final NasKind kind;
   final NasStore _store;
@@ -61,27 +58,44 @@ class NasService {
     required String baseUrl,
     required String username,
     required String password,
+    String? rootPath,
+    NasAuthMethod? authMethod,
   }) async {
     await _ensureInit();
     final normalized = validateNasServiceUrl(baseUrl);
+    final method = kind == NasKind.webdav
+        ? (authMethod ?? _config.authMethod)
+        : NasAuthMethod.basic;
     var next = NasConfig(
       kind: kind,
       baseUrl: normalized,
       username: username.trim(),
       userId: _config.userId,
       deviceId: _config.deviceId,
+      rootPath: kind == NasKind.webdav
+          ? normalizeNasRootPath(rootPath ?? _config.rootPath)
+          : '/',
+      authMethod: method,
       enabled: true,
     );
-    if (kind != NasKind.plex && next.username.isEmpty) {
-      throw ArgumentError.value(username, 'username', '用户名不能为空');
+    final plexTokenOnly = kind == NasKind.plex && next.username.isEmpty;
+    final webDavBearer =
+        kind == NasKind.webdav && method == NasAuthMethod.bearer;
+    if (webDavBearer) {
+      if (password.isEmpty) {
+        throw ArgumentError.value(password, 'password', '请输入 Bearer token');
+      }
+    } else {
+      if (kind != NasKind.plex && next.username.isEmpty) {
+        throw ArgumentError.value(username, 'username', '用户名不能为空');
+      }
+      if (password.isEmpty) {
+        throw ArgumentError.value(password, 'password', '密码不能为空');
+      }
     }
-    if (password.isEmpty) {
-      throw ArgumentError.value(password, 'password', '密码不能为空');
-    }
-    final tokenOnly = kind == NasKind.plex && next.username.isEmpty;
     final incoming = NasSecrets(
-      password: tokenOnly ? null : password,
-      token: tokenOnly ? password : null,
+      password: plexTokenOnly || webDavBearer ? null : password,
+      token: plexTokenOnly || webDavBearer ? password : null,
     );
     final ping = await _client.connect(next, incoming);
     if (!ping.ok) return ping;
@@ -89,8 +103,8 @@ class NasService {
     final previousUrl = _config.baseUrl;
     _config = next;
     _secrets = NasSecrets(
-      password: tokenOnly ? null : password,
-      token: ping.token ?? incoming.token,
+      password: incoming.hasPassword ? password : null,
+      token: incoming.hasToken ? (ping.token ?? incoming.token) : null,
     );
     await _store.saveConfig(next);
     await _store.saveSecrets(normalized, _secrets);
@@ -153,17 +167,25 @@ class NasService {
     );
   }
 
-  Future<String?> getPlayUrl(MusicItem music, {String quality = '320k'}) async {
+  Future<NasPlayUrlResult?> getPlayUrlResult(
+    MusicItem music, {
+    String quality = '320k',
+  }) async {
     final session = await _session();
     if (session == null) return null;
     final id = music.songmid?.isNotEmpty == true ? music.songmid! : music.id;
     if (id.isEmpty) return null;
-    return _client.streamUrl(
+    return _client.streamResult(
       session.config,
       session.secrets,
       music,
       quality: quality,
     );
+  }
+
+  Future<String?> getPlayUrl(MusicItem music, {String quality = '320k'}) async {
+    final result = await getPlayUrlResult(music, quality: quality);
+    return result?.url;
   }
 
   Future<String?> getLyric(MusicItem music) async {

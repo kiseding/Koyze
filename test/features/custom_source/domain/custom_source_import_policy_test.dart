@@ -31,6 +31,69 @@ void main() {
     expect(service.sources, isEmpty);
   });
 
+  test('GitHub blob URL imports the raw JavaScript source', () async {
+    final requests = <Uri>[];
+    final sandbox = SourceRequestSandbox(
+      policy: SourceRequestPolicy(
+        resolve: (_) async => [InternetAddress('185.199.108.133')],
+      ),
+      transport: (request, cancellation) async {
+        requests.add(request.uri);
+        return SourceTransportResponse(
+          statusCode: 200,
+          headers: const {
+            'content-type': ['application/javascript'],
+          },
+          body: Stream.value(
+            utf8.encode('''/*
+ * @name GitHub source
+ * @author test
+ */
+lx.send(lx.EVENT_NAMES.inited, { status: true });'''),
+          ),
+        );
+      },
+    );
+    final service = CustomSourceService(
+      importSandbox: sandbox,
+      storage: await isolatedStorage(),
+    );
+    await service.init();
+    addTearDown(service.dispose);
+
+    expect(
+      await service.importSourceFromUrl(
+        'https://github.com/kiseding/koyze-source/blob/main/koyze-source.js',
+      ),
+      isTrue,
+    );
+    expect(requests, [
+      Uri.parse(
+        'https://raw.githubusercontent.com/kiseding/koyze-source/main/koyze-source.js',
+      ),
+    ]);
+    expect(service.sources.single.name, 'GitHub source');
+    expect(service.sources.single.isEnabled, isFalse);
+  });
+
+  test('GitHub raw links keep their ref and file path', () {
+    expect(
+      normalizeCustomSourceScriptUrl(
+        Uri.parse(
+          'https://github.com/kiseding/koyze-source/raw/main/scripts/source.js',
+        ),
+      ),
+      Uri.parse(
+        'https://raw.githubusercontent.com/kiseding/koyze-source/main/scripts/source.js',
+      ),
+    );
+  });
+
+  test('non-GitHub HTTPS source URLs are unchanged', () {
+    final uri = Uri.parse('https://source.example/path/source.js?key=value');
+    expect(normalizeCustomSourceScriptUrl(uri), uri);
+  });
+
   test('remote import rejects HTTP before transport', () async {
     var transports = 0;
     final sandbox = SourceRequestSandbox(

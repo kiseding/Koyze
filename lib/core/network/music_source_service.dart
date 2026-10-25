@@ -503,6 +503,8 @@ class MusicSourceService {
         actualQuality: attempt.result.actualQuality,
         platform: attempt.result.platform,
         songId: attempt.songId.isNotEmpty ? attempt.songId : songId,
+        headers: attempt.result.headers,
+        trustedNetwork: attempt.result.trustedNetwork,
         validUntil:
             attempt.result.validUntil ??
             DateTime.now().add(const Duration(hours: 3)),
@@ -771,10 +773,10 @@ class MusicSourceService {
       debugPrint('[getPlayUrl] 尚未连接 ${kind.title}');
       return null;
     }
-    final url = await service.getPlayUrl(music, quality: quality);
-    if (url == null || !isPlayableMediaUrl(url)) return null;
+    final resolved = await service.getPlayUrlResult(music, quality: quality);
+    if (resolved == null || !isPlayableMediaUrl(resolved.url)) return null;
     return PlayUrlResult(
-      url: normalizeMediaUrl(url),
+      url: normalizeMediaUrl(resolved.url),
       requestedQuality: quality,
       actualQuality: nasActualQuality(
         requested: quality,
@@ -786,6 +788,8 @@ class MusicSourceService {
       ),
       platform: kind.id,
       songId: music.songmid ?? music.id,
+      headers: resolved.headers,
+      trustedNetwork: resolved.trustedNetwork,
     );
   }
 

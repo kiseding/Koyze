@@ -17,14 +17,15 @@ class NasApiException implements Exception {
 
 abstract class NasClient {
   NasClient({Dio? dio})
-      : _dio = dio ??
-            AppHttpClient.create(
-              options: BaseOptions(
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 20),
-              ),
+    : _dio =
+          dio ??
+          AppHttpClient.create(
+            options: BaseOptions(
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 20),
             ),
-        _ownsDio = dio == null;
+          ),
+      _ownsDio = dio == null;
 
   final Dio _dio;
   final bool _ownsDio;
@@ -70,6 +71,22 @@ abstract class NasClient {
     MusicItem music, {
     required String quality,
   });
+
+  /// Detailed playback contract for endpoints that need runtime headers.
+  ///
+  /// Existing clients keep their URL-only implementation. WebDAV overrides
+  /// this method to return Basic/Bearer headers without putting credentials in
+  /// MusicItem, cache metadata, or the URL.
+  Future<NasPlayUrlResult> streamResult(
+    NasConfig config,
+    NasSecrets secrets,
+    MusicItem music, {
+    required String quality,
+  }) async {
+    return NasPlayUrlResult(
+      url: streamUrl(config, secrets, music, quality: quality),
+    );
+  }
 
   Future<String?> getLyrics(
     NasConfig config,
@@ -127,6 +144,4 @@ abstract class NasClient {
     if (raw is Map) return Map<String, dynamic>.from(raw);
     return null;
   }
-
 }
-

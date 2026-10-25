@@ -27,18 +27,23 @@ class _NasSettingsScreenState extends ConsumerState<NasSettingsScreen> {
   final _urlController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _rootPathController = TextEditingController();
   final _urlFocus = FocusNode();
   bool _obscurePassword = true;
   bool _busy = false;
   bool _hydrated = false;
+  NasAuthMethod _authMethod = NasAuthMethod.basic;
 
   NasKind get _kind => widget.kind;
+
+  bool get _isWebDav => _kind == NasKind.webdav;
 
   @override
   void dispose() {
     _urlController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
+    _rootPathController.dispose();
     _urlFocus.dispose();
     super.dispose();
   }
@@ -48,14 +53,20 @@ class _NasSettingsScreenState extends ConsumerState<NasSettingsScreen> {
     _hydrated = true;
     _urlController.text = config.baseUrl;
     _usernameController.text = config.username;
+    _rootPathController.text = config.rootPath;
+    _authMethod = config.authMethod;
   }
 
   Future<void> _connect() async {
     final url = _urlController.text.trim();
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
+    String? rootPath;
     try {
       validateNasServiceUrl(url);
+      if (_isWebDav) {
+        rootPath = normalizeNasRootPath(_rootPathController.text);
+      }
     } catch (error) {
       showAppNotification(
         error is ArgumentError ? error.message ?? '$error' : '$error',
@@ -63,14 +74,23 @@ class _NasSettingsScreenState extends ConsumerState<NasSettingsScreen> {
       );
       return;
     }
-    if (_kind != NasKind.plex && username.isEmpty) {
+    final bearer = _isWebDav && _authMethod == NasAuthMethod.bearer;
+    if (!bearer && _kind != NasKind.plex && username.isEmpty) {
       showAppNotification(
         S.of(context).enterUsername,
         type: AppNotificationType.error,
       );
       return;
     }
-    if (password.isEmpty) {
+    if (bearer) {
+      if (password.isEmpty) {
+        showAppNotification(
+          S.of(context).webDavTokenHint,
+          type: AppNotificationType.error,
+        );
+        return;
+      }
+    } else if (password.isEmpty) {
       showAppNotification(
         _kind == NasKind.plex
             ? S.of(context).enterPasswordOrToken
@@ -83,7 +103,13 @@ class _NasSettingsScreenState extends ConsumerState<NasSettingsScreen> {
     try {
       final result = await ref
           .read(nasServiceProvider(_kind))
-          .connect(baseUrl: url, username: username, password: password);
+          .connect(
+            baseUrl: url,
+            username: username,
+            password: password,
+            rootPath: rootPath,
+            authMethod: _isWebDav ? _authMethod : null,
+          );
       if (!mounted) return;
       if (result.ok) {
         _passwordController.clear();
@@ -185,26 +211,76 @@ class _NasSettingsScreenState extends ConsumerState<NasSettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _field(
-                  label: _kind == NasKind.plex
-                      ? S.of(context).usernameOptional
-                      : S.of(context).username,
-                  child: TextField(
-                    controller: _usernameController,
-                    enabled: !_busy,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    style: TextStyle(color: on, fontSize: 14),
-                    decoration: _decoration(
-                      hint: _kind == NasKind.plex
-                          ? S.of(context).plexAccountHint
-                          : S.of(context).serverLoginName,
+                if (_isWebDav) ...[
+                  _field(
+                    label: S.of(context).webDavRootPath,
+                    child: TextField(
+                      controller: _rootPathController,
+                      enabled: !_busy,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      style: TextStyle(color: on, fontSize: 14),
+                      decoration: _decoration(
+                        hint: S.of(context).webDavRootPathHint,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                  _field(
+                    label: S.of(context).webDavAuthMethod,
+                    child: SegmentedButton<NasAuthMethod>(
+                      segments: [
+                        ButtonSegment(
+                          value: NasAuthMethod.basic,
+                          label: Text(S.of(context).webDavBasicAuth),
+                          icon: const Icon(Icons.password_outlined, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: NasAuthMethod.bearer,
+                          label: Text(S.of(context).webDavBearerAuth),
+                          icon: const Icon(Icons.key_outlined, size: 16),
+                        ),
+                      ],
+                      selected: {_authMethod},
+                      onSelectionChanged: _busy
+                          ? null
+                          : (selection) =>
+                                setState(() => _authMethod = selection.first),
+                      showSelectedIcon: false,
+                      style: ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        textStyle: WidgetStatePropertyAll(
+                          TextStyle(fontSize: 12, color: on),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (!_isWebDav || _authMethod == NasAuthMethod.basic) ...[
+                  _field(
+                    label: _kind == NasKind.plex
+                        ? S.of(context).usernameOptional
+                        : S.of(context).username,
+                    child: TextField(
+                      controller: _usernameController,
+                      enabled: !_busy,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      style: TextStyle(color: on, fontSize: 14),
+                      decoration: _decoration(
+                        hint: _kind == NasKind.plex
+                            ? S.of(context).plexAccountHint
+                            : S.of(context).serverLoginName,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 _field(
-                  label: _kind == NasKind.plex
+                  label: _isWebDav && _authMethod == NasAuthMethod.bearer
+                      ? S.of(context).webDavBearerAuth
+                      : _kind == NasKind.plex
                       ? S.of(context).passwordOrToken
                       : S.of(context).password,
                   child: TextField(
@@ -218,6 +294,8 @@ class _NasSettingsScreenState extends ConsumerState<NasSettingsScreen> {
                         _decoration(
                           hint: connected
                               ? S.of(context).passwordSaved
+                              : _isWebDav && _authMethod == NasAuthMethod.bearer
+                              ? S.of(context).webDavTokenHint
                               : _kind == NasKind.plex
                               ? S.of(context).passwordOrPlexToken
                               : S.of(context).serverPassword,

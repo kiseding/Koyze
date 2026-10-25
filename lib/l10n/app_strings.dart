@@ -300,9 +300,11 @@ class S {
   String get showAll => en ? 'Show all' : '全部显示';
   String get back => en ? 'Back' : '返回';
   String chartCount(int count) => en ? '$count charts' : '$count 个榜单';
+
   /// 榜单页顶部的概览：3 个平台 · 42 个榜单
-  String chartSummary(int platforms, int charts) =>
-      en ? '$platforms platforms · $charts charts' : '$platforms 个平台 · $charts 个榜单';
+  String chartSummary(int platforms, int charts) => en
+      ? '$platforms platforms · $charts charts'
+      : '$platforms 个平台 · $charts 个榜单';
   String get allCharts => en ? 'All' : '全部';
   String get defaultFirst => en ? 'Shown first' : '默认优先';
   String hiddenUntil(String name) =>
@@ -828,8 +830,7 @@ class S {
   String get importFromLink => en ? 'Import from a link' : '通过链接导入';
   String get addManually => en ? 'Add manually' : '手动添加';
   String get pasteScript => en ? 'Paste a script' : '粘贴脚本';
-  String get noCustomSources =>
-      en ? 'No custom sources' : '暂无自定义源';
+  String get noCustomSources => en ? 'No custom sources' : '暂无自定义源';
   String get addCustomSourceHint => en
       ? 'Koyze ships no audio source. Use + to import and enable one before playing online songs.'
       : 'Koyze 不内置任何音源。请点击右上角 + 导入并启用音源，否则在线歌曲无法播放。';
@@ -838,6 +839,8 @@ class S {
   String get importScriptOk => en ? 'Script imported' : '导入脚本成功';
   String get importScriptBad =>
       en ? 'Import failed. The script format is wrong.' : '导入失败，脚本格式错误';
+  String importScriptFailed(Object reason) =>
+      en ? 'Script import failed: $reason' : '脚本导入失败：$reason';
   String readFileFailed(Object error) =>
       en ? 'Could not read the file: $error' : '读取文件失败: $error';
   String get addCustomSource => en ? 'Add a custom source' : '添加自定义源';
@@ -891,6 +894,16 @@ class S {
   String get passwordOrPlexToken =>
       en ? 'Password or X-Plex-Token' : '密码或 X-Plex-Token';
   String get serverPassword => en ? 'Server password' : '服务器密码';
+  String get webDavRootPath => en ? 'Root folder' : '根目录';
+  String get webDavRootPathHint => en ? '/music' : '/music';
+  String get webDavAuthMethod => en ? 'Authentication' : '认证方式';
+  String get webDavBasicAuth => en ? 'Username / password' : '用户名 / 密码';
+  String get webDavBearerAuth => en ? 'Bearer token' : 'Bearer Token';
+  String get webDavTokenHint => en ? 'Paste an access token' : '粘贴访问 Token';
+  String get webDavRootPathInvalid =>
+      en ? 'Root folder must be a path such as /music' : '根目录只需填写路径，例如 /music';
+  String get webDavScanFailed =>
+      en ? 'WebDAV library scan failed' : 'WebDAV 曲库扫描失败';
   String get showPassword => en ? 'Show password' : '显示密码';
   String get hidePassword => en ? 'Hide password' : '隐藏密码';
   String get legacyAuth => en ? 'Legacy sign-in' : '旧版鉴权';

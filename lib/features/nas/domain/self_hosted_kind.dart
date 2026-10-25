@@ -9,22 +9,25 @@ enum SelfHostedKind {
   emby,
   jellyfin,
   plex,
-  audiostation;
+  audiostation,
+  webdav;
 
   NasKind? get nasKind => switch (this) {
-        subsonic => null,
-        emby => NasKind.emby,
-        jellyfin => NasKind.jellyfin,
-        plex => NasKind.plex,
-        audiostation => NasKind.audiostation,
-      };
+    subsonic => null,
+    emby => NasKind.emby,
+    jellyfin => NasKind.jellyfin,
+    plex => NasKind.plex,
+    audiostation => NasKind.audiostation,
+    webdav => NasKind.webdav,
+  };
 
   static SelfHostedKind fromNas(NasKind kind) => switch (kind) {
-        NasKind.emby => emby,
-        NasKind.jellyfin => jellyfin,
-        NasKind.plex => plex,
-        NasKind.audiostation => audiostation,
-      };
+    NasKind.emby => emby,
+    NasKind.jellyfin => jellyfin,
+    NasKind.plex => plex,
+    NasKind.audiostation => audiostation,
+    NasKind.webdav => webdav,
+  };
 
   static SelfHostedKind? tryParse(String? value) {
     if (value == null || value.isEmpty) return null;
@@ -35,43 +38,48 @@ enum SelfHostedKind {
   }
 
   String get chipLabel => switch (this) {
-        subsonic => 'Subsonic',
-        emby => 'Emby',
-        jellyfin => 'Jellyfin',
-        plex => 'Plex',
-        audiostation => '群晖',
-      };
+    subsonic => 'Subsonic',
+    emby => 'Emby',
+    jellyfin => 'Jellyfin',
+    plex => 'Plex',
+    audiostation => '群晖',
+    webdav => 'WebDAV',
+  };
 
   String get title => switch (this) {
-        subsonic => 'Navidrome / Subsonic',
-        emby => NasKind.emby.title,
-        jellyfin => NasKind.jellyfin.title,
-        plex => NasKind.plex.title,
-        audiostation => NasKind.audiostation.title,
-      };
+    subsonic => 'Navidrome / Subsonic',
+    emby => NasKind.emby.title,
+    jellyfin => NasKind.jellyfin.title,
+    plex => NasKind.plex.title,
+    audiostation => NasKind.audiostation.title,
+    webdav => NasKind.webdav.title,
+  };
 
   String get intro => switch (this) {
-        subsonic =>
-          '连接 Navidrome / Subsonic / Airsonic / Gonic 等兼容服务器。账号密码只保存在本机钥匙串，不会上传云端。',
-        emby => NasKind.emby.intro,
-        jellyfin => NasKind.jellyfin.intro,
-        plex => NasKind.plex.intro,
-        audiostation => NasKind.audiostation.intro,
-      };
+    subsonic =>
+      '连接 Navidrome / Subsonic / Airsonic / Gonic 等兼容服务器。账号密码只保存在本机钥匙串，不会上传云端。',
+    emby => NasKind.emby.intro,
+    jellyfin => NasKind.jellyfin.intro,
+    plex => NasKind.plex.intro,
+    audiostation => NasKind.audiostation.intro,
+    webdav => NasKind.webdav.intro,
+  };
 
   String get urlHint => switch (this) {
-        subsonic => 'https://music.example.com 或 192.168.1.8:4533',
-        emby => NasKind.emby.urlHint,
-        jellyfin => NasKind.jellyfin.urlHint,
-        plex => NasKind.plex.urlHint,
-        audiostation => NasKind.audiostation.urlHint,
-      };
+    subsonic => 'https://music.example.com 或 192.168.1.8:4533',
+    emby => NasKind.emby.urlHint,
+    jellyfin => NasKind.jellyfin.urlHint,
+    plex => NasKind.plex.urlHint,
+    audiostation => NasKind.audiostation.urlHint,
+    webdav => NasKind.webdav.urlHint,
+  };
 
   IconData get icon => switch (this) {
-        subsonic => Icons.cloud_queue_rounded,
-        emby => NasKind.emby.icon,
-        jellyfin => NasKind.jellyfin.icon,
-        plex => NasKind.plex.icon,
-        audiostation => NasKind.audiostation.icon,
-      };
+    subsonic => Icons.cloud_queue_rounded,
+    emby => NasKind.emby.icon,
+    jellyfin => NasKind.jellyfin.icon,
+    plex => NasKind.plex.icon,
+    audiostation => NasKind.audiostation.icon,
+    webdav => NasKind.webdav.icon,
+  };
 }

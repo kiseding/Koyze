@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../../../core/logging/app_log.dart';
 import '../../../core/network/ios_source_transport.dart';
 import '../../../core/network/source_request_policy.dart';
 import '../../../core/storage/storage_service.dart';
@@ -9,6 +10,36 @@ import '../domain/custom_source_engine.dart';
 import '../domain/source_script_safety.dart' as script_safety;
 import '../domain/source_script_validation.dart';
 import '../../player/domain/music_item.dart';
+
+final class CustomSourceImportResult {
+  const CustomSourceImportResult.ok() : success = true, reason = null;
+  const CustomSourceImportResult.failed(this.reason) : success = false;
+
+  final bool success;
+  final String? reason;
+}
+
+/// Converts GitHub's human-facing file pages into direct script downloads.
+///
+/// Pasting a `github.com/.../blob/...` URL into the remote importer otherwise
+/// downloads GitHub's HTML page, which cannot pass the source header check.
+Uri normalizeCustomSourceScriptUrl(Uri uri) {
+  final host = uri.host.toLowerCase();
+  if (host != 'github.com' && host != 'www.github.com') return uri;
+
+  final segments = uri.pathSegments;
+  if (segments.length < 5) return uri;
+  final kind = segments[2].toLowerCase();
+  if (kind != 'blob' && kind != 'raw') return uri;
+
+  final sourcePath = segments.sublist(3);
+  if (sourcePath.isEmpty) return uri;
+  return Uri(
+    scheme: 'https',
+    host: 'raw.githubusercontent.com',
+    pathSegments: [segments[0], segments[1], ...sourcePath],
+  );
+}
 
 class CustomSourceService {
   CustomSourceService({
@@ -469,16 +500,41 @@ class CustomSourceService {
     bool autoEnable = true,
     bool forceDisable = false,
   }) async {
-    if (_exceedsScriptByteLimit(script)) return false;
-    if (!validateScript(script)) return false;
+    final result = await importLxMusicScriptWithResult(
+      script,
+      autoEnable: autoEnable,
+      forceDisable: forceDisable,
+    );
+    return result.success;
+  }
+
+  Future<CustomSourceImportResult> importLxMusicScriptWithResult(
+    String script, {
+    bool autoEnable = true,
+    bool forceDisable = false,
+  }) async {
+    AppLog.instance.record(
+      'custom_source.import',
+      'script import started characters=${script.length}',
+    );
+    if (_exceedsScriptByteLimit(script)) {
+      return _scriptImportFailure(
+        '脚本超过 ${maximumScriptBytes ~/ (1024 * 1024)} MiB 大小限制。',
+      );
+    }
+    if (!validateScript(script)) {
+      return _scriptImportFailure('脚本头部无效：需要包含 /* ... */ 注释和非空的 @name。');
+    }
+
     try {
+      await init();
       final header = parseSourceScriptHeader(script)!;
       final name = header['name'] ?? '未命名音源';
       final description = header['description'] ?? '';
       final version = header['version'] ?? '1.0.0';
       final author = header['author'] ?? '未知';
 
-      return await _mutate<bool>((current) {
+      final saved = await _mutate<bool>((current) {
         final now = _clock();
         final shouldEnable =
             !forceDisable &&
@@ -531,9 +587,40 @@ class CustomSourceService {
           invalidateEngines: invalidated,
         );
       });
-    } catch (e) {
-      return false;
+      AppLog.instance.record(
+        'custom_source.persistence',
+        'source mutation completed saved=$saved name="$name"',
+      );
+      if (!saved) {
+        return _scriptImportFailure('音源保存失败：持久化操作没有确认成功。');
+      }
+      AppLog.instance.record(
+        'custom_source.import',
+        'script import succeeded name="$name" author="$author"',
+      );
+      return const CustomSourceImportResult.ok();
+    } catch (error, stackTrace) {
+      AppLog.instance.record(
+        'custom_source.persistence',
+        '音源保存失败：$error',
+        level: AppLogLevel.error,
+        stackTrace: stackTrace,
+      );
+      return _scriptImportFailure('音源保存失败：$error', stackTrace: stackTrace);
     }
+  }
+
+  CustomSourceImportResult _scriptImportFailure(
+    String reason, {
+    StackTrace? stackTrace,
+  }) {
+    AppLog.instance.record(
+      'custom_source.import',
+      reason,
+      level: AppLogLevel.error,
+      stackTrace: stackTrace,
+    );
+    return CustomSourceImportResult.failed(reason);
   }
 
   Future<bool> importSourceFromUrl(
@@ -542,13 +629,14 @@ class CustomSourceService {
   }) async {
     final cancel = cancellation ?? SourceRequestCancellation();
     try {
-      final importUri = Uri.tryParse(url.trim());
-      if (importUri == null ||
-          importUri.scheme.toLowerCase() != 'https' ||
-          importUri.host.isEmpty ||
-          importUri.userInfo.isNotEmpty) {
+      final parsedUri = Uri.tryParse(url.trim());
+      if (parsedUri == null ||
+          parsedUri.scheme.toLowerCase() != 'https' ||
+          parsedUri.host.isEmpty ||
+          parsedUri.userInfo.isNotEmpty) {
         return false;
       }
+      final importUri = normalizeCustomSourceScriptUrl(parsedUri);
       return await () async {
         final response = await _importSandbox.request(importUri, const {
           'method': 'GET',

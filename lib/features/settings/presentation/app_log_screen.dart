@@ -20,9 +20,8 @@ void showDiagnosticLogOverlay(BuildContext context) {
   }
   final overlay = Overlay.of(context, rootOverlay: true);
   final log = AppLog.instance;
-  log
-    ..clear()
-    ..start();
+  log.start();
+  log.record('app', 'diagnostic log opened');
   _diagnosticLogEntry = OverlayEntry(
     builder: (_) => _DiagnosticLogOverlay(key: _diagnosticLogKey, log: log),
   );

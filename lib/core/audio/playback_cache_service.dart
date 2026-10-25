@@ -152,6 +152,7 @@ sealed class PlaybackResolution {
 
   String get playableUrl;
   Map<String, dynamic> get qualityExtras;
+  Map<String, String> get requestHeaders;
   PlaybackCacheLease? get leaseOrNull;
 }
 
@@ -169,14 +170,22 @@ final class CachedPlayback extends PlaybackResolution {
       Map<String, dynamic>.from(_qualityExtras);
 
   @override
+  Map<String, String> get requestHeaders => const {};
+
+  @override
   PlaybackCacheLease? get leaseOrNull => lease;
 }
 
 final class StreamingPlayback extends PlaybackResolution {
   final String remoteUrl;
   final Map<String, dynamic> _qualityExtras;
+  final Map<String, String> _requestHeaders;
 
-  const StreamingPlayback(this.remoteUrl, this._qualityExtras);
+  const StreamingPlayback(
+    this.remoteUrl,
+    this._qualityExtras, {
+    Map<String, String> requestHeaders = const {},
+  }) : _requestHeaders = requestHeaders;
 
   @override
   String get playableUrl => remoteUrl;
@@ -184,6 +193,10 @@ final class StreamingPlayback extends PlaybackResolution {
   @override
   Map<String, dynamic> get qualityExtras =>
       Map<String, dynamic>.from(_qualityExtras);
+
+  @override
+  Map<String, String> get requestHeaders =>
+      Map<String, String>.unmodifiable(_requestHeaders);
 
   @override
   PlaybackCacheLease? get leaseOrNull => null;
@@ -196,11 +209,30 @@ typedef PlaybackLeaseAcquirer =
       required String songId,
       required String quality,
     });
+typedef PlaybackLeaseAcquirerWithHeaders =
+    Future<PlaybackCacheLease?> Function({
+      required String remoteUrl,
+      required String platform,
+      required String songId,
+      required String quality,
+      required Map<String, String> headers,
+      bool fromCustomSource,
+      bool trustedNetwork,
+    });
 typedef PlaybackStreamValidator =
     Future<bool> Function({
       required String remoteUrl,
       required String platform,
       required String quality,
+    });
+typedef PlaybackStreamValidatorWithHeaders =
+    Future<bool> Function({
+      required String remoteUrl,
+      required String platform,
+      required String quality,
+      required Map<String, String> headers,
+      bool fromCustomSource,
+      bool trustedNetwork,
     });
 
 typedef PlaybackUrlLoader<T> =
@@ -237,9 +269,12 @@ class PlaybackUrlResolver<T> {
   final PlaybackCancelablePlatformUrlLoader<T>?
   resolveFallbackPlayableUrlWithCancel;
   final PlaybackLeaseAcquirer acquireOrDownload;
+  final PlaybackLeaseAcquirerWithHeaders? acquireOrDownloadWithHeaders;
   final PlaybackLeaseAcquirer? acquireCustomOrDownload;
   final PlaybackStreamValidator? validateStream;
+  final PlaybackStreamValidatorWithHeaders? validateStreamWithHeaders;
   final PlaybackStreamValidator? validateCustomStream;
+  final PlaybackStreamValidatorWithHeaders? validateCustomStreamWithHeaders;
   final void Function(String key)? cancelCacheKey;
   final String Function(T music) songIdFor;
   final String Function(T music)? platformFor;
@@ -255,11 +290,14 @@ class PlaybackUrlResolver<T> {
     this.resolveFallbackPlayableUrl,
     this.resolveFallbackPlayableUrlWithCancel,
     required this.acquireOrDownload,
+    this.acquireOrDownloadWithHeaders,
     this.acquireCustomOrDownload,
     required this.songIdFor,
     this.platformFor,
     this.validateStream,
+    this.validateStreamWithHeaders,
     this.validateCustomStream,
+    this.validateCustomStreamWithHeaders,
     this.cancelCacheKey,
     this.isPlayableUrl = isPlayableMediaUrl,
   });
@@ -514,12 +552,25 @@ class PlaybackUrlResolver<T> {
       final acquire = result.fromCustomSource
           ? acquireCustomOrDownload ?? acquireOrDownload
           : acquireOrDownload;
-      lease = await acquire(
-        remoteUrl: result.url,
-        platform: result.platform,
-        songId: resolvedSongId,
-        quality: qualityKey,
-      );
+      final acquireWithHeaders = acquireOrDownloadWithHeaders;
+      if (acquireWithHeaders != null && result.headers.isNotEmpty) {
+        lease = await acquireWithHeaders(
+          remoteUrl: result.url,
+          platform: result.platform,
+          songId: resolvedSongId,
+          quality: qualityKey,
+          headers: result.headers,
+          fromCustomSource: result.fromCustomSource,
+          trustedNetwork: result.trustedNetwork,
+        );
+      } else {
+        lease = await acquire(
+          remoteUrl: result.url,
+          platform: result.platform,
+          songId: resolvedSongId,
+          quality: qualityKey,
+        );
+      }
     } on PlaybackCacheTerminalHttpException {
       return null;
     }
@@ -534,13 +585,27 @@ class PlaybackUrlResolver<T> {
       final validator = result.fromCustomSource
           ? validateCustomStream ?? validateStream
           : validateStream;
-      if (!_mayStream(qualityKey) ||
-          validator == null ||
-          !await validator(
-            remoteUrl: result.url,
-            platform: result.platform,
-            quality: qualityKey,
-          )) {
+      final validatorWithHeaders = result.fromCustomSource
+          ? validateCustomStreamWithHeaders ?? validateStreamWithHeaders
+          : validateStreamWithHeaders;
+      if (!_mayStream(qualityKey)) return null;
+      final valid = result.headers.isNotEmpty && validatorWithHeaders != null
+          ? await validatorWithHeaders(
+              remoteUrl: result.url,
+              platform: result.platform,
+              quality: qualityKey,
+              headers: result.headers,
+              fromCustomSource: result.fromCustomSource,
+              trustedNetwork: result.trustedNetwork,
+            )
+          : validator == null
+          ? false
+          : await validator(
+              remoteUrl: result.url,
+              platform: result.platform,
+              quality: qualityKey,
+            );
+      if (!valid) {
         return null;
       }
       if (!_generationKeys.containsKey(generation) || cancelled()) return null;
@@ -554,7 +619,11 @@ class PlaybackUrlResolver<T> {
         'url': result.url,
         'urlValidUntil': result.validUntil?.millisecondsSinceEpoch,
       };
-      return StreamingPlayback(result.url, qualityExtras);
+      return StreamingPlayback(
+        result.url,
+        qualityExtras,
+        requestHeaders: result.headers,
+      );
     }
 
     final qualityExtras = <String, dynamic>{
@@ -920,6 +989,8 @@ class PlaybackCacheService {
     required String songId,
     required String quality,
     bool fromCustomSource = false,
+    bool trustedNetwork = false,
+    Map<String, String> headers = const {},
   }) async {
     try {
       return await acquireOrDownloadForResolution(
@@ -928,6 +999,8 @@ class PlaybackCacheService {
         songId: songId,
         quality: quality,
         fromCustomSource: fromCustomSource,
+        trustedNetwork: trustedNetwork,
+        headers: headers,
       );
     } on PlaybackCacheTerminalHttpException {
       return null;
@@ -940,6 +1013,8 @@ class PlaybackCacheService {
     required String songId,
     required String quality,
     bool fromCustomSource = false,
+    bool trustedNetwork = false,
+    Map<String, String> headers = const {},
   }) {
     return _trackAcquisition<PlaybackCacheLease?>(
       () => _acquireOrDownload(
@@ -948,6 +1023,8 @@ class PlaybackCacheService {
         songId: songId,
         quality: quality,
         fromCustomSource: fromCustomSource,
+        trustedNetwork: trustedNetwork,
+        headers: headers,
       ),
       disposedResult: null,
       releaseLate: (lease) => lease?.release() ?? Future<void>.value(),
@@ -956,16 +1033,34 @@ class PlaybackCacheService {
 
   /// Confirms that a lossy URL supports the byte-range reads AVPlayer uses.
   /// This is only a fallback when full-file caching could not complete.
+  Future<bool> validateStreamWithHeaders({
+    required String remoteUrl,
+    required String platform,
+    required String quality,
+    required Map<String, String> headers,
+    bool fromCustomSource = false,
+    bool trustedNetwork = false,
+  }) => validateStream(
+    remoteUrl: remoteUrl,
+    platform: platform,
+    quality: quality,
+    fromCustomSource: fromCustomSource,
+    trustedNetwork: trustedNetwork,
+    headers: headers,
+  );
+
   Future<bool> validateStream({
     required String remoteUrl,
     required String platform,
     required String quality,
     bool fromCustomSource = false,
+    bool trustedNetwork = false,
+    Map<String, String> headers = const {},
   }) async {
     if (_disposed) return false;
     final url = normalizeMediaUrl(remoteUrl);
     try {
-      if (fromCustomSource || _usesPolicyTransport) {
+      if (fromCustomSource || (_usesPolicyTransport && !trustedNetwork)) {
         final responseHeaders = <String, String>{};
         final bytes = await _sourceMediaTransport.read(
           url,
@@ -974,6 +1069,7 @@ class PlaybackCacheService {
           responseHeaders: responseHeaders,
           headers: {
             ...mediaRequestHeaders(url, platform),
+            ...headers,
             'Range': 'bytes=0-65535',
             'Accept-Encoding': 'identity',
           },
@@ -1002,6 +1098,7 @@ class PlaybackCacheService {
         options: Options(
           headers: {
             ...mediaRequestHeaders(url, platform),
+            ...headers,
             'Range': 'bytes=0-65535',
             'Accept-Encoding': 'identity',
           },
@@ -1080,6 +1177,8 @@ class PlaybackCacheService {
     required String songId,
     required String quality,
     bool fromCustomSource = false,
+    bool trustedNetwork = false,
+    Map<String, String> headers = const {},
   }) async {
     final key = cacheKey(platform: platform, songId: songId, quality: quality);
     for (var attempt = 0; attempt < 2; attempt++) {
@@ -1090,6 +1189,8 @@ class PlaybackCacheService {
         songId: songId,
         quality: quality,
         fromCustomSource: fromCustomSource,
+        trustedNetwork: trustedNetwork,
+        headers: headers,
       );
       if (path == null) return null;
       if (_disposed) return null;
@@ -1256,6 +1357,8 @@ class PlaybackCacheService {
     required String songId,
     required String quality,
     required bool fromCustomSource,
+    bool trustedNetwork = false,
+    Map<String, String> headers = const {},
   }) async {
     if (_disposed) return null;
     await init();
@@ -1269,6 +1372,8 @@ class PlaybackCacheService {
         songId: songId,
         quality: quality,
         fromCustomSource: fromCustomSource,
+        trustedNetwork: trustedNetwork,
+        headers: headers,
       ),
     );
     if (decision.path != null) return decision.path;
@@ -1282,6 +1387,8 @@ class PlaybackCacheService {
     required String songId,
     required String quality,
     required bool fromCustomSource,
+    required bool trustedNetwork,
+    required Map<String, String> headers,
   }) async {
     final hit = await _lookupValidLocked(key);
     if (hit != null) {
@@ -1333,6 +1440,8 @@ class PlaybackCacheService {
       songId,
       quality,
       fromCustomSource,
+      trustedNetwork,
+      headers,
     );
     return _PathDecision(future: operation.future);
   }
@@ -1344,6 +1453,8 @@ class PlaybackCacheService {
     String songId,
     String quality,
     bool fromCustomSource,
+    bool trustedNetwork,
+    Map<String, String> headers,
   ) async {
     try {
       final path = await _download(
@@ -1353,6 +1464,8 @@ class PlaybackCacheService {
         songId,
         quality,
         fromCustomSource,
+        trustedNetwork,
+        headers,
       );
       if (path == null) return null;
       return await _withKeyTransaction(operation.key, () async {
@@ -1485,6 +1598,8 @@ class PlaybackCacheService {
     String songId,
     String quality,
     bool fromCustomSource,
+    bool trustedNetwork,
+    Map<String, String> headers,
   ) async {
     final key = operation.key;
     final generation = operation.generation;
@@ -1502,11 +1617,12 @@ class PlaybackCacheService {
       );
       if (_downloader != null) {
         await _downloader(downloadUrl, safePartPath, cancelToken: token);
-      } else if (fromCustomSource || _usesPolicyTransport) {
+      } else if (fromCustomSource ||
+          (_usesPolicyTransport && !trustedNetwork)) {
         await _sourceMediaTransport.download(
           downloadUrl,
           safePartPath,
-          headers: mediaRequestHeaders(downloadUrl, platform),
+          headers: {...mediaRequestHeaders(downloadUrl, platform), ...headers},
           cancelToken: token,
           byteLimit: maximumEntryBytes < maxBytes
               ? maximumEntryBytes
@@ -1518,6 +1634,7 @@ class PlaybackCacheService {
           safePartPath,
           platform,
           token,
+          headers,
         );
       }
 
@@ -1638,12 +1755,13 @@ class PlaybackCacheService {
     String destination,
     String platform,
     CancelToken token,
+    Map<String, String> headers,
   ) async {
     final response = await _dio.get<ResponseBody>(
       url,
       cancelToken: token,
       options: Options(
-        headers: mediaRequestHeaders(url, platform),
+        headers: {...mediaRequestHeaders(url, platform), ...headers},
         responseType: ResponseType.stream,
         receiveTimeout: const Duration(minutes: 5),
         sendTimeout: const Duration(seconds: 30),

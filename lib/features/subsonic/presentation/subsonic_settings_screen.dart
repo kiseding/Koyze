@@ -35,6 +35,7 @@ class _SubsonicSettingsScreenState
   final _urlController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _rootPathController = TextEditingController();
   final _urlFocus = FocusNode();
   bool _legacyAuth = false;
   bool _obscurePassword = true;
@@ -42,6 +43,7 @@ class _SubsonicSettingsScreenState
   bool _hydrated = false;
   SelfHostedKind? _hydratedKind;
   SelfHostedKind? _seededKind;
+  NasAuthMethod _webDavAuth = NasAuthMethod.basic;
 
   @override
   void initState() {
@@ -57,11 +59,14 @@ class _SubsonicSettingsScreenState
     _urlController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
+    _rootPathController.dispose();
     _urlFocus.dispose();
     super.dispose();
   }
 
   SelfHostedKind get _kind => ref.read(selfHostedKindProvider);
+
+  bool get _isWebDav => _kind == SelfHostedKind.webdav;
 
   void _selectKind(SelfHostedKind kind) {
     if (kind == _kind) return;
@@ -95,6 +100,8 @@ class _SubsonicSettingsScreenState
     _hydratedKind = kind;
     _urlController.text = config.baseUrl;
     _usernameController.text = config.username;
+    _rootPathController.text = config.rootPath;
+    _webDavAuth = config.authMethod;
   }
 
   Future<void> _connect() async {
@@ -170,8 +177,14 @@ class _SubsonicSettingsScreenState
     final url = _urlController.text.trim();
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
+    final isWebDav = nasKind == NasKind.webdav;
+    final bearer = isWebDav && _webDavAuth == NasAuthMethod.bearer;
+    String? rootPath;
     try {
       validateNasServiceUrl(url);
+      if (isWebDav) {
+        rootPath = normalizeNasRootPath(_rootPathController.text);
+      }
     } catch (error) {
       showAppNotification(
         error is ArgumentError ? error.message ?? '$error' : '$error',
@@ -179,7 +192,7 @@ class _SubsonicSettingsScreenState
       );
       return;
     }
-    if (nasKind != NasKind.plex && username.isEmpty) {
+    if (!bearer && nasKind != NasKind.plex && username.isEmpty) {
       showAppNotification(
         S.of(context).enterUsername,
         type: AppNotificationType.error,
@@ -188,7 +201,9 @@ class _SubsonicSettingsScreenState
     }
     if (password.isEmpty) {
       showAppNotification(
-        nasKind == NasKind.plex
+        bearer
+            ? S.of(context).webDavTokenHint
+            : nasKind == NasKind.plex
             ? S.of(context).enterPasswordOrToken
             : S.of(context).enterPassword,
         type: AppNotificationType.error,
@@ -199,7 +214,13 @@ class _SubsonicSettingsScreenState
     try {
       final result = await ref
           .read(nasServiceProvider(nasKind))
-          .connect(baseUrl: url, username: username, password: password);
+          .connect(
+            baseUrl: url,
+            username: username,
+            password: password,
+            rootPath: rootPath,
+            authMethod: isWebDav ? _webDavAuth : null,
+          );
       if (!mounted) return;
       if (result.ok) {
         _passwordController.clear();
@@ -340,26 +361,76 @@ class _SubsonicSettingsScreenState
                   ),
                 ),
                 const SizedBox(height: 12),
-                _field(
-                  label: kind == SelfHostedKind.plex
-                      ? S.of(context).usernameOptional
-                      : S.of(context).username,
-                  child: TextField(
-                    controller: _usernameController,
-                    enabled: !_busy,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    style: TextStyle(color: on, fontSize: 14),
-                    decoration: _decoration(
-                      hint: kind == SelfHostedKind.plex
-                          ? S.of(context).plexAccountHint
-                          : S.of(context).serverLoginName,
+                if (_isWebDav) ...[
+                  _field(
+                    label: S.of(context).webDavRootPath,
+                    child: TextField(
+                      controller: _rootPathController,
+                      enabled: !_busy,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      style: TextStyle(color: on, fontSize: 14),
+                      decoration: _decoration(
+                        hint: S.of(context).webDavRootPathHint,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+                  _field(
+                    label: S.of(context).webDavAuthMethod,
+                    child: SegmentedButton<NasAuthMethod>(
+                      segments: [
+                        ButtonSegment(
+                          value: NasAuthMethod.basic,
+                          label: Text(S.of(context).webDavBasicAuth),
+                          icon: const Icon(Icons.password_outlined, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: NasAuthMethod.bearer,
+                          label: Text(S.of(context).webDavBearerAuth),
+                          icon: const Icon(Icons.key_outlined, size: 16),
+                        ),
+                      ],
+                      selected: {_webDavAuth},
+                      onSelectionChanged: _busy
+                          ? null
+                          : (selection) =>
+                                setState(() => _webDavAuth = selection.first),
+                      showSelectedIcon: false,
+                      style: ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        textStyle: WidgetStatePropertyAll(
+                          TextStyle(fontSize: 12, color: on),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (!_isWebDav || _webDavAuth == NasAuthMethod.basic) ...[
+                  _field(
+                    label: kind == SelfHostedKind.plex
+                        ? S.of(context).usernameOptional
+                        : S.of(context).username,
+                    child: TextField(
+                      controller: _usernameController,
+                      enabled: !_busy,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      style: TextStyle(color: on, fontSize: 14),
+                      decoration: _decoration(
+                        hint: kind == SelfHostedKind.plex
+                            ? S.of(context).plexAccountHint
+                            : S.of(context).serverLoginName,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 _field(
-                  label: kind == SelfHostedKind.plex
+                  label: _isWebDav && _webDavAuth == NasAuthMethod.bearer
+                      ? S.of(context).webDavBearerAuth
+                      : kind == SelfHostedKind.plex
                       ? S.of(context).passwordOrToken
                       : S.of(context).password,
                   child: TextField(
@@ -373,6 +444,8 @@ class _SubsonicSettingsScreenState
                         _decoration(
                           hint: connected
                               ? S.of(context).passwordSaved
+                              : _isWebDav && _webDavAuth == NasAuthMethod.bearer
+                              ? S.of(context).webDavTokenHint
                               : kind == SelfHostedKind.plex
                               ? S.of(context).passwordOrPlexToken
                               : S.of(context).serverPassword,
@@ -468,6 +541,15 @@ class _SubsonicSettingsScreenState
                         ),
                     style: TextStyle(color: muted, fontSize: 12),
                   ),
+                  if (_isWebDav) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '${S.of(context).webDavRootPath}: ${nasConfig?.rootPath ?? '/'}'
+                      ' · ${S.of(context).webDavAuthMethod}: '
+                      '${(nasConfig?.authMethod ?? NasAuthMethod.basic) == NasAuthMethod.bearer ? S.of(context).webDavBearerAuth : S.of(context).webDavBasicAuth}',
+                      style: TextStyle(color: muted, fontSize: 12),
+                    ),
+                  ],
                 ],
               ],
             ),

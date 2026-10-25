@@ -36,6 +36,8 @@ dependencies:
   # 网络
   dio: ^5.7.0
   connectivity_plus: ^6.1.0
+  # WebDAV PROPFIND 响应解析
+  xml: ^6.5.0
   
   # 存储
   path_provider: ^2.1.4

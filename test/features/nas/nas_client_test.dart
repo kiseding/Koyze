@@ -71,7 +71,7 @@ void main() {
     expect(SelfHostedKind.subsonic.nasKind, isNull);
     expect(SelfHostedKind.audiostation.chipLabel, '群晖');
     expect(SelfHostedKind.emby.urlHint, '192.168.1.8:8096');
-    expect(SelfHostedKind.values, hasLength(5));
+    expect(SelfHostedKind.values, hasLength(6));
     expect(SelfHostedKind.tryParse('plex'), SelfHostedKind.plex);
     expect(SelfHostedKind.tryParse('nope'), isNull);
     expect(SelfHostedKind.tryParse(''), isNull);
@@ -119,7 +119,10 @@ void main() {
       userId: 'user-1',
     );
     const secrets = NasSecrets(password: 'secret', token: 'emby-token');
-    final ping = await client.connect(config, const NasSecrets(password: 'secret'));
+    final ping = await client.connect(
+      config,
+      const NasSecrets(password: 'secret'),
+    );
     expect(ping.ok, isTrue);
     expect(ping.token, 'emby-token');
     expect(ping.userId, 'user-1');
@@ -131,7 +134,10 @@ void main() {
     expect(songs, hasLength(1));
     expect(songs.single.source, 'emby');
     expect(songs.single.platform, 'emby');
-    expect(songs.single.artwork, contains('http://192.168.1.8:8096/Items/42/Images/Primary'));
+    expect(
+      songs.single.artwork,
+      contains('http://192.168.1.8:8096/Items/42/Images/Primary'),
+    );
     expect(
       client.streamUrl(config, secrets, songs.single, quality: '320k'),
       contains('/Audio/42/stream?'),
@@ -261,68 +267,79 @@ void main() {
     const secrets = NasSecrets(token: 'sid-1');
     final songs = await client.getPlaylistSongs(config, secrets, 'pl-1');
     expect(songs.single.source, 'audiostation');
-    final url = client.streamUrl(config, secrets, songs.single, quality: 'flac');
-    expect(url.startsWith('http://192.168.1.8:5000/webapi/AudioStation/stream.cgi'), isTrue);
+    final url = client.streamUrl(
+      config,
+      secrets,
+      songs.single,
+      quality: 'flac',
+    );
+    expect(
+      url.startsWith('http://192.168.1.8:5000/webapi/AudioStation/stream.cgi'),
+      isTrue,
+    );
   });
 
-  test('NasService persists credentials and MusicSourceService resolves Emby', () async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    final store = NasStore(
-      kind: NasKind.emby,
-      storage: () async => StorageService.forTesting(prefs),
-      tokenStore: _MemoryTokenStore(),
-    );
-    final client = EmbyNasClient(
-      dio: _okDio((options) {
-        if (options.path.endsWith('/Users/AuthenticateByName')) {
-          return {
-            'AccessToken': 'emby-token',
-            'User': {'Id': 'user-1'},
-          };
-        }
-        if (options.path.contains('/System/Info/Public')) {
-          return {'Version': '4.8.0'};
-        }
-        return {'Items': <dynamic>[]};
-      }),
-    );
-    addTearDown(client.dispose);
-    final service = NasService(
-      kind: NasKind.emby,
-      store: store,
-      client: client,
-    );
-    addTearDown(service.dispose);
-    final ping = await service.connect(
-      baseUrl: 'http://192.168.1.8:8096/',
-      username: 'alice',
-      password: 'secret',
-    );
-    expect(ping.ok, isTrue);
-    expect(service.isConnected, isTrue);
-    expect(service.config.userId, 'user-1');
+  test(
+    'NasService persists credentials and MusicSourceService resolves Emby',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final store = NasStore(
+        kind: NasKind.emby,
+        storage: () async => StorageService.forTesting(prefs),
+        tokenStore: _MemoryTokenStore(),
+      );
+      final client = EmbyNasClient(
+        dio: _okDio((options) {
+          if (options.path.endsWith('/Users/AuthenticateByName')) {
+            return {
+              'AccessToken': 'emby-token',
+              'User': {'Id': 'user-1'},
+            };
+          }
+          if (options.path.contains('/System/Info/Public')) {
+            return {'Version': '4.8.0'};
+          }
+          return {'Items': <dynamic>[]};
+        }),
+      );
+      addTearDown(client.dispose);
+      final service = NasService(
+        kind: NasKind.emby,
+        store: store,
+        client: client,
+      );
+      addTearDown(service.dispose);
+      final ping = await service.connect(
+        baseUrl: 'http://192.168.1.8:8096/',
+        username: 'alice',
+        password: 'secret',
+      );
+      expect(ping.ok, isTrue);
+      expect(service.isConnected, isTrue);
+      expect(service.config.userId, 'user-1');
 
-    final source = MusicSourceService(
-      CustomSourceService(),
-      nasServices: {NasKind.emby: service},
-    );
-    addTearDown(source.dispose);
-    final result = await source.resolvePlayableUrl(
-      MusicItem(
-        id: '42',
-        name: 'Song',
-        singer: 'Artist',
-        source: 'emby',
-        platform: 'emby',
-        songmid: '42',
-      ),
-      preferredQuality: '320k',
-    );
-    expect(result, isNotNull);
-    expect(result!.platform, 'emby');
-    expect(result.url, contains('http://192.168.1.8:8096/Audio/42/stream'));
-  });
+      final source = MusicSourceService(
+        CustomSourceService(),
+        nasServices: {NasKind.emby: service},
+      );
+      addTearDown(source.dispose);
+      final result = await source.resolvePlayableUrl(
+        MusicItem(
+          id: '42',
+          name: 'Song',
+          singer: 'Artist',
+          source: 'emby',
+          platform: 'emby',
+          songmid: '42',
+        ),
+        preferredQuality: '320k',
+      );
+      expect(result, isNotNull);
+      expect(result!.platform, 'emby');
+      expect(result.url, contains('http://192.168.1.8:8096/Audio/42/stream'));
+    },
+  );
 
   test('Emby library songs list Audio items without playlists', () async {
     var sawAudio = false;

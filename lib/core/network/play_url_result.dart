@@ -7,6 +7,17 @@ class PlayUrlResult {
   /// 实际得到的音质（根据 URL 容器或上游返回推断）
   final String actualQuality;
   final String platform;
+
+  /// Headers required by the resolved media endpoint.
+  ///
+  /// This is intentionally kept out of MusicItem/MediaItem extras and cache
+  /// indexes. It is only carried through the active playback resolution.
+  final Map<String, String> headers;
+
+  /// Indicates that the URL belongs to a configured, user-authorized NAS.
+  /// It permits the cache transport to reach a LAN address without weakening
+  /// the public-address policy used by ordinary custom sources.
+  final bool trustedNetwork;
   final DateTime? validUntil;
   final bool fromCustomSource;
 
@@ -18,6 +29,8 @@ class PlayUrlResult {
     required this.requestedQuality,
     required this.actualQuality,
     required this.platform,
+    this.headers = const {},
+    this.trustedNetwork = false,
     this.songId = '',
     this.validUntil,
     this.fromCustomSource = false,

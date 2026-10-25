@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:io';
 import '../../../core/io/bounded_input.dart';
+import '../../../core/logging/app_log.dart';
 import '../../../core/motion/motion_tokens.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -15,6 +15,7 @@ import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/auto_text_input.dart';
 import '../domain/custom_source.dart';
 import '../domain/custom_source_service.dart';
+import '../domain/custom_source_file_import.dart';
 import '../domain/source_script_validation.dart';
 import 'custom_source_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
@@ -265,39 +266,92 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
   }
 
   Future<void> _pickAndImportFile(BuildContext context, WidgetRef ref) async {
+    AppLog.instance.record(
+      'custom_source.file_picker',
+      'file selection started',
+    );
     try {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['js'],
+        withData: true,
       );
 
-      if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        final bytes = await readFileBytesBounded(
-          file,
-          maximumBytes: CustomSourceService.maximumScriptBytes,
+      if (result == null) {
+        AppLog.instance.record(
+          'custom_source.file_picker',
+          'file selection cancelled or returned no result',
+          level: AppLogLevel.warning,
         );
-        final content = utf8.decode(bytes);
-
-        final success = await ref
-            .read(customSourcesProvider.notifier)
-            .importLxMusicScript(content);
-
-        if (context.mounted) {
-          showAppNotification(
-            success
-                ? S.of(context).importScriptOk
-                : S.of(context).importScriptBad,
-            type: success
-                ? AppNotificationType.success
-                : AppNotificationType.error,
-          );
-        }
+        return;
       }
-    } catch (e) {
+      if (result.files.isEmpty) {
+        throw const CustomSourceFileReadException('文件选择器没有返回任何文件。');
+      }
+
+      final file = result.files.single;
+      AppLog.instance.record(
+        'custom_source.file_picker',
+        'selected name="${file.name}" declaredBytes=${file.size} '
+            'hasPath=${file.path != null} hasBytes=${file.bytes != null} '
+            'hasReadStream=${file.readStream != null}',
+      );
+      final fileContent = await readCustomSourceFileBytes(
+        file,
+        maximumBytes: CustomSourceService.maximumScriptBytes,
+      );
+      AppLog.instance.record(
+        'custom_source.file_picker',
+        'file bytes read source=${fileContent.source} bytes=${fileContent.bytes.length}',
+      );
+
+      late final String content;
+      try {
+        content = decodeCustomSourceScript(fileContent.bytes);
+      } on FormatException catch (error, stackTrace) {
+        AppLog.instance.record(
+          'custom_source.validation',
+          'UTF-8 decoding failed: $error',
+          level: AppLogLevel.error,
+          stackTrace: stackTrace,
+        );
+        throw const CustomSourceFileReadException(
+          '文件不是有效的 UTF-8 文本，无法解析为 JavaScript 脚本。',
+        );
+      }
+      AppLog.instance.record(
+        'custom_source.validation',
+        'UTF-8 decoded characters=${content.length} '
+            'validHeader=${isValidSourceScript(content)}',
+      );
+
+      final importResult = await ref
+          .read(customSourcesProvider.notifier)
+          .importLxMusicScriptWithResult(content);
+
       if (context.mounted) {
         showAppNotification(
-          S.of(context).readFileFailed(e),
+          importResult.success
+              ? S.of(context).importScriptOk
+              : S.of(context).importScriptFailed(importResult.reason ?? '未知原因'),
+          type: importResult.success
+              ? AppNotificationType.success
+              : AppNotificationType.error,
+        );
+      }
+    } catch (error, stackTrace) {
+      AppLog.instance.record(
+        'custom_source.file_picker',
+        'local file import failed: $error',
+        level: AppLogLevel.error,
+        stackTrace: stackTrace,
+      );
+      if (context.mounted) {
+        final displayError = error is InputLimitException
+            ? '文件超过 ${CustomSourceService.maximumScriptBytes ~/ (1024 * 1024)} MiB 大小限制。'
+            : error;
+        showAppNotification(
+          S.of(context).readFileFailed(displayError),
           type: AppNotificationType.error,
         );
       }
