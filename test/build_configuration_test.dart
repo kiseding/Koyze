@@ -601,6 +601,50 @@ void main() {
     }
   });
 
+  test('鸿蒙 pubspec 拷贝不会丢主 pubspec 的 flutter: 段开关', () {
+    // build-harmonyos-online.yml 第 149 行把 pubspec_ohos.yaml **整个复制**
+    // 成 pubspec.yaml 再 pub get / build hap，所以这份拷贝里少一个开关，
+    // 就等于鸿蒙线上少一个开关，而且其余五个平台的 CI 完全看不见。
+    //
+    // 真实事故：i18n 迁移（ADR 0007）只在 pubspec.yaml 加了 `generate: true`，
+    // 鸿蒙 CI 的 gen_localizations 目标随即抛
+    //   Target gen_localizations failed: Attempted to generate localizations
+    //   code without having the flutter: generate flag turned on.
+    // 两个架构的 HAP 全部构建失败。
+    Map<String, String> flutterFlags(String path) {
+      final lines = File(path).readAsStringSync().replaceAll('\r\n', '\n').split('\n');
+      // 必须是列 0 的顶级 flutter:，否则会先匹配到 dependencies 里的
+      // `  flutter:`（后跟 `sdk: flutter`）。
+      final start = lines.indexWhere((line) => line == 'flutter:');
+      expect(start, greaterThanOrEqualTo(0), reason: '$path 缺少 flutter: 段');
+
+      final flags = <String, String>{};
+      for (final line in lines.skip(start + 1)) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty || trimmed.startsWith('#')) continue;
+        // 缩进归零说明已经进入下一个顶级键，flutter: 段到此为止。
+        if (!line.startsWith(' ')) break;
+        final match = RegExp(r'^  ([\w-]+):\s*(.*)$').firstMatch(line);
+        if (match != null) {
+          flags[match.group(1)!] = match.group(2)!.trim();
+        }
+      }
+      return flags;
+    }
+
+    final main = flutterFlags('pubspec.yaml');
+    final ohos = flutterFlags('pubspec_ohos.yaml');
+
+    expect(main['generate'], 'true', reason: 'pubspec.yaml 缺少 flutter: generate: true');
+    expect(
+      ohos,
+      equals(main),
+      reason: 'pubspec_ohos.yaml 会被复制成 pubspec.yaml，flutter: 段必须与主 '
+          'pubspec 完全一致；缺失的键：'
+          '${main.keys.where((key) => !ohos.containsKey(key)).toList()}',
+    );
+  });
+
   test('launcher source icon stays a compact 1024 PNG', () {
     final icon = File('assets/icon/app_icon.png');
     final bytes = icon.readAsBytesSync();

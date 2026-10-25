@@ -129,5 +129,17 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  # Required by `flutter gen-l10n`; without it the generated AppLocalizations
+  # class is not wired into the build.
+  #
+  # 必须与 pubspec.yaml 的同名开关保持一致：本文件会被 workflow 整个复制成
+  # pubspec.yaml 再执行 pub get / build hap，漏掉这一行时 gen_localizations
+  # 目标会直接抛 "Attempted to generate localizations code without having the
+  # flutter: generate flag turned on."，鸿蒙构建必挂。由
+  # test/build_configuration_test.dart 的「flutter: 段一致」用例兜底。
+  generate: true
   config:
+    # Nested WorkBuddy/CodeBuddy sandboxes cannot resolve Swift packages
+    # (`sandbox-exec: sandbox_apply: Operation not permitted`). Force the
+    # existing CocoaPods path on iOS/macOS instead.
     enable-swift-package-manager: false
