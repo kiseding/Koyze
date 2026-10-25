@@ -28,11 +28,6 @@ class PlayerProgressGeometry {
   static const double thumbSize = 20;
   static const double thumbRadius = thumbSize / 2;
 
-  /// 已播放部分至少露出这么宽才绘制。
-  ///
-  /// 更低进度时圆角会被压成 1~3px 的细尖角，贴在滑块左侧，看起来像渲染残影。
-  static const double minVisibleFill = 4;
-
   factory PlayerProgressGeometry.resolve({
     required double trackWidth,
     required double ratio,
@@ -43,11 +38,14 @@ class PlayerProgressGeometry {
     final center = width * progress;
     final thumbLeft = (center - thumbRadius).clamp(0.0, maxLeft);
 
-    // 填充延伸到滑块圆心，滑块覆盖交界和上下边缘，避免圆形端头、
-    // 断层或轨道色细缝。滑块到达最右端时铺满轨道。
-    final fillWidth = thumbLeft < minVisibleFill
-        ? 0.0
-        : (thumbLeft >= maxLeft ? width : center);
+    // 填充始终延伸到滑块圆心，滑块覆盖交界和上下边缘，避免圆形端头、
+    // 断层或轨道色细缝。
+    //
+    // 这里刻意不设「最小可见宽度」：填充改成直角、又被外层 ClipRRect 裁成
+    // 轨道圆角之后，细尖角问题已经不存在，而任何死区都会让开头几秒的
+    // 已播放段整段消失，等滑块左缘越过阈值再一次性跳出来。起点处这段填充
+    // 本来就藏在滑块下面，滑块一动就会从它右侧均匀露出，不需要额外门槛。
+    final fillWidth = center;
 
     return PlayerProgressGeometry(thumbLeft: thumbLeft, fillWidth: fillWidth);
   }

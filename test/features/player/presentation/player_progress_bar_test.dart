@@ -34,15 +34,42 @@ void main() {
       expect(geometry.fillWidth, 0);
     });
 
-    test('滑块压住起点时隐藏细尖角', () {
-      // center = 13，滑块左缘只离开起点 3px，不足 minVisibleFill。
+    test('滑块压住起点时填充仍然延伸到圆心', () {
+      // center = 13，滑块左缘只离开起点 3px。旧实现会在这里把填充压成 0，
+      // 于是开头的已播放段整段消失，等滑块离开 4px 再一次性跳出来。
       final geometry = PlayerProgressGeometry.resolve(
         trackWidth: 300,
         ratio: 13 / 300,
       );
 
       expect(geometry.thumbLeft, 3);
-      expect(geometry.fillWidth, 0);
+      expect(geometry.fillWidth, 13);
+    });
+
+    test('开头几秒的填充宽度随进度连续增长，没有死区', () {
+      // 226px 是常见手机上的实际轨道宽度；这段区间以前全部返回 0。
+      const trackWidth = 226.0;
+      var previous = 0.0;
+      for (var ms = 0; ms <= 12000; ms += 500) {
+        final ratio = ms / 240000; // 4 分钟歌曲
+        final geometry = PlayerProgressGeometry.resolve(
+          trackWidth: trackWidth,
+          ratio: ratio,
+        );
+        expect(
+          geometry.fillWidth,
+          greaterThanOrEqualTo(previous),
+          reason: '第 $ms ms 的填充宽度回退了',
+        );
+        if (ms > 0) {
+          expect(
+            geometry.fillWidth,
+            greaterThan(0),
+            reason: '第 $ms ms 的已播放部分不应为空',
+          );
+        }
+        previous = geometry.fillWidth;
+      }
     });
 
     test('填充延伸到滑块圆心并由滑块覆盖交界', () {
@@ -87,9 +114,11 @@ void main() {
       expect(invalid.thumbLeft, 0);
       expect(invalid.fillWidth, 0);
 
+      // 轨道比滑块还窄时滑块贴左，填充仍不超过轨道宽度。
       final narrow = PlayerProgressGeometry.resolve(trackWidth: 8, ratio: 0.5);
       expect(narrow.thumbLeft, 0);
-      expect(narrow.fillWidth, 0);
+      expect(narrow.fillWidth, 4);
+      expect(narrow.fillWidth, lessThanOrEqualTo(8));
 
       final over = PlayerProgressGeometry.resolve(trackWidth: 300, ratio: 2);
       expect(over.thumbLeft, 280);
@@ -109,8 +138,8 @@ void main() {
       expect(thumb.left, bar.left);
     });
 
-    testWidgets('超过阈值后填充延伸到滑块下方', (tester) async {
-      // center = 15，滑块左缘离开起点 5px；填充延伸到圆心并被滑块盖住。
+    testWidgets('低进度下填充延伸到滑块下方', (tester) async {
+      // center = 15，填充延伸到圆心并被滑块盖住；滑块左侧露出 5px 已播放色。
       await tester.pumpWidget(_app(ratio: 0.05));
       await tester.pumpAndSettle();
 
