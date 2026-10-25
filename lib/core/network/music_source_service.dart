@@ -10,6 +10,7 @@ import '../../features/subsonic/domain/subsonic_url.dart';
 import '../music_source/platform/built_in_source_manager.dart';
 import 'play_url_result.dart';
 import 'outbound_url.dart';
+import '../logging/app_log.dart';
 
 typedef QualityResolver =
     Future<PlayUrlResult?> Function(
@@ -904,7 +905,9 @@ class MusicSourceService {
           page: page,
         );
         if (songs.isNotEmpty) return songs;
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('source.fallback', 'playlist fetch via $platformId failed, trying next source: $error', level: AppLogLevel.warning);
+      }
     }
     return _builtInSources.getSongListDetail(
       platformId,

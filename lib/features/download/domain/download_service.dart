@@ -17,6 +17,7 @@ import '../../../core/network/source_media_transport.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../player/domain/music_item.dart';
 import 'download_task.dart';
+import '../../../core/logging/app_log.dart';
 
 enum DownloadNetwork { wifi, mobile, none }
 
@@ -1447,7 +1448,9 @@ class DownloadService {
       if (!isOwnedDownloadPath(path)) return;
       final f = File(path);
       if (await f.exists()) await f.delete();
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('download.cleanup', 'deleting file $path failed: $error', level: AppLogLevel.warning);
+    }
   }
 
   Future<void> _safeDeleteOwned(String path, _DownloadAttempt attempt) async {

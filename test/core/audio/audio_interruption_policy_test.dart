@@ -774,7 +774,7 @@ void main() {
     final positionNotifier = PositionNotifier(handler);
     addTearDown(positionNotifier.dispose);
 
-    expect(positionNotifier.state, const Duration(seconds: 42));
+    expect(positionNotifier.value, const Duration(seconds: 42));
 
     await handler.handleBecomingNoisy();
     await handler.handleAudioOutputRouteChanged();
@@ -786,10 +786,10 @@ void main() {
     expect(handler.player, same(firstPlayer));
     expect(firstPlayer.playing, isTrue);
     expect(firstPlayer.position, const Duration(seconds: 43));
-    expect(positionNotifier.state, const Duration(seconds: 43));
+    expect(positionNotifier.value, const Duration(seconds: 43));
 
     await firstPlayer.seek(const Duration(seconds: 45));
-    expect(positionNotifier.state, const Duration(seconds: 45));
+    expect(positionNotifier.value, const Duration(seconds: 45));
   });
 
   test('output route rebuild is used only after an existing player stall',
@@ -818,7 +818,7 @@ void main() {
     expect(handler.player, isNot(same(firstPlayer)));
     expect(handler.player.playing, isTrue);
     expect(handler.player.position, const Duration(seconds: 43));
-    expect(positionNotifier.state, const Duration(seconds: 43));
+    expect(positionNotifier.value, const Duration(seconds: 43));
   });
 
   test('device change cannot clear noisy recovery before pause completes',

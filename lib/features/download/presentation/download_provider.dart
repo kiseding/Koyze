@@ -10,6 +10,7 @@ import '../../search/presentation/search_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../../startup_lifecycle.dart';
 import '../../../core/storage/portable_mode.dart';
+import '../../../core/logging/app_log.dart';
 
 final downloadServiceProvider = Provider<DownloadService>((ref) {
   // Startup hydrates this notifier before constructing the service. Do not
@@ -53,7 +54,9 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     Future.microtask(() {
       try {
         ref.read(downloadVersionProvider.notifier).state++;
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('download.ui', 'refreshing download list after task event failed: $error', level: AppLogLevel.info);
+      }
     });
   });
   ref.onDispose(() {

@@ -79,7 +79,7 @@ Future<void> _pumpView(WidgetTester tester, LyricLoader loader) async {
       overrides: [
         currentMusicProvider.overrideWithValue(_music('A')),
         currentLineIndexProvider.overrideWithValue(-1),
-        playerPositionProvider.overrideWith((_) => PositionNotifier(null)),
+        playerPositionProvider.overrideWith(PositionNotifier.new),
         lyricLoaderProvider.overrideWithValue(loader),
       ],
       child: const MaterialApp(

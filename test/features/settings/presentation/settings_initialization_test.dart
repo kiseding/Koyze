@@ -21,7 +21,7 @@ void main() {
     await mutation;
     await Future<void>.delayed(Duration.zero);
 
-    expect(notifier.state, ThemeMode.light);
+    expect(notifier.value, ThemeMode.light);
     expect(prefs.getInt('theme_mode'), ThemeMode.light.index);
   });
 
@@ -38,7 +38,7 @@ void main() {
     await clear;
     await Future<void>.delayed(Duration.zero);
 
-    expect(notifier.state, isEmpty);
+    expect(notifier.value, isEmpty);
     expect(prefs.getStringList('search_history'), isEmpty);
   });
 
@@ -66,25 +66,25 @@ void main() {
       switch (kind) {
         case 'audio':
           final value = AudioQualityNotifier(storage: loader);
-          readState = () => value.state;
+          readState = () => value.value;
           expected = AudioQualityOption.hires;
           mutation = value.setQuality(AudioQualityOption.hires);
           break;
         case 'download':
           final value = DownloadQualityNotifier(storage: loader);
-          readState = () => value.state;
+          readState = () => value.value;
           expected = AudioQualityOption.lossless;
           mutation = value.setQuality(AudioQualityOption.lossless);
           break;
         case 'wifi':
           final value = WifiOnlyDownloadNotifier(storage: loader);
-          readState = () => value.state;
+          readState = () => value.value;
           expected = false;
           mutation = value.setWifiOnly(false);
           break;
         case 'platform':
           final value = DefaultSearchPlatformNotifier(storage: loader);
-          readState = () => value.state;
+          readState = () => value.value;
           expected = 'wy';
           mutation = value.setPlatform('wy');
           break;
@@ -123,7 +123,7 @@ void main() {
     await mutation;
     await Future<void>.delayed(Duration.zero);
 
-    expect(notifier.state, ThemeMode.light);
+    expect(notifier.value, ThemeMode.light);
     expect(prefs.getInt('theme_mode'), ThemeMode.light.index);
   });
 
@@ -145,7 +145,7 @@ void main() {
       throwsA(isA<StorageWriteException>()),
     );
 
-    expect(notifier.state, AudioQualityOption.high);
+    expect(notifier.value, AudioQualityOption.high);
   });
 
   test('stale failed download write cannot roll back a newer same-value write',
@@ -176,7 +176,7 @@ void main() {
 
     await expectLater(staleWrite, throwsA(isA<StorageWriteException>()));
     await newerWrite;
-    expect(notifier.state, AudioQualityOption.lossless);
+    expect(notifier.value, AudioQualityOption.lossless);
   });
 
   test('stale delayed loader cannot persist over a newer download quality',
@@ -210,7 +210,7 @@ void main() {
     firstMutationStorage.complete(storage);
     await staleWrite;
 
-    expect(notifier.state, AudioQualityOption.hires);
+    expect(notifier.value, AudioQualityOption.hires);
     expect(
       preferences.getInt('download_quality'),
       AudioQualityOption.hires.index,
@@ -248,7 +248,7 @@ void main() {
     await staleWrite;
     await newerWrite;
 
-    expect(notifier.state, AudioQualityOption.hires);
+    expect(notifier.value, AudioQualityOption.hires);
     expect(appliedQualities, ['hires']);
   });
 
@@ -273,7 +273,7 @@ void main() {
     await clear;
     await Future<void>.delayed(Duration.zero);
 
-    expect(notifier.state, isEmpty);
+    expect(notifier.value, isEmpty);
     expect(prefs.getStringList('search_history'), isEmpty);
   });
 
@@ -288,7 +288,7 @@ void main() {
     gate.complete(StorageService.forTesting(prefs));
     await Future<void>.delayed(Duration.zero);
 
-    expect(notifier.state, ThemeMode.light);
+    expect(notifier.value, ThemeMode.light);
     expect(prefs.getInt('theme_mode'), ThemeMode.dark.index);
   });
 }

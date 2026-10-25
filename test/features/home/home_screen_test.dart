@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/source_text.dart';
 
 void main() {
   test('home hosts search entry and random favorites shortcut', () {
@@ -36,7 +37,7 @@ void main() {
     expect(hero, contains("'本地音乐'"));
     expect(hero, contains("'NAS 乐库'"));
     expect(hero, contains("'最近播放'"));
-    final strings = File('lib/l10n/app_strings.dart').readAsStringSync();
+    final strings = readSource('lib/l10n/app_zh.arb');
     expect(strings, contains('只能启用其中一张'));
     expect(strings, contains('右侧按钮播放模式'));
     expect(hero, contains('titleFor(S.of(context))'));
@@ -71,7 +72,7 @@ void main() {
   });
 
   test('search sheet follows the Origo search surface and delays keyboard focus', () {
-    final sheet = File('lib/core/widgets/search_sheet.dart').readAsStringSync();
+    final sheet = readSource('lib/core/widgets/search_sheet.dart');
     final search = File(
       'lib/features/search/presentation/search_screen.dart',
     ).readAsStringSync();
@@ -138,10 +139,8 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('s.charts'));
-    expect(
-      File('lib/l10n/app_strings.dart').readAsStringSync(),
-      contains("en ? 'Charts' : '榜单'"),
-    );
+    expect(readSource('lib/l10n/app_zh.arb'), contains('"charts": "榜单"'));
+    expect(readSource('lib/l10n/app_en.arb'), contains('"charts": "Charts"'));
     // 选中态是向右展开的图标胶囊：实心图标切换 + 末尾过冲的弹性曲线。
     expect(source, contains('AnimatedSwitcher'));
     expect(source, contains('MotionCurve.emphasize'));

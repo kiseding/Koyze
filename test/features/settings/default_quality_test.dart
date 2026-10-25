@@ -9,6 +9,6 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final notifier = AudioQualityNotifier();
     await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(notifier.state, AudioQualityOption.high);
+    expect(notifier.value, AudioQualityOption.high);
   });
 }

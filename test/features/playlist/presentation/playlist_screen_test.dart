@@ -1,20 +1,15 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
+import '../../../support/source_text.dart';
 
 void main() {
   test('playlist screen does not resize for the keyboard', () {
-    final source = File(
-      'lib/features/playlist/presentation/playlist_screen.dart',
-    ).readAsStringSync();
+    final source = readSource('lib/features/playlist/presentation/playlist_screen.dart');
 
     expect(source, contains('resizeToAvoidBottomInset: false'));
   });
 
   test('import dialog guards local state after every async dismissal path', () {
-    final source = File(
-      'lib/features/playlist/presentation/playlist_screen.dart',
-    ).readAsStringSync();
+    final source = readSource('lib/features/playlist/presentation/playlist_screen.dart');
     final importDialog = source.substring(
       source.indexOf('Future<void> _showImportDialog('),
       source.indexOf('void _showPlaylistMoreMenu('),
@@ -37,9 +32,7 @@ void main() {
   });
 
   test('local music card opens the playlist player view', () {
-    final source = File(
-      'lib/features/playlist/presentation/playlist_screen.dart',
-    ).readAsStringSync();
+    final source = readSource('lib/features/playlist/presentation/playlist_screen.dart');
     final card = source.substring(
       source.indexOf('Widget _buildLocalCard('),
       source.indexOf('Widget _buildRecommendCard('),
@@ -51,9 +44,7 @@ void main() {
   });
 
   test('playlist cards use immediate animated play feedback', () {
-    final source = File(
-      'lib/features/playlist/presentation/playlist_screen.dart',
-    ).readAsStringSync();
+    final source = readSource('lib/features/playlist/presentation/playlist_screen.dart');
 
     // 五个入口共用一枚 _PresetCard，播放反馈只实现一次；如果哪天又散回
     // 五份手写卡片，这里的计数会先炸。
@@ -73,9 +64,7 @@ void main() {
   });
 
   test('playlist body is lazily built and never spreads full song lists', () {
-    final source = File(
-      'lib/features/playlist/presentation/playlist_screen.dart',
-    ).readAsStringSync();
+    final source = readSource('lib/features/playlist/presentation/playlist_screen.dart');
 
     expect(source, contains('ListView.builder('));
     // 全量展开映射是屏幕外内容被构建的根源，必须移除。
@@ -87,9 +76,7 @@ void main() {
   });
 
   test('预设卡的留白由卡高与图标推出来，四边同一个数', () {
-    final source = File(
-      'lib/features/playlist/presentation/playlist_screen.dart',
-    ).readAsStringSync();
+    final source = readSource('lib/features/playlist/presentation/playlist_screen.dart');
     final card = source.substring(source.indexOf('class _PresetCard'));
 
     // 图标 52 在 72 高的卡里垂直居中，四边各留 10。原先图标 38、四边 17，

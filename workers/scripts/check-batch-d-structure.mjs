@@ -16,12 +16,20 @@ function sourceFiles(dir) {
   });
 }
 
+// Normalize CRLF -> LF before every structural assertion. On Windows the
+// repository is checked out with CRLF until `.gitattributes` (eol=lf) is
+// re-applied, and every regex below assumes `\n` line starts. Reading raw
+// text made this script pass in CI and fail on the maintainer's machine.
+function readNormalized(path) {
+  return readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+}
+
 const runtimeSource = sourceFiles(join(root, 'src'))
-  .map((path) => readFileSync(path, 'utf8'))
+  .map((path) => readNormalized(path))
   .join('\n');
-const importRoute = readFileSync(join(root, 'src/routes/playlist-import.ts'), 'utf8');
-const wrangler = readFileSync(join(root, 'wrangler.toml'), 'utf8');
-const project = readFileSync(join(repo, 'ios/Runner.xcodeproj/project.pbxproj'), 'utf8');
+const importRoute = readNormalized(join(root, 'src/routes/playlist-import.ts'));
+const wrangler = readNormalized(join(root, 'wrangler.toml'));
+const project = readNormalized(join(repo, 'ios/Runner.xcodeproj/project.pbxproj'));
 
 if (/\b(?:CREATE|ALTER|DROP)\s+(?:TABLE|INDEX)\b/i.test(runtimeSource)) {
   fail('workers/src still contains request-time DDL');
@@ -84,6 +92,37 @@ if (
 }
 if (/console\.(?:log|error|warn)\([^\n]*(?:Authorization|ADMIN_PASSWORD|TINYAPI_KEY|password|token)/i.test(runtimeSource)) {
   fail('runtime logging may include credentials');
+}
+
+// Migration ordering: wrangler applies migrations in lexicographic filename
+// order and records applied names in `d1_migrations`. Two files sharing a
+// numeric prefix (0003_add_rbac.sql / 0003_scope_love_song_uniqueness.sql)
+// only work by accident of the alphabet, and any future insert becomes a
+// coin flip. Renaming an already-applied migration would make wrangler run it
+// a second time on existing databases, so the historical pair is grandfathered
+// in and only *new* duplicates are rejected.
+const GRANDFATHERED_DUPLICATE_PREFIXES = new Set(['0003']);
+const migrationFiles = readdirSync(join(root, 'migrations'))
+  .filter((name) => name.endsWith('.sql'))
+  .sort();
+const prefixCounts = new Map();
+for (const name of migrationFiles) {
+  const match = name.match(/^(\d+)_/);
+  if (!match) {
+    fail(`migration "${name}" does not start with a numeric prefix`);
+    continue;
+  }
+  const prefix = match[1];
+  prefixCounts.set(prefix, (prefixCounts.get(prefix) ?? 0) + 1);
+}
+for (const [prefix, count] of prefixCounts) {
+  if (count > 1 && !GRANDFATHERED_DUPLICATE_PREFIXES.has(prefix)) {
+    fail(`migration prefix ${prefix} is used by ${count} files; prefixes must be unique`);
+  }
+}
+const sortedPrefixes = [...prefixCounts.keys()].sort();
+if (JSON.stringify(sortedPrefixes) !== JSON.stringify([...new Set(sortedPrefixes)].sort())) {
+  fail('migration prefixes are not written in zero-padded sortable form');
 }
 
 if (!process.exitCode) console.log('Batch D structural checks passed.');

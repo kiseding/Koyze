@@ -48,13 +48,13 @@ void main() {
       ProviderScope(
         overrides: [
           searchStateProvider.overrideWith(
-            (ref) => SearchNotifier(
+            () => SearchNotifier(
               (query, sourceId, page) async => const [],
               () => 'tx',
             ),
           ),
           hotSearchProvider.overrideWith((ref) async => const ['热歌1']),
-          searchHistoryProvider.overrideWith((ref) => SearchHistoryNotifier()),
+          searchHistoryProvider.overrideWith(SearchHistoryNotifier.new),
           allSearchSourcesProvider.overrideWith(
             (ref) => [
               SearchSourceItem(id: 'all', name: '全网'),
@@ -80,13 +80,13 @@ void main() {
       ProviderScope(
         overrides: [
           searchStateProvider.overrideWith(
-            (ref) => SearchNotifier((query, sourceId, page) async {
+            () => SearchNotifier((query, sourceId, page) async {
               attempts++;
               throw StateError('offline');
             }, () => 'tx'),
           ),
           hotSearchProvider.overrideWith((ref) async => const []),
-          searchHistoryProvider.overrideWith((ref) => SearchHistoryNotifier()),
+          searchHistoryProvider.overrideWith(SearchHistoryNotifier.new),
           allSearchSourcesProvider.overrideWith(
             (ref) => [SearchSourceItem(id: 'tx', name: 'QQ')],
           ),
@@ -121,13 +121,13 @@ void main() {
       ProviderScope(
         overrides: [
           searchStateProvider.overrideWith(
-            (ref) => SearchNotifier(
+            () => SearchNotifier(
               (query, sourceId, page) async => [song],
               () => 'tx',
             ),
           ),
           hotSearchProvider.overrideWith((ref) async => const []),
-          searchHistoryProvider.overrideWith((ref) => SearchHistoryNotifier()),
+          searchHistoryProvider.overrideWith(SearchHistoryNotifier.new),
           allSearchSourcesProvider.overrideWith(
             (ref) => [SearchSourceItem(id: 'tx', name: 'QQ')],
           ),

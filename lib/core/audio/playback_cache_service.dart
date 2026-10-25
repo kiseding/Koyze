@@ -13,6 +13,7 @@ import '../network/outbound_url.dart';
 import '../network/play_url_result.dart';
 import '../network/source_media_transport.dart';
 import '../storage/storage_service.dart';
+import '../logging/app_log.dart';
 
 typedef PlaybackDownloader =
     Future<void> Function(
@@ -914,7 +915,9 @@ class PlaybackCacheService {
     if (initialization != null) {
       try {
         await initialization;
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('cache.dispose', 'initialization failed during dispose: $error', level: AppLogLevel.warning);
+      }
     }
     while (_activeOperations.isNotEmpty) {
       final operations = _activeOperations
@@ -924,7 +927,9 @@ class PlaybackCacheService {
         operations.map((future) async {
           try {
             await future;
-          } catch (_) {}
+          } catch (error) {
+            AppLog.instance.record('cache.dispose', 'in-flight cache operation failed during dispose: $error', level: AppLogLevel.warning);
+          }
         }),
       );
     }
@@ -935,7 +940,9 @@ class PlaybackCacheService {
       final tail = _pendingIndexWrite;
       try {
         await tail;
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('cache.dispose', 'pending index write failed during dispose: $error', level: AppLogLevel.warning);
+      }
       if (identical(tail, _pendingIndexWrite)) return;
     }
   }
@@ -1948,7 +1955,9 @@ class PlaybackCacheService {
     }
     try {
       await _saveIndex(allowDuringDispose: true);
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('cache.rollback', 'index save after rollback failed: $error', level: AppLogLevel.warning);
+    }
   }
 
   Future<void> _purgeUnprotectedWithoutSaving() async {

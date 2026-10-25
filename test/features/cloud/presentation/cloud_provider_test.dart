@@ -129,7 +129,7 @@ final class ControlledCloudApiClient extends CloudApiClient {
 void main() {
   test('late refresh cannot overwrite a newer login', () async {
     final api = ControlledCloudApiClient(initiallyLoggedIn: true);
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+    final notifier = CloudSessionNotifier(api: api, autoRefresh: false);
 
     final refresh = notifier.refresh();
     await api.verifyStarted.future;
@@ -140,8 +140,8 @@ void main() {
     api.completeVerify(CloudVerification.unauthorized);
     await refresh;
 
-    expect(notifier.state.loggedIn, isTrue);
-    expect(notifier.state.username, 'new-user');
+    expect(notifier.value.loggedIn, isTrue);
+    expect(notifier.value.username, 'new-user');
     expect(api.clearCount, 0);
   });
 
@@ -149,7 +149,7 @@ void main() {
     final api = ControlledCloudApiClient(initiallyLoggedIn: true)
       ..nextVerification = CloudVerification.unauthorized
       ..clearImmediately = false;
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+    final notifier = CloudSessionNotifier(api: api, autoRefresh: false);
 
     final refresh = notifier.refresh();
     await api.clearStarted.future;
@@ -160,8 +160,8 @@ void main() {
     api.clearCompleter.complete();
     await refresh;
 
-    expect(notifier.state.loggedIn, isTrue);
-    expect(notifier.state.username, 'new-user');
+    expect(notifier.value.loggedIn, isTrue);
+    expect(notifier.value.username, 'new-user');
     expect(api.token, 'new-token');
   });
 
@@ -169,7 +169,7 @@ void main() {
     final api = ControlledCloudApiClient(initiallyLoggedIn: true)
       ..nextVerification = CloudVerification.unauthorized
       ..clearImmediately = false;
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+    final notifier = CloudSessionNotifier(api: api, autoRefresh: false);
 
     final refresh = notifier.refresh();
     await api.clearStarted.future;
@@ -178,14 +178,14 @@ void main() {
     api.clearCompleter.complete();
     await refresh;
 
-    expect(notifier.state.loggedIn, isTrue);
-    expect(notifier.state.baseUrl, 'https://new.example');
+    expect(notifier.value.loggedIn, isTrue);
+    expect(notifier.value.baseUrl, 'https://new.example');
     expect(api.token, 'old-token');
   });
 
   test('late refresh cannot overwrite a newer logout', () async {
     final api = ControlledCloudApiClient(initiallyLoggedIn: true);
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+    final notifier = CloudSessionNotifier(api: api, autoRefresh: false);
 
     final refresh = notifier.refresh();
     await api.verifyStarted.future;
@@ -194,13 +194,13 @@ void main() {
     api.completeVerify(CloudVerification.valid);
     await refresh;
 
-    expect(notifier.state.loggedIn, isFalse);
-    expect(notifier.state.username, isNull);
+    expect(notifier.value.loggedIn, isFalse);
+    expect(notifier.value.username, isNull);
   });
 
   test('late refresh cannot overwrite a newer base URL', () async {
     final api = ControlledCloudApiClient(initiallyLoggedIn: true);
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+    final notifier = CloudSessionNotifier(api: api, autoRefresh: false);
 
     final refresh = notifier.refresh();
     await api.verifyStarted.future;
@@ -208,31 +208,31 @@ void main() {
     api.completeVerify(CloudVerification.valid);
     await refresh;
 
-    expect(notifier.state.baseUrl, 'https://new.example');
+    expect(notifier.value.baseUrl, 'https://new.example');
   });
 
   test('outage preserves an authenticated session', () async {
     final api = ControlledCloudApiClient(initiallyLoggedIn: true)
       ..nextVerification = CloudVerification.unavailable;
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+    final notifier = CloudSessionNotifier(api: api, autoRefresh: false);
 
     await notifier.refresh();
 
-    expect(notifier.state.loaded, isTrue);
-    expect(notifier.state.checking, isFalse);
-    expect(notifier.state.loggedIn, isTrue);
-    expect(notifier.state.error, contains('服务器暂时不可用'));
+    expect(notifier.value.loaded, isTrue);
+    expect(notifier.value.checking, isFalse);
+    expect(notifier.value.loggedIn, isTrue);
+    expect(notifier.value.error, contains('服务器暂时不可用'));
     expect(api.clearCount, 0);
   });
 
   test('401 clears the authenticated session', () async {
     final api = ControlledCloudApiClient(initiallyLoggedIn: true)
       ..nextVerification = CloudVerification.unauthorized;
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+    final notifier = CloudSessionNotifier(api: api, autoRefresh: false);
 
     await notifier.refresh();
 
-    expect(notifier.state.loggedIn, isFalse);
+    expect(notifier.value.loggedIn, isFalse);
     expect(api.clearCount, 1);
   });
 
@@ -241,22 +241,22 @@ void main() {
     final api = ControlledCloudApiClient(initiallyLoggedIn: true)
       ..nextVerification = CloudVerification.unauthorized
       ..clearImmediately = false;
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+    final notifier = CloudSessionNotifier(api: api, autoRefresh: false);
 
     final refresh = notifier.refresh();
     await api.clearStarted.future;
     api.clearCompleter.completeError(StateError('keychain unavailable'));
     await refresh;
 
-    expect(notifier.state.loggedIn, isTrue);
-    expect(notifier.state.username, 'saved-user');
-    expect(notifier.state.error, contains('无法清除安全凭据'));
+    expect(notifier.value.loggedIn, isTrue);
+    expect(notifier.value.username, 'saved-user');
+    expect(notifier.value.error, contains('无法清除安全凭据'));
   });
 
   test('a stale login safety failure remains visible after a newer command',
       () async {
     final api = ControlledCloudApiClient();
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+    final notifier = CloudSessionNotifier(api: api, autoRefresh: false);
 
     final login = notifier.login('user', 'password');
     await notifier.setBaseUrl('https://new.example');
@@ -265,13 +265,13 @@ void main() {
     ));
 
     expect(await login, isFalse);
-    expect(notifier.state.error, contains('invalidated'));
+    expect(notifier.value.error, contains('invalidated'));
   });
 
   test('a stale refresh safety failure remains visible after a newer command',
       () async {
     final api = ControlledCloudApiClient(initiallyLoggedIn: true);
-    final notifier = CloudSessionNotifier(api, autoRefresh: false);
+    final notifier = CloudSessionNotifier(api: api, autoRefresh: false);
 
     final refresh = notifier.refresh();
     await api.verifyStarted.future;
@@ -281,8 +281,8 @@ void main() {
     ));
     await refresh;
 
-    expect(notifier.state.error, contains('invalidated'));
-    expect(notifier.state.loggedIn, isTrue);
-    expect(notifier.state.baseUrl, 'https://new.example');
+    expect(notifier.value.error, contains('invalidated'));
+    expect(notifier.value.loggedIn, isTrue);
+    expect(notifier.value.baseUrl, 'https://new.example');
   });
 }

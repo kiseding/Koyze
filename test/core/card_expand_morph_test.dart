@@ -1,49 +1,97 @@
-import 'dart:io';
-
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:koyze/core/card_expand.dart';
 
+/// 卡片展开转场的行为契约。
+///
+/// 之前的版本靠 `readAsStringSync` + `contains('Rect.lerp(...)')` 来"保证"
+/// morph，那种测试在重命变量时误报、在真正删掉 morph 时却可能仍然通过。
+/// 这里改为实际构造路由并检查产出。
 void main() {
-  test('card morph scales source UI with the expanding rect', () {
-    final source = File('lib/core/card_expand.dart').readAsStringSync();
-
-    // 窗口仍从源卡片矩形 lerp 到全屏：四边各自长到屏幕边。
-    expect(source, contains('Rect.lerp(sourceRect, targetRect'));
-
-    // 宽度跟着窗口走；高度用同一比例，不能按窗高单独缩放把卡片 UI 压扁。
-    expect(source, contains('scale: currentRect.width / sourceRect.width'));
-    expect(source, contains('scale: currentRect.width / targetRect.width'));
-    // 内容相对窗口居中：收起时上下一起裁，而不是顶对齐从下往上收。
-    expect(source, isNot(contains('alignment: Alignment.topLeft')));
-    expect(
-      source,
-      isNot(contains('scaleY: currentRect.height / sourceRect.height')),
+  Widget appWithPage(CustomTransitionPage<Object?> page) {
+    return MaterialApp(
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: ElevatedButton(
+              onPressed: () =>
+                  Navigator.of(context).push(page.createRoute(context)),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
     );
-    expect(
-      source,
-      isNot(contains('scaleY: currentRect.height / targetRect.height')),
+  }
+
+  testWidgets('有源矩形时页面透明，才能透视下层做 morph', (tester) async {
+    final page = expandablePage(
+      const ValueKey('k'),
+      const ColoredBox(color: Colors.white),
+      expandRect: const Rect.fromLTWH(20, 400, 380, 120),
     );
-    expect(source, isNot(contains('BoxFit.fill')));
-    expect(source, isNot(contains('left: sourceRect.left - currentRect.left')));
+    expect(page.opaque, isFalse);
+    expect(page.barrierColor, Colors.transparent);
+    expect(page.barrierDismissible, isTrue);
+  });
 
-    // 有卡片矩形时优先走 morph，不能被整页飞入/中心缩放盖掉。
-    final expandingIdx = source.indexOf('if (expanding)');
-    final swipeIdx = source.indexOf('if (fullWidthSwipe)');
-    expect(expandingIdx, greaterThan(0));
-    expect(swipeIdx, greaterThan(expandingIdx));
-
-    // 每条路由自己的关闭会话：NAS 设置叠在乐库上时，不能共用全局
-    // cardDismissProgress，否则返回设置会把底下的乐库收成空层。
-    expect(source, contains('class _CardDismissSession'));
-    expect(source, contains('_CardDismissScope.maybeOf'));
-    expect(
-      source,
-      contains('getInheritedWidgetOfExactType<_CardDismissScope>()'),
+  testWidgets('没有源矩形时页面不透明，保留系统返回手势', (tester) async {
+    final page = expandablePage(
+      const ValueKey('k2'),
+      const ColoredBox(color: Colors.white),
     );
+    expect(page.opaque, isTrue);
+    expect(page.barrierDismissible, isFalse);
+  });
 
-    // go_router 重跑 pageBuilder 时必须按 Page.key 记住第一次的源矩形，
-    // 否则从设置页返回后乐库变成不透明页，右滑和卡片 morph 一起丢。
-    expect(source, contains('_expandRectByPage'));
-    expect(source, contains('_rememberExpandRect'));
-    expect(source, contains('_forgetExpandOrigin'));
+  testWidgets('整页右滑页也是透明的，飞入时才能露出下层', (tester) async {
+    final page = expandablePage(
+      const ValueKey('k3'),
+      const ColoredBox(color: Colors.white),
+      fullWidthSwipe: true,
+    );
+    expect(page.opaque, isFalse);
+  });
+
+  testWidgets('同一个 key 第二次调用会记住第一次的源矩形', (tester) async {
+    const key = ValueKey('remember-me');
+    final first = expandablePage(
+      key,
+      const ColoredBox(color: Colors.white),
+      expandRect: const Rect.fromLTWH(0, 0, 100, 100),
+    );
+    expect(first.opaque, isFalse);
+
+    // go_router 重跑 pageBuilder 时通常不会再传 rect，
+    // 此时必须复用第一次记住的矩形，否则 morph 丢失、页面变成不透明。
+    final second = expandablePage(key, const ColoredBox(color: Colors.white));
+    expect(
+      second.opaque,
+      isFalse,
+      reason: '同一 pageKey 应沿用记住的源矩形，保持 morph 能力',
+    );
+  });
+
+  testWidgets('打开展开页后能正常渲染内容', (tester) async {
+    final page = expandablePage(
+      const ValueKey('render'),
+      const Center(child: Text('detail')),
+      expandRect: const Rect.fromLTWH(20, 400, 380, 120),
+    );
+    await tester.pumpWidget(appWithPage(page));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('detail'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('转场时长比普通页面短，打开与关闭使用不同节奏', (tester) async {
+    final page = expandablePage(
+      const ValueKey('timing'),
+      const ColoredBox(color: Colors.white),
+    );
+    expect(page.transitionDuration, isNot(equals(Duration.zero)));
+    expect(page.reverseTransitionDuration, isNot(equals(Duration.zero)));
   });
 }

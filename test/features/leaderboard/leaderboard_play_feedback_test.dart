@@ -1,11 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
+import '../../support/source_text.dart';
 
 void main() {
-  final source = File(
-    'lib/features/leaderboard/presentation/leaderboard_screen.dart',
-  ).readAsStringSync();
+  final source = readSource('lib/features/leaderboard/presentation/leaderboard_screen.dart');
 
   test('列表行用轻量播放键', () {
     final button = source.substring(

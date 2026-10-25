@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 
 import 'source_request_policy.dart';
+import '../logging/app_log.dart';
 
 typedef SourceDioFactory = Dio Function();
 typedef SourceDioExecutor = Future<Response<dynamic>> Function(
@@ -268,7 +269,9 @@ class SourcePinnedTransport {
           if (e is TimeoutException) sawTimeout = true;
           try {
             task?.cancel();
-          } catch (_) {}
+          } catch (error) {
+            AppLog.instance.record('network.pinned', 'cancelling pinned request failed: $error', level: AppLogLevel.info);
+          }
         }
       }
       // 只对超时重试：连接被拒绝 / 证书错误重试没有意义。

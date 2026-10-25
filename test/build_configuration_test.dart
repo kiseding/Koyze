@@ -47,13 +47,23 @@ void main() {
       'lib/features/settings/presentation/settings_screen.dart',
     ).readAsStringSync();
     final strings = File('lib/l10n/app_strings.dart').readAsStringSync();
+    expect(strings, contains('_l10n.version'));
 
     // 版本号只在 lib/core/app_version.dart 里写一次（具体数值与 pubspec 的
     // 一致性由 test/core/app_version_test.dart 钉住），设置页引用常量而不是
     // 再硬编码一份字符串，否则发版时两处会不同步。
     expect(settings, contains('name: s.version, value: kAppVersionLabel'));
     expect(settings, isNot(contains(RegExp(r"value: 'v[0-9]+\\.[0-9]+"))));
-    expect(strings, contains("en ? 'Version' : '版本'"));
+    // Copy moved to ARB in the l10n migration. Assert the pair exists in the
+    // ARB source of truth instead of grepping the facade for a ternary.
+    expect(
+      File('lib/l10n/app_en.arb').readAsStringSync(),
+      contains('"version"'),
+    );
+    expect(
+      File('lib/l10n/app_zh.arb').readAsStringSync(),
+      contains('"version": "版本"'),
+    );
   });
 
   test('platform workflows use the same pinned Flutter patch release', () {
@@ -471,7 +481,7 @@ void main() {
     ).readAsStringSync();
     expect(localMusic, contains('writeTags'));
     expect(
-      File('lib/l10n/app_strings.dart').readAsStringSync(),
+      File('lib/l10n/app_zh.arb').readAsStringSync(),
       contains('注入tag（实验性）'),
     );
     final main = File('lib/main.dart').readAsStringSync();

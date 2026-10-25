@@ -46,7 +46,7 @@ void main() {
           AsyncValue.data(const Duration(seconds: 200)),
         ),
         playModeProvider.overrideWithValue(PlayMode.sequential),
-        playerPositionProvider.overrideWith((ref) => PositionNotifier(null)),
+        playerPositionProvider.overrideWith(PositionNotifier.new),
         beginScrubProvider.overrideWithValue(() async => 0),
         finishScrubProvider.overrideWithValue(
           (int gen, Duration target, {required bool resumeAfter}) async {},

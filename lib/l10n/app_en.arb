@@ -1,0 +1,1311 @@
+{
+  "@@locale": "en",
+  "home": "Home",
+  "charts": "Charts",
+  "playlists": "Playlists",
+  "settings": "Settings",
+  "sync": "Sync",
+  "cloudAccount": "Cloud account",
+  "cloudAccountSubtitle": "Sync favorites, playlists, settings, and custom sources",
+  "advanced": "Advanced",
+  "localLibrary": "Local music folders",
+  "localLibrarySubtitle": "Choose folders, rescan, and match songs online",
+  "customSources": "Custom sources",
+  "customSourcesSubtitle": "Manage custom music sources",
+  "nasServer": "NAS music server",
+  "playback": "Playback",
+  "audioQuality": "Audio quality",
+  "chooseQuality": "Choose quality",
+  "equalizer": "Equalizer",
+  "sleepTimer": "Sleep timer",
+  "cancel": "Cancel",
+  "sleepTimerCancelled": "Sleep timer cancelled",
+  "autoResume": "Resume on launch",
+  "autoResumeSubtitle": "Continue the last song when the app opens",
+  "floatingPlayer": "Floating player",
+  "floatingPlayerSubtitle": "Show cover, lyrics, progress, and playback controls over other apps",
+  "floatingPlayerPermission": "Allow display over other apps, then return to Koyze",
+  "forceLandscape": "Force landscape",
+  "forceLandscapeSubtitle": "Use the landscape layout. Phones also stay in landscape",
+  "simplifyEffects": "Reduce effects",
+  "simplifyEffectsSubtitle": "Turn off frosted glass, transparency, and motion. On by default at 4GB or less",
+  "defaultSearchPlatform": "Default search source",
+  "listeningStats": "Listening stats",
+  "listeningStatsSubtitle": "History, rankings, and activity",
+  "appearance": "Appearance",
+  "language": "Language",
+  "darkMode": "Dark mode",
+  "darkModeSubtitle": "Use the dark theme",
+  "followSystem": "Follow system",
+  "followSystemThemeSubtitle": "Match the system light or dark theme",
+  "followSystemLanguageSubtitle": "Use the device language when it is Chinese or English",
+  "themeColor": "Theme colour",
+  "themeColorSubtitle": "One accent builds the whole Material 3 palette",
+  "downloads": "Downloads",
+  "downloadManager": "Download manager",
+  "downloadManagerSubtitle": "View and manage download tasks",
+  "wifiOnly": "Wi-Fi only",
+  "wifiOnlySubtitle": "Download songs only on Wi-Fi",
+  "downloadQuality": "Download quality",
+  "chooseDownloadQuality": "Choose download quality",
+  "data": "Data",
+  "backup": "Back up",
+  "backupSubtitle": "Export playlists and settings to a file",
+  "restore": "Restore",
+  "restoreSubtitle": "Restore from a backup file",
+  "clearCache": "Clear cache",
+  "clearCacheSubtitle": "Clear playback cache, artwork, and temporary files",
+  "about": "About",
+  "version": "Version",
+  "deviceUuid": "Device UUID",
+  "loading": "Loading…",
+  "deviceUuidCopied": "Device UUID copied",
+  "diagnostics": "Live diagnostics",
+  "diagnosticsSubtitle": "Start recording when opened. Keeps recording while minimized.",
+  "volume": "Volume",
+  "mute": "Mute",
+  "unmute": "Unmute",
+  "download": "Download",
+  "addedToDownloads": "Added to the download queue",
+  "downloadFailed": "Could not add download",
+  "exportBackupTitle": "Export Koyze backup",
+  "restoreSucceeded": "Restore complete",
+  "chooseCache": "Choose what to clear",
+  "selectAll": "Select all",
+  "playbackCache": "Playback cache",
+  "playbackCacheSubtitle": "Cached songs. Manual downloads are not included.",
+  "artworkCache": "Artwork cache",
+  "artworkCacheSubtitle": "Album art stored on disk and in memory",
+  "tempFiles": "Temporary files",
+  "tempFilesSubtitle": "Intermediate files in the system temp folder",
+  "cacheKeepNote": "Manual downloads stay. A song that is playing keeps its cache.",
+  "clear": "Clear",
+  "cacheCleared": "Selected cache cleared",
+  "cancelSleepTimer": "Cancel sleep timer",
+  "chineseInterface": "Chinese interface",
+  "englishInterface": "English interface",
+  "shortcuts": "Shortcuts",
+  "shortcutSettings": "Shortcut settings",
+  "closeShortcutSettings": "Close shortcut settings",
+  "searchSongsHint": "Songs, artists, playlists...",
+  "heroCardSettings": "Home card",
+  "heroCardSettingsAction": "Home card settings",
+  "closeHeroCardSettings": "Close home card settings",
+  "heroCardHint": "Same five cards as Playlists. Only one can be on.",
+  "heroPlayMode": "Play button mode",
+  "heroPlayModeHint": "Only this card's button. The player mode stays separate.",
+  "favorites": "Favorites",
+  "forYou": "For You",
+  "localMusic": "Local music",
+  "nasLibrary": "NAS library",
+  "recentPlays": "Recently played",
+  "playInOrder": "In order",
+  "shufflePlay": "Shuffle",
+  "repeatOne": "Repeat one",
+  "playInOrderHint": "Play the list in order, then start over",
+  "shufflePlayHint": "Shuffle, then keep picking at random",
+  "repeatOneHint": "Repeat the current song",
+  "noFavoritesYet": "No favorites yet",
+  "recommendAfterFavorites": "Favorite songs to get recommendations",
+  "heroRecentEmpty": "Nothing played yet",
+  "chooseFolderToScan": "Choose a folder to scan this device",
+  "nasHosts": "Navidrome / Emby / Plex / Synology",
+  "loadSongsFailed": "Could not load songs",
+  "playFailed": "Playback failed",
+  "noSongsOnServer": "No songs on the server yet",
+  "retry": "Retry",
+  "otherPlatform": "Other",
+  "featured": "Picks",
+  "noChartData": "No chart data",
+  "chartsHidden": "Every chart is hidden\\nTurn them back on from the top right",
+  "chartSettings": "Chart settings",
+  "refreshCharts": "Refresh charts",
+  "noSongData": "No songs",
+  "showAll": "Show all",
+  "back": "Back",
+  "allCharts": "All",
+  "defaultFirst": "Shown first",
+  "importPlaylist": "Import playlist",
+  "newPlaylist": "New playlist",
+  "searchLibraryHint": "Search songs or playlists",
+  "clearSearch": "Clear search",
+  "clearResults": "Clear",
+  "customPlaylists": "Custom playlists",
+  "sortPlaylists": "Sort playlists",
+  "nothingMatched": "No matching songs or playlists",
+  "createPlaylist": "Create playlist",
+  "playlistName": "Playlist name",
+  "descriptionOptional": "Description (optional)",
+  "create": "Create",
+  "editPlaylist": "Edit playlist",
+  "save": "Save",
+  "sortBy": "Sort by",
+  "recentlyAdded": "Recently added",
+  "sortByName": "Name",
+  "sortByCount": "Song count",
+  "pastePlaylistLink": "Paste a share link or playlist ID",
+  "closeImport": "Close import",
+  "sourcePlatform": "Source",
+  "kuwoShort": "Kuwo",
+  "kugouShort": "Kugou",
+  "neteaseShort": "NetEase",
+  "playlistLinkOrId": "Link or ID",
+  "enterLinkOrId": "Enter a link or ID",
+  "importAction": "Import",
+  "parsingPlaylist": "Reading playlist…",
+  "parsePlaylist": "Read playlist",
+  "addAllToFavorites": "Add all to Favorites",
+  "addFailed": "Could not add",
+  "alreadyInFavorites": "Those songs are already in Favorites",
+  "deletePlaylist": "Delete playlist",
+  "deleteFailed": "Could not delete",
+  "createFailed": "Could not create",
+  "saveFailed": "Could not save",
+  "choosePlatform": "Choose a source",
+  "platform": "Source",
+  "searchFieldHint": "Songs, playlists...",
+  "searchAction": "Search",
+  "noResults": "No results",
+  "searchEmptyHint": "Try another keyword, or switch sources.",
+  "searchErrorTitle": "Search unavailable",
+  "searchAllSources": "Search all sources",
+  "onlineMusic": "Online",
+  "slideForMore": "Scroll for more",
+  "moreActions": "More",
+  "searchHistory": "Recent searches",
+  "clearHistory": "Clear",
+  "hotSearch": "Trending",
+  "loadingEllipsis": "Loading...",
+  "playNow": "Play now",
+  "addToPlaylist": "Add to playlist",
+  "favorite": "Favorite",
+  "unfavorite": "Unfavorite",
+  "favoriteFailed": "Could not favorite",
+  "playbackProgress": "Playback progress",
+  "nothingPlaying": "Nothing playing",
+  "unknownQuality": "Unknown quality",
+  "resolvingQuality": "Resolving…",
+  "collapsePlayer": "Close player",
+  "backToArtwork": "Back to artwork",
+  "nowPlaying": "Now playing",
+  "lyrics": "Lyrics",
+  "more": "More",
+  "openLyrics": "Open lyrics",
+  "playMode": "Play mode",
+  "previous": "Previous",
+  "next": "Next",
+  "queue": "Queue",
+  "dislikeAndSkip": "Dislike and skip",
+  "dislikedNote": "Marked as disliked. It will be skipped next time.",
+  "dislikeFailed": "Could not mark dislike",
+  "queueLoadFailed": "Full list failed. Showing the current queue.",
+  "queueEmpty": "Queue is empty",
+  "playlistMissing": "Playlist not found",
+  "exitMultiSelect": "Done",
+  "cancelEdit": "Cancel edit",
+  "deselectAll": "Deselect all",
+  "downloadSelected": "Download selected",
+  "unfavoriteSelected": "Remove selected from Favorites",
+  "playAll": "Play all",
+  "alreadyFavorited": "Already in Favorites",
+  "actionFailedShort": "Action failed",
+  "favoriteAll": "Favorite all",
+  "editInfo": "Edit details",
+  "manualSort": "Manual order",
+  "sortByTitle": "Sort by title",
+  "sortByArtist": "Sort by artist",
+  "sortByDuration": "Sort by duration",
+  "duplicateSongs": "Duplicate songs",
+  "clearFavorites": "Clear favorites",
+  "noSongs": "No songs",
+  "locateFailed": "Could not find the song",
+  "play": "Play",
+  "removeFromPlaylist": "Remove from playlist",
+  "removeFailed": "Could not remove",
+  "nothingSelectedToDownload": "No selected songs to download",
+  "nothingSelectedToUnfavorite": "No selected songs to remove from Favorites",
+  "unfavoriteFailed": "Could not remove from Favorites",
+  "descriptionLabel": "Description",
+  "clearFavoritesTitle": "Clear favorites?",
+  "confirmClear": "Clear",
+  "favoritesAlreadyEmpty": "Favorites is already empty",
+  "delete": "Delete",
+  "close": "Close",
+  "add": "Add",
+  "pause": "Pause",
+  "refresh": "Refresh",
+  "connect": "Connect",
+  "reset": "Reset",
+  "remove": "Remove",
+  "start": "Start",
+  "log": "Log",
+  "edit": "Edit",
+  "export": "Export",
+  "customPreset": "Custom",
+  "presets": "Presets",
+  "pauseAll": "Pause all",
+  "waiting": "Waiting",
+  "done": "Done",
+  "all": "All",
+  "username": "Username",
+  "password": "Password",
+  "login": "Log in",
+  "register": "Register",
+  "pleaseWait": "Please wait…",
+  "notice": "Notice",
+  "success": "Success",
+  "warning": "Warning",
+  "error": "Error",
+  "dismissNotification": "Dismiss",
+  "somethingWentWrong": "Something went wrong",
+  "notPlaying": "Not playing",
+  "noLyrics": "No lyrics",
+  "openNowPlaying": "Open Now Playing",
+  "previousPage": "Previous page",
+  "nextPage": "Next page",
+  "choosePage": "Choose page",
+  "preparingApp": "Preparing Koyze",
+  "startupFailed": "Koyze could not start",
+  "startupLoading": "Loading your library and player…",
+  "retryStartup": "Try again",
+  "lyricsLoading": "Loading lyrics",
+  "fetchingLyrics": "Fetching lyrics",
+  "lyricsFailed": "Could not load lyrics",
+  "checkNetwork": "Check the connection and try again",
+  "lyricsEmpty": "No lyrics",
+  "lyricsUnavailable": "No lyric file for this song",
+  "searchLyrics": "Search lyrics",
+  "equalizerUnavailable": "Equalizer is not available here",
+  "equalizerUnavailableBody": "The equalizer needs an audio-effects channel. AVPlayer on iOS and macOS, and Media Foundation on Windows, do not expose one, so it currently works on Android only.",
+  "equalizerHint": "Adjust the tone for every source",
+  "unavailableOnPlatform": "Not available on this platform",
+  "gainDb": "Gain (dB)",
+  "enableEqualizerToAdjust": "Turn the equalizer on to adjust",
+  "bandsPending": "Player not connected. Showing a typical 5-band layout until playback starts.",
+  "localMusicSettings": "Local music",
+  "rescan": "Scan again",
+  "noLocalSongs": "No local songs yet\\nAdd a folder, or wait for downloads to be scanned",
+  "localLibraryTitle": "On this device",
+  "folderPickerHint": "Add opens the system folder picker",
+  "androidMediaStore": "Android MediaStore · scanned first",
+  "writeTags": "Write tags (experimental)",
+  "writeTagsHint": "Write title, artist, album, and artwork into the file. Needs file access.",
+  "pickFolderFailed": "Could not choose a music folder",
+  "chooseMusicFolder": "Choose a music folder",
+  "chooseFolderFailed": "Could not choose a folder",
+  "safImporting": "Importing the music folder…",
+  "scanAndroidFailed": "Could not scan the Android music folder",
+  "mediaStoreScanning": "Scanning local music with Android MediaStore…",
+  "mediaStoreEmpty": "MediaStore returned no audio",
+  "tryingAllFiles": "MediaStore is unavailable. Trying all-files access…",
+  "openingSaf": "All-files access is unavailable. Opening folder access…",
+  "androidAccessDenied": "Android music access was not granted",
+  "androidAuthFailed": "Android music access failed",
+  "matchingOnline": "Matching online songs…",
+  "scanFailed": "Scan failed",
+  "noLocalSources": "No local music folders yet",
+  "rescanning": "Scanning local music again…",
+  "rescanFailed": "Could not scan again",
+  "noWritableSongs": "No local songs to write",
+  "writingTags": "Writing tags back to the files…",
+  "noTagsToWrite": "No tags to write back",
+  "writeTagsFailed": "Could not write tags",
+  "folderRemoved": "Folder removed",
+  "downloadsTitle": "Downloads",
+  "deleteFinishedDownloads": "Delete finished downloads",
+  "clearFailedTasks": "Clear failed downloads",
+  "noDownloadTasks": "No downloads",
+  "noTasks": "Nothing here",
+  "downloadSpeed": "Speed",
+  "downloaded": "Downloaded",
+  "linkExpired": "Link expired. Download failed.",
+  "deleteFiles": "Delete files",
+  "clearFailedAction": "Clear",
+  "listeningStatsEmpty": "No listening data yet",
+  "listeningStatsEmptyHint": "Play a few songs and a report will show up here",
+  "playCount": "Plays",
+  "listenTime": "Time",
+  "activeDays": "Active days",
+  "trackCount": "Tracks",
+  "dailyPlays": "Daily plays",
+  "songs": "Songs",
+  "artists": "Artists",
+  "albums": "Albums",
+  "noData": "No data",
+  "loadFailed": "Could not load",
+  "noDuplicateFavorites": "No duplicate songs in Favorites",
+  "selectRecommended": "Select suggested",
+  "working": "Working…",
+  "removeSelected": "Remove selected",
+  "removeGroupSelected": "Remove selected in this group",
+  "keepSuggested": "Keep",
+  "hasLyricsMark": " · Lyrics",
+  "addedToPlaylist": "Added to playlist",
+  "playlistCreatedAndAdded": "Playlist created",
+  "collapseNewPlaylist": "Hide new playlist",
+  "newPlaylistName": "New playlist name",
+  "basedOnFavorites": "Based on music you like",
+  "noRecommendations": "No recommendations yet",
+  "recommendationsNeedFavorites": "After Favorites reaches 100 songs, 30 are picked at random",
+  "playlistEmpty": "This playlist is empty",
+  "playlistEmptyNas": "This playlist is empty",
+  "connectionSettings": "Connection",
+  "scraping": "Matching",
+  "scrapeArtworkLyrics": "Match artwork and lyrics",
+  "goConnect": "Connect",
+  "noOnlineMatch": "No online artwork or lyrics matched",
+  "welcome": "Welcome to Koyze",
+  "welcomeBody": "Sign in to sync favorites, playlists, settings, and custom sources across devices.",
+  "serverAddress": "Server address",
+  "syncUsernameHint": "Account name",
+  "syncPasswordHint": "Account password",
+  "registerAndSync": "Create account and sync",
+  "loginAndSync": "Log in and sync",
+  "backToLogin": "I already have an account",
+  "needAccount": "Need an account? Register",
+  "skipStep": "Skip for now",
+  "skipStepHint": "You can still play locally. Add an account later in Settings → Sync.",
+  "fillServerLogin": "Enter the server, username, and password",
+  "loginFailed": "Could not log in",
+  "syncTitle": "Sync",
+  "syncAccount": "Sync account",
+  "workersServer": "Workers server",
+  "workersUnset": "Not set (for example https://xxx.workers.dev)",
+  "notLoggedIn": "Not signed in",
+  "loginToSync": "Sign in to sync cloud playlists",
+  "syncing": "Syncing…",
+  "syncExplainer": "Search and playback stay on this device. The cloud keeps your account, playlists, settings, and sources.",
+  "eventSync": "Sync changes",
+  "syncNow": "Sync now",
+  "mergingEvents": "Merging changes from this device and the cloud…",
+  "syncDoesNotOverwrite": "Uploads local changes and downloads other devices. Nothing is overwritten.",
+  "offlineUntilNetwork": "Saved on this device. Syncs when the network returns.",
+  "logOut": "Log out",
+  "logOutHint": "Favorites, playlists, ratings, history, downloads, and cache stay. Only the login is cleared.",
+  "loggedOut": "Logged out",
+  "userAdmin": "Users (admin)",
+  "userAdminHint": "Create, delete, or reset passwords",
+  "workersAddress": "Workers address",
+  "serverReachable": "Server is reachable",
+  "savedHealthFailed": "Saved, but the health check failed. Try again after deploy.",
+  "httpsRequired": "The server address must use HTTPS",
+  "enterServerFirst": "Enter the server address first",
+  "loginSucceeded": "Signed in",
+  "failed": "Failed",
+  "syncFinished": "Sync finished",
+  "userList": "Users",
+  "newUser": "New user",
+  "userCreated": "User created",
+  "customSourcesTitle": "Custom sources",
+  "importLocalScript": "Import a script file",
+  "importFromLink": "Import from a link",
+  "addManually": "Add manually",
+  "pasteScript": "Paste a script",
+  "noCustomSources": "No custom sources",
+  "addCustomSourceHint": "Koyze ships no audio source. Use + to import and enable one before playing online songs.",
+  "importScriptOk": "Script imported",
+  "importScriptBad": "Import failed. The script format is wrong.",
+  "addCustomSource": "Add a custom source",
+  "sourceName": "Name",
+  "author": "Author",
+  "script": "Script",
+  "editCustomSource": "Edit custom source",
+  "httpsLinkRequired": "Enter a valid HTTPS link",
+  "importOk": "Imported",
+  "importLinkBad": "Import failed. Check the link or the script.",
+  "directDownloadHint": "Paste a direct link to the script file",
+  "clipboardEmpty": "The clipboard has no link",
+  "clipboard": "Clipboard",
+  "importCustomSource": "Import a custom source",
+  "lxScriptHint": "LX Music scripts are supported",
+  "pasteScriptHint": "Paste an LX Music script or JSON…",
+  "importFormatBad": "Import failed. Check the script format.",
+  "exportCustomSource": "Export custom source",
+  "deleteCustomSource": "Delete custom source",
+  "logCopied": "Log copied",
+  "noLog": "No log yet",
+  "copyLog": "Copy log",
+  "enterUsername": "Enter a username",
+  "enterPassword": "Enter a password",
+  "enterPasswordOrToken": "Enter a password or X-Plex-Token",
+  "connectFailed": "Could not connect",
+  "nasServerTitle": "NAS music server",
+  "usernameOptional": "Username (optional)",
+  "plexAccountHint": "plex.tv account. Leave empty to use a token.",
+  "serverLoginName": "Server username",
+  "passwordOrToken": "Password / token",
+  "passwordSaved": "Saved. Enter it again only when reconnecting.",
+  "passwordOrPlexToken": "Password or X-Plex-Token",
+  "serverPassword": "Server password",
+  "webDavRootPath": "Root folder",
+  "webDavRootPathHint": "/music",
+  "webDavAuthMethod": "Authentication",
+  "webDavBasicAuth": "Username / password",
+  "webDavBearerAuth": "Bearer token",
+  "webDavTokenHint": "Paste an access token",
+  "webDavRootPathInvalid": "Root folder must be a path such as /music",
+  "webDavScanFailed": "WebDAV library scan failed",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password",
+  "legacyAuth": "Legacy sign-in",
+  "legacyAuthHint": "Only if token sign-in fails. The password is sent as plain text.",
+  "reconnect": "Reconnect",
+  "disconnect": "Disconnect",
+  "diagnosticsTitle": "Diagnostics",
+  "minimize": "Minimize",
+  "copyAll": "Copy all",
+  "closeDiagnostics": "Close diagnostics",
+  "clearMemoryLog": "Clear log",
+  "diagnosticsHint": "Kept in memory for this run only. Closing or restarting the app clears it.",
+  "stoppedAfterRepeatedFailures": "Five songs failed in a row. Autoplay stopped.",
+  "autoplayNextFailed": "Could not play the next song. Open Koyze and try again.",
+  "reloadingSong": "Playback failed. Reloading.",
+  "tryingNextSong": "Playback failed. Trying the next song.",
+  "backupExported": "Backup saved to {path}",
+  "@backupExported": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "backupFailed": "Backup failed: {error}",
+  "@backupFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "restoreFailed": "Restore failed: {error}",
+  "@restoreFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "cacheClearedRetained": "Cache cleared. {count} songs still in use were kept.",
+  "@cacheClearedRetained": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "clearFailed": "Could not clear cache: {error}",
+  "@clearFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "minutes": "{count} min",
+  "@minutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "stopsInMinutes": "Playback stops in {count} min",
+  "@stopsInMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "playAction": "{mode} {target}",
+  "@playAction": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "recommendedSongs": "{count} songs for you",
+  "@recommendedSongs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "songCount": "{count} songs",
+  "@songCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "loadingHost": "Loading {host}",
+  "@loadingHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "actionFailed": "{action} failed: {error}",
+  "@actionFailed": {
+    "placeholders": {
+      "action": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "failedWith": "{label}: {error}",
+  "@failedWith": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "nowPlayingNamed": "Playing {name}",
+  "@nowPlayingNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "playNamed": "Play {name}",
+  "@playNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "chartCount": "{count} charts",
+  "@chartCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chartSummary": "{platforms} platforms · {charts} charts",
+  "@chartSummary": {
+    "placeholders": {
+      "platforms": {
+        "type": "int"
+      },
+      "charts": {
+        "type": "int"
+      }
+    }
+  },
+  "hiddenUntil": "Hidden until you turn on “{name}”",
+  "@hiddenUntil": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "songsHeader": "Songs ({count})",
+  "@songsHeader": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "playlistsHeader": "Playlists ({count})",
+  "@playlistsHeader": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importProgress": "{loaded}/{total}",
+  "@importProgress": {
+    "placeholders": {
+      "loaded": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "confirmImport": "Import all {count} songs into a local playlist?",
+  "@confirmImport": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importedFrom": "Imported from {source}",
+  "@importedFrom": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "importedResult": "Imported “{name}”, {count} songs",
+  "@importedResult": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "parsingProgress": "Reading {progress}",
+  "@parsingProgress": {
+    "placeholders": {
+      "progress": {
+        "type": "String"
+      }
+    }
+  },
+  "addedToFavorites": "Added {count} to Favorites",
+  "@addedToFavorites": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "searchFailed": "Search failed: {error}",
+  "@searchFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "searchEmptyTitle": "Nothing for \"{query}\"",
+  "@searchEmptyTitle": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "localArtist": "{singer} · Local",
+  "@localArtist": {
+    "placeholders": {
+      "singer": {
+        "type": "String"
+      }
+    }
+  },
+  "queueTitle": "Queue ({count})",
+  "@queueTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "selectedCount": "{count} selected",
+  "@selectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "playlistTitleCount": "{name} ({count})",
+  "@playlistTitleCount": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "favoritedSongs": "Added {count} songs to Favorites",
+  "@favoritedSongs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "queuedDownloads": "Added {count} songs to downloads",
+  "@queuedDownloads": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unfavoritedSongs": "Removed {count} songs from Favorites",
+  "@unfavoritedSongs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "clearFavoritesBody": "Remove {count} songs from Favorites. This cannot be undone, and it does not delete the original files or playlist songs.",
+  "@clearFavoritesBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deletePlaylistConfirm": "Delete “{name}”?",
+  "@deletePlaylistConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pagePosition": "Page {page} / {count}",
+  "@pagePosition": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "startupFailedHint": "Open Koyze again. If this keeps happening, check Diagnostics in Settings.\\n{error}",
+  "@startupFailedHint": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "bandsReady": "Device bands: {count} ({range})",
+  "@bandsReady": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "localSongCount": "{count} local songs\\nPlay them from Playlists > Local music",
+  "@localSongCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaStoreHint": "MediaStore can rescan. {count} folders saved",
+  "@mediaStoreHint": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "downloadFolder": "Downloads · added automatically\\n{path}",
+  "@downloadFolder": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "importingCount": "Importing {done} / {total}",
+  "@importingCount": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "mediaStoreImporting": "MediaStore {done} / {total}",
+  "@mediaStoreImporting": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "allFilesScanning": "Scanning {done} / {total}",
+  "@allFilesScanning": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "scanningPath": "Scanning {path}…",
+  "@scanningPath": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "readingMetadata": "Reading tags {done} / {total}",
+  "@readingMetadata": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "scrapingCount": "Matching {done} / {total}",
+  "@scrapingCount": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "localUpdated": "Local music updated ({count} songs)",
+  "@localUpdated": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "writingTagsCount": "Writing tags {done} / {total}",
+  "@writingTagsCount": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "tagsWritten": "Tags written: {written} / {attempted}",
+  "@tagsWritten": {
+    "placeholders": {
+      "written": {
+        "type": "int"
+      },
+      "attempted": {
+        "type": "int"
+      }
+    }
+  },
+  "activeHeader": "Active ({count})",
+  "@activeHeader": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "finishedHeader": "Finished ({count})",
+  "@finishedHeader": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "downloadingPercent": "Downloading {percent}%",
+  "@downloadingPercent": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "pausedPercent": "{singer} · Paused {percent}%",
+  "@pausedPercent": {
+    "placeholders": {
+      "singer": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteFinishedBody": "Delete {count} finished downloads and their audio files? This cannot be undone.",
+  "@deleteFinishedBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "clearFailedBody": "Delete {count} failed downloads and leftover files?",
+  "@clearFailedBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dailyPeak": "{days} days · peak {maxCount}",
+  "@dailyPeak": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      },
+      "maxCount": {
+        "type": "int"
+      }
+    }
+  },
+  "statSubtitle": "{subtitle} · {count} plays",
+  "@statSubtitle": {
+    "placeholders": {
+      "subtitle": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "duplicateGroup": "{artist} · {count} versions · select the ones to remove",
+  "@duplicateGroup": {
+    "placeholders": {
+      "artist": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "removedDuplicates": "Removed {count} duplicates",
+  "@removedDuplicates": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "playlistSongCount": "{count} songs",
+  "@playlistSongCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "recommendUpdated": "{count} songs · keeps updating",
+  "@recommendUpdated": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scrapingProgress": "Matching {done} / {total}",
+  "@scrapingProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "notConnected": "{name} is not connected",
+  "@notConnected": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "connectedHost": "Connected to {host}",
+  "@connectedHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "matchedSongs": "Matched artwork and lyrics for {matched} / {total} songs",
+  "@matchedSongs": {
+    "placeholders": {
+      "matched": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "scrapeFailed": "Match failed: {error}",
+  "@scrapeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "nasPlaylistTitle": "{name} playlist",
+  "@nasPlaylistTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "loggedInAs": "Signed in: {name}",
+  "@loggedInAs": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "roleLine": "Role: {role}",
+  "@roleLine": {
+    "placeholders": {
+      "role": {
+        "type": "String"
+      }
+    }
+  },
+  "deviceLine": "Device: {id}",
+  "@deviceLine": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "timeLine": "Time: {time}",
+  "@timeLine": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "syncFailed": "Sync failed: {error}",
+  "@syncFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "adminUser": "Admin · id={id}",
+  "@adminUser": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "normalUser": "User · id={id}",
+  "@normalUser": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteUser": "Delete {name}",
+  "@deleteUser": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deletedUser": "Deleted {name}",
+  "@deletedUser": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "usersLoadFailed": "Could not load users: {error}",
+  "@usersLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceInitFailed": "{name} failed to start. Check the script.",
+  "@sourceInitFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "importScriptFailed": "Script import failed: {reason}",
+  "@importScriptFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "readFileFailed": "Could not read the file: {error}",
+  "@readFileFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteSourceConfirm": "Delete “{name}”?",
+  "@deleteSourceConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceLogTitle": "{name} log",
+  "@sourceLogTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "disconnected": "Disconnected from {name}",
+  "@disconnected": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "diagnosticsCount": "Log {count}",
+  "@diagnosticsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "playingQuoted": "Playing “{name}”",
+  "@playingQuoted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "unresolvedUrl": "Could not resolve “{title}”. The source had no playable address, or the local cache failed.",
+  "@unresolvedUrl": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "playSongFailed": "Could not play “{title}”: {error}",
+  "@playSongFailed": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "quickTitle_theme": "Theme",
+  "quickTitle_search": "Search",
+  "quickTitle_playlists": "Playlists",
+  "quickTitle_settings": "App settings",
+  "quickTitle_sync": "Cloud sync",
+  "quickTitle_local_scan": "Scan device",
+  "quickTitle_leaderboard_settings": "Chart settings",
+  "quickSubtitle_recommend": "Based on what you play",
+  "quickSubtitle_local": "Songs on this device",
+  "quickSubtitle_downloads": "Tasks and progress",
+  "quickSubtitle_stats": "Week, month, and year",
+  "quickSubtitle_sleep_timer": "Stop playback on a timer",
+  "quickSubtitle_theme": "Dark or light",
+  "quickSubtitle_favorites": "Songs you saved",
+  "quickSubtitle_recent": "Pick up where you left off",
+  "quickSubtitle_leaderboard": "Popular songs",
+  "quickSubtitle_search": "Find music quickly",
+  "quickSubtitle_playlists": "Organize your playlists",
+  "quickSubtitle_settings": "Quality, downloads, appearance",
+  "quickSubtitle_custom_source": "Manage music sources",
+  "quickSubtitle_sync": "Sync favorites and playlists",
+  "quickSubtitle_local_scan": "Scan music on this device",
+  "quickSubtitle_leaderboard_settings": "Choose which charts show",
+  "quickSubtitle_audio_quality": "Default playback quality",
+  "quickSubtitle_download_quality": "Default download quality",
+  "quickSubtitle_default_search": "Where search starts",
+  "quickSubtitle_backup": "Export playlists and settings",
+  "quickSubtitle_restore": "Restore from a backup file",
+  "quickSubtitle_clear_cache": "Free playback and artwork cache",
+  "quickSubtitle_diagnostic_log": "Live runtime log",
+  "platformName_qq": "QQ Music",
+  "platformName_tx": "QQ Music",
+  "platformName_kw": "Kuwo",
+  "platformName_wy": "NetEase",
+  "platformName_kg": "Kugou",
+  "qualityText_flac24bit": "Master",
+  "qualityText_flac": "Lossless",
+  "platformText_tx": "QQ Music",
+  "platformText_kw": "Kuwo",
+  "platformText_wy": "NetEase",
+  "platformText_kg": "Kugou",
+  "platformText_mg": "Migu",
+  "platformText_audiostation": "Unknown",
+  "presetName_flat": "Flat",
+  "presetName_pop": "Pop",
+  "presetName_rock": "Rock",
+  "presetName_jazz": "Jazz",
+  "presetName_classical": "Classical",
+  "presetName_electronic": "Electronic",
+  "presetName_folk": "Folk",
+  "presetName_vocal": "Vocal",
+  "presetName_bass": "Bass boost",
+  "presetName_treble": "Treble boost",
+  "connectedType_default": "Connected to $type",
+  "connectedType_default_2": "Connected to $type $version",
+  "currentConnection_default": "Current: $title · $host",
+  "currentConnection_default_2": "Current: $title · $host · $username",
+  "playlistLinkExample": "Example: https://y.qq.com/n/ryqq/playlist/123\nKugou: https://www.kugou.com/yy/special/single/547134.html\nor a numeric ID"
+}

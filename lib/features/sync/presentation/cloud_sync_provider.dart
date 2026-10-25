@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 
 import '../../../core/logging/app_log.dart';
+import '../../../core/state/buildless_notifier.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
@@ -47,105 +48,123 @@ String _dioDiagnostics(Object error) {
   return parts.join(' ');
 }
 
-final cloudSyncProvider =
-    StateNotifierProvider<CloudSyncNotifier, CloudSyncState>((ref) {
-      final notifier = CloudSyncNotifier(
-        phase1: ref.read(syncPhase1ServiceProvider),
-        loggedIn: () => ref.read(cloudSessionProvider).loggedIn,
-      );
-      ref.listen(playlistSyncRevisionProvider, (_, next) {
-        if (next.hasValue) notifier.localChanged();
-      });
-      ref.read(syncPhase1ServiceProvider).onApplyingRemote =
-          notifier.onApplyingRemote;
-      ref.read(syncPhase1ServiceProvider).onProgress = notifier.onProgress;
-      ref.read(syncPhase1ServiceProvider).onLocalEventRecorded =
-          notifier.localEventRecorded;
-      ref.listen(audioQualityProvider, (_, next) {
-        notifier.settingChanged('audio_quality', next.index.toString());
-      });
-      ref.listen(downloadQualityProvider, (_, next) {
-        notifier.settingChanged('download_quality', next.index.toString());
-      });
-      ref.listen(wifiOnlyDownloadProvider, (_, next) {
-        notifier.settingChanged('wifi_only_download', next.toString());
-      });
-      ref.listen(autoResumePlaybackProvider, (_, next) {
-        notifier.settingChanged('auto_resume_playback', next.toString());
-      });
-      ref.listen(defaultSearchPlatformProvider, (_, next) {
-        notifier.settingChanged('default_search_platform', next);
-      });
-      final sourceService = ref.read(customSourceServiceProvider);
-      ref.read(syncPhase1ServiceProvider).attachSources(sourceService);
-      // init() is async. Attaching the still-empty in-memory list here would
-      // mark hydration complete, so the later disk load looks like brand-new
-      // sources and re-queues every custom source on each launch.
-      unawaited(
-        sourceService.init().then((_) {
-          if (!notifier.mounted) return;
-          notifier.attachInitialSources(sourceService.sources);
-        }),
-      );
-      ref.listen(customSourceRevisionProvider, (_, __) {
-        notifier.sourcesChanged(sourceService.sources);
-      });
-      ref.read(syncPhase1ServiceProvider).attachSettingApplier((
-        key,
-        value,
-      ) async {
-        switch (key) {
-          case 'audio_quality':
-            await ref
-                .read(audioQualityProvider.notifier)
-                .setQuality(
-                  AudioQualityOption.values[(int.tryParse(value) ?? 1).clamp(
-                    0,
-                    AudioQualityOption.values.length - 1,
-                  )],
-                );
-          case 'download_quality':
-            await ref
-                .read(downloadQualityProvider.notifier)
-                .setQuality(
-                  AudioQualityOption.values[(int.tryParse(value) ?? 1).clamp(
-                    0,
-                    AudioQualityOption.values.length - 1,
-                  )],
-                );
-          case 'wifi_only_download':
-            await ref
-                .read(wifiOnlyDownloadProvider.notifier)
-                .setWifiOnly(value == 'true');
-          case 'auto_resume_playback':
-            await ref
-                .read(autoResumePlaybackProvider.notifier)
-                .setAutoResume(value == 'true');
-          case 'default_search_platform':
-            await ref
-                .read(defaultSearchPlatformProvider.notifier)
-                .setPlatform(value);
-        }
-      });
-      ref.listen(cloudSessionProvider, (_, next) {
-        // Initial CloudSessionState is loaded:false/loggedIn:false. Treating
-        // that as logout wipes synced identity before the restored token lands.
-        if (!next.loaded) return;
-        notifier.sessionChanged(next.loggedIn);
-      }, fireImmediately: true);
-      return notifier;
+final cloudSyncProvider = NotifierProvider<CloudSyncNotifier, CloudSyncState>(
+  CloudSyncNotifier.new,
+);
+
+final class CloudSyncNotifier extends BuildlessNotifier<CloudSyncState> {
+  CloudSyncNotifier({SyncPhase1Service? phase1, bool Function()? loggedIn})
+    : _phase1Override = phase1,
+      _loggedInOverride = loggedIn,
+      _phase1 = phase1,
+      _loggedIn = loggedIn ?? (() => false),
+      super(const CloudSyncState());
+
+  final SyncPhase1Service? _phase1Override;
+  final bool Function()? _loggedInOverride;
+  SyncPhase1Service? _phase1;
+  bool Function() _loggedIn;
+  bool _wired = false;
+
+  SyncPhase1Service get _service {
+    final service = _phase1;
+    if (service == null) {
+      throw StateError('CloudSyncNotifier used before build()');
+    }
+    return service;
+  }
+
+  @override
+  CloudSyncState build() {
+    _phase1 = _phase1Override ?? ref.read(syncPhase1ServiceProvider);
+    _loggedIn =
+        _loggedInOverride ?? () => ref.read(cloudSessionProvider).loggedIn;
+    if (_wired) return super.build();
+    _wired = true;
+
+    ref.listen(playlistSyncRevisionProvider, (_, next) {
+      if (next.hasValue) localChanged();
     });
+    ref.read(syncPhase1ServiceProvider).onApplyingRemote = onApplyingRemote;
+    ref.read(syncPhase1ServiceProvider).onProgress = onProgress;
+    ref.read(syncPhase1ServiceProvider).onLocalEventRecorded =
+        localEventRecorded;
+    ref.listen(audioQualityProvider, (_, next) {
+      settingChanged('audio_quality', next.index.toString());
+    });
+    ref.listen(downloadQualityProvider, (_, next) {
+      settingChanged('download_quality', next.index.toString());
+    });
+    ref.listen(wifiOnlyDownloadProvider, (_, next) {
+      settingChanged('wifi_only_download', next.toString());
+    });
+    ref.listen(autoResumePlaybackProvider, (_, next) {
+      settingChanged('auto_resume_playback', next.toString());
+    });
+    ref.listen(defaultSearchPlatformProvider, (_, next) {
+      settingChanged('default_search_platform', next);
+    });
+    final sourceService = ref.read(customSourceServiceProvider);
+    ref.read(syncPhase1ServiceProvider).attachSources(sourceService);
+    // init() is async. Attaching the still-empty in-memory list here would
+    // mark hydration complete, so the later disk load looks like brand-new
+    // sources and re-queues every custom source on each launch.
+    unawaited(
+      sourceService.init().then((_) {
+        if (!mounted) return;
+        attachInitialSources(sourceService.sources);
+      }),
+    );
+    ref.listen(customSourceRevisionProvider, (_, __) {
+      sourcesChanged(sourceService.sources);
+    });
+    ref.read(syncPhase1ServiceProvider).attachSettingApplier((
+      key,
+      value,
+    ) async {
+      switch (key) {
+        case 'audio_quality':
+          await ref
+              .read(audioQualityProvider.notifier)
+              .setQuality(
+                AudioQualityOption.values[(int.tryParse(value) ?? 1).clamp(
+                  0,
+                  AudioQualityOption.values.length - 1,
+                )],
+              );
+        case 'download_quality':
+          await ref
+              .read(downloadQualityProvider.notifier)
+              .setQuality(
+                AudioQualityOption.values[(int.tryParse(value) ?? 1).clamp(
+                  0,
+                  AudioQualityOption.values.length - 1,
+                )],
+              );
+        case 'wifi_only_download':
+          await ref
+              .read(wifiOnlyDownloadProvider.notifier)
+              .setWifiOnly(value == 'true');
+        case 'auto_resume_playback':
+          await ref
+              .read(autoResumePlaybackProvider.notifier)
+              .setAutoResume(value == 'true');
+        case 'default_search_platform':
+          await ref
+              .read(defaultSearchPlatformProvider.notifier)
+              .setPlatform(value);
+      }
+    });
+    ref.listen(cloudSessionProvider, (_, next) {
+      // Initial CloudSessionState is loaded:false/loggedIn:false. Treating
+      // that as logout wipes synced identity before the restored token lands.
+      if (!next.loaded) return;
+      sessionChanged(next.loggedIn);
+    }, fireImmediately: true);
 
-final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
-  CloudSyncNotifier({
-    required SyncPhase1Service phase1,
-    required bool Function() loggedIn,
-  }) : _phase1 = phase1,
-       _loggedIn = loggedIn,
-       super(const CloudSyncState());
+    return super.build();
+  }
 
-  final SyncPhase1Service _phase1;
-  final bool Function() _loggedIn;
   Timer? _debounce;
   Timer? _periodic;
   Timer? _retry;
@@ -156,7 +175,7 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
   bool _applyingRemote = false;
   int _retryIndex = 0;
   int _localGeneration = 0;
-  int _conflictGeneration = 0;
+  final int _conflictGeneration = 0;
   int _sessionGeneration = 0;
   bool _sourcesReady = false;
   Map<String, CustomSource> _knownSources = const {};
@@ -170,29 +189,35 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
   ];
 
   void onStage(String stage) {
-    if (state.phase != CloudSyncPhase.syncing) return;
+    if (value.phase != CloudSyncPhase.syncing) return;
     AppLog.instance.record('cloud.sync', '阶段：$stage');
-    state = CloudSyncState(
-      phase: CloudSyncPhase.syncing,
-      message: stage,
-      conflictId: _conflictGeneration,
+    publish(
+      CloudSyncState(
+        phase: CloudSyncPhase.syncing,
+        message: stage,
+        conflictId: _conflictGeneration,
+      ),
     );
   }
 
   void onApplyingRemote(bool applying) {
     _applyingRemote = applying;
     if (!applying) {
-      _knownSources = {for (final source in _phase1.sources) source.id: source};
+      _knownSources = {
+        for (final source in _service.sources) source.id: source,
+      };
     }
   }
 
   void onProgress(String message) {
-    if (state.phase != CloudSyncPhase.syncing) return;
-    state = CloudSyncState(
-      phase: CloudSyncPhase.syncing,
-      message: message,
-      conflictId: _conflictGeneration,
-      report: state.report,
+    if (value.phase != CloudSyncPhase.syncing) return;
+    publish(
+      CloudSyncState(
+        phase: CloudSyncPhase.syncing,
+        message: message,
+        conflictId: _conflictGeneration,
+        report: value.report,
+      ),
     );
   }
 
@@ -200,7 +225,7 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
 
   void settingChanged(String key, String value) {
     if (_applyingRemote || _localOnlySettings.contains(key)) return;
-    unawaited(_phase1.recordSetting(key, value));
+    unawaited(_service.recordSetting(key, value));
     localChanged();
   }
 
@@ -224,12 +249,12 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
     for (final source in next.values) {
       final known = _knownSources[source.id];
       if (known == null || !known.sameSyncDefinition(source)) {
-        unawaited(_phase1.recordSource(source));
+        unawaited(_service.recordSource(source));
         changed = true;
       }
     }
     for (final id in _knownSources.keys.where((id) => !next.containsKey(id))) {
-      unawaited(_phase1.recordSourceRemoval(id));
+      unawaited(_service.recordSourceRemoval(id));
       changed = true;
     }
     _knownSources = next;
@@ -241,10 +266,10 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
     final generation = ++_sessionGeneration;
     if (!loggedIn) {
       unawaited(
-        _phase1.logout(stillCurrent: () => generation == _sessionGeneration),
+        _service.logout(stillCurrent: () => generation == _sessionGeneration),
       );
       _cancelTimers();
-      state = const CloudSyncState();
+      publish(const CloudSyncState());
       return;
     }
     _startPeriodic();
@@ -302,7 +327,7 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
 
   Future<void> fullResync() async {
     if (_running != null) return _running!;
-    _running = _phase1.fullResync();
+    _running = _service.fullResync();
     try {
       await _running;
     } finally {
@@ -317,23 +342,25 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
     final uploadOnly = _uploadOnlyDirty;
     _uploadOnlyDirty = false;
     AppLog.instance.record('cloud.sync', uploadOnly ? '开始增量事件上传' : '开始事件同步');
-    state = CloudSyncState(
-      phase: CloudSyncPhase.syncing,
-      conflictId: _conflictGeneration,
+    publish(
+      CloudSyncState(
+        phase: CloudSyncPhase.syncing,
+        conflictId: _conflictGeneration,
+      ),
     );
     try {
       final report = uploadOnly
-          ? await _phase1.pushLocalEventsOnly()
-          : await _phase1.sync();
+          ? await _service.pushLocalEventsOnly()
+          : await _service.sync();
       _dirty = _localGeneration != localGeneration;
       _debounce?.cancel();
       _retryIndex = 0;
       _retry?.cancel();
       AppLog.instance.record(
         'cloud.sync',
-        '事件同步完成：待同步 ${await _phase1.pendingCount()} 项',
+        '事件同步完成：待同步 ${await _service.pendingCount()} 项',
       );
-      state = CloudSyncState(conflictId: _conflictGeneration, report: report);
+      publish(CloudSyncState(conflictId: _conflictGeneration, report: report));
       if (_dirty) localChanged();
     } catch (error) {
       final response = error is DioException ? error.response : null;
@@ -362,10 +389,12 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
     if (_retryIndex < _retryDelays.length - 1) _retryIndex++;
     _retry?.cancel();
     _retry = Timer(delay, () => unawaited(sync()));
-    state = CloudSyncState(
-      phase: CloudSyncPhase.retryScheduled,
-      message: '同步失败，将在 ${delay.inSeconds} 秒后重试：$error',
-      conflictId: state.conflictId,
+    publish(
+      CloudSyncState(
+        phase: CloudSyncPhase.retryScheduled,
+        message: '同步失败，将在 ${delay.inSeconds} 秒后重试：$error',
+        conflictId: value.conflictId,
+      ),
     );
   }
 
@@ -387,8 +416,7 @@ final class CloudSyncNotifier extends StateNotifier<CloudSyncState> {
   }
 
   @override
-  void dispose() {
+  void onTeardown() {
     _cancelTimers();
-    super.dispose();
   }
 }

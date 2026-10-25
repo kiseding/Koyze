@@ -36,6 +36,7 @@ import '../../../core/motion/motion_tokens.dart';
 import 'widgets/player_progress_bar.dart';
 import 'widgets/player_volume_button.dart';
 import '../../../core/widgets/loading_widget.dart';
+import '../../../core/logging/app_log.dart';
 
 double _playbackQueueSheetInitialSize(BuildContext context, int itemCount) {
   final screenHeight = MediaQuery.sizeOf(context).height;
@@ -1940,7 +1941,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             tooltip: S.of(context).playMode,
             scale: 0.9,
             onTap: () {
-              final nextMode = _getNextPlayMode(playMode);
+              final nextMode = nextPlayMode(playMode);
               _applyPlayMode(playerService, nextMode);
             },
             child: Padding(
@@ -1956,7 +1957,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   child: FadeTransition(opacity: animation, child: child),
                 ),
                 child: Icon(
-                  _getPlayModeIcon(playMode),
+                  playModeIcon(playMode),
                   key: ValueKey(playMode),
                   color: AppColors.mutedText(context),
                   size: 22,
@@ -2011,28 +2012,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         ],
       ),
     );
-  }
-
-  PlayMode _getNextPlayMode(PlayMode current) {
-    switch (current) {
-      case PlayMode.repeatOne:
-        return PlayMode.sequential;
-      case PlayMode.sequential:
-        return PlayMode.shuffle;
-      case PlayMode.shuffle:
-        return PlayMode.repeatOne;
-    }
-  }
-
-  IconData _getPlayModeIcon(PlayMode mode) {
-    switch (mode) {
-      case PlayMode.repeatOne:
-        return Icons.repeat_one;
-      case PlayMode.sequential:
-        return Icons.repeat;
-      case PlayMode.shuffle:
-        return Icons.shuffle;
-    }
   }
 
   void _applyPlayMode(PlayerService playerService, PlayMode mode) {
@@ -2740,7 +2719,9 @@ class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
     if (artwork != null && artwork.isNotEmpty) {
       try {
         await precacheImage(ArtworkNetworkImage(artwork), context);
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('player.artwork', 'precaching artwork $artwork failed: $error', level: AppLogLevel.info);
+      }
     }
     if (!mounted || _pendingKey != nextKey) return;
     setState(() {

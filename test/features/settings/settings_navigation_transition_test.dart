@@ -37,7 +37,7 @@ void main() {
         equalizerStorageProvider.overrideWithValue(() async => storage),
         settingsDeviceIdProvider.overrideWith((ref) async => 'device_test'),
         sleepTimerProvider.overrideWith(
-          (ref) => SleepTimerNotifier(() async {}),
+          () => SleepTimerNotifier(() async {}),
         ),
       ],
     );
@@ -107,7 +107,7 @@ void main() {
         equalizerStorageProvider.overrideWithValue(() async => storage),
         settingsDeviceIdProvider.overrideWith((ref) async => 'device_test'),
         sleepTimerProvider.overrideWith(
-          (ref) => SleepTimerNotifier(() async {}),
+          () => SleepTimerNotifier(() async {}),
         ),
       ],
     );

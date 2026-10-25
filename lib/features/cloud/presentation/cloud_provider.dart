@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/state/buildless_notifier.dart';
 import '../domain/cloud_api_client.dart';
 
 final cloudApiProvider = Provider<CloudApiClient>((ref) => CloudApiClient());
 
 final cloudSessionProvider =
-    StateNotifierProvider<CloudSessionNotifier, CloudSessionState>((ref) {
-      return CloudSessionNotifier(ref.watch(cloudApiProvider));
-    });
+    NotifierProvider<CloudSessionNotifier, CloudSessionState>(
+      CloudSessionNotifier.new,
+    );
 
 class CloudSessionState {
   final bool loaded;
@@ -48,14 +52,35 @@ class CloudSessionState {
   }
 }
 
-class CloudSessionNotifier extends StateNotifier<CloudSessionState> {
-  CloudSessionNotifier(this._api, {bool autoRefresh = true})
-    : super(const CloudSessionState()) {
-    if (autoRefresh) refresh();
+class CloudSessionNotifier extends BuildlessNotifier<CloudSessionState> {
+  CloudSessionNotifier({CloudApiClient? api, this.autoRefresh = true})
+    : _apiOverride = api,
+      super(const CloudSessionState()) {
+    // Direct instantiation (tests) has no provider to build, so the refresh
+    // starts here; provider-hosted instances start it from [build].
+    if (api != null) {
+      _api = api;
+      _refreshStarted = true;
+      if (autoRefresh) unawaited(refresh());
+    }
   }
 
-  final CloudApiClient _api;
+  /// Whether a provider-hosted notifier restores the session on first read.
+  final bool autoRefresh;
+  final CloudApiClient? _apiOverride;
+  CloudApiClient _api = CloudApiClient();
+  bool _refreshStarted = false;
   int _generation = 0;
+
+  @override
+  CloudSessionState build() {
+    _api = _apiOverride ?? ref.watch(cloudApiProvider);
+    if (!_refreshStarted) {
+      _refreshStarted = true;
+      if (autoRefresh) unawaited(refresh());
+    }
+    return super.build();
+  }
 
   bool _current(int generation) => generation == _generation;
 
@@ -73,15 +98,17 @@ class CloudSessionNotifier extends StateNotifier<CloudSessionState> {
 
   Future<void> refresh() async {
     final generation = ++_generation;
-    state = state.copyWith(checking: true, error: null);
+    publish(value.copyWith(checking: true, error: null));
     try {
       await _api.load();
     } catch (error) {
       if (!_current(generation)) return;
-      state = state.copyWith(
-        loaded: true,
-        checking: false,
-        error: '无法读取安全凭据: $error',
+      publish(
+        value.copyWith(
+          loaded: true,
+          checking: false,
+          error: '无法读取安全凭据: $error',
+        ),
       );
       return;
     }
@@ -95,7 +122,7 @@ class CloudSessionNotifier extends StateNotifier<CloudSessionState> {
           ? await _api.verify()
           : CloudVerification.noSession;
     } on CloudSessionSafetyError catch (error) {
-      state = _sessionState(error: error.toString());
+      publish(_sessionState(error: error.toString()));
       return;
     }
     if (!_current(generation)) return;
@@ -109,16 +136,18 @@ class CloudSessionNotifier extends StateNotifier<CloudSessionState> {
         );
       } catch (_) {
         if (!_current(generation)) return;
-        state = _sessionState(error: '无法清除安全凭据');
+        publish(_sessionState(error: '无法清除安全凭据'));
         return;
       }
       if (!_current(generation)) return;
     }
 
-    state = _sessionState(
-      error: verification == CloudVerification.unavailable
-          ? '服务器暂时不可用，已保留登录状态'
-          : _api.configurationError,
+    publish(
+      _sessionState(
+        error: verification == CloudVerification.unavailable
+            ? '服务器暂时不可用，已保留登录状态'
+            : _api.configurationError,
+      ),
     );
   }
 
@@ -128,15 +157,14 @@ class CloudSessionNotifier extends StateNotifier<CloudSessionState> {
       await _api.setBaseUrl(url);
     } on ArgumentError catch (error) {
       if (_current(generation)) {
-        state = state.copyWith(
-          checking: false,
-          error: error.message?.toString(),
+        publish(
+          value.copyWith(checking: false, error: error.message?.toString()),
         );
       }
       rethrow;
     }
     if (!_current(generation)) return;
-    state = _sessionState();
+    publish(_sessionState());
   }
 
   Future<bool> login(String username, String password) async {
@@ -145,12 +173,12 @@ class CloudSessionNotifier extends StateNotifier<CloudSessionState> {
       await _api.login(username, password);
     } catch (error) {
       if (_current(generation) || error is CloudSessionSafetyError) {
-        state = state.copyWith(checking: false, error: error.toString());
+        publish(value.copyWith(checking: false, error: error.toString()));
       }
       return false;
     }
     if (!_current(generation)) return false;
-    state = _sessionState();
+    publish(_sessionState());
     return true;
   }
 
@@ -160,12 +188,12 @@ class CloudSessionNotifier extends StateNotifier<CloudSessionState> {
       await _api.register(username, password);
     } catch (error) {
       if (_current(generation) || error is CloudSessionSafetyError) {
-        state = state.copyWith(checking: false, error: error.toString());
+        publish(value.copyWith(checking: false, error: error.toString()));
       }
       return false;
     }
     if (!_current(generation)) return false;
-    state = _sessionState();
+    publish(_sessionState());
     return true;
   }
 
@@ -175,11 +203,11 @@ class CloudSessionNotifier extends StateNotifier<CloudSessionState> {
       await _api.clearSession();
     } catch (_) {
       if (_current(generation)) {
-        state = _sessionState(error: '无法清除安全凭据');
+        publish(_sessionState(error: '无法清除安全凭据'));
       }
       return;
     }
     if (!_current(generation)) return;
-    state = _sessionState();
+    publish(_sessionState());
   }
 }

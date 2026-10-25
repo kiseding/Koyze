@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../network/outbound_url.dart';
 import '../storage/ttl_cache.dart';
 import 'artwork_image.dart';
+import '../logging/app_log.dart';
 
 /// Disk + memory artwork cache with last-access TTL (default 12h).
 class ArtworkDiskCache {
@@ -74,7 +75,9 @@ class ArtworkDiskCache {
     if (_clock().difference(touched) > ttl) {
       try {
         await file.delete();
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('cache.artwork', 'deleting expired artwork file failed: $error', level: AppLogLevel.info);
+      }
       _diskTouched.remove(key);
       _memory.remove(key);
       return null;
@@ -82,7 +85,9 @@ class ArtworkDiskCache {
     _diskTouched[key] = _clock();
     try {
       await file.setLastModified(_clock());
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record('cache.artwork', 'touching artwork mtime failed: $error', level: AppLogLevel.info);
+    }
     return file;
   }
 

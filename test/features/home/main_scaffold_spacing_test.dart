@@ -1,130 +1,114 @@
-import 'dart:io';
-
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:koyze/features/home/presentation/widgets/mini_bar.dart';
 
-String _read(String path) => File(path).readAsStringSync();
-
+/// 迷你播放栏的几何是「morph 起落点」的唯一真相：
+/// 全屏播放器收起时要精确落到这条栏的矩形上，算错就会出现
+/// "卡一下再跳"的观感。
+///
+/// 这里直接测 `KoyzeMiniBarMetrics` 的输出，而不是去源码里找
+/// `kMiniBarHeight = 66` 这行字——后者在重命名常量时会误报，
+/// 在几何算错时反而可能仍然通过。
 void main() {
-  test('竖屏只有一条底部迷你播放条，没有 dock、没有独立控件行', () {
-    final source = _read('lib/features/home/presentation/main_scaffold.dart');
+  group('常量契约', () {
+    test('竖屏栏高与内边距', () {
+      expect(kMiniBarHeight, 66);
+      expect(kMiniBarSideMargin, 12);
+      expect(kMiniBarBottomGap, 8);
+      expect(kMiniBarArtworkSize, 50);
+      expect(kMiniBarPaddingLeft, 8);
+      expect(kMiniBarPaddingRight, 7);
+      expect(kMiniBarControlsWidth, 180);
+    });
 
-    expect(source, contains('KoyzeMiniBarMetrics'));
-    expect(source, contains('MiniPlayer('));
-    // 内容底部让位由迷你栏几何统一给出，避免三处手算漂移。
-    expect(source, contains('miniBar.contentObstruction'));
-    expect(source, contains('kMiniBarSideMargin'));
-    // 旧的唱片 dock 与它上面那排悬浮按钮都已移除。
-    expect(source, isNot(contains('KoyzeBottomDock')));
-    expect(source, isNot(contains('DockArtworkDisc')));
-    expect(source, isNot(contains('MiniPlayerControls')));
-    expect(source, isNot(contains('_BottomNav')));
+    test('水平内边距之和小于栏高，否则封面会被压扁', () {
+      expect(
+        kMiniBarPaddingLeft + kMiniBarPaddingRight,
+        lessThan(kMiniBarHeight),
+      );
+    });
   });
 
-  test('顶部只有一条 tab 行，导航占据原来标题的位置', () {
-    final header = _read('lib/core/widgets/frosted_tab_header.dart');
-    final tabs = _read('lib/core/widgets/root_tab_bar.dart');
-    final shell = _read('lib/features/home/presentation/main_scaffold.dart');
+  group('KoyzeMiniBarMetrics', () {
+    const screen = Size(400, 800);
 
-    // 壳层提供 RootTabScope；标题栏在根壳层里渲染 tab 行。
-    expect(shell, contains('RootTabScope('));
-    expect(header, contains('RootTabScope.maybeOf'));
-    expect(header, contains('RootTabBar()'));
-    // 栏本身仍然不铺满宽度的磨砂底：底留给导航行一层中性渐隐。
-    final navBranch = header.substring(
-      header.indexOf('if (tabs != null)'),
-      header.indexOf('Widget _titleBar'),
-    );
-    expect(navBranch, isNot(contains('GradientAppBarBackground')));
-    // 大标题不再出现在这一支里：选中的 tab 展开后就是页面名，
-    // 再画一次 26 号标题只是重复。
-    expect(navBranch, isNot(contains('fontSize: 26')));
-    // 动作按钮和 tab 同排，靠右。
-    expect(navBranch, contains('actions.isNotEmpty'));
-    // 四个入口：收起只留图标，选中项向右展开成胶囊。
-    expect(tabs, contains('s.home'));
-    expect(tabs, contains('s.charts'));
-    expect(tabs, contains('s.playlists'));
-    expect(tabs, contains('s.settings'));
-    expect(tabs, contains('MotionCurve.emphasize'));
-    expect(tabs, isNot(contains('LiquidGlassSurface(')));
-  });
+    test('栏贴底边并留出安全区', () {
+      final m = KoyzeMiniBarMetrics(screen: screen, bottomInset: 34);
+      expect(m.barRect.bottom, screen.height - 34 - kMiniBarBottomGap);
+      expect(m.barRect.top, screen.height - 34 - kMiniBarBottomGap - kMiniBarHeight);
+      expect(m.barRect.height, kMiniBarHeight);
+    });
 
-  test('迷你栏几何与 MiniPlayer 的真实布局一致（morph 起落点）', () {
-    final mini = _read('lib/features/player/presentation/widgets/mini_player.dart');
-    final bar = _read('lib/features/home/presentation/widgets/mini_bar.dart');
+    test('栏宽等于屏宽减去两侧边距', () {
+      final m = KoyzeMiniBarMetrics(screen: screen, bottomInset: 0);
+      expect(m.barRect.left, kMiniBarSideMargin);
+      expect(m.barRect.width, screen.width - kMiniBarSideMargin * 2);
+    });
 
-    // 66 高、左右各 12 边距、内部左 8 / 右 7 内边距、封面 50、控件区 180。
-    expect(mini, contains('height: widget.floating ? 78 : 66'));
-    expect(mini, contains('fromLTRB(widget.floating ? 10 : 8, 7, 7, 7)'));
-    expect(mini, contains('widget.floating ? 62 : 50'));
-    expect(mini, contains('widget.floating ? 164 : 180'));
-    expect(bar, contains('kMiniBarHeight = 66'));
-    expect(bar, contains('kMiniBarSideMargin = 12'));
-    expect(bar, contains('kMiniBarArtworkSize = 50'));
-    expect(bar, contains('kMiniBarControlsWidth = 180'));
-  });
+    test('无安全区时也贴住底边', () {
+      final m = KoyzeMiniBarMetrics(screen: screen, bottomInset: 0);
+      expect(m.barRect.bottom, screen.height - kMiniBarBottomGap);
+    });
 
-  test('页面一直画到屏幕底边，滚动内容从迷你栏后面经过', () {
-    final source = _read('lib/features/home/presentation/main_scaffold.dart');
+    test('封面矩形在栏内垂直居中、水平靠左内边距', () {
+      final m = KoyzeMiniBarMetrics(screen: screen, bottomInset: 0);
+      expect(m.artworkRect.left, m.barRect.left + kMiniBarPaddingLeft);
+      expect(m.artworkRect.width, kMiniBarArtworkSize);
+      expect(m.artworkRect.height, kMiniBarArtworkSize);
+      expect(
+        m.artworkRect.center.dy,
+        closeTo(m.barRect.center.dy, 0.01),
+        reason: '封面应在栏内垂直居中',
+      );
+    });
 
-    // 底部让位只能通过 RootShellLayout.obscuredBottom 告诉滚动列表，
-    // 不能把整个导航区从底边裁掉——裁掉之后玻璃后面就是空的。
-    expect(source, contains('obscuredBottom: chromeBottom'));
-    expect(source, isNot(contains('bottom: chromeBottom')));
-  });
+    test('播放键在右侧控件区内、垂直居中，且不越过封面', () {
+      final m = KoyzeMiniBarMetrics(screen: screen, bottomInset: 0);
+      // 控件区是「栏右侧、扣掉右内边距、宽 kMiniBarControlsWidth」的一条带，
+      // 播放键在其中水平居中。
+      final controlsLeft = m.barRect.right - kMiniBarPaddingRight - kMiniBarControlsWidth;
+      expect(
+        m.playRect.center.dx,
+        closeTo(controlsLeft + kMiniBarControlsWidth / 2, 0.01),
+      );
+      expect(m.playRect.center.dy, closeTo(m.barRect.center.dy, 0.01));
+      expect(m.playRect.width, 38);
+      expect(m.playRect.height, 38);
+      expect(
+        m.playRect.left,
+        greaterThan(m.artworkRect.right),
+        reason: '播放键必须在封面右侧，否则会和封面重叠',
+      );
+      expect(
+        m.playRect.right,
+        lessThanOrEqualTo(m.barRect.right - kMiniBarPaddingRight + 0.01),
+        reason: '播放键不能越出栏的右内边距',
+      );
+    });
 
-  test('顶部栏只在壳层渲染一次，四个根页面只发布标题', () {
-    final shell = _read('lib/features/home/presentation/main_scaffold.dart');
+    test('内容避让高度覆盖整条栏', () {
+      final m = KoyzeMiniBarMetrics(screen: screen, bottomInset: 20);
+      expect(
+        m.contentObstruction,
+        greaterThanOrEqualTo(20 + kMiniBarHeight),
+        reason: '滚动内容必须至少避让到栏的顶边',
+      );
+    });
 
-    // 壳层读控制器里的当前页标题，栏本身画在 SwipeBranchContainer 之外。
-    expect(shell, contains('rootHeaderController.headerFor('));
-    expect(shell, contains('if (!usesSideNavigation)'));
-    expect(shell, contains('FrostedTabHeader('));
+    test('极窄屏不产生负宽度', () {
+      final m = KoyzeMiniBarMetrics(
+        screen: const Size(10, 800),
+        bottomInset: 0,
+      );
+      expect(m.barRect.width, greaterThanOrEqualTo(0));
+      expect(m.barRect.width, lessThanOrEqualTo(10));
+    });
 
-    const pages = [
-      'lib/features/home/presentation/home_screen.dart',
-      'lib/features/leaderboard/presentation/leaderboard_screen.dart',
-      'lib/features/playlist/presentation/playlist_screen.dart',
-      'lib/features/settings/presentation/settings_screen.dart',
-    ];
-    for (final page in pages) {
-      final source = _read(page);
-      // 栏一旦留在页面子树里，切 tab 时就会跟着页面横移。
-      expect(source, isNot(contains('FrostedTabHeader(')), reason: page);
-      expect(source, contains('RootHeaderPublisher('), reason: page);
-    }
-  });
-
-  test('点击 tab 与手势共用 select 动画，走最短路径', () {
-    final router = _read('lib/router/app_router.dart');
-    final tap = router.substring(
-      router.indexOf('onBranchTap:'),
-      router.indexOf('navigatorContainerBuilder'),
-    );
-
-    // 点击不再硬切（goBranch 同帧换页没有任何可看的过渡），统一交给
-    // selectRootBranch → SwipeBranchContainer.select：页面沿最短方向
-    // 滑一屏到目标页，tab 胶囊通过 rootBranchDrag 同步跟手。
-    expect(tap, contains('selectRootBranch(index)'));
-    expect(tap, isNot(contains('goBranch(index)')));
-  });
-
-  test('横屏侧栏是实色面板，不是采样不到内容的玻璃', () {
-    final rail = _read(
-      'lib/features/home/presentation/independent_side_rail.dart',
-    );
-    final shell = _read('lib/features/home/presentation/main_scaffold.dart');
-
-    // 侧栏是 Row 的左列，下面没有内容可采样：BackdropFilter 只会混出一层
-    // 黑（浅色变中灰、深色近乎纯黑）。必须走实色分支。
-    expect(rail, contains('blur: 0'));
-    // 顶部也要留缝：横屏安全区恒为 0，只留 8 时卡片贴到窗口上沿，第一颗
-    // tab 像被顶出去；现在走具名的 _railTopGap。
-    expect(rail, contains('topInset + _railTopGap,'));
-    expect(rail, contains('const double _railTopGap = 20;'));
-    // 矮屏（手机横屏）换紧凑档：标题不再整段被判掉，tab 行高与间距各收一档。
-    expect(shell, contains('constraints.maxHeight < _sideNavCompactBelow'));
-    expect(shell, contains('_sideNavTitleCompactExtent'));
-    expect(shell, contains('_sideNavTabCompactExtent'));
+    test('安全区变化时栏高不变，只整体上移', () {
+      final a = KoyzeMiniBarMetrics(screen: screen, bottomInset: 0);
+      final b = KoyzeMiniBarMetrics(screen: screen, bottomInset: 40);
+      expect(b.barRect.height, a.barRect.height);
+      expect(a.barRect.top - b.barRect.top, 40);
+    });
   });
 }

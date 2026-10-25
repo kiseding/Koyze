@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/state/buildless_notifier.dart';
 import '../../../core/storage/storage_service.dart';
+import '../../../core/logging/app_log.dart';
 
 enum HomeQuickAction { sleepTimer, themeToggle }
 
@@ -237,11 +240,11 @@ class HomeQuickSettings {
 }
 
 final homeQuickSettingsProvider =
-    StateNotifierProvider<HomeQuickSettingsNotifier, HomeQuickSettings>(
-      (ref) => HomeQuickSettingsNotifier(),
+    NotifierProvider<HomeQuickSettingsNotifier, HomeQuickSettings>(
+      HomeQuickSettingsNotifier.new,
     );
 
-class HomeQuickSettingsNotifier extends StateNotifier<HomeQuickSettings> {
+class HomeQuickSettingsNotifier extends BuildlessNotifier<HomeQuickSettings> {
   HomeQuickSettingsNotifier({StorageLoader? storage})
     : _storage = storage ?? (() => StorageService.instance),
       super(
@@ -282,19 +285,25 @@ class HomeQuickSettingsNotifier extends StateNotifier<HomeQuickSettings> {
               for (final feature in homeQuickFeatures)
                 if (feature.enabledByDefault) feature.id,
             };
-      state = HomeQuickSettings(order: loaded, enabled: enabledIds);
-    } catch (_) {}
+      publish(HomeQuickSettings(order: loaded, enabled: enabledIds));
+    } catch (error) {
+      AppLog.instance.record(
+        'home.quick',
+        'loading home quick settings failed: $error',
+        level: AppLogLevel.info,
+      );
+    }
   }
 
   void setEnabled(String id, bool enabled) {
-    final next = {...state.enabled};
+    final next = {...value.enabled};
     if (enabled) {
       next.add(id);
     } else {
       next.remove(id);
     }
     // 开关只改变显隐，不改变完整顺序；重新启用时回到用户之前排好的位置。
-    state = HomeQuickSettings(order: state.order, enabled: next);
+    publish(HomeQuickSettings(order: value.order, enabled: next));
     _persist();
   }
 
@@ -302,18 +311,18 @@ class HomeQuickSettingsNotifier extends StateNotifier<HomeQuickSettings> {
   /// 修正，直接使用（旧 onReorder 需手动 -1，双重修正会插错位置）。
   void reorder(int oldIndex, int newIndex) {
     if (oldIndex == newIndex) return;
-    final next = [...state.order];
+    final next = [...value.order];
     if (newIndex < 0 || newIndex > next.length) return;
     if (oldIndex < 0 || oldIndex >= next.length) return;
     next.insert(newIndex, next.removeAt(oldIndex));
-    state = HomeQuickSettings(order: next, enabled: state.enabled);
+    publish(HomeQuickSettings(order: next, enabled: value.enabled));
     _persist();
   }
 
   List<String> get _completeOrder => [
-    ...state.order,
+    ...value.order,
     for (final feature in homeQuickFeatures)
-      if (!state.order.contains(feature.id)) feature.id,
+      if (!value.order.contains(feature.id)) feature.id,
   ];
 
   Future<void> _persist() async {
@@ -323,8 +332,14 @@ class HomeQuickSettingsNotifier extends StateNotifier<HomeQuickSettings> {
       if (generation != _generation) return;
       await storage.setJson(_key, {
         'order': _completeOrder,
-        'enabled': state.enabled.toList(growable: false),
+        'enabled': value.enabled.toList(growable: false),
       });
-    } catch (_) {}
+    } catch (error) {
+      AppLog.instance.record(
+        'home.quick',
+        'saving home quick settings failed: $error',
+        level: AppLogLevel.info,
+      );
+    }
   }
 }

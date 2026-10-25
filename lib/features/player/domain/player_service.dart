@@ -8,6 +8,7 @@ import '../../../core/network/outbound_url.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_disk_cache.dart';
 import 'lazy_playlist_order.dart';
+import '../../../core/logging/app_log.dart';
 
 class PlayerService {
   PlayerService({
@@ -340,7 +341,9 @@ class PlayerService {
         if (local == null || local.scheme != 'file') continue;
         if (audioHandler is! LxAudioHandler) return;
         handler.patchQueueArtUri(song.identityKey, local);
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('player.artwork', 'patching queue artwork failed: $error', level: AppLogLevel.info);
+      }
     }
   }
 

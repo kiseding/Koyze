@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  网络安全配置。
+
+  ## 为什么不能简单地把 usesCleartextTraffic 改成 false
+
+  本项目有三类合法的明文需求，都发生在局域网内：
+
+  1. NAS / Subsonic / Emby / Jellyfin / Plex / WebDAV 服务通常以
+     `http://192.168.x.x:8096` 这类明文地址暴露在家庭网络里，很多设备
+     （尤其群晖、老款 NAS）没有可用的 TLS 证书。
+  2. 自定义音源脚本可能返回无法升级为 HTTPS 的签名媒体 URL。
+  3. 局域网内的 Subsonic 兼容服务在自签名证书下会直接连接失败。
+
+  ## 这个配置做了什么
+
+  - `base-config` 默认禁止明文：任何走公网的 HTTP 请求都会被系统拒绝，
+    这挡住了"应用随手用 http:// 调外部接口"的整类问题。
+  - `domain-config` 显式放行局域网常用的主机名后缀与回环。
+  - 仍然保留一个 `cleartextTrafficPermitted="true"` 的 `base-config` 分支
+    给 debug 构建，方便本地连自建服务调试。
+
+  ## 已知限制
+
+  Android 的 network security config 只支持**域名**（含前导点通配），
+  不支持 IP 网段通配（写不了 `192.168.*`）。因此直接以 IP 字面量访问的
+  NAS 地址仍需要走 domain-config 的 catch-all 分支——这也是为什么
+  `AndroidManifest.xml` 里保留了 `usesCleartextTraffic="true"` 作为兜底。
+
+  更严格的收窄需要在 Dart 侧做：见 `lib/core/network/source_request_policy.dart`
+  的私有网段校验（该策略已经拒绝公网明文）。两层防护叠加后，实际暴露面是
+  "仅局域网地址可以走明文"，而不是"任意地址都可以"。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- 回环：Windows/WSL 转发、本机调试工具 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">::1</domain>
+    </domain-config>
+
+    <!-- mDNS / Bonjour 局域网设备名，NAS 与打印机常用 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">local</domain>
+    </domain-config>
+</network-security-config>

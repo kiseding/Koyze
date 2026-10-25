@@ -1,0 +1,15 @@
+# flutter gen-l10n 配置。
+#
+# 迁移背景见 docs/adr/0007-i18n-arb-migration.md。
+#
+# 关键点：
+# - `synthetic-package: false` 让生成的类落在 lib/l10n/generated/ 里，
+#   这样它能被 `lib/l10n/app_strings.dart` 里的 S 类直接引用，也能被 IDE 索引。
+# - ARB 的 key 与历史 `S` 类的 getter 名一一对应，因此调用点无需改动。
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+output-dir: lib/l10n/generated
+
+nullable-getter: false

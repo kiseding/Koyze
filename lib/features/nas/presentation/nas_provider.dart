@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/state/buildless_notifier.dart';
+
 import '../../../core/storage/storage_service.dart';
 import '../../local_music/presentation/scrape_provider.dart';
 import '../../player/domain/music_item.dart';
@@ -13,42 +15,61 @@ import '../domain/self_hosted_kind.dart';
 const selfHostedKindStorageKey = 'self_hosted_kind_v1';
 
 final selfHostedKindStorageProvider = Provider<StorageLoader>(
-  (ref) => () => StorageService.instance,
+  (ref) =>
+      () => StorageService.instance,
 );
 
 final selfHostedKindProvider =
-    StateNotifierProvider<SelfHostedKindNotifier, SelfHostedKind>((ref) {
-      return SelfHostedKindNotifier(
-        storage: ref.watch(selfHostedKindStorageProvider),
-      );
-    });
+    NotifierProvider<SelfHostedKindNotifier, SelfHostedKind>(
+      SelfHostedKindNotifier.new,
+    );
 
-class SelfHostedKindNotifier extends StateNotifier<SelfHostedKind> {
+class SelfHostedKindNotifier extends BuildlessNotifier<SelfHostedKind> {
   SelfHostedKindNotifier({StorageLoader? storage})
-    : _storage = storage ?? (() => StorageService.instance),
+    : _storageOverride = storage,
       super(SelfHostedKind.subsonic) {
-    _restored = _restore();
+    // Direct instantiation (tests) has no provider to read from, so the
+    // restore starts here. Under Riverpod `build()` starts it with the
+    // provider-supplied seam instead and this is skipped.
+    if (_storageOverride != null) _startRestore(_storageOverride);
   }
 
-  final StorageLoader _storage;
-  late final Future<void> _restored;
+  final StorageLoader? _storageOverride;
+  StorageLoader _storage = () => StorageService.instance;
+  Future<void> _restored = Future<void>.value();
+  bool _restoreStarted = false;
 
+  @override
+  SelfHostedKind build() {
+    _startRestore(ref.watch(selfHostedKindStorageProvider));
+    return super.build();
+  }
+
+  /// Completes once the persisted kind has been read, so tests can await it
+  /// instead of guessing at a delay.
   @visibleForTesting
   Future<void> get restored => _restored;
+
+  void _startRestore(StorageLoader storage) {
+    if (_restoreStarted) return;
+    _restoreStarted = true;
+    _storage = storage;
+    _restored = _restore();
+  }
 
   Future<void> _restore() async {
     try {
       final raw = (await _storage()).getString(selfHostedKindStorageKey);
       final parsed = SelfHostedKind.tryParse(raw);
-      if (parsed != null && mounted) state = parsed;
+      if (parsed != null) publish(parsed);
     } catch (_) {
       // 坏数据按默认 Subsonic 处理，不挡住进页。
     }
   }
 
   Future<void> select(SelfHostedKind kind) async {
-    if (state == kind) return;
-    state = kind;
+    if (value == kind) return;
+    publish(kind);
     try {
       await (await _storage()).setString(selfHostedKindStorageKey, kind.name);
     } catch (_) {
@@ -82,11 +103,8 @@ final nasConnectedProvider = Provider.family<bool, NasKind>((ref, kind) {
   return ref.watch(nasServiceProvider(kind)).isConnected;
 });
 
-final nasPlaylistsProvider =
-    FutureProvider.autoDispose.family<List<NasPlaylistInfo>, NasKind>((
-      ref,
-      kind,
-    ) async {
+final nasPlaylistsProvider = FutureProvider.autoDispose
+    .family<List<NasPlaylistInfo>, NasKind>((ref, kind) async {
       ref.watch(nasRevisionProvider(kind));
       final service = ref.watch(nasServiceProvider(kind));
       await service.init();
@@ -94,11 +112,8 @@ final nasPlaylistsProvider =
       return service.getPlaylists();
     });
 
-final nasLibrarySongsProvider =
-    FutureProvider.autoDispose.family<List<MusicItem>, NasKind>((
-      ref,
-      kind,
-    ) async {
+final nasLibrarySongsProvider = FutureProvider.autoDispose
+    .family<List<MusicItem>, NasKind>((ref, kind) async {
       ref.watch(nasRevisionProvider(kind));
       ref.watch(scrapeRevisionProvider);
       final service = ref.watch(nasServiceProvider(kind));

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/music_source_service.dart';
+import '../../../core/state/buildless_notifier.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../player/domain/music_item.dart';
 import '../../custom_source/presentation/custom_source_provider.dart';
@@ -13,12 +14,14 @@ import '../../nas/domain/nas_kind.dart';
 import '../../nas/domain/nas_url.dart';
 import '../../nas/presentation/nas_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
+import '../../../core/logging/app_log.dart';
 
 final musicSourceServiceProvider = Provider<MusicSourceService>((ref) {
   final customSourceService = ref.watch(customSourceServiceProvider);
   final subsonicService = ref.watch(subsonicServiceProvider);
   final nasServices = {
-    for (final kind in NasKind.values) kind: ref.watch(nasServiceProvider(kind)),
+    for (final kind in NasKind.values)
+      kind: ref.watch(nasServiceProvider(kind)),
   };
   final service = MusicSourceService(
     customSourceService,
@@ -59,25 +62,32 @@ final searchQueryProvider = StateProvider<String>((ref) => '');
 /// 和设置页的「默认搜索平台」分开：默认平台是"没选过时用哪个"，这里是
 /// "上次我选了哪个"。两者冲突时以用户最近一次手动选择为准。
 final lastSearchSourceProvider =
-    StateNotifierProvider<LastSearchSourceNotifier, String>((ref) {
-      return LastSearchSourceNotifier();
-    });
+    NotifierProvider<LastSearchSourceNotifier, String>(
+      LastSearchSourceNotifier.new,
+    );
 
-class LastSearchSourceNotifier extends StateNotifier<String> {
-  LastSearchSourceNotifier({StorageLoader? storage})
-    : _storage = storage ?? (() => StorageService.instance),
-      super('') {
-    _load();
+class LastSearchSourceNotifier extends Notifier<String> {
+  // The storage seam is injectable for tests. `Notifier` cannot take
+  // constructor arguments, so it is bound by a provider override instead of an
+  // argument; the default is production storage.
+  StorageLoader? _storageOverride;
+
+  @override
+  String build() {
+    final storage = _storageOverride ?? (() => StorageService.instance);
+    _load(storage);
+    return '';
   }
 
   static const storageKey = 'last_search_source';
 
-  final StorageLoader _storage;
+  StorageLoader get _storage =>
+      _storageOverride ?? (() => StorageService.instance);
 
-  Future<void> _load() async {
+  Future<void> _load(StorageLoader storage) async {
     try {
-      final value = (await _storage()).getString(storageKey) ?? '';
-      if (mounted && state.isEmpty && value.isNotEmpty) state = value;
+      final value = (await storage()).getString(storageKey) ?? '';
+      if (value.isNotEmpty && state.isEmpty) state = value;
     } catch (_) {
       // 读不到就保持空，仍然回落到默认平台。
     }
@@ -188,32 +198,53 @@ typedef SearchLoader =
 typedef LocalMatchLoader =
     Future<List<MusicItem>> Function(String query, int limit);
 
-class SearchNotifier extends StateNotifier<SearchState> {
-  SearchNotifier(
-    this._load,
-    this._readSelectedSource, {
+class SearchNotifier extends BuildlessNotifier<SearchState> {
+  /// Arguments are optional so `SearchNotifier.new` can back the provider.
+  /// Tests pass a loader directly to exercise the state machine without a
+  /// container; the provider injects the real loader from [build].
+  SearchNotifier([
+    SearchLoader? load,
+    String Function()? readSelectedSource,
     LocalMatchLoader? loadLocalMatches,
-  }) : _loadLocalMatches = loadLocalMatches,
+  ]) : _loadOverride = load,
+       _readSelectedSourceOverride = readSelectedSource,
+       _loadLocalMatches = loadLocalMatches,
+       _load = load ?? ((query, sourceId, page) async => const []),
+       _readSelectedSource = readSelectedSource ?? (() => 'all'),
        super(SearchState());
 
-  final SearchLoader _load;
-  final String Function() _readSelectedSource;
-  final LocalMatchLoader? _loadLocalMatches;
+  final SearchLoader? _loadOverride;
+  final String Function()? _readSelectedSourceOverride;
+  LocalMatchLoader? _loadLocalMatches;
+  SearchLoader _load;
+  String Function() _readSelectedSource;
   int _generation = 0;
+
+  @override
+  SearchState build() {
+    if (_loadOverride == null) _load = _defaultSearchLoader(ref);
+    if (_readSelectedSourceOverride == null) {
+      _readSelectedSource = () => ref.read(selectedSourceIdProvider);
+    }
+    _loadLocalMatches ??= _loadLocalMusicMatches(ref);
+    return super.build();
+  }
 
   Future<void> search(String rawQuery) async {
     final query = rawQuery.trim();
     final generation = ++_generation;
     if (query.isEmpty) {
-      state = SearchState(generation: generation);
+      publish(SearchState(generation: generation));
       return;
     }
     final sourceId = _readSelectedSource();
-    state = SearchState(
-      generation: generation,
-      isLoading: true,
-      query: query,
-      sourceId: sourceId,
+    publish(
+      SearchState(
+        generation: generation,
+        isLoading: true,
+        query: query,
+        sourceId: sourceId,
+      ),
     );
     if (sourceId != 'local' && sourceId != 'favorites') {
       unawaited(_loadSupplementalLocalMatches(generation, query, sourceId));
@@ -228,12 +259,12 @@ class SearchNotifier extends StateNotifier<SearchState> {
   }
 
   Future<void> loadMore() async {
-    if (state.isLoading || !state.hasMore || state.query.isEmpty) return;
-    final generation = state.generation;
-    final query = state.query;
-    final sourceId = state.sourceId;
-    final page = state.page + 1;
-    state = state.copyWith(isLoading: true, error: null);
+    if (value.isLoading || !value.hasMore || value.query.isEmpty) return;
+    final generation = value.generation;
+    final query = value.query;
+    final sourceId = value.sourceId;
+    final page = value.page + 1;
+    publish(value.copyWith(isLoading: true, error: null));
     await _loadPage(
       generation: generation,
       query: query,
@@ -250,7 +281,7 @@ class SearchNotifier extends StateNotifier<SearchState> {
   ) async {
     final localMatches = await _loadLocalMatches?.call(query, 5) ?? const [];
     if (_owns(generation, query, sourceId)) {
-      state = state.copyWith(localMatches: localMatches);
+      publish(value.copyWith(localMatches: localMatches));
     }
   }
 
@@ -264,74 +295,73 @@ class SearchNotifier extends StateNotifier<SearchState> {
     try {
       final results = await _load(query, sourceId, page);
       if (!_owns(generation, query, sourceId)) return;
-      state = state.copyWith(
-        items: append ? [...state.items, ...results] : results,
-        page: page,
-        isLoading: false,
-        hasMore: results.length >= 20,
-        error: null,
+      publish(
+        value.copyWith(
+          items: append ? [...value.items, ...results] : results,
+          page: page,
+          isLoading: false,
+          hasMore: results.length >= 20,
+          error: null,
+        ),
       );
     } catch (error) {
       if (!_owns(generation, query, sourceId)) return;
-      state = state.copyWith(isLoading: false, error: error.toString());
+      publish(value.copyWith(isLoading: false, error: error.toString()));
     }
   }
 
   bool _owns(int generation, String query, String sourceId) =>
       mounted &&
       generation == _generation &&
-      state.generation == generation &&
-      state.query == query &&
-      state.sourceId == sourceId;
+      value.generation == generation &&
+      value.query == query &&
+      value.sourceId == sourceId;
 
   void reset() {
     final generation = ++_generation;
-    state = SearchState(generation: generation);
+    publish(SearchState(generation: generation));
   }
 
   @override
-  void dispose() {
+  void onTeardown() {
     _generation++;
-    super.dispose();
   }
 }
 
-final searchStateProvider = StateNotifierProvider<SearchNotifier, SearchState>((
-  ref,
-) {
+final searchStateProvider = NotifierProvider<SearchNotifier, SearchState>(
+  SearchNotifier.new,
+);
+
+SearchLoader _defaultSearchLoader(Ref ref) {
   final service = ref.watch(musicSourceServiceProvider);
-  return SearchNotifier(
-    (query, sourceId, page) async {
-      if (sourceId == 'local' || sourceId == 'favorites') {
-        final library = await ref.read(localMusicLibraryProvider.future);
-        await library.init();
-        final sourceSongs = sourceId == 'local'
-            ? library.songs
-            : await ref.read(playlistServiceProvider).getAllSongs('favorites');
-        final normalized = query.trim().toLowerCase();
-        final matches = sourceSongs.where((song) {
-          return song.name.toLowerCase().contains(normalized) ||
-              song.singer.toLowerCase().contains(normalized) ||
-              song.album.toLowerCase().contains(normalized);
-        }).toList();
-        final start = (page - 1) * 20;
-        if (start >= matches.length) return const [];
-        return matches.skip(start).take(20).toList();
-      }
-      if (sourceId == 'subsonic' || nasKindIds.contains(sourceId)) {
-        return _searchConnectedNas(ref, query, page, service);
-      }
-      return service.search(
-        query,
-        customSourceId: sourceId,
-        page: page,
-        type: 'music',
-      );
-    },
-    () => ref.read(selectedSourceIdProvider),
-    loadLocalMatches: _loadLocalMusicMatches(ref),
-  );
-});
+  return (query, sourceId, page) async {
+    if (sourceId == 'local' || sourceId == 'favorites') {
+      final library = await ref.read(localMusicLibraryProvider.future);
+      await library.init();
+      final sourceSongs = sourceId == 'local'
+          ? library.songs
+          : await ref.read(playlistServiceProvider).getAllSongs('favorites');
+      final normalized = query.trim().toLowerCase();
+      final matches = sourceSongs.where((song) {
+        return song.name.toLowerCase().contains(normalized) ||
+            song.singer.toLowerCase().contains(normalized) ||
+            song.album.toLowerCase().contains(normalized);
+      }).toList();
+      final start = (page - 1) * 20;
+      if (start >= matches.length) return const [];
+      return matches.skip(start).take(20).toList();
+    }
+    if (sourceId == 'subsonic' || nasKindIds.contains(sourceId)) {
+      return _searchConnectedNas(ref, query, page, service);
+    }
+    return service.search(
+      query,
+      customSourceId: sourceId,
+      page: page,
+      type: 'music',
+    );
+  };
+}
 
 bool _anyNasConnected(Ref ref) {
   if (ref.read(subsonicConnectedProvider)) return true;
@@ -403,92 +433,119 @@ LocalMatchLoader _loadLocalMusicMatches(Ref ref) {
 
 // 搜索历史记录（持久化）
 final searchHistoryProvider =
-    StateNotifierProvider<SearchHistoryNotifier, List<String>>((ref) {
-      return SearchHistoryNotifier();
-    });
+    NotifierProvider<SearchHistoryNotifier, List<String>>(
+      SearchHistoryNotifier.new,
+    );
 
-class SearchHistoryNotifier extends StateNotifier<List<String>> {
+class SearchHistoryNotifier extends BuildlessNotifier<List<String>> {
   SearchHistoryNotifier({StorageLoader? storage})
     : _storage = storage ?? (() => StorageService.instance),
-      super([]) {
-    _load();
+      super(const []) {
+    // Direct instantiation (tests) has no provider to build, so the read
+    // starts here; provider-hosted instances start it from [build].
+    if (storage != null) _startLoad();
   }
 
   final StorageLoader _storage;
   int _generation = 0;
+  bool _loadStarted = false;
+
+  @override
+  List<String> build() {
+    _startLoad();
+    return super.build();
+  }
+
+  void _startLoad() {
+    if (_loadStarted) return;
+    _loadStarted = true;
+    unawaited(_load());
+  }
 
   Future<void> _load() async {
     final generation = _generation;
     try {
       final storage = await _storage();
-      final value = storage.getStringList('search_history');
-      if (generation == _generation) state = value;
-    } catch (_) {}
+      final stored = storage.getStringList('search_history');
+      if (generation == _generation) publish(stored);
+    } catch (error) {
+      AppLog.instance.record(
+        'search.history',
+        'loading search history failed: $error',
+        level: AppLogLevel.info,
+      );
+    }
   }
 
   Future<void> add(String keyword) async {
     if (keyword.trim().isEmpty) return;
     ++_generation;
-    final previous = state;
-    final updated = [keyword, ...state.where((s) => s != keyword)];
+    final previous = value;
+    final updated = [keyword, ...value.where((s) => s != keyword)];
     if (updated.length > 20) updated.removeRange(20, updated.length);
-    state = updated;
+    publish(updated);
     try {
       await (await _storage()).setStringList('search_history', updated);
     } catch (_) {
-      if (identical(state, updated) || state == updated) state = previous;
+      _rollbackIfCurrent(updated, previous);
       rethrow;
     }
   }
 
   Future<void> remove(String keyword) async {
     ++_generation;
-    final previous = state;
-    final updated = state.where((s) => s != keyword).toList();
-    state = updated;
+    final previous = value;
+    final updated = value.where((s) => s != keyword).toList();
+    publish(updated);
     try {
       await (await _storage()).setStringList('search_history', updated);
     } catch (_) {
-      if (identical(state, updated) || state == updated) state = previous;
+      _rollbackIfCurrent(updated, previous);
       rethrow;
     }
   }
 
   Future<void> clear() async {
     ++_generation;
-    final previous = state;
+    final previous = value;
     const updated = <String>[];
-    state = updated;
+    publish(updated);
     try {
       await (await _storage()).setStringList('search_history', updated);
     } catch (_) {
-      if (state.isEmpty) state = previous;
+      if (value.isEmpty) publish(previous);
       rethrow;
     }
   }
 
   Future<void> replaceAll(List<String> values) async {
     final normalized = <String>[];
-    for (final value in values) {
-      final keyword = value.trim();
+    for (final entry in values) {
+      final keyword = entry.trim();
       if (keyword.isEmpty || normalized.contains(keyword)) continue;
       normalized.add(keyword);
       if (normalized.length == 20) break;
     }
     ++_generation;
-    final previous = state;
-    state = normalized;
+    final previous = value;
+    publish(normalized);
     try {
       await (await _storage()).setStringList('search_history', normalized);
     } catch (_) {
-      if (identical(state, normalized) || state == normalized) state = previous;
+      _rollbackIfCurrent(normalized, previous);
       rethrow;
     }
   }
 
-  void applyCommitted(List<String> value) {
+  void applyCommitted(List<String> next) {
     ++_generation;
-    state = value;
+    publish(next);
+  }
+
+  /// Undoes an optimistic write, but only if no newer write replaced it while
+  /// the storage call was in flight.
+  void _rollbackIfCurrent(List<String> written, List<String> previous) {
+    if (identical(value, written) || value == written) publish(previous);
   }
 }
 
@@ -524,7 +581,13 @@ final hotSearchProvider = FutureProvider<List<String>>((ref) async {
             .toList();
       }
     }
-  } catch (_) {}
+  } catch (error) {
+    AppLog.instance.record(
+      'search.hot',
+      'loading hot search terms failed, using defaults: $error',
+      level: AppLogLevel.info,
+    );
+  }
   return _defaultHotSearch;
 });
 

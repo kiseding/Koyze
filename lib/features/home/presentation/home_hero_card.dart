@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/state/buildless_notifier.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../l10n/app_strings.dart';
@@ -22,6 +24,7 @@ import '../../playlist/presentation/playlist_provider.dart';
 import '../../recommend/presentation/recommendation_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
 import '../../../core/widgets/origo_chrome.dart';
+import '../../../core/logging/app_log.dart';
 
 /// 首页大卡片：对应歌单 tab 顶部那五张，同一时间只能启用一张。
 enum HomeHeroCardId { favorites, recommend, local, nas, recent }
@@ -100,13 +103,13 @@ const homeHeroCardOptions = <HomeHeroCardOption>[
 ];
 
 final homeHeroCardProvider =
-    StateNotifierProvider<HomeHeroCardNotifier, HomeHeroCardId>(
-      (ref) => HomeHeroCardNotifier(),
+    NotifierProvider<HomeHeroCardNotifier, HomeHeroCardId>(
+      HomeHeroCardNotifier.new,
     );
 
 typedef _EnumParser<T extends Enum> = T? Function(String? raw);
 
-class _PersistentEnumNotifier<T extends Enum> extends StateNotifier<T> {
+class _PersistentEnumNotifier<T extends Enum> extends BuildlessNotifier<T> {
   _PersistentEnumNotifier({
     required T initial,
     required String key,
@@ -127,13 +130,19 @@ class _PersistentEnumNotifier<T extends Enum> extends StateNotifier<T> {
   Future<void> _load() async {
     try {
       final parsed = _parse((await _storage()).getString(_key));
-      if (parsed != null && parsed != state) state = parsed;
-    } catch (_) {}
+      if (parsed != null && parsed != value) publish(parsed);
+    } catch (error) {
+      AppLog.instance.record(
+        'home.hero',
+        'loading hero card state failed: $error',
+        level: AppLogLevel.info,
+      );
+    }
   }
 
-  void select(T value) {
-    if (state == value) return;
-    state = value;
+  void select(T next) {
+    if (value == next) return;
+    publish(next);
     _persist();
   }
 
@@ -142,8 +151,14 @@ class _PersistentEnumNotifier<T extends Enum> extends StateNotifier<T> {
     try {
       final storage = await _storage();
       if (generation != _generation) return;
-      await storage.setString(_key, state.name);
-    } catch (_) {}
+      await storage.setString(_key, value.name);
+    } catch (error) {
+      AppLog.instance.record(
+        'home.hero',
+        'saving hero card state failed: $error',
+        level: AppLogLevel.info,
+      );
+    }
   }
 }
 
@@ -189,8 +204,8 @@ extension HomeHeroPlayModeX on HomeHeroPlayMode {
 }
 
 final homeHeroPlayModeProvider =
-    StateNotifierProvider<HomeHeroPlayModeNotifier, HomeHeroPlayMode>(
-      (ref) => HomeHeroPlayModeNotifier(),
+    NotifierProvider<HomeHeroPlayModeNotifier, HomeHeroPlayMode>(
+      HomeHeroPlayModeNotifier.new,
     );
 
 class HomeHeroPlayModeNotifier

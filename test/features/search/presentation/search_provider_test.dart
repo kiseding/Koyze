@@ -49,10 +49,10 @@ void main() {
     first.complete([_item('old')]);
     await oldSearch;
 
-    expect(notifier.state.query, 'new');
-    expect(notifier.state.sourceId, 'kw');
-    expect(notifier.state.generation, 2);
-    expect(notifier.state.items.single.id, 'new');
+    expect(notifier.value.query, 'new');
+    expect(notifier.value.sourceId, 'kw');
+    expect(notifier.value.generation, 2);
+    expect(notifier.value.items.single.id, 'new');
   });
 
   test('loadMore uses state query and source snapshots', () async {
@@ -72,8 +72,8 @@ void main() {
       (query: 'stored', source: 'tx', page: 1),
       (query: 'stored', source: 'tx', page: 2),
     ]);
-    expect(notifier.state.page, 2);
-    expect(notifier.state.items, hasLength(40));
+    expect(notifier.value.page, 2);
+    expect(notifier.value.items, hasLength(40));
   });
 
   test('concurrent loadMore calls share the in-flight page', () async {
@@ -95,7 +95,7 @@ void main() {
     await Future.wait([firstLoadMore, duplicateLoadMore]);
 
     expect(pageTwoCalls, 1);
-    expect(notifier.state.page, 2);
+    expect(notifier.value.page, 2);
   });
 
   test('reset invalidates an in-flight request', () async {
@@ -111,9 +111,9 @@ void main() {
     result.complete([_item('old')]);
     await search;
 
-    expect(notifier.state.query, isEmpty);
-    expect(notifier.state.items, isEmpty);
-    expect(notifier.state.isLoading, isFalse);
+    expect(notifier.value.query, isEmpty);
+    expect(notifier.value.items, isEmpty);
+    expect(notifier.value.isLoading, isFalse);
   });
 
   test('stale error cannot overwrite a newer success', () async {
@@ -132,8 +132,8 @@ void main() {
     first.completeError(StateError('stale failure'));
     await oldSearch;
 
-    expect(notifier.state.items.single.id, 'new');
-    expect(notifier.state.error, isNull);
+    expect(notifier.value.items.single.id, 'new');
+    expect(notifier.value.error, isNull);
   });
 
   test('current error is stored and search future does not throw', () async {
@@ -145,10 +145,10 @@ void main() {
 
     await expectLater(notifier.search('current'), completes);
 
-    expect(notifier.state.query, 'current');
-    expect(notifier.state.sourceId, 'tx');
-    expect(notifier.state.isLoading, isFalse);
-    expect(notifier.state.error, contains('network failure'));
+    expect(notifier.value.query, 'current');
+    expect(notifier.value.sourceId, 'tx');
+    expect(notifier.value.isLoading, isFalse);
+    expect(notifier.value.error, contains('network failure'));
   });
 
   test('dispose invalidates an in-flight request without async errors',
@@ -171,15 +171,15 @@ void main() {
     final notifier = SearchNotifier(
       (query, sourceId, page) async => [_item('online-hit')],
       () => 'tx',
-      loadLocalMatches: (query, limit) async => [local],
+      (query, limit) async => [local],
     );
     addTearDown(notifier.dispose);
 
     await notifier.search('hit');
 
-    expect(notifier.state.localMatches, hasLength(1));
-    expect(notifier.state.localMatches.single.id, 'local-hit');
-    expect(notifier.state.items.single.id, 'online-hit');
+    expect(notifier.value.localMatches, hasLength(1));
+    expect(notifier.value.localMatches.single.id, 'local-hit');
+    expect(notifier.value.items.single.id, 'online-hit');
   });
 }
 

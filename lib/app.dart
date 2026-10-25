@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:koyze/core/performance/low_memory.dart';
@@ -22,6 +21,7 @@ import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import 'package:koyze/features/custom_source/presentation/custom_source_provider.dart';
 import 'package:koyze/features/home/presentation/independent_side_rail.dart';
 import 'package:koyze/features/sync/presentation/startup_cloud_login_prompt.dart';
+import 'package:koyze/l10n/generated/app_localizations.dart';
 
 class PlayerMessageListener extends ConsumerStatefulWidget {
   const PlayerMessageListener({super.key, required this.child});
@@ -93,12 +93,8 @@ class LxMusicApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme(seedColor: accentColor),
       themeMode: themeMode,
       locale: language.materialLocale,
-      supportedLocales: AppLanguage.supportedLocales,
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       localeResolutionCallback: (locale, supported) {
         if (locale == null) return const Locale('zh');
         for (final item in supported) {

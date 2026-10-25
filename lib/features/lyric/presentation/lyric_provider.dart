@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/state/buildless_notifier.dart';
+
 import '../domain/lyric.dart';
 import '../domain/lyric_service.dart';
 import '../../player/domain/music_item.dart';
@@ -21,13 +23,7 @@ final lyricLoaderProvider = Provider<LyricLoader>((ref) {
 });
 
 final currentLyricLoadProvider =
-    StateNotifierProvider<LyricNotifier, LyricLoadState>((ref) {
-      final notifier = LyricNotifier(ref.read(lyricLoaderProvider));
-      ref.listen<MusicItem?>(currentMusicProvider, (_, next) {
-        notifier.select(next).ignore();
-      }, fireImmediately: true);
-      return notifier;
-    });
+    NotifierProvider<LyricNotifier, LyricLoadState>(LyricNotifier.new);
 
 final currentLyricProvider = Provider<Lyrics>((ref) {
   return ref.watch(currentLyricLoadProvider).lyrics;
@@ -49,13 +45,30 @@ class LyricLoadState {
   final StackTrace? stackTrace;
 }
 
-class LyricNotifier extends StateNotifier<LyricLoadState> {
-  LyricNotifier(this._load) : super(LyricLoadState.empty());
+class LyricNotifier extends BuildlessNotifier<LyricLoadState> {
+  LyricNotifier([LyricLoader? load])
+    : _loadOverride = load,
+      super(LyricLoadState.empty());
 
-  final LyricLoader _load;
+  final LyricLoader? _loadOverride;
+  LyricLoader get _load =>
+      _loadOverride ?? _resolvedLoad ?? (music) async => Lyrics.empty();
+  LyricLoader? _resolvedLoad;
   int _generation = 0;
   MusicItem? _selectedMusic;
   String? _selectedLyricId;
+
+  @override
+  LyricLoadState build() {
+    if (_loadOverride == null) {
+      _resolvedLoad = ref.watch(lyricLoaderProvider);
+      // Follow the current track for the lifetime of the provider.
+      ref.listen<MusicItem?>(currentMusicProvider, (_, next) {
+        select(next).ignore();
+      }, fireImmediately: true);
+    }
+    return super.build();
+  }
 
   String _lyricId(MusicItem music) {
     final platform = music.platform.isNotEmpty ? music.platform : music.source;
@@ -69,26 +82,28 @@ class LyricNotifier extends StateNotifier<LyricLoadState> {
     // 同一首歌的元数据刷新（如封面下载后 patchQueueArtUri 触发 mediaItem
     // 变化）不应清空并重新加载歌词，否则逐字歌词会在播放中突然消失。
     final lyricId = music == null ? null : _lyricId(music);
-    if (lyricId == _selectedLyricId && state.lyrics.isNotEmpty) {
+    if (lyricId == _selectedLyricId && value.lyrics.isNotEmpty) {
       _selectedMusic = music;
       return;
     }
     final generation = ++_generation;
     _selectedMusic = music;
     _selectedLyricId = lyricId;
-    state = LyricLoadState(lyrics: Lyrics.empty(), isLoading: music != null);
+    publish(LyricLoadState(lyrics: Lyrics.empty(), isLoading: music != null));
     if (music == null) return;
 
     try {
       final lyrics = await _load(music);
       if (!_owns(generation, lyricId!)) return;
-      state = LyricLoadState(lyrics: lyrics);
+      publish(LyricLoadState(lyrics: lyrics));
     } catch (error, stackTrace) {
       if (!_owns(generation, lyricId!)) return;
-      state = LyricLoadState(
-        lyrics: Lyrics.empty(),
-        error: error,
-        stackTrace: stackTrace,
+      publish(
+        LyricLoadState(
+          lyrics: Lyrics.empty(),
+          error: error,
+          stackTrace: stackTrace,
+        ),
       );
     }
   }
@@ -100,15 +115,14 @@ class LyricNotifier extends StateNotifier<LyricLoadState> {
   }
 
   bool _owns(int generation, String lyricId) {
-    return mounted && generation == _generation && lyricId == _selectedLyricId;
+    return generation == _generation && lyricId == _selectedLyricId;
   }
 
   @override
-  void dispose() {
+  void onTeardown() {
     _generation++;
     _selectedMusic = null;
     _selectedLyricId = null;
-    super.dispose();
   }
 }
 

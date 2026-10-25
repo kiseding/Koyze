@@ -59,15 +59,15 @@ void main() {
       final storage = await _freshStorage();
       final first = SelfHostedKindNotifier(storage: () async => storage);
       await first.restored;
-      expect(first.state, SelfHostedKind.subsonic);
+      expect(first.value, SelfHostedKind.subsonic);
 
       await first.select(SelfHostedKind.emby);
-      expect(first.state, SelfHostedKind.emby);
+      expect(first.value, SelfHostedKind.emby);
       expect(storage.getString(selfHostedKindStorageKey), 'emby');
 
       final second = SelfHostedKindNotifier(storage: () async => storage);
       await second.restored;
-      expect(second.state, SelfHostedKind.emby);
+      expect(second.value, SelfHostedKind.emby);
     },
   );
 
@@ -77,7 +77,7 @@ void main() {
     });
     final notifier = SelfHostedKindNotifier(storage: () async => storage);
     await notifier.restored;
-    expect(notifier.state, SelfHostedKind.subsonic);
+    expect(notifier.value, SelfHostedKind.subsonic);
   });
 
   testWidgets('library page has no type chips; settings keeps them', (

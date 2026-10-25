@@ -11,6 +11,7 @@ import 'package:rxdart/rxdart.dart';
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/widgets/artwork_disk_cache.dart';
 import '../domain/music_item.dart';
+import '../../../core/logging/app_log.dart';
 
 const String _appGroupId = 'group.com.koyze.app';
 const String _widgetKind = 'KoyzeHomeWidget';
@@ -95,7 +96,9 @@ class LockScreenSyncService {
     if (initialization != null) {
       try {
         await initialization;
-      } catch (_) {}
+      } catch (error) {
+        AppLog.instance.record('player.lockscreen', 'lock screen sync initialization failed during dispose: $error', level: AppLogLevel.warning);
+      }
     }
     await Future.wait(
       _subscriptions.map((subscription) => subscription.cancel()),

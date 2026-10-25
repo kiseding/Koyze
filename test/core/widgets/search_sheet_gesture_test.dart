@@ -29,13 +29,13 @@ void main() {
       ProviderScope(
         overrides: [
           searchStateProvider.overrideWith(
-            (ref) => SearchNotifier(
+            () => SearchNotifier(
               (query, sourceId, page) async => const [],
               () => 'tx',
             ),
           ),
           hotSearchProvider.overrideWith((ref) async => const ['热歌1']),
-          searchHistoryProvider.overrideWith((ref) => SearchHistoryNotifier()),
+          searchHistoryProvider.overrideWith(SearchHistoryNotifier.new),
           allSearchSourcesProvider.overrideWith(
             (ref) => [
               SearchSourceItem(id: 'all', name: '全网'),
