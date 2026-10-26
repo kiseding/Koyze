@@ -395,9 +395,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get back => 'Back';
 
   @override
-  String get allCharts => 'All';
-
-  @override
   String get defaultFirst => 'Shown first';
 
   @override
@@ -1510,11 +1507,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String chartCount(int count) {
     return '$count charts';
-  }
-
-  @override
-  String chartSummary(int platforms, int charts) {
-    return '$platforms platforms · $charts charts';
   }
 
   @override

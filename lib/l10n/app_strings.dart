@@ -172,7 +172,6 @@ class S {
   String get noSongData => _l10n.noSongData;
   String get showAll => _l10n.showAll;
   String get back => _l10n.back;
-  String get allCharts => _l10n.allCharts;
   String get defaultFirst => _l10n.defaultFirst;
   String get importPlaylist => _l10n.importPlaylist;
   String get newPlaylist => _l10n.newPlaylist;
@@ -530,7 +529,6 @@ class S {
   String nowPlayingNamed(String name) => _l10n.nowPlayingNamed(name);
   String playNamed(String name) => _l10n.playNamed(name);
   String chartCount(int count) => _l10n.chartCount(count);
-  String chartSummary(int platforms, int charts) => _l10n.chartSummary(platforms, charts);
   String hiddenUntil(String name) => _l10n.hiddenUntil(name);
   String songsHeader(int count) => _l10n.songsHeader(count);
   String playlistsHeader(int count) => _l10n.playlistsHeader(count);

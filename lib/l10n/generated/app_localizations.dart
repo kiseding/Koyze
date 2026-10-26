@@ -836,12 +836,6 @@ abstract class AppLocalizations {
   /// **'Back'**
   String get back;
 
-  /// No description provided for @allCharts.
-  ///
-  /// In en, this message translates to:
-  /// **'All'**
-  String get allCharts;
-
   /// No description provided for @defaultFirst.
   ///
   /// In en, this message translates to:
@@ -2959,12 +2953,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count} charts'**
   String chartCount(int count);
-
-  /// No description provided for @chartSummary.
-  ///
-  /// In en, this message translates to:
-  /// **'{platforms} platforms · {charts} charts'**
-  String chartSummary(int platforms, int charts);
 
   /// No description provided for @hiddenUntil.
   ///

@@ -70,8 +70,50 @@ void main() {
   });
 
   test('平台胶囊吃未筛选的分段', () {
-    // 传 shown 的话，选中某个平台后只剩一个平台，_buildPlatformChips 里的
-    // platforms.length < 2 会把整条标签藏掉，用户再也切不回「全部」。
-    expect(source, contains('_buildChartsSummary(context, sections)'));
+    // 传 shown 的话只剩一个平台，_buildPlatformChips 里的
+    // platforms.length < 2 会把整条标签藏掉，用户再也切不到别的平台。
+    expect(source, contains('_buildChartsSummary(context, shown, sections)'));
+    expect(source, contains('_buildPlatformChips(context, sections)'));
+  });
+
+  test('摘要只数当前显示的分段', () {
+    // 摘要若吃全部分段，会写着「4 个平台 · 30 个榜单」，下面却只列了
+    // 一个平台的几行——数字和内容对不上比不显示更糟。
+    expect(source, contains('_totalCharts(shown)'));
+  });
+
+  test('筛选胶囊只有四个平台，没有「全部」', () {
+    // 胶囊是四选一的单选：`allCharts`（全部）那颗已删除，文案也一并从
+    // ARB 移除。若有人把它加回来，这里会先炸，而不是等用户发现多了一颗。
+    expect(source, isNot(contains('allCharts')));
+    expect(source, isNot(contains('MapEntry<String?, String>(null')));
+
+    // 默认必须落到一个真实平台上：老实现用 `_platformFilter == null` 当
+    // 「全部」，去掉胶囊后若不补默认值，首帧会四个平台全显示。
+    expect(source, contains('String? _resolvePlatformFilter('));
+    expect(source, contains('return platforms.first;'));
+
+    // 平台整段消失时退回第一个平台，而不是退回全量——退回全量等于把
+    // 「全部」偷偷复活。
+    final filtered = source.substring(
+      source.indexOf('List<_LeaderboardSection> _filteredSections('),
+      source.indexOf('List<_LeaderboardSection> _groupByPlatform('),
+    );
+    expect(filtered, isNot(contains('matching.isEmpty ? sections')));
+  });
+
+  test('四个平台都出现在胶囊里', () {
+    // 用户要的是四个平台各一颗胶囊。真正的平台 id 是 tx / kw / wy / kg
+    // （见 tx_source.dart 等）；`qq` 只是 platformName 里的历史别名，没有任何
+    // source 在用，钉它等于漏掉真实的那一个。
+    final zh = readSource('lib/l10n/app_zh.arb');
+    for (final key in [
+      'platformName_tx',
+      'platformName_kw',
+      'platformName_wy',
+      'platformName_kg',
+    ]) {
+      expect(zh, contains('"$key"'), reason: '缺少平台名 $key');
+    }
   });
 }

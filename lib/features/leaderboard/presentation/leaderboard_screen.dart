@@ -42,7 +42,12 @@ class LeaderboardScreen extends ConsumerStatefulWidget {
 class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   bool _layoutScheduled = false;
 
-  /// 竖屏的平台筛选；null 表示「全部」。
+  /// 当前选中的平台。
+  ///
+  /// 曾经可空，`null` 代表「全部」并额外渲染一颗同名胶囊。那颗胶囊去掉后
+  /// 筛选变成了四选一的单选：没有「不筛选」这个状态，进页面必然停在一个
+  /// 平台上。空值仍保留，仅表示「还没初始化」——首帧的真实平台列表还没
+  /// 算出来，由 [_resolvePlatformFilter] 落成第一个平台。
   String? _platformFilter;
 
   /// 默认布局要等当前帧建完才能生成：它内部会写 provider 状态，在 build
@@ -257,10 +262,12 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       // ignore: deprecated_member_use
       cacheExtent: 400,
       slivers: [
-        // 摘要与胶囊必须吃「未筛选」的分段：传 shown 的话，选中某个平台后
+        // 摘要数「当前显示的分段」，胶囊吃「未筛选」的分段——传 shown 的话
         // 只剩一个平台，_buildPlatformChips 里的 platforms.length < 2 会把
-        // 整条标签藏起来，用户就再也切不回「全部」了。
-        SliverToBoxAdapter(child: _buildChartsSummary(context, sections)),
+        // 整条标签藏掉，用户就再也切不到别的平台了。
+        SliverToBoxAdapter(
+          child: _buildChartsSummary(context, shown, sections),
+        ),
         if (rows.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
@@ -320,15 +327,20 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     return rows;
   }
 
-  /// 页面头部：CHARTS 小标 + 平台/榜单数量 + 平台胶囊。
+  /// 页面头部：CHARTS 小标 + 榜单数量 + 平台胶囊。
+  /// [shown] 决定摘要里的数字，[sections] 决定胶囊。
+  ///
+  /// 两者不能合并：胶囊必须拿到全部平台（否则选中一个之后只剩一个平台，
+  /// `platforms.length < 2` 会把整条标签藏掉，用户再也切不出去），而摘要
+  /// 只数当前显示的分段。
+  ///
+  /// 摘要不再带「N 个平台」：去掉「全部」之后视图恒定停在一个平台上，那个
+  /// 数字永远是 1，中文是废话，英文还会写成「1 platforms」。
   Widget _buildChartsSummary(
     BuildContext context,
+    List<_LeaderboardSection> shown,
     List<_LeaderboardSection> sections,
   ) {
-    var total = 0;
-    for (final section in sections) {
-      total += section.chartCount;
-    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 2, 20, 4),
       child: Column(
@@ -348,7 +360,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  S.of(context).chartSummary(sections.length, total),
+                  S.of(context).chartCount(_totalCharts(shown)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -432,7 +444,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                     ),
                   ),
                   Text(
-                    S.of(context).chartSummary(shown.length, _totalCharts(shown)),
+                    S.of(context).chartCount(_totalCharts(shown)),
                     style: TextStyle(
                       fontSize: 10,
                       color: AppColors.mutedText(context),
@@ -521,11 +533,38 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   }
 
   /// 平台筛选：方案 A 的圆角胶囊（选中实底反色）。只有一个平台时不出现。
+  ///
+  /// 胶囊是「四选一」的单选，不再有「全部」这一颗：那一颗等价于「不筛选」，
+  /// 而本页现在恒定停在一个平台上（见 [_resolvePlatformFilter]）。
   Widget _buildPlatformChips(
     BuildContext context,
     List<_LeaderboardSection> sections, {
     bool dense = false,
   }) {
+    final platforms = _platformsOf(sections);
+    if (platforms.length < 2) return const SizedBox.shrink();
+    final selected = _resolvePlatformFilter(platforms);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var index = 0; index < platforms.length; index++) ...[
+            if (index > 0) SizedBox(width: dense ? 6 : 8),
+            _buildChip(
+              context,
+              S.of(context).platformName(platforms[index]),
+              selected == platforms[index],
+              () => setState(() => _platformFilter = platforms[index]),
+              dense: dense,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 分段里出现过的平台，按首次出现顺序（即用户排好的顺序）。
+  List<String> _platformsOf(List<_LeaderboardSection> sections) {
     final platforms = <String>[];
     for (final section in sections) {
       final platform = section.platform;
@@ -533,29 +572,19 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         platforms.add(platform);
       }
     }
-    if (platforms.length < 2) return const SizedBox.shrink();
-    final filters = <MapEntry<String?, String>>[
-      MapEntry<String?, String>(null, S.of(context).allCharts),
-      for (final platform in platforms)
-        MapEntry<String?, String>(platform, S.of(context).platformName(platform)),
-    ];
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var index = 0; index < filters.length; index++) ...[
-            if (index > 0) SizedBox(width: dense ? 6 : 8),
-            _buildChip(
-              context,
-              filters[index].value,
-              _platformFilter == filters[index].key,
-              () => setState(() => _platformFilter = filters[index].key),
-              dense: dense,
-            ),
-          ],
-        ],
-      ),
-    );
+    return platforms;
+  }
+
+  /// 把筛选落到一个真实存在的平台上。
+  ///
+  /// 默认取第一个平台：胶囊去掉「全部」后没有「不筛选」这个状态，进页面
+  /// 必须停在一个平台上。用户选中的平台若因为设置里被隐藏而消失，也退回
+  /// 第一个——否则整页会空掉，用户还以为数据没了。
+  String? _resolvePlatformFilter(List<String> platforms) {
+    if (platforms.isEmpty) return null;
+    final current = _platformFilter;
+    if (current != null && platforms.contains(current)) return current;
+    return platforms.first;
   }
 
   /// 单颗胶囊。未选中用主文字的 6% 做底——直接拿卡片色会和页面底色糊在一起。
@@ -599,17 +628,21 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 
-  /// 平台筛选后的分段；筛选到的平台整段消失了就退回全量，不留白屏。
+  /// 平台筛选后的分段。
+  ///
+  /// 恒停在一个平台上：没有「全部」，所以这里不再有「返回全量」的分支。
+  /// 选中的平台整段消失（用户在设置里隐藏了它）时退回第一个平台，而不是
+  /// 返回全量——返回全量会让四个平台一起冒出来，和刚去掉的「全部」等价。
   List<_LeaderboardSection> _filteredSections(
     List<_LeaderboardSection> sections,
   ) {
-    final filter = _platformFilter;
+    final filter = _resolvePlatformFilter(_platformsOf(sections));
     if (filter == null) return sections;
     final matching = <_LeaderboardSection>[
       for (final section in sections)
         if (section.platform == filter) section,
     ];
-    return matching.isEmpty ? sections : matching;
+    return matching;
   }
 
   /// 按平台切段：平台标题卡出一个新段，段内是这一平台的全部榜单。

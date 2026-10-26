@@ -378,9 +378,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get back => '返回';
 
   @override
-  String get allCharts => '全部';
-
-  @override
   String get defaultFirst => '默认优先';
 
   @override
@@ -1472,11 +1469,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String chartCount(int count) {
     return '$count 个榜单';
-  }
-
-  @override
-  String chartSummary(int platforms, int charts) {
-    return '$platforms 个平台 · $charts 个榜单';
   }
 
   @override
