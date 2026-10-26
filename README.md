@@ -41,16 +41,16 @@ Koyze 使用 Flutter 构建，把 QQ 音乐、酷我音乐、网易云音乐、�
 
 ## 下载
 
-前往 [Releases](https://github.com/kiseding/Koyze/releases) 获取当前版本 `v4.1.0` 的构建产物：
+前往 [Releases](https://github.com/kiseding/Koyze/releases) 获取当前版本 `v4.1.1` 的构建产物：
 
 | 平台 | 文件 | 说明 |
 | --- | --- | --- |
-| Android | `Koyze-4.1.0-arm64-v8a.apk`<br>`Koyze-4.1.0-armeabi-v7a.apk`<br>`Koyze-4.1.0-x86_64.apk` | 按 ABI 拆分，已签名；按设备架构选择 |
+| Android | `Koyze-4.1.1-arm64-v8a.apk`<br>`Koyze-4.1.1-armeabi-v7a.apk`<br>`Koyze-4.1.1-x86_64.apk` | 按 ABI 拆分，已签名；按设备架构选择 |
 | Windows | `Koyze-Windows-x64.zip` | 免安装压缩包，解压后运行 `Koyze.exe` |
 | macOS | `Koyze-macOS.zip` | 未签名 `Koyze.app`，首次打开需在“隐私与安全性”中放行 |
 | Linux | `Koyze-Linux-x64.tar.gz` | 便携包，解压后运行 `koyze` |
 | iOS | `Koyze-Apple-ID-Sideload.ipa` | 未签名，需自行用 Apple ID 侧载；不含小组件与 Live Activity 扩展 |
-| HarmonyOS | `Koyze-4.1.0-ohos-arm64.hap`<br>`Koyze-4.1.0-ohos-x64.hap` | 已用发布证书签名，可直接 `hdc install`；真机用 arm64，x86_64 模拟器用 x64 |
+| HarmonyOS | `Koyze-4.1.1-ohos-arm64.hap`<br>`Koyze-4.1.1-ohos-x64.hap` | 已用发布证书签名，可直接 `hdc install`；真机用 arm64，x86_64 模拟器用 x64 |
 | 校验 | `SHA256SUMS.txt` | 全部产物的 SHA-256 |
 
 > [!TIP]
