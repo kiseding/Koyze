@@ -1,15 +1,36 @@
 // Copyright 2024 Koyze Contributors
 // Licensed under the Apache License, Version 2.0
 
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/monitoring/source_health_monitor.dart';
+
+/// 健康检查的真实实现会对 y.qq.com 发 HEAD 请求。CI runner 到国内站点经常整段
+/// 超时，于是「5 次检查」串成 30 秒以上、被测试框架判成超时失败（v4.1.1 的
+/// Android 发布构建就是这样红的）。这里把传输层换成固定 200 的假适配器，
+/// 让这组用例只验证状态机与统计，不依赖外网。
+class _OkAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async =>
+      ResponseBody.fromString('', 200);
+
+  @override
+  void close({bool force = false}) {}
+}
 
 void main() {
   group('SourceHealthMonitor', () {
     late SourceHealthMonitor monitor;
 
     setUp(() {
-      monitor = SourceHealthMonitor();
+      monitor = SourceHealthMonitor(dio: Dio()..httpClientAdapter = _OkAdapter());
     });
 
     tearDown(() {
