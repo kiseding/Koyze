@@ -1295,5 +1295,131 @@
   "connectedType_default_2": "Connected to $type $version",
   "currentConnection_default": "Current: $title · $host",
   "currentConnection_default_2": "Current: $title · $host · $username",
-  "playlistLinkExample": "Example: https://y.qq.com/n/ryqq/playlist/123\nKugou: https://www.kugou.com/yy/special/single/547134.html\nor a numeric ID"
+  "playlistLinkExample": "Example: https://y.qq.com/n/ryqq/playlist/123\nKugou: https://www.kugou.com/yy/special/single/547134.html\nor a numeric ID",
+  "sourceCheckTitle": "Source check",
+  "sourceCheckSubtitle": "Test whether each script can fetch a playable URL",
+  "sourceCheckIntro": "Each script runs against a fixed sample song: one URL request per declared quality, then a partial download to confirm it really returns audio. The result feeds playback source selection.",
+  "sourceCheckStart": "Run check",
+  "sourceCheckPreparing": "Preparing…",
+  "sourceCheckRunning": "Testing: {current}",
+  "@sourceCheckRunning": {
+    "placeholders": {
+      "current": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceCheckProgress": "{done}/{total}",
+  "@sourceCheckProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "sourceCheckAffectsSelection": "Hard failures are skipped when picking a source; timeouts only move to the back.",
+  "sourceCheckCancelled": "Cancelled. Partial results are kept.",
+  "sourceCheckNeverRun": "Not tested yet",
+  "sourceCheckTesting": "Testing…",
+  "sourceCheckSummary": "{ok}/{total} platforms usable · {time}",
+  "@sourceCheckSummary": {
+    "placeholders": {
+      "ok": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceCheckDefaultQuality": "Default quality",
+  "sourceCheckColdStart": "cold start",
+  "sourceCheckNoSources": "No source scripts yet. Import one first.",
+  "sourceCheckSkipped": "No sample song for: {platforms}",
+  "@sourceCheckSkipped": {
+    "placeholders": {
+      "platforms": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceCheckDisabledBadge": "Disabled",
+  "aiSettingsTitle": "AI settings",
+  "aiSettingsIntro": "Works with any OpenAI-compatible endpoint. The key goes into the system secure storage and is only sent to the URL you enter here.",
+  "aiBaseUrl": "API base URL",
+  "aiBaseUrlHint": "https://api.deepseek.com/v1",
+  "aiModel": "Model",
+  "aiModelHint": "deepseek-chat",
+  "aiApiKey": "API key",
+  "aiApiKeyHint": "sk-...",
+  "aiApiKeyStoredHint": "Saved — leave blank to keep it",
+  "aiTestConnection": "Test connection",
+  "aiTesting": "Testing…",
+  "aiTestOk": "Connection works",
+  "aiConfigSaved": "AI settings saved",
+  "aiConfigInvalid": "Fill a valid http(s) URL, a model and a key first",
+  "aiErrorNotConfigured": "AI is not configured yet",
+  "aiErrorUnauthorized": "Key rejected — check the API key",
+  "aiErrorNotFound": "Endpoint or model not found",
+  "aiErrorRateLimited": "Rate limited — try again later",
+  "aiErrorServer": "The AI service returned an error",
+  "aiErrorTimeout": "Request timed out",
+  "aiErrorNetwork": "Network unavailable",
+  "aiErrorEmpty": "The model returned nothing",
+  "aiErrorBadResponse": "Could not parse the model output",
+  "aiOpenTitle": "AI playlist",
+  "aiOpenSubtitle": "Describe it in one sentence",
+  "aiPlaylistTitle": "AI playlist",
+  "aiPromptLabel": "What kind of playlist?",
+  "aiPromptHint": "Late-night coding, instrumental, nothing loud",
+  "aiGenerate": "Generate",
+  "aiGenerating": "Generating…",
+  "aiMatching": "Matching {index}/{total}",
+  "@aiMatching": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "aiMatchedCount": "{matched} of {total} songs found",
+  "@aiMatchedCount": {
+    "placeholders": {
+      "matched": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "aiCreatePlaylist": "Create playlist",
+  "aiCreated": "Playlist \"{name}\" created",
+  "@aiCreated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "aiNotConfigured": "Configure the AI endpoint first",
+  "aiEmptyResult": "No usable songs came back",
+  "aiSongUnmatched": "Not found: {name}",
+  "@aiSongUnmatched": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "aiSettingsSubtitle": "Endpoint, key and model"
 }

@@ -3739,6 +3739,336 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Example: https://y.qq.com/n/ryqq/playlist/123\nKugou: https://www.kugou.com/yy/special/single/547134.html\nor a numeric ID'**
   String get playlistLinkExample;
+
+  /// No description provided for @sourceCheckTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Source check'**
+  String get sourceCheckTitle;
+
+  /// No description provided for @sourceCheckSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Test whether each script can fetch a playable URL'**
+  String get sourceCheckSubtitle;
+
+  /// No description provided for @sourceCheckIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Each script runs against a fixed sample song: one URL request per declared quality, then a partial download to confirm it really returns audio. The result feeds playback source selection.'**
+  String get sourceCheckIntro;
+
+  /// No description provided for @sourceCheckStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Run check'**
+  String get sourceCheckStart;
+
+  /// No description provided for @sourceCheckPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing…'**
+  String get sourceCheckPreparing;
+
+  /// No description provided for @sourceCheckRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Testing: {current}'**
+  String sourceCheckRunning(String current);
+
+  /// No description provided for @sourceCheckProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'{done}/{total}'**
+  String sourceCheckProgress(int done, int total);
+
+  /// No description provided for @sourceCheckAffectsSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Hard failures are skipped when picking a source; timeouts only move to the back.'**
+  String get sourceCheckAffectsSelection;
+
+  /// No description provided for @sourceCheckCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled. Partial results are kept.'**
+  String get sourceCheckCancelled;
+
+  /// No description provided for @sourceCheckNeverRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Not tested yet'**
+  String get sourceCheckNeverRun;
+
+  /// No description provided for @sourceCheckTesting.
+  ///
+  /// In en, this message translates to:
+  /// **'Testing…'**
+  String get sourceCheckTesting;
+
+  /// No description provided for @sourceCheckSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{ok}/{total} platforms usable · {time}'**
+  String sourceCheckSummary(int ok, int total, String time);
+
+  /// No description provided for @sourceCheckDefaultQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Default quality'**
+  String get sourceCheckDefaultQuality;
+
+  /// No description provided for @sourceCheckColdStart.
+  ///
+  /// In en, this message translates to:
+  /// **'cold start'**
+  String get sourceCheckColdStart;
+
+  /// No description provided for @sourceCheckNoSources.
+  ///
+  /// In en, this message translates to:
+  /// **'No source scripts yet. Import one first.'**
+  String get sourceCheckNoSources;
+
+  /// No description provided for @sourceCheckSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'No sample song for: {platforms}'**
+  String sourceCheckSkipped(String platforms);
+
+  /// No description provided for @sourceCheckDisabledBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get sourceCheckDisabledBadge;
+
+  /// No description provided for @aiSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI settings'**
+  String get aiSettingsTitle;
+
+  /// No description provided for @aiSettingsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Works with any OpenAI-compatible endpoint. The key goes into the system secure storage and is only sent to the URL you enter here.'**
+  String get aiSettingsIntro;
+
+  /// No description provided for @aiBaseUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'API base URL'**
+  String get aiBaseUrl;
+
+  /// No description provided for @aiBaseUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://api.deepseek.com/v1'**
+  String get aiBaseUrlHint;
+
+  /// No description provided for @aiModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get aiModel;
+
+  /// No description provided for @aiModelHint.
+  ///
+  /// In en, this message translates to:
+  /// **'deepseek-chat'**
+  String get aiModelHint;
+
+  /// No description provided for @aiApiKey.
+  ///
+  /// In en, this message translates to:
+  /// **'API key'**
+  String get aiApiKey;
+
+  /// No description provided for @aiApiKeyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'sk-...'**
+  String get aiApiKeyHint;
+
+  /// No description provided for @aiApiKeyStoredHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved — leave blank to keep it'**
+  String get aiApiKeyStoredHint;
+
+  /// No description provided for @aiTestConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Test connection'**
+  String get aiTestConnection;
+
+  /// No description provided for @aiTesting.
+  ///
+  /// In en, this message translates to:
+  /// **'Testing…'**
+  String get aiTesting;
+
+  /// No description provided for @aiTestOk.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection works'**
+  String get aiTestOk;
+
+  /// No description provided for @aiConfigSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'AI settings saved'**
+  String get aiConfigSaved;
+
+  /// No description provided for @aiConfigInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Fill a valid http(s) URL, a model and a key first'**
+  String get aiConfigInvalid;
+
+  /// No description provided for @aiErrorNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'AI is not configured yet'**
+  String get aiErrorNotConfigured;
+
+  /// No description provided for @aiErrorUnauthorized.
+  ///
+  /// In en, this message translates to:
+  /// **'Key rejected — check the API key'**
+  String get aiErrorUnauthorized;
+
+  /// No description provided for @aiErrorNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Endpoint or model not found'**
+  String get aiErrorNotFound;
+
+  /// No description provided for @aiErrorRateLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate limited — try again later'**
+  String get aiErrorRateLimited;
+
+  /// No description provided for @aiErrorServer.
+  ///
+  /// In en, this message translates to:
+  /// **'The AI service returned an error'**
+  String get aiErrorServer;
+
+  /// No description provided for @aiErrorTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Request timed out'**
+  String get aiErrorTimeout;
+
+  /// No description provided for @aiErrorNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Network unavailable'**
+  String get aiErrorNetwork;
+
+  /// No description provided for @aiErrorEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The model returned nothing'**
+  String get aiErrorEmpty;
+
+  /// No description provided for @aiErrorBadResponse.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not parse the model output'**
+  String get aiErrorBadResponse;
+
+  /// No description provided for @aiOpenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI playlist'**
+  String get aiOpenTitle;
+
+  /// No description provided for @aiOpenSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe it in one sentence'**
+  String get aiOpenSubtitle;
+
+  /// No description provided for @aiPlaylistTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI playlist'**
+  String get aiPlaylistTitle;
+
+  /// No description provided for @aiPromptLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'What kind of playlist?'**
+  String get aiPromptLabel;
+
+  /// No description provided for @aiPromptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Late-night coding, instrumental, nothing loud'**
+  String get aiPromptHint;
+
+  /// No description provided for @aiGenerate.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate'**
+  String get aiGenerate;
+
+  /// No description provided for @aiGenerating.
+  ///
+  /// In en, this message translates to:
+  /// **'Generating…'**
+  String get aiGenerating;
+
+  /// No description provided for @aiMatching.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching {index}/{total}'**
+  String aiMatching(int index, int total);
+
+  /// No description provided for @aiMatchedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{matched} of {total} songs found'**
+  String aiMatchedCount(int matched, int total);
+
+  /// No description provided for @aiCreatePlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Create playlist'**
+  String get aiCreatePlaylist;
+
+  /// No description provided for @aiCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlist \"{name}\" created'**
+  String aiCreated(String name);
+
+  /// No description provided for @aiNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure the AI endpoint first'**
+  String get aiNotConfigured;
+
+  /// No description provided for @aiEmptyResult.
+  ///
+  /// In en, this message translates to:
+  /// **'No usable songs came back'**
+  String get aiEmptyResult;
+
+  /// No description provided for @aiSongUnmatched.
+  ///
+  /// In en, this message translates to:
+  /// **'Not found: {name}'**
+  String aiSongUnmatched(String name);
+
+  /// No description provided for @aiSettingsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Endpoint, key and model'**
+  String get aiSettingsSubtitle;
 }
 
 class _AppLocalizationsDelegate

@@ -2010,4 +2010,187 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get playlistLinkExample =>
       '示例：https://y.qq.com/n/ryqq/playlist/123\n酷狗：https://www.kugou.com/yy/special/single/547134.html\n或直接输入数字 ID';
+
+  @override
+  String get sourceCheckTitle => '音源检测';
+
+  @override
+  String get sourceCheckSubtitle => '测试每个脚本能否取到播放地址';
+
+  @override
+  String get sourceCheckIntro =>
+      '每个脚本用固定样本曲跑一遍：按声明的音质逐档取链接，再试读一小段确认真的是音频。结果会参与播放时的选源。';
+
+  @override
+  String get sourceCheckStart => '开始检测';
+
+  @override
+  String get sourceCheckPreparing => '准备中…';
+
+  @override
+  String sourceCheckRunning(String current) {
+    return '正在测试：$current';
+  }
+
+  @override
+  String sourceCheckProgress(int done, int total) {
+    return '$done/$total';
+  }
+
+  @override
+  String get sourceCheckAffectsSelection => '明确失败的脚本在选源时会被跳过，只有超时的排到最后。';
+
+  @override
+  String get sourceCheckCancelled => '已取消，已跑完的部分会保留。';
+
+  @override
+  String get sourceCheckNeverRun => '尚未检测';
+
+  @override
+  String get sourceCheckTesting => '检测中…';
+
+  @override
+  String sourceCheckSummary(int ok, int total, String time) {
+    return '$ok/$total 个平台可用 · $time';
+  }
+
+  @override
+  String get sourceCheckDefaultQuality => '默认音质';
+
+  @override
+  String get sourceCheckColdStart => '冷启动';
+
+  @override
+  String get sourceCheckNoSources => '还没有音源脚本，先去导入一个。';
+
+  @override
+  String sourceCheckSkipped(String platforms) {
+    return '没有样本曲，已跳过：$platforms';
+  }
+
+  @override
+  String get sourceCheckDisabledBadge => '未启用';
+
+  @override
+  String get aiSettingsTitle => 'AI 设置';
+
+  @override
+  String get aiSettingsIntro =>
+      '兼容任何 OpenAI 格式的接口。密钥存在系统安全存储里，只会在请求时发给你填的这个地址。';
+
+  @override
+  String get aiBaseUrl => 'API 地址';
+
+  @override
+  String get aiBaseUrlHint => 'https://api.deepseek.com/v1';
+
+  @override
+  String get aiModel => '模型';
+
+  @override
+  String get aiModelHint => 'deepseek-chat';
+
+  @override
+  String get aiApiKey => 'API Key';
+
+  @override
+  String get aiApiKeyHint => 'sk-...';
+
+  @override
+  String get aiApiKeyStoredHint => '已保存，留空保持不变';
+
+  @override
+  String get aiTestConnection => '测试连接';
+
+  @override
+  String get aiTesting => '测试中…';
+
+  @override
+  String get aiTestOk => '连接正常';
+
+  @override
+  String get aiConfigSaved => 'AI 设置已保存';
+
+  @override
+  String get aiConfigInvalid => '请先填写有效的 http(s) 地址、模型和密钥';
+
+  @override
+  String get aiErrorNotConfigured => '还没有配置 AI';
+
+  @override
+  String get aiErrorUnauthorized => '密钥被拒绝，请检查 API Key';
+
+  @override
+  String get aiErrorNotFound => '地址或模型不存在';
+
+  @override
+  String get aiErrorRateLimited => '请求过于频繁，稍后再试';
+
+  @override
+  String get aiErrorServer => 'AI 服务返回错误';
+
+  @override
+  String get aiErrorTimeout => '请求超时';
+
+  @override
+  String get aiErrorNetwork => '网络不可用';
+
+  @override
+  String get aiErrorEmpty => '模型没有返回内容';
+
+  @override
+  String get aiErrorBadResponse => '返回内容无法解析';
+
+  @override
+  String get aiOpenTitle => 'AI 歌单';
+
+  @override
+  String get aiOpenSubtitle => '用一句话描述，自动搜索建单';
+
+  @override
+  String get aiPlaylistTitle => 'AI 歌单';
+
+  @override
+  String get aiPromptLabel => '想要一张什么歌单？';
+
+  @override
+  String get aiPromptHint => '适合深夜写代码的纯音乐，不要太吵';
+
+  @override
+  String get aiGenerate => '生成';
+
+  @override
+  String get aiGenerating => '生成中…';
+
+  @override
+  String aiMatching(int index, int total) {
+    return '正在匹配 $index/$total';
+  }
+
+  @override
+  String aiMatchedCount(int matched, int total) {
+    return '匹配到 $matched/$total 首';
+  }
+
+  @override
+  String get aiCreatePlaylist => '创建歌单';
+
+  @override
+  String aiCreated(String name) {
+    return '已创建歌单「$name」';
+  }
+
+  @override
+  String get aiNotConfigured => '请先在「AI 设置」里填写地址、密钥和模型';
+
+  @override
+  String get aiEmptyResult => '没有得到可用的歌曲';
+
+  @override
+  String aiSongUnmatched(String name) {
+    return '曲库里没找到：$name';
+  }
+
+  @override
+  String get aiSettingsSubtitle => '接口地址、密钥与模型';
 }

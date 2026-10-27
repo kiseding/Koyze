@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../../features/player/domain/music_item.dart';
 import '../../features/custom_source/domain/custom_source_service.dart';
+import '../../features/source_check/domain/source_check_policy.dart';
 import '../../features/nas/domain/nas_kind.dart';
 import '../../features/nas/domain/nas_service.dart';
 import '../../features/nas/domain/nas_url.dart';
@@ -45,6 +46,8 @@ class MusicSourceService {
   static const _customFailureCooldown = Duration(seconds: 5);
 
   final CustomSourceService _customSourceService;
+  /// 音源检测结论，用来决定选源顺序；为空时按脚本启用顺序尝试。
+  final SourceCheckPolicy? sourceCheckPolicy;
   final BuiltInSourceManager _builtInSources;
   final bool Function()? _hasEnabledCustomSources;
   final List<String> Function()? _enabledCustomSourceIds;
@@ -59,6 +62,7 @@ class MusicSourceService {
 
   MusicSourceService(
     this._customSourceService, {
+    this.sourceCheckPolicy,
     bool Function()? hasEnabledCustomSources,
     List<String> Function()? enabledCustomSourceIds,
     QualityResolver? customQualityResolver,
@@ -561,9 +565,13 @@ class MusicSourceService {
     }
     final platform = resolvePlatform(music);
     final musicForScript = music.copyWith(platform: platform);
-    final sourceIds =
+    final candidateSourceIds =
         _enabledCustomSourceIds?.call() ??
         _customSourceService.enabledSources.map((source) => source.id).toList();
+    // 音源检测结论：这个平台上明确取不到链的脚本直接跳过，只有超时的排到最后。
+    final sourceIds =
+        sourceCheckPolicy?.order(candidateSourceIds, platform) ??
+        candidateSourceIds;
     _QualityAttempt? bestBelow;
     for (var sourceIndex = 0; sourceIndex < sourceIds.length; sourceIndex++) {
       final sourceId = sourceIds[sourceIndex];

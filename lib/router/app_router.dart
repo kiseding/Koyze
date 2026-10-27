@@ -15,6 +15,9 @@ import '../features/playlist/presentation/playlist_detail_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import '../features/download/presentation/download_screen.dart';
 import '../features/custom_source/presentation/custom_source_screen.dart';
+import '../features/source_check/presentation/source_check_screen.dart';
+import '../features/ai/presentation/ai_playlist_screen.dart';
+import '../features/ai/presentation/ai_settings_screen.dart';
 import '../features/equalizer/presentation/equalizer_screen.dart';
 import '../features/leaderboard/presentation/leaderboard_screen.dart';
 import '../features/leaderboard/presentation/leaderboard_settings_screen.dart';
@@ -315,6 +318,39 @@ final appRouter = GoRouter(
         const CustomSourceScreen(),
         expandRect: consumeCardExpandRect(),
         expandSnapshot: consumeCardExpandSnapshot(),
+      ),
+    ),
+    GoRoute(
+      path: '/source-check',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const SourceCheckScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+        fullWidthSwipe: true,
+      ),
+    ),
+    GoRoute(
+      path: '/ai-playlist',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const AiPlaylistScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+        fullWidthSwipe: true,
+      ),
+    ),
+    GoRoute(
+      path: '/ai-settings',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const AiSettingsScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+        fullWidthSwipe: true,
       ),
     ),
     GoRoute(

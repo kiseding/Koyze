@@ -738,6 +738,63 @@ class S {
   };
 
 
+
+  // ---- 音源检测 / AI ----
+  String get sourceCheckTitle => _l10n.sourceCheckTitle;
+  String get sourceCheckSubtitle => _l10n.sourceCheckSubtitle;
+  String get sourceCheckIntro => _l10n.sourceCheckIntro;
+  String get sourceCheckStart => _l10n.sourceCheckStart;
+  String get sourceCheckPreparing => _l10n.sourceCheckPreparing;
+  String sourceCheckRunning(String current) => _l10n.sourceCheckRunning(current);
+  String sourceCheckProgress(int done, int total) => _l10n.sourceCheckProgress(done, total);
+  String get sourceCheckAffectsSelection => _l10n.sourceCheckAffectsSelection;
+  String get sourceCheckCancelled => _l10n.sourceCheckCancelled;
+  String get sourceCheckNeverRun => _l10n.sourceCheckNeverRun;
+  String get sourceCheckTesting => _l10n.sourceCheckTesting;
+  String sourceCheckSummary(int ok, int total, String time) => _l10n.sourceCheckSummary(ok, total, time);
+  String get sourceCheckDefaultQuality => _l10n.sourceCheckDefaultQuality;
+  String get sourceCheckColdStart => _l10n.sourceCheckColdStart;
+  String get sourceCheckNoSources => _l10n.sourceCheckNoSources;
+  String sourceCheckSkipped(String platforms) => _l10n.sourceCheckSkipped(platforms);
+  String get sourceCheckDisabledBadge => _l10n.sourceCheckDisabledBadge;
+  String get aiSettingsTitle => _l10n.aiSettingsTitle;
+  String get aiSettingsSubtitle => _l10n.aiSettingsSubtitle;
+  String get aiSettingsIntro => _l10n.aiSettingsIntro;
+  String get aiBaseUrl => _l10n.aiBaseUrl;
+  String get aiBaseUrlHint => _l10n.aiBaseUrlHint;
+  String get aiModel => _l10n.aiModel;
+  String get aiModelHint => _l10n.aiModelHint;
+  String get aiApiKey => _l10n.aiApiKey;
+  String get aiApiKeyHint => _l10n.aiApiKeyHint;
+  String get aiApiKeyStoredHint => _l10n.aiApiKeyStoredHint;
+  String get aiTestConnection => _l10n.aiTestConnection;
+  String get aiTesting => _l10n.aiTesting;
+  String get aiTestOk => _l10n.aiTestOk;
+  String get aiConfigSaved => _l10n.aiConfigSaved;
+  String get aiConfigInvalid => _l10n.aiConfigInvalid;
+  String get aiErrorNotConfigured => _l10n.aiErrorNotConfigured;
+  String get aiErrorUnauthorized => _l10n.aiErrorUnauthorized;
+  String get aiErrorNotFound => _l10n.aiErrorNotFound;
+  String get aiErrorRateLimited => _l10n.aiErrorRateLimited;
+  String get aiErrorServer => _l10n.aiErrorServer;
+  String get aiErrorTimeout => _l10n.aiErrorTimeout;
+  String get aiErrorNetwork => _l10n.aiErrorNetwork;
+  String get aiErrorEmpty => _l10n.aiErrorEmpty;
+  String get aiErrorBadResponse => _l10n.aiErrorBadResponse;
+  String get aiOpenTitle => _l10n.aiOpenTitle;
+  String get aiOpenSubtitle => _l10n.aiOpenSubtitle;
+  String get aiPlaylistTitle => _l10n.aiPlaylistTitle;
+  String get aiPromptLabel => _l10n.aiPromptLabel;
+  String get aiPromptHint => _l10n.aiPromptHint;
+  String get aiGenerate => _l10n.aiGenerate;
+  String get aiGenerating => _l10n.aiGenerating;
+  String aiMatching(int index, int total) => _l10n.aiMatching(index, total);
+  String aiMatchedCount(int matched, int total) => _l10n.aiMatchedCount(matched, total);
+  String get aiCreatePlaylist => _l10n.aiCreatePlaylist;
+  String aiCreated(String name) => _l10n.aiCreated(name);
+  String get aiNotConfigured => _l10n.aiNotConfigured;
+  String get aiEmptyResult => _l10n.aiEmptyResult;
+  String aiSongUnmatched(String name) => _l10n.aiSongUnmatched(name);
 }
 
 /// Maps a runtime message produced by the audio layer (currently Chinese,

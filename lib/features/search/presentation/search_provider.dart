@@ -13,6 +13,7 @@ import '../../playlist/presentation/playlist_provider.dart';
 import '../../nas/domain/nas_kind.dart';
 import '../../nas/domain/nas_url.dart';
 import '../../nas/presentation/nas_provider.dart';
+import '../../source_check/presentation/source_check_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
 import '../../../core/logging/app_log.dart';
 
@@ -25,6 +26,7 @@ final musicSourceServiceProvider = Provider<MusicSourceService>((ref) {
   };
   final service = MusicSourceService(
     customSourceService,
+    sourceCheckPolicy: ref.watch(sourceCheckPolicyProvider),
     subsonicService: subsonicService,
     nasServices: nasServices,
   );

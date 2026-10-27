@@ -235,6 +235,9 @@ class CustomSourceEngine {
     return _capabilities.effectiveQuality(platform, 'musicUrl', requested);
   }
 
+  /// 最近一次加载出来的能力表，供音源检测挑平台与音质。
+  LxSourceCapabilities get capabilities => _capabilities;
+
   Future<void> _ensureInitialized() async {
     if (_initialized && _runtime != null) return;
 

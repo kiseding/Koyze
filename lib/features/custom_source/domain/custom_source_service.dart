@@ -7,6 +7,7 @@ import '../../../core/network/source_request_policy.dart';
 import '../../../core/storage/storage_service.dart';
 import '../domain/custom_source.dart';
 import '../domain/custom_source_engine.dart';
+import '../domain/lx_source_capabilities.dart';
 import '../domain/source_script_safety.dart' as script_safety;
 import '../domain/source_script_validation.dart';
 import '../../player/domain/music_item.dart';
@@ -370,6 +371,18 @@ class CustomSourceService {
     return engine.effectiveMusicQuality(platform, requested);
   }
 
+  /// 加载脚本并读回它声明的能力表；脚本不存在或加载失败返回 null。
+  ///
+  /// 不看 `isEnabled`：音源检测需要能测「还没启用」的脚本，否则用户没法在启用前
+  /// 先确认它到底通不通。
+  Future<LxSourceCapabilities?> capabilitiesOf(String sourceId) async {
+    final index = _sources.indexWhere((source) => source.id == sourceId);
+    if (index < 0) return null;
+    final engine = _getEngine(sourceId);
+    if (!await engine.loadSource(_sources[index])) return null;
+    return engine.capabilities;
+  }
+
   Future<List<MusicItem>> searchWithSource(
     String sourceId,
     String keyword, {
@@ -415,13 +428,14 @@ class CustomSourceService {
     String sourceId,
     MusicItem music, {
     String quality = '320k',
+    bool requireEnabled = true,
   }) async {
     try {
       final customSource = _sources.firstWhere(
         (s) => s.id == sourceId,
         orElse: () => throw Exception('源不存在'),
       );
-      if (!customSource.isEnabled) return null;
+      if (requireEnabled && !customSource.isEnabled) return null;
       if (customSource.script.trim().isEmpty) {
         throw Exception('源脚本为空: ${customSource.name}');
       }

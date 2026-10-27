@@ -43,6 +43,24 @@ class LxSourceCapabilities {
     return qs.contains(quality.toLowerCase());
   }
 
+  /// 声明了某个动作的平台（保持脚本里的声明顺序）。
+  ///
+  /// 音源检测靠它决定「这个脚本能测哪几个平台」——`effectiveQuality` 只能逐平台问，
+  /// 问不到「有哪些平台」。
+  Set<String> platformsFor(String action) => {
+    for (final entry in _actions.entries)
+      if (entry.value.contains(action)) entry.key,
+  };
+
+  /// 某个平台声明过的音质，按 [order] 给出的优先级排序。
+  ///
+  /// 脚本没写 `qualitys` 时返回空表，调用方据此回落到「默认音质」。
+  List<String> qualitiesFor(String platform, List<String> order) {
+    final declared = _qualities[platform.toLowerCase()];
+    if (declared == null || declared.isEmpty) return const <String>[];
+    return order.where(declared.contains).toList(growable: false);
+  }
+
   /// Returns the best quality this source actually declares for a request.
   /// A source may expose only lossy formats while the app preference is FLAC.
   String? effectiveQuality(String source, String action, String requested) {
