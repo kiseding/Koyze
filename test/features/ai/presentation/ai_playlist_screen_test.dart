@@ -4,10 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/network/music_source_service.dart';
 import 'package:koyze/features/ai/domain/ai_config.dart';
 import 'package:koyze/features/ai/domain/ai_playlist_planner.dart';
+import 'package:koyze/features/ai/domain/ai_tools.dart';
 import 'package:koyze/features/ai/presentation/ai_playlist_screen.dart';
 import 'package:koyze/features/ai/presentation/ai_provider.dart';
 import 'package:koyze/features/custom_source/domain/custom_source_service.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
+
+import '../domain/ai_tool_fakes.dart';
 
 void main() {
   testWidgets('turns a sentence into a checked playlist draft', (tester) async {
@@ -79,11 +82,14 @@ Widget _app({
   bool configured = true,
   bool emptyDraft = false,
 }) {
+  // 工具默认开着，界面会走带工具的计划；这里换成假端口，免得真去连网。
+  final fakes = ToolFakes();
   return ProviderScope(
     overrides: [
       aiConfigProvider.overrideWith(() => _FakeConfig(configured)),
       aiPlannerProvider.overrideWithValue(_FakePlanner(emptyDraft: emptyDraft)),
       aiMatcherProvider.overrideWithValue(_FakeMatcher()),
+      aiToolboxProvider.overrideWithValue(fakes.toolbox()),
     ],
     child: const MaterialApp(home: AiPlaylistScreen()),
   );
@@ -129,6 +135,19 @@ class _FakePlanner extends AiPlaylistPlanner {
       ],
     );
   }
+
+  /// 带工具的分支走同一份草稿：界面只关心最终结果，工具循环由
+  /// `ai_agent_test` / `ai_tools_test` 覆盖。
+  @override
+  Future<AiPlaylistDraft> planWithTools({
+    required AiConfig config,
+    required String apiKey,
+    required String request,
+    required AiToolbox toolbox,
+    AiToolObserver? onToolCall,
+    int maxRounds = 6,
+    Duration timeout = const Duration(seconds: 90),
+  }) => plan(config: config, apiKey: apiKey, request: request, timeout: timeout);
 }
 
 class _FakeMatcher extends AiPlaylistMatcher {

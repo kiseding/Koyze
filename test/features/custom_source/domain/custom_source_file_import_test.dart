@@ -117,11 +117,15 @@ void main() {
   });
 
   test('returns an import reason and records failed validation', () async {
-    AppLog.instance.clear();
+    // 诊断日志默认不记录，断言日志得先把采集打开。
+    final log = AppLog.instance
+      ..start(installHooks: false)
+      ..clear();
+    addTearDown(log.stop);
     final service = CustomSourceService();
     addTearDown(() {
       service.dispose();
-      AppLog.instance.clear();
+      log.clear();
     });
 
     final result = await service.importLxMusicScriptWithResult(

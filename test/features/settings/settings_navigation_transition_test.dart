@@ -121,7 +121,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Audio quality').first);
+    // 「高级功能」又多了一项 AI 助手，播放设置被推到首屏之外，
+    // 先滚进可视区再点，否则点击会落在空白处。
+    final quality = find.text('Audio quality').first;
+    await Scrollable.ensureVisible(quality.evaluate().single, alignment: 0.5);
+    await tester.pumpAndSettle();
+    await tester.tap(quality);
     await tester.pumpAndSettle();
     final sheet = find.byType(BottomSheet);
     expect(sheet, findsOneWidget);
@@ -160,6 +165,7 @@ void main() {
       '/local-music',
       '/custom-source',
       '/source-check',
+      '/ai-assistant',
       '/ai-playlist',
       '/ai-settings',
       '/subsonic-settings',
