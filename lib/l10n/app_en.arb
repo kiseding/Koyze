@@ -1348,6 +1348,7 @@
   "aiErrorToolsUnsupported": "This endpoint does not support tool calls. Try turning off \"Let the AI act on the app\" in settings",
   "aiErrorRejected": "The endpoint rejected this request",
   "aiErrorToolLoop": "Ran too many steps without reaching an answer. Try a more specific request",
+  "aiErrorGatewayTimeout": "The API gateway timed out before the model replied. One retry was already attempted — try again later; if it keeps happening, turn off app actions in settings (a smaller tool list gets faster replies)",
   "aiNotConfigured": "Configure the AI endpoint first",
   "aiToolsTitle": "Tool calling",
   "aiToolsSubtitle": "Let the model look up your library, playlists, sources and downloads instead of guessing titles",

@@ -646,6 +646,7 @@
   "aiErrorToolsUnsupported": "这个接口不支持工具调用。可以在设置里关掉「允许 AI 直接操作应用」再试",
   "aiErrorRejected": "接口拒绝了这次请求",
   "aiErrorToolLoop": "连着操作了太多步还没得出结论。把要求说得更具体一点再试一次",
+  "aiErrorGatewayTimeout": "接口网关超时，模型没在限定时间内回话。已经自动重试过一次，稍后再试；连着几次都这样，就在设置里关掉「允许 AI 直接操作应用」——工具清单越小，模型回得越快",
   "aiNotConfigured": "请先在「AI 设置」里填写地址、密钥和模型",
   "aiToolsTitle": "工具调用",
   "aiToolsSubtitle": "让模型自己查曲库、歌单、音源和下载，而不是凭记忆编歌名",

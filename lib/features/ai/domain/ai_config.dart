@@ -187,6 +187,9 @@ enum AiFailureKind {
   /// 接口明确拒绝了这次请求，[AiException.detail] 里有它的原话。
   rejected,
 
+  /// 网关（502 / 503 / 504）没能等到模型回话。多数是上游瞬时过载，重试即可。
+  gatewayTimeout,
+
   /// 模型连着调用工具到上限还没给出结论。
   toolLoop,
 }

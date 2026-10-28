@@ -801,6 +801,7 @@ class S {
   String get aiErrorToolsUnsupported => _l10n.aiErrorToolsUnsupported;
   String get aiErrorRejected => _l10n.aiErrorRejected;
   String get aiErrorToolLoop => _l10n.aiErrorToolLoop;
+  String get aiErrorGatewayTimeout => _l10n.aiErrorGatewayTimeout;
   String get aiNotConfigured => _l10n.aiNotConfigured;
   String get aiToolsTitle => _l10n.aiToolsTitle;
   String get aiToolsSubtitle => _l10n.aiToolsSubtitle;

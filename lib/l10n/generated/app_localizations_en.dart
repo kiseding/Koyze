@@ -2176,6 +2176,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Ran too many steps without reaching an answer. Try a more specific request';
 
   @override
+  String get aiErrorGatewayTimeout =>
+      'The API gateway timed out before the model replied. One retry was already attempted — try again later; if it keeps happening, turn off app actions in settings (a smaller tool list gets faster replies)';
+
+  @override
   String get aiNotConfigured => 'Configure the AI endpoint first';
 
   @override

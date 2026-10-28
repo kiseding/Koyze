@@ -2133,6 +2133,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiErrorToolLoop => '连着操作了太多步还没得出结论。把要求说得更具体一点再试一次';
 
   @override
+  String get aiErrorGatewayTimeout =>
+      '接口网关超时，模型没在限定时间内回话。已经自动重试过一次，稍后再试；连着几次都这样，就在设置里关掉「允许 AI 直接操作应用」——工具清单越小，模型回得越快';
+
+  @override
   String get aiNotConfigured => '请先在「AI 设置」里填写地址、密钥和模型';
 
   @override

@@ -109,7 +109,10 @@ void main() {
     expect(await kindOf(404), AiFailureKind.notFound);
     expect(await kindOf(429), AiFailureKind.rateLimited);
     expect(await kindOf(400), AiFailureKind.badResponse);
-    expect(await kindOf(503), AiFailureKind.serverError);
+    expect(await kindOf(500), AiFailureKind.serverError);
+    expect(await kindOf(502), AiFailureKind.gatewayTimeout);
+    expect(await kindOf(503), AiFailureKind.gatewayTimeout);
+    expect(await kindOf(504), AiFailureKind.gatewayTimeout);
   });
 
   test('surfaces the backend error message for 5xx', () async {
@@ -209,6 +212,97 @@ void main() {
             .having((e) => e.detail, 'detail', 'invalid request: model is required'),
       ),
     );
+  });
+
+  test('网关超时的 HTML 页面只留标题，不把整页贴进气泡', () async {
+    final client = AiClient(
+      dio: Dio()
+        ..httpClientAdapter = _StubAdapter(
+          504,
+          '<!DOCTYPE html><html><head><title>504 Gateway Timeout</title>'
+          '</head><body><center><h1>504 Gateway Time-out</h1></center>'
+          '<hr><center>nginx</center></body></html>',
+          contentType: Headers.textPlainContentType,
+        ),
+    );
+
+    await expectLater(
+      client.complete(
+        config: config,
+        apiKey: 'k',
+        messages: const [AiMessage(AiRole.user, 'hi')],
+      ),
+      throwsA(
+        isA<AiException>()
+            .having((e) => e.kind, 'kind', AiFailureKind.gatewayTimeout)
+            .having((e) => e.detail, 'detail', '504 Gateway Timeout'),
+      ),
+    );
+  });
+
+  test('5xx 会自动重试一次，第二次成功就当没事发生', () async {
+    final adapter = _SequenceAdapter([
+      (status: 502, body: '{"error":{"message":"upstream error"}}'),
+      (
+        status: 200,
+        body: '{"choices":[{"message":{"role":"assistant","content":"好了"}}]}',
+      ),
+    ]);
+    final client = AiClient(dio: Dio()..httpClientAdapter = adapter);
+
+    final content = await client.complete(
+      config: config,
+      apiKey: 'k',
+      messages: const [AiMessage(AiRole.user, 'hi')],
+    );
+
+    expect(content, '好了');
+    expect(adapter.calls, 2);
+  });
+
+  test('两次都 5xx 才报错，不会一直重试', () async {
+    final adapter = _SequenceAdapter([
+      (status: 502, body: '{"error":{"message":"upstream error"}}'),
+      (status: 502, body: '{"error":{"message":"upstream error"}}'),
+    ]);
+    final client = AiClient(dio: Dio()..httpClientAdapter = adapter);
+
+    await expectLater(
+      client.complete(
+        config: config,
+        apiKey: 'k',
+        messages: const [AiMessage(AiRole.user, 'hi')],
+      ),
+      throwsA(
+        isA<AiException>().having(
+          (e) => e.kind,
+          'kind',
+          AiFailureKind.gatewayTimeout,
+        ),
+      ),
+    );
+    expect(adapter.calls, 2);
+  });
+
+  test('4xx 不重试，同样的无效请求只发一次', () async {
+    final adapter = _SequenceAdapter([
+      (status: 400, body: '{"error":{"message":"invalid request"}}'),
+      (
+        status: 200,
+        body: '{"choices":[{"message":{"content":"不该走到这里"}}]}',
+      ),
+    ]);
+    final client = AiClient(dio: Dio()..httpClientAdapter = adapter);
+
+    await expectLater(
+      client.complete(
+        config: config,
+        apiKey: 'k',
+        messages: const [AiMessage(AiRole.user, 'hi')],
+      ),
+      throwsA(isA<AiException>()),
+    );
+    expect(adapter.calls, 1);
   });
 
   test('an answer with no choices is an empty response, not a crash', () async {
@@ -355,20 +449,27 @@ void main() {
 }
 
 class _StubAdapter implements HttpClientAdapter {
-  _StubAdapter(this.status, this.body) : _type = null;
+  _StubAdapter(
+    this.status,
+    this.body, {
+    this.contentType = Headers.jsonContentType,
+  }) : _type = null;
 
   _StubAdapter.receiveTimeout()
     : status = 0,
       body = '',
+      contentType = Headers.jsonContentType,
       _type = DioExceptionType.receiveTimeout;
 
   _StubAdapter.connectionError()
     : status = 0,
       body = '',
+      contentType = Headers.jsonContentType,
       _type = DioExceptionType.connectionError;
 
   final int status;
   final String body;
+  final String contentType;
   final DioExceptionType? _type;
 
   RequestOptions? request;
@@ -387,6 +488,34 @@ class _StubAdapter implements HttpClientAdapter {
     return ResponseBody.fromString(
       body,
       status,
+      headers: {
+        Headers.contentTypeHeader: [contentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+/// 按顺序返回多次响应，用来验证「失败后重试一次」。
+class _SequenceAdapter implements HttpClientAdapter {
+  _SequenceAdapter(this.replies);
+
+  final List<({int status, String body})> replies;
+  int calls = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final reply = replies[calls.clamp(0, replies.length - 1)];
+    calls++;
+    return ResponseBody.fromString(
+      reply.body,
+      reply.status,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],
       },

@@ -75,9 +75,10 @@ class AiClient {
 
     final Response<dynamic> response;
     try {
-      response = await _dio.post<dynamic>(
+      response = await _post(
         config.endpoint,
-        data: {
+        apiKey,
+        {
           'model': config.model,
           'messages': messages.map((message) => message.toJson()).toList(),
           'temperature': temperature,
@@ -86,21 +87,13 @@ class AiClient {
           if (tools.isNotEmpty) 'tools': tools,
           if (tools.isNotEmpty) 'tool_choice': 'auto',
         },
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer ${apiKey.trim()}',
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          sendTimeout: timeout,
-          receiveTimeout: timeout,
-          validateStatus: (_) => true,
-        ),
+        timeout,
       );
     } on DioException catch (error) {
+      final detail = _readable(error.response?.data);
       throw AiException(
         _kindOfDioException(error),
-        error.message ?? error.type.name,
+        detail.isEmpty ? (error.message ?? error.type.name) : detail,
       );
     }
 
@@ -124,7 +117,7 @@ class AiClient {
         level: AppLogLevel.warning,
       );
       if (status >= 500) {
-        throw AiException(AiFailureKind.serverError, detail);
+        throw AiException(_kindOfServerError(status), detail);
       }
       throw AiException(_kindOfClientError(detail), detail);
     }
@@ -134,6 +127,57 @@ class AiClient {
       toolCalls: _toolCallsOf(response.data),
     );
   }
+
+  /// 重试次数与间隔。网关 502/504 多半是上游瞬时过载，重发一次通常就好了；
+  /// 4xx 一律不重发，免得把同一个无效请求交两遍。
+  static const int _attempts = 2;
+  static const Duration _retryDelay = Duration(milliseconds: 800);
+
+  Future<Response<dynamic>> _post(
+    String endpoint,
+    String apiKey,
+    Map<String, dynamic> data,
+    Duration timeout,
+  ) async {
+    final options = Options(
+      headers: {
+        'Authorization': 'Bearer ${apiKey.trim()}',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      sendTimeout: timeout,
+      receiveTimeout: timeout,
+      validateStatus: (_) => true,
+    );
+
+    for (var attempt = 1; ; attempt++) {
+      try {
+        final response = await _dio.post<dynamic>(
+          endpoint,
+          data: data,
+          options: options,
+        );
+        final status = response.statusCode ?? 0;
+        if (status >= 500 && status != 501 && attempt < _attempts) {
+          await Future<void>.delayed(_retryDelay);
+          continue;
+        }
+        return response;
+      } on DioException catch (error) {
+        if (attempt >= _attempts || !_worthRetrying(error)) rethrow;
+        // 已经等到超时的（receiveTimeout / sendTimeout）不重来一次，
+        // 否则用户要干等两倍时间才看到报错。
+        await Future<void>.delayed(_retryDelay);
+      }
+    }
+  }
+
+  static bool _worthRetrying(DioException error) => switch (error.type) {
+    DioExceptionType.connectionTimeout ||
+    DioExceptionType.connectionError => true,
+    DioExceptionType.badResponse => (error.response?.statusCode ?? 0) >= 500,
+    _ => false,
+  };
 
   /// 4xx 里最常见的两类原因单独拎出来：它们都有明确解法，
   /// 混在「返回内容无法解析」里用户没法自救。
@@ -163,17 +207,26 @@ class AiClient {
   }
 
   static AiFailureKind _kindOfDioException(DioException error) {
+    final status = error.response?.statusCode ?? 0;
     return switch (error.type) {
       DioExceptionType.connectionTimeout ||
       DioExceptionType.sendTimeout ||
       DioExceptionType.receiveTimeout => AiFailureKind.timeout,
-      DioExceptionType.badResponse =>
-        (error.response?.statusCode ?? 0) >= 500
-            ? AiFailureKind.serverError
-            : AiFailureKind.badResponse,
+      DioExceptionType.badResponse => status >= 500
+          ? _kindOfServerError(status)
+          : AiFailureKind.badResponse,
+      // 有些网关声明 json 却回了一整页 HTML，Dio 解析失败会落到 unknown。
+      // 只要拿到了响应，就还是按状态码判，别报成「网络错误」。
+      DioExceptionType.unknown when error.response != null =>
+        status >= 500 ? _kindOfServerError(status) : AiFailureKind.badResponse,
       _ => AiFailureKind.network,
     };
   }
+
+  static AiFailureKind _kindOfServerError(int status) =>
+      status == 502 || status == 503 || status == 504
+      ? AiFailureKind.gatewayTimeout
+      : AiFailureKind.serverError;
 
   /// `choices[0].message.content`，兼容把 content 拆成多段 text 的实现。
   static String? _contentOf(dynamic data) {
@@ -259,11 +312,29 @@ class AiClient {
     if (data is Map) {
       final error = data['error'];
       if (error is Map && error['message'] is String) {
-        return error['message'] as String;
+        return _readable(error['message']);
       }
-      if (data['message'] is String) return data['message'] as String;
+      if (data['message'] is String) return _readable(data['message']);
+      return '';
     }
-    if (data is String) return data;
-    return '';
+    return _readable(data);
+  }
+
+  /// 网关挂掉时常直接吐一整页 HTML（nginx 的 502 / 504 页面就是这样）。
+  /// 把 `<html><head>...` 原样贴在气泡里既看不懂也没意义，这里只留标题。
+  static String _readable(Object? raw) {
+    if (raw is! String) return '';
+    var text = raw.trim();
+    if (text.isEmpty) return '';
+    if (text.startsWith('<')) {
+      final title = RegExp(
+        r'<title[^>]*>([^<]*)</title>',
+        caseSensitive: false,
+      ).firstMatch(text)?.group(1);
+      if (title != null && title.trim().isNotEmpty) return title.trim();
+      text = text.replaceAll(RegExp(r'<[^>]+>'), ' ');
+    }
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text.length <= 200 ? text : '${text.substring(0, 200)}…';
   }
 }

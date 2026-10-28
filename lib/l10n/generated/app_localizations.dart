@@ -3974,6 +3974,12 @@ abstract class AppLocalizations {
   /// **'Ran too many steps without reaching an answer. Try a more specific request'**
   String get aiErrorToolLoop;
 
+  /// No description provided for @aiErrorGatewayTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'The API gateway timed out before the model replied. One retry was already attempted — try again later; if it keeps happening, turn off app actions in settings (a smaller tool list gets faster replies)'**
+  String get aiErrorGatewayTimeout;
+
   /// No description provided for @aiNotConfigured.
   ///
   /// In en, this message translates to:
