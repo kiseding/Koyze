@@ -44,6 +44,7 @@ final aiToolboxProvider = Provider<AiToolbox>((ref) {
     lyrics: ProviderAiLyricPort(ref),
     charts: ProviderAiChartPort(ref),
     schedules: ProviderAiSchedulePort(ref),
+    local: ProviderAiLocalPort(ref),
     search: (query, limit) =>
         ref.read(musicSourceServiceProvider).search(query, limit: limit),
   );

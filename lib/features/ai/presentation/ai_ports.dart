@@ -15,6 +15,7 @@ import '../../equalizer/domain/equalizer_preset.dart';
 import '../../equalizer/domain/equalizer_settings.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
 import '../../leaderboard/presentation/leaderboard_provider.dart';
+import '../../local_music/presentation/local_music_provider.dart';
 import '../../lyric/presentation/lyric_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/domain/player_service.dart';
@@ -697,5 +698,18 @@ class ProviderAiSchedulePort implements AiSchedulePort {
       return (ok: false, summary: result.failure?.name ?? '执行失败');
     }
     return (ok: true, summary: result.text);
+  }
+}
+
+/// 本地曲库：重新扫描用户选的目录（Android 上还有系统媒体库）。
+class ProviderAiLocalPort implements AiLocalPort {
+  ProviderAiLocalPort(this._ref);
+
+  final Ref _ref;
+
+  @override
+  Future<int> rescan() async {
+    final library = await _ref.read(localMusicLibraryProvider.future);
+    return library.rescanAll();
   }
 }

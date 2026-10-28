@@ -377,6 +377,16 @@ void main() {
     });
   });
 
+  test('重新扫描本地曲库返回新增数量', () async {
+    final fakes = ToolFakes();
+    fakes.local.added = 7;
+
+    final result = await run(fakes.toolbox(), AiToolbox.rescanLocalTool);
+
+    expect(result['added'], 7);
+    expect(fakes.local.calls, 1);
+  });
+
   test('只读模式下这些写工具整个不下发', () {
     final fakes = ToolFakes();
     final names = fakes
@@ -389,6 +399,7 @@ void main() {
       AiToolbox.setEqualizerTool,
       AiToolbox.playChartTool,
       AiToolbox.manageScheduleTool,
+      AiToolbox.rescanLocalTool,
     ]) {
       expect(names, isNot(contains(writeTool)), reason: writeTool);
     }

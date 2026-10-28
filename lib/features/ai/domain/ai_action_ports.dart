@@ -258,6 +258,14 @@ abstract interface class AiChartPort {
   Future<List<MusicItem>> songsOf(String chartId);
 }
 
+/// 本地曲库：只暴露「重新扫描」这一个动作。
+///
+/// 扫描会遍历用户选的目录（Android 上还包括系统媒体库），耗时不确定，所以工具
+/// 描述里写明了可能较慢；返回值是这次新增的曲目数。
+abstract interface class AiLocalPort {
+  Future<int> rescan();
+}
+
 /// AI 的定时任务：列出、新建、暂停、删除、立即执行。
 ///
 /// `cadence` 用 `daily` / `weekdays` / `weekly` 三个词，[weekday] 只在

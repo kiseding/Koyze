@@ -76,6 +76,7 @@ class AiToolbox {
     required this.lyrics,
     required this.charts,
     required this.schedules,
+    required this.local,
     this.allowActions = true,
   });
 
@@ -90,6 +91,7 @@ class AiToolbox {
   final AiLyricPort lyrics;
   final AiChartPort charts;
   final AiSchedulePort schedules;
+  final AiLocalPort local;
 
   /// 曲库搜索：`query` 与 `limit`。
   final Future<List<MusicItem>> Function(String query, int limit) search;
@@ -146,6 +148,8 @@ class AiToolbox {
 
   static const String listSchedulesTool = 'list_ai_schedules';
   static const String manageScheduleTool = 'manage_ai_schedule';
+
+  static const String rescanLocalTool = 'rescan_local_music';
 
   static const int _maxSearchResults = 20;
   static const int _maxSongsPerCall = 40;
@@ -702,6 +706,15 @@ class AiToolbox {
       },
       _runManageSchedule,
       required: ['action'],
+    ),
+
+    _write(
+      rescanLocalTool,
+      AiToolCategory.library,
+      '重新扫描本地曲库（用户选的文件夹，Android 上还包括系统媒体库）。'
+      '用户说「我刚拷了几首歌进去」时用；可能比较慢，返回这次新增的曲目数。',
+      {'type': 'object', 'properties': <String, dynamic>{}},
+      _runRescanLocal,
     ),
   ];
 
@@ -1675,6 +1688,11 @@ class AiToolbox {
           'actions': ['create', 'run', 'pause', 'resume', 'remove'],
         };
     }
+  }
+
+  Future<Object?> _runRescanLocal(Map<String, dynamic> _) async {
+    final added = await local.rescan();
+    return {'added': added};
   }
 
   static String _hhmm(int minuteOfDay) {

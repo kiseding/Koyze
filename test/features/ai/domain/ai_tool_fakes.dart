@@ -622,6 +622,17 @@ class FakeSchedules implements AiSchedulePort {
   Future<({bool ok, String summary})> runNow(String id) async => runResult;
 }
 
+class FakeLocal implements AiLocalPort {
+  int added = 3;
+  int calls = 0;
+
+  @override
+  Future<int> rescan() async {
+    calls++;
+    return added;
+  }
+}
+
 /// 一组默认接入的假端口，测试按需覆盖。
 class ToolFakes {
   ToolFakes({
@@ -641,7 +652,8 @@ class ToolFakes {
        stats = FakeStats(),
        lyrics = FakeLyrics(),
        charts = charts ?? FakeCharts(),
-       schedules = FakeSchedules();
+       schedules = FakeSchedules(),
+       local = FakeLocal();
 
   final List<MusicItem> library;
   final FakePlayback playback;
@@ -655,6 +667,7 @@ class ToolFakes {
   final FakeLyrics lyrics;
   final FakeCharts charts;
   final FakeSchedules schedules;
+  final FakeLocal local;
   final List<String> queries = [];
 
   AiToolbox toolbox({bool allowActions = true}) => AiToolbox(
@@ -670,6 +683,7 @@ class ToolFakes {
     lyrics: lyrics,
     charts: charts,
     schedules: schedules,
+    local: local,
     search: (query, limit) async {
       queries.add(query);
       return library.take(limit).toList(growable: false);
