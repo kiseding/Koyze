@@ -2224,6 +2224,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Make a late-night coding playlist with 20 quiet tracks';
 
   @override
+  String get aiAssistantExample4 => 'What did I listen to most this year?';
+
+  @override
+  String get aiAssistantExample5 => 'More bass, clearer vocals';
+
+  @override
   String get aiAssistantThinking => 'Thinking…';
 
   @override
@@ -2299,4 +2305,179 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsSearchEmpty => 'No matching settings';
+
+  @override
+  String get aiSectionTitle => 'AI';
+
+  @override
+  String get aiSettingsSubtitle => 'Endpoint, key and model';
+
+  @override
+  String get aiSchedulesTitle => 'AI scheduled tasks';
+
+  @override
+  String get aiSchedulesSubtitle => 'Let the assistant act on schedule';
+
+  @override
+  String get aiSchedulesIntro =>
+      'Runs the prompt you write at the time you pick. It fires while the app is open; a run missed in the last 6 hours is caught up on next launch.';
+
+  @override
+  String get aiSchedulesEmpty => 'No scheduled tasks yet';
+
+  @override
+  String get aiSchedulesEmptyHint =>
+      'For example: build a playlist from a few songs every morning, or recap last week\'s listening every Sunday.';
+
+  @override
+  String get aiSchedulesNew => 'New task';
+
+  @override
+  String get aiSchedulesEdit => 'Edit task';
+
+  @override
+  String get aiScheduleName => 'Name';
+
+  @override
+  String get aiScheduleNameHint => 'Morning picks';
+
+  @override
+  String get aiSchedulePrompt => 'What to do';
+
+  @override
+  String get aiSchedulePromptHint =>
+      'Pick 8 songs that suit the morning and create a playlist called Morning';
+
+  @override
+  String get aiScheduleTime => 'Time';
+
+  @override
+  String get aiScheduleRepeat => 'Repeat';
+
+  @override
+  String get aiScheduleDaily => 'Every day';
+
+  @override
+  String get aiScheduleWeekdays => 'Weekdays';
+
+  @override
+  String get aiScheduleWeekly => 'Weekly';
+
+  @override
+  String get aiScheduleDelete => 'Delete task';
+
+  @override
+  String aiScheduleDeleteConfirm(String name) {
+    return 'Delete “$name”? It will stop running.';
+  }
+
+  @override
+  String get aiScheduleDeleted => 'Deleted';
+
+  @override
+  String get aiScheduleSaved => 'Task saved';
+
+  @override
+  String get aiScheduleNameRequired => 'Give the task a name';
+
+  @override
+  String get aiSchedulePromptRequired => 'Describe what to do';
+
+  @override
+  String get aiScheduleRunNow => 'Run now';
+
+  @override
+  String get aiScheduleRunning => 'Running…';
+
+  @override
+  String get aiScheduleNeverRun => 'Not run yet';
+
+  @override
+  String aiScheduleLastRun(String time) {
+    return 'Last run $time';
+  }
+
+  @override
+  String aiScheduleNextRun(String time) {
+    return 'Next $time';
+  }
+
+  @override
+  String get aiSchedulePaused => 'Paused';
+
+  @override
+  String aiScheduleRunFailed(String reason) {
+    return 'Failed: $reason';
+  }
+
+  @override
+  String aiScheduleRunDone(String name) {
+    return '“$name” finished';
+  }
+
+  @override
+  String aiScheduleRunFailedToast(String name) {
+    return '“$name” failed';
+  }
+
+  @override
+  String aiSchedulePill(String name) {
+    return 'Scheduled · $name';
+  }
+
+  @override
+  String get aiDayToday => 'Today';
+
+  @override
+  String get aiDayTomorrow => 'Tomorrow';
+
+  @override
+  String get aiWeekdayMon => 'Mon';
+
+  @override
+  String get aiWeekdayTue => 'Tue';
+
+  @override
+  String get aiWeekdayWed => 'Wed';
+
+  @override
+  String get aiWeekdayThu => 'Thu';
+
+  @override
+  String get aiWeekdayFri => 'Fri';
+
+  @override
+  String get aiWeekdaySat => 'Sat';
+
+  @override
+  String get aiWeekdaySun => 'Sun';
+
+  @override
+  String get aiVoiceStart => 'Voice input';
+
+  @override
+  String get aiVoiceStop => 'Stop listening';
+
+  @override
+  String get aiVoiceListening => 'Listening…';
+
+  @override
+  String get aiVoiceUnavailable =>
+      'Voice input is not available on this device';
+
+  @override
+  String get aiVoiceFailed =>
+      'Voice input could not start — check the microphone permission';
+
+  @override
+  String get aiCategoryRecommendation => 'For you';
+
+  @override
+  String get recommendTunedByAi => 'The assistant tuned this list';
+
+  @override
+  String get recommendTuningReset => 'Reset';
+
+  @override
+  String get recommendTuningCleared => 'Recommendations reset';
 }

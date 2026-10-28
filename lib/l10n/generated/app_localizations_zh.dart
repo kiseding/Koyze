@@ -2179,6 +2179,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiAssistantExample3 => '建个深夜写代码的歌单，20 首安静的曲子';
 
   @override
+  String get aiAssistantExample4 => '我今年听得最多的是哪几首？';
+
+  @override
+  String get aiAssistantExample5 => '低音再重一点，人声清楚些';
+
+  @override
   String get aiAssistantThinking => '思考中…';
 
   @override
@@ -2253,4 +2259,174 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsSearchEmpty => '没有匹配的设置项';
+
+  @override
+  String get aiSectionTitle => 'AI';
+
+  @override
+  String get aiSettingsSubtitle => '接口地址、密钥与模型';
+
+  @override
+  String get aiSchedulesTitle => 'AI 定时任务';
+
+  @override
+  String get aiSchedulesSubtitle => '到点让助手自己动手';
+
+  @override
+  String get aiSchedulesIntro => '到点自动执行你写的那句话。应用运行时触发；关掉期间错过的，6 小时内会补跑一次。';
+
+  @override
+  String get aiSchedulesEmpty => '还没有定时任务';
+
+  @override
+  String get aiSchedulesEmptyHint => '比如每天早上挑几首歌建成歌单，或者每周日把上周常听的整理成一份回顾。';
+
+  @override
+  String get aiSchedulesNew => '新建任务';
+
+  @override
+  String get aiSchedulesEdit => '编辑任务';
+
+  @override
+  String get aiScheduleName => '任务名称';
+
+  @override
+  String get aiScheduleNameHint => '早安推荐';
+
+  @override
+  String get aiSchedulePrompt => '到点要做什么';
+
+  @override
+  String get aiSchedulePromptHint => '挑 8 首适合早上听的歌，建成歌单「早安」';
+
+  @override
+  String get aiScheduleTime => '执行时间';
+
+  @override
+  String get aiScheduleRepeat => '重复';
+
+  @override
+  String get aiScheduleDaily => '每天';
+
+  @override
+  String get aiScheduleWeekdays => '工作日';
+
+  @override
+  String get aiScheduleWeekly => '每周';
+
+  @override
+  String get aiScheduleDelete => '删除任务';
+
+  @override
+  String aiScheduleDeleteConfirm(String name) {
+    return '删除后不再执行，确定删掉「$name」？';
+  }
+
+  @override
+  String get aiScheduleDeleted => '已删除';
+
+  @override
+  String get aiScheduleSaved => '定时任务已保存';
+
+  @override
+  String get aiScheduleNameRequired => '先给它起个名字';
+
+  @override
+  String get aiSchedulePromptRequired => '写一句到点要做的事';
+
+  @override
+  String get aiScheduleRunNow => '立即执行';
+
+  @override
+  String get aiScheduleRunning => '执行中…';
+
+  @override
+  String get aiScheduleNeverRun => '还没执行过';
+
+  @override
+  String aiScheduleLastRun(String time) {
+    return '上次执行 $time';
+  }
+
+  @override
+  String aiScheduleNextRun(String time) {
+    return '下次 $time';
+  }
+
+  @override
+  String get aiSchedulePaused => '已暂停';
+
+  @override
+  String aiScheduleRunFailed(String reason) {
+    return '执行失败：$reason';
+  }
+
+  @override
+  String aiScheduleRunDone(String name) {
+    return '「$name」执行完成';
+  }
+
+  @override
+  String aiScheduleRunFailedToast(String name) {
+    return '「$name」执行失败';
+  }
+
+  @override
+  String aiSchedulePill(String name) {
+    return '定时 · $name';
+  }
+
+  @override
+  String get aiDayToday => '今天';
+
+  @override
+  String get aiDayTomorrow => '明天';
+
+  @override
+  String get aiWeekdayMon => '周一';
+
+  @override
+  String get aiWeekdayTue => '周二';
+
+  @override
+  String get aiWeekdayWed => '周三';
+
+  @override
+  String get aiWeekdayThu => '周四';
+
+  @override
+  String get aiWeekdayFri => '周五';
+
+  @override
+  String get aiWeekdaySat => '周六';
+
+  @override
+  String get aiWeekdaySun => '周日';
+
+  @override
+  String get aiVoiceStart => '语音输入';
+
+  @override
+  String get aiVoiceStop => '结束语音输入';
+
+  @override
+  String get aiVoiceListening => '正在聆听…';
+
+  @override
+  String get aiVoiceUnavailable => '这台设备不支持语音输入';
+
+  @override
+  String get aiVoiceFailed => '语音输入没能启动，检查一下麦克风权限';
+
+  @override
+  String get aiCategoryRecommendation => '猜你喜欢';
+
+  @override
+  String get recommendTunedByAi => 'AI 调整过这份推荐';
+
+  @override
+  String get recommendTuningReset => '重置';
+
+  @override
+  String get recommendTuningCleared => '已恢复默认推荐';
 }

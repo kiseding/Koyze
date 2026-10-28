@@ -9,7 +9,7 @@
 ///
 /// 之前设置页和 NAS 客户端各自硬编码了一份字符串，发版时容易漏掉其中一处，
 /// 界面上就会出现「设置页显示 v4.1.0、Plex 上报 4.0.3」这种不一致。
-const String kAppVersion = '4.1.1';
+const String kAppVersion = '4.2.0';
 
 /// 带 `v` 前缀的展示用版本号。
 const String kAppVersionLabel = 'v$kAppVersion';

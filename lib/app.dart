@@ -21,6 +21,7 @@ import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import 'package:koyze/features/custom_source/presentation/custom_source_provider.dart';
 import 'package:koyze/features/home/presentation/independent_side_rail.dart';
 import 'package:koyze/features/sync/presentation/startup_cloud_login_prompt.dart';
+import 'package:koyze/features/ai/presentation/ai_schedule_provider.dart';
 import 'package:koyze/l10n/generated/app_localizations.dart';
 
 class PlayerMessageListener extends ConsumerStatefulWidget {
@@ -85,6 +86,9 @@ class LxMusicApp extends ConsumerWidget {
     // before their lazy providers are initialized.
     ref.watch(playlistServiceProvider);
     ref.watch(customSourceServiceProvider);
+    // AI 定时任务的到点检查：只在真的有启用中的任务时才开轮询，
+    // 所以这里 watch 一直是常驻的，成本就是一次 provider 读取。
+    ref.watch(aiScheduleRunnerProvider);
 
     return MaterialApp.router(
       title: 'Koyze',

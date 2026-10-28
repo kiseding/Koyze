@@ -37,7 +37,13 @@ final aiToolboxProvider = Provider<AiToolbox>((ref) {
     playlists: ProviderAiPlaylistPort(ref),
     downloads: ProviderAiDownloadPort(ref),
     sources: ProviderAiSourcePort(ref),
+    recommendations: ProviderAiRecommendationPort(ref),
     settings: ProviderAiSettingsPort(ref),
+    equalizer: ProviderAiEqualizerPort(ref),
+    stats: ProviderAiStatsPort(ref),
+    lyrics: ProviderAiLyricPort(ref),
+    charts: ProviderAiChartPort(ref),
+    schedules: ProviderAiSchedulePort(ref),
     search: (query, limit) =>
         ref.read(musicSourceServiceProvider).search(query, limit: limit),
   );
@@ -171,6 +177,33 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
     _history.clear();
     if (!mounted) return;
     publish(const AiChatState());
+  }
+
+  /// 定时任务跑完把结果丢进对话里，用户下次打开助手能看到它做过什么。
+  ///
+  /// 不进 [_history]：这属于「通知」，不是用户问的话，回传给模型只会干扰
+  /// 下一轮对话。busy 保持原样，免得把正在进行的请求标成空闲。
+  void recordScheduled({
+    required String title,
+    String text = '',
+    List<AiToolRun> toolRuns = const <AiToolRun>[],
+    AiFailureKind? failure,
+  }) {
+    if (!mounted) return;
+    final entry = AiChatEntry(
+      role: AiChatRole.assistant,
+      text: text,
+      toolRuns: toolRuns,
+      failure: failure,
+      scheduleTitle: title,
+    );
+    publish(
+      AiChatState(
+        entries: [...value.entries, entry],
+        busy: value.busy,
+        activeTool: value.activeTool,
+      ),
+    );
   }
 
   void _fail(List<AiChatEntry> entries, AiFailureKind kind) {

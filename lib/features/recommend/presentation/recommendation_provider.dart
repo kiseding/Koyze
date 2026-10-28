@@ -2,13 +2,18 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/music_source/platform/built_in_source_manager.dart';
 import '../../../core/state/buildless_notifier.dart';
+import '../../../core/storage/storage_service.dart';
 
 import '../../leaderboard/presentation/leaderboard_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../../playlist/presentation/playlist_provider.dart';
+import '../../search/presentation/search_provider.dart';
 import '../../stats/presentation/play_history_provider.dart';
+import '../data/recommendation_tuning_store.dart';
 import '../domain/recommendation_engine.dart';
+import '../domain/recommendation_tuning.dart';
 
 /// 收藏中最常出现的音源 id（用于搜索补充候选）。
 String? _dominantPlatform(List<MusicItem> favorites) {
@@ -55,6 +60,45 @@ List<String> recommendationSearchPlatforms({
 /// 推荐结果缓存时长：期间点击播放、收藏变动都不会触发重建，
 /// 只有缓存过期后才重新计算一次。
 const Duration kRecommendationCacheTtl = Duration(hours: 12);
+
+final recommendationTuningStoreProvider = Provider<RecommendationTuningStore>(
+  (ref) => RecommendationTuningStore(),
+);
+
+/// 「猜你喜欢」的人工调校（置顶 / 屏蔽 / 口味提示）。
+///
+/// 页面上没有单独的编辑器：它由 AI 助手改，也由页面上的「重置」清掉。
+final recommendationTuningProvider =
+    NotifierProvider<RecommendationTuningNotifier, RecommendationTuning>(
+      RecommendationTuningNotifier.new,
+    );
+
+class RecommendationTuningNotifier
+    extends BuildlessNotifier<RecommendationTuning> {
+  RecommendationTuningNotifier({StorageLoader? storage})
+    : _store = RecommendationTuningStore(storage: storage),
+      super(RecommendationTuning.empty) {
+    unawaited(_hydrate());
+  }
+
+  final RecommendationTuningStore _store;
+  bool _touched = false;
+
+  Future<void> _hydrate() async {
+    final tuning = await _store.load();
+    // 磁盘读回来之前用户（或 AI）已经改过了：以内存里的为准，别覆盖。
+    if (!mounted || _touched) return;
+    publish(tuning);
+  }
+
+  Future<void> apply(RecommendationTuning tuning) async {
+    _touched = true;
+    publish(tuning);
+    await _store.save(tuning);
+  }
+
+  Future<void> clear() => apply(RecommendationTuning.empty);
+}
 
 /// 猜你喜欢推荐结果。
 ///
@@ -123,6 +167,9 @@ class RecommendationNotifier
     return _ensureData(force: true);
   }
 
+  /// 调校改完之后立刻重算，不用等 12 小时缓存过期。
+  Future<void> refresh() => retry();
+
   @override
   AsyncValue<List<RecommendedSong>> build() {
     _loader = _loaderOverride ?? (() => computeRecommendations(ref));
@@ -144,6 +191,7 @@ class RecommendationNotifier
 Future<List<RecommendedSong>> computeRecommendations(Ref ref) async {
   final playlistService = ref.read(playlistServiceProvider);
   final history = ref.read(playHistoryStoreProvider);
+  final tuning = ref.read(recommendationTuningProvider);
 
   // 使用完整加载的歌单（内存中的惰性摘要不含歌曲列表）。
   final hydrated = await playlistService.getAllPlaylists();
@@ -178,41 +226,112 @@ Future<List<RecommendedSong>> computeRecommendations(Ref ref) async {
     ..sort(
       (a, b) => profile.artistWeights[b]!.compareTo(profile.artistWeights[a]!),
     );
-  if (artists.isNotEmpty) {
-    final sourceManager = ref.read(builtInSourcesProvider);
-    final platformIds = recommendationSearchPlatforms(
-      dominantPlatform: _dominantPlatform(favorites),
-      availablePlatforms: sourceManager.allIds,
-    );
-    if (platformIds.isNotEmpty) {
-      // artistWeights 的键是小写歌手名，映射回原始大小写用于搜索。
-      final original = <String, String>{};
-      for (final song in favorites) {
-        final artist = song.singer.trim();
-        if (artist.isNotEmpty) original[artist.toLowerCase()] = artist;
-      }
-      final queries = artists
-          .take(6)
-          .map((a) => original[a] ?? a)
-          .toList(growable: false);
-      await Future.wait([
-        for (final query in queries)
-          for (final platformId in platformIds)
-            sourceManager
-                .search(platformId, query, limit: 40)
-                .then((songs) {
-                  for (final song in songs) {
-                    candidates[song.identityKey] = song;
-                  }
-                })
-                .catchError((_) {}),
-      ]);
+  final sourceManager = ref.read(builtInSourcesProvider);
+  final platformIds = recommendationSearchPlatforms(
+    dominantPlatform: _dominantPlatform(favorites),
+    availablePlatforms: sourceManager.allIds,
+  );
+  if (artists.isNotEmpty && platformIds.isNotEmpty) {
+    // artistWeights 的键是小写歌手名，映射回原始大小写用于搜索。
+    final original = <String, String>{};
+    for (final song in favorites) {
+      final artist = song.singer.trim();
+      if (artist.isNotEmpty) original[artist.toLowerCase()] = artist;
     }
+    final queries = artists
+        .take(6)
+        .map((a) => original[a] ?? a)
+        .toList(growable: false);
+    await _collectCandidates(
+      manager: sourceManager,
+      platformIds: platformIds,
+      queries: queries,
+      into: candidates,
+    );
   }
 
-  return engine.recommend(
+  // 口味提示：AI 收到「多来点粤语老歌」这类话后写进来，当作额外检索词。
+  final focusQueries = tuningFocusQueries(tuning.focus);
+  if (focusQueries.isNotEmpty && platformIds.isNotEmpty) {
+    await _collectCandidates(
+      manager: sourceManager,
+      platformIds: platformIds,
+      queries: focusQueries,
+      into: candidates,
+    );
+  }
+
+  final ranked = engine.recommend(
     favorites: favorites,
     candidates: candidates.values.toList(),
     playCounts: artistPlays,
   );
+
+  // 用户明确置顶的歌排在最前。它们可能压根没被算法选中，所以单独解析一次。
+  final pinned = <RecommendedSong>[];
+  for (final definition in tuning.pinned) {
+    final song = await _resolvePinned(ref, definition);
+    if (song == null) continue;
+    pinned.add(
+      RecommendedSong(song: song, score: 1, reasons: const ['置顶']),
+    );
+  }
+
+  final merged = <RecommendedSong>[];
+  final used = <String>{};
+  for (final item in [...pinned, ...ranked]) {
+    if (!tuning.allows(item.song)) continue;
+    if (!used.add(item.song.identityKey)) continue;
+    merged.add(item);
+    if (merged.length == RecommendationEngine.defaultTopN) break;
+  }
+  return merged;
 }
+
+/// 把口味提示拆成几条检索词：逗号、分号、换行都算分隔，最多取 4 条。
+List<String> tuningFocusQueries(String focus) {
+  if (focus.trim().isEmpty) return const [];
+  final parts = focus
+      .split(RegExp(r'[,，;；、\n]+'))
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .toList(growable: false);
+  return parts.take(4).toList(growable: false);
+}
+
+Future<void> _collectCandidates({
+  required BuiltInSourceManager manager,
+  required List<String> platformIds,
+  required List<String> queries,
+  required Map<String, MusicItem> into,
+}) async {
+  await Future.wait([
+    for (final query in queries)
+      for (final platformId in platformIds)
+        manager
+            .search(platformId, query, limit: 40)
+            .then((songs) {
+              for (final song in songs) {
+                into[song.identityKey] = song;
+              }
+            })
+            .catchError((_) {}),
+  ]);
+}
+
+/// 解析置顶歌曲：先在聚合搜索里找一遍，匹配不上就放弃（不编造）。
+Future<MusicItem?> _resolvePinned(Ref ref, SongRef definition) async {
+  final query = definition.artist.isEmpty
+      ? definition.title
+      : '${definition.title} ${definition.artist}';
+  try {
+    final songs = await ref
+        .read(musicSourceServiceProvider)
+        .search(query, limit: 10);
+    for (final song in songs) {
+      if (definition.matches(song)) return song;
+    }
+  } catch (_) {}
+  return null;
+}
+

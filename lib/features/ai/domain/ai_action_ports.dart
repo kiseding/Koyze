@@ -5,7 +5,10 @@ import '../../custom_source/domain/custom_source.dart';
 import '../../download/domain/download_task.dart';
 import '../../player/domain/music_item.dart';
 import '../../playlist/domain/playlist.dart';
+import '../../recommend/domain/recommendation_engine.dart';
+import '../../recommend/domain/recommendation_tuning.dart';
 import '../../source_check/domain/source_check_report.dart';
+import 'ai_schedule.dart';
 
 /// AI 能执行的操作用到的后台接口。
 ///
@@ -120,3 +123,161 @@ abstract interface class AiSettingsPort {
   Future<void> setWifiOnlyDownload(bool value);
   Future<void> setThemeMode(String mode);
 }
+
+/// 「猜你喜欢」的读取与调校。
+///
+/// 推荐结果由算法算，这里只做两件事：把当前结果读给模型看，以及按用户（或
+/// 模型转述的）要求改调校再重算一次。
+abstract interface class AiRecommendationPort {
+  /// 当前缓存里的推荐结果；还没算出来时为空。
+  List<RecommendedSong> get current;
+
+  /// 是否已经有一份算好的结果（哪怕为空）。
+  bool get hasData;
+
+  RecommendationTuning get tuning;
+
+  /// 落盘 + 重算。返回重算后的结果。
+  Future<List<RecommendedSong>> apply(RecommendationTuning tuning);
+
+  /// 按现有调校重算一遍。
+  Future<List<RecommendedSong>> refresh();
+}
+
+/// 均衡器的一个频段。
+class AiEqualizerBand {
+  const AiEqualizerBand({required this.frequencyHz, required this.gainDb});
+
+  final double frequencyHz;
+  final double gainDb;
+}
+
+/// 均衡器：开关、预设与逐频段增益。
+///
+/// iOS / macOS / Windows 上没有可用实现，此时 [supported] 为假，写操作整体
+/// 返回错误而不是假装成功——模型据此告诉用户「这个平台上没有均衡器」。
+abstract interface class AiEqualizerPort {
+  bool get supported;
+  bool get enabled;
+
+  /// 当前预设 id；手动拖过频段时是 `custom`。
+  String get presetId;
+
+  /// 预设清单：id 与展示名。
+  List<({String id, String label})> get presets;
+
+  /// 设备当前频段与已施加的增益（dB）。
+  List<AiEqualizerBand> get bands;
+
+  double get minDecibels;
+  double get maxDecibels;
+
+  Future<void> setEnabled(bool enabled);
+  Future<void> selectPreset(String presetId);
+
+  /// 按频率就近匹配一个频段后设增益。
+  Future<bool> setBandGain(double frequencyHz, double gainDb);
+
+  Future<void> resetFlat();
+}
+
+/// 统计榜单里的一行。
+class AiRankedEntry {
+  const AiRankedEntry({
+    required this.title,
+    required this.subtitle,
+    required this.playCount,
+    required this.totalSeconds,
+  });
+
+  final String title;
+  final String subtitle;
+  final int playCount;
+  final int totalSeconds;
+}
+
+/// 一段时间范围内的听歌概况。
+class AiStatsSnapshot {
+  const AiStatsSnapshot({
+    required this.range,
+    required this.playCount,
+    required this.totalSeconds,
+    required this.activeDays,
+    required this.songs,
+    required this.artists,
+    required this.albums,
+  });
+
+  final String range;
+  final int playCount;
+  final int totalSeconds;
+  final int activeDays;
+  final List<AiRankedEntry> songs;
+  final List<AiRankedEntry> artists;
+  final List<AiRankedEntry> albums;
+}
+
+/// 听歌统计（只读）。范围用 `week` / `month` / `year` / `all` 四个词。
+abstract interface class AiStatsPort {
+  /// 最近一次统计的时间点；没有播放记录时次数为 0。
+  AiStatsSnapshot snapshot(String range, {int limit = 10});
+}
+
+/// 一行歌词。
+class AiLyricLine {
+  const AiLyricLine({required this.seconds, required this.text});
+
+  final int seconds;
+  final String text;
+}
+
+/// 歌词（只读）。取不到时返回 null，不做兜底编造。
+abstract interface class AiLyricPort {
+  Future<List<AiLyricLine>?> lyricsOf(MusicItem song);
+}
+
+/// 一个排行榜。
+class AiChartEntry {
+  const AiChartEntry({
+    required this.id,
+    required this.name,
+    required this.platform,
+  });
+
+  /// `platform:id` 形式的复合 id，可以直接喂回 [AiChartPort.songsOf]。
+  final String id;
+  final String name;
+  final String platform;
+}
+
+/// 排行榜（只读 + 播放由播放端口负责）。
+abstract interface class AiChartPort {
+  /// [platform] 为空时返回所有平台的榜单；否则按平台 id 过滤。
+  Future<List<AiChartEntry>> charts({String? platform});
+
+  Future<List<MusicItem>> songsOf(String chartId);
+}
+
+/// AI 的定时任务：列出、新建、暂停、删除、立即执行。
+///
+/// `cadence` 用 `daily` / `weekdays` / `weekly` 三个词，[weekday] 只在
+/// `weekly` 时有意义（1 = 周一，7 = 周日）。
+abstract interface class AiSchedulePort {
+  List<AiScheduledTask> get tasks;
+
+  Future<AiScheduledTask?> create({
+    required String title,
+    required String prompt,
+    required int minuteOfDay,
+    required String cadence,
+    int? weekday,
+    bool enabled = true,
+  });
+
+  Future<bool> setEnabled(String id, bool enabled);
+  Future<bool> remove(String id);
+
+  /// 立即跑一次，返回成功与否与一句话结果。
+  Future<({bool ok, String summary})> runNow(String id);
+}
+

@@ -5,15 +5,26 @@ import 'dart:convert';
 
 import '../../custom_source/domain/custom_source.dart';
 import '../../player/domain/music_item.dart';
+import '../../recommend/domain/recommendation_engine.dart';
+import '../../recommend/domain/recommendation_tuning.dart';
 import '../../source_check/domain/source_check_report.dart';
 import 'ai_action_ports.dart';
 import 'ai_config.dart';
+import 'ai_schedule.dart';
 
 /// 模型每次发起工具调用时回调一次，界面用它显示「AI 正在做什么」。
 typedef AiToolObserver = void Function(AiToolCall call);
 
 /// 工具的归属分组。界面只按分组显示一句话，不必为每个工具写一份文案。
-enum AiToolCategory { library, playback, playlist, download, source, settings }
+enum AiToolCategory {
+  library,
+  playback,
+  playlist,
+  download,
+  source,
+  recommendation,
+  settings,
+}
 
 /// 一个可被模型调用的操作。
 ///
@@ -57,8 +68,14 @@ class AiToolbox {
     required this.playlists,
     required this.downloads,
     required this.sources,
+    required this.recommendations,
     required this.settings,
     required this.search,
+    required this.equalizer,
+    required this.stats,
+    required this.lyrics,
+    required this.charts,
+    required this.schedules,
     this.allowActions = true,
   });
 
@@ -66,7 +83,13 @@ class AiToolbox {
   final AiPlaylistPort playlists;
   final AiDownloadPort downloads;
   final AiSourcePort sources;
+  final AiRecommendationPort recommendations;
   final AiSettingsPort settings;
+  final AiEqualizerPort equalizer;
+  final AiStatsPort stats;
+  final AiLyricPort lyrics;
+  final AiChartPort charts;
+  final AiSchedulePort schedules;
 
   /// 曲库搜索：`query` 与 `limit`。
   final Future<List<MusicItem>> Function(String query, int limit) search;
@@ -107,7 +130,22 @@ class AiToolbox {
   static const String toggleSourceTool = 'toggle_source';
   static const String runSourceCheckTool = 'run_source_check';
 
+  static const String getRecommendationsTool = 'get_recommendations';
+  static const String editRecommendationsTool = 'edit_recommendations';
+
   static const String setAppSettingTool = 'set_app_setting';
+
+  static const String getEqualizerTool = 'get_equalizer';
+  static const String setEqualizerTool = 'set_equalizer';
+
+  static const String listeningStatsTool = 'get_listening_stats';
+  static const String lyricsTool = 'get_lyrics';
+
+  static const String listChartsTool = 'list_charts';
+  static const String playChartTool = 'play_chart';
+
+  static const String listSchedulesTool = 'list_ai_schedules';
+  static const String manageScheduleTool = 'manage_ai_schedule';
 
   static const int _maxSearchResults = 20;
   static const int _maxSongsPerCall = 40;
@@ -475,6 +513,48 @@ class AiToolbox {
       _runRunSourceCheck,
     ),
 
+    // ------------------------------------------------------------ 猜你喜欢
+    AiTool(
+      name: getRecommendationsTool,
+      category: AiToolCategory.recommendation,
+      description:
+          '读取「猜你喜欢」当前推荐了哪些歌，以及已经设过的调整（置顶、屏蔽、口味提示）。'
+          '用户问「猜你喜欢推荐了什么」「为什么给我推这首」时先用它。',
+      parameters: {
+        'type': 'object',
+        'properties': {
+          'limit': {'type': 'integer', 'description': '返回条数，1-30，默认 15'},
+        },
+      },
+      run: _runGetRecommendations,
+    ),
+    _write(
+      editRecommendationsTool,
+      AiToolCategory.recommendation,
+      '调整「猜你喜欢」：把歌顶到最前、把歌或歌手挡掉、写一句口味提示。'
+      '改完会自动重算，返回新的推荐。用 clear 撤销之前的调整。',
+      {
+        'pin': _songArray,
+        'exclude': _songArray,
+        'exclude_artists': {
+          'type': 'array',
+          'description': '不想再看到的歌手名',
+          'items': {'type': 'string'},
+        },
+        'focus': {
+          'type': 'string',
+          'description': '口味提示，例如「多来点粤语老歌」。传空串表示清除',
+        },
+        'clear': {
+          'type': 'array',
+          'description':
+              '要撤销的部分：pinned / excluded / artists / focus / all',
+          'items': {'type': 'string'},
+        },
+      },
+      _runEditRecommendations,
+    ),
+
     // ---------------------------------------------------------------- 设置
     _write(
       setAppSettingTool,
@@ -487,6 +567,141 @@ class AiToolbox {
       },
       _runSetAppSetting,
       required: ['key', 'value'],
+    ),
+
+    // ------------------------------------------------------------ 声音与偏好
+    AiTool(
+      name: getEqualizerTool,
+      category: AiToolCategory.settings,
+      description:
+          '查看均衡器状态：这个平台支不支持、开关、当前预设、各频段增益（Hz 与 dB）。'
+          '用户说「低音太重」「听着闷」时先看一眼当前曲线再调。',
+      parameters: {'type': 'object', 'properties': <String, dynamic>{}},
+      run: _runGetEqualizer,
+    ),
+    _write(
+      setEqualizerTool,
+      AiToolCategory.settings,
+      '调均衡器：开关、选预设（flat/pop/rock/jazz/classical/electronic/folk/vocal/bass/treble）、'
+      '按频率改某个频段的增益，或 reset 恢复平直。几项可以同时给，按「开关 → 预设 → 频段」顺序生效。',
+      {
+        'enabled': {'type': 'boolean', 'description': '是否开启均衡器'},
+        'preset': {
+          'type': 'string',
+          'description': '预设 id，例如 bass / vocal / rock；传 custom 表示保持手动曲线',
+        },
+        'bands': {
+          'type': 'array',
+          'description': '要改的频段：hz 是频段中心频率，gain_db 是增益（dB）',
+          'items': {
+            'type': 'object',
+            'properties': {
+              'hz': {'type': 'number', 'description': '中心频率，例如 60'},
+              'gain_db': {'type': 'number', 'description': '增益，单位 dB，例如 3'},
+            },
+            'required': ['hz', 'gain_db'],
+          },
+        },
+        'reset': {'type': 'boolean', 'description': '是否恢复平直曲线'},
+      },
+      _runSetEqualizer,
+    ),
+
+    // ---------------------------------------------------------------- 洞察
+    AiTool(
+      name: listeningStatsTool,
+      category: AiToolCategory.library,
+      description:
+          '读听歌统计：播放次数、总时长、活跃天数，以及歌曲 / 歌手 / 专辑排行。'
+          'range 取 week / month / year / all，默认 week。',
+      parameters: {
+        'type': 'object',
+        'properties': {
+          'range': {'type': 'string', 'description': 'week / month / year / all'},
+          'limit': {'type': 'integer', 'description': '每张榜返回几条，1-20，默认 10'},
+        },
+      },
+      run: _runListeningStats,
+    ),
+    AiTool(
+      name: lyricsTool,
+      category: AiToolCategory.library,
+      description:
+          '取一首歌的歌词（带时间戳）。不传参数就是正在播放的那首；也可以给 title / artist。'
+          '取不到就返回 error，不要自己编歌词。',
+      parameters: {
+        'type': 'object',
+        'properties': {
+          'current_song': {'type': 'boolean', 'description': '是否取当前播放的歌'},
+          'title': {'type': 'string', 'description': '歌名'},
+          'artist': {'type': 'string', 'description': '歌手'},
+          'max_lines': {'type': 'integer', 'description': '最多返回多少行，默认 60'},
+        },
+      },
+      run: _runLyrics,
+    ),
+
+    // ---------------------------------------------------------------- 榜单
+    AiTool(
+      name: listChartsTool,
+      category: AiToolCategory.library,
+      description:
+          '列出可用的排行榜（QQ 音乐、酷我、网易云、酷狗等平台的榜单）。'
+          '返回的 id 可以直接喂给 play_chart。',
+      parameters: {
+        'type': 'object',
+        'properties': {
+          'platform': {
+            'type': 'string',
+            'description': '只看某个平台，例如 qq / kw / wy / kg；不传则全部',
+          },
+        },
+      },
+      run: _runListCharts,
+    ),
+    _write(
+      playChartTool,
+      AiToolCategory.playback,
+      '播放一个排行榜。chart 给 id 或名称都行（先用 list_charts 拿 id 更稳）。',
+      {
+        'chart': {'type': 'string', 'description': '榜单 id（platform:id）或名称'},
+        'index': {'type': 'integer', 'description': '从第几首开始，从 0 计，默认 0'},
+      },
+      _runPlayChart,
+      required: ['chart'],
+    ),
+
+    // ------------------------------------------------------------ 定时任务
+    AiTool(
+      name: listSchedulesTool,
+      category: AiToolCategory.settings,
+      description: '列出已经建好的 AI 定时任务：id、名称、到点时间、重复方式、开关与上次结果。',
+      parameters: {'type': 'object', 'properties': <String, dynamic>{}},
+      run: _runListSchedules,
+    ),
+    _write(
+      manageScheduleTool,
+      AiToolCategory.settings,
+      '管理 AI 定时任务。action=create 需要 title、prompt、time(HH:mm)，cadence 取 '
+      'daily / weekdays / weekly（weekly 还要 weekday 1-7）；run 立刻跑一次；'
+      'pause / resume 开关；remove 删除。id 从 list_ai_schedules 取。',
+      {
+        'action': {
+          'type': 'string',
+          'description': 'create / run / pause / resume / remove',
+        },
+        'id': {'type': 'string', 'description': '任务 id，除 create 外都要'},
+        'title': {'type': 'string', 'description': '任务名，例如「早间通勤歌单」'},
+        'prompt': {
+          'type': 'string',
+          'description': '到点时执行的那句话，要能独立看懂',
+        },
+        'time': {'type': 'string', 'description': 'HH:mm，例如 08:00'},
+        'cadence': {'type': 'string', 'description': 'daily / weekdays / weekly'},
+        'weekday': {'type': 'integer', 'description': '周几，1=周一 … 7=周日'},
+      },
+      _runManageSchedule,
+      required: ['action'],
     ),
   ];
 
@@ -1059,6 +1274,101 @@ class AiToolbox {
     return _runSourceStatus(const {});
   }
 
+  // ------------------------------------------------------------- 猜你喜欢
+
+  Future<Object?> _runGetRecommendations(Map<String, dynamic> args) async {
+    final limit = _intOf(args['limit'], fallback: 15).clamp(1, 30);
+    final songs = recommendations.current;
+    return {
+      'ready': recommendations.hasData,
+      'total': songs.length,
+      'tuning': recommendations.tuning.toJson(),
+      if (recommendations.tuning.isNotEmpty)
+        'tuningSummary': recommendations.tuning.describe(),
+      'songs': [
+        for (final item in songs.take(limit)) _recommendedJson(item),
+      ],
+      if (!recommendations.hasData)
+        'note': '推荐还没算好（收藏达到 100 首才会生成），可以先让用户多收藏一些歌',
+    };
+  }
+
+  Future<Object?> _runEditRecommendations(Map<String, dynamic> args) async {
+    var tuning = recommendations.tuning;
+    final cleared = _tuningSections(args['clear']);
+    if (cleared.isNotEmpty) tuning = tuning.cleared(cleared);
+
+    final pinned = _songRefsOf(args['pin']);
+    if (pinned.isNotEmpty) tuning = tuning.withPinned(pinned);
+    final excluded = _songRefsOf(args['exclude']);
+    if (excluded.isNotEmpty) tuning = tuning.withExcludedSongs(excluded);
+    final artists = [
+      if (args['exclude_artists'] case final List raw)
+        for (final item in raw) item.toString().trim(),
+    ].where((item) => item.isNotEmpty).toList(growable: false);
+    if (artists.isNotEmpty) tuning = tuning.withExcludedArtists(artists);
+    if (args.containsKey('focus')) {
+      tuning = tuning.withFocus(args['focus']?.toString() ?? '');
+    }
+
+    if (cleared.isEmpty &&
+        pinned.isEmpty &&
+        excluded.isEmpty &&
+        artists.isEmpty &&
+        !args.containsKey('focus')) {
+      return {
+        'error': '没有要改的内容',
+        'hint': 'pin / exclude / exclude_artists / focus / clear 至少给一个',
+        'tuning': tuning.toJson(),
+      };
+    }
+
+    final result = await recommendations.apply(tuning);
+    return {
+      'ok': true,
+      'tuning': tuning.toJson(),
+      'summary': tuning.describe(),
+      'total': result.length,
+      'top': [for (final item in result.take(10)) _recommendedJson(item)],
+      if (result.isEmpty)
+        'note': '推荐还是空的：收藏不足 100 首时算法不会生成推荐，置顶的歌也搜不到',
+    };
+  }
+
+  static Set<TuningSection> _tuningSections(Object? raw) {
+    if (raw is! List) return const {};
+    final sections = <TuningSection>{};
+    for (final item in raw.take(6)) {
+      switch (item.toString().trim().toLowerCase()) {
+        case 'pinned' || 'pin' || 'tops':
+          sections.add(TuningSection.pinned);
+        case 'excluded' || 'exclude' || 'songs' || 'blocked':
+          sections.add(TuningSection.excluded);
+        case 'artists' || 'artist':
+          sections.add(TuningSection.artists);
+        case 'focus' || 'taste':
+          sections.add(TuningSection.focus);
+        case 'all' || '*':
+          sections.add(TuningSection.all);
+      }
+    }
+    return sections;
+  }
+
+  static List<SongRef> _songRefsOf(Object? raw) {
+    if (raw is! List) return const [];
+    return [
+      for (final item in raw.take(_maxSongsPerCall))
+        if (SongRef.fromJson(item) case final ref?) ref,
+    ];
+  }
+
+  static Map<String, dynamic> _recommendedJson(RecommendedSong item) => {
+    ..._songJson(item.song),
+    'score': double.parse(item.score.toStringAsFixed(3)),
+    if (item.reasons.isNotEmpty) 'reasons': item.reasons,
+  };
+
   // ------------------------------------------------------------------ 设置
 
   Future<Object?> _runSetAppSetting(Map<String, dynamic> args) async {
@@ -1103,6 +1413,315 @@ class AiToolbox {
         };
     }
   }
+
+  // ------------------------------------------------------------ 声音与偏好
+
+  Future<Object?> _runGetEqualizer(Map<String, dynamic> _) async =>
+      _equalizerJson();
+
+  Future<Object?> _runSetEqualizer(Map<String, dynamic> args) async {
+    if (!equalizer.supported) return {'error': '这个平台上没有可用的均衡器'};
+
+    final wantsReset = args['reset'] == true;
+    final enabled = args['enabled'];
+    final preset = (args['preset'] ?? '').toString().trim();
+    final bands = args['bands'];
+    if (wantsReset) {
+      await equalizer.resetFlat();
+    }
+    if (preset.isNotEmpty) {
+      final known = equalizer.presets.map((item) => item.id).toSet();
+      if (!known.contains(preset)) {
+        return {'error': '没有这个预设：$preset', 'presets': known.toList()};
+      }
+      await equalizer.selectPreset(preset);
+    }
+    final skipped = <String>[];
+    if (bands is List) {
+      for (final raw in bands.take(16)) {
+        if (raw is! Map) continue;
+        final hz = _doubleOf(raw['hz'] ?? raw['frequency']);
+        final gain = _doubleOf(raw['gain_db'] ?? raw['gain'] ?? raw['db']);
+        if (hz == null || gain == null) {
+          skipped.add(raw.toString());
+          continue;
+        }
+        final applied = await equalizer.setBandGain(hz, gain);
+        if (!applied) skipped.add('${hz.round()}Hz');
+      }
+    }
+    if (enabled is bool) await equalizer.setEnabled(enabled);
+    return {
+      ..._equalizerJson(),
+      if (skipped.isNotEmpty) 'skipped': skipped,
+    };
+  }
+
+  Map<String, dynamic> _equalizerJson() {
+    final bands = equalizer.bands;
+    return {
+      'supported': equalizer.supported,
+      'enabled': equalizer.enabled,
+      'preset': equalizer.presetId,
+      'presets': [for (final item in equalizer.presets) item.id],
+      'range': {
+        'min_db': equalizer.minDecibels,
+        'max_db': equalizer.maxDecibels,
+      },
+      'bands': [
+        for (final band in bands)
+          {
+            'hz': band.frequencyHz.round(),
+            'gain_db': double.parse(band.gainDb.toStringAsFixed(1)),
+          },
+      ],
+    };
+  }
+
+  // ---------------------------------------------------------------- 洞察
+
+  Future<Object?> _runListeningStats(Map<String, dynamic> args) async {
+    final range = _statsRange(args['range']);
+    final limit = _intOf(args['limit'], fallback: 10).clamp(1, 20);
+    final snapshot = stats.snapshot(range, limit: limit);
+    return {
+      'range': snapshot.range,
+      'playCount': snapshot.playCount,
+      'minutes': (snapshot.totalSeconds / 60).round(),
+      'activeDays': snapshot.activeDays,
+      'topSongs': [for (final item in snapshot.songs) _rankedJson(item)],
+      'topArtists': [for (final item in snapshot.artists) _rankedJson(item)],
+      'topAlbums': [for (final item in snapshot.albums) _rankedJson(item)],
+    };
+  }
+
+  Future<Object?> _runLyrics(Map<String, dynamic> args) async {
+    final wantsCurrent =
+        args['current_song'] == true ||
+        (args['title'] ?? '').toString().trim().isEmpty;
+    final maxLines = _intOf(args['max_lines'], fallback: 60).clamp(1, 200);
+
+    MusicItem? song;
+    if (wantsCurrent) {
+      song = playback.currentSong;
+      if (song == null) {
+        return {'error': '现在没有播放中的歌曲；也可以给 title 和 artist 指定一首'};
+      }
+    } else {
+      song = await _resolve(
+        (args['title'] ?? '').toString().trim(),
+        (args['artist'] ?? '').toString().trim(),
+      );
+      if (song == null) return {'error': '没找到这首歌'};
+    }
+
+    final lines = await lyrics.lyricsOf(song);
+    if (lines == null || lines.isEmpty) {
+      return {'error': '这首歌没有取到歌词', ..._songJson(song)};
+    }
+    return {
+      ..._songJson(song),
+      'lines': [
+        for (final line in lines.take(maxLines))
+          {'at': line.seconds, 'text': line.text},
+      ],
+      'total': lines.length,
+    };
+  }
+
+  // ---------------------------------------------------------------- 榜单
+
+  Future<Object?> _runListCharts(Map<String, dynamic> args) async {
+    final platform = (args['platform'] ?? '').toString().trim();
+    final list = await charts.charts(platform: platform.isEmpty ? null : platform);
+    return {
+      'charts': [
+        for (final item in list)
+          {'id': item.id, 'name': item.name, 'platform': item.platform},
+      ],
+    };
+  }
+
+  Future<Object?> _runPlayChart(Map<String, dynamic> args) async {
+    final query = (args['chart'] ?? '').toString().trim();
+    if (query.isEmpty) return {'error': '需要 chart'};
+    final index = _intOf(args['index'], fallback: 0).clamp(0, 9999);
+
+    final list = await charts.charts();
+    final lowered = query.toLowerCase();
+    AiChartEntry? match;
+    for (final item in list) {
+      if (item.id == query) {
+        match = item;
+        break;
+      }
+    }
+    match ??= () {
+      for (final item in list) {
+        if (item.name.toLowerCase() == lowered) return item;
+      }
+      for (final item in list) {
+        if (item.name.toLowerCase().contains(lowered)) return item;
+      }
+      return null;
+    }();
+    if (match == null) return {'error': '没有这个榜单：$query'};
+
+    final songs = await charts.songsOf(match.id);
+    if (songs.isEmpty) return {'error': '这个榜单没有取到歌曲', 'chart': match.name};
+    final start = index >= songs.length ? 0 : index;
+    await playback.playSongs(songs, index: start);
+    return {
+      'chart': match.name,
+      'total': songs.length,
+      'startedAt': start,
+      'firstSong': _songJson(songs[start]),
+    };
+  }
+
+  // ------------------------------------------------------------ 定时任务
+
+  Future<Object?> _runListSchedules(Map<String, dynamic> _) async => {
+    'schedules': [
+      for (final task in schedules.tasks)
+        {
+          'id': task.id,
+          'title': task.title,
+          'prompt': task.prompt,
+          'time': _hhmm(task.minuteOfDay),
+          'cadence': task.cadence.name,
+          if (task.cadence == AiScheduleCadence.weekly)
+            'weekday': task.weekday,
+          'enabled': task.enabled,
+          if (task.lastRunAt case final at?) 'lastRunAt': at.toIso8601String(),
+          if (task.lastOk case final ok?) 'lastOk': ok,
+          if ((task.lastResult ?? '').isNotEmpty) 'lastResult': task.lastResult,
+          if ((task.lastFailure ?? '').isNotEmpty)
+            'lastFailure': task.lastFailure,
+        },
+    ],
+  };
+
+  Future<Object?> _runManageSchedule(Map<String, dynamic> args) async {
+    final action = (args['action'] ?? '').toString().trim();
+    final id = (args['id'] ?? '').toString().trim();
+
+    switch (action) {
+      case 'create':
+        final title = (args['title'] ?? '').toString().trim();
+        final prompt = (args['prompt'] ?? '').toString().trim();
+        if (title.isEmpty || prompt.isEmpty) {
+          return {'error': 'create 需要 title 和 prompt'};
+        }
+        final minute = _parseMinuteOfDay(args['time']);
+        if (minute == null) {
+          return {'error': 'time 要写成 HH:mm，例如 08:00'};
+        }
+        final cadence = _scheduleCadence(args['cadence']);
+        if (cadence == null) {
+          return {'error': 'cadence 只能是 daily / weekdays / weekly'};
+        }
+        if (cadence == AiScheduleCadence.weekly) {
+          final weekday = _intOf(args['weekday'], fallback: 0);
+          if (weekday < 1 || weekday > 7) {
+            return {'error': 'weekly 需要 weekday，1=周一 … 7=周日'};
+          }
+        }
+        if (schedules.tasks.length >= 20) {
+          return {'error': '定时任务最多 20 个，先删掉一些'};
+        }
+        final created = await schedules.create(
+          title: title,
+          prompt: prompt,
+          minuteOfDay: minute,
+          cadence: cadence.name,
+          weekday: cadence == AiScheduleCadence.weekly
+              ? _intOf(args['weekday'], fallback: 1)
+              : null,
+        );
+        if (created == null) return {'error': '没有建成，稍后再试'};
+        return {
+          'created': created.id,
+          'title': created.title,
+          'time': _hhmm(created.minuteOfDay),
+          'cadence': created.cadence.name,
+        };
+      case 'run':
+      case 'pause':
+      case 'resume':
+      case 'remove':
+        if (id.isEmpty) return {'error': '$action 需要 id'};
+        if (!schedules.tasks.any((task) => task.id == id)) {
+          return {'error': '没有这个任务：$id'};
+        }
+        if (action == 'remove') {
+          final removed = await schedules.remove(id);
+          return removed ? {'removed': id} : {'error': '删除失败'};
+        }
+        if (action == 'pause' || action == 'resume') {
+          final enabled = action == 'resume';
+          final ok = await schedules.setEnabled(id, enabled);
+          return ok ? {'id': id, 'enabled': enabled} : {'error': '改不了这个任务'};
+        }
+        final result = await schedules.runNow(id);
+        return {
+          'id': id,
+          'ok': result.ok,
+          'result': result.summary,
+        };
+      default:
+        return {
+          'error': '未知 action：$action',
+          'actions': ['create', 'run', 'pause', 'resume', 'remove'],
+        };
+    }
+  }
+
+  static String _hhmm(int minuteOfDay) {
+    final minutes = minuteOfDay % (24 * 60);
+    final hour = (minutes ~/ 60).toString().padLeft(2, '0');
+    final minute = (minutes % 60).toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  static int? _parseMinuteOfDay(Object? raw) {
+    final text = (raw ?? '').toString().trim();
+    if (text.isEmpty) return null;
+    final match = RegExp(r'^(\d{1,2})\s*[:：]\s*(\d{1,2})$').firstMatch(text);
+    if (match == null) return null;
+    final hour = int.tryParse(match.group(1)!);
+    final minute = int.tryParse(match.group(2)!);
+    if (hour == null || minute == null) return null;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return hour * 60 + minute;
+  }
+
+  static AiScheduleCadence? _scheduleCadence(Object? raw) {
+    final text = (raw ?? '').toString().trim().toLowerCase();
+    return switch (text) {
+      '' || 'daily' => AiScheduleCadence.daily,
+      'weekdays' || 'weekday' => AiScheduleCadence.weekdays,
+      'weekly' || 'week' => AiScheduleCadence.weekly,
+      _ => null,
+    };
+  }
+
+  static String _statsRange(Object? raw) {
+    final text = (raw ?? '').toString().trim().toLowerCase();
+    return switch (text) {
+      'month' || '本月' => 'month',
+      'year' || '今年' => 'year',
+      'all' || '全部' => 'all',
+      _ => 'week',
+    };
+  }
+
+  static Map<String, dynamic> _rankedJson(AiRankedEntry item) => {
+    'title': item.title,
+    if (item.subtitle.isNotEmpty) 'subtitle': item.subtitle,
+    'playCount': item.playCount,
+    'minutes': (item.totalSeconds / 60).round(),
+  };
 
   // ------------------------------------------------------------------ 内部
 

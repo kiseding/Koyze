@@ -199,6 +199,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return [
       SettingsSectionSpec(
+        title: s.aiSectionTitle,
+        entries: [
+          SettingsEntry(
+            title: s.aiAssistantTitle,
+            subtitle: s.aiAssistantSubtitle,
+            keywords: const [
+              'ai',
+              '助手',
+              'assistant',
+              '智能',
+              '对话',
+              'chat',
+              '模型',
+              'model',
+            ],
+            onTap: () => context.push('/ai-assistant'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.aiSettingsTitle,
+            subtitle: s.aiSettingsSubtitle,
+            keywords: const [
+              'ai',
+              '设置',
+              'settings',
+              '密钥',
+              'key',
+              'api',
+              '接口',
+              'endpoint',
+              '模型',
+              'model',
+            ],
+            onTap: () => context.push('/ai-settings'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.aiSchedulesTitle,
+            subtitle: s.aiSchedulesSubtitle,
+            keywords: const [
+              'ai',
+              '定时',
+              'schedule',
+              '任务',
+              'task',
+              '自动化',
+              'automation',
+              '每天',
+              '每周',
+            ],
+            onTap: () => context.push('/ai-schedules'),
+            captureExpandOrigin: true,
+          ),
+        ],
+      ),
+      SettingsSectionSpec(
         title: s.sync,
         entries: [
           SettingsEntry(
@@ -241,22 +297,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               'plugin',
             ],
             onTap: () => context.push('/custom-source'),
-            captureExpandOrigin: true,
-          ),
-          SettingsEntry(
-            title: s.aiAssistantTitle,
-            subtitle: s.aiAssistantSubtitle,
-            keywords: const [
-              'ai',
-              '助手',
-              'assistant',
-              '智能',
-              '对话',
-              'chat',
-              '模型',
-              'model',
-            ],
-            onTap: () => context.push('/ai-assistant'),
             captureExpandOrigin: true,
           ),
           SettingsEntry(

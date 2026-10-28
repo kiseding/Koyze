@@ -5,22 +5,35 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/music_source/platform/music_platform.dart';
 import '../../custom_source/domain/custom_source.dart';
 import '../../custom_source/presentation/custom_source_provider.dart';
 import '../../download/domain/download_service.dart';
 import '../../download/domain/download_task.dart';
 import '../../download/presentation/download_provider.dart';
+import '../../equalizer/domain/equalizer_preset.dart';
+import '../../equalizer/domain/equalizer_settings.dart';
+import '../../equalizer/presentation/equalizer_provider.dart';
+import '../../leaderboard/presentation/leaderboard_provider.dart';
+import '../../lyric/presentation/lyric_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/domain/player_service.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../playlist/domain/playlist.dart';
 import '../../playlist/domain/playlist_service.dart';
 import '../../playlist/presentation/playlist_provider.dart';
+import '../../recommend/domain/recommendation_engine.dart';
+import '../../recommend/domain/recommendation_tuning.dart';
+import '../../recommend/presentation/recommendation_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
+import '../../stats/data/play_history_store.dart';
+import '../../stats/presentation/play_history_provider.dart';
 import '../../sync/presentation/sync_phase1_provider.dart';
 import '../../source_check/domain/source_check_report.dart';
 import '../../source_check/presentation/source_check_provider.dart';
 import '../domain/ai_action_ports.dart';
+import '../domain/ai_schedule.dart';
+import 'ai_schedule_provider.dart';
 
 /// 把 AI 的操作端口接到真实服务上。
 ///
@@ -369,6 +382,39 @@ class ProviderAiSourcePort implements AiSourcePort {
   }
 }
 
+/// 「猜你喜欢」：读当前结果、改调校、重算。
+///
+/// 重算是异步的（要联网补候选），所以 apply 会把重算后的结果直接返回，
+/// 模型下一次工具调用就能看到自己改完的效果。
+class ProviderAiRecommendationPort implements AiRecommendationPort {
+  ProviderAiRecommendationPort(this._ref);
+
+  final Ref _ref;
+
+  @override
+  List<RecommendedSong> get current =>
+      _ref.read(recommendationProvider).valueOrNull ??
+      const <RecommendedSong>[];
+
+  @override
+  bool get hasData => _ref.read(recommendationProvider).hasValue;
+
+  @override
+  RecommendationTuning get tuning => _ref.read(recommendationTuningProvider);
+
+  @override
+  Future<List<RecommendedSong>> apply(RecommendationTuning tuning) async {
+    await _ref.read(recommendationTuningProvider.notifier).apply(tuning);
+    return refresh();
+  }
+
+  @override
+  Future<List<RecommendedSong>> refresh() async {
+    await _ref.read(recommendationProvider.notifier).refresh();
+    return current;
+  }
+}
+
 class ProviderAiSettingsPort implements AiSettingsPort {
   ProviderAiSettingsPort(this._ref);
 
@@ -404,4 +450,252 @@ class ProviderAiSettingsPort implements AiSettingsPort {
   Future<void> setThemeMode(String mode) => _ref
       .read(themeModeProvider.notifier)
       .setThemeMode(ThemeMode.values.byName(mode));
+}
+
+/// 均衡器：读当前状态、按频率改频段增益。
+///
+/// 平台不支持时 [supported] 为假；上层工具先看这一位，给出「这个平台上没有
+/// 均衡器」而不是静默无效。
+class ProviderAiEqualizerPort implements AiEqualizerPort {
+  ProviderAiEqualizerPort(this._ref);
+
+  final Ref _ref;
+
+  EqualizerState get _state => _ref.read(equalizerProvider);
+  EqualizerNotifier get _notifier => _ref.read(equalizerProvider.notifier);
+
+  @override
+  bool get supported => _state.supported;
+
+  @override
+  bool get enabled => _state.settings.enabled;
+
+  @override
+  String get presetId => _state.settings.presetId;
+
+  @override
+  List<({String id, String label})> get presets => [
+    for (final preset in equalizerPresets) (id: preset.id, label: preset.label),
+    (id: kCustomPresetId, label: '自定义'),
+  ];
+
+  @override
+  List<AiEqualizerBand> get bands {
+    final layout = _state.effectiveLayout;
+    final gains = _state.settings.gainsFor(layout);
+    return [
+      for (var index = 0; index < layout.centerFrequencies.length; index++)
+        AiEqualizerBand(
+          frequencyHz: layout.centerFrequencies[index],
+          gainDb: index < gains.length ? gains[index] : 0,
+        ),
+    ];
+  }
+
+  @override
+  double get minDecibels => _state.effectiveLayout.minDecibels;
+
+  @override
+  double get maxDecibels => _state.effectiveLayout.maxDecibels;
+
+  @override
+  Future<void> setEnabled(bool enabled) => _notifier.setEnabled(enabled);
+
+  @override
+  Future<void> selectPreset(String presetId) =>
+      _notifier.selectPreset(presetId);
+
+  @override
+  Future<bool> setBandGain(double frequencyHz, double gainDb) async {
+    final layout = _state.effectiveLayout;
+    final centers = layout.centerFrequencies;
+    if (centers.isEmpty) return false;
+    var best = 0;
+    var bestDistance = double.infinity;
+    for (var index = 0; index < centers.length; index++) {
+      final distance = (centers[index] - frequencyHz).abs();
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = index;
+      }
+    }
+    // 频段按对数分布：60 与 230 只差 170，3600 与 14000 却差 10400。所以用
+    // 倍频程判断是不是同一段，差出两个倍频以上就当模型给的频率对不上这台
+    // 设备，宁可返回 false 让模型换一个，也不要悄悄改了隔壁频段。
+    final target = centers[best];
+    final ratio = frequencyHz <= 0 ? 1.0 : target / frequencyHz;
+    if (ratio > 2 || ratio < 0.5) return false;
+    final clamped = gainDb.clamp(layout.minDecibels, layout.maxDecibels);
+    await _notifier.setBandGain(best, clamped.toDouble());
+    return true;
+  }
+
+  @override
+  Future<void> resetFlat() => _notifier.resetToFlat();
+}
+
+/// 听歌统计：直接读本地播放历史。
+class ProviderAiStatsPort implements AiStatsPort {
+  ProviderAiStatsPort(this._ref);
+
+  final Ref _ref;
+
+  @override
+  AiStatsSnapshot snapshot(String range, {int limit = 10}) {
+    final store = _ref.read(playHistoryStoreProvider);
+    final statsRange = switch (range) {
+      'month' => StatsRange.month,
+      'year' => StatsRange.year,
+      'all' => StatsRange.all,
+      _ => StatsRange.week,
+    };
+    final entries = store.entriesIn(statsRange);
+    final totalSeconds = entries.fold<double>(
+      0,
+      (sum, entry) => sum + entry.listenedSec,
+    );
+    final activeDays = store
+        .dailyPlayCounts(statsRange)
+        .where((item) => item.$2 > 0)
+        .length;
+    return AiStatsSnapshot(
+      range: range,
+      playCount: entries.length,
+      totalSeconds: totalSeconds.round(),
+      activeDays: activeDays,
+      songs: _ranked(store.topSongs(statsRange, limit: limit)),
+      artists: _ranked(store.topArtists(statsRange, limit: limit)),
+      albums: _ranked(store.topAlbums(statsRange, limit: limit)),
+    );
+  }
+
+  static List<AiRankedEntry> _ranked(List<RankedItem> items) => [
+    for (final item in items)
+      AiRankedEntry(
+        title: item.title,
+        subtitle: item.subtitle,
+        playCount: item.playCount,
+        totalSeconds: item.totalSec.round(),
+      ),
+  ];
+}
+
+/// 歌词：走和歌词页同一个 `LyricService`，取不到就是 null。
+class ProviderAiLyricPort implements AiLyricPort {
+  ProviderAiLyricPort(this._ref);
+
+  final Ref _ref;
+
+  @override
+  Future<List<AiLyricLine>?> lyricsOf(MusicItem song) async {
+    final lyrics = await _ref.read(lyricServiceProvider).fetchLyric(song);
+    if (lyrics.isEmpty) return null;
+    return [
+      for (final line in lyrics.lines)
+        if (line.text.trim().isNotEmpty)
+          AiLyricLine(seconds: line.time.inSeconds, text: line.text.trim()),
+    ];
+  }
+}
+
+/// 榜单：分类来自榜单页那份缓存，歌曲按 id 拉。
+class ProviderAiChartPort implements AiChartPort {
+  ProviderAiChartPort(this._ref);
+
+  final Ref _ref;
+
+  @override
+  Future<List<AiChartEntry>> charts({String? platform}) async {
+    // 榜单分类是 NotifierProvider<AsyncValue>，没有 `.future`：先取现值，
+    // 还在加载就催一次刷新再取；仍然拿不到就返回空表，让模型知道「没有榜单」。
+    var value = _ref.read(leaderboardCategoriesProvider).valueOrNull;
+    if (value == null) {
+      await _ref.read(leaderboardCategoriesProvider.notifier).refresh();
+      value = _ref.read(leaderboardCategoriesProvider).valueOrNull;
+    }
+    final categories = value ?? const <LeaderboardCategory>[];
+    return [
+      for (final category in categories)
+        if (platform == null ||
+            category.platform == platform ||
+            category.id.startsWith('$platform:'))
+          AiChartEntry(
+            id: category.id,
+            name: category.name,
+            platform: category.platform ?? category.id.split(':').first,
+          ),
+    ];
+  }
+
+  @override
+  Future<List<MusicItem>> songsOf(String chartId) =>
+      _ref.read(leaderboardSongsProvider(chartId).future);
+}
+
+/// AI 的定时任务：转发到定时任务列表与执行器。
+class ProviderAiSchedulePort implements AiSchedulePort {
+  ProviderAiSchedulePort(this._ref);
+
+  final Ref _ref;
+
+  AiSchedulesNotifier get _notifier => _ref.read(aiSchedulesProvider.notifier);
+
+  @override
+  List<AiScheduledTask> get tasks => _ref.read(aiSchedulesProvider);
+
+  @override
+  Future<AiScheduledTask?> create({
+    required String title,
+    required String prompt,
+    required int minuteOfDay,
+    required String cadence,
+    int? weekday,
+    bool enabled = true,
+  }) async {
+    AiScheduleCadence? parsed;
+    for (final value in AiScheduleCadence.values) {
+      if (value.name == cadence) parsed = value;
+    }
+    if (parsed == null) return null;
+    final task = AiScheduledTask(
+      id: AiSchedulesNotifier.newId(),
+      title: title,
+      prompt: prompt,
+      minuteOfDay: minuteOfDay,
+      cadence: parsed,
+      weekday: (weekday ?? 1).clamp(1, 7),
+      enabled: enabled,
+    );
+    await _notifier.add(task);
+    return task;
+  }
+
+  @override
+  Future<bool> setEnabled(String id, bool enabled) async {
+    if (!tasks.any((task) => task.id == id)) return false;
+    await _notifier.setEnabled(id, enabled);
+    return true;
+  }
+
+  @override
+  Future<bool> remove(String id) async {
+    if (!tasks.any((task) => task.id == id)) return false;
+    await _notifier.remove(id);
+    return true;
+  }
+
+  @override
+  Future<({bool ok, String summary})> runNow(String id) async {
+    AiScheduledTask? task;
+    for (final item in tasks) {
+      if (item.id == id) task = item;
+    }
+    if (task == null) return (ok: false, summary: '没有这个任务');
+    final result = await _ref.read(aiScheduleRunnerProvider).runNow(task);
+    if (result.skipped) return (ok: false, summary: '正忙，稍后再试');
+    if (!result.ok) {
+      return (ok: false, summary: result.failure?.name ?? '执行失败');
+    }
+    return (ok: true, summary: result.text);
+  }
 }

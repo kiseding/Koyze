@@ -14,11 +14,15 @@ class AiChatEntry {
     this.text = '',
     this.toolRuns = const <AiToolRun>[],
     this.failure,
+    this.scheduleTitle,
   });
 
   final AiChatRole role;
   final String text;
   final List<AiToolRun> toolRuns;
+
+  /// 非空表示这条回复是定时任务自己跑出来的，界面会在气泡上标一条来源。
+  final String? scheduleTitle;
 
   /// 非空表示这一轮请求失败，[text] 里没有内容。
   final AiFailureKind? failure;

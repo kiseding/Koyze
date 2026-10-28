@@ -3,8 +3,10 @@ import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../player/presentation/player_provider.dart';
+import '../domain/recommendation_tuning.dart';
 import 'recommendation_provider.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/fx_icon_button.dart';
@@ -18,6 +20,7 @@ class RecommendationScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final recommendationsAsync = ref.watch(recommendationProvider);
+    final tuning = ref.watch(recommendationTuningProvider);
     final playProvider = ref.read(playerServiceProvider);
 
     return Scaffold(
@@ -40,7 +43,11 @@ class RecommendationScreen extends ConsumerWidget {
       ),
       body: SafeArea(
         top: false,
-        child: recommendationsAsync.when(
+        child: Column(
+          children: [
+            if (tuning.isNotEmpty) _tuningBar(context, ref, tuning),
+            Expanded(
+              child: recommendationsAsync.when(
           skipLoadingOnReload: true,
           skipLoadingOnRefresh: true,
           loading: () => const Center(child: AppLoadingIndicator()),
@@ -131,7 +138,60 @@ class RecommendationScreen extends ConsumerWidget {
                     );
                   },
                 ),
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  /// 被 AI 调整过时，在列表上方留一句话 + 一个重置入口。
+  ///
+  /// 不弹窗、不打断：用户可能只是想让助手帮着挑，改完之后最需要的是
+  /// 「我知道这份推荐被改过，也能一键退回」。
+  Widget _tuningBar(
+    BuildContext context,
+    WidgetRef ref,
+    RecommendationTuning tuning,
+  ) {
+    final accent = AppColors.accentOf(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 8, 8, 0),
+      child: Row(
+        children: [
+          Icon(Icons.auto_awesome, size: 13, color: accent),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '${S.of(context).recommendTunedByAi} · ${tuning.describe()}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: AppColors.mutedText(context),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              await ref.read(recommendationTuningProvider.notifier).clear();
+              await ref.read(recommendationProvider.notifier).refresh();
+              if (!context.mounted) return;
+              showAppNotification(S.of(context).recommendTuningCleared);
+            },
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: accent,
+            ),
+            child: Text(
+              S.of(context).recommendTuningReset,
+              style: const TextStyle(fontSize: 11.5),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -645,6 +645,43 @@ void main() {
     );
   });
 
+  test('鸿蒙 pubspec 拷贝不会丢主 pubspec 的依赖项', () {
+    // 和上面那个 flutter: 段的用例同源：鸿蒙 CI 用 pubspec_ohos.yaml 覆盖
+    // pubspec.yaml 后再 pub get，lib/ 仍然整份编译。主清单里多一个依赖而拷贝里
+    // 没有，就等于鸿蒙侧 import 不存在的包，两个架构的 HAP 全部编译失败。
+    //
+    // 反向不查：拷贝里多出来的（just_audio_ohos 这类鸿蒙独占包）是正常的。
+    Set<String> depKeys(String path, String section) {
+      final lines = File(path).readAsStringSync().replaceAll('\r\n', '\n').split('\n');
+      final start = lines.indexWhere((line) => line == section);
+      expect(start, greaterThanOrEqualTo(0), reason: '$path 缺少 $section 段');
+
+      final keys = <String>{};
+      for (final line in lines.skip(start + 1)) {
+        if (line.trim().isEmpty || line.trim().startsWith('#')) continue;
+        // 缩进归零说明已经进入下一个顶级键。
+        if (!line.startsWith(' ')) break;
+        final match = RegExp(r'^  ([\w-]+):').firstMatch(line);
+        if (match != null) keys.add(match.group(1)!);
+      }
+      return keys;
+    }
+
+    for (final section in ['dependencies:', 'dev_dependencies:']) {
+      final main = depKeys('pubspec.yaml', section);
+      final ohos = depKeys('pubspec_ohos.yaml', section);
+      expect(main, isNotEmpty, reason: '$section 解析为空，用例本身失效');
+
+      final missing = main.difference(ohos).toList()..sort();
+      expect(
+        missing,
+        isEmpty,
+        reason: 'pubspec_ohos.yaml 的 $section 缺少：$missing。'
+            '鸿蒙构建会把它覆盖成 pubspec.yaml，缺项即编译失败。',
+      );
+    }
+  });
+
   test('launcher source icon stays a compact 1024 PNG', () {
     final icon = File('assets/icon/app_icon.png');
     final bytes = icon.readAsBytesSync();

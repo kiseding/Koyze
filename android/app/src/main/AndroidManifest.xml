@@ -21,6 +21,9 @@
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
+    <!-- AI 助手的语音输入：交给系统的语音识别服务，应用自己只拿识别出的文字。 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- 动态音源可能返回无法升级为 HTTPS 的签名媒体 URL；请求仍受公有地址、固定 IP 与响应预算限制。 -->
     <application
         android:label="Koyze"
@@ -91,6 +94,10 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Android 11+ 要能看见系统里的语音识别服务，否则 initialize() 直接返回 false。 -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
         </intent>
     </queries>
 </manifest>

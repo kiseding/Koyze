@@ -1,19 +1,25 @@
 // Copyright 2024 Koyze Contributors
 // Licensed under the Apache License, Version 2.0
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../l10n/app_strings.dart';
 import '../domain/ai_agent.dart';
 import '../domain/ai_chat.dart';
+import '../domain/ai_config.dart';
 import '../domain/ai_tools.dart';
 import 'ai_failure_text.dart';
 import 'ai_provider.dart';
+import 'voice_input.dart';
 
 /// 对话式助手：一句话说清楚要做什么，模型通过后台接口把操作做完。
 ///
@@ -30,6 +36,10 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
 
+  /// 语音输入从哪一句开始接：开麦前的文字原样留在前面，识别结果接在后面。
+  String _voicePrefix = '';
+  bool _listening = false;
+
   @override
   void dispose() {
     _input.dispose();
@@ -40,6 +50,7 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
   void _send([String? preset]) {
     final text = (preset ?? _input.text).trim();
     if (text.isEmpty || ref.read(aiChatProvider).busy) return;
+    _stopVoice(silent: true);
     _input.clear();
     ref.read(aiChatProvider.notifier).send(text);
     _scrollToBottom();
@@ -54,6 +65,60 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  Future<void> _stopVoice({bool silent = false}) async {
+    final voice = ref.read(aiVoiceInputProvider);
+    if (!_listening && !voice.isListening) return;
+    if (!silent) unawaited(HapticFeedback.selectionClick());
+    await voice.stop();
+    if (!mounted) return;
+    setState(() => _listening = false);
+  }
+
+  Future<void> _toggleVoice() async {
+    final s = S.of(context);
+    if (_listening) {
+      await _stopVoice();
+      return;
+    }
+    final voice = ref.read(aiVoiceInputProvider);
+    if (!voice.isSupported) {
+      showAppNotification(
+        s.aiVoiceUnavailable,
+        type: AppNotificationType.error,
+      );
+      return;
+    }
+    final prefix = _input.text.trimRight();
+    _voicePrefix = prefix.isEmpty ? '' : '$prefix ';
+    final locale = Localizations.localeOf(context).toLanguageTag();
+    unawaited(HapticFeedback.selectionClick());
+    final started = await voice.start(
+      (words, isFinal) {
+        if (!mounted) return;
+        setState(() {
+          _input.value = TextEditingValue(
+            text: '${_voicePrefix.trimLeft()}$words',
+            selection: TextSelection.collapsed(
+              offset: '${_voicePrefix.trimLeft()}$words'.length,
+            ),
+          );
+          if (isFinal) _listening = false;
+        });
+      },
+      localeId: locale,
+      onEnd: () {
+        if (!mounted) return;
+        setState(() => _listening = false);
+      },
+    );
+    if (!mounted) return;
+    if (!started) {
+      showAppNotification(s.aiVoiceFailed, type: AppNotificationType.error);
+      return;
+    }
+    setState(() => _listening = true);
   }
 
   @override
@@ -73,6 +138,7 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
+        centerTitle: true,
         flexibleSpace: GradientAppBarBackground(
           background: Theme.of(context).scaffoldBackgroundColor,
         ),
@@ -81,31 +147,24 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
           icon: Icon(Icons.arrow_back, color: onSurface),
           onPressed: () => Navigator.pop(context),
         ),
+        // 标题和「用的哪个模型」都居中：这两行是这一页的身份说明，
+        // 靠左时会被返回键和右侧两个按钮挤成一小块。
         title: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
               s.aiAssistantTitle,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 color: onSurface,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
               ),
             ),
-            Text(
-              config.model.trim().isEmpty
-                  ? s.aiNotConfigured
-                  : (config.allowActions
-                        ? config.model.trim()
-                        : s.aiAssistantReadOnly),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                color: AppColors.mutedText(context),
-              ),
-            ),
+            const SizedBox(height: 2),
+            _ModelLine(config: config, s: s),
           ],
         ),
         actions: [
@@ -114,7 +173,10 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
             icon: Icon(Icons.add_comment_outlined, color: onSurface),
             onPressed: chat.isEmpty
                 ? null
-                : () => ref.read(aiChatProvider.notifier).clear(),
+                : () {
+                    _stopVoice(silent: true);
+                    ref.read(aiChatProvider.notifier).clear();
+                  },
           ),
           FxIconButton(
             tooltip: s.aiSettingsTitle,
@@ -132,15 +194,15 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
                 ? _emptyState(context, s)
                 : ListView.builder(
                     controller: _scroll,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                     itemCount: chat.entries.length + (chat.busy ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index >= chat.entries.length) {
-                        return _busyRow(context, s, chat.activeTool);
+                        return _busyBubble(context, s, chat.activeTool);
                       }
                       final entry = chat.entries[index];
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.only(bottom: 12),
                         child: entry.isUser
                             ? _userBubble(context, entry.text)
                             : _assistantBubble(context, s, entry),
@@ -191,6 +253,8 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
       s.aiAssistantExample1,
       s.aiAssistantExample2,
       s.aiAssistantExample3,
+      s.aiAssistantExample4,
+      s.aiAssistantExample5,
     ];
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
@@ -267,9 +331,9 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
             alpha: AppColors.isDark(context) ? 0.28 : 0.16,
           ),
           borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(16),
-            topRight: Radius.circular(16),
-            bottomLeft: Radius.circular(16),
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomLeft: Radius.circular(18),
             bottomRight: Radius.circular(6),
           ),
         ),
@@ -285,51 +349,108 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
     );
   }
 
+  /// 助手也用气泡，和用户正好左右对称。
+  ///
+  /// 里面按「来源 → 做了什么 → 说了什么」竖着排：定时任务的来源标签在最上面，
+  /// 工具摘要其次，正文最后。整块用一个气泡包住，滚动时不会看成三条独立的消息。
   Widget _assistantBubble(BuildContext context, S s, AiChatEntry entry) {
     final onSurface = AppColors.onScaffold(context);
     final failure = entry.failure;
-    if (failure != null) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.error_outline_rounded,
-            size: 16,
-            color: Theme.of(context).colorScheme.error,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              aiFailureText(s, failure),
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.5,
-                color: Theme.of(context).colorScheme.error,
-              ),
-            ),
-          ),
-        ],
-      );
-    }
+    final isError = failure != null;
+    final errorColor = Theme.of(context).colorScheme.error;
+    final summary = isError
+        ? const <({AiToolCategory category, int count, bool ok})>[]
+        : _summarize(entry.toolRuns);
 
-    final summary = _summarize(entry.toolRuns);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (summary.isNotEmpty) ...[
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [for (final item in summary) _toolPill(context, s, item)],
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(context).width * 0.86,
+        ),
+        padding: const EdgeInsets.fromLTRB(13, 10, 13, 11),
+        decoration: BoxDecoration(
+          color: isError
+              ? errorColor.withValues(alpha: 0.10)
+              : AppColors.fill(context),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomLeft: Radius.circular(6),
+            bottomRight: Radius.circular(18),
           ),
-          if (entry.text.isNotEmpty) const SizedBox(height: 8),
-        ],
-        if (entry.text.isNotEmpty)
+          border: Border.all(
+            color: isError
+                ? errorColor.withValues(alpha: 0.34)
+                : AppColors.cardBorder(context),
+            width: 0.8,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (entry.scheduleTitle case final title?) ...[
+              _schedulePill(context, s, title),
+              const SizedBox(height: 8),
+            ],
+            if (summary.isNotEmpty) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final item in summary) _toolPill(context, s, item),
+                ],
+              ),
+              if (entry.text.isNotEmpty) const SizedBox(height: 9),
+            ],
+            if (isError)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.error_outline_rounded, size: 15, color: errorColor),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      aiFailureText(s, failure),
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: errorColor,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            else if (entry.text.isNotEmpty)
+              Text(
+                entry.text,
+                style: TextStyle(fontSize: 14, height: 1.55, color: onSurface),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _schedulePill(BuildContext context, S s, String title) {
+    final accent = AppColors.accentOf(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: AppColors.isDark(context) ? 0.20 : 0.13),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.alarm_rounded, size: 12, color: accent),
+          const SizedBox(width: 4),
           Text(
-            entry.text,
-            style: TextStyle(fontSize: 14, height: 1.6, color: onSurface),
+            s.aiSchedulePill(title),
+            style: TextStyle(fontSize: 11, color: accent),
           ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -362,33 +483,52 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
     );
   }
 
-  Widget _busyRow(BuildContext context, S s, AiToolCategory? activeTool) {
+  Widget _busyBubble(BuildContext context, S s, AiToolCategory? activeTool) {
     final label = activeTool == null
         ? s.aiAssistantThinking
         : s.aiAssistantWorking(_categoryLabel(s, activeTool));
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.accentOf(context),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(13, 10, 14, 10),
+        decoration: BoxDecoration(
+          color: AppColors.fill(context),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomLeft: Radius.circular(6),
+            bottomRight: Radius.circular(18),
+          ),
+          border: Border.all(color: AppColors.cardBorder(context), width: 0.8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 13,
+              height: 13,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.accentOf(context),
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: AppColors.mutedText(context)),
-          ),
-        ],
+            const SizedBox(width: 9),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: AppColors.mutedText(context),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _composer(BuildContext context, S s, AiChatState chat) {
+    final voice = ref.watch(aiVoiceInputProvider);
+    final accent = AppColors.accentOf(context);
     return SafeArea(
       top: false,
       child: Padding(
@@ -396,6 +536,15 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            if (voice.isSupported) ...[
+              _MicButton(
+                listening: _listening,
+                accent: accent,
+                onTap: chat.busy ? null : _toggleVoice,
+                tooltip: _listening ? s.aiVoiceStop : s.aiVoiceStart,
+              ),
+              const SizedBox(width: 6),
+            ],
             Expanded(
               child: TextField(
                 controller: _input,
@@ -405,7 +554,12 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _send(),
                 decoration: InputDecoration(
-                  hintText: s.aiAssistantPlaceholder,
+                  hintText: _listening
+                      ? s.aiVoiceListening
+                      : s.aiAssistantPlaceholder,
+                  hintStyle: _listening
+                      ? TextStyle(fontSize: 14, color: accent)
+                      : null,
                   filled: true,
                   fillColor: AppColors.fill(context),
                   isDense: true,
@@ -418,6 +572,10 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
                     borderSide: BorderSide.none,
                   ),
                 ),
+                onChanged: (_) {
+                  // 手动改字就默认这次听写在就地编辑，不再覆盖。
+                  if (_listening) setState(() => _listening = false);
+                },
               ),
             ),
             const SizedBox(width: 8),
@@ -426,7 +584,7 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
               child: IconButton.filled(
                 onPressed: _send,
                 style: IconButton.styleFrom(
-                  backgroundColor: AppColors.accentOf(context),
+                  backgroundColor: accent,
                   foregroundColor: AppColors.isDark(context)
                       ? Colors.black
                       : Colors.white,
@@ -467,6 +625,7 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
     AiToolCategory.playlist => Icons.queue_music_rounded,
     AiToolCategory.download => Icons.download_rounded,
     AiToolCategory.source => Icons.extension_rounded,
+    AiToolCategory.recommendation => Icons.auto_awesome_rounded,
     AiToolCategory.settings => Icons.tune_rounded,
   };
 
@@ -477,6 +636,106 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
         AiToolCategory.playlist => s.aiCategoryPlaylist,
         AiToolCategory.download => s.aiCategoryDownload,
         AiToolCategory.source => s.aiCategorySource,
+        AiToolCategory.recommendation => s.aiCategoryRecommendation,
         AiToolCategory.settings => s.aiCategorySettings,
       };
+}
+
+/// 标题下面那行：一个小圆点 + 模型名（或状态）。
+///
+/// 点用颜色说话——能动手是强调色，只读是灰的，没配是错误色——文字仍然只有
+/// 一行，居中，长模型名用省略号收尾。
+class _ModelLine extends StatelessWidget {
+  const _ModelLine({required this.config, required this.s});
+
+  final AiConfig config;
+  final S s;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = AppColors.mutedText(context);
+    final (color, label) = config.model.trim().isEmpty
+        ? (Theme.of(context).colorScheme.error, s.aiNotConfigured)
+        : config.allowActions
+        ? (AppColors.accentOf(context), config.model.trim())
+        : (muted, s.aiAssistantReadOnly);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 5,
+          height: 5,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: muted, height: 1.1),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 输入框左边的麦克风：按住说话那次不做了，点一下开、再点一下收。
+class _MicButton extends StatelessWidget {
+  const _MicButton({
+    required this.listening,
+    required this.accent,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  final bool listening;
+  final Color accent;
+  final VoidCallback? onTap;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Tooltip(
+      message: tooltip,
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        label: tooltip,
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: listening
+                  ? accent.withValues(alpha: 0.16)
+                  : AppColors.fill(context),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: listening ? accent.withValues(alpha: 0.5) : Colors.transparent,
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              listening ? Icons.stop_rounded : Icons.mic_none_rounded,
+              size: 20,
+              color: !enabled
+                  ? AppColors.mutedText(context).withValues(alpha: 0.4)
+                  : listening
+                  ? accent
+                  : AppColors.secondaryText(context),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

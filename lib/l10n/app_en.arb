@@ -1370,6 +1370,8 @@
   "aiAssistantExample1": "Play 晴天 by Jay Chou",
   "aiAssistantExample2": "Favorite this song and download it",
   "aiAssistantExample3": "Make a late-night coding playlist with 20 quiet tracks",
+  "aiAssistantExample4": "What did I listen to most this year?",
+  "aiAssistantExample5": "More bass, clearer vocals",
   "aiAssistantThinking": "Thinking…",
   "aiAssistantWorking": "Running {tool}…",
   "@aiAssistantWorking": {
@@ -1407,5 +1409,106 @@
   "carModeStatusUnsupported": "Car Kit is unavailable here",
   "settingsSearch": "Search settings",
   "settingsSearchHint": "Search settings, e.g. quality or dark mode",
-  "settingsSearchEmpty": "No matching settings"
+  "settingsSearchEmpty": "No matching settings",
+  "aiSectionTitle": "AI",
+  "aiSettingsSubtitle": "Endpoint, key and model",
+  "aiSchedulesTitle": "AI scheduled tasks",
+  "aiSchedulesSubtitle": "Let the assistant act on schedule",
+  "aiSchedulesIntro": "Runs the prompt you write at the time you pick. It fires while the app is open; a run missed in the last 6 hours is caught up on next launch.",
+  "aiSchedulesEmpty": "No scheduled tasks yet",
+  "aiSchedulesEmptyHint": "For example: build a playlist from a few songs every morning, or recap last week's listening every Sunday.",
+  "aiSchedulesNew": "New task",
+  "aiSchedulesEdit": "Edit task",
+  "aiScheduleName": "Name",
+  "aiScheduleNameHint": "Morning picks",
+  "aiSchedulePrompt": "What to do",
+  "aiSchedulePromptHint": "Pick 8 songs that suit the morning and create a playlist called Morning",
+  "aiScheduleTime": "Time",
+  "aiScheduleRepeat": "Repeat",
+  "aiScheduleDaily": "Every day",
+  "aiScheduleWeekdays": "Weekdays",
+  "aiScheduleWeekly": "Weekly",
+  "aiScheduleDelete": "Delete task",
+  "aiScheduleDeleteConfirm": "Delete “{name}”? It will stop running.",
+  "@aiScheduleDeleteConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "aiScheduleDeleted": "Deleted",
+  "aiScheduleSaved": "Task saved",
+  "aiScheduleNameRequired": "Give the task a name",
+  "aiSchedulePromptRequired": "Describe what to do",
+  "aiScheduleRunNow": "Run now",
+  "aiScheduleRunning": "Running…",
+  "aiScheduleNeverRun": "Not run yet",
+  "aiScheduleLastRun": "Last run {time}",
+  "@aiScheduleLastRun": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "aiScheduleNextRun": "Next {time}",
+  "@aiScheduleNextRun": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "aiSchedulePaused": "Paused",
+  "aiScheduleRunFailed": "Failed: {reason}",
+  "@aiScheduleRunFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "aiScheduleRunDone": "“{name}” finished",
+  "@aiScheduleRunDone": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "aiScheduleRunFailedToast": "“{name}” failed",
+  "@aiScheduleRunFailedToast": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "aiSchedulePill": "Scheduled · {name}",
+  "@aiSchedulePill": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "aiDayToday": "Today",
+  "aiDayTomorrow": "Tomorrow",
+  "aiWeekdayMon": "Mon",
+  "aiWeekdayTue": "Tue",
+  "aiWeekdayWed": "Wed",
+  "aiWeekdayThu": "Thu",
+  "aiWeekdayFri": "Fri",
+  "aiWeekdaySat": "Sat",
+  "aiWeekdaySun": "Sun",
+  "aiVoiceStart": "Voice input",
+  "aiVoiceStop": "Stop listening",
+  "aiVoiceListening": "Listening…",
+  "aiVoiceUnavailable": "Voice input is not available on this device",
+  "aiVoiceFailed": "Voice input could not start — check the microphone permission",
+  "aiCategoryRecommendation": "For you",
+  "recommendTunedByAi": "The assistant tuned this list",
+  "recommendTuningReset": "Reset",
+  "recommendTuningCleared": "Recommendations reset"
 }

@@ -5,7 +5,7 @@
 name: koyze
 description: Koyze - 一个免费的音乐查找助手
 publish_to: 'none'
-version: 4.1.1+411
+version: 4.2.0+420
 
 homepage: https://github.com/kiseding/koyze
 repository: https://github.com/kiseding/koyze
@@ -72,6 +72,11 @@ dependencies:
   audio_metadata_reader: ^1.7.1
   permission_handler: ^12.0.3
   animations: ^2.2.0
+
+  # 语音输入：pub 上没有 ohos 实现，HAP 构建会跳过这个插件；界面按
+  # platformSupportsVoiceInput() 判定，鸿蒙不显示麦克风，也不会走到调用。
+  # 但不能从这份清单里删掉——lib/ 无条件 import 它，缺了就是编译失败。
+  speech_to_text: ^7.5.0
 
 dev_dependencies:
   flutter_test:

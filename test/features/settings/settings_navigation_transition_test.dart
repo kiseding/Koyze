@@ -165,6 +165,8 @@ void main() {
       '/local-music',
       '/custom-source',
       '/ai-assistant',
+      '/ai-settings',
+      '/ai-schedules',
       '/subsonic-settings',
       '/equalizer',
       '/sync',
@@ -180,9 +182,10 @@ void main() {
 
     expect(source, isNot(contains('重复歌曲')));
     expect(source, isNot(contains('/duplicates')));
-    // 这三项都有更贴切的入口，设置页里不再重复放一份：
-    // 音源检测在音源卡片上，AI 设置在 AI 助手右上角，AI 歌单已并入 AI 助手。
-    for (final retired in ['/source-check', '/ai-settings', '/ai-playlist']) {
+    // 这两项有更贴切的入口，设置页里不再重复放一份：音源检测在音源卡片上，
+    // AI 歌单已并入 AI 助手。AI 设置则随新的「AI」分区回到设置页——入口多一个
+    // 不碍事，找不到配置在哪才碍事。
+    for (final retired in ['/source-check', '/ai-playlist']) {
       expect(
         source,
         isNot(contains(retired)),

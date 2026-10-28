@@ -707,6 +707,7 @@ class S {
   };
 
   String quickSubtitle(String id) => switch (id) {
+    'ai' => en ? 'One sentence, done' : '一句话让它动手',
     'recommend' => en ? 'Based on what you play' : '根据历史推荐',
     'local' => en ? 'Songs on this device' : '设备上的歌曲',
     'subsonic' => nasHosts,
@@ -735,6 +736,7 @@ class S {
   };
 
   String quickTitle(String id) => switch (id) {
+    'ai' => aiAssistantTitle,
     'recommend' => forYou,
     'local' => localMusic,
     'subsonic' => nasLibrary,
@@ -808,6 +810,8 @@ class S {
   String get aiAssistantExample1 => _l10n.aiAssistantExample1;
   String get aiAssistantExample2 => _l10n.aiAssistantExample2;
   String get aiAssistantExample3 => _l10n.aiAssistantExample3;
+  String get aiAssistantExample4 => _l10n.aiAssistantExample4;
+  String get aiAssistantExample5 => _l10n.aiAssistantExample5;
   String get aiAssistantThinking => _l10n.aiAssistantThinking;
   String aiAssistantWorking(String tool) => _l10n.aiAssistantWorking(tool);
   String get aiAssistantNewChat => _l10n.aiAssistantNewChat;
@@ -819,6 +823,75 @@ class S {
   String get aiCategoryDownload => _l10n.aiCategoryDownload;
   String get aiCategorySource => _l10n.aiCategorySource;
   String get aiCategorySettings => _l10n.aiCategorySettings;
+  String get aiSectionTitle => _l10n.aiSectionTitle;
+  String get aiSettingsSubtitle => _l10n.aiSettingsSubtitle;
+  String get aiSchedulesTitle => _l10n.aiSchedulesTitle;
+  String get aiSchedulesSubtitle => _l10n.aiSchedulesSubtitle;
+  String get aiSchedulesIntro => _l10n.aiSchedulesIntro;
+  String get aiSchedulesEmpty => _l10n.aiSchedulesEmpty;
+  String get aiSchedulesEmptyHint => _l10n.aiSchedulesEmptyHint;
+  String get aiSchedulesNew => _l10n.aiSchedulesNew;
+  String get aiSchedulesEdit => _l10n.aiSchedulesEdit;
+  String get aiScheduleName => _l10n.aiScheduleName;
+  String get aiScheduleNameHint => _l10n.aiScheduleNameHint;
+  String get aiSchedulePrompt => _l10n.aiSchedulePrompt;
+  String get aiSchedulePromptHint => _l10n.aiSchedulePromptHint;
+  String get aiScheduleTime => _l10n.aiScheduleTime;
+  String get aiScheduleRepeat => _l10n.aiScheduleRepeat;
+  String get aiScheduleDaily => _l10n.aiScheduleDaily;
+  String get aiScheduleWeekdays => _l10n.aiScheduleWeekdays;
+  String get aiScheduleWeekly => _l10n.aiScheduleWeekly;
+  String get aiScheduleDelete => _l10n.aiScheduleDelete;
+  String aiScheduleDeleteConfirm(String name) =>
+      _l10n.aiScheduleDeleteConfirm(name);
+  String get aiScheduleDeleted => _l10n.aiScheduleDeleted;
+  String get aiScheduleSaved => _l10n.aiScheduleSaved;
+  String get aiScheduleNameRequired => _l10n.aiScheduleNameRequired;
+  String get aiSchedulePromptRequired => _l10n.aiSchedulePromptRequired;
+  String get aiScheduleRunNow => _l10n.aiScheduleRunNow;
+  String get aiScheduleRunning => _l10n.aiScheduleRunning;
+  String get aiScheduleNeverRun => _l10n.aiScheduleNeverRun;
+  String aiScheduleLastRun(String time) => _l10n.aiScheduleLastRun(time);
+  String aiScheduleNextRun(String time) => _l10n.aiScheduleNextRun(time);
+  String get aiSchedulePaused => _l10n.aiSchedulePaused;
+  String aiScheduleRunFailed(String reason) => _l10n.aiScheduleRunFailed(reason);
+  String aiScheduleRunDone(String name) => _l10n.aiScheduleRunDone(name);
+  String aiScheduleRunFailedToast(String name) =>
+      _l10n.aiScheduleRunFailedToast(name);
+  String aiSchedulePill(String name) => _l10n.aiSchedulePill(name);
+  String get aiDayToday => _l10n.aiDayToday;
+  String get aiDayTomorrow => _l10n.aiDayTomorrow;
+  String get aiVoiceStart => _l10n.aiVoiceStart;
+  String get aiVoiceStop => _l10n.aiVoiceStop;
+  String get aiVoiceListening => _l10n.aiVoiceListening;
+  String get aiVoiceUnavailable => _l10n.aiVoiceUnavailable;
+  String get aiVoiceFailed => _l10n.aiVoiceFailed;
+  String get aiCategoryRecommendation => _l10n.aiCategoryRecommendation;
+  String get recommendTunedByAi => _l10n.recommendTunedByAi;
+  String get recommendTuningReset => _l10n.recommendTuningReset;
+  String get recommendTuningCleared => _l10n.recommendTuningCleared;
+
+  /// 1 = 周一 … 7 = 周日。
+  String weekdayName(int weekday) => switch (weekday) {
+    1 => _l10n.aiWeekdayMon,
+    2 => _l10n.aiWeekdayTue,
+    3 => _l10n.aiWeekdayWed,
+    4 => _l10n.aiWeekdayThu,
+    5 => _l10n.aiWeekdayFri,
+    6 => _l10n.aiWeekdaySat,
+    _ => _l10n.aiWeekdaySun,
+  };
+
+  /// 「今天 / 明天 / 周三」这种相对说法，只用于一周以内的时间。
+  String relativeDay(DateTime target, {DateTime? now}) {
+    final clock = now ?? DateTime.now();
+    final today = DateTime(clock.year, clock.month, clock.day);
+    final day = DateTime(target.year, target.month, target.day);
+    final diff = day.difference(today).inDays;
+    if (diff == 0) return aiDayToday;
+    if (diff == 1) return aiDayTomorrow;
+    return weekdayName(target.weekday);
+  }
   String get carMode => _l10n.carMode;
   String get carModeSubtitle => _l10n.carModeSubtitle;
   String get carModeAuto => _l10n.carModeAuto;

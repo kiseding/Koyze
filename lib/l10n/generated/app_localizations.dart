@@ -4064,6 +4064,18 @@ abstract class AppLocalizations {
   /// **'Make a late-night coding playlist with 20 quiet tracks'**
   String get aiAssistantExample3;
 
+  /// No description provided for @aiAssistantExample4.
+  ///
+  /// In en, this message translates to:
+  /// **'What did I listen to most this year?'**
+  String get aiAssistantExample4;
+
+  /// No description provided for @aiAssistantExample5.
+  ///
+  /// In en, this message translates to:
+  /// **'More bass, clearer vocals'**
+  String get aiAssistantExample5;
+
   /// No description provided for @aiAssistantThinking.
   ///
   /// In en, this message translates to:
@@ -4207,6 +4219,318 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No matching settings'**
   String get settingsSearchEmpty;
+
+  /// No description provided for @aiSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI'**
+  String get aiSectionTitle;
+
+  /// No description provided for @aiSettingsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Endpoint, key and model'**
+  String get aiSettingsSubtitle;
+
+  /// No description provided for @aiSchedulesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI scheduled tasks'**
+  String get aiSchedulesTitle;
+
+  /// No description provided for @aiSchedulesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Let the assistant act on schedule'**
+  String get aiSchedulesSubtitle;
+
+  /// No description provided for @aiSchedulesIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Runs the prompt you write at the time you pick. It fires while the app is open; a run missed in the last 6 hours is caught up on next launch.'**
+  String get aiSchedulesIntro;
+
+  /// No description provided for @aiSchedulesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No scheduled tasks yet'**
+  String get aiSchedulesEmpty;
+
+  /// No description provided for @aiSchedulesEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For example: build a playlist from a few songs every morning, or recap last week\'s listening every Sunday.'**
+  String get aiSchedulesEmptyHint;
+
+  /// No description provided for @aiSchedulesNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New task'**
+  String get aiSchedulesNew;
+
+  /// No description provided for @aiSchedulesEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit task'**
+  String get aiSchedulesEdit;
+
+  /// No description provided for @aiScheduleName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get aiScheduleName;
+
+  /// No description provided for @aiScheduleNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Morning picks'**
+  String get aiScheduleNameHint;
+
+  /// No description provided for @aiSchedulePrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'What to do'**
+  String get aiSchedulePrompt;
+
+  /// No description provided for @aiSchedulePromptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick 8 songs that suit the morning and create a playlist called Morning'**
+  String get aiSchedulePromptHint;
+
+  /// No description provided for @aiScheduleTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get aiScheduleTime;
+
+  /// No description provided for @aiScheduleRepeat.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat'**
+  String get aiScheduleRepeat;
+
+  /// No description provided for @aiScheduleDaily.
+  ///
+  /// In en, this message translates to:
+  /// **'Every day'**
+  String get aiScheduleDaily;
+
+  /// No description provided for @aiScheduleWeekdays.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekdays'**
+  String get aiScheduleWeekdays;
+
+  /// No description provided for @aiScheduleWeekly.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly'**
+  String get aiScheduleWeekly;
+
+  /// No description provided for @aiScheduleDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete task'**
+  String get aiScheduleDelete;
+
+  /// No description provided for @aiScheduleDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{name}”? It will stop running.'**
+  String aiScheduleDeleteConfirm(String name);
+
+  /// No description provided for @aiScheduleDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get aiScheduleDeleted;
+
+  /// No description provided for @aiScheduleSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Task saved'**
+  String get aiScheduleSaved;
+
+  /// No description provided for @aiScheduleNameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Give the task a name'**
+  String get aiScheduleNameRequired;
+
+  /// No description provided for @aiSchedulePromptRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe what to do'**
+  String get aiSchedulePromptRequired;
+
+  /// No description provided for @aiScheduleRunNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Run now'**
+  String get aiScheduleRunNow;
+
+  /// No description provided for @aiScheduleRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running…'**
+  String get aiScheduleRunning;
+
+  /// No description provided for @aiScheduleNeverRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Not run yet'**
+  String get aiScheduleNeverRun;
+
+  /// No description provided for @aiScheduleLastRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Last run {time}'**
+  String aiScheduleLastRun(String time);
+
+  /// No description provided for @aiScheduleNextRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Next {time}'**
+  String aiScheduleNextRun(String time);
+
+  /// No description provided for @aiSchedulePaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Paused'**
+  String get aiSchedulePaused;
+
+  /// No description provided for @aiScheduleRunFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed: {reason}'**
+  String aiScheduleRunFailed(String reason);
+
+  /// No description provided for @aiScheduleRunDone.
+  ///
+  /// In en, this message translates to:
+  /// **'“{name}” finished'**
+  String aiScheduleRunDone(String name);
+
+  /// No description provided for @aiScheduleRunFailedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'“{name}” failed'**
+  String aiScheduleRunFailedToast(String name);
+
+  /// No description provided for @aiSchedulePill.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled · {name}'**
+  String aiSchedulePill(String name);
+
+  /// No description provided for @aiDayToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get aiDayToday;
+
+  /// No description provided for @aiDayTomorrow.
+  ///
+  /// In en, this message translates to:
+  /// **'Tomorrow'**
+  String get aiDayTomorrow;
+
+  /// No description provided for @aiWeekdayMon.
+  ///
+  /// In en, this message translates to:
+  /// **'Mon'**
+  String get aiWeekdayMon;
+
+  /// No description provided for @aiWeekdayTue.
+  ///
+  /// In en, this message translates to:
+  /// **'Tue'**
+  String get aiWeekdayTue;
+
+  /// No description provided for @aiWeekdayWed.
+  ///
+  /// In en, this message translates to:
+  /// **'Wed'**
+  String get aiWeekdayWed;
+
+  /// No description provided for @aiWeekdayThu.
+  ///
+  /// In en, this message translates to:
+  /// **'Thu'**
+  String get aiWeekdayThu;
+
+  /// No description provided for @aiWeekdayFri.
+  ///
+  /// In en, this message translates to:
+  /// **'Fri'**
+  String get aiWeekdayFri;
+
+  /// No description provided for @aiWeekdaySat.
+  ///
+  /// In en, this message translates to:
+  /// **'Sat'**
+  String get aiWeekdaySat;
+
+  /// No description provided for @aiWeekdaySun.
+  ///
+  /// In en, this message translates to:
+  /// **'Sun'**
+  String get aiWeekdaySun;
+
+  /// No description provided for @aiVoiceStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice input'**
+  String get aiVoiceStart;
+
+  /// No description provided for @aiVoiceStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop listening'**
+  String get aiVoiceStop;
+
+  /// No description provided for @aiVoiceListening.
+  ///
+  /// In en, this message translates to:
+  /// **'Listening…'**
+  String get aiVoiceListening;
+
+  /// No description provided for @aiVoiceUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice input is not available on this device'**
+  String get aiVoiceUnavailable;
+
+  /// No description provided for @aiVoiceFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice input could not start — check the microphone permission'**
+  String get aiVoiceFailed;
+
+  /// No description provided for @aiCategoryRecommendation.
+  ///
+  /// In en, this message translates to:
+  /// **'For you'**
+  String get aiCategoryRecommendation;
+
+  /// No description provided for @recommendTunedByAi.
+  ///
+  /// In en, this message translates to:
+  /// **'The assistant tuned this list'**
+  String get recommendTunedByAi;
+
+  /// No description provided for @recommendTuningReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get recommendTuningReset;
+
+  /// No description provided for @recommendTuningCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommendations reset'**
+  String get recommendTuningCleared;
 }
 
 class _AppLocalizationsDelegate

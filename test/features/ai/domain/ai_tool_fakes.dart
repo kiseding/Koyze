@@ -1,9 +1,12 @@
 import 'package:koyze/features/ai/domain/ai_action_ports.dart';
+import 'package:koyze/features/ai/domain/ai_schedule.dart';
 import 'package:koyze/features/ai/domain/ai_tools.dart';
 import 'package:koyze/features/custom_source/domain/custom_source.dart';
 import 'package:koyze/features/download/domain/download_task.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/playlist/domain/playlist.dart';
+import 'package:koyze/features/recommend/domain/recommendation_engine.dart';
+import 'package:koyze/features/recommend/domain/recommendation_tuning.dart';
 import 'package:koyze/features/source_check/domain/source_check_report.dart';
 
 MusicItem song(
@@ -386,25 +389,272 @@ class FakeSettings implements AiSettingsPort {
   Future<void> setThemeMode(String mode) async => themeMode = mode;
 }
 
+class FakeRecommendations implements AiRecommendationPort {
+  FakeRecommendations({List<RecommendedSong>? items})
+    : _items = [...?items];
+
+  List<RecommendedSong> _items;
+
+  @override
+  RecommendationTuning tuning = RecommendationTuning.empty;
+
+  final List<RecommendationTuning> applied = [];
+  int refreshes = 0;
+
+  @override
+  List<RecommendedSong> get current => _items;
+
+  @override
+  bool get hasData => true;
+
+  @override
+  Future<List<RecommendedSong>> apply(RecommendationTuning next) async {
+    tuning = next;
+    applied.add(next);
+    return refresh();
+  }
+
+  @override
+  Future<List<RecommendedSong>> refresh() async {
+    refreshes++;
+    return _items;
+  }
+
+  /// 测试里直接换掉「算法算出来的那批」，模拟重算结果。
+  void setItems(List<RecommendedSong> items) => _items = [...items];
+}
+
+class FakeEqualizer implements AiEqualizerPort {
+  FakeEqualizer({this.supported = true});
+
+  @override
+  final bool supported;
+
+  @override
+  bool enabled = false;
+
+  @override
+  String presetId = 'flat';
+
+  List<double> gains = const [0, 0, 0, 0, 0];
+
+  static const List<double> centers = [60, 230, 910, 3600, 14000];
+
+  final List<String> calls = [];
+
+  @override
+  List<({String id, String label})> get presets => const [
+    (id: 'flat', label: '平直'),
+    (id: 'bass', label: '低音'),
+    (id: 'vocal', label: '人声'),
+  ];
+
+  @override
+  List<AiEqualizerBand> get bands => [
+    for (var index = 0; index < centers.length; index++)
+      AiEqualizerBand(frequencyHz: centers[index], gainDb: gains[index]),
+  ];
+
+  @override
+  double get minDecibels => -12;
+
+  @override
+  double get maxDecibels => 12;
+
+  @override
+  Future<void> setEnabled(bool value) async {
+    enabled = value;
+    calls.add('enabled:$value');
+  }
+
+  @override
+  Future<void> selectPreset(String id) async {
+    presetId = id;
+    calls.add('preset:$id');
+  }
+
+  @override
+  Future<bool> setBandGain(double frequencyHz, double gainDb) async {
+    var best = 0;
+    for (var index = 0; index < centers.length; index++) {
+      if ((centers[index] - frequencyHz).abs() <
+          (centers[best] - frequencyHz).abs()) {
+        best = index;
+      }
+    }
+    final ratio = frequencyHz <= 0 ? 1.0 : centers[best] / frequencyHz;
+    if (ratio > 2 || ratio < 0.5) return false;
+    final next = [...gains];
+    next[best] = gainDb;
+    gains = next;
+    calls.add('band:${centers[best]}:$gainDb');
+    return true;
+  }
+
+  @override
+  Future<void> resetFlat() async {
+    gains = const [0, 0, 0, 0, 0];
+    presetId = 'flat';
+    calls.add('reset');
+  }
+}
+
+class FakeStats implements AiStatsPort {
+  AiStatsSnapshot? snapshotOverride;
+
+  /// 记录最后一次查询用的范围，方便断言参数透传。
+  String? lastRange;
+
+  @override
+  AiStatsSnapshot snapshot(String range, {int limit = 10}) {
+    lastRange = range;
+    return snapshotOverride ??
+        AiStatsSnapshot(
+          range: range,
+          playCount: 42,
+          totalSeconds: 3600,
+          activeDays: 3,
+          songs: const [
+            AiRankedEntry(
+              title: '晴天',
+              subtitle: '周杰伦',
+              playCount: 12,
+              totalSeconds: 3000,
+            ),
+          ],
+          artists: const [
+            AiRankedEntry(
+              title: '周杰伦',
+              subtitle: '',
+              playCount: 20,
+              totalSeconds: 5000,
+            ),
+          ],
+          albums: const [],
+        );
+  }
+}
+
+class FakeLyrics implements AiLyricPort {
+  List<AiLyricLine>? lines = const [
+    AiLyricLine(seconds: 0, text: '故事的小黄花'),
+    AiLyricLine(seconds: 5, text: '从出生那年就飘着'),
+  ];
+
+  final List<String> requested = [];
+
+  @override
+  Future<List<AiLyricLine>?> lyricsOf(MusicItem song) async {
+    requested.add(song.name);
+    return lines;
+  }
+}
+
+class FakeCharts implements AiChartPort {
+  List<AiChartEntry> entries = const [
+    AiChartEntry(id: 'tx:26', name: '热歌榜', platform: 'tx'),
+    AiChartEntry(id: 'kw:93', name: '飙升榜', platform: 'kw'),
+  ];
+
+  bool songsEmpty = false;
+
+  @override
+  Future<List<AiChartEntry>> charts({String? platform}) async => [
+    for (final item in entries)
+      if (platform == null ||
+          item.platform == platform ||
+          item.id.startsWith('$platform:'))
+        item,
+  ];
+
+  @override
+  Future<List<MusicItem>> songsOf(String chartId) async =>
+      songsEmpty ? const [] : [song('1', '晴天', '周杰伦')];
+}
+
+class FakeSchedules implements AiSchedulePort {
+  FakeSchedules([List<AiScheduledTask>? initial])
+    : tasks = [...?initial];
+
+  @override
+  final List<AiScheduledTask> tasks;
+
+  ({bool ok, String summary}) runResult = (ok: true, summary: '好了');
+
+  @override
+  Future<AiScheduledTask?> create({
+    required String title,
+    required String prompt,
+    required int minuteOfDay,
+    required String cadence,
+    int? weekday,
+    bool enabled = true,
+  }) async {
+    final task = AiScheduledTask(
+      id: 'task_${tasks.length + 1}',
+      title: title,
+      prompt: prompt,
+      minuteOfDay: minuteOfDay,
+      cadence: AiScheduleCadence.values.firstWhere((it) => it.name == cadence),
+      weekday: weekday ?? 1,
+      enabled: enabled,
+    );
+    tasks.add(task);
+    return task;
+  }
+
+  @override
+  Future<bool> setEnabled(String id, bool enabled) async {
+    final index = tasks.indexWhere((task) => task.id == id);
+    if (index < 0) return false;
+    tasks[index] = tasks[index].copyWith(enabled: enabled);
+    return true;
+  }
+
+  @override
+  Future<bool> remove(String id) async {
+    final before = tasks.length;
+    tasks.removeWhere((task) => task.id == id);
+    return tasks.length != before;
+  }
+
+  @override
+  Future<({bool ok, String summary})> runNow(String id) async => runResult;
+}
+
 /// 一组默认接入的假端口，测试按需覆盖。
 class ToolFakes {
   ToolFakes({
     List<MusicItem>? library,
     List<Playlist>? playlists,
     List<CustomSource>? sources,
+    FakeEqualizer? equalizer,
+    FakeCharts? charts,
   }) : library = library ?? [song('1', '晴天', '周杰伦'), song('2', '夜曲', '周杰伦')],
        playback = FakePlayback(),
        playlists = FakePlaylists(items: playlists),
        downloads = FakeDownloads(),
        sources = FakeSources(items: sources),
-       settings = FakeSettings();
+       recommendations = FakeRecommendations(),
+       settings = FakeSettings(),
+       equalizer = equalizer ?? FakeEqualizer(),
+       stats = FakeStats(),
+       lyrics = FakeLyrics(),
+       charts = charts ?? FakeCharts(),
+       schedules = FakeSchedules();
 
   final List<MusicItem> library;
   final FakePlayback playback;
   final FakePlaylists playlists;
   final FakeDownloads downloads;
   final FakeSources sources;
+  final FakeRecommendations recommendations;
   final FakeSettings settings;
+  final FakeEqualizer equalizer;
+  final FakeStats stats;
+  final FakeLyrics lyrics;
+  final FakeCharts charts;
+  final FakeSchedules schedules;
   final List<String> queries = [];
 
   AiToolbox toolbox({bool allowActions = true}) => AiToolbox(
@@ -413,7 +663,13 @@ class ToolFakes {
     playlists: playlists,
     downloads: downloads,
     sources: sources,
+    recommendations: recommendations,
     settings: settings,
+    equalizer: equalizer,
+    stats: stats,
+    lyrics: lyrics,
+    charts: charts,
+    schedules: schedules,
     search: (query, limit) async {
       queries.add(query);
       return library.take(limit).toList(growable: false);

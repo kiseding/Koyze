@@ -31,6 +31,15 @@ class HomeQuickFeature {
 
 const homeQuickFeatures = <HomeQuickFeature>[
   HomeQuickFeature(
+    id: 'ai',
+    title: 'AI 助手',
+    subtitle: '一句话让它动手',
+    icon: Icons.auto_awesome_rounded,
+    route: '/ai-assistant',
+    color: Color(0xFF7C4DFF),
+    enabledByDefault: true,
+  ),
+  HomeQuickFeature(
     id: 'recommend',
     title: '猜你喜欢',
     subtitle: '根据历史推荐',
@@ -156,7 +165,6 @@ const homeQuickFeatures = <HomeQuickFeature>[
     icon: Icons.cloud_sync_rounded,
     route: '/sync',
     color: Color(0xFF039BE5),
-    enabledByDefault: true,
   ),
   HomeQuickFeature(
     id: 'local_scan',
@@ -259,7 +267,12 @@ class HomeQuickSettingsNotifier extends BuildlessNotifier<HomeQuickSettings> {
     _load();
   }
 
-  static const _key = 'home_quick_features_v1';
+  static const _key = 'home_quick_features_v2';
+
+  /// 上一版把「云同步」摆在默认八格里。换成 AI 助手是一次性的默认值调整：
+  /// v1 → v2 迁移时把云同步摘掉、把 AI 放进去，之后用户怎么改都按 v2 走。
+  static const _legacyKey = 'home_quick_features_v1';
+
   static final _defaultOrder = [
     for (final feature in homeQuickFeatures) feature.id,
   ];
@@ -268,7 +281,8 @@ class HomeQuickSettingsNotifier extends BuildlessNotifier<HomeQuickSettings> {
 
   Future<void> _load() async {
     try {
-      final raw = (await _storage()).getJson(_key);
+      final storage = await _storage();
+      final raw = storage.getJson(_key) ?? _migrateLegacy(storage.getJson(_legacyKey));
       final order = raw?['order'];
       if (order is! List) return;
       final known = _defaultOrder.toSet();
@@ -324,6 +338,33 @@ class HomeQuickSettingsNotifier extends BuildlessNotifier<HomeQuickSettings> {
     for (final feature in homeQuickFeatures)
       if (!value.order.contains(feature.id)) feature.id,
   ];
+
+  /// 把 v1 配置翻译成 v2 的默认值：
+  /// * 顺序沿用用户排过的，「AI 助手」插到最前面（它是这次换上的主角）；
+  /// * 云同步从已启用里去掉——不是删功能，只是默认不显示，用户随时能在
+  ///   「快捷功能」面板里重新打开。
+  static Map<String, dynamic>? _migrateLegacy(Map<String, dynamic>? legacy) {
+    if (legacy == null) return null;
+    final storedOrder = legacy['order'];
+    final order = <String>[
+      'ai',
+      if (storedOrder is List)
+        for (final value in storedOrder)
+          if (value.toString() != 'ai') value.toString(),
+    ];
+    final storedEnabled = legacy['enabled'];
+    final enabled = storedEnabled is List
+        ? {
+            for (final value in storedEnabled)
+              if (value.toString() != 'sync') value.toString(),
+            'ai',
+          }
+        : <String>{
+            for (final feature in homeQuickFeatures)
+              if (feature.enabledByDefault) feature.id,
+          };
+    return {'order': order, 'enabled': enabled.toList(growable: false)};
+  }
 
   Future<void> _persist() async {
     final generation = ++_generation;
