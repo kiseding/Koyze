@@ -2244,4 +2244,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get carModeStatusUnsupported => '此设备不支持 Car Kit';
+
+  @override
+  String get settingsSearch => '搜索设置';
+
+  @override
+  String get settingsSearchHint => '搜索设置项，试试「音质」「深色模式」';
+
+  @override
+  String get settingsSearchEmpty => '没有匹配的设置项';
 }

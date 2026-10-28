@@ -213,6 +213,9 @@ class S {
   String get platform => _l10n.platform;
   String get searchFieldHint => _l10n.searchFieldHint;
   String get searchAction => _l10n.searchAction;
+  String get settingsSearch => _l10n.settingsSearch;
+  String get settingsSearchHint => _l10n.settingsSearchHint;
+  String get settingsSearchEmpty => _l10n.settingsSearchEmpty;
   String get noResults => _l10n.noResults;
   String get searchEmptyHint => _l10n.searchEmptyHint;
   String get searchErrorTitle => _l10n.searchErrorTitle;

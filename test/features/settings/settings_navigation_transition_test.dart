@@ -208,6 +208,22 @@ void main() {
       );
     },
   );
+  test('every settings row is an entry so search cannot miss one', () {
+    final source = File(
+      'lib/features/settings/presentation/settings_screen.dart',
+    ).readAsStringSync();
+
+    // 页面按 SettingsEntry 渲染，搜索按同一张表建索引。谁要是又在 build 里
+    // 手写一行，那一行就会「看得见、搜不到」——这里把它摁住。
+    expect(source, contains('List<SettingsSectionSpec> _buildSections('));
+    expect(source, isNot(contains('Widget _buildSection(')));
+    expect(source, isNot(contains('_buildNavTile(')));
+    expect(RegExp(r'return _SettingsNavTile\(').allMatches(source), hasLength(1));
+    // 右上角的搜索入口。
+    expect(source, contains('s.settingsSearch'));
+    expect(source, contains('SettingsSearchLayer('));
+  });
+
   test('default search picker includes self-hosted and nas sources', () {
     final settings = File(
       'lib/features/settings/presentation/settings_screen.dart',

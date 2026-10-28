@@ -11,7 +11,6 @@ import '../../../core/io/bounded_input.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_themes.dart';
-import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/storage/storage_service.dart';
@@ -34,6 +33,9 @@ import '../../sync/data/sync_identity_store.dart';
 import '../../nas/domain/nas_url.dart';
 import '../../car_mode/presentation/car_mode_provider.dart';
 import '../../car_mode/presentation/car_mode_sheet.dart';
+import 'settings_entry.dart';
+import 'settings_search_layer.dart';
+import 'settings_section_card.dart';
 import 'package:koyze/core/widgets/koyze_modal.dart';
 
 const double settingsOptionMaxWidth = 340;
@@ -53,6 +55,18 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _handledInitialAction = false;
+  bool _searching = false;
+
+  /// Runs a row picked from search. Search closes first so the page a row
+  /// pushes — or the sheet it opens — is not fighting the layer for the
+  /// keyboard and the back gesture.
+  void _activateFromSearch(SettingsEntry entry) {
+    final action = entry.onTap;
+    if (action == null) return;
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() => _searching = false);
+    action();
+  }
 
   @override
   void didChangeDependencies() {
@@ -101,17 +115,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeModeProvider);
-    final audioQuality = ref.watch(audioQualityProvider);
-    final language = ref.watch(appLanguageProvider);
     final s = S.of(context);
-
-    final isDark =
-        themeMode == ThemeMode.dark ||
-        (themeMode == ThemeMode.system &&
-            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
-
     final isLandscapeShell = RootShellLayout.usesSideNavigationOf(context);
+    final sections = _buildSections(context, ref, s);
 
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
@@ -129,399 +135,567 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     bottom: RootShellLayout.obscuredBottomOf(context),
                   ),
                   children: [
-                    _buildSection(context, s.sync, [
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.cloudAccount,
-                        s.cloudAccountSubtitle,
-                        () => context.push('/sync'),
-                        captureExpandOrigin: true,
+                    for (final section in sections)
+                      SettingsSectionCard(
+                        title: section.title,
+                        children: [
+                          ...section.leadIn,
+                          for (final entry in section.entries)
+                            _buildEntry(context, entry),
+                        ],
                       ),
-                    ]),
-                    _buildSection(context, s.advanced, [
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.localLibrary,
-                        s.localLibrarySubtitle,
-                        () => context.push('/local-music'),
-                        captureExpandOrigin: true,
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.customSources,
-                        s.customSourcesSubtitle,
-                        () => context.push('/custom-source'),
-                        captureExpandOrigin: true,
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.aiAssistantTitle,
-                        s.aiAssistantSubtitle,
-                        () => context.push('/ai-assistant'),
-                        captureExpandOrigin: true,
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.nasServer,
-                        platformPickerDescription(
-                          'subsonic',
-                          locale: Localizations.localeOf(context),
-                        ),
-                        () => context.push('/subsonic-settings'),
-                        captureExpandOrigin: true,
-                      ),
-                    ]),
-                    _buildSection(context, s.playback, [
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.audioQuality,
-                        _getQualityName(audioQuality),
-                        () => _showAudioQualityDialog(context, ref),
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.equalizer,
-                        equalizerSubtitle(
-                          ref.watch(equalizerProvider),
-                          locale: Localizations.localeOf(context),
-                        ),
-                        () => context.push('/equalizer'),
-                        captureExpandOrigin: true,
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.sleepTimer,
-                        sleepTimerSubtitle(
-                          ref.watch(sleepTimerProvider),
-                          locale: Localizations.localeOf(context),
-                        ),
-                        () => _showSleepTimerMenu(context, ref),
-                        trailing:
-                            ref.watch(sleepTimerProvider) is SleepTimerRunning
-                            ? TextButton(
-                                onPressed: () {
-                                  ref
-                                      .read(sleepTimerProvider.notifier)
-                                      .cancelTimer();
-                                  showAppNotification(
-                                    s.sleepTimerCancelled,
-                                    type: AppNotificationType.success,
-                                  );
-                                },
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  foregroundColor: AppColors.accentOf(context),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.timer_off_outlined,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      s.cancel,
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : null,
-                      ),
-                      _buildSwitchTile(
-                        context,
-                        ref,
-                        s.autoResume,
-                        s.autoResumeSubtitle,
-                        ref.watch(autoResumePlaybackProvider),
-                        (value) {
-                          ref
-                              .read(autoResumePlaybackProvider.notifier)
-                              .setAutoResume(value);
-                        },
-                      ),
-                      _buildSwitchTile(
-                        context,
-                        ref,
-                        s.forceLandscape,
-                        s.forceLandscapeSubtitle,
-                        ref.watch(forceLandscapeProvider),
-                        (value) {
-                          ref
-                              .read(forceLandscapeProvider.notifier)
-                              .setEnabled(value);
-                        },
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.carMode,
-                        carModeStatusText(
-                          ref.watch(carConnectionProvider),
-                          s,
-                        ),
-                        () => showCarModeSheet(context, ref),
-                      ),
-                      _buildSwitchTile(
-                        context,
-                        ref,
-                        s.simplifyEffects,
-                        s.simplifyEffectsSubtitle,
-                        ref.watch(simplifyEffectsProvider),
-                        (value) {
-                          ref
-                              .read(simplifyEffectsProvider.notifier)
-                              .setEnabled(value);
-                        },
-                      ),
-                      if (androidFloatingPlayerSupported)
-                        _buildSwitchTile(
-                          context,
-                          ref,
-                          s.floatingPlayer,
-                          s.floatingPlayerSubtitle,
-                          ref.watch(androidFloatingPlayerProvider),
-                          (value) => _setFloatingPlayer(context, ref, value),
-                        ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.defaultSearchPlatform,
-                        _platformName(ref.watch(defaultSearchPlatformProvider)),
-                        () => _showDefaultPlatformDialog(context, ref),
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.listeningStats,
-                        s.listeningStatsSubtitle,
-                        () => context.push('/stats'),
-                        captureExpandOrigin: true,
-                      ),
-                    ]),
-                    _buildSection(context, s.appearance, [
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.language,
-                        s.languageName(language),
-                        () => _showLanguageDialog(context),
-                      ),
-                      _buildSwitchTile(
-                        context,
-                        ref,
-                        s.darkMode,
-                        s.darkModeSubtitle,
-                        isDark && themeMode != ThemeMode.system,
-                        (value) {
-                          ref
-                              .read(themeModeProvider.notifier)
-                              .setThemeMode(
-                                value ? ThemeMode.dark : ThemeMode.light,
-                              );
-                        },
-                      ),
-                      _buildSwitchTile(
-                        context,
-                        ref,
-                        s.followSystem,
-                        s.followSystemThemeSubtitle,
-                        themeMode == ThemeMode.system,
-                        (value) {
-                          if (value) {
-                            ref
-                                .read(themeModeProvider.notifier)
-                                .setThemeMode(ThemeMode.system);
-                          } else {
-                            final darkNow =
-                                MediaQuery.platformBrightnessOf(context) ==
-                                Brightness.dark;
-                            ref
-                                .read(themeModeProvider.notifier)
-                                .setThemeMode(
-                                  darkNow ? ThemeMode.dark : ThemeMode.light,
-                                );
-                          }
-                        },
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.themeColor,
-                        s.themeColorSubtitle,
-                        () => _showThemeColorDialog(context),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 18,
-                              height: 18,
-                              decoration: BoxDecoration(
-                                color: ref.watch(accentColorProvider),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: AppColors.cardBorder(context),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Icon(
-                              Icons.chevron_right,
-                              color: AppColors.mutedText(context),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ]),
-                    _buildSection(context, s.downloads, [
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.downloadManager,
-                        s.downloadManagerSubtitle,
-                        () => context.push('/download'),
-                        captureExpandOrigin: true,
-                      ),
-                      _buildSwitchTile(
-                        context,
-                        ref,
-                        s.wifiOnly,
-                        s.wifiOnlySubtitle,
-                        ref.watch(wifiOnlyDownloadProvider),
-                        (value) {
-                          ref
-                              .read(wifiOnlyDownloadProvider.notifier)
-                              .setWifiOnly(value);
-                          ref.read(setWifiOnlyDownloadProvider)(value);
-                        },
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.downloadQuality,
-                        _getQualityName(ref.watch(downloadQualityProvider)),
-                        () => _showDownloadQualityDialog(context, ref),
-                      ),
-                    ]),
-                    _buildSection(context, s.data, [
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.backup,
-                        s.backupSubtitle,
-                        () => _backupData(context, ref),
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.restore,
-                        s.restoreSubtitle,
-                        () => _restoreData(context, ref),
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.clearCache,
-                        s.clearCacheSubtitle,
-                        () => _clearCache(context, ref),
-                      ),
-                    ]),
-                    _buildSection(context, s.about, [
-                      _SettingRow(name: s.version, value: kAppVersionLabel),
-                      _DeviceIdRow(
-                        deviceId: ref
-                            .watch(settingsDeviceIdProvider)
-                            .valueOrNull,
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.diagnostics,
-                        s.diagnosticsSubtitle,
-                        () => showDiagnosticLogOverlay(context),
-                      ),
-                    ]),
                     const SizedBox(height: 40),
                   ],
                 ),
               ),
             ),
-            // 只发布标题：顶栏由根壳层渲染，切 tab 时不会跟着页面走。
-            RootHeaderPublisher(index: 3, title: s.settings),
+            if (_searching)
+              Positioned.fill(
+                child: SettingsSearchLayer(
+                  sections: sections,
+                  topInset: isLandscapeShell
+                      ? 0
+                      : FrostedTabHeader.extent(context),
+                  bottomInset: RootShellLayout.obscuredBottomOf(context),
+                  onClose: () => setState(() => _searching = false),
+                  onActivate: _activateFromSearch,
+                ),
+              ),
+            // 标题和右上角的搜索入口都交给根壳层：切 tab 时栏原地不动，
+            // 只有文字和按钮换位置。
+            RootHeaderPublisher(
+              index: 3,
+              title: s.settings,
+              actions: [
+                FrostedHeaderButton(
+                  icon: _searching ? Icons.close_rounded : Icons.search_rounded,
+                  semanticLabel: _searching ? s.cancel : s.settingsSearch,
+                  onTap: () => setState(() => _searching = !_searching),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSection(
+  /// 设置项的唯一来源：页面按它渲染，搜索按它建索引。
+  ///
+  /// 以前每个入口都是 build 里手写的一行，加一项就得记得在两处改；现在
+  /// 一张表同时喂给列表和搜索，谁都不会漏。
+  List<SettingsSectionSpec> _buildSections(
     BuildContext context,
-    String title,
-    List<Widget> children,
+    WidgetRef ref,
+    S s,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(16, 20, 16, 8),
-          child: Text(
-            title,
-            style: TextStyle(
-              // 与首页「快捷方式」、歌单页「自定义歌单」同一档：
-              // 分区标签是路标，不是注脚。10pt 加 1.2 字距在中文字面下
-              // 几乎读不出字形，45% 黑的对比度也不够。
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-              color: AppColors.secondaryText(context),
-            ),
+    final themeMode = ref.watch(themeModeProvider);
+    final audioQuality = ref.watch(audioQualityProvider);
+    final language = ref.watch(appLanguageProvider);
+    final isDark =
+        themeMode == ThemeMode.dark ||
+        (themeMode == ThemeMode.system &&
+            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
+
+    return [
+      SettingsSectionSpec(
+        title: s.sync,
+        entries: [
+          SettingsEntry(
+            title: s.cloudAccount,
+            subtitle: s.cloudAccountSubtitle,
+            keywords: const ['同步', 'sync', '账号', 'account', '云端', 'cloud'],
+            onTap: () => context.push('/sync'),
+            captureExpandOrigin: true,
           ),
-        ),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          child: GlassSurface(
-            style: AppGlassStyle.regular,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.fromBorderSide(
-              AppGlass.hairline(context, emphasized: false),
+        ],
+      ),
+      SettingsSectionSpec(
+        title: s.advanced,
+        entries: [
+          SettingsEntry(
+            title: s.localLibrary,
+            subtitle: s.localLibrarySubtitle,
+            keywords: const [
+              '本地',
+              'local',
+              '扫描',
+              'scan',
+              '文件夹',
+              'folder',
+              '音乐库',
+              'library',
+            ],
+            onTap: () => context.push('/local-music'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.customSources,
+            subtitle: s.customSourcesSubtitle,
+            keywords: const [
+              '音源',
+              'source',
+              '自定义',
+              'custom',
+              '插件',
+              'plugin',
+            ],
+            onTap: () => context.push('/custom-source'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.aiAssistantTitle,
+            subtitle: s.aiAssistantSubtitle,
+            keywords: const [
+              'ai',
+              '助手',
+              'assistant',
+              '智能',
+              '对话',
+              'chat',
+              '模型',
+              'model',
+            ],
+            onTap: () => context.push('/ai-assistant'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.nasServer,
+            subtitle: platformPickerDescription(
+              'subsonic',
+              locale: Localizations.localeOf(context),
             ),
-            child: Column(
+            keywords: const [
+              'nas',
+              'subsonic',
+              '服务器',
+              'server',
+              '乐库',
+              '自建',
+            ],
+            onTap: () => context.push('/subsonic-settings'),
+            captureExpandOrigin: true,
+          ),
+        ],
+      ),
+      SettingsSectionSpec(
+        title: s.playback,
+        entries: [
+          SettingsEntry(
+            title: s.audioQuality,
+            subtitle: _getQualityName(audioQuality),
+            keywords: const [
+              '音质',
+              'quality',
+              '码率',
+              'bitrate',
+              '无损',
+              'flac',
+              'hires',
+              '音效',
+            ],
+            onTap: () => _showAudioQualityDialog(context, ref),
+          ),
+          SettingsEntry(
+            title: s.equalizer,
+            subtitle: equalizerSubtitle(
+              ref.watch(equalizerProvider),
+              locale: Localizations.localeOf(context),
+            ),
+            keywords: const [
+              '均衡器',
+              'equalizer',
+              'eq',
+              '音效',
+              '低音',
+              'bass',
+              '频段',
+            ],
+            onTap: () => context.push('/equalizer'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.sleepTimer,
+            subtitle: sleepTimerSubtitle(
+              ref.watch(sleepTimerProvider),
+              locale: Localizations.localeOf(context),
+            ),
+            keywords: const [
+              '睡眠',
+              'sleep',
+              '定时',
+              'timer',
+              '关闭播放',
+              '睡前',
+            ],
+            onTap: () => _showSleepTimerMenu(context, ref),
+            trailing: _sleepTimerTrailing(context, ref, s),
+          ),
+          SettingsEntry(
+            title: s.autoResume,
+            subtitle: s.autoResumeSubtitle,
+            keywords: const [
+              '续播',
+              'resume',
+              'autoplay',
+              '自动播放',
+              '接着播',
+            ],
+            toggleValue: ref.watch(autoResumePlaybackProvider),
+            onToggle: (value) {
+              ref
+                  .read(autoResumePlaybackProvider.notifier)
+                  .setAutoResume(value);
+            },
+          ),
+          SettingsEntry(
+            title: s.forceLandscape,
+            subtitle: s.forceLandscapeSubtitle,
+            keywords: const [
+              '横屏',
+              'landscape',
+              '旋转',
+              'rotate',
+              '方向',
+              'orientation',
+            ],
+            toggleValue: ref.watch(forceLandscapeProvider),
+            onToggle: (value) {
+              ref.read(forceLandscapeProvider.notifier).setEnabled(value);
+            },
+          ),
+          SettingsEntry(
+            title: s.carMode,
+            subtitle: carModeStatusText(ref.watch(carConnectionProvider), s),
+            keywords: const [
+              '车机',
+              'car',
+              'hicar',
+              '车载',
+              '投屏',
+              '驾驶',
+            ],
+            onTap: () => showCarModeSheet(context, ref),
+          ),
+          SettingsEntry(
+            title: s.simplifyEffects,
+            subtitle: s.simplifyEffectsSubtitle,
+            keywords: const [
+              '动效',
+              'effects',
+              '动画',
+              'animation',
+              '流畅',
+              '性能',
+              'performance',
+            ],
+            toggleValue: ref.watch(simplifyEffectsProvider),
+            onToggle: (value) {
+              ref.read(simplifyEffectsProvider.notifier).setEnabled(value);
+            },
+          ),
+          if (androidFloatingPlayerSupported)
+            SettingsEntry(
+              title: s.floatingPlayer,
+              subtitle: s.floatingPlayerSubtitle,
+              keywords: const [
+                '悬浮',
+                'floating',
+                '浮窗',
+                'overlay',
+                '小窗',
+                '桌面',
+              ],
+              toggleValue: ref.watch(androidFloatingPlayerProvider),
+              onToggle: (value) => _setFloatingPlayer(context, ref, value),
+            ),
+          SettingsEntry(
+            title: s.defaultSearchPlatform,
+            subtitle: _platformName(ref.watch(defaultSearchPlatformProvider)),
+            keywords: const [
+              '搜索',
+              'search',
+              '平台',
+              'platform',
+              '默认',
+              'default',
+              '音源',
+            ],
+            onTap: () => _showDefaultPlatformDialog(context, ref),
+          ),
+          SettingsEntry(
+            title: s.listeningStats,
+            subtitle: s.listeningStatsSubtitle,
+            keywords: const [
+              '统计',
+              'stats',
+              '听歌',
+              '报告',
+              'report',
+              '数据',
+            ],
+            onTap: () => context.push('/stats'),
+            captureExpandOrigin: true,
+          ),
+        ],
+      ),
+      SettingsSectionSpec(
+        title: s.appearance,
+        entries: [
+          SettingsEntry(
+            title: s.language,
+            subtitle: s.languageName(language),
+            keywords: const [
+              '语言',
+              'language',
+              '中文',
+              'english',
+              '英文',
+              '简体',
+            ],
+            onTap: () => _showLanguageDialog(context),
+          ),
+          SettingsEntry(
+            title: s.darkMode,
+            subtitle: s.darkModeSubtitle,
+            keywords: const [
+              '深色',
+              'dark',
+              '夜间',
+              'night',
+              '黑色',
+              '模式',
+            ],
+            toggleValue: isDark && themeMode != ThemeMode.system,
+            onToggle: (value) {
+              ref
+                  .read(themeModeProvider.notifier)
+                  .setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
+            },
+          ),
+          SettingsEntry(
+            title: s.followSystem,
+            subtitle: s.followSystemThemeSubtitle,
+            keywords: const [
+              '跟随',
+              'follow',
+              'system',
+              '系统',
+              '主题',
+              '自动',
+            ],
+            toggleValue: themeMode == ThemeMode.system,
+            onToggle: (value) {
+              if (value) {
+                ref
+                    .read(themeModeProvider.notifier)
+                    .setThemeMode(ThemeMode.system);
+              } else {
+                final darkNow =
+                    MediaQuery.platformBrightnessOf(context) ==
+                    Brightness.dark;
+                ref
+                    .read(themeModeProvider.notifier)
+                    .setThemeMode(darkNow ? ThemeMode.dark : ThemeMode.light);
+              }
+            },
+          ),
+          SettingsEntry(
+            title: s.themeColor,
+            subtitle: s.themeColorSubtitle,
+            keywords: const [
+              '主题',
+              'theme',
+              '颜色',
+              'color',
+              '配色',
+              'accent',
+              '强调色',
+            ],
+            onTap: () => _showThemeColorDialog(context),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                for (var i = 0; i < children.length; i++) ...[
-                  children[i],
-                  if (i < children.length - 1)
-                    Divider(
-                      height: 1,
-                      thickness: 0.5,
-                      color: AppColors.cardBorder(context),
-                    ),
-                ],
+                Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: ref.watch(accentColorProvider),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.cardBorder(context)),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(Icons.chevron_right, color: AppColors.mutedText(context)),
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+      SettingsSectionSpec(
+        title: s.downloads,
+        entries: [
+          SettingsEntry(
+            title: s.downloadManager,
+            subtitle: s.downloadManagerSubtitle,
+            keywords: const ['下载', 'download', '任务', '队列', 'queue'],
+            onTap: () => context.push('/download'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.wifiOnly,
+            subtitle: s.wifiOnlySubtitle,
+            keywords: const [
+              'wifi',
+              '无线',
+              '流量',
+              'data',
+              '网络',
+              'network',
+              '下载',
+            ],
+            toggleValue: ref.watch(wifiOnlyDownloadProvider),
+            onToggle: (value) {
+              ref.read(wifiOnlyDownloadProvider.notifier).setWifiOnly(value);
+              ref.read(setWifiOnlyDownloadProvider)(value);
+            },
+          ),
+          SettingsEntry(
+            title: s.downloadQuality,
+            subtitle: _getQualityName(ref.watch(downloadQualityProvider)),
+            keywords: const [
+              '下载音质',
+              'download',
+              'quality',
+              '码率',
+              'bitrate',
+              '无损',
+            ],
+            onTap: () => _showDownloadQualityDialog(context, ref),
+          ),
+        ],
+      ),
+      SettingsSectionSpec(
+        title: s.data,
+        entries: [
+          SettingsEntry(
+            title: s.backup,
+            subtitle: s.backupSubtitle,
+            keywords: const [
+              '备份',
+              'backup',
+              '导出',
+              'export',
+              '数据',
+              'data',
+            ],
+            onTap: () => _backupData(context, ref),
+          ),
+          SettingsEntry(
+            title: s.restore,
+            subtitle: s.restoreSubtitle,
+            keywords: const [
+              '恢复',
+              'restore',
+              '导入',
+              'import',
+              '数据',
+              'data',
+            ],
+            onTap: () => _restoreData(context, ref),
+          ),
+          SettingsEntry(
+            title: s.clearCache,
+            subtitle: s.clearCacheSubtitle,
+            keywords: const [
+              '缓存',
+              'cache',
+              '清理',
+              'clean',
+              '空间',
+              'storage',
+            ],
+            onTap: () => _clearCache(context, ref),
+          ),
+        ],
+      ),
+      SettingsSectionSpec(
+        title: s.about,
+        leadIn: [
+          _SettingRow(name: s.version, value: kAppVersionLabel),
+          _DeviceIdRow(
+            deviceId: ref.watch(settingsDeviceIdProvider).valueOrNull,
+          ),
+        ],
+        entries: [
+          SettingsEntry(
+            title: s.diagnostics,
+            subtitle: s.diagnosticsSubtitle,
+            keywords: const [
+              '日志',
+              'log',
+              '诊断',
+              'diagnostics',
+              '反馈',
+              'feedback',
+              '排查',
+            ],
+            onTap: () => showDiagnosticLogOverlay(context),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  Widget _buildEntry(BuildContext context, SettingsEntry entry) {
+    if (entry.isToggle) {
+      return _buildSwitchTile(
+        context,
+        entry.title,
+        entry.subtitle,
+        entry.toggleValue!,
+        entry.onToggle!,
+      );
+    }
+    return _SettingsNavTile(
+      title: entry.title,
+      subtitle: entry.subtitle,
+      onTap: entry.onTap ?? () {},
+      trailing: entry.trailing,
+      captureExpandOrigin: entry.captureExpandOrigin,
+    );
+  }
+
+  /// 睡眠定时开着时，行尾给一颗「取消」；其余时候这把位子留空。
+  Widget? _sleepTimerTrailing(BuildContext context, WidgetRef ref, S s) {
+    if (ref.watch(sleepTimerProvider) is! SleepTimerRunning) return null;
+    return TextButton(
+      onPressed: () {
+        ref.read(sleepTimerProvider.notifier).cancelTimer();
+        showAppNotification(
+          s.sleepTimerCancelled,
+          type: AppNotificationType.success,
+        );
+      },
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        foregroundColor: AppColors.accentOf(context),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.timer_off_outlined, size: 16),
+          const SizedBox(width: 4),
+          Text(s.cancel, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
     );
   }
 
   Widget _buildSwitchTile(
     BuildContext context,
-    WidgetRef ref,
     String title,
     String subtitle,
     bool value,
@@ -557,24 +731,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           FxSwitch(value: value, onChanged: onChanged),
         ],
       ),
-    );
-  }
-
-  Widget _buildNavTile(
-    BuildContext context,
-    WidgetRef ref,
-    String title,
-    String subtitle,
-    VoidCallback onTap, {
-    Widget? trailing,
-    bool captureExpandOrigin = false,
-  }) {
-    return _SettingsNavTile(
-      title: title,
-      subtitle: subtitle,
-      onTap: onTap,
-      trailing: trailing,
-      captureExpandOrigin: captureExpandOrigin,
     );
   }
 

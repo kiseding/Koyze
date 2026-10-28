@@ -1404,5 +1404,8 @@
   "carModeOff": "Off",
   "carModeStatusConnected": "HiCar connected",
   "carModeStatusDisconnected": "No head unit connected",
-  "carModeStatusUnsupported": "Car Kit is unavailable here"
+  "carModeStatusUnsupported": "Car Kit is unavailable here",
+  "settingsSearch": "Search settings",
+  "settingsSearchHint": "Search settings, e.g. quality or dark mode",
+  "settingsSearchEmpty": "No matching settings"
 }

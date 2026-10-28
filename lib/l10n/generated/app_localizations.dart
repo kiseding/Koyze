@@ -4189,6 +4189,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Car Kit is unavailable here'**
   String get carModeStatusUnsupported;
+
+  /// No description provided for @settingsSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search settings'**
+  String get settingsSearch;
+
+  /// No description provided for @settingsSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search settings, e.g. quality or dark mode'**
+  String get settingsSearchHint;
+
+  /// No description provided for @settingsSearchEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching settings'**
+  String get settingsSearchEmpty;
 }
 
 class _AppLocalizationsDelegate

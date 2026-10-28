@@ -2290,4 +2290,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get carModeStatusUnsupported => 'Car Kit is unavailable here';
+
+  @override
+  String get settingsSearch => 'Search settings';
+
+  @override
+  String get settingsSearchHint => 'Search settings, e.g. quality or dark mode';
+
+  @override
+  String get settingsSearchEmpty => 'No matching settings';
 }

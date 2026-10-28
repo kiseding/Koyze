@@ -702,5 +702,8 @@
   "carModeOff": "关闭",
   "carModeStatusConnected": "已连接 HiCar",
   "carModeStatusDisconnected": "未连接车机",
-  "carModeStatusUnsupported": "此设备不支持 Car Kit"
+  "carModeStatusUnsupported": "此设备不支持 Car Kit",
+  "settingsSearch": "搜索设置",
+  "settingsSearchHint": "搜索设置项，试试「音质」「深色模式」",
+  "settingsSearchEmpty": "没有匹配的设置项"
 }
