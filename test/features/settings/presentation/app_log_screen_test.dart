@@ -7,7 +7,7 @@ void main() {
   testWidgets('shows live entries and enables copy when available', (
     tester,
   ) async {
-    final log = AppLog();
+    final log = AppLog(startRecording: true);
     log.record('audio', 'route changed');
 
     await tester.pumpWidget(MaterialApp(home: AppLogScreen(log: log)));
@@ -19,11 +19,13 @@ void main() {
     expect(tester.widget<IconButton>(copyButton).onPressed, isNotNull);
   });
 
-  testWidgets('opening diagnostics keeps existing entries', (tester) async {
+  testWidgets('records nothing until the overlay is opened', (tester) async {
     final log = AppLog.instance;
+    log.stop();
     log.clear();
-    log.record('custom_source.import', 'local file import failed');
     addTearDown(log.clear);
+    log.record('custom_source.import', 'recorded before opening');
+    expect(log.exportText(), isEmpty);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -38,10 +40,17 @@ void main() {
 
     await tester.tap(find.text('open'));
     await tester.pump();
+    expect(log.isActive, isTrue);
 
+    log.record('custom_source.import', 'local file import failed');
+    await tester.pump();
+
+    expect(find.textContaining('recorded before opening'), findsNothing);
     expect(find.textContaining('local file import failed'), findsOneWidget);
+
     await tester.tap(find.byTooltip('Close diagnostics'));
     await tester.pump();
+    expect(log.isActive, isFalse);
   });
 
   testWidgets(
@@ -76,4 +85,26 @@ void main() {
       expect(AppLog.instance.isActive, isFalse);
     },
   );
+
+  testWidgets('filters down to warnings and errors', (tester) async {
+    final log = AppLog(startRecording: true);
+    log.record('network', 'quiet info');
+    log.record('network', 'slow response', level: AppLogLevel.warning);
+    log.record('network', 'request failed', level: AppLogLevel.error);
+
+    await tester.pumpWidget(MaterialApp(home: AppLogScreen(log: log)));
+
+    expect(find.textContaining('quiet info'), findsOneWidget);
+
+    await tester.tap(find.textContaining('Errors'));
+    await tester.pump();
+    expect(find.textContaining('request failed'), findsOneWidget);
+    expect(find.textContaining('quiet info'), findsNothing);
+    expect(find.textContaining('slow response'), findsNothing);
+
+    await tester.tap(find.textContaining('Warnings'));
+    await tester.pump();
+    expect(find.textContaining('slow response'), findsOneWidget);
+    expect(find.textContaining('request failed'), findsNothing);
+  });
 }

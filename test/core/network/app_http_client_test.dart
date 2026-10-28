@@ -25,7 +25,8 @@ class _ResponseAdapter implements HttpClientAdapter {
 
 void main() {
   test('records successful requests without query parameters', () async {
-    final log = AppLog.instance..clear();
+    final log = AppLog.instance..start(installHooks: false)..clear();
+    addTearDown(log.stop);
     final client = AppHttpClient.create();
     addTearDown(client.close);
     addTearDown(log.clear);
@@ -42,7 +43,8 @@ void main() {
   });
 
   test('records failed HTTP responses', () async {
-    final log = AppLog.instance..clear();
+    final log = AppLog.instance..start(installHooks: false)..clear();
+    addTearDown(log.stop);
     final client = AppHttpClient.create();
     addTearDown(client.close);
     addTearDown(log.clear);

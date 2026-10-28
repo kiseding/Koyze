@@ -33,8 +33,14 @@ final class AppLogEntry {
   }
 }
 
+/// 内存里的运行日志。
+///
+/// 只在「记录中」时才收日志：[record] 在未开始记录时直接返回，调用点遍布整个
+/// 应用（一百多处），不这么做它们会在用户没看诊断面板的时候一直往内存里堆字符串、
+/// 每来一条还要重建一次 [entries] 列表。诊断面板打开时 [start]，关闭时 [stop]。
 final class AppLog with WidgetsBindingObserver {
-  AppLog({this.maximumEntries = 2000});
+  AppLog({this.maximumEntries = 2000, bool startRecording = false})
+    : _collecting = startRecording;
 
   static final AppLog instance = AppLog();
 
@@ -45,13 +51,35 @@ final class AppLog with WidgetsBindingObserver {
   DebugPrintCallback? _previousDebugPrint;
   FlutterExceptionHandler? _previousFlutterError;
   bool Function(Object error, StackTrace stackTrace)? _previousPlatformError;
-  bool _installed = false;
+  bool _hooksInstalled = false;
+  bool _collecting;
 
-  bool get isActive => _installed;
+  /// 是否正在记录。诊断面板打开期间为 true。
+  bool get isActive => _collecting;
 
-  void start() {
-    if (_installed) return;
-    _installed = true;
+  /// 开始记录。
+  ///
+  /// [installHooks] 为 false 时只打开记录开关，不去接管 debugPrint 与全局错误
+  /// 处理器——单元测试里没有绑定好的 WidgetsBinding，接管会直接抛异常。
+  void start({bool installHooks = true}) {
+    if (_collecting) {
+      if (installHooks) _installHooks();
+      return;
+    }
+    _collecting = true;
+    if (installHooks) _installHooks();
+    record('app', 'diagnostic logging started');
+  }
+
+  void stop() {
+    if (!_collecting) return;
+    _collecting = false;
+    _removeHooks();
+  }
+
+  void _installHooks() {
+    if (_hooksInstalled) return;
+    _hooksInstalled = true;
     _previousDebugPrint = debugPrint;
     debugPrint = _captureDebugPrint;
     _previousFlutterError = FlutterError.onError;
@@ -59,11 +87,11 @@ final class AppLog with WidgetsBindingObserver {
     _previousPlatformError = PlatformDispatcher.instance.onError;
     PlatformDispatcher.instance.onError = _capturePlatformError;
     WidgetsBinding.instance.addObserver(this);
-    record('app', 'diagnostic logging started');
   }
 
-  void stop() {
-    if (!_installed) return;
+  void _removeHooks() {
+    if (!_hooksInstalled) return;
+    _hooksInstalled = false;
     WidgetsBinding.instance.removeObserver(this);
     if (_previousDebugPrint != null) debugPrint = _previousDebugPrint!;
     FlutterError.onError = _previousFlutterError;
@@ -71,7 +99,6 @@ final class AppLog with WidgetsBindingObserver {
     _previousDebugPrint = null;
     _previousFlutterError = null;
     _previousPlatformError = null;
-    _installed = false;
   }
 
   void record(
@@ -80,6 +107,7 @@ final class AppLog with WidgetsBindingObserver {
     AppLogLevel level = AppLogLevel.info,
     StackTrace? stackTrace,
   }) {
+    if (!_collecting) return;
     var text = _redact(message?.toString() ?? '');
     if (text.length > 8000) {
       text = '${text.substring(0, 8000)}\n… message truncated';

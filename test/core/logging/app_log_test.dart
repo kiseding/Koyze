@@ -3,7 +3,7 @@ import 'package:koyze/core/logging/app_log.dart';
 
 void main() {
   test('keeps a bounded in-memory log and redacts credentials', () {
-    final log = AppLog(maximumEntries: 3);
+    final log = AppLog(maximumEntries: 3, startRecording: true);
 
     log.record('network', 'Authorization: Bearer secret-value');
     log.record('network', 'GET https://example.test/play?access_token=secret');

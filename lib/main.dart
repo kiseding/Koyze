@@ -75,13 +75,9 @@ Future<void> _bootstrap(
 Future<void> _bootstrapUnsafe(
   ValueNotifier<StartupBootstrapState> bootstrapStatus,
 ) async {
-  // Install diagnostics before anything else can fail. This also redirects
-  // debugPrint and registers the Flutter/platform error handlers, so every
-  // AppLog.instance.record call in this file actually stores something.
-  AppLog.instance.start();
-  // Crash capture and performance/health monitoring. Initialized after AppLog
-  // so that CrashReporter's global handlers chain onto AppLog's rather than
-  // replacing them. Kept non-fatal: monitoring must never block startup.
+  // 诊断日志不再在启动时挂上：它只在该面板被打开时记录，关闭即停。这里只装
+  // 崩溃捕获与健康监测——它们的全局处理器常驻，且不依赖用户是否在看日志。
+  // 启动阶段的失败会通过 StartupBootstrapState 报给界面，不靠内存日志兜底。
   try {
     await MonitoringService().initialize(MonitoringConfig.production);
   } catch (error, stackTrace) {
