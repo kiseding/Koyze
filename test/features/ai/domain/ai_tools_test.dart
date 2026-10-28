@@ -310,6 +310,32 @@ void main() {
     expect(bad['error'], contains('未知设置项'));
   });
 
+  test('布尔设置项认字符串也认真布尔', () async {
+    final fakes = ToolFakes();
+    final toolbox = fakes.toolbox();
+
+    // schema 把 value 声明成 string，模型多半会传 "true"/"false"。
+    final asText = await run(toolbox, AiToolbox.setAppSettingTool, {
+      'key': 'wifi_only_download',
+      'value': 'true',
+    });
+    expect(asText['value'], isTrue);
+    expect(fakes.settings.wifiOnlyDownload, isTrue);
+
+    final asBool = await run(toolbox, AiToolbox.setAppSettingTool, {
+      'key': 'wifi_only_download',
+      'value': false,
+    });
+    expect(asBool['value'], isFalse);
+    expect(fakes.settings.wifiOnlyDownload, isFalse);
+
+    final nonsense = await run(toolbox, AiToolbox.setAppSettingTool, {
+      'key': 'wifi_only_download',
+      'value': 'maybe',
+    });
+    expect(nonsense['error'], contains('true 或 false'));
+  });
+
   test('mark_disliked and the sleep timer change playback state', () async {
     final fakes = ToolFakes();
     fakes.playback.currentSong = song('1', '晴天', '周杰伦');

@@ -615,7 +615,10 @@ class AiToolbox {
       'download_quality（同上）、wifi_only_download（true/false）、theme（system/light/dark）。',
       {
         'key': {'type': 'string', 'description': '设置项名称'},
-        'value': {'description': '新的值，字符串或布尔'},
+        'value': {
+          'type': 'string',
+          'description': '新的值。布尔项传 "true" / "false"',
+        },
       },
       _runSetAppSetting,
       required: ['key', 'value'],
@@ -761,7 +764,7 @@ class AiToolbox {
       AiToolCategory.library,
       '重新扫描本地曲库（用户选的文件夹，Android 上还包括系统媒体库）。'
       '用户说「我刚拷了几首歌进去」时用；可能比较慢，返回这次新增的曲目数。',
-      {'type': 'object', 'properties': <String, dynamic>{}},
+      <String, dynamic>{},
       _runRescanLocal,
     ),
 
@@ -1472,8 +1475,18 @@ class AiToolbox {
         await settings.setDownloadQuality(token);
         return {'key': key, 'value': settings.downloadQuality};
       case 'wifi_only_download':
-        if (value is! bool) return {'error': 'wifi_only_download 需要布尔值'};
-        await settings.setWifiOnlyDownload(value);
+        // schema 声明成 string，所以模型多半传 "true"/"false"；也兼容真的布尔。
+        final flag = value is bool
+            ? value
+            : switch (value?.toString().trim().toLowerCase()) {
+                'true' || '1' || 'on' || 'yes' => true,
+                'false' || '0' || 'off' || 'no' => false,
+                _ => null,
+              };
+        if (flag == null) {
+          return {'error': 'wifi_only_download 需要 true 或 false'};
+        }
+        await settings.setWifiOnlyDownload(flag);
         return {'key': key, 'value': settings.wifiOnlyDownload};
       case 'theme':
         final mode = value.toString().trim();
