@@ -2120,7 +2120,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiErrorBadResponse => '返回内容无法解析';
 
   @override
-  String get aiErrorContextTooLong => '对话太长了，超出模型的上下文。清空对话再问，或换个上下文更大的模型';
+  String get aiErrorContextTooLong =>
+      '超出模型的上下文长度。先清空对话再试；如果第一句话就这样，说明工具清单本身就装不下——在设置里关掉「允许 AI 直接操作应用」，或换一个上下文更大的模型';
 
   @override
   String get aiErrorToolsUnsupported => '这个接口不支持工具调用。可以在设置里关掉「允许 AI 直接操作应用」再试';

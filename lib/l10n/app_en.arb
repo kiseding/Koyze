@@ -1344,7 +1344,7 @@
   "aiErrorNetwork": "Network unavailable",
   "aiErrorEmpty": "The model returned nothing",
   "aiErrorBadResponse": "Could not parse the model output",
-  "aiErrorContextTooLong": "The conversation is too long for this model's context. Clear the chat or switch to a model with a larger window",
+  "aiErrorContextTooLong": "Over the model's context window. Clear the chat and retry; if it fails on the very first message, the tool list alone may not fit — turn off \"Let the AI act on the app\" in settings, or switch to a model with a larger window",
   "aiErrorToolsUnsupported": "This endpoint does not support tool calls. Try turning off \"Let the AI act on the app\" in settings",
   "aiErrorRejected": "The endpoint rejected this request",
   "aiErrorToolLoop": "Ran too many steps without reaching an answer. Try a more specific request",

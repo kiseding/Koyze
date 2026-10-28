@@ -3953,7 +3953,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiErrorContextTooLong.
   ///
   /// In en, this message translates to:
-  /// **'The conversation is too long for this model\'s context. Clear the chat or switch to a model with a larger window'**
+  /// **'Over the model\'s context window. Clear the chat and retry; if it fails on the very first message, the tool list alone may not fit — turn off \"Let the AI act on the app\" in settings, or switch to a model with a larger window'**
   String get aiErrorContextTooLong;
 
   /// No description provided for @aiErrorToolsUnsupported.
