@@ -2033,33 +2033,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sourceCheckTitle => '音源检测';
 
   @override
-  String get sourceCheckSubtitle => '测试每个脚本能否取到播放地址';
-
-  @override
-  String get sourceCheckIntro =>
-      '每个脚本用固定样本曲跑一遍：按声明的音质逐档取链接，再试读一小段确认真的是音频。结果会参与播放时的选源。';
-
-  @override
   String get sourceCheckStart => '开始检测';
-
-  @override
-  String get sourceCheckPreparing => '准备中…';
-
-  @override
-  String sourceCheckRunning(String current) {
-    return '正在测试：$current';
-  }
-
-  @override
-  String sourceCheckProgress(int done, int total) {
-    return '$done/$total';
-  }
-
-  @override
-  String get sourceCheckAffectsSelection => '明确失败的脚本在选源时会被跳过，只有超时的排到最后。';
-
-  @override
-  String get sourceCheckCancelled => '已取消，已跑完的部分会保留。';
 
   @override
   String get sourceCheckNeverRun => '未检测';
@@ -2074,23 +2048,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String sourceCheckSummary(int ok, int total, String time) {
     return '$ok/$total 个平台可用 · $time';
   }
-
-  @override
-  String get sourceCheckDefaultQuality => '默认音质';
-
-  @override
-  String get sourceCheckColdStart => '冷启动';
-
-  @override
-  String get sourceCheckNoSources => '还没有音源脚本，先去导入一个。';
-
-  @override
-  String sourceCheckSkipped(String platforms) {
-    return '没有样本曲，已跳过：$platforms';
-  }
-
-  @override
-  String get sourceCheckDisabledBadge => '未启用';
 
   @override
   String get aiSettingsTitle => 'AI 设置';
@@ -2163,57 +2120,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiErrorBadResponse => '返回内容无法解析';
 
   @override
-  String get aiOpenTitle => 'AI 歌单';
-
-  @override
-  String get aiOpenSubtitle => '用一句话描述，自动搜索建单';
-
-  @override
-  String get aiPlaylistTitle => 'AI 歌单';
-
-  @override
-  String get aiPromptLabel => '想要一张什么歌单？';
-
-  @override
-  String get aiPromptHint => '适合深夜写代码的纯音乐，不要太吵';
-
-  @override
-  String get aiGenerate => '生成';
-
-  @override
-  String get aiGenerating => '生成中…';
-
-  @override
-  String aiMatching(int index, int total) {
-    return '正在匹配 $index/$total';
-  }
-
-  @override
-  String aiMatchedCount(int matched, int total) {
-    return '匹配到 $matched/$total 首';
-  }
-
-  @override
-  String get aiCreatePlaylist => '创建歌单';
-
-  @override
-  String aiCreated(String name) {
-    return '已创建歌单「$name」';
-  }
-
-  @override
   String get aiNotConfigured => '请先在「AI 设置」里填写地址、密钥和模型';
-
-  @override
-  String get aiEmptyResult => '没有得到可用的歌曲';
-
-  @override
-  String aiSongUnmatched(String name) {
-    return '曲库里没找到：$name';
-  }
-
-  @override
-  String get aiSettingsSubtitle => '接口地址、密钥与模型';
 
   @override
   String get aiToolsTitle => '工具调用';

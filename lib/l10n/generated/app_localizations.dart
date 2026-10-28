@@ -3782,53 +3782,11 @@ abstract class AppLocalizations {
   /// **'Source check'**
   String get sourceCheckTitle;
 
-  /// No description provided for @sourceCheckSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Test whether each script can fetch a playable URL'**
-  String get sourceCheckSubtitle;
-
-  /// No description provided for @sourceCheckIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'Each script runs against a fixed sample song: one URL request per declared quality, then a partial download to confirm it really returns audio. The result feeds playback source selection.'**
-  String get sourceCheckIntro;
-
   /// No description provided for @sourceCheckStart.
   ///
   /// In en, this message translates to:
   /// **'Run check'**
   String get sourceCheckStart;
-
-  /// No description provided for @sourceCheckPreparing.
-  ///
-  /// In en, this message translates to:
-  /// **'Preparing…'**
-  String get sourceCheckPreparing;
-
-  /// No description provided for @sourceCheckRunning.
-  ///
-  /// In en, this message translates to:
-  /// **'Testing: {current}'**
-  String sourceCheckRunning(String current);
-
-  /// No description provided for @sourceCheckProgress.
-  ///
-  /// In en, this message translates to:
-  /// **'{done}/{total}'**
-  String sourceCheckProgress(int done, int total);
-
-  /// No description provided for @sourceCheckAffectsSelection.
-  ///
-  /// In en, this message translates to:
-  /// **'Hard failures are skipped when picking a source; timeouts only move to the back.'**
-  String get sourceCheckAffectsSelection;
-
-  /// No description provided for @sourceCheckCancelled.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancelled. Partial results are kept.'**
-  String get sourceCheckCancelled;
 
   /// No description provided for @sourceCheckNeverRun.
   ///
@@ -3853,36 +3811,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{ok}/{total} platforms usable · {time}'**
   String sourceCheckSummary(int ok, int total, String time);
-
-  /// No description provided for @sourceCheckDefaultQuality.
-  ///
-  /// In en, this message translates to:
-  /// **'Default quality'**
-  String get sourceCheckDefaultQuality;
-
-  /// No description provided for @sourceCheckColdStart.
-  ///
-  /// In en, this message translates to:
-  /// **'cold start'**
-  String get sourceCheckColdStart;
-
-  /// No description provided for @sourceCheckNoSources.
-  ///
-  /// In en, this message translates to:
-  /// **'No source scripts yet. Import one first.'**
-  String get sourceCheckNoSources;
-
-  /// No description provided for @sourceCheckSkipped.
-  ///
-  /// In en, this message translates to:
-  /// **'No sample song for: {platforms}'**
-  String sourceCheckSkipped(String platforms);
-
-  /// No description provided for @sourceCheckDisabledBadge.
-  ///
-  /// In en, this message translates to:
-  /// **'Disabled'**
-  String get sourceCheckDisabledBadge;
 
   /// No description provided for @aiSettingsTitle.
   ///
@@ -4022,95 +3950,11 @@ abstract class AppLocalizations {
   /// **'Could not parse the model output'**
   String get aiErrorBadResponse;
 
-  /// No description provided for @aiOpenTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'AI playlist'**
-  String get aiOpenTitle;
-
-  /// No description provided for @aiOpenSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Describe it in one sentence'**
-  String get aiOpenSubtitle;
-
-  /// No description provided for @aiPlaylistTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'AI playlist'**
-  String get aiPlaylistTitle;
-
-  /// No description provided for @aiPromptLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'What kind of playlist?'**
-  String get aiPromptLabel;
-
-  /// No description provided for @aiPromptHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Late-night coding, instrumental, nothing loud'**
-  String get aiPromptHint;
-
-  /// No description provided for @aiGenerate.
-  ///
-  /// In en, this message translates to:
-  /// **'Generate'**
-  String get aiGenerate;
-
-  /// No description provided for @aiGenerating.
-  ///
-  /// In en, this message translates to:
-  /// **'Generating…'**
-  String get aiGenerating;
-
-  /// No description provided for @aiMatching.
-  ///
-  /// In en, this message translates to:
-  /// **'Matching {index}/{total}'**
-  String aiMatching(int index, int total);
-
-  /// No description provided for @aiMatchedCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{matched} of {total} songs found'**
-  String aiMatchedCount(int matched, int total);
-
-  /// No description provided for @aiCreatePlaylist.
-  ///
-  /// In en, this message translates to:
-  /// **'Create playlist'**
-  String get aiCreatePlaylist;
-
-  /// No description provided for @aiCreated.
-  ///
-  /// In en, this message translates to:
-  /// **'Playlist \"{name}\" created'**
-  String aiCreated(String name);
-
   /// No description provided for @aiNotConfigured.
   ///
   /// In en, this message translates to:
   /// **'Configure the AI endpoint first'**
   String get aiNotConfigured;
-
-  /// No description provided for @aiEmptyResult.
-  ///
-  /// In en, this message translates to:
-  /// **'No usable songs came back'**
-  String get aiEmptyResult;
-
-  /// No description provided for @aiSongUnmatched.
-  ///
-  /// In en, this message translates to:
-  /// **'Not found: {name}'**
-  String aiSongUnmatched(String name);
-
-  /// No description provided for @aiSettingsSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Endpoint, key and model'**
-  String get aiSettingsSubtitle;
 
   /// No description provided for @aiToolsTitle.
   ///

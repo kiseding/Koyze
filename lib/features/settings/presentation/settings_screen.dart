@@ -159,33 +159,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       _buildNavTile(
                         context,
                         ref,
-                        s.sourceCheckTitle,
-                        s.sourceCheckSubtitle,
-                        () => context.push('/source-check'),
-                        captureExpandOrigin: true,
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
                         s.aiAssistantTitle,
                         s.aiAssistantSubtitle,
                         () => context.push('/ai-assistant'),
-                        captureExpandOrigin: true,
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.aiOpenTitle,
-                        s.aiOpenSubtitle,
-                        () => context.push('/ai-playlist'),
-                        captureExpandOrigin: true,
-                      ),
-                      _buildNavTile(
-                        context,
-                        ref,
-                        s.aiSettingsTitle,
-                        s.aiSettingsSubtitle,
-                        () => context.push('/ai-settings'),
                         captureExpandOrigin: true,
                       ),
                       _buildNavTile(

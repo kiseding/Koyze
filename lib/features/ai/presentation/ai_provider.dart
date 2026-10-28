@@ -13,7 +13,6 @@ import '../domain/ai_client.dart';
 import '../domain/ai_config.dart';
 import '../domain/ai_config_store.dart';
 import '../domain/ai_credential_store.dart';
-import '../domain/ai_playlist_planner.dart';
 import '../domain/ai_tools.dart';
 import 'ai_ports.dart';
 
@@ -25,16 +24,8 @@ final aiCredentialStoreProvider = Provider<AiCredentialStore>(
 
 final aiClientProvider = Provider<AiClient>((ref) => AiClient());
 
-final aiPlannerProvider = Provider<AiPlaylistPlanner>((ref) {
-  return AiPlaylistPlanner(client: ref.watch(aiClientProvider));
-});
-
 final aiAgentProvider = Provider<AiAgent>((ref) {
   return AiAgent(client: ref.watch(aiClientProvider));
-});
-
-final aiMatcherProvider = Provider<AiPlaylistMatcher>((ref) {
-  return AiPlaylistMatcher(service: ref.watch(musicSourceServiceProvider));
 });
 
 /// 交给模型的全部操作。每个端口都直连服务层，模型不经过任何界面。

@@ -2073,35 +2073,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sourceCheckTitle => 'Source check';
 
   @override
-  String get sourceCheckSubtitle =>
-      'Test whether each script can fetch a playable URL';
-
-  @override
-  String get sourceCheckIntro =>
-      'Each script runs against a fixed sample song: one URL request per declared quality, then a partial download to confirm it really returns audio. The result feeds playback source selection.';
-
-  @override
   String get sourceCheckStart => 'Run check';
-
-  @override
-  String get sourceCheckPreparing => 'Preparing…';
-
-  @override
-  String sourceCheckRunning(String current) {
-    return 'Testing: $current';
-  }
-
-  @override
-  String sourceCheckProgress(int done, int total) {
-    return '$done/$total';
-  }
-
-  @override
-  String get sourceCheckAffectsSelection =>
-      'Hard failures are skipped when picking a source; timeouts only move to the back.';
-
-  @override
-  String get sourceCheckCancelled => 'Cancelled. Partial results are kept.';
 
   @override
   String get sourceCheckNeverRun => 'Not tested';
@@ -2116,23 +2088,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String sourceCheckSummary(int ok, int total, String time) {
     return '$ok/$total platforms usable · $time';
   }
-
-  @override
-  String get sourceCheckDefaultQuality => 'Default quality';
-
-  @override
-  String get sourceCheckColdStart => 'cold start';
-
-  @override
-  String get sourceCheckNoSources => 'No source scripts yet. Import one first.';
-
-  @override
-  String sourceCheckSkipped(String platforms) {
-    return 'No sample song for: $platforms';
-  }
-
-  @override
-  String get sourceCheckDisabledBadge => 'Disabled';
 
   @override
   String get aiSettingsTitle => 'AI settings';
@@ -2206,57 +2161,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aiErrorBadResponse => 'Could not parse the model output';
 
   @override
-  String get aiOpenTitle => 'AI playlist';
-
-  @override
-  String get aiOpenSubtitle => 'Describe it in one sentence';
-
-  @override
-  String get aiPlaylistTitle => 'AI playlist';
-
-  @override
-  String get aiPromptLabel => 'What kind of playlist?';
-
-  @override
-  String get aiPromptHint => 'Late-night coding, instrumental, nothing loud';
-
-  @override
-  String get aiGenerate => 'Generate';
-
-  @override
-  String get aiGenerating => 'Generating…';
-
-  @override
-  String aiMatching(int index, int total) {
-    return 'Matching $index/$total';
-  }
-
-  @override
-  String aiMatchedCount(int matched, int total) {
-    return '$matched of $total songs found';
-  }
-
-  @override
-  String get aiCreatePlaylist => 'Create playlist';
-
-  @override
-  String aiCreated(String name) {
-    return 'Playlist \"$name\" created';
-  }
-
-  @override
   String get aiNotConfigured => 'Configure the AI endpoint first';
-
-  @override
-  String get aiEmptyResult => 'No usable songs came back';
-
-  @override
-  String aiSongUnmatched(String name) {
-    return 'Not found: $name';
-  }
-
-  @override
-  String get aiSettingsSubtitle => 'Endpoint, key and model';
 
   @override
   String get aiToolsTitle => 'Tool calling';
