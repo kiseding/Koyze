@@ -1478,5 +1478,15 @@
   "aiCategoryPlaylist": "Playlists",
   "aiCategoryDownload": "Downloads",
   "aiCategorySource": "Sources",
-  "aiCategorySettings": "Settings"
+  "aiCategorySettings": "Settings",
+  "carMode": "Car mode",
+  "carModeSubtitle": "Use the wide layout on a head unit",
+  "carModeAuto": "Follow HiCar",
+  "carModeAutoSubtitle": "Switch when a head unit connects",
+  "carModeAlways": "Always on",
+  "carModeAlwaysSubtitle": "Preview the wide layout on any screen",
+  "carModeOff": "Off",
+  "carModeStatusConnected": "HiCar connected",
+  "carModeStatusDisconnected": "No head unit connected",
+  "carModeStatusUnsupported": "Car Kit is unavailable here"
 }

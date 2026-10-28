@@ -8,6 +8,7 @@ import '../../../core/card_expand.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../car_mode/presentation/car_mode_provider.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/glass_config.dart';
@@ -30,7 +31,6 @@ import '../../download/presentation/download_provider.dart';
 import '../../lyric/presentation/lyric_view.dart';
 import '../../lyric/presentation/lyric_provider.dart';
 import '../../home/presentation/widgets/mini_bar.dart';
-import '../../settings/presentation/settings_provider.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
 import 'widgets/player_progress_bar.dart';
@@ -884,7 +884,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
     final screenH = MediaQuery.of(context).size.height;
     final screenW = MediaQuery.of(context).size.width;
-    final forceLandscape = ref.watch(forceLandscapeProvider);
+    final forceLandscape = ref.watch(landscapeShellProvider);
     final landscape = forceLandscape || screenW > screenH;
     final usesSideNavigation = shouldUseSideNavigation(
       size: Size(screenW, screenH),

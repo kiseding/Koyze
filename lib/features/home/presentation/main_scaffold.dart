@@ -10,6 +10,7 @@ import '../../../core/motion/motion_tokens.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../car_mode/presentation/car_mode_provider.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/pressable.dart';
@@ -17,7 +18,6 @@ import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/widgets/root_tab_bar.dart';
 import '../../cloud/presentation/cloud_provider.dart';
 import '../../player/presentation/widgets/mini_player.dart';
-import '../../settings/presentation/settings_provider.dart';
 import 'widgets/mini_bar.dart';
 
 class MainScaffold extends ConsumerStatefulWidget {
@@ -66,7 +66,7 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
       orientation: media.orientation,
       platform: defaultTargetPlatform,
       isWeb: kIsWeb,
-      forceLandscape: ref.watch(forceLandscapeProvider),
+      forceLandscape: ref.watch(landscapeShellProvider),
     );
     // `padding` can exclude an overlaid system bar on edge-to-edge platforms.
     // Keep the existing iOS layout, while using the larger stable inset when

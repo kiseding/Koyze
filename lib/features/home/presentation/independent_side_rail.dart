@@ -6,6 +6,7 @@ import '../../../core/player_route_progress.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/widgets/origo_chrome.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../car_mode/presentation/car_mode_provider.dart';
 import '../../../router/app_router.dart';
 import '../../settings/presentation/settings_provider.dart';
 import 'main_scaffold.dart';
@@ -137,7 +138,7 @@ class _IndependentSideRailState extends ConsumerState<IndependentSideRail> {
       orientation: media.orientation,
       platform: defaultTargetPlatform,
       isWeb: kIsWeb,
-      forceLandscape: ref.watch(forceLandscapeProvider),
+      forceLandscape: ref.watch(landscapeShellProvider),
     );
     final leadingInset = media.padding.left > media.viewPadding.left
         ? media.padding.left

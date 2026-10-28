@@ -2355,4 +2355,34 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aiCategorySettings => 'Settings';
+
+  @override
+  String get carMode => 'Car mode';
+
+  @override
+  String get carModeSubtitle => 'Use the wide layout on a head unit';
+
+  @override
+  String get carModeAuto => 'Follow HiCar';
+
+  @override
+  String get carModeAutoSubtitle => 'Switch when a head unit connects';
+
+  @override
+  String get carModeAlways => 'Always on';
+
+  @override
+  String get carModeAlwaysSubtitle => 'Preview the wide layout on any screen';
+
+  @override
+  String get carModeOff => 'Off';
+
+  @override
+  String get carModeStatusConnected => 'HiCar connected';
+
+  @override
+  String get carModeStatusDisconnected => 'No head unit connected';
+
+  @override
+  String get carModeStatusUnsupported => 'Car Kit is unavailable here';
 }

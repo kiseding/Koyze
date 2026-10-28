@@ -32,6 +32,8 @@ import '../../../core/widgets/koyze_sheet.dart';
 import '../../../l10n/app_strings.dart';
 import '../../sync/data/sync_identity_store.dart';
 import '../../nas/domain/nas_url.dart';
+import '../../car_mode/presentation/car_mode_provider.dart';
+import '../../car_mode/presentation/car_mode_sheet.dart';
 import 'package:koyze/core/widgets/koyze_modal.dart';
 
 const double settingsOptionMaxWidth = 340;
@@ -288,6 +290,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               .read(forceLandscapeProvider.notifier)
                               .setEnabled(value);
                         },
+                      ),
+                      _buildNavTile(
+                        context,
+                        ref,
+                        s.carMode,
+                        carModeStatusText(
+                          ref.watch(carConnectionProvider),
+                          s,
+                        ),
+                        () => showCarModeSheet(context, ref),
                       ),
                       _buildSwitchTile(
                         context,

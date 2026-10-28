@@ -718,5 +718,15 @@
   "aiCategoryPlaylist": "歌单",
   "aiCategoryDownload": "下载",
   "aiCategorySource": "音源",
-  "aiCategorySettings": "设置"
+  "aiCategorySettings": "设置",
+  "carMode": "车机模式",
+  "carModeSubtitle": "连上车机时使用宽屏布局",
+  "carModeAuto": "跟随 HiCar",
+  "carModeAutoSubtitle": "连上车机时自动切换",
+  "carModeAlways": "始终开启",
+  "carModeAlwaysSubtitle": "方便在手机上预览宽屏效果",
+  "carModeOff": "关闭",
+  "carModeStatusConnected": "已连接 HiCar",
+  "carModeStatusDisconnected": "未连接车机",
+  "carModeStatusUnsupported": "此设备不支持 Car Kit"
 }

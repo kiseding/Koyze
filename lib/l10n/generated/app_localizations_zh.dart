@@ -2307,4 +2307,34 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get aiCategorySettings => '设置';
+
+  @override
+  String get carMode => '车机模式';
+
+  @override
+  String get carModeSubtitle => '连上车机时使用宽屏布局';
+
+  @override
+  String get carModeAuto => '跟随 HiCar';
+
+  @override
+  String get carModeAutoSubtitle => '连上车机时自动切换';
+
+  @override
+  String get carModeAlways => '始终开启';
+
+  @override
+  String get carModeAlwaysSubtitle => '方便在手机上预览宽屏效果';
+
+  @override
+  String get carModeOff => '关闭';
+
+  @override
+  String get carModeStatusConnected => '已连接 HiCar';
+
+  @override
+  String get carModeStatusDisconnected => '未连接车机';
+
+  @override
+  String get carModeStatusUnsupported => '此设备不支持 Car Kit';
 }

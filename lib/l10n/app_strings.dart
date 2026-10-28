@@ -846,6 +846,16 @@ class S {
   String get aiCategoryDownload => _l10n.aiCategoryDownload;
   String get aiCategorySource => _l10n.aiCategorySource;
   String get aiCategorySettings => _l10n.aiCategorySettings;
+  String get carMode => _l10n.carMode;
+  String get carModeSubtitle => _l10n.carModeSubtitle;
+  String get carModeAuto => _l10n.carModeAuto;
+  String get carModeAutoSubtitle => _l10n.carModeAutoSubtitle;
+  String get carModeAlways => _l10n.carModeAlways;
+  String get carModeAlwaysSubtitle => _l10n.carModeAlwaysSubtitle;
+  String get carModeOff => _l10n.carModeOff;
+  String get carModeStatusConnected => _l10n.carModeStatusConnected;
+  String get carModeStatusDisconnected => _l10n.carModeStatusDisconnected;
+  String get carModeStatusUnsupported => _l10n.carModeStatusUnsupported;
   String aiToolRunning(String tool) => _l10n.aiToolRunning(tool);
   String get aiToolSearchLibrary => _l10n.aiToolSearchLibrary;
   String get aiToolListPlaylists => _l10n.aiToolListPlaylists;

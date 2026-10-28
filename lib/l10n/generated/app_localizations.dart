@@ -4285,6 +4285,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Settings'**
   String get aiCategorySettings;
+
+  /// No description provided for @carMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Car mode'**
+  String get carMode;
+
+  /// No description provided for @carModeSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the wide layout on a head unit'**
+  String get carModeSubtitle;
+
+  /// No description provided for @carModeAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow HiCar'**
+  String get carModeAuto;
+
+  /// No description provided for @carModeAutoSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch when a head unit connects'**
+  String get carModeAutoSubtitle;
+
+  /// No description provided for @carModeAlways.
+  ///
+  /// In en, this message translates to:
+  /// **'Always on'**
+  String get carModeAlways;
+
+  /// No description provided for @carModeAlwaysSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview the wide layout on any screen'**
+  String get carModeAlwaysSubtitle;
+
+  /// No description provided for @carModeOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get carModeOff;
+
+  /// No description provided for @carModeStatusConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'HiCar connected'**
+  String get carModeStatusConnected;
+
+  /// No description provided for @carModeStatusDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'No head unit connected'**
+  String get carModeStatusDisconnected;
+
+  /// No description provided for @carModeStatusUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Car Kit is unavailable here'**
+  String get carModeStatusUnsupported;
 }
 
 class _AppLocalizationsDelegate
