@@ -12,6 +12,7 @@ import '../../custom_source/domain/custom_source.dart';
 import '../../custom_source/presentation/custom_source_provider.dart';
 import '../domain/source_check_report.dart';
 import 'source_check_provider.dart';
+import 'source_check_strip.dart';
 
 /// 音源检测页：给每个脚本跑一次取链，把「能不能用、多快、多大」摊开给用户看。
 class SourceCheckScreen extends ConsumerWidget {
@@ -284,14 +285,8 @@ class _SourceCard extends StatelessWidget {
     return s.sourceCheckSummary(
       report.okPlatformCount,
       total,
-      _formatTime(report.testedAt),
+      formatSourceCheckTime(report.testedAt),
     );
-  }
-
-  static String _formatTime(DateTime time) {
-    final local = time.toLocal();
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${local.month}/${local.day} ${two(local.hour)}:${two(local.minute)}';
   }
 }
 

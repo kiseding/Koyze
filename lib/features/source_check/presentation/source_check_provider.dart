@@ -155,6 +155,56 @@ class SourceCheckController extends BuildlessNotifier<SourceCheckState> {
     );
   }
 
+  /// 只测一个脚本：音源卡片上那一栏「音源检测」用的就是这条路。
+  ///
+  /// 和 [runAll] 共用同一份状态，所以两个入口不会同时跑——已经在测别的脚本时
+  /// 直接忽略这次请求，免得两个检测抢同一个引擎。
+  Future<void> runSource(CustomSource source) async {
+    if (value.running) return;
+    _cancelRequested = false;
+    publish(
+      value.copyWith(
+        running: true,
+        done: 0,
+        total: 0,
+        current: '',
+        activeSourceId: source.id,
+        cancelled: false,
+      ),
+    );
+
+    final runner = ref.read(sourceCheckRunnerProvider);
+    SourceCheckReport? report;
+    try {
+      report = await runner.runScript(
+        source,
+        isCancelled: () => _cancelRequested,
+        onProgress: _onProgress,
+      );
+    } catch (_) {
+      // 单个脚本跑挂不该把整页状态留在「检测中」。
+      report = null;
+    }
+    if (!mounted) return;
+
+    var book = value.book;
+    if (report != null) {
+      book = book.withReport(report);
+      await ref.read(sourceCheckStoreProvider).save(book);
+      if (!mounted) return;
+      ref.read(sourceCheckPolicyProvider).update(book);
+    }
+    publish(
+      value.copyWith(
+        book: book,
+        running: false,
+        cancelled: _cancelRequested,
+        current: '',
+        activeSourceId: '',
+      ),
+    );
+  }
+
   void _onProgress(SourceCheckProgress progress) {
     if (!mounted) return;
     var book = value.book;

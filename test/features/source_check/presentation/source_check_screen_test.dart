@@ -68,7 +68,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Not tested yet'), findsWidgets);
+    expect(find.text('Not tested'), findsWidgets);
 
     await tester.tap(find.text('Run check'));
     await tester.pumpAndSettle();

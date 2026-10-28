@@ -18,6 +18,7 @@ import '../domain/custom_source_service.dart';
 import '../domain/custom_source_file_import.dart';
 import '../domain/source_script_validation.dart';
 import 'custom_source_provider.dart';
+import '../../source_check/presentation/source_check_strip.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/fx_switch.dart';
 import '../../../core/widgets/loading_widget.dart';
@@ -225,6 +226,8 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
               ),
             ],
             const SizedBox(height: 12),
+            SourceCheckStrip(source: source),
+            const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
