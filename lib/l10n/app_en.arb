@@ -1372,6 +1372,7 @@
   "aiAssistantExample3": "Make a late-night coding playlist with 20 quiet tracks",
   "aiAssistantExample4": "What did I listen to most this year?",
   "aiAssistantExample5": "More bass, clearer vocals",
+  "aiAssistantExample6": "Change this track's artist to Jay Chou",
   "aiAssistantThinking": "Thinking…",
   "aiAssistantWorking": "Running {tool}…",
   "@aiAssistantWorking": {

@@ -69,6 +69,51 @@ class LocalMusicLibrary {
   /// 解析出的全部本地歌曲（含刮削身份）。
   List<MusicItem> get songs => _files.values.map(_toMusicItem).toList();
 
+  /// 按 [MusicItem.id]（`local:<sha1(path)>`）查一首本地歌曲。
+  ///
+  /// 逐个建 [MusicItem] 再比 id 会把整库都构造一遍，这里直接比对路径摘要，
+  /// 命中之前不构造对象。找不到返回 null。
+  MusicItem? songById(String id) {
+    const prefix = 'local:';
+    if (!id.startsWith(prefix)) return null;
+    final digest = id.substring(prefix.length);
+    if (digest.isEmpty) return null;
+    for (final entry in _files.values) {
+      final path = entry['path']?.toString() ?? '';
+      if (path.isEmpty) continue;
+      if (sha1.convert(utf8.encode(path)).toString() == digest) {
+        return _toMusicItem(entry);
+      }
+    }
+    return null;
+  }
+
+  /// 写完文件 tag 之后，把索引里的 size / modifiedAt 对齐到新文件。
+  ///
+  /// 不同步的话，下次增量重扫会发现 size 变了，误判成「文件被外部改动」而丢掉
+  /// 刮削身份（songmid / 歌词 / 封面）。SAF 这类拿不到 dart:io 路径的条目、
+  /// 或文件已不存在的条目直接跳过。
+  Future<void> noteFileRewritten(String path) async {
+    final entry = _files[path];
+    if (entry == null) return;
+    final file = File(path);
+    try {
+      if (!await file.exists()) return;
+      final stat = await file.stat();
+      _files[path] = {
+        ...entry,
+        'size': stat.size,
+        'modifiedAt': stat.modified.toIso8601String(),
+      };
+      await _persistIndex();
+    } catch (error) {
+      LocalMusicDebugLog.warning(
+        'library.note_file_rewritten.failed',
+        'path=${LocalMusicDebugLog.quote(path)} error=$error',
+      );
+    }
+  }
+
   Future<void> init() async {
     if (_initialized) return;
     LocalMusicDebugLog.info('library.init.start', 'loading local music index');

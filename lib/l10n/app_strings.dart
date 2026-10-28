@@ -812,6 +812,7 @@ class S {
   String get aiAssistantExample3 => _l10n.aiAssistantExample3;
   String get aiAssistantExample4 => _l10n.aiAssistantExample4;
   String get aiAssistantExample5 => _l10n.aiAssistantExample5;
+  String get aiAssistantExample6 => _l10n.aiAssistantExample6;
   String get aiAssistantThinking => _l10n.aiAssistantThinking;
   String aiAssistantWorking(String tool) => _l10n.aiAssistantWorking(tool);
   String get aiAssistantNewChat => _l10n.aiAssistantNewChat;

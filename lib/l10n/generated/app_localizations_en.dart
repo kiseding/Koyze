@@ -2230,6 +2230,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aiAssistantExample5 => 'More bass, clearer vocals';
 
   @override
+  String get aiAssistantExample6 => 'Change this track\'s artist to Jay Chou';
+
+  @override
   String get aiAssistantThinking => 'Thinking…';
 
   @override

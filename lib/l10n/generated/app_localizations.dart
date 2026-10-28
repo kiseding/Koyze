@@ -4076,6 +4076,12 @@ abstract class AppLocalizations {
   /// **'More bass, clearer vocals'**
   String get aiAssistantExample5;
 
+  /// No description provided for @aiAssistantExample6.
+  ///
+  /// In en, this message translates to:
+  /// **'Change this track\'s artist to Jay Chou'**
+  String get aiAssistantExample6;
+
   /// No description provided for @aiAssistantThinking.
   ///
   /// In en, this message translates to:

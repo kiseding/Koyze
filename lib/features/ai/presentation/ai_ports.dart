@@ -15,6 +15,7 @@ import '../../equalizer/domain/equalizer_preset.dart';
 import '../../equalizer/domain/equalizer_settings.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
 import '../../leaderboard/presentation/leaderboard_provider.dart';
+import '../../local_music/domain/local_metadata_writer.dart';
 import '../../local_music/presentation/local_music_provider.dart';
 import '../../lyric/presentation/lyric_provider.dart';
 import '../../player/domain/music_item.dart';
@@ -701,7 +702,8 @@ class ProviderAiSchedulePort implements AiSchedulePort {
   }
 }
 
-/// 本地曲库：重新扫描用户选的目录（Android 上还有系统媒体库）。
+/// 本地曲库：重新扫描用户选的目录（Android 上还有系统媒体库），
+/// 以及把歌曲身份写进文件本身的 tag。
 class ProviderAiLocalPort implements AiLocalPort {
   ProviderAiLocalPort(this._ref);
 
@@ -710,6 +712,68 @@ class ProviderAiLocalPort implements AiLocalPort {
   @override
   Future<int> rescan() async {
     final library = await _ref.read(localMusicLibraryProvider.future);
-    return library.rescanAll();
+    // 索引没加载时 _directories 是空的，直接重扫会什么也扫不到。
+    await library.init();
+    final added = await library.rescanAll();
+    _bumpRevision();
+    return added;
+  }
+
+  @override
+  Future<AiLocalTagResult> writeTags(
+    String songId, {
+    String? title,
+    String? artist,
+    String? album,
+  }) async {
+    final library = await _ref.read(localMusicLibraryProvider.future);
+    await library.init();
+    final song = library.songById(songId);
+    if (song == null) return const AiLocalTagResult.failed('本地曲库里没有这首歌');
+    final path = song.meta?['filePath']?.toString() ?? '';
+    if (path.isEmpty) return const AiLocalTagResult.failed('这首歌没有本地文件路径');
+    final identity = library.scrapedIdentity(path);
+    // 未指定的字段沿用索引现值，避免把整块 tag 写成空。
+    final finalTitle = (title ?? identity?['name']?.toString() ?? song.name)
+        .trim();
+    final finalArtist =
+        (artist ?? identity?['singer']?.toString() ?? song.singer).trim();
+    final finalAlbum =
+        (album ?? identity?['album']?.toString() ?? song.album).trim();
+    if (finalTitle.isEmpty) return const AiLocalTagResult.failed('标题不能为空');
+    if (finalArtist.isEmpty) return const AiLocalTagResult.failed('歌手不能为空');
+
+    final written = await writeScrapedMetadata(
+      path,
+      title: finalTitle,
+      artist: finalArtist,
+      album: finalAlbum,
+    );
+    if (!written) {
+      return const AiLocalTagResult.failed('写不进这个文件：容器不支持写 tag，或没有写权限');
+    }
+    // 索引里的身份跟着改，列表立刻显示新名字；`save` 是整块覆盖，
+    // 所以必须带上原有的 songmid / 歌词 / 封面，不能只传三个字段。
+    await library.applyScrapedIdentity(path, {
+      ...?identity,
+      'name': finalTitle,
+      'singer': finalArtist,
+      'album': finalAlbum,
+    });
+    await library.noteFileRewritten(path);
+    // 「本地音乐」歌单里存的是 MusicItem 快照，不同步的话列表与队列还显示旧名字。
+    // 重扫走的是同一条 replaceLocalSongs，这里保持一致。
+    await _ref.read(playlistServiceProvider).replaceLocalSongs(library.songs);
+    _bumpRevision();
+    return AiLocalTagResult.ok(
+      title: finalTitle,
+      artist: finalArtist,
+      album: finalAlbum,
+      fileName: path.split(RegExp(r'[\\/]')).last,
+    );
+  }
+
+  void _bumpRevision() {
+    _ref.read(localMusicRevisionProvider.notifier).state++;
   }
 }

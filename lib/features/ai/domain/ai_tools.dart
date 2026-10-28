@@ -150,6 +150,7 @@ class AiToolbox {
   static const String manageScheduleTool = 'manage_ai_schedule';
 
   static const String rescanLocalTool = 'rescan_local_music';
+  static const String writeLocalTagsTool = 'write_local_tags';
 
   static const int _maxSearchResults = 20;
   static const int _maxSongsPerCall = 40;
@@ -715,6 +716,26 @@ class AiToolbox {
       '用户说「我刚拷了几首歌进去」时用；可能比较慢，返回这次新增的曲目数。',
       {'type': 'object', 'properties': <String, dynamic>{}},
       _runRescanLocal,
+    ),
+
+    _write(
+      writeLocalTagsTool,
+      AiToolCategory.library,
+      '把标题 / 歌手 / 专辑写进本地音乐文件本身的 tag（ID3 / Vorbis 等），'
+      '不是只改应用内的显示。song_id 用 get_playlist 读「本地音乐」（id 为 local）'
+      '拿到的 local: 前缀 id。只传要改的字段，其余保持不变；album 传空串表示清空。'
+      'wav / ape 这类只读容器会写失败并说明原因。',
+      {
+        'song_id': {
+          'type': 'string',
+          'description': '本地歌曲 id（local: 前缀），来自「本地音乐」歌单',
+        },
+        'title': {'type': 'string', 'description': '新的标题，不改就不传'},
+        'artist': {'type': 'string', 'description': '新的歌手，不改就不传'},
+        'album': {'type': 'string', 'description': '新的专辑，不改就不传；空串表示清空'},
+      },
+      _runWriteLocalTags,
+      required: ['song_id'],
     ),
   ];
 
@@ -1693,6 +1714,36 @@ class AiToolbox {
   Future<Object?> _runRescanLocal(Map<String, dynamic> _) async {
     final added = await local.rescan();
     return {'added': added};
+  }
+
+  Future<Object?> _runWriteLocalTags(Map<String, dynamic> args) async {
+    final songId = (args['song_id'] ?? '').toString().trim();
+    if (songId.isEmpty) return {'error': 'song_id 不能为空'};
+    String? field(String key) {
+      final value = args[key];
+      return value?.toString().trim();
+    }
+
+    final title = field('title');
+    final artist = field('artist');
+    final album = field('album');
+    if (title == null && artist == null && album == null) {
+      return {'error': '至少给一个要改的字段：title / artist / album'};
+    }
+    final result = await local.writeTags(
+      songId,
+      title: title,
+      artist: artist,
+      album: album,
+    );
+    if (!result.success) return {'error': result.error ?? '写入失败'};
+    return {
+      'ok': true,
+      'file': result.fileName,
+      'title': result.title,
+      'artist': result.artist,
+      'album': result.album,
+    };
   }
 
   static String _hhmm(int minuteOfDay) {

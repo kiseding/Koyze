@@ -806,4 +806,68 @@ void main() {
       );
     });
   });
+
+  group('按 id 取歌与写 tag 后的索引同步', () {
+    Future<LocalMusicLibrary> seedLibrary(File file) async {
+      final storage = StorageService.forTesting(
+        await SharedPreferences.getInstance(),
+      );
+      await storage.setJsonList('local_music_index_v1', [
+        {
+          'path': file.path,
+          'fileName': 'a.mp3',
+          'extension': 'mp3',
+          'size': 4,
+          'modifiedAt': '2020-01-01T00:00:00.000',
+          'title': 'A',
+          'artist': 'Singer',
+          'album': 'Album',
+          'duration': 0,
+        },
+      ]);
+      final library = LocalMusicLibrary(storage: storage);
+      await library.init();
+      return library;
+    }
+
+    test('songById 只认 local: 前缀，并解析到对应的那首歌', () async {
+      final file = File('${tempDir.path}/a.mp3');
+      await file.writeAsBytes(const [0, 1, 2, 3]);
+      final library = await seedLibrary(file);
+
+      final song = library.songs.single;
+      expect(song.id, startsWith('local:'));
+      expect(library.songById(song.id)?.name, 'A');
+      expect(library.songById(song.id)?.meta?['filePath'], file.path);
+      expect(library.songById('local:does-not-exist'), isNull);
+      expect(library.songById('tx:1234'), isNull);
+    });
+
+    test('noteFileRewritten 把 size 对齐到写 tag 之后的新文件', () async {
+      final file = File('${tempDir.path}/a.mp3');
+      await file.writeAsBytes(const [0, 1, 2, 3]);
+      final library = await seedLibrary(file);
+      expect(library.files[file.path]?['size'], 4);
+
+      await file.writeAsBytes(const [0, 1, 2, 3, 4, 5, 6, 7]);
+      await library.noteFileRewritten(file.path);
+
+      expect(library.files[file.path]?['size'], 8);
+      // 不写回磁盘的话，下次启动仍按旧 size 判定，等于没同步。
+      final reloaded = StorageService.forTesting(
+        await SharedPreferences.getInstance(),
+      );
+      expect(reloaded.getJsonList('local_music_index_v1').single['size'], 8);
+    });
+
+    test('noteFileRewritten 遇到未知路径直接跳过', () async {
+      final file = File('${tempDir.path}/a.mp3');
+      await file.writeAsBytes(const [0, 1, 2, 3]);
+      final library = await seedLibrary(file);
+
+      await library.noteFileRewritten('${tempDir.path}/unknown.mp3');
+
+      expect(library.files.keys.toList(), [file.path]);
+    });
+  });
 }

@@ -258,12 +258,47 @@ abstract interface class AiChartPort {
   Future<List<MusicItem>> songsOf(String chartId);
 }
 
-/// 本地曲库：只暴露「重新扫描」这一个动作。
+/// 写 tag 的结果：成功时带回真正落盘的身份，失败时只有原因。
+class AiLocalTagResult {
+  const AiLocalTagResult.ok({
+    required this.title,
+    required this.artist,
+    required this.album,
+    required this.fileName,
+  }) : success = true,
+       error = null;
+
+  const AiLocalTagResult.failed(this.error)
+    : success = false,
+      title = null,
+      artist = null,
+      album = null,
+      fileName = null;
+
+  final bool success;
+  final String? error;
+  final String? title;
+  final String? artist;
+  final String? album;
+  final String? fileName;
+}
+
+/// 本地曲库：重新扫描、把标题 / 歌手 / 专辑写进文件本身的 tag。
 ///
 /// 扫描会遍历用户选的目录（Android 上还包括系统媒体库），耗时不确定，所以工具
 /// 描述里写明了可能较慢；返回值是这次新增的曲目数。
 abstract interface class AiLocalPort {
   Future<int> rescan();
+
+  /// 按 `MusicItem.id`（`local:<sha1>`）写单个文件的 tag。
+  ///
+  /// 只传要改的字段，其余沿用索引里的现值；[album] 传空串表示清空。
+  Future<AiLocalTagResult> writeTags(
+    String songId, {
+    String? title,
+    String? artist,
+    String? album,
+  });
 }
 
 /// AI 的定时任务：列出、新建、暂停、删除、立即执行。

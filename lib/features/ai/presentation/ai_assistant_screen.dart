@@ -255,6 +255,7 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
       s.aiAssistantExample3,
       s.aiAssistantExample4,
       s.aiAssistantExample5,
+      s.aiAssistantExample6,
     ];
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),

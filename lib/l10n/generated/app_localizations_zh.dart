@@ -2185,6 +2185,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiAssistantExample5 => '低音再重一点，人声清楚些';
 
   @override
+  String get aiAssistantExample6 => '把这首的歌手改成周杰伦';
+
+  @override
   String get aiAssistantThinking => '思考中…';
 
   @override

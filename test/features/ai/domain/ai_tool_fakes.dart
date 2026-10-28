@@ -625,11 +625,34 @@ class FakeSchedules implements AiSchedulePort {
 class FakeLocal implements AiLocalPort {
   int added = 3;
   int calls = 0;
+  String? tagFailure;
+  final List<
+    ({String songId, String? title, String? artist, String? album})
+  >
+  tagWrites = [];
 
   @override
   Future<int> rescan() async {
     calls++;
     return added;
+  }
+
+  @override
+  Future<AiLocalTagResult> writeTags(
+    String songId, {
+    String? title,
+    String? artist,
+    String? album,
+  }) async {
+    tagWrites.add((songId: songId, title: title, artist: artist, album: album));
+    final failure = tagFailure;
+    if (failure != null) return AiLocalTagResult.failed(failure);
+    return AiLocalTagResult.ok(
+      title: title ?? '原标题',
+      artist: artist ?? '原歌手',
+      album: album ?? '原专辑',
+      fileName: 'song.mp3',
+    );
   }
 }
 

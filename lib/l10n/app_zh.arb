@@ -670,6 +670,7 @@
   "aiAssistantExample3": "建个深夜写代码的歌单，20 首安静的曲子",
   "aiAssistantExample4": "我今年听得最多的是哪几首？",
   "aiAssistantExample5": "低音再重一点，人声清楚些",
+  "aiAssistantExample6": "把这首的歌手改成周杰伦",
   "aiAssistantThinking": "思考中…",
   "aiAssistantWorking": "正在执行 {tool}…",
   "@aiAssistantWorking": {

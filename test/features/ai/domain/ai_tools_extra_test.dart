@@ -387,6 +387,62 @@ void main() {
     expect(fakes.local.calls, 1);
   });
 
+  group('写本地 tag', () {
+    test('只把改动的字段传下去，没传的保持 null 由端口补现值', () async {
+      final fakes = ToolFakes();
+
+      final result = await run(fakes.toolbox(), AiToolbox.writeLocalTagsTool, {
+        'song_id': 'local:abc',
+        'artist': '新歌手',
+      });
+
+      expect(result['ok'], isTrue);
+      expect(result['file'], 'song.mp3');
+      expect(result['artist'], '新歌手');
+      expect(result['title'], '原标题');
+      final write = fakes.local.tagWrites.single;
+      expect(write.songId, 'local:abc');
+      expect(write.artist, '新歌手');
+      expect(write.title, isNull);
+      expect(write.album, isNull);
+    });
+
+    test('一个字段都不给就报错，不碰文件', () async {
+      final fakes = ToolFakes();
+
+      final result = await run(fakes.toolbox(), AiToolbox.writeLocalTagsTool, {
+        'song_id': 'local:abc',
+      });
+
+      expect(result['error'], contains('至少给一个'));
+      expect(fakes.local.tagWrites, isEmpty);
+    });
+
+    test('缺 song_id 时报错', () async {
+      final fakes = ToolFakes();
+
+      final result = await run(fakes.toolbox(), AiToolbox.writeLocalTagsTool, {
+        'title': '新标题',
+      });
+
+      expect(result['error'], contains('song_id'));
+      expect(fakes.local.tagWrites, isEmpty);
+    });
+
+    test('容器不支持写 tag 时把原因带回来', () async {
+      final fakes = ToolFakes();
+      fakes.local.tagFailure = '写不进这个文件：容器不支持写 tag，或没有写权限';
+
+      final result = await run(fakes.toolbox(), AiToolbox.writeLocalTagsTool, {
+        'song_id': 'local:abc',
+        'album': '',
+      });
+
+      expect(result['error'], contains('写不进'));
+      expect(result['ok'], isNull);
+    });
+  });
+
   test('只读模式下这些写工具整个不下发', () {
     final fakes = ToolFakes();
     final names = fakes
@@ -400,6 +456,7 @@ void main() {
       AiToolbox.playChartTool,
       AiToolbox.manageScheduleTool,
       AiToolbox.rescanLocalTool,
+      AiToolbox.writeLocalTagsTool,
     ]) {
       expect(names, isNot(contains(writeTool)), reason: writeTool);
     }
