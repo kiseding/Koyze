@@ -16,6 +16,7 @@ import '../domain/ai_config.dart';
 import '../domain/ai_config_store.dart';
 import '../domain/ai_credential_store.dart';
 import '../domain/ai_tools.dart';
+import '../domain/voice_container.dart';
 import 'ai_ports.dart';
 import 'voice_recorder.dart';
 
@@ -126,6 +127,7 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
         role: AiChatRole.user,
         text: text,
         voiceSeconds: voice?.seconds,
+        voiceBytes: voice?.bytes,
       ),
     ];
     _emit(entries, busy: true);
@@ -153,9 +155,14 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
         return;
       }
       try {
+        final bytes = await File(voice.path).readAsBytes();
+        // 按文件头认容器，而不是照抄录音时的假设：实际格式和报文里声明的
+        // 对不上时，服务端解码失败往往**不报错、直接丢掉音频**，用户只会
+        // 得到一句「我没收到语音」。认出来之后声明成真身，至少不会错配。
+        final container = sniffVoiceContainer(bytes);
         attachment = AiVoiceAttachment(
-          base64Data: base64Encode(await File(voice.path).readAsBytes()),
-          format: voice.format,
+          base64Data: base64Encode(bytes),
+          format: container == VoiceContainer.mp3 ? 'mp3' : 'wav',
         );
       } catch (_) {
         await discardVoiceClip(voice);
@@ -204,6 +211,9 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
           role: AiChatRole.assistant,
           text: reply.text,
           toolRuns: reply.toolRuns,
+          // 带了录音、模型却说没有：界面直接标明是接口丢了音频，
+          // 别让用户以为是自己没录上。
+          voiceLost: attachment != null && _deniesAudio(reply.text),
         ),
       ]);
     } on AiException catch (error) {
@@ -215,6 +225,34 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
     } finally {
       await discardVoiceClip(voice);
     }
+  }
+
+  /// 模型这句话是不是在说「我没收到音频」。
+  ///
+  /// 只看负面信号：它可能用「没有收到语音」「听不到音频」「no audio」这类说法，
+  /// 也可能反过来描述「这段语音是空的」。判错了也就是多显示一条提示，
+  /// 比让用户自己去猜要好。
+  static bool _deniesAudio(String reply) {
+    final text = reply.toLowerCase();
+    const markers = [
+      '没有收到语音',
+      '没有收到音频',
+      '没收到语音',
+      '没收到音频',
+      '未收到语音',
+      '未收到音频',
+      '没有音频',
+      '没有语音',
+      '听不到',
+      '无法听到',
+      '没有把录音',
+      'no audio',
+      'did not receive',
+      "didn't receive",
+      'no voice',
+      'no recording',
+    ];
+    return markers.any(text.contains);
   }
 
   void clear() {

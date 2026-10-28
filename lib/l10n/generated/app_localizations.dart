@@ -3884,6 +3884,36 @@ abstract class AppLocalizations {
   /// **'Connection works'**
   String get aiTestOk;
 
+  /// No description provided for @aiTestVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Test voice'**
+  String get aiTestVoice;
+
+  /// No description provided for @aiTestingVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Testing voice…'**
+  String get aiTestingVoice;
+
+  /// No description provided for @aiTestVoiceOk.
+  ///
+  /// In en, this message translates to:
+  /// **'This endpoint delivers audio to the model'**
+  String get aiTestVoiceOk;
+
+  /// No description provided for @aiTestVoiceDropped.
+  ///
+  /// In en, this message translates to:
+  /// **'The endpoint dropped the audio — the model only saw text. Switch to a model that supports input_audio (e.g. gpt-4o-audio-preview, qwen-omni)'**
+  String get aiTestVoiceDropped;
+
+  /// No description provided for @aiTestVoiceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'A working connection does not mean the model can hear. Send a test tone to confirm this endpoint actually passes recordings through.'**
+  String get aiTestVoiceHint;
+
   /// No description provided for @aiConfigSaved.
   ///
   /// In en, this message translates to:
@@ -4555,6 +4585,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Voice · {seconds}s'**
   String aiVoiceClip(int seconds);
+
+  /// No description provided for @aiVoiceDropped.
+  ///
+  /// In en, this message translates to:
+  /// **'The endpoint did not pass this recording to the model. It was sent ({size}) — the endpoint dropped it. Use \"Test voice\" in settings to confirm, or switch to a model that supports input_audio.'**
+  String aiVoiceDropped(String size);
+
+  /// No description provided for @aiVoiceSent.
+  ///
+  /// In en, this message translates to:
+  /// **'sent {size}'**
+  String aiVoiceSent(String size);
 
   /// No description provided for @aiVoiceRemove.
   ///

@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/logging/app_log.dart';
 import '../../../core/network/app_http_client.dart';
 import 'ai_config.dart';
+import 'voice_probe.dart';
 
 /// 一次对话的原始结果：既有正文，也可能带着工具调用请求。
 @immutable
@@ -126,6 +127,48 @@ class AiClient {
       content: _contentOf(response.data) ?? '',
       toolCalls: _toolCallsOf(response.data),
     );
+  }
+
+  /// 探测这个接口到底有没有把 `input_audio` 交给模型。
+  ///
+  /// 发一段合成的方波，问模型听没听见声音：真的收到了就说「听见了」，被网关
+  /// 丢掉、只剩文字时只能凭文字猜「没收到音频」。这样用户不用再从一句含糊的
+  /// 回复里猜是模型不行还是自己没开麦克风。
+  ///
+  /// 返回 true 表示音频确实到了模型手里；false 表示被丢了。接口明确拒绝
+  /// `input_audio` 时抛 [AiFailureKind.audioUnsupported]，其余错误照常抛。
+  Future<bool> probeAudio({
+    required AiConfig config,
+    required String apiKey,
+    Duration timeout = const Duration(seconds: 40),
+  }) async {
+    final completion = await completeDetailed(
+      config: config,
+      apiKey: apiKey,
+      messages: [
+        AiMessage(
+          AiRole.user,
+          '这是测试。这条消息里附了一段音频，内容是三声短促的“嘟”。'
+          '如果你真的收到了音频并能听到它，只回答「听见了」三个字；'
+          '如果没收到音频、只是看到这段文字，只回答「没有音频」。',
+          voice: AiVoiceAttachment(base64Data: buildProbeWavBase64()),
+        ),
+      ],
+      temperature: 0,
+      maxTokens: 24,
+      timeout: timeout,
+    );
+    final reply = completion.content;
+    // 正向信号优先：模型描述了声音（嘟/响/三声）就说明它真听到了，
+    // 哪怕它没按格式只说「听见了」。
+    const heard = ['听见', '听到', '听到了', '嘟', '响', 'beep', 'tone'];
+    const missing = ['没有音频', '没收到', '没有收到', '无法听到', 'no audio'];
+    final lower = reply.toLowerCase();
+    if (missing.any(lower.contains) &&
+        !heard.any((word) => lower.contains(word))) {
+      return false;
+    }
+    return heard.any((word) => lower.contains(word));
   }
 
   /// 重试次数与间隔。网关 502/504 多半是上游瞬时过载，重发一次通常就好了；

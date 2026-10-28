@@ -262,6 +262,69 @@ void main() {
     expect((body['messages'] as List).single['content'], 'hi');
   });
 
+  group('probeAudio', () {
+    test('模型说听见了，就认定音频送到了', () async {
+      final adapter = _StubAdapter(
+        200,
+        '{"choices":[{"message":{"content":"听见了"}}]}',
+      );
+      final client = AiClient(dio: Dio()..httpClientAdapter = adapter);
+
+      final heard = await client.probeAudio(config: config, apiKey: 'k');
+
+      expect(heard, isTrue);
+      final messages = (adapter.request!.data as Map)['messages'] as List;
+      final content = messages.single['content'] as List;
+      expect(content.first['type'], 'text');
+      expect(content.last['type'], 'input_audio');
+    });
+
+    test('模型说没有音频时判为被丢弃', () async {
+      final client = AiClient(
+        dio: Dio()
+          ..httpClientAdapter = _StubAdapter(
+            200,
+            '{"choices":[{"message":{"content":"没有音频"}}]}',
+          ),
+      );
+
+      expect(await client.probeAudio(config: config, apiKey: 'k'), isFalse);
+    });
+
+    test('模型描述了声音也算听见，「嘟」这种词比固定格式可靠', () async {
+      final client = AiClient(
+        dio: Dio()
+          ..httpClientAdapter = _StubAdapter(
+            200,
+            '{"choices":[{"message":{"content":"听到了三声短促的嘟"}}]}',
+          ),
+      );
+
+      expect(await client.probeAudio(config: config, apiKey: 'k'), isTrue);
+    });
+
+    test('接口明确拒绝 input_audio 时抛出对应分类', () async {
+      final client = AiClient(
+        dio: Dio()
+          ..httpClientAdapter = _StubAdapter(
+            400,
+            '{"error":{"message":"input_audio is not supported"}}',
+          ),
+      );
+
+      await expectLater(
+        client.probeAudio(config: config, apiKey: 'k'),
+        throwsA(
+          isA<AiException>().having(
+            (e) => e.kind,
+            'kind',
+            AiFailureKind.audioUnsupported,
+          ),
+        ),
+      );
+    });
+  });
+
   test('a 400 about input_audio becomes its own kind', () async {
     final client = AiClient(
       dio: Dio()

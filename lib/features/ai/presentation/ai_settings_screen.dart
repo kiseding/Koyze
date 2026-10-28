@@ -32,6 +32,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
   bool _hydrated = false;
   bool _keyChecked = false;
   bool _busy = false;
+  bool _testingVoice = false;
   bool _obscure = true;
 
   @override
@@ -154,6 +155,54 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
       showAppNotification(s.aiErrorNetwork, type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// 单独测一次「这个接口听不听得见音频」。
+  ///
+  /// 连接测试只证明地址和密钥对，不能证明模型收得到 `input_audio`——很多网关
+  /// 会把不认识的内容段静默丢掉，模型于是只能看到文字、回一句「没收到语音」。
+  Future<void> _testVoice() async {
+    final s = S.of(context);
+    final config = _config;
+    if (config.validate() != null) {
+      showAppNotification(s.aiConfigInvalid, type: AppNotificationType.error);
+      return;
+    }
+    setState(() => _testingVoice = true);
+    try {
+      final notifier = ref.read(aiConfigProvider.notifier);
+      final typed = _apiKey.text.trim();
+      final key = typed.isNotEmpty
+          ? typed
+          : await notifier.loadKey(baseUrl: config.baseUrl);
+      if (key == null || key.isEmpty) {
+        if (!mounted) return;
+        showAppNotification(
+          s.aiErrorUnauthorized,
+          type: AppNotificationType.error,
+        );
+        return;
+      }
+      final heard = await ref
+          .read(aiClientProvider)
+          .probeAudio(config: config, apiKey: key);
+      if (!mounted) return;
+      showAppNotification(
+        heard ? s.aiTestVoiceOk : s.aiTestVoiceDropped,
+        type: heard ? AppNotificationType.success : AppNotificationType.error,
+      );
+    } on AiException catch (error) {
+      if (!mounted) return;
+      showAppNotification(
+        aiFailureText(s, error.kind),
+        type: AppNotificationType.error,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      showAppNotification(s.aiErrorNetwork, type: AppNotificationType.error);
+    } finally {
+      if (mounted) setState(() => _testingVoice = false);
     }
   }
 
@@ -339,6 +388,25 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          // 语音单独测：连接正常不代表这个模型听得见音频。很多网关会静默丢掉
+          // input_audio，模型只看到文字，用户却以为是自己的录音没发出去。
+          OutlinedButton.icon(
+            onPressed: _busy || _testingVoice ? null : _testVoice,
+            icon: _testingVoice
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.graphic_eq_rounded, size: 18),
+            label: Text(_testingVoice ? s.aiTestingVoice : s.aiTestVoice),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            s.aiTestVoiceHint,
+            style: TextStyle(fontSize: 12, color: AppColors.mutedText(context)),
           ),
         ],
       ),

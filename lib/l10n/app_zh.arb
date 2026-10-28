@@ -631,6 +631,11 @@
   "aiTestConnection": "测试连接",
   "aiTesting": "测试中…",
   "aiTestOk": "连接正常",
+  "aiTestVoice": "测试语音",
+  "aiTestingVoice": "正在测语音…",
+  "aiTestVoiceOk": "这个接口能把录音交给模型",
+  "aiTestVoiceDropped": "接口把音频丢了：模型只看到文字。换一个支持 input_audio 的模型（如 gpt-4o-audio-preview、qwen-omni）",
+  "aiTestVoiceHint": "连接正常不代表模型听得见音频。点这里发一段测试音，确认这个接口有没有把录音真的送进模型。",
   "aiConfigSaved": "AI 设置已保存",
   "aiConfigInvalid": "请先填写有效的 http(s) 地址、模型和密钥",
   "aiErrorNotConfigured": "还没有配置 AI",
@@ -775,6 +780,22 @@
     "placeholders": {
       "seconds": {
         "type": "int"
+      }
+    }
+  },
+  "aiVoiceDropped": "接口没有把这段录音交给模型。录音本身已发出（{size}），是这个接口丢了音频——到设置里点「测试语音」可以确认，或换一个支持 input_audio 的模型。",
+  "@aiVoiceDropped": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "aiVoiceSent": "已发出 {size}",
+  "@aiVoiceSent": {
+    "placeholders": {
+      "size": {
+        "type": "String"
       }
     }
   },

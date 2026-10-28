@@ -160,6 +160,14 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
     return elapsed > _maxRecordLength ? _maxRecordLength : elapsed;
   }
 
+  /// `312 KB` / `1.9 MB`：给气泡看的大小，不用精确到字节。
+  static String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    final kb = bytes / 1024;
+    if (kb < 1024) return '${kb.toStringAsFixed(kb < 10 ? 1 : 0)} KB';
+    return '${(kb / 1024).toStringAsFixed(1)} MB';
+  }
+
   static String _clock(Duration duration) {
     final minutes = duration.inSeconds ~/ 60;
     final rest = (duration.inSeconds % 60).toString().padLeft(2, '0');
@@ -401,7 +409,12 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
                   Icon(Icons.graphic_eq_rounded, size: 14, color: accent),
                   const SizedBox(width: 5),
                   Text(
-                    s.aiVoiceClip(seconds),
+                    // 带上实际发出去的体积：收不到音频时，这一行能直接回答
+                    // 「是没传过去还是接口丢了」——有数字就是进了请求体。
+                    entry.voiceBytes == null
+                        ? s.aiVoiceClip(seconds)
+                        : '${s.aiVoiceClip(seconds)} · '
+                              '${s.aiVoiceSent(_formatBytes(entry.voiceBytes!))}',
                     style: TextStyle(
                       fontSize: 12,
                       color: AppColors.onScaffold(context),
@@ -430,6 +443,32 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
   ///
   /// 里面按「来源 → 做了什么 → 说了什么」竖着排：定时任务的来源标签在最上面，
   /// 工具摘要其次，正文最后。整块用一个气泡包住，滚动时不会看成三条独立的消息。
+  /// 「接口把音频丢了」这条提示，附带实际发出去的体积。
+  Widget _voiceLostNote(BuildContext context, S s, int? bytes) {
+    final color = Theme.of(context).colorScheme.error;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.26), width: 0.8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.mic_off_rounded, size: 14, color: color),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              s.aiVoiceDropped(bytes == null ? '—' : _formatBytes(bytes)),
+              style: TextStyle(fontSize: 11.5, height: 1.5, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _assistantBubble(BuildContext context, S s, AiChatEntry entry) {
     final onSurface = AppColors.onScaffold(context);
     final failure = entry.failure;
@@ -521,6 +560,12 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
                 entry.text,
                 style: TextStyle(fontSize: 14, height: 1.55, color: onSurface),
               ),
+            // 模型说没收到音频时补一句诊断：录音已经发出去了，是接口丢的。
+            // 不加这句，用户只能反复重录，永远查不到原因。
+            if (entry.voiceLost) ...[
+              if (entry.text.isNotEmpty) const SizedBox(height: 9),
+              _voiceLostNote(context, s, entry.voiceBytes),
+            ],
           ],
         ),
       ),

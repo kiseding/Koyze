@@ -2127,6 +2127,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aiTestOk => 'Connection works';
 
   @override
+  String get aiTestVoice => 'Test voice';
+
+  @override
+  String get aiTestingVoice => 'Testing voice…';
+
+  @override
+  String get aiTestVoiceOk => 'This endpoint delivers audio to the model';
+
+  @override
+  String get aiTestVoiceDropped =>
+      'The endpoint dropped the audio — the model only saw text. Switch to a model that supports input_audio (e.g. gpt-4o-audio-preview, qwen-omni)';
+
+  @override
+  String get aiTestVoiceHint =>
+      'A working connection does not mean the model can hear. Send a test tone to confirm this endpoint actually passes recordings through.';
+
+  @override
   String get aiConfigSaved => 'AI settings saved';
 
   @override
@@ -2499,6 +2516,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String aiVoiceClip(int seconds) {
     return 'Voice · ${seconds}s';
+  }
+
+  @override
+  String aiVoiceDropped(String size) {
+    return 'The endpoint did not pass this recording to the model. It was sent ($size) — the endpoint dropped it. Use \"Test voice\" in settings to confirm, or switch to a model that supports input_audio.';
+  }
+
+  @override
+  String aiVoiceSent(String size) {
+    return 'sent $size';
   }
 
   @override

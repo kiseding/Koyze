@@ -786,6 +786,11 @@ class S {
   String get aiTestConnection => _l10n.aiTestConnection;
   String get aiTesting => _l10n.aiTesting;
   String get aiTestOk => _l10n.aiTestOk;
+  String get aiTestVoice => _l10n.aiTestVoice;
+  String get aiTestingVoice => _l10n.aiTestingVoice;
+  String get aiTestVoiceOk => _l10n.aiTestVoiceOk;
+  String get aiTestVoiceDropped => _l10n.aiTestVoiceDropped;
+  String get aiTestVoiceHint => _l10n.aiTestVoiceHint;
   String get aiConfigSaved => _l10n.aiConfigSaved;
   String get aiConfigInvalid => _l10n.aiConfigInvalid;
   String get aiErrorNotConfigured => _l10n.aiErrorNotConfigured;
@@ -875,6 +880,8 @@ class S {
   String get aiVoiceReady => _l10n.aiVoiceReady;
   String aiVoiceClip(int seconds) => _l10n.aiVoiceClip(seconds);
   String get aiVoiceRemove => _l10n.aiVoiceRemove;
+  String aiVoiceSent(String size) => _l10n.aiVoiceSent(size);
+  String aiVoiceDropped(String size) => _l10n.aiVoiceDropped(size);
   String get aiVoiceTooShort => _l10n.aiVoiceTooShort;
   String get aiVoiceUnavailable => _l10n.aiVoiceUnavailable;
   String get aiVoiceFailed => _l10n.aiVoiceFailed;

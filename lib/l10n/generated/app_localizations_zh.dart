@@ -2087,6 +2087,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiTestOk => '连接正常';
 
   @override
+  String get aiTestVoice => '测试语音';
+
+  @override
+  String get aiTestingVoice => '正在测语音…';
+
+  @override
+  String get aiTestVoiceOk => '这个接口能把录音交给模型';
+
+  @override
+  String get aiTestVoiceDropped =>
+      '接口把音频丢了：模型只看到文字。换一个支持 input_audio 的模型（如 gpt-4o-audio-preview、qwen-omni）';
+
+  @override
+  String get aiTestVoiceHint => '连接正常不代表模型听得见音频。点这里发一段测试音，确认这个接口有没有把录音真的送进模型。';
+
+  @override
   String get aiConfigSaved => 'AI 设置已保存';
 
   @override
@@ -2447,6 +2463,16 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String aiVoiceClip(int seconds) {
     return '语音 $seconds 秒';
+  }
+
+  @override
+  String aiVoiceDropped(String size) {
+    return '接口没有把这段录音交给模型。录音本身已发出（$size），是这个接口丢了音频——到设置里点「测试语音」可以确认，或换一个支持 input_audio 的模型。';
+  }
+
+  @override
+  String aiVoiceSent(String size) {
+    return '已发出 $size';
   }
 
   @override
