@@ -7,15 +7,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/state/buildless_notifier.dart';
 import '../../search/presentation/search_provider.dart';
+import '../domain/ai_agent.dart';
+import '../domain/ai_chat.dart';
 import '../domain/ai_client.dart';
 import '../domain/ai_config.dart';
 import '../domain/ai_config_store.dart';
 import '../domain/ai_credential_store.dart';
 import '../domain/ai_playlist_planner.dart';
+import '../domain/ai_tools.dart';
+import 'ai_ports.dart';
 
-final aiConfigStoreProvider = Provider<AiConfigStore>(
-  (ref) => AiConfigStore(),
-);
+final aiConfigStoreProvider = Provider<AiConfigStore>((ref) => AiConfigStore());
 
 final aiCredentialStoreProvider = Provider<AiCredentialStore>(
   (ref) => AiCredentialStore(),
@@ -27,8 +29,27 @@ final aiPlannerProvider = Provider<AiPlaylistPlanner>((ref) {
   return AiPlaylistPlanner(client: ref.watch(aiClientProvider));
 });
 
+final aiAgentProvider = Provider<AiAgent>((ref) {
+  return AiAgent(client: ref.watch(aiClientProvider));
+});
+
 final aiMatcherProvider = Provider<AiPlaylistMatcher>((ref) {
   return AiPlaylistMatcher(service: ref.watch(musicSourceServiceProvider));
+});
+
+/// 交给模型的全部操作。每个端口都直连服务层，模型不经过任何界面。
+final aiToolboxProvider = Provider<AiToolbox>((ref) {
+  final config = ref.watch(aiConfigProvider);
+  return AiToolbox(
+    allowActions: config.allowActions,
+    playback: ProviderAiPlaybackPort(ref),
+    playlists: ProviderAiPlaylistPort(ref),
+    downloads: ProviderAiDownloadPort(ref),
+    sources: ProviderAiSourcePort(ref),
+    settings: ProviderAiSettingsPort(ref),
+    search: (query, limit) =>
+        ref.read(musicSourceServiceProvider).search(query, limit: limit),
+  );
 });
 
 final aiConfigProvider = NotifierProvider<AiConfigNotifier, AiConfig>(
@@ -71,5 +92,107 @@ class AiConfigNotifier extends BuildlessNotifier<AiConfig> {
       return;
     }
     await store.saveKey(url, apiKey.trim());
+  }
+}
+
+/// 助手对话状态。历史只留在内存里，退出应用即清空。
+final aiChatProvider = NotifierProvider<AiChatNotifier, AiChatState>(
+  AiChatNotifier.new,
+);
+
+class AiChatNotifier extends BuildlessNotifier<AiChatState> {
+  AiChatNotifier() : super(const AiChatState());
+
+  /// 回传给模型的多轮上下文；和界面上的 [AiChatState.entries] 分开存，
+  /// 这样「清空显示」不会把工具调用配对关系弄坏。
+  final List<AiMessage> _history = [];
+
+  static const int _maxHistoryMessages = 24;
+
+  Future<void> send(String input) async {
+    final text = input.trim();
+    if (text.isEmpty || value.busy) return;
+
+    final entries = [
+      ...value.entries,
+      AiChatEntry(role: AiChatRole.user, text: text),
+    ];
+    _emit(entries, busy: true);
+
+    final config = ref.read(aiConfigProvider);
+    if (!config.isConfigured) {
+      _fail(entries, AiFailureKind.notConfigured);
+      return;
+    }
+    final key = await ref.read(aiConfigProvider.notifier).loadKey();
+    if (key == null || key.isEmpty) {
+      _fail(entries, AiFailureKind.unauthorized);
+      return;
+    }
+
+    final userMessage = AiMessage(AiRole.user, text);
+    try {
+      final reply = await ref
+          .read(aiAgentProvider)
+          .run(
+            config: config,
+            apiKey: key,
+            history: [..._history, userMessage],
+            toolbox: ref.read(aiToolboxProvider),
+            useTools: config.toolsEnabled,
+            onToolCall: (call) {
+              if (!mounted) return;
+              _emit(
+                entries,
+                busy: true,
+                activeTool: ref
+                    .read(aiToolboxProvider)
+                    .toolNamed(call.name)
+                    ?.category,
+              );
+            },
+          );
+      if (!mounted) return;
+      _history
+        ..add(userMessage)
+        ..add(AiMessage(AiRole.assistant, reply.text));
+      if (_history.length > _maxHistoryMessages) {
+        _history.removeRange(0, _history.length - _maxHistoryMessages);
+      }
+      _emit([
+        ...entries,
+        AiChatEntry(
+          role: AiChatRole.assistant,
+          text: reply.text,
+          toolRuns: reply.toolRuns,
+        ),
+      ]);
+    } on AiException catch (error) {
+      if (!mounted) return;
+      _fail(entries, error.kind);
+    } catch (_) {
+      if (!mounted) return;
+      _fail(entries, AiFailureKind.network);
+    }
+  }
+
+  void clear() {
+    _history.clear();
+    if (!mounted) return;
+    publish(const AiChatState());
+  }
+
+  void _fail(List<AiChatEntry> entries, AiFailureKind kind) {
+    if (!mounted) return;
+    _emit([...entries, AiChatEntry(role: AiChatRole.assistant, failure: kind)]);
+  }
+
+  void _emit(
+    List<AiChatEntry> entries, {
+    bool busy = false,
+    AiToolCategory? activeTool,
+  }) {
+    if (!mounted) return;
+    publish(AiChatState(entries: entries, busy: busy, activeTool: activeTool));
   }
 }

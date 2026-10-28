@@ -455,7 +455,13 @@
   "copyAll": "复制全部",
   "closeDiagnostics": "关闭诊断日志",
   "clearMemoryLog": "清空内存日志",
-  "diagnosticsHint": "仅保存在当前运行内存；关闭或重启应用后自动清空。",
+  "diagnosticsRecording": "记录中",
+  "diagnosticsFilterAll": "全部",
+  "diagnosticsFilterWarnings": "警告",
+  "diagnosticsFilterErrors": "错误",
+  "diagnosticsJumpLatest": "回到最新",
+  "diagnosticsEmptyHint": "面板已打开，有新的运行事件会实时出现在这里。",
+  "diagnosticsHint": "只在打开这个面板时记录；仅存于内存，重启后清空。",
   "stoppedAfterRepeatedFailures": "连续 5 首歌曲播放失败，已停止自动播放",
   "autoplayNextFailed": "自动播放下一首失败，请返回应用重试",
   "reloadingSong": "播放歌曲失败，正在重新加载",
@@ -616,8 +622,9 @@
   "sourceCheckProgress": "{done}/{total}",
   "sourceCheckAffectsSelection": "明确失败的脚本在选源时会被跳过，只有超时的排到最后。",
   "sourceCheckCancelled": "已取消，已跑完的部分会保留。",
-  "sourceCheckNeverRun": "尚未检测",
+  "sourceCheckNeverRun": "未检测",
   "sourceCheckTesting": "检测中…",
+  "sourceCheckRerun": "重新检测",
   "sourceCheckSummary": "{ok}/{total} 个平台可用 · {time}",
   "sourceCheckDefaultQuality": "默认音质",
   "sourceCheckColdStart": "冷启动",
@@ -661,5 +668,55 @@
   "aiNotConfigured": "请先在「AI 设置」里填写地址、密钥和模型",
   "aiEmptyResult": "没有得到可用的歌曲",
   "aiSongUnmatched": "曲库里没找到：{name}",
-  "aiSettingsSubtitle": "接口地址、密钥与模型"
+  "aiSettingsSubtitle": "接口地址、密钥与模型",
+  "aiToolsTitle": "工具调用",
+  "aiToolsSubtitle": "让模型自己查曲库、歌单、音源和下载，而不是凭记忆编歌名",
+  "aiActionsTitle": "允许 AI 直接操作应用",
+  "aiActionsSubtitle": "关闭后只保留查询类操作，动手的事交回给你",
+  "aiToolRunning": "正在调用 {tool}…",
+  "@aiToolRunning": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "aiToolSearchLibrary": "搜索曲库",
+  "aiToolListPlaylists": "读取歌单",
+  "aiToolGetPlaylist": "查看歌单",
+  "aiToolSourceStatus": "检查音源",
+  "aiToolCreatePlaylist": "创建歌单",
+  "aiAssistantTitle": "AI 助手",
+  "aiAssistantSubtitle": "一句话让它播歌、排队、建歌单、改设置",
+  "aiAssistantPlaceholder": "说你想听的、想做的…",
+  "aiAssistantEmptyTitle": "直接说要做什么",
+  "aiAssistantEmptyHint": "助手在后台调用应用自己的接口完成操作，你不用自己去找按钮。",
+  "aiAssistantExample1": "播放周杰伦的晴天",
+  "aiAssistantExample2": "把这首歌收藏，再下到本地",
+  "aiAssistantExample3": "建个深夜写代码的歌单，20 首安静的曲子",
+  "aiAssistantThinking": "思考中…",
+  "aiAssistantWorking": "正在执行 {tool}…",
+  "@aiAssistantWorking": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "aiAssistantNewChat": "新对话",
+  "aiAssistantReadOnly": "执行权限已关闭，助手只会给建议",
+  "aiAssistantToolCount": "{count} 次",
+  "@aiAssistantToolCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "aiCategoryLibrary": "查询曲库",
+  "aiCategoryPlayback": "播放控制",
+  "aiCategoryPlaylist": "歌单",
+  "aiCategoryDownload": "下载",
+  "aiCategorySource": "音源",
+  "aiCategorySettings": "设置"
 }

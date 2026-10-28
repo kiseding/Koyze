@@ -1412,8 +1412,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clearMemoryLog => 'Clear log';
 
   @override
+  String get diagnosticsRecording => 'Recording';
+
+  @override
+  String get diagnosticsFilterAll => 'All';
+
+  @override
+  String get diagnosticsFilterWarnings => 'Warnings';
+
+  @override
+  String get diagnosticsFilterErrors => 'Errors';
+
+  @override
+  String get diagnosticsJumpLatest => 'Jump to latest';
+
+  @override
+  String get diagnosticsEmptyHint =>
+      'Panel is open. New runtime events will show up here.';
+
+  @override
   String get diagnosticsHint =>
-      'Kept in memory for this run only. Closing or restarting the app clears it.';
+      'Records only while this panel is open. Kept in memory; cleared on restart.';
 
   @override
   String get stoppedAfterRepeatedFailures =>
@@ -2085,10 +2104,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sourceCheckCancelled => 'Cancelled. Partial results are kept.';
 
   @override
-  String get sourceCheckNeverRun => 'Not tested yet';
+  String get sourceCheckNeverRun => 'Not tested';
 
   @override
   String get sourceCheckTesting => 'Testing…';
+
+  @override
+  String get sourceCheckRerun => 'Re-test';
 
   @override
   String sourceCheckSummary(int ok, int total, String time) {
@@ -2235,4 +2257,102 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aiSettingsSubtitle => 'Endpoint, key and model';
+
+  @override
+  String get aiToolsTitle => 'Tool calling';
+
+  @override
+  String get aiToolsSubtitle =>
+      'Let the model look up your library, playlists, sources and downloads instead of guessing titles';
+
+  @override
+  String get aiActionsTitle => 'Let the AI operate the app';
+
+  @override
+  String get aiActionsSubtitle => 'Turn off to keep lookup tools only';
+
+  @override
+  String aiToolRunning(String tool) {
+    return 'Calling $tool…';
+  }
+
+  @override
+  String get aiToolSearchLibrary => 'Search library';
+
+  @override
+  String get aiToolListPlaylists => 'List playlists';
+
+  @override
+  String get aiToolGetPlaylist => 'Read playlist';
+
+  @override
+  String get aiToolSourceStatus => 'Check sources';
+
+  @override
+  String get aiToolCreatePlaylist => 'Create playlist';
+
+  @override
+  String get aiAssistantTitle => 'AI assistant';
+
+  @override
+  String get aiAssistantSubtitle =>
+      'One sentence to play, queue, build playlists or change settings';
+
+  @override
+  String get aiAssistantPlaceholder => 'What do you want to hear or do?';
+
+  @override
+  String get aiAssistantEmptyTitle => 'Just say what to do';
+
+  @override
+  String get aiAssistantEmptyHint =>
+      'It calls the app\'s own APIs in the background, so you never have to hunt for a button.';
+
+  @override
+  String get aiAssistantExample1 => 'Play 晴天 by Jay Chou';
+
+  @override
+  String get aiAssistantExample2 => 'Favorite this song and download it';
+
+  @override
+  String get aiAssistantExample3 =>
+      'Make a late-night coding playlist with 20 quiet tracks';
+
+  @override
+  String get aiAssistantThinking => 'Thinking…';
+
+  @override
+  String aiAssistantWorking(String tool) {
+    return 'Running $tool…';
+  }
+
+  @override
+  String get aiAssistantNewChat => 'New chat';
+
+  @override
+  String get aiAssistantReadOnly =>
+      'Actions are off — the assistant can only advise';
+
+  @override
+  String aiAssistantToolCount(int count) {
+    return '$count calls';
+  }
+
+  @override
+  String get aiCategoryLibrary => 'Library';
+
+  @override
+  String get aiCategoryPlayback => 'Playback';
+
+  @override
+  String get aiCategoryPlaylist => 'Playlists';
+
+  @override
+  String get aiCategoryDownload => 'Downloads';
+
+  @override
+  String get aiCategorySource => 'Sources';
+
+  @override
+  String get aiCategorySettings => 'Settings';
 }

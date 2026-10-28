@@ -2828,10 +2828,46 @@ abstract class AppLocalizations {
   /// **'Clear log'**
   String get clearMemoryLog;
 
+  /// No description provided for @diagnosticsRecording.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording'**
+  String get diagnosticsRecording;
+
+  /// No description provided for @diagnosticsFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get diagnosticsFilterAll;
+
+  /// No description provided for @diagnosticsFilterWarnings.
+  ///
+  /// In en, this message translates to:
+  /// **'Warnings'**
+  String get diagnosticsFilterWarnings;
+
+  /// No description provided for @diagnosticsFilterErrors.
+  ///
+  /// In en, this message translates to:
+  /// **'Errors'**
+  String get diagnosticsFilterErrors;
+
+  /// No description provided for @diagnosticsJumpLatest.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to latest'**
+  String get diagnosticsJumpLatest;
+
+  /// No description provided for @diagnosticsEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Panel is open. New runtime events will show up here.'**
+  String get diagnosticsEmptyHint;
+
   /// No description provided for @diagnosticsHint.
   ///
   /// In en, this message translates to:
-  /// **'Kept in memory for this run only. Closing or restarting the app clears it.'**
+  /// **'Records only while this panel is open. Kept in memory; cleared on restart.'**
   String get diagnosticsHint;
 
   /// No description provided for @stoppedAfterRepeatedFailures.
@@ -3797,7 +3833,7 @@ abstract class AppLocalizations {
   /// No description provided for @sourceCheckNeverRun.
   ///
   /// In en, this message translates to:
-  /// **'Not tested yet'**
+  /// **'Not tested'**
   String get sourceCheckNeverRun;
 
   /// No description provided for @sourceCheckTesting.
@@ -3805,6 +3841,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Testing…'**
   String get sourceCheckTesting;
+
+  /// No description provided for @sourceCheckRerun.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-test'**
+  String get sourceCheckRerun;
 
   /// No description provided for @sourceCheckSummary.
   ///
@@ -4069,6 +4111,180 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Endpoint, key and model'**
   String get aiSettingsSubtitle;
+
+  /// No description provided for @aiToolsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool calling'**
+  String get aiToolsTitle;
+
+  /// No description provided for @aiToolsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Let the model look up your library, playlists, sources and downloads instead of guessing titles'**
+  String get aiToolsSubtitle;
+
+  /// No description provided for @aiActionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Let the AI operate the app'**
+  String get aiActionsTitle;
+
+  /// No description provided for @aiActionsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off to keep lookup tools only'**
+  String get aiActionsSubtitle;
+
+  /// No description provided for @aiToolRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Calling {tool}…'**
+  String aiToolRunning(String tool);
+
+  /// No description provided for @aiToolSearchLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Search library'**
+  String get aiToolSearchLibrary;
+
+  /// No description provided for @aiToolListPlaylists.
+  ///
+  /// In en, this message translates to:
+  /// **'List playlists'**
+  String get aiToolListPlaylists;
+
+  /// No description provided for @aiToolGetPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Read playlist'**
+  String get aiToolGetPlaylist;
+
+  /// No description provided for @aiToolSourceStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Check sources'**
+  String get aiToolSourceStatus;
+
+  /// No description provided for @aiToolCreatePlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Create playlist'**
+  String get aiToolCreatePlaylist;
+
+  /// No description provided for @aiAssistantTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI assistant'**
+  String get aiAssistantTitle;
+
+  /// No description provided for @aiAssistantSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'One sentence to play, queue, build playlists or change settings'**
+  String get aiAssistantSubtitle;
+
+  /// No description provided for @aiAssistantPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'What do you want to hear or do?'**
+  String get aiAssistantPlaceholder;
+
+  /// No description provided for @aiAssistantEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Just say what to do'**
+  String get aiAssistantEmptyTitle;
+
+  /// No description provided for @aiAssistantEmptyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'It calls the app\'s own APIs in the background, so you never have to hunt for a button.'**
+  String get aiAssistantEmptyHint;
+
+  /// No description provided for @aiAssistantExample1.
+  ///
+  /// In en, this message translates to:
+  /// **'Play 晴天 by Jay Chou'**
+  String get aiAssistantExample1;
+
+  /// No description provided for @aiAssistantExample2.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorite this song and download it'**
+  String get aiAssistantExample2;
+
+  /// No description provided for @aiAssistantExample3.
+  ///
+  /// In en, this message translates to:
+  /// **'Make a late-night coding playlist with 20 quiet tracks'**
+  String get aiAssistantExample3;
+
+  /// No description provided for @aiAssistantThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Thinking…'**
+  String get aiAssistantThinking;
+
+  /// No description provided for @aiAssistantWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'Running {tool}…'**
+  String aiAssistantWorking(String tool);
+
+  /// No description provided for @aiAssistantNewChat.
+  ///
+  /// In en, this message translates to:
+  /// **'New chat'**
+  String get aiAssistantNewChat;
+
+  /// No description provided for @aiAssistantReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Actions are off — the assistant can only advise'**
+  String get aiAssistantReadOnly;
+
+  /// No description provided for @aiAssistantToolCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} calls'**
+  String aiAssistantToolCount(int count);
+
+  /// No description provided for @aiCategoryLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get aiCategoryLibrary;
+
+  /// No description provided for @aiCategoryPlayback.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback'**
+  String get aiCategoryPlayback;
+
+  /// No description provided for @aiCategoryPlaylist.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlists'**
+  String get aiCategoryPlaylist;
+
+  /// No description provided for @aiCategoryDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads'**
+  String get aiCategoryDownload;
+
+  /// No description provided for @aiCategorySource.
+  ///
+  /// In en, this message translates to:
+  /// **'Sources'**
+  String get aiCategorySource;
+
+  /// No description provided for @aiCategorySettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get aiCategorySettings;
 }
 
 class _AppLocalizationsDelegate

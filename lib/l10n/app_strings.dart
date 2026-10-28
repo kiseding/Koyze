@@ -505,6 +505,12 @@ class S {
   String get closeDiagnostics => _l10n.closeDiagnostics;
   String get clearMemoryLog => _l10n.clearMemoryLog;
   String get diagnosticsHint => _l10n.diagnosticsHint;
+  String get diagnosticsRecording => _l10n.diagnosticsRecording;
+  String get diagnosticsFilterAll => _l10n.diagnosticsFilterAll;
+  String get diagnosticsFilterWarnings => _l10n.diagnosticsFilterWarnings;
+  String get diagnosticsFilterErrors => _l10n.diagnosticsFilterErrors;
+  String get diagnosticsJumpLatest => _l10n.diagnosticsJumpLatest;
+  String get diagnosticsEmptyHint => _l10n.diagnosticsEmptyHint;
   String get stoppedAfterRepeatedFailures => _l10n.stoppedAfterRepeatedFailures;
   String get autoplayNextFailed => _l10n.autoplayNextFailed;
   String get reloadingSong => _l10n.reloadingSong;
@@ -520,22 +526,27 @@ class S {
   String clearFailed(Object error) => _l10n.clearFailed('$error');
   String minutes(int count) => _l10n.minutes(count);
   String stopsInMinutes(int count) => _l10n.stopsInMinutes(count);
-  String playAction(String mode, String target) => _l10n.playAction(mode, target);
+  String playAction(String mode, String target) =>
+      _l10n.playAction(mode, target);
   String recommendedSongs(int count) => _l10n.recommendedSongs(count);
   String songCount(int count) => _l10n.songCount(count);
   String loadingHost(String host) => _l10n.loadingHost(host);
-  String actionFailed(String action, Object error) => _l10n.actionFailed(action, '$error');
-  String failedWith(String label, Object error) => _l10n.failedWith(label, '$error');
+  String actionFailed(String action, Object error) =>
+      _l10n.actionFailed(action, '$error');
+  String failedWith(String label, Object error) =>
+      _l10n.failedWith(label, '$error');
   String nowPlayingNamed(String name) => _l10n.nowPlayingNamed(name);
   String playNamed(String name) => _l10n.playNamed(name);
   String chartCount(int count) => _l10n.chartCount(count);
   String hiddenUntil(String name) => _l10n.hiddenUntil(name);
   String songsHeader(int count) => _l10n.songsHeader(count);
   String playlistsHeader(int count) => _l10n.playlistsHeader(count);
-  String importProgress(int loaded, int total) => _l10n.importProgress(loaded, total);
+  String importProgress(int loaded, int total) =>
+      _l10n.importProgress(loaded, total);
   String confirmImport(int count) => _l10n.confirmImport(count);
   String importedFrom(String source) => _l10n.importedFrom(source);
-  String importedResult(String name, int count) => _l10n.importedResult(name, count);
+  String importedResult(String name, int count) =>
+      _l10n.importedResult(name, count);
   String parsingProgress(String progress) => _l10n.parsingProgress(progress);
   String addedToFavorites(int count) => _l10n.addedToFavorites(count);
   String searchFailed(Object error) => _l10n.searchFailed('$error');
@@ -543,43 +554,57 @@ class S {
   String localArtist(String singer) => _l10n.localArtist(singer);
   String queueTitle(int count) => _l10n.queueTitle(count);
   String selectedCount(int count) => _l10n.selectedCount(count);
-  String playlistTitleCount(String name, int count) => _l10n.playlistTitleCount(name, count);
+  String playlistTitleCount(String name, int count) =>
+      _l10n.playlistTitleCount(name, count);
   String favoritedSongs(int count) => _l10n.favoritedSongs(count);
   String queuedDownloads(int count) => _l10n.queuedDownloads(count);
   String unfavoritedSongs(int count) => _l10n.unfavoritedSongs(count);
   String clearFavoritesBody(int count) => _l10n.clearFavoritesBody(count);
-  String deletePlaylistConfirm(String name) => _l10n.deletePlaylistConfirm(name);
+  String deletePlaylistConfirm(String name) =>
+      _l10n.deletePlaylistConfirm(name);
   String pagePosition(int page, int count) => _l10n.pagePosition(page, count);
   String startupFailedHint(String error) => _l10n.startupFailedHint(error);
   String bandsReady(int count, String range) => _l10n.bandsReady(count, range);
   String localSongCount(int count) => _l10n.localSongCount(count);
   String mediaStoreHint(int count) => _l10n.mediaStoreHint(count);
   String downloadFolder(String path) => _l10n.downloadFolder(path);
-  String importingCount(int done, int total) => _l10n.importingCount(done, total);
-  String mediaStoreImporting(int done, int total) => _l10n.mediaStoreImporting(done, total);
-  String allFilesScanning(int done, int total) => _l10n.allFilesScanning(done, total);
+  String importingCount(int done, int total) =>
+      _l10n.importingCount(done, total);
+  String mediaStoreImporting(int done, int total) =>
+      _l10n.mediaStoreImporting(done, total);
+  String allFilesScanning(int done, int total) =>
+      _l10n.allFilesScanning(done, total);
   String scanningPath(String path) => _l10n.scanningPath(path);
-  String readingMetadata(int done, int total) => _l10n.readingMetadata(done, total);
+  String readingMetadata(int done, int total) =>
+      _l10n.readingMetadata(done, total);
   String scrapingCount(int done, int total) => _l10n.scrapingCount(done, total);
   String localUpdated(int count) => _l10n.localUpdated(count);
-  String writingTagsCount(int done, int total) => _l10n.writingTagsCount(done, total);
-  String tagsWritten(int written, int attempted) => _l10n.tagsWritten(written, attempted);
+  String writingTagsCount(int done, int total) =>
+      _l10n.writingTagsCount(done, total);
+  String tagsWritten(int written, int attempted) =>
+      _l10n.tagsWritten(written, attempted);
   String activeHeader(int count) => _l10n.activeHeader(count);
   String finishedHeader(int count) => _l10n.finishedHeader(count);
-  String downloadingPercent(String percent) => _l10n.downloadingPercent(percent);
-  String pausedPercent(String singer, String percent) => _l10n.pausedPercent(singer, percent);
+  String downloadingPercent(String percent) =>
+      _l10n.downloadingPercent(percent);
+  String pausedPercent(String singer, String percent) =>
+      _l10n.pausedPercent(singer, percent);
   String deleteFinishedBody(int count) => _l10n.deleteFinishedBody(count);
   String clearFailedBody(int count) => _l10n.clearFailedBody(count);
   String dailyPeak(int days, int maxCount) => _l10n.dailyPeak(days, maxCount);
-  String statSubtitle(String subtitle, int count) => _l10n.statSubtitle(subtitle, count);
-  String duplicateGroup(String artist, int count) => _l10n.duplicateGroup(artist, count);
+  String statSubtitle(String subtitle, int count) =>
+      _l10n.statSubtitle(subtitle, count);
+  String duplicateGroup(String artist, int count) =>
+      _l10n.duplicateGroup(artist, count);
   String removedDuplicates(int count) => _l10n.removedDuplicates(count);
   String playlistSongCount(int count) => _l10n.playlistSongCount(count);
   String recommendUpdated(int count) => _l10n.recommendUpdated(count);
-  String scrapingProgress(int done, int total) => _l10n.scrapingProgress(done, total);
+  String scrapingProgress(int done, int total) =>
+      _l10n.scrapingProgress(done, total);
   String notConnected(String name) => _l10n.notConnected(name);
   String connectedHost(String host) => _l10n.connectedHost(host);
-  String matchedSongs(int matched, int total) => _l10n.matchedSongs(matched, total);
+  String matchedSongs(int matched, int total) =>
+      _l10n.matchedSongs(matched, total);
   String scrapeFailed(Object error) => _l10n.scrapeFailed('$error');
   String nasPlaylistTitle(String name) => _l10n.nasPlaylistTitle(name);
   String loggedInAs(String name) => _l10n.loggedInAs(name);
@@ -593,7 +618,8 @@ class S {
   String deletedUser(String name) => _l10n.deletedUser(name);
   String usersLoadFailed(Object error) => _l10n.usersLoadFailed('$error');
   String sourceInitFailed(String name) => _l10n.sourceInitFailed(name);
-  String importScriptFailed(Object reason) => _l10n.importScriptFailed('$reason');
+  String importScriptFailed(Object reason) =>
+      _l10n.importScriptFailed('$reason');
   String readFileFailed(Object error) => _l10n.readFileFailed('$error');
   String deleteSourceConfirm(String name) => _l10n.deleteSourceConfirm(name);
   String sourceLogTitle(String name) => _l10n.sourceLogTitle(name);
@@ -601,7 +627,8 @@ class S {
   String diagnosticsCount(int count) => _l10n.diagnosticsCount(count);
   String playingQuoted(String name) => _l10n.playingQuoted(name);
   String unresolvedUrl(String title) => _l10n.unresolvedUrl(title);
-  String playSongFailed(String title, Object error) => _l10n.playSongFailed(title, '$error');
+  String playSongFailed(String title, Object error) =>
+      _l10n.playSongFailed(title, '$error');
 
   // ---- branching copy that ARB cannot express -----------------------
   String builtinPlaylistName(String id, String storedName) => switch (id) {
@@ -628,7 +655,6 @@ class S {
     AppLanguage.en => 'English',
   };
 
-
   String platformName(String id) => switch (id) {
     'qq' => en ? 'QQ Music' : 'QQ音乐',
     'tx' => en ? 'QQ Music' : 'QQ音乐',
@@ -637,7 +663,6 @@ class S {
     'kg' => en ? 'Kugou' : '酷狗音乐',
     _ => otherPlatform,
   };
-
 
   String platformText(String p) => switch (p) {
     'tx' => en ? 'QQ Music' : 'QQ音乐',
@@ -706,7 +731,6 @@ class S {
     _ => id,
   };
 
-
   String quickTitle(String id) => switch (id) {
     'recommend' => forYou,
     'local' => localMusic,
@@ -737,25 +761,28 @@ class S {
     _ => id,
   };
 
-
-
   // ---- 音源检测 / AI ----
   String get sourceCheckTitle => _l10n.sourceCheckTitle;
   String get sourceCheckSubtitle => _l10n.sourceCheckSubtitle;
   String get sourceCheckIntro => _l10n.sourceCheckIntro;
   String get sourceCheckStart => _l10n.sourceCheckStart;
   String get sourceCheckPreparing => _l10n.sourceCheckPreparing;
-  String sourceCheckRunning(String current) => _l10n.sourceCheckRunning(current);
-  String sourceCheckProgress(int done, int total) => _l10n.sourceCheckProgress(done, total);
+  String sourceCheckRunning(String current) =>
+      _l10n.sourceCheckRunning(current);
+  String sourceCheckProgress(int done, int total) =>
+      _l10n.sourceCheckProgress(done, total);
   String get sourceCheckAffectsSelection => _l10n.sourceCheckAffectsSelection;
   String get sourceCheckCancelled => _l10n.sourceCheckCancelled;
   String get sourceCheckNeverRun => _l10n.sourceCheckNeverRun;
   String get sourceCheckTesting => _l10n.sourceCheckTesting;
-  String sourceCheckSummary(int ok, int total, String time) => _l10n.sourceCheckSummary(ok, total, time);
+  String get sourceCheckRerun => _l10n.sourceCheckRerun;
+  String sourceCheckSummary(int ok, int total, String time) =>
+      _l10n.sourceCheckSummary(ok, total, time);
   String get sourceCheckDefaultQuality => _l10n.sourceCheckDefaultQuality;
   String get sourceCheckColdStart => _l10n.sourceCheckColdStart;
   String get sourceCheckNoSources => _l10n.sourceCheckNoSources;
-  String sourceCheckSkipped(String platforms) => _l10n.sourceCheckSkipped(platforms);
+  String sourceCheckSkipped(String platforms) =>
+      _l10n.sourceCheckSkipped(platforms);
   String get sourceCheckDisabledBadge => _l10n.sourceCheckDisabledBadge;
   String get aiSettingsTitle => _l10n.aiSettingsTitle;
   String get aiSettingsSubtitle => _l10n.aiSettingsSubtitle;
@@ -789,12 +816,42 @@ class S {
   String get aiGenerate => _l10n.aiGenerate;
   String get aiGenerating => _l10n.aiGenerating;
   String aiMatching(int index, int total) => _l10n.aiMatching(index, total);
-  String aiMatchedCount(int matched, int total) => _l10n.aiMatchedCount(matched, total);
+  String aiMatchedCount(int matched, int total) =>
+      _l10n.aiMatchedCount(matched, total);
   String get aiCreatePlaylist => _l10n.aiCreatePlaylist;
   String aiCreated(String name) => _l10n.aiCreated(name);
   String get aiNotConfigured => _l10n.aiNotConfigured;
   String get aiEmptyResult => _l10n.aiEmptyResult;
   String aiSongUnmatched(String name) => _l10n.aiSongUnmatched(name);
+  String get aiToolsTitle => _l10n.aiToolsTitle;
+  String get aiToolsSubtitle => _l10n.aiToolsSubtitle;
+  String get aiActionsTitle => _l10n.aiActionsTitle;
+  String get aiActionsSubtitle => _l10n.aiActionsSubtitle;
+  String get aiAssistantTitle => _l10n.aiAssistantTitle;
+  String get aiAssistantSubtitle => _l10n.aiAssistantSubtitle;
+  String get aiAssistantPlaceholder => _l10n.aiAssistantPlaceholder;
+  String get aiAssistantEmptyTitle => _l10n.aiAssistantEmptyTitle;
+  String get aiAssistantEmptyHint => _l10n.aiAssistantEmptyHint;
+  String get aiAssistantExample1 => _l10n.aiAssistantExample1;
+  String get aiAssistantExample2 => _l10n.aiAssistantExample2;
+  String get aiAssistantExample3 => _l10n.aiAssistantExample3;
+  String get aiAssistantThinking => _l10n.aiAssistantThinking;
+  String aiAssistantWorking(String tool) => _l10n.aiAssistantWorking(tool);
+  String get aiAssistantNewChat => _l10n.aiAssistantNewChat;
+  String get aiAssistantReadOnly => _l10n.aiAssistantReadOnly;
+  String aiAssistantToolCount(int count) => _l10n.aiAssistantToolCount(count);
+  String get aiCategoryLibrary => _l10n.aiCategoryLibrary;
+  String get aiCategoryPlayback => _l10n.aiCategoryPlayback;
+  String get aiCategoryPlaylist => _l10n.aiCategoryPlaylist;
+  String get aiCategoryDownload => _l10n.aiCategoryDownload;
+  String get aiCategorySource => _l10n.aiCategorySource;
+  String get aiCategorySettings => _l10n.aiCategorySettings;
+  String aiToolRunning(String tool) => _l10n.aiToolRunning(tool);
+  String get aiToolSearchLibrary => _l10n.aiToolSearchLibrary;
+  String get aiToolListPlaylists => _l10n.aiToolListPlaylists;
+  String get aiToolGetPlaylist => _l10n.aiToolGetPlaylist;
+  String get aiToolSourceStatus => _l10n.aiToolSourceStatus;
+  String get aiToolCreatePlaylist => _l10n.aiToolCreatePlaylist;
 }
 
 /// Maps a runtime message produced by the audio layer (currently Chinese,
@@ -825,5 +882,4 @@ String localizeUserMessage(String message, S s) {
   return message;
 }
 
-bool localeIsEnglish(Locale? locale) =>
-    locale?.languageCode == 'en';
+bool localeIsEnglish(Locale? locale) => locale?.languageCode == 'en';

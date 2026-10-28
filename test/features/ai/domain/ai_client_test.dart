@@ -23,7 +23,10 @@ void main() {
     );
 
     expect(content, equals('你好'));
-    expect(adapter.request!.uri.toString(), 'https://api.test/v1/chat/completions');
+    expect(
+      adapter.request!.uri.toString(),
+      'https://api.test/v1/chat/completions',
+    );
     expect(adapter.request!.headers['Authorization'], 'Bearer sk-1');
     final body = adapter.request!.data as Map<String, dynamic>;
     expect(body['model'], 'test-model');
@@ -54,7 +57,9 @@ void main() {
   });
 
   test('refuses to run without a config or a key', () async {
-    final client = AiClient(dio: Dio()..httpClientAdapter = _StubAdapter(200, ''));
+    final client = AiClient(
+      dio: Dio()..httpClientAdapter = _StubAdapter(200, ''),
+    );
 
     await expectLater(
       client.complete(
@@ -165,11 +170,7 @@ void main() {
         messages: const [AiMessage(AiRole.user, 'hi')],
       ),
       throwsA(
-        isA<AiException>().having(
-          (e) => e.kind,
-          'kind',
-          AiFailureKind.timeout,
-        ),
+        isA<AiException>().having((e) => e.kind, 'kind', AiFailureKind.timeout),
       ),
     );
   });
@@ -186,12 +187,95 @@ void main() {
         messages: const [AiMessage(AiRole.user, 'hi')],
       ),
       throwsA(
-        isA<AiException>().having(
-          (e) => e.kind,
-          'kind',
-          AiFailureKind.network,
-        ),
+        isA<AiException>().having((e) => e.kind, 'kind', AiFailureKind.network),
       ),
+    );
+  });
+  test('parses tool calls out of the assistant message', () async {
+    final adapter = _StubAdapter(
+      200,
+      '{"choices":[{"message":{"role":"assistant","content":null,'
+      '"tool_calls":[{"id":"call_1","type":"function","function":'
+      '{"name":"search_library","arguments":"{\\"query\\":\\"周杰伦\\"}"}}]}}]}',
+    );
+    final client = AiClient(dio: Dio()..httpClientAdapter = adapter);
+
+    final completion = await client.completeDetailed(
+      config: config,
+      apiKey: 'sk-1',
+      messages: const [AiMessage(AiRole.user, 'hi')],
+      tools: const [
+        {
+          'type': 'function',
+          'function': {
+            'name': 'search_library',
+            'parameters': {'type': 'object'},
+          },
+        },
+      ],
+    );
+
+    expect(completion.content, isEmpty);
+    expect(completion.hasToolCalls, isTrue);
+    expect(completion.toolCalls.single.id, 'call_1');
+    expect(completion.toolCalls.single.name, 'search_library');
+    expect(completion.toolCalls.single.arguments, {'query': '周杰伦'});
+
+    final body = adapter.request!.data as Map<String, dynamic>;
+    expect(body['tool_choice'], 'auto');
+    expect(body['tools'], hasLength(1));
+  });
+
+  test('omits tools from the payload when none are offered', () async {
+    final adapter = _StubAdapter(
+      200,
+      '{"choices":[{"message":{"content":"ok"}}]}',
+    );
+    final client = AiClient(dio: Dio()..httpClientAdapter = adapter);
+
+    await client.complete(
+      config: config,
+      apiKey: 'sk-1',
+      messages: const [AiMessage(AiRole.user, 'hi')],
+    );
+
+    final body = adapter.request!.data as Map<String, dynamic>;
+    expect(body.containsKey('tools'), isFalse);
+    expect(body.containsKey('tool_choice'), isFalse);
+  });
+
+  test('tool results serialise with role, content and call id', () {
+    expect(const AiMessage.tool('{"ok":true}', toolCallId: 'call_1').toJson(), {
+      'role': 'tool',
+      'content': '{"ok":true}',
+      'tool_call_id': 'call_1',
+    });
+    expect(
+      const AiMessage(
+        AiRole.assistant,
+        '',
+        toolCalls: [
+          AiToolCall(
+            id: 'call_1',
+            name: 'search_library',
+            arguments: {'query': 'x'},
+          ),
+        ],
+      ).toJson(),
+      {
+        'role': 'assistant',
+        'content': '',
+        'tool_calls': [
+          {
+            'id': 'call_1',
+            'type': 'function',
+            'function': {
+              'name': 'search_library',
+              'arguments': '{"query":"x"}',
+            },
+          },
+        ],
+      },
     );
   });
 }

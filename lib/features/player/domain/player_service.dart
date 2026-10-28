@@ -238,6 +238,18 @@ class PlayerService {
     isPlaying ? await audioHandler.pause() : await audioHandler.play();
   }
 
+  /// 幂等地开始播放。给后台调用方（AI、快捷指令）用，不带触感反馈。
+  Future<void> play() async {
+    if (isPlaying) return;
+    await audioHandler.play();
+  }
+
+  /// 幂等地暂停。
+  Future<void> pause() async {
+    if (!isPlaying) return;
+    await audioHandler.pause();
+  }
+
   void _notifyManualPlay(String songName) {
     showAppNotification('播放"$songName"', type: AppNotificationType.info);
   }
@@ -342,7 +354,11 @@ class PlayerService {
         if (audioHandler is! LxAudioHandler) return;
         handler.patchQueueArtUri(song.identityKey, local);
       } catch (error) {
-        AppLog.instance.record('player.artwork', 'patching queue artwork failed: $error', level: AppLogLevel.info);
+        AppLog.instance.record(
+          'player.artwork',
+          'patching queue artwork failed: $error',
+          level: AppLogLevel.info,
+        );
       }
     }
   }
@@ -401,6 +417,43 @@ class PlayerService {
     } catch (_) {
       return item.id;
     }
+  }
+
+  /// 把歌曲追加到队列末尾。队列为空时就是一次普通的开播（不自动播放）。
+  ///
+  /// 供后台调用（AI 助手）使用：不经过界面，也不会弹顶部通知。
+  Future<void> enqueueSongs(List<MusicItem> songs) async {
+    if (songs.isEmpty || audioHandler is! LxAudioHandler) return;
+    final handler = audioHandler as LxAudioHandler;
+    final generation = beginQueueReplacement();
+    final seen = <String>{
+      for (final item in handler.queueItems) _mediaIdentity(item),
+    };
+    final additions = <MusicItem>[];
+    for (final song in songs) {
+      if (!seen.add(song.identityKey)) continue;
+      additions.add(song);
+    }
+    if (additions.isEmpty) return;
+
+    final items = [
+      ...handler.queueItems,
+      for (final song in additions) _convertToMediaItemSync(song),
+    ];
+    if (handler.queueItems.isEmpty) {
+      handler.clearLazyQueue();
+      await handler.setPlaylist(
+        items,
+        playWhenReady: false,
+        userInitiated: true,
+      );
+    } else {
+      await handler.updateQueue(items);
+    }
+    if (!ownsQueueReplacement(generation)) return;
+    unawaited(
+      _warmArtForQueue(additions, preferIndex: 0, queueGeneration: generation),
+    );
   }
 
   Future<void> next() {

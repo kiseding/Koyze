@@ -12,6 +12,8 @@ import '../../../l10n/app_strings.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../domain/ai_config.dart';
 import '../domain/ai_playlist_planner.dart';
+import '../domain/ai_tools.dart';
+import 'ai_failure_text.dart';
 import 'ai_provider.dart';
 
 enum _Stage { idle, planning, matching, ready }
@@ -33,6 +35,7 @@ class _AiPlaylistScreenState extends ConsumerState<AiPlaylistScreen> {
   List<AiSongMatch> _matches = const [];
   int _matchedDone = 0;
   int _matchedTotal = 0;
+  String? _activeTool;
 
   @override
   void dispose() {
@@ -65,12 +68,23 @@ class _AiPlaylistScreenState extends ConsumerState<AiPlaylistScreen> {
       _draft = null;
       _matches = const [];
       _selected.clear();
+      _activeTool = null;
     });
 
     try {
-      final draft = await ref
-          .read(aiPlannerProvider)
-          .plan(config: config, apiKey: key, request: request);
+      final planner = ref.read(aiPlannerProvider);
+      final draft = config.toolsEnabled
+          ? await planner.planWithTools(
+              config: config,
+              apiKey: key,
+              request: request,
+              toolbox: ref.read(aiToolboxProvider),
+              onToolCall: (call) {
+                if (!mounted) return;
+                setState(() => _activeTool = _toolLabel(s, call.name));
+              },
+            )
+          : await planner.plan(config: config, apiKey: key, request: request);
       if (!mounted) return;
       if (draft.isEmpty) {
         setState(() => _stage = _Stage.idle);
@@ -111,7 +125,7 @@ class _AiPlaylistScreenState extends ConsumerState<AiPlaylistScreen> {
       if (!mounted) return;
       setState(() => _stage = _Stage.idle);
       showAppNotification(
-        _failureText(s, error.kind),
+        aiFailureText(s, error.kind),
         type: AppNotificationType.error,
       );
     } catch (_) {
@@ -153,16 +167,14 @@ class _AiPlaylistScreenState extends ConsumerState<AiPlaylistScreen> {
     }
   }
 
-  static String _failureText(S s, AiFailureKind kind) => switch (kind) {
-    AiFailureKind.notConfigured => s.aiErrorNotConfigured,
-    AiFailureKind.unauthorized => s.aiErrorUnauthorized,
-    AiFailureKind.notFound => s.aiErrorNotFound,
-    AiFailureKind.rateLimited => s.aiErrorRateLimited,
-    AiFailureKind.serverError => s.aiErrorServer,
-    AiFailureKind.timeout => s.aiErrorTimeout,
-    AiFailureKind.emptyResponse => s.aiErrorEmpty,
-    AiFailureKind.badResponse => s.aiErrorBadResponse,
-    AiFailureKind.network => s.aiErrorNetwork,
+  /// 工具名 → 界面上的中文动作名，没登记的直接显示原名。
+  static String _toolLabel(S s, String name) => switch (name) {
+    AiToolbox.searchLibrary => s.aiToolSearchLibrary,
+    AiToolbox.listPlaylists => s.aiToolListPlaylists,
+    AiToolbox.getPlaylist => s.aiToolGetPlaylist,
+    AiToolbox.sourceStatus => s.aiToolSourceStatus,
+    AiToolbox.createPlaylistTool => s.aiToolCreatePlaylist,
+    _ => name,
   };
 
   @override
@@ -217,6 +229,16 @@ class _AiPlaylistScreenState extends ConsumerState<AiPlaylistScreen> {
           if (_stage == _Stage.planning) ...[
             const SizedBox(height: 16),
             const LinearProgressIndicator(minHeight: 4),
+            if (_activeTool != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                s.aiToolRunning(_activeTool!),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
           ],
           if (_stage == _Stage.matching) ...[
             const SizedBox(height: 16),

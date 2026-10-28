@@ -9,6 +9,7 @@ import '../../../core/network/music_source_service.dart';
 import '../../player/domain/music_item.dart';
 import 'ai_client.dart';
 import 'ai_config.dart';
+import 'ai_tools.dart';
 
 /// AI 给出的一首歌（还没在曲库里匹配）。
 @immutable
@@ -57,6 +58,17 @@ class AiPlaylistPlanner {
       '"songs":[{"title":"歌名","artist":"歌手","reason":"为什么选它（不超过20字）"}]}'
       '歌名与歌手必须使用发行时的正式写法。不要编造不存在的歌。';
 
+  /// 带工具时的提示词：多一步「先用工具核实」，其余输出契约不变。
+  static const String toolSystemPrompt =
+      '你是音乐歌单助手，可以调用工具查询用户自己的曲库。'
+      '挑歌时先用 search_library 确认这首歌真的搜得到：搜不到就换一首，'
+      '不要凭记忆编造歌名。可以用 list_playlists / get_playlist 参考用户已有的口味，'
+      '用 source_status 判断当前音源是否能取到播放地址。'
+      '工具调用不超过 6 轮。最终仍然只输出 JSON，不要解释，不要 Markdown 代码块。格式：'
+      '{"name":"歌单名","description":"一句话介绍",'
+      '"songs":[{"title":"歌名","artist":"歌手","reason":"为什么选它（不超过20字）"}]}'
+      '除非用户明确要求直接建单，否则不要调用 create_playlist，把结果留给用户确认。';
+
   Future<AiPlaylistDraft> plan({
     required AiConfig config,
     required String apiKey,
@@ -73,6 +85,52 @@ class AiPlaylistPlanner {
       timeout: timeout,
     );
     return parse(text, fallbackName: request.trim());
+  }
+
+  /// 带工具的计划：模型可以先查曲库再出歌单，每轮工具调用的结果回填给它自己看。
+  ///
+  /// 轮数有上限，模型有时会一直查下去；超了就当失败处理，不会无限循环。
+  Future<AiPlaylistDraft> planWithTools({
+    required AiConfig config,
+    required String apiKey,
+    required String request,
+    required AiToolbox toolbox,
+    AiToolObserver? onToolCall,
+    int maxRounds = 6,
+    Duration timeout = const Duration(seconds: 90),
+  }) async {
+    final tools = toolbox.specs;
+    final messages = <AiMessage>[
+      const AiMessage(AiRole.system, toolSystemPrompt),
+      AiMessage(AiRole.user, request.trim()),
+    ];
+
+    for (var round = 0; round < maxRounds; round++) {
+      final completion = await _client.completeDetailed(
+        config: config,
+        apiKey: apiKey,
+        messages: messages,
+        tools: tools,
+        timeout: timeout,
+      );
+      if (!completion.hasToolCalls) {
+        return parse(completion.content, fallbackName: request.trim());
+      }
+
+      messages.add(
+        AiMessage(
+          AiRole.assistant,
+          completion.content,
+          toolCalls: completion.toolCalls,
+        ),
+      );
+      for (final call in completion.toolCalls) {
+        onToolCall?.call(call);
+        final result = await toolbox.call(call);
+        messages.add(AiMessage.tool(result, toolCallId: call.id));
+      }
+    }
+    throw const AiException(AiFailureKind.badResponse, '工具调用轮数超过上限');
   }
 
   /// 从模型输出里抠出 JSON。
@@ -164,7 +222,11 @@ class AiPlaylistPlanner {
 /// 一首 AI 请求在曲库里匹配到的结果。
 @immutable
 class AiSongMatch {
-  const AiSongMatch({required this.request, required this.song, this.score = 0});
+  const AiSongMatch({
+    required this.request,
+    required this.song,
+    this.score = 0,
+  });
 
   final AiSongRequest request;
 
@@ -247,9 +309,7 @@ class AiPlaylistMatcher {
     return 0;
   }
 
-  static final _noise = RegExp(
-    r'''[\s\-_·•,，.。!！?？:：;；()（）\[\]【】「」《》"'’“”]''',
-  );
+  static final _noise = RegExp(r'''[\s\-_·•,，.。!！?？:：;；()（）\[\]【】「」《》"'’“”]''');
 
   static String _normalize(String value) =>
       value.toLowerCase().replaceAll(_noise, '');

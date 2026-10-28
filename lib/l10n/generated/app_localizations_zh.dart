@@ -1377,7 +1377,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get clearMemoryLog => '清空内存日志';
 
   @override
-  String get diagnosticsHint => '仅保存在当前运行内存；关闭或重启应用后自动清空。';
+  String get diagnosticsRecording => '记录中';
+
+  @override
+  String get diagnosticsFilterAll => '全部';
+
+  @override
+  String get diagnosticsFilterWarnings => '警告';
+
+  @override
+  String get diagnosticsFilterErrors => '错误';
+
+  @override
+  String get diagnosticsJumpLatest => '回到最新';
+
+  @override
+  String get diagnosticsEmptyHint => '面板已打开，有新的运行事件会实时出现在这里。';
+
+  @override
+  String get diagnosticsHint => '只在打开这个面板时记录；仅存于内存，重启后清空。';
 
   @override
   String get stoppedAfterRepeatedFailures => '连续 5 首歌曲播放失败，已停止自动播放';
@@ -2044,10 +2062,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sourceCheckCancelled => '已取消，已跑完的部分会保留。';
 
   @override
-  String get sourceCheckNeverRun => '尚未检测';
+  String get sourceCheckNeverRun => '未检测';
 
   @override
   String get sourceCheckTesting => '检测中…';
+
+  @override
+  String get sourceCheckRerun => '重新检测';
 
   @override
   String sourceCheckSummary(int ok, int total, String time) {
@@ -2193,4 +2214,97 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get aiSettingsSubtitle => '接口地址、密钥与模型';
+
+  @override
+  String get aiToolsTitle => '工具调用';
+
+  @override
+  String get aiToolsSubtitle => '让模型自己查曲库、歌单、音源和下载，而不是凭记忆编歌名';
+
+  @override
+  String get aiActionsTitle => '允许 AI 直接操作应用';
+
+  @override
+  String get aiActionsSubtitle => '关闭后只保留查询类操作，动手的事交回给你';
+
+  @override
+  String aiToolRunning(String tool) {
+    return '正在调用 $tool…';
+  }
+
+  @override
+  String get aiToolSearchLibrary => '搜索曲库';
+
+  @override
+  String get aiToolListPlaylists => '读取歌单';
+
+  @override
+  String get aiToolGetPlaylist => '查看歌单';
+
+  @override
+  String get aiToolSourceStatus => '检查音源';
+
+  @override
+  String get aiToolCreatePlaylist => '创建歌单';
+
+  @override
+  String get aiAssistantTitle => 'AI 助手';
+
+  @override
+  String get aiAssistantSubtitle => '一句话让它播歌、排队、建歌单、改设置';
+
+  @override
+  String get aiAssistantPlaceholder => '说你想听的、想做的…';
+
+  @override
+  String get aiAssistantEmptyTitle => '直接说要做什么';
+
+  @override
+  String get aiAssistantEmptyHint => '助手在后台调用应用自己的接口完成操作，你不用自己去找按钮。';
+
+  @override
+  String get aiAssistantExample1 => '播放周杰伦的晴天';
+
+  @override
+  String get aiAssistantExample2 => '把这首歌收藏，再下到本地';
+
+  @override
+  String get aiAssistantExample3 => '建个深夜写代码的歌单，20 首安静的曲子';
+
+  @override
+  String get aiAssistantThinking => '思考中…';
+
+  @override
+  String aiAssistantWorking(String tool) {
+    return '正在执行 $tool…';
+  }
+
+  @override
+  String get aiAssistantNewChat => '新对话';
+
+  @override
+  String get aiAssistantReadOnly => '执行权限已关闭，助手只会给建议';
+
+  @override
+  String aiAssistantToolCount(int count) {
+    return '$count 次';
+  }
+
+  @override
+  String get aiCategoryLibrary => '查询曲库';
+
+  @override
+  String get aiCategoryPlayback => '播放控制';
+
+  @override
+  String get aiCategoryPlaylist => '歌单';
+
+  @override
+  String get aiCategoryDownload => '下载';
+
+  @override
+  String get aiCategorySource => '音源';
+
+  @override
+  String get aiCategorySettings => '设置';
 }

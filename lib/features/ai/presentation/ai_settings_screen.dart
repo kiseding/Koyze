@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/fx_switch.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../l10n/app_strings.dart';
 import '../domain/ai_config.dart';
+import 'ai_failure_text.dart';
 import 'ai_provider.dart';
 
 /// AI 服务配置：地址、密钥、模型。
@@ -63,8 +65,10 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
     });
   }
 
-  AiConfig get _config =>
-      AiConfig(baseUrl: _baseUrl.text, model: _model.text);
+  /// 带上开关状态：只改地址/模型时不能把工具调用的选择顺手重置掉。
+  AiConfig get _config => ref
+      .read(aiConfigProvider)
+      .copyWith(baseUrl: _baseUrl.text, model: _model.text);
 
   Future<void> _save() async {
     final s = S.of(context);
@@ -87,6 +91,22 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// 开关即时生效：用户改完不用再点保存，也不会因为忘了保存而看着没反应。
+  Future<void> _applyFlags(
+    AiConfig current, {
+    bool? toolsEnabled,
+    bool? allowActions,
+  }) async {
+    await ref
+        .read(aiConfigProvider.notifier)
+        .save(
+          current.copyWith(
+            toolsEnabled: toolsEnabled,
+            allowActions: allowActions,
+          ),
+        );
   }
 
   Future<void> _test() async {
@@ -125,7 +145,10 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
       showAppNotification(s.aiTestOk, type: AppNotificationType.success);
     } on AiException catch (error) {
       if (!mounted) return;
-      showAppNotification(_failureText(s, error.kind), type: AppNotificationType.error);
+      showAppNotification(
+        aiFailureText(s, error.kind),
+        type: AppNotificationType.error,
+      );
     } catch (_) {
       if (!mounted) return;
       showAppNotification(s.aiErrorNetwork, type: AppNotificationType.error);
@@ -134,17 +157,57 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
     }
   }
 
-  static String _failureText(S s, AiFailureKind kind) => switch (kind) {
-    AiFailureKind.notConfigured => s.aiErrorNotConfigured,
-    AiFailureKind.unauthorized => s.aiErrorUnauthorized,
-    AiFailureKind.notFound => s.aiErrorNotFound,
-    AiFailureKind.rateLimited => s.aiErrorRateLimited,
-    AiFailureKind.serverError => s.aiErrorServer,
-    AiFailureKind.timeout => s.aiErrorTimeout,
-    AiFailureKind.emptyResponse => s.aiErrorEmpty,
-    AiFailureKind.badResponse => s.aiErrorBadResponse,
-    AiFailureKind.network => s.aiErrorNetwork,
-  };
+  Widget _buildToggle(
+    BuildContext context, {
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool>? onChanged,
+    bool enabled = true,
+  }) {
+    final onSurface = AppColors.onScaffold(context);
+    final active = enabled && onChanged != null;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: active ? onSurface : onSurface.withValues(alpha: 0.45),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: AppColors.mutedText(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: FxSwitch(
+            value: value,
+            activeColor: AppColors.accentOf(context),
+            inactiveTrackColor: AppColors.isDark(context)
+                ? AppColors.surfaceVariant
+                : AppColors.lightSurfaceVariant,
+            onChanged: active ? onChanged : null,
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -236,6 +299,27 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
                 setState(() => _hasStoredKey = _hasStoredKey && !has);
               }
             },
+          ),
+          const SizedBox(height: 18),
+          _buildToggle(
+            context,
+            title: s.aiToolsTitle,
+            subtitle: s.aiToolsSubtitle,
+            value: config.toolsEnabled,
+            onChanged: _busy
+                ? null
+                : (value) => _applyFlags(config, toolsEnabled: value),
+          ),
+          const SizedBox(height: 10),
+          _buildToggle(
+            context,
+            title: s.aiActionsTitle,
+            subtitle: s.aiActionsSubtitle,
+            value: config.allowActions,
+            enabled: config.toolsEnabled,
+            onChanged: _busy
+                ? null
+                : (value) => _applyFlags(config, allowActions: value),
           ),
           const SizedBox(height: 24),
           Row(

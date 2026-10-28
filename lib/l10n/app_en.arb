@@ -455,7 +455,13 @@
   "copyAll": "Copy all",
   "closeDiagnostics": "Close diagnostics",
   "clearMemoryLog": "Clear log",
-  "diagnosticsHint": "Kept in memory for this run only. Closing or restarting the app clears it.",
+  "diagnosticsRecording": "Recording",
+  "diagnosticsFilterAll": "All",
+  "diagnosticsFilterWarnings": "Warnings",
+  "diagnosticsFilterErrors": "Errors",
+  "diagnosticsJumpLatest": "Jump to latest",
+  "diagnosticsEmptyHint": "Panel is open. New runtime events will show up here.",
+  "diagnosticsHint": "Records only while this panel is open. Kept in memory; cleared on restart.",
   "stoppedAfterRepeatedFailures": "Five songs failed in a row. Autoplay stopped.",
   "autoplayNextFailed": "Could not play the next song. Open Koyze and try again.",
   "reloadingSong": "Playback failed. Reloading.",
@@ -1322,8 +1328,9 @@
   },
   "sourceCheckAffectsSelection": "Hard failures are skipped when picking a source; timeouts only move to the back.",
   "sourceCheckCancelled": "Cancelled. Partial results are kept.",
-  "sourceCheckNeverRun": "Not tested yet",
+  "sourceCheckNeverRun": "Not tested",
   "sourceCheckTesting": "Testing…",
+  "sourceCheckRerun": "Re-test",
   "sourceCheckSummary": "{ok}/{total} platforms usable · {time}",
   "@sourceCheckSummary": {
     "placeholders": {
@@ -1421,5 +1428,55 @@
       }
     }
   },
-  "aiSettingsSubtitle": "Endpoint, key and model"
+  "aiSettingsSubtitle": "Endpoint, key and model",
+  "aiToolsTitle": "Tool calling",
+  "aiToolsSubtitle": "Let the model look up your library, playlists, sources and downloads instead of guessing titles",
+  "aiActionsTitle": "Let the AI operate the app",
+  "aiActionsSubtitle": "Turn off to keep lookup tools only",
+  "aiToolRunning": "Calling {tool}…",
+  "@aiToolRunning": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "aiToolSearchLibrary": "Search library",
+  "aiToolListPlaylists": "List playlists",
+  "aiToolGetPlaylist": "Read playlist",
+  "aiToolSourceStatus": "Check sources",
+  "aiToolCreatePlaylist": "Create playlist",
+  "aiAssistantTitle": "AI assistant",
+  "aiAssistantSubtitle": "One sentence to play, queue, build playlists or change settings",
+  "aiAssistantPlaceholder": "What do you want to hear or do?",
+  "aiAssistantEmptyTitle": "Just say what to do",
+  "aiAssistantEmptyHint": "It calls the app's own APIs in the background, so you never have to hunt for a button.",
+  "aiAssistantExample1": "Play 晴天 by Jay Chou",
+  "aiAssistantExample2": "Favorite this song and download it",
+  "aiAssistantExample3": "Make a late-night coding playlist with 20 quiet tracks",
+  "aiAssistantThinking": "Thinking…",
+  "aiAssistantWorking": "Running {tool}…",
+  "@aiAssistantWorking": {
+    "placeholders": {
+      "tool": {
+        "type": "String"
+      }
+    }
+  },
+  "aiAssistantNewChat": "New chat",
+  "aiAssistantReadOnly": "Actions are off — the assistant can only advise",
+  "aiAssistantToolCount": "{count} calls",
+  "@aiAssistantToolCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "aiCategoryLibrary": "Library",
+  "aiCategoryPlayback": "Playback",
+  "aiCategoryPlaylist": "Playlists",
+  "aiCategoryDownload": "Downloads",
+  "aiCategorySource": "Sources",
+  "aiCategorySettings": "Settings"
 }
