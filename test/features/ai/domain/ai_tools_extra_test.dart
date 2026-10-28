@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:koyze/features/ai/domain/ai_action_ports.dart';
 import 'package:koyze/features/ai/domain/ai_config.dart';
 import 'package:koyze/features/ai/domain/ai_schedule.dart';
 import 'package:koyze/features/ai/domain/ai_tools.dart';
@@ -440,6 +441,45 @@ void main() {
 
       expect(result['error'], contains('写不进'));
       expect(result['ok'], isNull);
+    });
+  });
+
+  group('工具结果体积', () {
+    test('结果过长时折半压缩，仍然保持合法 JSON', () async {
+      final fakes = ToolFakes();
+      fakes.playback.currentSong = song('1', '晴天', '周杰伦');
+      fakes.lyrics.lines = [
+        for (var index = 0; index < 500; index++)
+          AiLyricLine(seconds: index, text: '第 $index 行歌词，用来把上下文顶爆'),
+      ];
+
+      final output = await fakes.toolbox().call(
+        const AiToolCall(
+          id: 'c1',
+          name: AiToolbox.lyricsTool,
+          arguments: {'max_lines': 200},
+        ),
+      );
+
+      // 200 行原样输出是十几 KB，压缩后必须回到单次上限内。
+      expect(output.length, lessThanOrEqualTo(4000));
+      final decoded = jsonDecode(output) as Map<String, dynamic>;
+      expect(decoded['lines'], isA<List>());
+      expect((decoded['lines'] as List).length, lessThan(200));
+      expect(output, contains('omitted'));
+    });
+
+    test('正常大小的结果原样返回，不会被无谓截断', () async {
+      final fakes = ToolFakes();
+      fakes.playback.currentSong = song('1', '晴天', '周杰伦');
+
+      final output = await fakes.toolbox().call(
+        const AiToolCall(id: 'c1', name: AiToolbox.lyricsTool),
+      );
+
+      final decoded = jsonDecode(output) as Map<String, dynamic>;
+      expect((decoded['lines'] as List), hasLength(2));
+      expect(output, isNot(contains('omitted')));
     });
   });
 

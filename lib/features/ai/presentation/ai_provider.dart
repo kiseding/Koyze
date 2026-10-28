@@ -167,7 +167,7 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
       ]);
     } on AiException catch (error) {
       if (!mounted) return;
-      _fail(entries, error.kind);
+      _fail(entries, error.kind, error.detail);
     } catch (_) {
       if (!mounted) return;
       _fail(entries, AiFailureKind.network);
@@ -189,6 +189,7 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
     String text = '',
     List<AiToolRun> toolRuns = const <AiToolRun>[],
     AiFailureKind? failure,
+    String? detail,
   }) {
     if (!mounted) return;
     final entry = AiChatEntry(
@@ -196,6 +197,7 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
       text: text,
       toolRuns: toolRuns,
       failure: failure,
+      detail: detail,
       scheduleTitle: title,
     );
     publish(
@@ -207,9 +209,17 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
     );
   }
 
-  void _fail(List<AiChatEntry> entries, AiFailureKind kind) {
+  void _fail(List<AiChatEntry> entries, AiFailureKind kind, [String? detail]) {
     if (!mounted) return;
-    _emit([...entries, AiChatEntry(role: AiChatRole.assistant, failure: kind)]);
+    final note = (detail ?? '').trim();
+    _emit([
+      ...entries,
+      AiChatEntry(
+        role: AiChatRole.assistant,
+        failure: kind,
+        detail: note.isEmpty ? null : note,
+      ),
+    ]);
   }
 
   void _emit(

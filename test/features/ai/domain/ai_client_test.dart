@@ -137,6 +137,80 @@ void main() {
     );
   });
 
+  test('a 400 about context length becomes its own kind', () async {
+    final client = AiClient(
+      dio: Dio()
+        ..httpClientAdapter = _StubAdapter(
+          400,
+          '{"error":{"message":"maximum context length is 8192 tokens. '
+          'However, your messages resulted in 9000 tokens."}}',
+        ),
+    );
+
+    await expectLater(
+      client.complete(
+        config: config,
+        apiKey: 'k',
+        messages: const [AiMessage(AiRole.user, 'hi')],
+      ),
+      throwsA(
+        isA<AiException>().having(
+          (e) => e.kind,
+          'kind',
+          AiFailureKind.contextTooLong,
+        ),
+      ),
+    );
+  });
+
+  test('a 400 about tools becomes its own kind', () async {
+    final client = AiClient(
+      dio: Dio()
+        ..httpClientAdapter = _StubAdapter(
+          400,
+          '{"error":{"message":"tools is not supported for this model"}}',
+        ),
+    );
+
+    await expectLater(
+      client.complete(
+        config: config,
+        apiKey: 'k',
+        messages: const [AiMessage(AiRole.user, 'hi')],
+      ),
+      throwsA(
+        isA<AiException>().having(
+          (e) => e.kind,
+          'kind',
+          AiFailureKind.toolsUnsupported,
+        ),
+      ),
+    );
+  });
+
+  test('any other 4xx keeps the backend wording so it can be acted on', () async {
+    final client = AiClient(
+      dio: Dio()
+        ..httpClientAdapter = _StubAdapter(
+          422,
+          '{"error":{"message":"invalid request: model is required"}}',
+        ),
+    );
+
+    await expectLater(
+      client.complete(
+        config: config,
+        apiKey: 'k',
+        messages: const [AiMessage(AiRole.user, 'hi')],
+      ),
+      throwsA(
+        isA<AiException>()
+            .having((e) => e.kind, 'kind', AiFailureKind.rejected)
+            .having((e) => e.detail, 'detail', 'invalid request: model is required'),
+      ),
+    );
+  });
+
   test('an answer with no choices is an empty response, not a crash', () async {
     final client = AiClient(
       dio: Dio()..httpClientAdapter = _StubAdapter(200, '{"choices":[]}'),

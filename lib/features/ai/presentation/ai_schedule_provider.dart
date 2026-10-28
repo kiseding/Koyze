@@ -202,7 +202,7 @@ class AiScheduleRunner {
           );
       return AiScheduleRunResult(ok: true, text: reply.text);
     } on AiException catch (error) {
-      return _fail(task, at, error.kind);
+      return _fail(task, at, error.kind, error.detail);
     } catch (_) {
       return _fail(task, at, AiFailureKind.network);
     } finally {
@@ -213,14 +213,19 @@ class AiScheduleRunner {
   Future<AiScheduleRunResult> _fail(
     AiScheduledTask task,
     DateTime at,
-    AiFailureKind kind,
-  ) async {
+    AiFailureKind kind, [
+    String? detail,
+  ]) async {
     await _ref
         .read(aiSchedulesProvider.notifier)
         .recordRun(task.id, at: at, failure: kind.name, ok: false);
     _ref
         .read(aiChatProvider.notifier)
-        .recordScheduled(title: task.title, failure: kind);
+        .recordScheduled(
+          title: task.title,
+          failure: kind,
+          detail: (detail ?? '').trim().isEmpty ? null : detail!.trim(),
+        );
     return AiScheduleRunResult(ok: false, failure: kind);
   }
 

@@ -177,6 +177,18 @@ enum AiFailureKind {
   emptyResponse,
   badResponse,
   network,
+
+  /// 请求超过了模型的上下文长度（对话太长或工具结果太大）。可以靠清空对话解决。
+  contextTooLong,
+
+  /// 该接口不认 `tools` 字段。关掉执行权限后仍可聊天。
+  toolsUnsupported,
+
+  /// 接口明确拒绝了这次请求，[AiException.detail] 里有它的原话。
+  rejected,
+
+  /// 模型连着调用工具到上限还没给出结论。
+  toolLoop,
 }
 
 class AiException implements Exception {

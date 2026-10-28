@@ -3950,6 +3950,30 @@ abstract class AppLocalizations {
   /// **'Could not parse the model output'**
   String get aiErrorBadResponse;
 
+  /// No description provided for @aiErrorContextTooLong.
+  ///
+  /// In en, this message translates to:
+  /// **'The conversation is too long for this model\'s context. Clear the chat or switch to a model with a larger window'**
+  String get aiErrorContextTooLong;
+
+  /// No description provided for @aiErrorToolsUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This endpoint does not support tool calls. Try turning off \"Let the AI act on the app\" in settings'**
+  String get aiErrorToolsUnsupported;
+
+  /// No description provided for @aiErrorRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'The endpoint rejected this request'**
+  String get aiErrorRejected;
+
+  /// No description provided for @aiErrorToolLoop.
+  ///
+  /// In en, this message translates to:
+  /// **'Ran too many steps without reaching an answer. Try a more specific request'**
+  String get aiErrorToolLoop;
+
   /// No description provided for @aiNotConfigured.
   ///
   /// In en, this message translates to:

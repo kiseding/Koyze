@@ -98,6 +98,34 @@ void main() {
     },
   );
 
+  test('a model that keeps calling tools ends in its own failure kind', () async {
+    final body =
+        '{"choices":[{"message":{"role":"assistant","content":"",'
+        '"tool_calls":[{"id":"c1","type":"function","function":'
+        '{"name":"${AiToolbox.nowPlaying}","arguments":"{}"}}]}}]}';
+    final adapter = _SequenceAdapter(List.filled(4, body));
+    final agent = AiAgent(
+      client: AiClient(dio: Dio()..httpClientAdapter = adapter),
+    );
+
+    await expectLater(
+      agent.run(
+        config: config,
+        apiKey: 'sk-1',
+        history: const [AiMessage(AiRole.user, '继续')],
+        toolbox: ToolFakes().toolbox(),
+        maxToolRounds: 2,
+      ),
+      throwsA(
+        isA<AiException>().having(
+          (e) => e.kind,
+          'kind',
+          AiFailureKind.toolLoop,
+        ),
+      ),
+    );
+  });
+
   test('system prompt states the current playback and the permission', () {
     final fakes = ToolFakes();
     fakes.playback.currentSong = song('1', '晴天', '周杰伦');

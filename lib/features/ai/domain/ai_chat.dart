@@ -14,6 +14,7 @@ class AiChatEntry {
     this.text = '',
     this.toolRuns = const <AiToolRun>[],
     this.failure,
+    this.detail,
     this.scheduleTitle,
   });
 
@@ -26,6 +27,10 @@ class AiChatEntry {
 
   /// 非空表示这一轮请求失败，[text] 里没有内容。
   final AiFailureKind? failure;
+
+  /// 接口的原话（例如 `context_length_exceeded: ...`）。有就在气泡里附一行，
+  /// 光给一句「返回内容无法解析」用户没法判断该改什么。
+  final String? detail;
 
   bool get isUser => role == AiChatRole.user;
 }

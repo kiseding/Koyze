@@ -797,6 +797,10 @@ class S {
   String get aiErrorNetwork => _l10n.aiErrorNetwork;
   String get aiErrorEmpty => _l10n.aiErrorEmpty;
   String get aiErrorBadResponse => _l10n.aiErrorBadResponse;
+  String get aiErrorContextTooLong => _l10n.aiErrorContextTooLong;
+  String get aiErrorToolsUnsupported => _l10n.aiErrorToolsUnsupported;
+  String get aiErrorRejected => _l10n.aiErrorRejected;
+  String get aiErrorToolLoop => _l10n.aiErrorToolLoop;
   String get aiNotConfigured => _l10n.aiNotConfigured;
   String get aiToolsTitle => _l10n.aiToolsTitle;
   String get aiToolsSubtitle => _l10n.aiToolsSubtitle;

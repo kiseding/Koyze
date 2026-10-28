@@ -208,10 +208,57 @@ class AiToolbox {
       return jsonEncode({'error': '执行权限已关闭，只能用文字告诉用户该怎么做'});
     }
     try {
-      return jsonEncode(await tool.run(call.arguments));
+      return _limitedJson(await tool.run(call.arguments));
     } catch (error) {
       return jsonEncode({'error': error.toString()});
     }
+  }
+
+  /// 单次工具结果的上限（字符）。结果会原样回填给模型，一个 40 首的歌单就是
+  /// 几 KB，连着几轮很容易顶爆上下文——那时候接口只会回一句
+  /// 「返回内容无法解析」，用户完全看不出是对话太长了。
+  static const int _maxToolResultChars = 4000;
+
+  static String _limitedJson(Object? result) {
+    final text = jsonEncode(result);
+    if (text.length <= _maxToolResultChars) return text;
+    var shrunk = _shrink(result);
+    var encoded = jsonEncode(shrunk);
+    while (encoded.length > _maxToolResultChars) {
+      final next = _shrink(shrunk);
+      final nextEncoded = jsonEncode(next);
+      // 已经压不动（空列表 / 短字符串），再转也是同一个长度。
+      if (nextEncoded.length >= encoded.length) break;
+      shrunk = next;
+      encoded = nextEncoded;
+    }
+    return encoded;
+  }
+
+  /// 折半列表、截断长字符串，保留 JSON 结构，模型仍然读得懂。
+  static Object? _shrink(Object? value) {
+    if (value is String) {
+      return value.length <= 320 ? value : '${value.substring(0, 320)}…';
+    }
+    if (value is List) {
+      if (value.isEmpty) return value;
+      final keep = (value.length / 2).ceil();
+      return [
+        for (var index = 0; index < keep; index++) _shrink(value[index]),
+        if (keep < value.length)
+          {
+            'omitted': value.length - keep,
+            'note': '结果太长，其余 ${value.length - keep} 条已省略',
+          },
+      ];
+    }
+    if (value is Map) {
+      return {
+        for (final entry in value.entries)
+          entry.key.toString(): _shrink(entry.value),
+      };
+    }
+    return value;
   }
 
   List<AiTool> _buildTools() => [

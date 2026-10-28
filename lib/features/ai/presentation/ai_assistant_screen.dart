@@ -411,13 +411,31 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
                   Icon(Icons.error_outline_rounded, size: 15, color: errorColor),
                   const SizedBox(width: 7),
                   Expanded(
-                    child: Text(
-                      aiFailureText(s, failure),
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.5,
-                        color: errorColor,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          aiFailureText(s, failure),
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.5,
+                            color: errorColor,
+                          ),
+                        ),
+                        if (entry.detail case final detail?) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            detail,
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              height: 1.45,
+                              color: errorColor.withValues(alpha: 0.72),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],

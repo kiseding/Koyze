@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:koyze/features/ai/domain/ai_chat.dart';
+import 'package:koyze/features/ai/domain/ai_config.dart';
 import 'package:koyze/features/ai/presentation/ai_assistant_screen.dart';
 import 'package:koyze/features/ai/presentation/ai_provider.dart';
 import 'package:koyze/features/ai/presentation/voice_input.dart';
@@ -118,23 +120,54 @@ void main() {
     );
     expect(align.alignment, Alignment.centerLeft);
   });
+
+  testWidgets('失败气泡带上接口原话，而不是只有一句泛泛的提示', (tester) async {
+    await tester.pumpWidget(
+      _app(_FakeVoice(), [aiChatProvider.overrideWith(_FailedChat.new)]),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('The endpoint rejected this request'), findsOneWidget);
+    expect(find.textContaining('maximum context length'), findsOneWidget);
+  });
 }
 
 String _inputText(WidgetTester tester) =>
     tester.widget<TextField>(find.byType(TextField)).controller!.text;
 
-ProviderContainer _container(AiVoiceInput voice) {
+ProviderContainer _container(
+  AiVoiceInput voice, [
+  List<Override> extra = const [],
+]) {
   final container = ProviderContainer(
-    overrides: [aiVoiceInputProvider.overrideWithValue(voice)],
+    overrides: [aiVoiceInputProvider.overrideWithValue(voice), ...extra],
   );
   addTearDown(container.dispose);
   return container;
 }
 
-Widget _app(AiVoiceInput voice) => UncontrolledProviderScope(
-  container: _container(voice),
-  child: const MaterialApp(locale: Locale('en'), home: AiAssistantScreen()),
-);
+Widget _app(AiVoiceInput voice, [List<Override> extra = const []]) =>
+    UncontrolledProviderScope(
+      container: _container(voice, extra),
+      child: const MaterialApp(
+        locale: Locale('en'),
+        home: AiAssistantScreen(),
+      ),
+    );
+
+/// 固定返回一条失败回复，用来验气泡的文案。
+class _FailedChat extends AiChatNotifier {
+  @override
+  AiChatState build() => const AiChatState(
+    entries: [
+      AiChatEntry(
+        role: AiChatRole.assistant,
+        failure: AiFailureKind.rejected,
+        detail: 'maximum context length is 8192 tokens',
+      ),
+    ],
+  );
+}
 
 class _FakeVoice implements AiVoiceInput {
   _FakeVoice({this.supported = true});

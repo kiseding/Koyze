@@ -15,4 +15,8 @@ String aiFailureText(S s, AiFailureKind kind) => switch (kind) {
   AiFailureKind.emptyResponse => s.aiErrorEmpty,
   AiFailureKind.badResponse => s.aiErrorBadResponse,
   AiFailureKind.network => s.aiErrorNetwork,
+  AiFailureKind.contextTooLong => s.aiErrorContextTooLong,
+  AiFailureKind.toolsUnsupported => s.aiErrorToolsUnsupported,
+  AiFailureKind.rejected => s.aiErrorRejected,
+  AiFailureKind.toolLoop => s.aiErrorToolLoop,
 };

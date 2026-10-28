@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../core/logging/app_log.dart';
 import '../../../core/network/app_http_client.dart';
 import 'ai_config.dart';
 
@@ -113,23 +114,52 @@ class AiClient {
     if (status == 429) {
       throw const AiException(AiFailureKind.rateLimited);
     }
-    if (status >= 500) {
-      throw AiException(
-        AiFailureKind.serverError,
-        _errorMessage(response.data),
-      );
-    }
     if (status >= 400) {
-      throw AiException(
-        AiFailureKind.badResponse,
-        _errorMessage(response.data),
+      final detail = _errorMessage(response.data);
+      // 4xx 的原因千差万别（上下文超长、接口不认 tools、参数校验失败），
+      // 光看状态码分不出来，原文必须留在日志里，否则只能看到一句「无法解析」。
+      AppLog.instance.record(
+        'ai.http',
+        'POST ${config.endpoint} -> $status ${detail.isEmpty ? '(no message)' : detail}',
+        level: AppLogLevel.warning,
       );
+      if (status >= 500) {
+        throw AiException(AiFailureKind.serverError, detail);
+      }
+      throw AiException(_kindOfClientError(detail), detail);
     }
 
     return AiCompletion(
       content: _contentOf(response.data) ?? '',
       toolCalls: _toolCallsOf(response.data),
     );
+  }
+
+  /// 4xx 里最常见的两类原因单独拎出来：它们都有明确解法，
+  /// 混在「返回内容无法解析」里用户没法自救。
+  static AiFailureKind _kindOfClientError(String detail) {
+    final text = detail.toLowerCase();
+    if (text.isEmpty) return AiFailureKind.badResponse;
+    final overContext =
+        text.contains('context_length') ||
+        text.contains('context length') ||
+        text.contains('maximum context') ||
+        text.contains('too many tokens') ||
+        text.contains('prompt is too long') ||
+        text.contains('reduce the length') ||
+        text.contains('exceeds the maximum') ||
+        (text.contains('token') &&
+            (text.contains('exceed') || text.contains('too long')));
+    if (overContext) return AiFailureKind.contextTooLong;
+    final toolComplaint =
+        text.contains('tool') &&
+        (text.contains('not support') ||
+            text.contains('unsupported') ||
+            text.contains('does not support') ||
+            text.contains('unknown field') ||
+            text.contains('unknown parameter'));
+    if (toolComplaint) return AiFailureKind.toolsUnsupported;
+    return AiFailureKind.rejected;
   }
 
   static AiFailureKind _kindOfDioException(DioException error) {

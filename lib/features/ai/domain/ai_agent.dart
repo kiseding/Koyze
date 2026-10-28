@@ -116,6 +116,6 @@ $permission
         );
       }
     }
-    throw const AiException(AiFailureKind.badResponse, '工具调用轮数超过上限');
+    throw const AiException(AiFailureKind.toolLoop, '工具调用轮数超过上限');
   }
 }

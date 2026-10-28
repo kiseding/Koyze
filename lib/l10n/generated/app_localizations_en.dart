@@ -2161,6 +2161,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aiErrorBadResponse => 'Could not parse the model output';
 
   @override
+  String get aiErrorContextTooLong =>
+      'The conversation is too long for this model\'s context. Clear the chat or switch to a model with a larger window';
+
+  @override
+  String get aiErrorToolsUnsupported =>
+      'This endpoint does not support tool calls. Try turning off \"Let the AI act on the app\" in settings';
+
+  @override
+  String get aiErrorRejected => 'The endpoint rejected this request';
+
+  @override
+  String get aiErrorToolLoop =>
+      'Ran too many steps without reaching an answer. Try a more specific request';
+
+  @override
   String get aiNotConfigured => 'Configure the AI endpoint first';
 
   @override
