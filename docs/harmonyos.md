@@ -239,7 +239,7 @@ Dart 侧无需改：`AudioService.init` / `BaseAudioHandler` / `MediaItem` /
 | 依赖 | 现状 | 处理 |
 | --- | --- | --- |
 | `audio_metadata_reader` | 依赖 dart:ffi 读本地音频标签，无 ohos ABI 产物 | 鸿蒙侧暂不读本地元数据，或自行交叉编译 |
-| `speech_to_text` | 只有 Android / iOS / macOS / Windows / Web 实现，没有 ohos 实现 | 鸿蒙侧不显示麦克风按钮（`platformSupportsVoiceInput()` 只认这四个平台），AI 助手仍可用键盘输入。依赖必须留在 `pubspec_ohos.yaml` 里——`lib/` 无条件 import 它，缺了就是编译失败 |
+| `record` | 只有 Android / iOS / macOS / Windows / Linux / Web 实现，没有 ohos 实现 | 鸿蒙侧不显示录音按钮（`platformSupportsVoiceInput()` 只认前四个平台），AI 助手仍可用键盘输入。依赖必须留在 `pubspec_ohos.yaml` 里——`lib/` 无条件 import 它，缺了就是编译失败 |
 | `just_audio_windows` / `home_widget` / `live_activities` / `flutter_app_group_directory` | 桌面 / iOS 专用 | HAP 构建时自然跳过，不影响打包 |
 
 ## 5. 可以参考的开源实现

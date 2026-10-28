@@ -2133,6 +2133,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiErrorToolLoop => '连着操作了太多步还没得出结论。把要求说得更具体一点再试一次';
 
   @override
+  String get aiErrorAudioUnsupported =>
+      '当前模型不听音频。在设置里换成支持语音的多模态模型（例如 gpt-4o-audio、qwen-omni）再试';
+
+  @override
+  String get aiErrorAudioTooLarge => '这段录音太大了，发不出去。录短一点再试';
+
+  @override
   String get aiErrorGatewayTimeout =>
       '接口网关超时，模型没在限定时间内回话。已经自动重试过一次，稍后再试；连着几次都这样，就在设置里关掉「允许 AI 直接操作应用」——工具清单越小，模型回得越快';
 
@@ -2424,19 +2431,35 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiWeekdaySun => '周日';
 
   @override
-  String get aiVoiceStart => '语音输入';
+  String get aiVoiceStart => '录一段语音';
 
   @override
-  String get aiVoiceStop => '结束语音输入';
+  String get aiVoiceStop => '结束录音';
 
   @override
-  String get aiVoiceListening => '正在聆听…';
+  String aiVoiceRecording(String clock) {
+    return '正在录音 $clock · 再点一下结束';
+  }
+
+  @override
+  String get aiVoiceReady => '语音已就绪，点发送';
+
+  @override
+  String aiVoiceClip(int seconds) {
+    return '语音 $seconds 秒';
+  }
+
+  @override
+  String get aiVoiceRemove => '去掉这段语音';
+
+  @override
+  String get aiVoiceTooShort => '这段太短了，再录一次';
 
   @override
   String get aiVoiceUnavailable => '这台设备不支持语音输入';
 
   @override
-  String get aiVoiceFailed => '语音输入没能启动，检查一下麦克风权限';
+  String get aiVoiceFailed => '录音没能启动，检查一下麦克风权限';
 
   @override
   String get aiCategoryRecommendation => '猜你喜欢';

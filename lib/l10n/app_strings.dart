@@ -802,6 +802,8 @@ class S {
   String get aiErrorRejected => _l10n.aiErrorRejected;
   String get aiErrorToolLoop => _l10n.aiErrorToolLoop;
   String get aiErrorGatewayTimeout => _l10n.aiErrorGatewayTimeout;
+  String get aiErrorAudioUnsupported => _l10n.aiErrorAudioUnsupported;
+  String get aiErrorAudioTooLarge => _l10n.aiErrorAudioTooLarge;
   String get aiNotConfigured => _l10n.aiNotConfigured;
   String get aiToolsTitle => _l10n.aiToolsTitle;
   String get aiToolsSubtitle => _l10n.aiToolsSubtitle;
@@ -869,7 +871,11 @@ class S {
   String get aiDayTomorrow => _l10n.aiDayTomorrow;
   String get aiVoiceStart => _l10n.aiVoiceStart;
   String get aiVoiceStop => _l10n.aiVoiceStop;
-  String get aiVoiceListening => _l10n.aiVoiceListening;
+  String aiVoiceRecording(String clock) => _l10n.aiVoiceRecording(clock);
+  String get aiVoiceReady => _l10n.aiVoiceReady;
+  String aiVoiceClip(int seconds) => _l10n.aiVoiceClip(seconds);
+  String get aiVoiceRemove => _l10n.aiVoiceRemove;
+  String get aiVoiceTooShort => _l10n.aiVoiceTooShort;
   String get aiVoiceUnavailable => _l10n.aiVoiceUnavailable;
   String get aiVoiceFailed => _l10n.aiVoiceFailed;
   String get aiCategoryRecommendation => _l10n.aiCategoryRecommendation;

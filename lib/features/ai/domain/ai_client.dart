@@ -195,6 +195,19 @@ class AiClient {
         (text.contains('token') &&
             (text.contains('exceed') || text.contains('too long')));
     if (overContext) return AiFailureKind.contextTooLong;
+    // 语音消息最常踩的两类：模型根本不听音频，或者模型名不认这个模态。
+    // 它们都有明确解法（换模型），不能混进「接口拒绝了这次请求」。
+    final audioComplaint =
+        text.contains('input_audio') ||
+        (text.contains('audio') &&
+            (text.contains('not support') ||
+                text.contains('unsupported') ||
+                text.contains('does not support') ||
+                text.contains('invalid') ||
+                text.contains('unknown variant') ||
+                text.contains('modality') ||
+                text.contains('not allowed')));
+    if (audioComplaint) return AiFailureKind.audioUnsupported;
     final toolComplaint =
         text.contains('tool') &&
         (text.contains('not support') ||

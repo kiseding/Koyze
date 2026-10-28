@@ -3974,6 +3974,18 @@ abstract class AppLocalizations {
   /// **'Ran too many steps without reaching an answer. Try a more specific request'**
   String get aiErrorToolLoop;
 
+  /// No description provided for @aiErrorAudioUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This model does not accept audio. Switch to a multimodal model that does (e.g. gpt-4o-audio, qwen-omni) in settings'**
+  String get aiErrorAudioUnsupported;
+
+  /// No description provided for @aiErrorAudioTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'This recording is too large to send. Record a shorter clip'**
+  String get aiErrorAudioTooLarge;
+
   /// No description provided for @aiErrorGatewayTimeout.
   ///
   /// In en, this message translates to:
@@ -4517,20 +4529,44 @@ abstract class AppLocalizations {
   /// No description provided for @aiVoiceStart.
   ///
   /// In en, this message translates to:
-  /// **'Voice input'**
+  /// **'Record a voice message'**
   String get aiVoiceStart;
 
   /// No description provided for @aiVoiceStop.
   ///
   /// In en, this message translates to:
-  /// **'Stop listening'**
+  /// **'Stop recording'**
   String get aiVoiceStop;
 
-  /// No description provided for @aiVoiceListening.
+  /// No description provided for @aiVoiceRecording.
   ///
   /// In en, this message translates to:
-  /// **'Listening…'**
-  String get aiVoiceListening;
+  /// **'Recording {clock} · tap to stop'**
+  String aiVoiceRecording(String clock);
+
+  /// No description provided for @aiVoiceReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice ready — tap send'**
+  String get aiVoiceReady;
+
+  /// No description provided for @aiVoiceClip.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice · {seconds}s'**
+  String aiVoiceClip(int seconds);
+
+  /// No description provided for @aiVoiceRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this recording'**
+  String get aiVoiceRemove;
+
+  /// No description provided for @aiVoiceTooShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Too short — try again'**
+  String get aiVoiceTooShort;
 
   /// No description provided for @aiVoiceUnavailable.
   ///
@@ -4541,7 +4577,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiVoiceFailed.
   ///
   /// In en, this message translates to:
-  /// **'Voice input could not start — check the microphone permission'**
+  /// **'Recording could not start — check the microphone permission'**
   String get aiVoiceFailed;
 
   /// No description provided for @aiCategoryRecommendation.

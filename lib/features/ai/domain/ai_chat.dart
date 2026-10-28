@@ -16,11 +16,16 @@ class AiChatEntry {
     this.failure,
     this.detail,
     this.scheduleTitle,
+    this.voiceSeconds,
   });
 
   final AiChatRole role;
   final String text;
   final List<AiToolRun> toolRuns;
+
+  /// 非空表示这条消息带了一段语音，值是秒数。气泡里据此显示一个语音标签——
+  /// 录音发完就删，气泡不能再点开听，所以只报时长。
+  final int? voiceSeconds;
 
   /// 非空表示这条回复是定时任务自己跑出来的，界面会在气泡上标一条来源。
   final String? scheduleTitle;

@@ -646,6 +646,8 @@
   "aiErrorToolsUnsupported": "这个接口不支持工具调用。可以在设置里关掉「允许 AI 直接操作应用」再试",
   "aiErrorRejected": "接口拒绝了这次请求",
   "aiErrorToolLoop": "连着操作了太多步还没得出结论。把要求说得更具体一点再试一次",
+  "aiErrorAudioUnsupported": "当前模型不听音频。在设置里换成支持语音的多模态模型（例如 gpt-4o-audio、qwen-omni）再试",
+  "aiErrorAudioTooLarge": "这段录音太大了，发不出去。录短一点再试",
   "aiErrorGatewayTimeout": "接口网关超时，模型没在限定时间内回话。已经自动重试过一次，稍后再试；连着几次都这样，就在设置里关掉「允许 AI 直接操作应用」——工具清单越小，模型回得越快",
   "aiNotConfigured": "请先在「AI 设置」里填写地址、密钥和模型",
   "aiToolsTitle": "工具调用",
@@ -757,11 +759,29 @@
   "aiWeekdayFri": "周五",
   "aiWeekdaySat": "周六",
   "aiWeekdaySun": "周日",
-  "aiVoiceStart": "语音输入",
-  "aiVoiceStop": "结束语音输入",
-  "aiVoiceListening": "正在聆听…",
+  "aiVoiceStart": "录一段语音",
+  "aiVoiceStop": "结束录音",
+  "aiVoiceRecording": "正在录音 {clock} · 再点一下结束",
+  "@aiVoiceRecording": {
+    "placeholders": {
+      "clock": {
+        "type": "String"
+      }
+    }
+  },
+  "aiVoiceReady": "语音已就绪，点发送",
+  "aiVoiceClip": "语音 {seconds} 秒",
+  "@aiVoiceClip": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "aiVoiceRemove": "去掉这段语音",
+  "aiVoiceTooShort": "这段太短了，再录一次",
   "aiVoiceUnavailable": "这台设备不支持语音输入",
-  "aiVoiceFailed": "语音输入没能启动，检查一下麦克风权限",
+  "aiVoiceFailed": "录音没能启动，检查一下麦克风权限",
   "aiCategoryRecommendation": "猜你喜欢",
   "recommendTunedByAi": "AI 调整过这份推荐",
   "recommendTuningReset": "重置",

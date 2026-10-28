@@ -76,7 +76,7 @@ dependencies:
   # 语音输入：pub 上没有 ohos 实现，HAP 构建会跳过这个插件；界面按
   # platformSupportsVoiceInput() 判定，鸿蒙不显示麦克风，也不会走到调用。
   # 但不能从这份清单里删掉——lib/ 无条件 import 它，缺了就是编译失败。
-  speech_to_text: ^7.5.0
+  record: ^7.1.2
 
 dev_dependencies:
   flutter_test:

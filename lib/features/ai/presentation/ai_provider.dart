@@ -2,6 +2,8 @@
 // Licensed under the Apache License, Version 2.0
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,6 +17,7 @@ import '../domain/ai_config_store.dart';
 import '../domain/ai_credential_store.dart';
 import '../domain/ai_tools.dart';
 import 'ai_ports.dart';
+import 'voice_recorder.dart';
 
 final aiConfigStoreProvider = Provider<AiConfigStore>((ref) => AiConfigStore());
 
@@ -107,28 +110,66 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
 
   static const int _maxHistoryMessages = 24;
 
-  Future<void> send(String input) async {
+  /// 发出去之前的硬上限。一分钟 16 kHz 单声道 wav 约 1.9 MB，base64 之后
+  /// 2.6 MB；超过 8 MB 就别让网关拿 413 回我们了。
+  static const int _maxVoiceBytes = 8 * 1024 * 1024;
+
+  /// [voice] 非空表示这条消息带一段录音，和 [input] 一起发出去。
+  /// 只发文字时 [input] 不能为空；带语音时文字可以留空。
+  Future<void> send(String input, {AiVoiceClip? voice}) async {
     final text = input.trim();
-    if (text.isEmpty || value.busy) return;
+    if ((text.isEmpty && voice == null) || value.busy) return;
 
     final entries = [
       ...value.entries,
-      AiChatEntry(role: AiChatRole.user, text: text),
+      AiChatEntry(
+        role: AiChatRole.user,
+        text: text,
+        voiceSeconds: voice?.seconds,
+      ),
     ];
     _emit(entries, busy: true);
 
     final config = ref.read(aiConfigProvider);
     if (!config.isConfigured) {
+      await discardVoiceClip(voice);
       _fail(entries, AiFailureKind.notConfigured);
       return;
     }
     final key = await ref.read(aiConfigProvider.notifier).loadKey();
     if (key == null || key.isEmpty) {
+      await discardVoiceClip(voice);
       _fail(entries, AiFailureKind.unauthorized);
       return;
     }
 
-    final userMessage = AiMessage(AiRole.user, text);
+    // 录音只在这一轮发一次：进了历史就变成纯文字摘要，否则每次追问都要
+    // 把几 MB 的 base64 重发一遍。
+    final AiVoiceAttachment? attachment;
+    if (voice != null) {
+      if (voice.bytes > _maxVoiceBytes) {
+        await discardVoiceClip(voice);
+        _fail(entries, AiFailureKind.audioTooLarge);
+        return;
+      }
+      try {
+        attachment = AiVoiceAttachment(
+          base64Data: base64Encode(await File(voice.path).readAsBytes()),
+          format: voice.format,
+        );
+      } catch (_) {
+        await discardVoiceClip(voice);
+        _fail(entries, AiFailureKind.audioTooLarge);
+        return;
+      }
+    } else {
+      attachment = null;
+    }
+
+    final userMessage = AiMessage(AiRole.user, text, voice: attachment);
+    final historyLine = text.isEmpty
+        ? '（语音 ${voice?.seconds ?? 0} 秒）'
+        : text;
     try {
       final reply = await ref
           .read(aiAgentProvider)
@@ -152,7 +193,7 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
           );
       if (!mounted) return;
       _history
-        ..add(userMessage)
+        ..add(AiMessage(AiRole.user, historyLine))
         ..add(AiMessage(AiRole.assistant, reply.text));
       if (_history.length > _maxHistoryMessages) {
         _history.removeRange(0, _history.length - _maxHistoryMessages);
@@ -171,6 +212,8 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
     } catch (_) {
       if (!mounted) return;
       _fail(entries, AiFailureKind.network);
+    } finally {
+      await discardVoiceClip(voice);
     }
   }
 

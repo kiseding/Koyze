@@ -191,6 +191,101 @@ void main() {
     );
   });
 
+  test('语音消息发成内容数组，文字和音频各占一段', () async {
+    final adapter = _StubAdapter(
+      200,
+      '{"choices":[{"message":{"content":"ok"}}]}',
+    );
+    final client = AiClient(dio: Dio()..httpClientAdapter = adapter);
+
+    await client.complete(
+      config: config,
+      apiKey: 'k',
+      messages: const [
+        AiMessage(
+          AiRole.user,
+          '听听这段',
+          voice: AiVoiceAttachment(base64Data: 'UklGRg=='),
+        ),
+      ],
+    );
+
+    final body = adapter.request!.data as Map<String, dynamic>;
+    final messages = body['messages'] as List;
+    expect(messages.single['content'], [
+      {'type': 'text', 'text': '听听这段'},
+      {
+        'type': 'input_audio',
+        'input_audio': {'data': 'UklGRg==', 'format': 'wav'},
+      },
+    ]);
+  });
+
+  test('只发语音时内容数组里没有空的文字段', () async {
+    final adapter = _StubAdapter(
+      200,
+      '{"choices":[{"message":{"content":"ok"}}]}',
+    );
+    final client = AiClient(dio: Dio()..httpClientAdapter = adapter);
+
+    await client.complete(
+      config: config,
+      apiKey: 'k',
+      messages: const [
+        AiMessage(AiRole.user, '  ', voice: AiVoiceAttachment(base64Data: 'AA==')),
+      ],
+    );
+
+    final body = adapter.request!.data as Map<String, dynamic>;
+    final content = (body['messages'] as List).single['content'] as List;
+    expect(content, hasLength(1));
+    expect(content.single['type'], 'input_audio');
+  });
+
+  test('纯文字消息仍然发字符串，老网关不会被内容数组卡住', () async {
+    final adapter = _StubAdapter(
+      200,
+      '{"choices":[{"message":{"content":"ok"}}]}',
+    );
+    final client = AiClient(dio: Dio()..httpClientAdapter = adapter);
+
+    await client.complete(
+      config: config,
+      apiKey: 'k',
+      messages: const [AiMessage(AiRole.user, 'hi')],
+    );
+
+    final body = adapter.request!.data as Map<String, dynamic>;
+    expect((body['messages'] as List).single['content'], 'hi');
+  });
+
+  test('a 400 about input_audio becomes its own kind', () async {
+    final client = AiClient(
+      dio: Dio()
+        ..httpClientAdapter = _StubAdapter(
+          400,
+          '{"error":{"message":"Invalid content type. input_audio is not supported"}}',
+        ),
+    );
+
+    await expectLater(
+      client.complete(
+        config: config,
+        apiKey: 'k',
+        messages: const [
+          AiMessage(AiRole.user, '', voice: AiVoiceAttachment(base64Data: 'AA==')),
+        ],
+      ),
+      throwsA(
+        isA<AiException>().having(
+          (e) => e.kind,
+          'kind',
+          AiFailureKind.audioUnsupported,
+        ),
+      ),
+    );
+  });
+
   test('any other 4xx keeps the backend wording so it can be acted on', () async {
     final client = AiClient(
       dio: Dio()

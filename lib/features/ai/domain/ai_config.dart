@@ -134,6 +134,25 @@ class AiToolCall {
   };
 }
 
+/// 随 user 消息一起发出去的语音，内容已经是 base64。
+///
+/// 走 OpenAI 兼容接口的 `input_audio` 内容片段：模型自己听，不经过任何
+/// 本地识别，所以切模型就换了一种听法。
+@immutable
+class AiVoiceAttachment {
+  const AiVoiceAttachment({required this.base64Data, this.format = 'wav'});
+
+  final String base64Data;
+
+  /// `wav` / `mp3`，接口里声明成什么就得真是那个格式。
+  final String format;
+
+  Map<String, dynamic> toJson() => {
+    'type': 'input_audio',
+    'input_audio': {'data': base64Data, 'format': format},
+  };
+}
+
 @immutable
 class AiMessage {
   const AiMessage(
@@ -141,12 +160,14 @@ class AiMessage {
     this.content, {
     this.toolCalls = const <AiToolCall>[],
     this.toolCallId,
+    this.voice,
   });
 
   /// 工具执行结果：回填给模型看的那条消息。
   const AiMessage.tool(this.content, {required this.toolCallId})
     : role = AiRole.tool,
-      toolCalls = const <AiToolCall>[];
+      toolCalls = const <AiToolCall>[],
+      voice = null;
 
   final AiRole role;
   final String content;
@@ -157,13 +178,28 @@ class AiMessage {
   /// tool 消息指向它回答的是哪一次调用。
   final String? toolCallId;
 
-  Map<String, dynamic> toJson() => {
-    'role': role.name,
-    'content': content,
-    if (toolCalls.isNotEmpty)
-      'tool_calls': [for (final call in toolCalls) call.toRequestJson()],
-    if (toolCallId != null) 'tool_call_id': toolCallId,
-  };
+  /// 带语音时把 content 发成多段而不是一个字符串。
+  ///
+  /// 纯文字消息仍然是一个字符串——不少网关只认这种老格式，只有真的要发
+  /// 音频时才升级成数组。
+  final AiVoiceAttachment? voice;
+
+  Map<String, dynamic> toJson() {
+    final audio = voice;
+    return {
+      'role': role.name,
+      'content': audio == null
+          ? content
+          : [
+              if (content.trim().isNotEmpty)
+                {'type': 'text', 'text': content},
+              audio.toJson(),
+            ],
+      if (toolCalls.isNotEmpty)
+        'tool_calls': [for (final call in toolCalls) call.toRequestJson()],
+      if (toolCallId != null) 'tool_call_id': toolCallId,
+    };
+  }
 }
 
 /// 请求失败的分类，界面按类别给不同提示，不用把后端原文直接抛给用户。
@@ -186,6 +222,12 @@ enum AiFailureKind {
 
   /// 接口明确拒绝了这次请求，[AiException.detail] 里有它的原话。
   rejected,
+
+  /// 当前模型不听音频（`input_audio` 不被接受）。换个支持语音的模型才行。
+  audioUnsupported,
+
+  /// 这段录音太大了，发不出去。
+  audioTooLarge,
 
   /// 网关（502 / 503 / 504）没能等到模型回话。多数是上游瞬时过载，重试即可。
   gatewayTimeout,

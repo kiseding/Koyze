@@ -2176,6 +2176,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Ran too many steps without reaching an answer. Try a more specific request';
 
   @override
+  String get aiErrorAudioUnsupported =>
+      'This model does not accept audio. Switch to a multimodal model that does (e.g. gpt-4o-audio, qwen-omni) in settings';
+
+  @override
+  String get aiErrorAudioTooLarge =>
+      'This recording is too large to send. Record a shorter clip';
+
+  @override
   String get aiErrorGatewayTimeout =>
       'The API gateway timed out before the model replied. One retry was already attempted — try again later; if it keeps happening, turn off app actions in settings (a smaller tool list gets faster replies)';
 
@@ -2475,13 +2483,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aiWeekdaySun => 'Sun';
 
   @override
-  String get aiVoiceStart => 'Voice input';
+  String get aiVoiceStart => 'Record a voice message';
 
   @override
-  String get aiVoiceStop => 'Stop listening';
+  String get aiVoiceStop => 'Stop recording';
 
   @override
-  String get aiVoiceListening => 'Listening…';
+  String aiVoiceRecording(String clock) {
+    return 'Recording $clock · tap to stop';
+  }
+
+  @override
+  String get aiVoiceReady => 'Voice ready — tap send';
+
+  @override
+  String aiVoiceClip(int seconds) {
+    return 'Voice · ${seconds}s';
+  }
+
+  @override
+  String get aiVoiceRemove => 'Remove this recording';
+
+  @override
+  String get aiVoiceTooShort => 'Too short — try again';
 
   @override
   String get aiVoiceUnavailable =>
@@ -2489,7 +2513,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aiVoiceFailed =>
-      'Voice input could not start — check the microphone permission';
+      'Recording could not start — check the microphone permission';
 
   @override
   String get aiCategoryRecommendation => 'For you';

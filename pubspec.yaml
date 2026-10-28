@@ -67,9 +67,10 @@ dependencies:
   permission_handler: ^12.0.3
   animations: ^2.2.0
 
-  # 语音输入：Android / iOS / macOS / Windows 有实现，鸿蒙与 Linux 没有。
-  # 界面按 platformSupportsVoiceInput() 判定，没有实现时不显示麦克风。
-  speech_to_text: ^7.5.0
+  # 语音输入：把麦克风录成 wav 直接发给模型，不做本地识别。
+  # Android / iOS / macOS / Windows 有实现，鸿蒙与 Linux 没有（这两处界面
+  # 按 platformSupportsVoiceInput() 判定，不显示麦克风）。
+  record: ^7.1.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

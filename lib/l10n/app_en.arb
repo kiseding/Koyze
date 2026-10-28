@@ -1348,6 +1348,8 @@
   "aiErrorToolsUnsupported": "This endpoint does not support tool calls. Try turning off \"Let the AI act on the app\" in settings",
   "aiErrorRejected": "The endpoint rejected this request",
   "aiErrorToolLoop": "Ran too many steps without reaching an answer. Try a more specific request",
+  "aiErrorAudioUnsupported": "This model does not accept audio. Switch to a multimodal model that does (e.g. gpt-4o-audio, qwen-omni) in settings",
+  "aiErrorAudioTooLarge": "This recording is too large to send. Record a shorter clip",
   "aiErrorGatewayTimeout": "The API gateway timed out before the model replied. One retry was already attempted — try again later; if it keeps happening, turn off app actions in settings (a smaller tool list gets faster replies)",
   "aiNotConfigured": "Configure the AI endpoint first",
   "aiToolsTitle": "Tool calling",
@@ -1508,11 +1510,29 @@
   "aiWeekdayFri": "Fri",
   "aiWeekdaySat": "Sat",
   "aiWeekdaySun": "Sun",
-  "aiVoiceStart": "Voice input",
-  "aiVoiceStop": "Stop listening",
-  "aiVoiceListening": "Listening…",
+  "aiVoiceStart": "Record a voice message",
+  "aiVoiceStop": "Stop recording",
+  "aiVoiceRecording": "Recording {clock} · tap to stop",
+  "@aiVoiceRecording": {
+    "placeholders": {
+      "clock": {
+        "type": "String"
+      }
+    }
+  },
+  "aiVoiceReady": "Voice ready — tap send",
+  "aiVoiceClip": "Voice · {seconds}s",
+  "@aiVoiceClip": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "aiVoiceRemove": "Remove this recording",
+  "aiVoiceTooShort": "Too short — try again",
   "aiVoiceUnavailable": "Voice input is not available on this device",
-  "aiVoiceFailed": "Voice input could not start — check the microphone permission",
+  "aiVoiceFailed": "Recording could not start — check the microphone permission",
   "aiCategoryRecommendation": "For you",
   "recommendTunedByAi": "The assistant tuned this list",
   "recommendTuningReset": "Reset",
