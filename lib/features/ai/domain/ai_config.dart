@@ -184,6 +184,14 @@ class AiMessage {
   /// 音频时才升级成数组。
   final AiVoiceAttachment? voice;
 
+  /// 只说了一段语音、一个字没打时补的占位文字。
+  ///
+  /// 一批 OpenAI 兼容网关只转发它认识的 `content` 段，`input_audio` 不认识就
+  /// 直接丢掉；只有音频那一段的消息被丢完就成了空内容，模型于是回一句
+  /// 「你发的是空消息」——用户看到的就是这句，而真正的原因是音频没送进去。
+  /// 补一句占位至少让这条消息永远不是空的，收不到音频时模型也能照实说。
+  static const String voiceOnlyText = '（语音消息）';
+
   Map<String, dynamic> toJson() {
     final audio = voice;
     return {
@@ -191,8 +199,10 @@ class AiMessage {
       'content': audio == null
           ? content
           : [
-              if (content.trim().isNotEmpty)
-                {'type': 'text', 'text': content},
+              {
+                'type': 'text',
+                'text': content.trim().isEmpty ? voiceOnlyText : content,
+              },
               audio.toJson(),
             ],
       if (toolCalls.isNotEmpty)

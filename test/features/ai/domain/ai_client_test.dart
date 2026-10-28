@@ -221,7 +221,7 @@ void main() {
     ]);
   });
 
-  test('只发语音时内容数组里没有空的文字段', () async {
+  test('只发语音时补一句文字占位，别让这条消息变成空的', () async {
     final adapter = _StubAdapter(
       200,
       '{"choices":[{"message":{"content":"ok"}}]}',
@@ -238,8 +238,11 @@ void main() {
 
     final body = adapter.request!.data as Map<String, dynamic>;
     final content = (body['messages'] as List).single['content'] as List;
-    expect(content, hasLength(1));
-    expect(content.single['type'], 'input_audio');
+    // 只发语音时也要有 text 段：认识 input_audio 的网关照样能听，不认识、
+    // 把这一段丢掉的网关也不会剩一条空消息。
+    expect(content, hasLength(2));
+    expect(content.first, {'type': 'text', 'text': AiMessage.voiceOnlyText});
+    expect(content.last['type'], 'input_audio');
   });
 
   test('纯文字消息仍然发字符串，老网关不会被内容数组卡住', () async {

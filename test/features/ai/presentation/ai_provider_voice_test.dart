@@ -37,15 +37,14 @@ void main() {
     final messages = _chatMessages(adapter);
     expect(messages, hasLength(1));
     final content = messages.single['content'] as List;
-    expect(content.single['type'], 'input_audio');
+    expect(content.first, {'type': 'text', 'text': AiMessage.voiceOnlyText});
+    final audio = content.last as Map;
+    expect(audio['type'], 'input_audio');
     expect(
-      (content.single['input_audio'] as Map)['data'],
+      (audio['input_audio'] as Map)['data'],
       base64Encode(List<int>.filled(2048, 7)),
     );
-    expect(
-      (content.single['input_audio'] as Map)['format'],
-      'wav',
-    );
+    expect((audio['input_audio'] as Map)['format'], 'wav');
 
     // 临时文件不该留在缓存目录里。
     expect(await file.exists(), isFalse);
