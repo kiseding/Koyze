@@ -59,4 +59,14 @@ void main() {
   test('zero blur is honoured rather than treated as "unset"', () {
     expect(PlayerBackdrop.effectiveBlur(0), 0);
   });
+
+  test('the default tier stays pinned to the shipped backdrop level', () {
+    // 默认档位与 GlassEffectConfig 里那一档是同一个数，分居两个文件。
+    // 谁改了其中一个而忘了另一个，这条会立刻红——否则只有用户会发现
+    // 「升级之后背景突然变糊/变清」。
+    expect(
+      PlayerBackdrop.effectiveBlur(PlayerBackdrop.defaultBlur),
+      GlassEffectConfig.playerBackdropBlur,
+    );
+  });
 }
