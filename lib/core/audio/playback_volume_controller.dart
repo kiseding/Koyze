@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:just_audio/just_audio.dart';
 
@@ -27,6 +28,9 @@ class PlaybackVolumeController {
 
   /// 临时衰减，睡眠定时的渐弱与其它一次性淡出共用。
   double _temporaryGain = 1;
+
+  Timer? _rampTimer;
+  int _rampGeneration = 0;
 
   /// User-set loudness, 0..1. Unaffected by ducking.
   double get volume => _volume;
@@ -65,6 +69,9 @@ class PlaybackVolumeController {
     push();
   }
 
+  /// 当前的一次性衰减倍数。
+  double get temporaryGain => _temporaryGain;
+
   /// 睡眠定时渐弱用的一次性衰减，不改用户音量。
   void setTemporaryGain(double gain) {
     final next = gain.isFinite ? gain.clamp(0.0, 1.0).toDouble() : 1.0;
@@ -73,7 +80,86 @@ class PlaybackVolumeController {
     push();
   }
 
-  void clearTemporaryGain() => setTemporaryGain(1);
+  void clearTemporaryGain() {
+    cancelRamp();
+    setTemporaryGain(1);
+  }
+
+  /// 把一次性衰减平滑地推到 [target]。
+  ///
+  /// 用余弦缓动而不是线性：两端变化慢、中间快，听感上更像模拟设备的淡入
+  /// 淡出，也不会在起始处出现「突然出声」。被新的一次渐变打断时不会调用
+  /// [onDone]，调用方据此判断淡出是否真的走完。
+  void rampTemporaryGain(
+    double target, {
+    required Duration duration,
+    int steps = 6,
+    void Function()? onDone,
+  }) {
+    cancelRamp();
+    final generation = _rampGeneration;
+    final to = target.isFinite ? target.clamp(0.0, 1.0).toDouble() : 1.0;
+    final from = _temporaryGain;
+    final stepDuration = Duration(microseconds: duration.inMicroseconds ~/ steps);
+    if (steps <= 0 ||
+        duration <= Duration.zero ||
+        stepDuration <= Duration.zero) {
+      setTemporaryGain(to);
+      onDone?.call();
+      return;
+    }
+    var step = 0;
+    _rampTimer = Timer.periodic(stepDuration, (timer) {
+      if (generation != _rampGeneration) {
+        timer.cancel();
+        return;
+      }
+      step++;
+      final progress = step / steps;
+      final eased = 0.5 - 0.5 * math.cos(math.pi * progress);
+      setTemporaryGain(from + (to - from) * eased);
+      if (step >= steps) {
+        timer.cancel();
+        _rampTimer = null;
+        // 浮点累加可能差一点点，最后一步直接落到目标值。
+        setTemporaryGain(to);
+        onDone?.call();
+      }
+    });
+  }
+
+  /// 取消未完成的渐变，保留当前音量。
+  void cancelRamp() {
+    _rampGeneration++;
+    _rampTimer?.cancel();
+    _rampTimer = null;
+  }
+
+  /// 等待一次渐变结束。被打断时返回 false。
+  Future<bool> _settle() {
+    final timer = _rampTimer;
+    if (timer == null) return Future.value(true);
+    final generation = _rampGeneration;
+    final completer = Completer<bool>();
+    Timer.periodic(const Duration(milliseconds: 10), (poll) {
+      if (generation != _rampGeneration) {
+        poll.cancel();
+        if (!completer.isCompleted) completer.complete(false);
+        return;
+      }
+      if (_rampTimer == null) {
+        poll.cancel();
+        if (!completer.isCompleted) completer.complete(true);
+      }
+    });
+    return completer.future;
+  }
+
+  /// 淡出到静音并等待完成。被打断（例如用户立刻又按了播放）时返回 false。
+  Future<bool> fadeOutToSilence(Duration duration) {
+    rampTemporaryGain(0, duration: duration);
+    return _settle();
+  }
 
   /// Lowers output while another app plays. Idempotent.
   void duck() {

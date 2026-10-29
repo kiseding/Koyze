@@ -2666,5 +2666,54 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get pitch => '音调';
+
+  @override
+  String get pitchSemitonesUnit => '半音';
+
+  @override
+  String get pitchReset => '原调';
+
+  @override
+  String get pitchHint => '变调不变速。负值适合跟着降调唱，正值会更亮一些。';
+
+  @override
+  String get skipSilence => '跳过静音';
+
+  @override
+  String get skipSilenceSubtitle => '自动略过歌曲开头与中间的空白段（仅 Android 生效）';
+
+  @override
+  String get playbackFade => '播放淡入淡出';
+
+  @override
+  String get playbackFadeSubtitle => '开始与暂停时短暂渐变，避免耳机里的爆音';
+
+  @override
+  String get exportM3u => '导出为 M3U';
+
+  @override
+  String get exportM3uEmpty => '这个歌单还没有歌曲';
+
+  @override
+  String get exportM3uSaved => '已导出 M3U 文件';
+
+  @override
+  String exportM3uFailed(String error) {
+    return '导出失败：$error';
+  }
+
+  @override
+  String get importM3u => '导入 M3U 歌单';
+
+  @override
+  String get importM3uEmpty => '文件里没有可识别的条目';
+
+  @override
+  String importM3uResult(int imported, int skipped) {
+    return '导入 $imported 首，跳过 $skipped 首';
+  }
+
+  @override
   String get add => '添加';
 }

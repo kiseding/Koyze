@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
@@ -37,7 +38,11 @@ import '../../settings/presentation/settings_provider.dart'
         playbackSpeedProvider,
         kPlaybackSpeedSteps,
         playbackSpeedLabel,
-        normalizePlaybackSpeed;
+        normalizePlaybackSpeed,
+        pitchSemitonesProvider,
+        pitchSemitonesLabel,
+        pitchFactorForSemitones,
+        kPitchFactor432Hz;
 import '../../lyric/presentation/lyric_view.dart';
 import '../../lyric/presentation/lyric_provider.dart';
 import '../../lyric/presentation/lyric_share_card.dart';
@@ -2187,6 +2192,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 _showSpeedSheet(context);
               },
             ),
+            KoyzeSheetAction(
+              icon: Icons.music_note_outlined,
+              label:
+                  '${S.of(context).pitch} · '
+                  '${pitchSemitonesLabel(ref.watch(pitchSemitonesProvider))}',
+              onTap: () {
+                Navigator.pop(context);
+                _showPitchSheet(context);
+              },
+            ),
             const SizedBox(height: 10),
           ],
         ),
@@ -2239,6 +2254,145 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             const SizedBox(height: 8),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 音调面板：滑块给细调，下面三个快捷项给最常用的位置。
+  ///
+  /// 用滑块而不是档位，是因为「降两个半音跟唱」这种需求本身是连续的；
+  /// 432Hz 单独做成预设，因为没人会自己去算 -0.32 半音。
+  void _showPitchSheet(BuildContext context) {
+    showKoyzeSheet(
+      context: context,
+      builder: (sheetContext) => Consumer(
+        builder: (context, ref, _) {
+          final semitones = ref.watch(pitchSemitonesProvider);
+          void set(double value) =>
+              ref.read(pitchSemitonesProvider.notifier).setSemitones(value);
+          return SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.music_note_outlined,
+                        color: AppColors.accentOf(context),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        S.of(context).pitch,
+                        style: TextStyle(
+                          color: AppColors.onScaffold(context),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${pitchSemitonesLabel(semitones)} '
+                        '${S.of(context).pitchSemitonesUnit}',
+                        style: TextStyle(
+                          color: AppColors.accentOf(context),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Slider(
+                  value: semitones.clamp(-12.0, 12.0).toDouble(),
+                  min: -12,
+                  max: 12,
+                  divisions: 48,
+                  onChanged: set,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      _PitchPresetChip(
+                        label: S.of(context).pitchReset,
+                        selected: semitones == 0,
+                        onTap: () => set(0),
+                      ),
+                      _PitchPresetChip(
+                        label: '432 Hz',
+                        selected:
+                            (pitchFactorForSemitones(semitones) -
+                                    kPitchFactor432Hz)
+                                .abs() <
+                            0.002,
+                        onTap: () => set(
+                          12 * (math.log(kPitchFactor432Hz) / math.ln2),
+                        ),
+                      ),
+                      _PitchPresetChip(
+                        label: '-1',
+                        selected: semitones == -1,
+                        onTap: () => set(-1),
+                      ),
+                      _PitchPresetChip(
+                        label: '+1',
+                        selected: semitones == 1,
+                        onTap: () => set(1),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+                  child: Text(
+                    S.of(context).pitchHint,
+                    style: TextStyle(
+                      color: AppColors.mutedText(context),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 音调面板的预设项。
+class _PitchPresetChip extends StatelessWidget {
+  const _PitchPresetChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = AppColors.accentOf(context);
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      showCheckmark: false,
+      labelStyle: TextStyle(
+        fontSize: 13,
+        color: selected ? accent : AppColors.onScaffold(context),
+      ),
+      selectedColor: accent.withValues(alpha: 0.16),
+      side: BorderSide(
+        color: selected ? accent : AppColors.cardBorder(context),
       ),
     );
   }

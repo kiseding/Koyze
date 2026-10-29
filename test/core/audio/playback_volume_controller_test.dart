@@ -148,4 +148,105 @@ void main() {
       },
     );
   });
+
+  group('PlaybackVolumeController fades', () {
+    testWidgets('ramps the temporary gain down to silence', (tester) async {
+      final controller = PlaybackVolumeController()..apply(1);
+      var done = false;
+
+      controller.rampTemporaryGain(
+        0,
+        duration: const Duration(milliseconds: 120),
+        steps: 6,
+        onDone: () => done = true,
+      );
+
+      expect(controller.temporaryGain, closeTo(1, 1e-9));
+      await tester.pump(const Duration(milliseconds: 21));
+      final midway = controller.temporaryGain;
+      expect(midway, lessThan(1));
+      expect(midway, greaterThan(0));
+
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(controller.temporaryGain, 0);
+      expect(done, isTrue);
+    });
+
+    testWidgets('ramps back up for a fade-in', (tester) async {
+      final controller = PlaybackVolumeController()..apply(1);
+      controller.setTemporaryGain(0);
+
+      controller.rampTemporaryGain(
+        1,
+        duration: const Duration(milliseconds: 120),
+        steps: 6,
+      );
+
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(controller.temporaryGain, closeTo(1, 1e-9));
+      // 淡入淡出不能动用户设定的音量。
+      expect(controller.volume, closeTo(1, 1e-9));
+    });
+
+    testWidgets('a new ramp cancels the previous one', (tester) async {
+      final controller = PlaybackVolumeController()..apply(1);
+      var firstDone = false;
+
+      controller.rampTemporaryGain(
+        0,
+        duration: const Duration(milliseconds: 120),
+        steps: 6,
+        onDone: () => firstDone = true,
+      );
+      await tester.pump(const Duration(milliseconds: 30));
+      controller.rampTemporaryGain(
+        1,
+        duration: const Duration(milliseconds: 60),
+        steps: 3,
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(firstDone, isFalse);
+      expect(controller.temporaryGain, closeTo(1, 1e-9));
+    });
+
+    testWidgets('fadeOutToSilence reports completion', (tester) async {
+      final controller = PlaybackVolumeController()..apply(1);
+
+      final future = controller.fadeOutToSilence(
+        const Duration(milliseconds: 60),
+      );
+      await tester.pump(const Duration(milliseconds: 120));
+
+      expect(await future, isTrue);
+      expect(controller.temporaryGain, 0);
+    });
+
+    testWidgets('fadeOutToSilence returns false when interrupted', (
+      tester,
+    ) async {
+      final controller = PlaybackVolumeController()..apply(1);
+
+      final future = controller.fadeOutToSilence(
+        const Duration(milliseconds: 120),
+      );
+      await tester.pump(const Duration(milliseconds: 20));
+      // 用户中途又按了播放：取消淡出，音量回到用户设定。
+      controller.clearTemporaryGain();
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(await future, isFalse);
+      expect(controller.temporaryGain, closeTo(1, 1e-9));
+    });
+
+    testWidgets('a zero duration snaps instead of scheduling', (tester) async {
+      final controller = PlaybackVolumeController()..apply(1);
+
+      controller.rampTemporaryGain(0, duration: Duration.zero, steps: 6);
+
+      expect(controller.temporaryGain, 0);
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(controller.temporaryGain, 0);
+    });
+  });
 }

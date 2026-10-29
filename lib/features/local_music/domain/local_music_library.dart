@@ -576,6 +576,13 @@ class LocalMusicLibrary {
           'library.embedded_artwork.persisted',
           'bytes=${embedded.length} path=${LocalMusicDebugLog.quote(artworkPath)} track=${LocalMusicDebugLog.quote(storagePath)}',
         );
+      } else {
+        // 内嵌图为空时退回同目录的专辑封面。直接存文件路径：`_toMusicItem`
+        // 会把非 URL 的值当成本地文件转成 file:// URI。
+        final folderArtwork = track.folderArtworkPath;
+        if (folderArtwork != null && folderArtwork.isNotEmpty) {
+          artworkPath = folderArtwork;
+        }
       }
       _files[storagePath] = {
         'path': storagePath,

@@ -52,6 +52,7 @@ class LocalTrack {
     this.hasEmbeddedTags = true,
     this.hasEmbeddedArtwork = false,
     this.embeddedArtwork,
+    this.folderArtworkPath,
     this.contentUri,
     this.androidSource,
     this.safRoot,
@@ -72,6 +73,13 @@ class LocalTrack {
   final bool hasEmbeddedTags;
   final bool hasEmbeddedArtwork;
   final Uint8List? embeddedArtwork;
+
+  /// 同目录的 `cover.jpg` / `folder.jpg` 等文件夹封面（绝对路径）。
+  ///
+  /// 只在文件没有内嵌封面时才有值。老式 CD 抓轨和很多整理过的音乐库都
+  /// 采用「一张专辑目录放一张图」的做法，没有这个回退就只能显示占位图。
+  final String? folderArtworkPath;
+
   final String? contentUri;
   final String? androidSource;
   final String? safRoot;
@@ -95,6 +103,7 @@ class LocalTrack {
       hasEmbeddedTags: hasEmbeddedTags,
       hasEmbeddedArtwork: hasEmbeddedArtwork,
       embeddedArtwork: embeddedArtwork,
+      folderArtworkPath: folderArtworkPath,
       contentUri: contentUri,
       androidSource: androidSource,
       safRoot: safRoot,
@@ -206,6 +215,64 @@ class LocalMusicScanner {
 
   /// [scanDirectory] 进度回调的最小间隔，避免每个文件都触发一次 UI 重建。
   static const int _progressIntervalMs = 100;
+
+  /// 文件夹封面的文件名（不含扩展名），按常见程度排序。
+  static const List<String> _folderArtworkNames = [
+    'cover',
+    'folder',
+    'front',
+    'album',
+    'artwork',
+  ];
+
+  /// 只认图片格式：同目录的 `cover.txt` 之类不该被当成封面。
+  static const List<String> _folderArtworkExtensions = [
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
+  ];
+
+  /// 目录 → 封面路径（null 表示该目录没有）。
+  ///
+  /// 一张专辑目录里的每首歌都查同一批文件名，缓存能省掉成百上千次 `exists`。
+  final Map<String, String?> _folderArtworkCache = {};
+
+  /// 找同目录的文件夹封面，找不到返回 null。
+  Future<String?> _folderArtworkFor(String audioPath) async {
+    final slash = audioPath.lastIndexOf('/');
+    final backslash = audioPath.lastIndexOf(r'\');
+    final separator = slash > backslash ? slash : backslash;
+    if (separator < 0) return null;
+    final prefix = audioPath.substring(0, separator + 1);
+    if (_folderArtworkCache.containsKey(prefix)) {
+      return _folderArtworkCache[prefix];
+    }
+    String? found;
+    outer:
+    for (final name in _folderArtworkNames) {
+      for (final extension in _folderArtworkExtensions) {
+        // Android 与 Windows 的文件系统大小写不敏感，Linux 敏感。两种都试，
+        // 成本只是一次 stat。
+        for (final candidate in [
+          '$name.$extension',
+          '$name.${extension.toUpperCase()}',
+        ]) {
+          try {
+            final file = File('$prefix$candidate');
+            if (await file.exists()) {
+              found = file.path;
+              break outer;
+            }
+          } catch (_) {
+            // 权限不足或路径非法：继续试下一个候选。
+          }
+        }
+      }
+    }
+    _folderArtworkCache[prefix] = found;
+    return found;
+  }
 
   /// 暴露给测试：在 worker isolate 上解析单个文件的标签。
   @visibleForTesting
@@ -376,6 +443,7 @@ class LocalMusicScanner {
       final artist = _nonEmpty(tag.artist) ?? '未知歌手';
       final album = _nonEmpty(tag.album) ?? '';
       final artwork = tag.artwork;
+      final hasEmbeddedArtwork = artwork != null && artwork.isNotEmpty;
       return LocalTrack(
         path: file.path,
         fileName: fileName,
@@ -389,8 +457,12 @@ class LocalMusicScanner {
         bitrate: tag.bitrate,
         hasEmbeddedTags:
             _nonEmpty(tag.title) != null && _nonEmpty(tag.artist) != null,
-        hasEmbeddedArtwork: artwork != null && artwork.isNotEmpty,
+        hasEmbeddedArtwork: hasEmbeddedArtwork,
         embeddedArtwork: artwork,
+        // 没有内嵌封面时退回同目录的专辑图（CD 抓轨的常见布局）。
+        folderArtworkPath: hasEmbeddedArtwork
+            ? null
+            : await _folderArtworkFor(file.path),
         replayGainDb: tag.replayGainDb,
       );
     } catch (error, stackTrace) {
@@ -415,6 +487,8 @@ class LocalMusicScanner {
           duration: Duration.zero,
           bitrate: null,
           hasEmbeddedTags: false,
+          // 标签都读不出来的文件更可能是老格式，同目录封面往往是唯一的图。
+          folderArtworkPath: await _folderArtworkFor(file.path),
         );
         LocalMusicDebugLog.warning(
           'scan.filename_fallback',

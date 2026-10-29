@@ -97,6 +97,20 @@ final playbackSpeedProvider = NotifierProvider<PlaybackSpeedNotifier, double>(
   PlaybackSpeedNotifier.new,
 );
 
+/// 播放音调（±12 半音，0.5 步长）。
+final pitchSemitonesProvider =
+    NotifierProvider<PitchSemitonesNotifier, double>(
+      PitchSemitonesNotifier.new,
+    );
+
+/// 跳过静音（Android）。
+final skipSilenceEnabledProvider =
+    NotifierProvider<SkipSilenceNotifier, bool>(SkipSilenceNotifier.new);
+
+/// 播放/暂停淡入淡出。
+final playbackFadeEnabledProvider =
+    NotifierProvider<PlaybackFadeNotifier, bool>(PlaybackFadeNotifier.new);
+
 /// 常听预缓存开关。
 final precacheEnabledProvider = NotifierProvider<PrecacheEnabledNotifier, bool>(
   PrecacheEnabledNotifier.new,

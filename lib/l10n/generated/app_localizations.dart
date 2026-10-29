@@ -4970,6 +4970,96 @@ abstract class AppLocalizations {
   /// **'{n} tracks'**
   String precacheCountValue(int n);
 
+  /// No description provided for @pitch.
+  ///
+  /// In en, this message translates to:
+  /// **'Pitch'**
+  String get pitch;
+
+  /// No description provided for @pitchSemitonesUnit.
+  ///
+  /// In en, this message translates to:
+  /// **'semitone(s)'**
+  String get pitchSemitonesUnit;
+
+  /// No description provided for @pitchReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Original'**
+  String get pitchReset;
+
+  /// No description provided for @pitchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Shifts pitch without changing speed. Negative values help you sing along lower.'**
+  String get pitchHint;
+
+  /// No description provided for @skipSilence.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip silence'**
+  String get skipSilence;
+
+  /// No description provided for @skipSilenceSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Skips silent intros and gaps automatically (Android only)'**
+  String get skipSilenceSubtitle;
+
+  /// No description provided for @playbackFade.
+  ///
+  /// In en, this message translates to:
+  /// **'Play/pause fade'**
+  String get playbackFade;
+
+  /// No description provided for @playbackFadeSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Soft ramps when starting or pausing, so headphones don\'t pop'**
+  String get playbackFadeSubtitle;
+
+  /// No description provided for @exportM3u.
+  ///
+  /// In en, this message translates to:
+  /// **'Export as M3U'**
+  String get exportM3u;
+
+  /// No description provided for @exportM3uEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'This playlist has no songs yet'**
+  String get exportM3uEmpty;
+
+  /// No description provided for @exportM3uSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Exported the M3U file'**
+  String get exportM3uSaved;
+
+  /// No description provided for @exportM3uFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Export failed: {error}'**
+  String exportM3uFailed(String error);
+
+  /// No description provided for @importM3u.
+  ///
+  /// In en, this message translates to:
+  /// **'Import M3U playlist'**
+  String get importM3u;
+
+  /// No description provided for @importM3uEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No usable entries in that file'**
+  String get importM3uEmpty;
+
+  /// No description provided for @importM3uResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {imported}, skipped {skipped}'**
+  String importM3uResult(int imported, int skipped);
+
   /// No description provided for @add.
   ///
   /// In en, this message translates to:

@@ -984,6 +984,22 @@ class S {
   String get precacheRecentSubtitle => _l10n.precacheRecentSubtitle;
   String get precacheCount => _l10n.precacheCount;
   String precacheCountValue(int n) => _l10n.precacheCountValue(n);
+  String get pitch => _l10n.pitch;
+  String get pitchSemitonesUnit => _l10n.pitchSemitonesUnit;
+  String get pitchReset => _l10n.pitchReset;
+  String get pitchHint => _l10n.pitchHint;
+  String get skipSilence => _l10n.skipSilence;
+  String get skipSilenceSubtitle => _l10n.skipSilenceSubtitle;
+  String get playbackFade => _l10n.playbackFade;
+  String get playbackFadeSubtitle => _l10n.playbackFadeSubtitle;
+  String get exportM3u => _l10n.exportM3u;
+  String get exportM3uEmpty => _l10n.exportM3uEmpty;
+  String get exportM3uSaved => _l10n.exportM3uSaved;
+  String exportM3uFailed(String error) => _l10n.exportM3uFailed(error);
+  String get importM3u => _l10n.importM3u;
+  String get importM3uEmpty => _l10n.importM3uEmpty;
+  String importM3uResult(int imported, int skipped) =>
+      _l10n.importM3uResult(imported, skipped);
 }
 
 /// Maps a runtime message produced by the audio layer (currently Chinese,

@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,9 +15,12 @@ import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/card_play_button.dart';
 import '../../../core/widgets/origo_chrome.dart';
 import '../domain/playlist.dart';
+import '../domain/m3u_import.dart';
+import '../domain/m3u_playlist.dart';
 import '../domain/playlist_import_service.dart';
 import '../domain/playlist_service.dart';
 import '../../player/domain/music_item.dart';
+import '../../local_music/presentation/local_music_provider.dart';
 import 'playlist_provider.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../recommend/presentation/recommendation_provider.dart';
@@ -120,6 +124,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   icon: Icons.playlist_add_rounded,
                   semanticLabel: S.of(context).importPlaylist,
                   onTap: () => _showImportDialog(context, ref),
+                ),
+                FrostedHeaderButton(
+                  icon: Icons.upload_file_rounded,
+                  semanticLabel: S.of(context).importM3u,
+                  onTap: () => _importM3uFile(context, ref),
                 ),
               ],
             ),
@@ -1100,6 +1109,64 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         Navigator.pop(context);
       },
     );
+  }
+
+  /// 从 M3U / M3U8 文件导入歌单。
+  ///
+  /// 只匹配本地曲库里已有的歌：M3U 没有音源标识，硬去在线搜索很容易把
+  /// 翻唱、现场版都搜进来，导入结果反而更差。
+  Future<void> _importM3uFile(BuildContext context, WidgetRef ref) async {
+    final s = S.of(context);
+    try {
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['m3u', 'm3u8'],
+        withData: true,
+      );
+      if (picked == null || picked.files.isEmpty) return;
+      final file = picked.files.first;
+      final bytes = file.bytes;
+      if (bytes == null) return;
+
+      final doc = parseM3u(
+        decodeM3uBytes(bytes),
+        baseDirectory: _directoryOf(file.path),
+      );
+      final library = await ref.read(localMusicLibraryProvider.future);
+      final result = matchM3uToLibrary(doc, library.songs);
+      if (!context.mounted) return;
+      if (result.isEmpty) {
+        showAppNotification(s.importM3uEmpty, type: AppNotificationType.info);
+        return;
+      }
+      final name = file.name.replaceFirst(
+        RegExp(r'\.m3u8?$', caseSensitive: false),
+        '',
+      );
+      await ref
+          .read(playlistServiceProvider)
+          .createPlaylist(name: name, songs: result.songs);
+      if (!context.mounted) return;
+      showAppNotification(
+        s.importM3uResult(result.songs.length, result.skipped),
+        type: AppNotificationType.success,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      showAppNotification(
+        S.of(context).actionFailedShort,
+        type: AppNotificationType.error,
+      );
+    }
+  }
+
+  static String? _directoryOf(String? path) {
+    if (path == null || path.isEmpty) return null;
+    final slash = path.lastIndexOf('/');
+    final backslash = path.lastIndexOf(r'\');
+    final separator = slash > backslash ? slash : backslash;
+    if (separator <= 0) return null;
+    return path.substring(0, separator);
   }
 
   Future<void> _showImportDialog(BuildContext context, WidgetRef ref) async {

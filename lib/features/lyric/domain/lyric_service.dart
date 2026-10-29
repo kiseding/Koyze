@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'lyric.dart';
+import 'local_lyric_file.dart';
 import '../data/lyric_parser.dart';
 import '../../player/domain/music_item.dart';
 import '../../../core/network/app_http_client.dart';
@@ -41,6 +42,18 @@ class LyricService {
     if (cached != null && _hasWordTiming(cached)) {
       debugPrint('[LyricService] 命中缓存');
       return cached;
+    }
+
+    // 本地曲目旁边的同名 .lrc。放在缓存之后、网络之前：既避免每次播放都
+    // 读盘，也不会为了一个本地文件去请求网络歌词（那通常是别家的错误匹配）。
+    final sidecar = await _readSidecar(music);
+    if (sidecar != null) {
+      final lyrics = _parseLyricString(sidecar);
+      if (lyrics.lines.isNotEmpty) {
+        debugPrint('[LyricService] 使用同名歌词文件, ${lyrics.lines.length} 行');
+        _cache.set(cacheKey, lyrics);
+        return lyrics;
+      }
     }
 
     if (_preferredLyricLoader != null || _musicSourceService != null) {
@@ -96,6 +109,14 @@ class LyricService {
 
   bool _hasWordTiming(Lyrics lyrics) =>
       lyrics.lines.any((line) => line.hasWordTiming);
+
+  /// 本地曲目的同名歌词文件。非本地来源一律返回 null。
+  Future<String?> _readSidecar(MusicItem music) async {
+    if (music.source != 'local') return null;
+    final path = music.meta?['filePath']?.toString();
+    if (path == null || path.isEmpty) return null;
+    return readSidecarLyric(path);
+  }
 
   void clearCache() {
     _cache.clear();

@@ -806,9 +806,64 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  /// 播放音调（频率倍数，1 表示原调）。
+  ///
+  /// 与倍速分开：倍速改变时间轴，音调只改变频率。两者在 just_audio 里是
+  /// 两个独立接口（`setSpeed` / `setPitch`），ExoPlayer 与 AVPlayer 都支持
+  /// 组合使用，所以变调不变速是可以做到的。
+  double _playbackPitch = 1.0;
+
+  double get playbackPitch => _playbackPitch;
+
+  Future<void> setPlaybackPitch(double pitch) async {
+    // 0.5 = 低一个八度，2.0 = 高一个八度，再宽就会明显失真。
+    final next = pitch.isFinite ? pitch.clamp(0.5, 2.0).toDouble() : 1.0;
+    _playbackPitch = next;
+    await _applyPitchToPlayer();
+  }
+
+  Future<void> _applyPitchToPlayer() async {
+    try {
+      await _player.setPitch(_playbackPitch);
+    } catch (error, stackTrace) {
+      // 部分平台（桌面 just_audio_windows、OpenHarmony）没有实现 setPitch。
+      // 这不影响播放，只是音调控制不可用。
+      AppLog.instance.record(
+        'audio.pitch',
+        'setPitch($_playbackPitch) failed: $error',
+        level: AppLogLevel.info,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  /// 跳过静音（Android ExoPlayer 的 skipSilence）。
+  bool _skipSilence = false;
+
+  bool get skipSilence => _skipSilence;
+
+  Future<void> setSkipSilence(bool enabled) async {
+    if (_skipSilence == enabled) return;
+    _skipSilence = enabled;
+    await _applySkipSilenceToPlayer();
+  }
+
+  Future<void> _applySkipSilenceToPlayer() async {
+    try {
+      await _player.setSkipSilenceEnabled(_skipSilence);
+    } catch (error, stackTrace) {
+      // 仅 Android 实现；其它平台抛 MissingPlugin/Unimplemented。
+      AppLog.instance.record(
+        'audio.skip_silence',
+        'setSkipSilence($_skipSilence) failed: $error',
+        level: AppLogLevel.info,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
   /// Lowers playback while another app plays, without changing user volume.
   void duckPlaybackVolume() => _volume.duck();
-
   /// Restores the user's volume after the temporary duck ends.
   void restoreDuckedPlaybackVolume() => _volume.restore();
 
@@ -1351,6 +1406,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_playbackSpeed != 1.0) {
       unawaited(_applySpeedToPlayer());
     }
+    unawaited(_applySkipSilenceToPlayer());
+    if (_playbackPitch != 1.0) {
+      unawaited(_applyPitchToPlayer());
+    }
     _init();
     _playerSubject.add(_player);
     _publishPlaybackState(
@@ -1769,7 +1828,22 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   @override
-  Future<void> play() => _runPublicOperation<void>(_play, disposedValue: null);
+  Future<void> play() async {
+    // 淡入只在「从暂停到播放」时做：已经在播时按 play 是幂等操作，不该
+    // 让声音先掉到 0 再回来。
+    final fade = _playbackFade && !_player.playing;
+    if (fade) {
+      _volume.cancelRamp();
+      _volume.setTemporaryGain(0);
+    }
+    try {
+      await _runPublicOperation<void>(_play, disposedValue: null);
+    } finally {
+      if (fade && !_disposed) {
+        _volume.rampTemporaryGain(1, duration: _fadeInDuration);
+      }
+    }
+  }
 
   Future<void> _play() async {
     if (_disposed) return;
@@ -1839,8 +1913,51 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   void debugEmitTrackCompleted() => _onTrackCompleted();
 
   @override
-  Future<void> pause() =>
-      _runPublicOperation<void>(_pause, disposedValue: null);
+  Future<void> pause() async {
+    final fade = _playbackFade && _player.playing && !_disposed;
+    // 淡出要等走完再暂停，否则用户听到的是硬切。但这段等待不能让队列在
+    // 期间被「播完自动下一首」推进，所以先声明暂停意图再淡出。
+    if (fade) {
+      _declarePauseIntent();
+      await _volume.fadeOutToSilence(_fadeOutDuration);
+    }
+    try {
+      await _runPublicOperation<void>(_pause, disposedValue: null);
+    } finally {
+      // 恢复成 1：下一次播放要从满音量开始（play 会先压到 0 再淡入）。
+      if (fade) _volume.clearTemporaryGain();
+    }
+  }
+
+  /// 声明「用户要暂停」：让在途的完成事件不再推进队列，并立刻把 UI 翻成
+  /// 播放按钮。真正的引擎暂停在 [_pauseInternal] 末尾。
+  ///
+  /// 抽成方法是因为 [pause] 的淡出需要在引擎暂停之前先抢到意图。
+  void _declarePauseIntent() {
+    _userIntentGeneration++;
+    _userWantsPlay = false;
+    // Drop the card-play / skip overlay immediately so mini-player and
+    // full-screen buttons flip to play while an in-flight setPlaylist is
+    // still resolving the next URL.
+    _nativeTransitionSourceToken = null;
+    _publishPlaybackState(playingOverride: false);
+  }
+
+  /// 播放/暂停时的音量淡入淡出。
+  ///
+  /// 硬切会在安静环境里听到「啪」的一声，耳机下尤其明显。这里复用睡眠定时
+  /// 的临时衰减通道，用户音量与 ReplayGain 都不受影响。
+  bool _playbackFade = true;
+
+  static const Duration _fadeInDuration = Duration(milliseconds: 220);
+  static const Duration _fadeOutDuration = Duration(milliseconds: 140);
+
+  bool get playbackFade => _playbackFade;
+
+  set playbackFade(bool enabled) {
+    _playbackFade = enabled;
+    if (!enabled) _volume.clearTemporaryGain();
+  }
 
   Future<void> _pause() async {
     if (_disposed) return;
@@ -1858,15 +1975,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     bool clearIntent = true,
   }) async {
     if (_disposed) return null;
-    if (clearIntent) {
-      _userIntentGeneration++;
-      _userWantsPlay = false;
-      // Drop the card-play / skip overlay immediately so mini-player and
-      // full-screen buttons flip to play while an in-flight setPlaylist is
-      // still resolving the next URL.
-      _nativeTransitionSourceToken = null;
-      _publishPlaybackState(playingOverride: false);
-    }
+    if (clearIntent) _declarePauseIntent();
     final owner = clearIntent ? null : await _commands.pausePreservingIntent();
     if (_disposed) return null;
     if (clearIntent) unawaited(_commands.recordExplicitPauseIntent());

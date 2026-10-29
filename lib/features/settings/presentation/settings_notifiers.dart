@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -629,6 +630,112 @@ class ReplayGainNotifier extends _PersistedSettingNotifier<bool> {
       persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
     );
   }
+}
+
+/// 播放音调（半音）。
+///
+/// 与倍速分开存：倍速改时间轴，音调改频率。范围 ±12 半音（一个八度），
+/// 再宽会明显失真；0.5 步长足够覆盖「降半音跟唱」这类需求。
+class PitchSemitonesNotifier extends _PersistedSettingNotifier<double> {
+  PitchSemitonesNotifier({StorageLoader? storage})
+    : super(0, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'pitch_semitones';
+
+  @override
+  double? readFrom(StorageService storage) {
+    final value = storage.getDouble(storageKey);
+    if (value == null) return null;
+    return normalizePitchSemitones(value);
+  }
+
+  void setSemitones(double semitones) {
+    final next = normalizePitchSemitones(semitones);
+    if (next == setting.value) return;
+    setting.applyCommitted(next);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(next, (storage) => storage.setDouble(storageKey, next)),
+    );
+  }
+}
+
+/// 跳过静音（仅 Android 的原生 skipSilence）。
+class SkipSilenceNotifier extends _PersistedSettingNotifier<bool> {
+  SkipSilenceNotifier({StorageLoader? storage}) : super(false, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'skip_silence_enabled';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setEnabled(bool enabled) {
+    setting.applyCommitted(enabled);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
+    );
+  }
+}
+
+/// 播放/暂停时的音量淡入淡出。
+class PlaybackFadeNotifier extends _PersistedSettingNotifier<bool> {
+  PlaybackFadeNotifier({StorageLoader? storage})
+    : super(true, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'playback_fade_enabled';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setEnabled(bool enabled) {
+    setting.applyCommitted(enabled);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
+    );
+  }
+}
+
+/// 把任意输入夹到 ±12 半音，并保留两位小数。
+///
+/// 不吸附到 0.5 刻度：滑块本身是 0.5 步长，但 432Hz 预设需要 -0.3177 这种
+/// 精细值，吸附会让它偏成 -0.5（约 427.5Hz），听起来就不是 432Hz 了。
+double normalizePitchSemitones(double semitones) {
+  if (!semitones.isFinite) return 0;
+  final clamped = semitones.clamp(-12.0, 12.0);
+  return (clamped * 100).roundToDouble() / 100;
+}
+
+/// 半音 → 频率倍数（12 平均律）。
+double pitchFactorForSemitones(double semitones) =>
+    math.pow(2, normalizePitchSemitones(semitones) / 12).toDouble();
+
+/// 432Hz 调音相对 440Hz 的频率倍数。
+final double kPitchFactor432Hz = 432 / 440;
+
+/// 界面展示：0 显示「0」，其余带正负号并去掉尾随 0。
+String pitchSemitonesLabel(double semitones) {
+  final normalized = normalizePitchSemitones(semitones);
+  if (normalized == 0) return '0';
+  var text = normalized.toStringAsFixed(2);
+  if (text.contains('.')) {
+    text = text.replaceFirst(RegExp(r'0+$'), '');
+    text = text.replaceFirst(RegExp(r'\.$'), '');
+  }
+  return normalized > 0 ? '+$text' : text;
 }
 
 /// 播放倍速。

@@ -1,3 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +18,7 @@ import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/page_navigation_bar.dart';
 import '../data/playlist_repository.dart';
 import '../domain/playlist.dart';
+import '../domain/m3u_playlist.dart';
 import 'playlist_occurrence.dart';
 import 'playlist_provider.dart';
 import '../../download/presentation/download_provider.dart';
@@ -456,8 +462,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             _syncReorderedSongs(latest, force: true);
                           }
                         });
-                      case 'sort_duration':
-                        await ref
+                      case 'sort_duration':                        await ref
                             .read(playlistServiceProvider)
                             .sortSongsByDuration(playlist.id);
                         if (!mounted) return;
@@ -481,6 +486,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             force: true,
                           );
                         });
+                      case 'export_m3u':
+                        await _exportM3u(context, ref, playlist);
                       case 'delete':
                         _showDeleteDialog(context, ref, playlist);
                     }
@@ -542,6 +549,16 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                         style: TextStyle(color: on),
                       ),
                     ),
+                    if (playlist.id != 'favorites' &&
+                        playlist.id != 'recent' &&
+                        playlist.id != 'local')
+                      PopupMenuItem(
+                        value: 'export_m3u',
+                        child: Text(
+                          S.of(context).exportM3u,
+                          style: TextStyle(color: on),
+                        ),
+                      ),
                     if (playlist.id != 'favorites' &&
                         playlist.id != 'recent' &&
                         playlist.id != 'local')
@@ -1156,6 +1173,73 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     } catch (error) {
       _showMutationError(S.of(context).unfavoriteFailed, error);
     }
+  }
+
+  /// 把歌单写成 M3U8 交给系统的「另存为」。
+  ///
+  /// 本地曲目导出真实文件路径（换到 foobar2000 / 车机都能直接用）；网络
+  /// 曲目导出它当前的直链，虽然会过期，但至少保留了标题歌手，重新导入时
+  /// 还能按名字匹配。
+  Future<void> _exportM3u(
+    BuildContext context,
+    WidgetRef ref,
+    Playlist playlist,
+  ) async {
+    final s = S.of(context);
+    final full =
+        ref.read(playlistServiceProvider).getPlaylist(playlist.id) ?? playlist;
+    if (full.songs.isEmpty) {
+      showAppNotification(s.exportM3uEmpty, type: AppNotificationType.info);
+      return;
+    }
+    final entries = <M3uEntry>[];
+    for (final song in full.songs) {
+      final filePath = song.meta?['filePath']?.toString();
+      final location = (filePath != null && filePath.isNotEmpty)
+          ? filePath
+          : (song.url ?? '');
+      if (location.isEmpty) continue;
+      entries.add(
+        M3uEntry(
+          location: location,
+          title: song.name,
+          artist: song.singer,
+          duration: song.duration,
+        ),
+      );
+    }
+    final bytes = Uint8List.fromList(utf8.encode(buildM3u(entries)));
+    final fileName = '${_safeFileName(full.name)}.m3u8';
+    try {
+      final path = await FilePicker.saveFile(
+        dialogTitle: s.exportM3u,
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: const ['m3u8', 'm3u'],
+        // 移动端的 saveFile 只返回用户选的路径，字节要自己写过去。
+        bytes: Platform.isIOS || Platform.isAndroid ? bytes : null,
+      );
+      if (path == null) return;
+      if (!Platform.isIOS && !Platform.isAndroid) {
+        await File(path).writeAsBytes(bytes);
+      }
+      if (!context.mounted) return;
+      showAppNotification(s.exportM3uSaved, type: AppNotificationType.success);
+    } catch (error) {
+      if (!context.mounted) return;
+      showAppNotification(
+        s.exportM3uFailed('$error'),
+        type: AppNotificationType.error,
+      );
+    }
+  }
+
+  /// 去掉文件名里不能出现的字符。歌单名常带 `/` 和 `:`（「周杰伦: 精选」）。
+  static String _safeFileName(String name) {
+    final cleaned = name
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+        .trim();
+    return cleaned.isEmpty ? 'playlist' : cleaned;
   }
 
   void _showDeleteDialog(

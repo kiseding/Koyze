@@ -2723,5 +2723,57 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get pitch => 'Pitch';
+
+  @override
+  String get pitchSemitonesUnit => 'semitone(s)';
+
+  @override
+  String get pitchReset => 'Original';
+
+  @override
+  String get pitchHint =>
+      'Shifts pitch without changing speed. Negative values help you sing along lower.';
+
+  @override
+  String get skipSilence => 'Skip silence';
+
+  @override
+  String get skipSilenceSubtitle =>
+      'Skips silent intros and gaps automatically (Android only)';
+
+  @override
+  String get playbackFade => 'Play/pause fade';
+
+  @override
+  String get playbackFadeSubtitle =>
+      'Soft ramps when starting or pausing, so headphones don\'t pop';
+
+  @override
+  String get exportM3u => 'Export as M3U';
+
+  @override
+  String get exportM3uEmpty => 'This playlist has no songs yet';
+
+  @override
+  String get exportM3uSaved => 'Exported the M3U file';
+
+  @override
+  String exportM3uFailed(String error) {
+    return 'Export failed: $error';
+  }
+
+  @override
+  String get importM3u => 'Import M3U playlist';
+
+  @override
+  String get importM3uEmpty => 'No usable entries in that file';
+
+  @override
+  String importM3uResult(int imported, int skipped) {
+    return 'Imported $imported, skipped $skipped';
+  }
+
+  @override
   String get add => 'Add';
 }

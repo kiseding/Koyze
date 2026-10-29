@@ -297,9 +297,9 @@ void main() {
       ).readAsStringSync();
       final publish = source.substring(
         source.indexOf('int _publishPlaybackState('),
-        source.indexOf(
-          'Future<void> play() => _runPublicOperation<void>(_play',
-        ),
+        // 用方法签名而不是完整箭头体做锚点：play() 现在带淡入逻辑，
+        // 早已不是单行表达式了。
+        source.indexOf('  Future<void> play()'),
       );
       expect(publish, contains('suppressed engine idle'));
       expect(publish, contains('mediaItem.value != null'));

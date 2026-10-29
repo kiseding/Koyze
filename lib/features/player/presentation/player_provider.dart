@@ -63,6 +63,33 @@ final playbackSpeedBindingProvider = Provider<void>((ref) {
   }
 });
 
+/// 音调 / 跳过静音 / 淡入淡出。
+///
+/// 三者都是「设置项 → 原生播放器」的即时同步，且都在播放器重建后需要重新
+/// 施加（重建时的恢复在 `_replaceNativePlayer` 里做，这里只负责设置变更）。
+final playbackTuningBindingProvider = Provider<void>((ref) {
+  void apply() {
+    try {
+      final handler = audioHandler;
+      if (handler is! LxAudioHandler) return;
+      handler.playbackFade = ref.read(playbackFadeEnabledProvider);
+      unawaited(
+        handler.setPlaybackPitch(
+          pitchFactorForSemitones(ref.read(pitchSemitonesProvider)),
+        ),
+      );
+      unawaited(handler.setSkipSilence(ref.read(skipSilenceEnabledProvider)));
+    } catch (_) {
+      // 启动引导还没完成，audioHandler 仍是未初始化的 late 变量。
+    }
+  }
+
+  ref.listen<double>(pitchSemitonesProvider, (_, _) => apply());
+  ref.listen<bool>(skipSilenceEnabledProvider, (_, _) => apply());
+  ref.listen<bool>(playbackFadeEnabledProvider, (_, _) => apply());
+  apply();
+});
+
 /// 把当前曲目的 ReplayGain 应用到音量上。
 ///
 /// 只对本地文件生效：在线音源的响度由服务端归一，我们没有它们的标签。

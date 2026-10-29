@@ -398,6 +398,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
           SettingsEntry(
+            title: s.playbackFade,
+            subtitle: s.playbackFadeSubtitle,
+            keywords: const [
+              '淡入',
+              '淡出',
+              'fade',
+              '爆音',
+              'pop',
+              '渐变',
+              'ramp',
+            ],
+            toggleValue: ref.watch(playbackFadeEnabledProvider),
+            onToggle: (value) {
+              ref.read(playbackFadeEnabledProvider.notifier).setEnabled(value);
+            },
+          ),
+          SettingsEntry(
+            title: s.skipSilence,
+            subtitle: s.skipSilenceSubtitle,
+            keywords: const [
+              '静音',
+              'silence',
+              '跳过',
+              'skip',
+              '空白',
+              'gapless',
+            ],
+            toggleValue: ref.watch(skipSilenceEnabledProvider),
+            onToggle: (value) {
+              ref.read(skipSilenceEnabledProvider.notifier).setEnabled(value);
+            },
+          ),
+          SettingsEntry(
             title: s.replayGain,
             subtitle: s.replayGainSubtitle,
             keywords: const [
@@ -937,6 +970,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         simplifyEffectsProvider,
         playbackVolumeProvider,
         playbackSpeedProvider,
+        pitchSemitonesProvider,
+        skipSilenceEnabledProvider,
+        playbackFadeEnabledProvider,
         replayGainEnabledProvider,
         lockScreenLyricEnabledProvider,
         precacheEnabledProvider,
