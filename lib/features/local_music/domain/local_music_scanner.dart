@@ -239,6 +239,10 @@ class LocalMusicScanner {
   final Map<String, String?> _folderArtworkCache = {};
 
   /// 找同目录的文件夹封面，找不到返回 null。
+  ///
+  /// 先 stat 两个最常见的名字（cover.jpg / folder.jpg），命中就返回；都没中
+  /// 再列一次目录做大小写不敏感匹配。不能只试固定的几种拼写：Linux 区分
+  /// 大小写，用户把封面叫 `Cover.JPG` 时任何枚举都会漏。
   Future<String?> _folderArtworkFor(String audioPath) async {
     final slash = audioPath.lastIndexOf('/');
     final backslash = audioPath.lastIndexOf(r'\');
@@ -248,28 +252,47 @@ class LocalMusicScanner {
     if (_folderArtworkCache.containsKey(prefix)) {
       return _folderArtworkCache[prefix];
     }
+
     String? found;
-    outer:
-    for (final name in _folderArtworkNames) {
-      for (final extension in _folderArtworkExtensions) {
-        // Android 与 Windows 的文件系统大小写不敏感，Linux 敏感。两种都试，
-        // 成本只是一次 stat。
-        for (final candidate in [
-          '$name.$extension',
-          '$name.${extension.toUpperCase()}',
-        ]) {
-          try {
-            final file = File('$prefix$candidate');
-            if (await file.exists()) {
-              found = file.path;
-              break outer;
-            }
-          } catch (_) {
-            // 权限不足或路径非法：继续试下一个候选。
-          }
+    for (final name in const ['cover.jpg', 'folder.jpg']) {
+      try {
+        final file = File('$prefix$name');
+        if (await file.exists()) {
+          found = file.path;
+          break;
         }
+      } catch (_) {
+        // 权限不足或路径非法：继续走目录扫描。
       }
     }
+
+    if (found == null) {
+      try {
+        final byName = <String, String>{};
+        await for (final entity in Directory(prefix).list(followLinks: false)) {
+          if (entity is! File) continue;
+          final path = entity.path;
+          final cut = path.lastIndexOf('/') > path.lastIndexOf(r'\')
+              ? path.lastIndexOf('/')
+              : path.lastIndexOf(r'\');
+          final name = path.substring(cut + 1).toLowerCase();
+          byName.putIfAbsent(name, () => path);
+        }
+        outer:
+        for (final name in _folderArtworkNames) {
+          for (final extension in _folderArtworkExtensions) {
+            final hit = byName['$name.$extension'];
+            if (hit != null) {
+              found = hit;
+              break outer;
+            }
+          }
+        }
+      } catch (_) {
+        // 目录不可读：当作没有封面。
+      }
+    }
+
     _folderArtworkCache[prefix] = found;
     return found;
   }
