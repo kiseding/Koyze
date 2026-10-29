@@ -5,7 +5,6 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   flutter_js
   flutter_secure_storage_linux
-  record_linux
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
