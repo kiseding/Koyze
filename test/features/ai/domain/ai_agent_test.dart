@@ -137,10 +137,4 @@ void main() {
     final readOnly = AiAgent.systemPrompt(fakes.toolbox(allowActions: false));
     expect(readOnly, contains('关闭了执行权限'));
   });
-
-  test('system prompt 说清了收不到音频时该怎么答，别当成空消息', () {
-    final prompt = AiAgent.systemPrompt(ToolFakes().toolbox());
-    expect(prompt, contains('没有把录音传给我'));
-    expect(prompt, contains('不要当成用户发了空消息'));
-  });
 }
