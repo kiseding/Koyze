@@ -1333,11 +1333,7 @@
   "aiTestConnection": "Test connection",
   "aiTesting": "Testing…",
   "aiTestOk": "Connection works",
-  "aiTestVoice": "Test voice",
   "aiTestingVoice": "Testing voice…",
-  "aiTestVoiceOk": "This endpoint delivers audio to the model",
-  "aiTestVoiceDropped": "The endpoint dropped the audio — the model only saw text. Switch to a model that supports input_audio (e.g. gpt-4o-audio-preview, qwen-omni)",
-  "aiTestVoiceHint": "A working connection does not mean the model can hear. Send a test tone to confirm this endpoint actually passes recordings through.",
   "aiConfigSaved": "AI settings saved",
   "aiConfigInvalid": "Fill a valid http(s) URL, a model and a key first",
   "aiErrorNotConfigured": "AI is not configured yet",
@@ -1353,8 +1349,6 @@
   "aiErrorToolsUnsupported": "This endpoint does not support tool calls. Try turning off \"Let the AI act on the app\" in settings",
   "aiErrorRejected": "The endpoint rejected this request",
   "aiErrorToolLoop": "Ran too many steps without reaching an answer. Try a more specific request",
-  "aiErrorAudioUnsupported": "This model does not accept audio. Switch to a multimodal model that does (e.g. gpt-4o-audio, qwen-omni) in settings",
-  "aiErrorAudioTooLarge": "This recording is too large to send. Record a shorter clip",
   "aiErrorGatewayTimeout": "The API gateway timed out before the model replied. One retry was already attempted — try again later; if it keeps happening, turn off app actions in settings (a smaller tool list gets faster replies)",
   "aiNotConfigured": "Configure the AI endpoint first",
   "aiToolsTitle": "Tool calling",
@@ -1515,45 +1509,6 @@
   "aiWeekdayFri": "Fri",
   "aiWeekdaySat": "Sat",
   "aiWeekdaySun": "Sun",
-  "aiVoiceStart": "Record a voice message",
-  "aiVoiceStop": "Stop recording",
-  "aiVoiceRecording": "Recording {clock} · tap to stop",
-  "@aiVoiceRecording": {
-    "placeholders": {
-      "clock": {
-        "type": "String"
-      }
-    }
-  },
-  "aiVoiceReady": "Voice ready — tap send",
-  "aiVoiceClip": "Voice · {seconds}s",
-  "@aiVoiceClip": {
-    "placeholders": {
-      "seconds": {
-        "type": "int"
-      }
-    }
-  },
-  "aiVoiceDropped": "The endpoint did not pass this recording to the model. It was sent ({size}) — the endpoint dropped it. Use \"Test voice\" in settings to confirm, or switch to a model that supports input_audio.",
-  "@aiVoiceDropped": {
-    "placeholders": {
-      "size": {
-        "type": "String"
-      }
-    }
-  },
-  "aiVoiceSent": "sent {size}",
-  "@aiVoiceSent": {
-    "placeholders": {
-      "size": {
-        "type": "String"
-      }
-    }
-  },
-  "aiVoiceRemove": "Remove this recording",
-  "aiVoiceTooShort": "Too short — try again",
-  "aiVoiceUnavailable": "Voice input is not available on this device",
-  "aiVoiceFailed": "Recording could not start — check the microphone permission",
   "aiCategoryRecommendation": "For you",
   "recommendTunedByAi": "The assistant tuned this list",
   "recommendTuningReset": "Reset",

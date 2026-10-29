@@ -22,7 +22,6 @@
         tools:ignore="ScopedStorage" />
 
     <!-- AI 助手的语音输入：交给系统的语音识别服务，应用自己只拿识别出的文字。 -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <!-- 动态音源可能返回无法升级为 HTTPS 的签名媒体 URL；请求仍受公有地址、固定 IP 与响应预算限制。 -->
     <application

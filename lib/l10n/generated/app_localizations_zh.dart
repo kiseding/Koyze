@@ -2087,20 +2087,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiTestOk => '连接正常';
 
   @override
-  String get aiTestVoice => '测试语音';
-
-  @override
   String get aiTestingVoice => '正在测语音…';
-
-  @override
-  String get aiTestVoiceOk => '这个接口能把录音交给模型';
-
-  @override
-  String get aiTestVoiceDropped =>
-      '接口把音频丢了：模型只看到文字。换一个支持 input_audio 的模型（如 gpt-4o-audio-preview、qwen-omni）';
-
-  @override
-  String get aiTestVoiceHint => '连接正常不代表模型听得见音频。点这里发一段测试音，确认这个接口有没有把录音真的送进模型。';
 
   @override
   String get aiConfigSaved => 'AI 设置已保存';
@@ -2147,13 +2134,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get aiErrorToolLoop => '连着操作了太多步还没得出结论。把要求说得更具体一点再试一次';
-
-  @override
-  String get aiErrorAudioUnsupported =>
-      '当前模型不听音频。在设置里换成支持语音的多模态模型（例如 gpt-4o-audio、qwen-omni）再试';
-
-  @override
-  String get aiErrorAudioTooLarge => '这段录音太大了，发不出去。录短一点再试';
 
   @override
   String get aiErrorGatewayTimeout =>
@@ -2445,47 +2425,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get aiWeekdaySun => '周日';
-
-  @override
-  String get aiVoiceStart => '录一段语音';
-
-  @override
-  String get aiVoiceStop => '结束录音';
-
-  @override
-  String aiVoiceRecording(String clock) {
-    return '正在录音 $clock · 再点一下结束';
-  }
-
-  @override
-  String get aiVoiceReady => '语音已就绪，点发送';
-
-  @override
-  String aiVoiceClip(int seconds) {
-    return '语音 $seconds 秒';
-  }
-
-  @override
-  String aiVoiceDropped(String size) {
-    return '接口没有把这段录音交给模型。录音本身已发出（$size），是这个接口丢了音频——到设置里点「测试语音」可以确认，或换一个支持 input_audio 的模型。';
-  }
-
-  @override
-  String aiVoiceSent(String size) {
-    return '已发出 $size';
-  }
-
-  @override
-  String get aiVoiceRemove => '去掉这段语音';
-
-  @override
-  String get aiVoiceTooShort => '这段太短了，再录一次';
-
-  @override
-  String get aiVoiceUnavailable => '这台设备不支持语音输入';
-
-  @override
-  String get aiVoiceFailed => '录音没能启动，检查一下麦克风权限';
 
   @override
   String get aiCategoryRecommendation => '猜你喜欢';

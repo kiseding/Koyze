@@ -18,8 +18,6 @@ String aiFailureText(S s, AiFailureKind kind) => switch (kind) {
   AiFailureKind.contextTooLong => s.aiErrorContextTooLong,
   AiFailureKind.toolsUnsupported => s.aiErrorToolsUnsupported,
   AiFailureKind.rejected => s.aiErrorRejected,
-  AiFailureKind.audioUnsupported => s.aiErrorAudioUnsupported,
-  AiFailureKind.audioTooLarge => s.aiErrorAudioTooLarge,
   AiFailureKind.gatewayTimeout => s.aiErrorGatewayTimeout,
   AiFailureKind.toolLoop => s.aiErrorToolLoop,
 };

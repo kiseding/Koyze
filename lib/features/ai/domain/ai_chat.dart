@@ -16,28 +16,11 @@ class AiChatEntry {
     this.failure,
     this.detail,
     this.scheduleTitle,
-    this.voiceSeconds,
-    this.voiceBytes,
-    this.voiceLost = false,
   });
 
   final AiChatRole role;
   final String text;
   final List<AiToolRun> toolRuns;
-
-  /// 非空表示这条消息带了一段语音，值是秒数。气泡里据此显示一个语音标签——
-  /// 录音发完就删，气泡不能再点开听，所以只报时长。
-  final int? voiceSeconds;
-
-  /// 实际发出去的录音字节数。气泡里一并标出来，用来回答「文件到底传没传」：
-  /// 只要这个数在，音频就进了请求体，剩下收不到就是接口那边丢了。
-  final int? voiceBytes;
-
-  /// 这一轮带了录音，但模型的回复说明它没收到音频。
-  ///
-  /// 只在助手气泡上用：用户看到的是「我明明录了它却说没有」，界面得指出
-  /// 这是接口把音频丢了，而不是用户的录音有问题。
-  final bool voiceLost;
 
   /// 非空表示这条回复是定时任务自己跑出来的，界面会在气泡上标一条来源。
   final String? scheduleTitle;

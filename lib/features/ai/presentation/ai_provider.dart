@@ -2,8 +2,6 @@
 // Licensed under the Apache License, Version 2.0
 
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,9 +14,7 @@ import '../domain/ai_config.dart';
 import '../domain/ai_config_store.dart';
 import '../domain/ai_credential_store.dart';
 import '../domain/ai_tools.dart';
-import '../domain/voice_container.dart';
 import 'ai_ports.dart';
-import 'voice_recorder.dart';
 
 final aiConfigStoreProvider = Provider<AiConfigStore>((ref) => AiConfigStore());
 
@@ -111,79 +107,34 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
 
   static const int _maxHistoryMessages = 24;
 
-  /// 发出去之前的硬上限。一分钟 16 kHz 单声道 wav 约 1.9 MB，base64 之后
-  /// 2.6 MB；超过 8 MB 就别让网关拿 413 回我们了。
-  static const int _maxVoiceBytes = 8 * 1024 * 1024;
-
-  /// [voice] 非空表示这条消息带一段录音，和 [input] 一起发出去。
-  /// 只发文字时 [input] 不能为空；带语音时文字可以留空。
-  Future<void> send(String input, {AiVoiceClip? voice}) async {
+  Future<void> send(String input) async {
     final text = input.trim();
-    if ((text.isEmpty && voice == null) || value.busy) return;
+    if (text.isEmpty || value.busy) return;
 
     final entries = [
       ...value.entries,
-      AiChatEntry(
-        role: AiChatRole.user,
-        text: text,
-        voiceSeconds: voice?.seconds,
-        voiceBytes: voice?.bytes,
-      ),
+      AiChatEntry(role: AiChatRole.user, text: text),
     ];
     _emit(entries, busy: true);
 
     final config = ref.read(aiConfigProvider);
     if (!config.isConfigured) {
-      await discardVoiceClip(voice);
       _fail(entries, AiFailureKind.notConfigured);
       return;
     }
     final key = await ref.read(aiConfigProvider.notifier).loadKey();
     if (key == null || key.isEmpty) {
-      await discardVoiceClip(voice);
       _fail(entries, AiFailureKind.unauthorized);
       return;
     }
 
-    // 录音只在这一轮发一次：进了历史就变成纯文字摘要，否则每次追问都要
-    // 把几 MB 的 base64 重发一遍。
-    final AiVoiceAttachment? attachment;
-    if (voice != null) {
-      if (voice.bytes > _maxVoiceBytes) {
-        await discardVoiceClip(voice);
-        _fail(entries, AiFailureKind.audioTooLarge);
-        return;
-      }
-      try {
-        final bytes = await File(voice.path).readAsBytes();
-        // 按文件头认容器，而不是照抄录音时的假设：实际格式和报文里声明的
-        // 对不上时，服务端解码失败往往**不报错、直接丢掉音频**，用户只会
-        // 得到一句「我没收到语音」。认出来之后声明成真身，至少不会错配。
-        final container = sniffVoiceContainer(bytes);
-        attachment = AiVoiceAttachment(
-          base64Data: base64Encode(bytes),
-          format: container == VoiceContainer.mp3 ? 'mp3' : 'wav',
-        );
-      } catch (_) {
-        await discardVoiceClip(voice);
-        _fail(entries, AiFailureKind.audioTooLarge);
-        return;
-      }
-    } else {
-      attachment = null;
-    }
-
-    final userMessage = AiMessage(AiRole.user, text, voice: attachment);
-    final historyLine = text.isEmpty
-        ? '（语音 ${voice?.seconds ?? 0} 秒）'
-        : text;
     try {
       final reply = await ref
           .read(aiAgentProvider)
           .run(
             config: config,
             apiKey: key,
-            history: [..._history, userMessage],
+            history: [..._history, AiMessage(AiRole.user, text)],
             toolbox: ref.read(aiToolboxProvider),
             useTools: config.toolsEnabled,
             onToolCall: (call) {
@@ -200,7 +151,7 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
           );
       if (!mounted) return;
       _history
-        ..add(AiMessage(AiRole.user, historyLine))
+        ..add(AiMessage(AiRole.user, text))
         ..add(AiMessage(AiRole.assistant, reply.text));
       if (_history.length > _maxHistoryMessages) {
         _history.removeRange(0, _history.length - _maxHistoryMessages);
@@ -211,9 +162,6 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
           role: AiChatRole.assistant,
           text: reply.text,
           toolRuns: reply.toolRuns,
-          // 带了录音、模型却说没有：界面直接标明是接口丢了音频，
-          // 别让用户以为是自己没录上。
-          voiceLost: attachment != null && _deniesAudio(reply.text),
         ),
       ]);
     } on AiException catch (error) {
@@ -222,37 +170,7 @@ class AiChatNotifier extends BuildlessNotifier<AiChatState> {
     } catch (_) {
       if (!mounted) return;
       _fail(entries, AiFailureKind.network);
-    } finally {
-      await discardVoiceClip(voice);
     }
-  }
-
-  /// 模型这句话是不是在说「我没收到音频」。
-  ///
-  /// 只看负面信号：它可能用「没有收到语音」「听不到音频」「no audio」这类说法，
-  /// 也可能反过来描述「这段语音是空的」。判错了也就是多显示一条提示，
-  /// 比让用户自己去猜要好。
-  static bool _deniesAudio(String reply) {
-    final text = reply.toLowerCase();
-    const markers = [
-      '没有收到语音',
-      '没有收到音频',
-      '没收到语音',
-      '没收到音频',
-      '未收到语音',
-      '未收到音频',
-      '没有音频',
-      '没有语音',
-      '听不到',
-      '无法听到',
-      '没有把录音',
-      'no audio',
-      'did not receive',
-      "didn't receive",
-      'no voice',
-      'no recording',
-    ];
-    return markers.any(text.contains);
   }
 
   void clear() {

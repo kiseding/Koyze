@@ -36,8 +36,6 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Koyze 需要使用麦克风，把你说的话转成 AI 助手的输入文字</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Koyze 使用系统语音识别，把语音转成文字发给 AI 助手</string>
 	<key>NSLocalNetworkUsageDescription</key>
