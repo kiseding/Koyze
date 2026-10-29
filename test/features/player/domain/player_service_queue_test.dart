@@ -1214,6 +1214,108 @@ void main() {
       });
     },
   );
+
+  group('queue editing', () {
+    MusicItem song(int i) => MusicItem(
+      id: 'q$i',
+      name: 'Track $i',
+      singer: 'Artist',
+      source: 'test',
+    );
+
+    Future<PlayerService> readyQueue({int startIndex = 0}) async {
+      audioHandler = handler;
+      final service = PlayerService();
+      await service.playPlaylist(
+        [song(0), song(1), song(2), song(3)],
+        index: startIndex,
+        autoplay: false,
+      );
+      return service;
+    }
+
+    List<String> titles() =>
+        handler.queueItems.map((item) => item.title).toList();
+
+    test('moving an item reorders the queue', () async {
+      final service = await readyQueue();
+      expect(titles(), ['Track 0', 'Track 1', 'Track 2', 'Track 3']);
+
+      await service.moveInQueue(0, 2);
+
+      expect(titles(), ['Track 1', 'Track 2', 'Track 0', 'Track 3']);
+    });
+
+    test('moving keeps the playing song playing', () async {
+      final service = await readyQueue(startIndex: 1);
+      final playing = handler.mediaItem.value?.id;
+
+      await service.moveInQueue(3, 0);
+
+      expect(handler.mediaItem.value?.id, playing);
+      expect(titles().first, 'Track 3');
+    });
+
+    test('out-of-range and no-op moves are ignored', () async {
+      final service = await readyQueue();
+      final before = titles();
+
+      await service.moveInQueue(-1, 2);
+      await service.moveInQueue(9, 0);
+      await service.moveInQueue(2, 2);
+
+      expect(titles(), before);
+    });
+
+    test('moving past the end clamps instead of throwing', () async {
+      final service = await readyQueue();
+
+      await service.moveInQueue(0, 99);
+
+      expect(titles(), ['Track 1', 'Track 2', 'Track 3', 'Track 0']);
+    });
+
+    test('removing a queued item drops exactly one entry', () async {
+      final service = await readyQueue();
+
+      await service.removeFromQueue(2);
+
+      expect(titles(), ['Track 0', 'Track 1', 'Track 3']);
+    });
+
+    test('removing a tune before the current one keeps it playing', () async {
+      final service = await readyQueue(startIndex: 2);
+      final playing = handler.mediaItem.value?.id;
+      final current = handler.currentQueueIndex;
+      expect(current, greaterThan(0));
+
+      await service.removeFromQueue(0);
+
+      expect(handler.mediaItem.value?.id, playing);
+      expect(handler.currentQueueIndex, current - 1);
+      expect(titles(), hasLength(3));
+    });
+
+    test('the playing item cannot be removed', () async {
+      final service = await readyQueue(startIndex: 1);
+      final playing = handler.mediaItem.value?.id;
+      final before = titles();
+
+      await service.removeFromQueue(handler.currentQueueIndex);
+
+      expect(handler.mediaItem.value?.id, playing);
+      expect(titles(), before);
+    });
+
+    test('remove ignores out-of-range indexes', () async {
+      final service = await readyQueue();
+
+      await service.removeFromQueue(-3);
+      await service.removeFromQueue(42);
+
+      expect(titles(), hasLength(4));
+    });
+  });
 }
 
 class _RecordingAudioPlayer extends AudioPlayer {

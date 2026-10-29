@@ -127,10 +127,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 「高级功能」又多了一项 AI 助手，播放设置被推到首屏之外，
-    // 先滚进可视区再点，否则点击会落在空白处。
+    // 设置项越加越多，播放设置已经不在首屏内；列表是惰性构建的，
+    // 不先滚到位连 finder 都找不到它，所以要滚到可见再点。
     final quality = find.text('Audio quality').first;
-    await Scrollable.ensureVisible(quality.evaluate().single, alignment: 0.5);
+    await tester.scrollUntilVisible(
+      find.text('Audio quality'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(quality);
     await tester.pumpAndSettle();

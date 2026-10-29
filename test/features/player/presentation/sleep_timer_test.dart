@@ -74,8 +74,9 @@ void main() {
     expect(notifier.value, isA<SleepTimerIdle>());
   });
 
-  testWidgets('reset prevents an old pause completion from publishing',
-      (tester) async {
+  testWidgets('reset prevents an old pause completion from publishing', (
+    tester,
+  ) async {
     final oldPause = Completer<void>();
     var pauseCalls = 0;
     final notifier = SleepTimerNotifier(() {
@@ -96,8 +97,9 @@ void main() {
     notifier.cancelTimer();
   });
 
-  testWidgets('cancel prevents an old pause failure from publishing',
-      (tester) async {
+  testWidgets('cancel prevents an old pause failure from publishing', (
+    tester,
+  ) async {
     final oldPause = Completer<void>();
     final notifier = SleepTimerNotifier(() => oldPause.future);
     addTearDown(notifier.dispose);
@@ -111,8 +113,9 @@ void main() {
     expect(notifier.value, isA<SleepTimerIdle>());
   });
 
-  testWidgets('dispose prevents an old pause failure from escaping the zone',
-      (tester) async {
+  testWidgets('dispose prevents an old pause failure from escaping the zone', (
+    tester,
+  ) async {
     final oldPause = Completer<void>();
     final notifier = SleepTimerNotifier(() => oldPause.future);
 
@@ -123,5 +126,86 @@ void main() {
     oldPause.completeError(StateError('late failure'));
     await tester.pump();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('untilTrackEnd publishes a distinct state with no deadline', (
+    tester,
+  ) async {
+    var pauseCalls = 0;
+    final notifier = SleepTimerNotifier(() async => pauseCalls++);
+    addTearDown(notifier.dispose);
+
+    notifier.startUntilTrackEnd();
+
+    final state = notifier.value;
+    expect(state, isA<SleepTimerUntilTrackEnd>());
+    expect((state as SleepTimerUntilTrackEnd).fadeOut, isTrue);
+    expect(state.endTime, isNull);
+    // 「播完就停」不该有墙钟定时器，否则歌比预期长就会提前掐断。
+    await tester.pump(const Duration(minutes: 5));
+    expect(pauseCalls, 0);
+    expect(notifier.value, isA<SleepTimerUntilTrackEnd>());
+  });
+
+  testWidgets('untilTrackEnd honours fadeOut: false', (tester) async {
+    final notifier = SleepTimerNotifier(() async {});
+    addTearDown(notifier.dispose);
+
+    notifier.startUntilTrackEnd(fadeOut: false);
+
+    expect((notifier.value as SleepTimerUntilTrackEnd).fadeOut, isFalse);
+  });
+
+  testWidgets('untilTrackEnd can be cancelled', (tester) async {
+    final notifier = SleepTimerNotifier(() async {});
+    addTearDown(notifier.dispose);
+
+    notifier.startUntilTrackEnd();
+    notifier.cancelTimer();
+
+    expect(notifier.value, isA<SleepTimerIdle>());
+  });
+
+  testWidgets('starting a countdown replaces untilTrackEnd', (tester) async {
+    final notifier = SleepTimerNotifier(() async {});
+    addTearDown(notifier.dispose);
+
+    notifier.startUntilTrackEnd();
+    notifier.startTimer(const Duration(minutes: 2), fadeOut: false);
+
+    final running = notifier.value as SleepTimerRunning;
+    expect(running.fadeOut, isFalse);
+    expect(running.duration, const Duration(minutes: 2));
+    notifier.cancelTimer();
+  });
+
+  testWidgets('fadeOut is recorded on the running state', (tester) async {
+    final notifier = SleepTimerNotifier(() async {});
+    addTearDown(notifier.dispose);
+
+    notifier.startTimer(const Duration(minutes: 2));
+    expect((notifier.value as SleepTimerRunning).fadeOut, isTrue);
+
+    notifier.startTimer(const Duration(minutes: 2), fadeOut: false);
+    expect((notifier.value as SleepTimerRunning).fadeOut, isFalse);
+    notifier.cancelTimer();
+  });
+
+  testWidgets('retry keeps the fadeOut preference', (tester) async {
+    var pauseCalls = 0;
+    final notifier = SleepTimerNotifier(() async {
+      pauseCalls++;
+      if (pauseCalls == 1) throw StateError('pause failed');
+    });
+    addTearDown(notifier.dispose);
+
+    notifier.startTimer(const Duration(seconds: 1), fadeOut: false);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    expect(notifier.value, isA<SleepTimerFailed>());
+
+    notifier.retryTimer();
+    expect((notifier.value as SleepTimerRunning).fadeOut, isFalse);
+    notifier.cancelTimer();
   });
 }

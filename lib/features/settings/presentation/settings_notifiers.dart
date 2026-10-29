@@ -584,3 +584,179 @@ class PlaybackVolumeNotifier extends _PersistedSettingNotifier<double> {
     );
   }
 }
+
+/// 锁屏 / 通知栏显示当前歌词行。默认关闭：它会让 mediaItem 频繁更新。
+class LockScreenLyricNotifier extends _PersistedSettingNotifier<bool> {
+  LockScreenLyricNotifier({StorageLoader? storage})
+    : super(false, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'lock_screen_lyric_enabled';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setEnabled(bool enabled) {
+    setting.applyCommitted(enabled);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
+    );
+  }
+}
+
+/// 响度均衡（ReplayGain）。默认开启：它只在本曲有标签时生效，
+/// 没有标签的歌完全不受影响。
+class ReplayGainNotifier extends _PersistedSettingNotifier<bool> {
+  ReplayGainNotifier({StorageLoader? storage}) : super(true, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'replay_gain_enabled';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setEnabled(bool enabled) {
+    setting.applyCommitted(enabled);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
+    );
+  }
+}
+
+/// 播放倍速。
+///
+/// 只允许 0.5~2.0 的离散档位：低到 0 会让部分平台把播放器当暂停处理，
+/// 高到 3 以上人声已经不可辨认，没有实际用途。档位固定也让界面不必
+/// 展示「1.0499999×」这种数字。
+class PlaybackSpeedNotifier extends _PersistedSettingNotifier<double> {
+  PlaybackSpeedNotifier({StorageLoader? storage})
+    : super(kDefaultPlaybackSpeed, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'playback_speed';
+
+  @override
+  double? readFrom(StorageService storage) {
+    final value = storage.getDouble(storageKey);
+    if (value == null) return null;
+    return normalizePlaybackSpeed(value);
+  }
+
+  void setSpeed(double speed) {
+    final next = normalizePlaybackSpeed(speed);
+    if (next == setting.value) return;
+    setting.applyCommitted(next);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {
+      // Direct instantiation outside a container.
+    }
+    unawaited(persist(next, (storage) => storage.setDouble(storageKey, next)));
+  }
+}
+
+/// 可选倍速档位。
+const List<double> kPlaybackSpeedSteps = <double>[
+  0.5,
+  0.75,
+  1.0,
+  1.25,
+  1.5,
+  1.75,
+  2.0,
+];
+
+const double kDefaultPlaybackSpeed = 1.0;
+
+/// 把任意输入吸附到最近的合法档位。NaN / 非正值回落到 1.0；
+/// 超出范围的吸附到最近的那个端点档位。
+double normalizePlaybackSpeed(double speed) {
+  if (speed.isNaN || speed <= 0) return kDefaultPlaybackSpeed;
+  var best = kPlaybackSpeedSteps.first;
+  for (final step in kPlaybackSpeedSteps) {
+    if ((step - speed).abs() < (best - speed).abs()) best = step;
+  }
+  return best;
+}
+
+/// 界面展示用：1.0 显示「正常」，其余保留两位以内的小数。
+String playbackSpeedLabel(double speed) {
+  final normalized = normalizePlaybackSpeed(speed);
+  if (normalized == 1.0) return '1.0×';
+  final text = normalized.toStringAsFixed(2);
+  return '${text.endsWith('0') ? text.substring(0, text.length - 1) : text}×';
+}
+
+/// 常听预缓存开关。
+///
+/// 默认关闭：它会主动下载整首歌，属于「用流量换启动速度」的取舍，
+/// 应该在用户明确同意之后才发生，而不是默认替他决定。
+class PrecacheEnabledNotifier extends _PersistedSettingNotifier<bool> {
+  PrecacheEnabledNotifier({StorageLoader? storage})
+    : super(false, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'precache_recent_enabled';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setEnabled(bool enabled) {
+    setting.applyCommitted(enabled);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
+    );
+  }
+}
+
+/// 预缓存的曲目数量。
+class PrecacheCountNotifier extends _PersistedSettingNotifier<int> {
+  PrecacheCountNotifier({StorageLoader? storage})
+    : super(kDefaultPrecacheCount, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'precache_recent_count';
+
+  @override
+  int? readFrom(StorageService storage) {
+    final value = storage.getInt(storageKey);
+    if (value == null) return null;
+    return normalizePrecacheCount(value);
+  }
+
+  void setCount(int count) {
+    final next = normalizePrecacheCount(count);
+    if (next == setting.value) return;
+    setting.applyCommitted(next);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(persist(next, (storage) => storage.setInt(storageKey, next)));
+  }
+}
+
+const List<int> kPrecacheCountSteps = <int>[5, 10, 20];
+const int kDefaultPrecacheCount = 10;
+
+/// 吸附到最近的合法档位。
+int normalizePrecacheCount(int count) {
+  var best = kPrecacheCountSteps.first;
+  for (final step in kPrecacheCountSteps) {
+    if ((step - count).abs() < (best - count).abs()) best = step;
+  }
+  return best;
+}

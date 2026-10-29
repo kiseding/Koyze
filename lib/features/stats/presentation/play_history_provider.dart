@@ -6,6 +6,7 @@ import 'package:audio_service/audio_service.dart';
 
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/storage/storage_service.dart';
+import '../../player/data/playable_song_store.dart';
 import '../../player/domain/music_item.dart';
 import '../data/play_history_store.dart';
 
@@ -25,6 +26,7 @@ final playHistoryRevisionProvider = StreamProvider<int>((ref) {
 /// 自动记录播放历史：定时读取当前歌曲 + 进度，驱动三段式 session。
 final playHistoryRecorderProvider = Provider<void>((ref) {
   final store = ref.read(playHistoryStoreProvider);
+  final songs = ref.read(playableSongStoreProvider);
   final timer = Timer.periodic(const Duration(seconds: 1), (_) {
     final mediaItem = audioHandler.mediaItem.value;
     if (mediaItem == null) {
@@ -43,6 +45,8 @@ final playHistoryRecorderProvider = Provider<void>((ref) {
         albumTitle: music.album,
         source: music.source,
       );
+      // 播放历史只留文字，重新解析播放地址需要完整曲目，故另存一份档案。
+      unawaited(songs.remember(music));
     }
     store.tick(position);
   });

@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:flutter/foundation.dart' show compute, visibleForTesting;
 
+import '../../../core/audio/replay_gain.dart';
 import 'local_music_debug_log.dart';
+import 'local_scan_rules.dart';
 
 /// 支持的音频扩展名（小写，不含点）。
 const Set<String> kLocalAudioExtensions = {
@@ -54,6 +56,7 @@ class LocalTrack {
     this.androidSource,
     this.safRoot,
     this.mimeType,
+    this.replayGainDb,
   });
 
   final String path;
@@ -74,6 +77,9 @@ class LocalTrack {
   final String? safRoot;
   final String? mimeType;
 
+  /// ReplayGain 曲目增益（dB）。null 表示文件里没有这个标签。
+  final double? replayGainDb;
+
   LocalTrack copyWith({String? title, String? artist, String? album}) {
     return LocalTrack(
       path: path,
@@ -93,6 +99,7 @@ class LocalTrack {
       androidSource: androidSource,
       safRoot: safRoot,
       mimeType: mimeType,
+      replayGainDb: replayGainDb,
     );
   }
 }
@@ -109,6 +116,7 @@ class LocalTagProbe {
     this.durationMs,
     this.bitrate,
     this.artwork,
+    this.replayGainDb,
   });
 
   final String? title;
@@ -117,6 +125,7 @@ class LocalTagProbe {
   final int? durationMs;
   final int? bitrate;
   final Uint8List? artwork;
+  final double? replayGainDb;
 }
 
 /// Argument for [probeTagsOnWorker].
@@ -125,6 +134,27 @@ class LocalScanProbeRequest {
 
   final String path;
   final bool getImage;
+}
+
+/// 读文件开头一段解析 ReplayGain。
+///
+/// 只读前 512 KB：标签块远小于这个量级，而整文件读进来会在大文件上
+/// 把一次扫描变成磁盘压力测试。必须是顶层函数——它要在 worker isolate 里跑。
+double? probeReplayGainDb(File file) {
+  RandomAccessFile? handle;
+  try {
+    handle = file.openSync();
+    final head = handle.readSync(512 * 1024);
+    return readReplayGainDb(head);
+  } catch (_) {
+    return null;
+  } finally {
+    try {
+      handle?.closeSync();
+    } catch (_) {
+      // 已经关闭或句柄失效，忽略。
+    }
+  }
 }
 
 AudioMetadata _readMetadataWithArtworkFallbackInWorker(File file) {
@@ -157,6 +187,7 @@ LocalTagProbe probeTagsOnWorker(LocalScanProbeRequest request) {
       durationMs: tag.duration?.inMilliseconds,
       bitrate: bitrate is int && bitrate > 0 ? bitrate : null,
       artwork: artwork,
+      replayGainDb: probeReplayGainDb(file),
     );
   } on Object {
     // A malformed or unsupported tag block must not drop the file: the caller
@@ -168,7 +199,10 @@ LocalTagProbe probeTagsOnWorker(LocalScanProbeRequest request) {
 /// 递归扫描目录中的音频文件并用 audiotags 解析元数据。
 /// 通过 [shouldSkip] 跳过已知未变更的文件，实现增量扫描。
 class LocalMusicScanner {
-  LocalMusicScanner();
+  LocalMusicScanner({this.rules = const LocalScanRules()});
+
+  /// 扫描过滤规则。可在两次扫描之间替换，下一次扫描立即生效。
+  LocalScanRules rules;
 
   /// [scanDirectory] 进度回调的最小间隔，避免每个文件都触发一次 UI 重建。
   static const int _progressIntervalMs = 100;
@@ -193,6 +227,15 @@ class LocalMusicScanner {
     try {
       await for (final entity in directory.list(followLinks: false)) {
         if (entity is Directory) {
+          // 排除目录整枝跳过：用户把「语音备忘」「播客缓存」放进音乐目录时，
+          // 一条条过滤比直接不进去慢得多。
+          if (rules.excludes(entity.path)) {
+            LocalMusicDebugLog.info(
+              'scan.excluded_dir',
+              'directory=${LocalMusicDebugLog.quote(entity.path)}',
+            );
+            continue;
+          }
           results.addAll(await _walk(entity));
         } else if (entity is File &&
             _isAudioFile(entity.uri.pathSegments.last)) {
@@ -238,6 +281,8 @@ class LocalMusicScanner {
       'directory=${LocalMusicDebugLog.quote(directoryPath)} files=${files.length}',
     );
     final tracks = <LocalTrack>[];
+    // 去重键 → tracks 下标；命中时用体积更大的那份替换。
+    final duplicateIndexes = <String, int>{};
     // Throttle progress: the UI rebuilds its whole list on each tick, and
     // reporting every single file turned a large scan into thousands of
     // rebuilds. The final tick is always emitted so the count lands exactly.
@@ -266,18 +311,45 @@ class LocalMusicScanner {
         continue;
       }
       final track = await _readTrack(file);
-      if (track != null) {
-        tracks.add(track);
-        LocalMusicDebugLog.info(
-          'scan.parsed',
-          'index=${index + 1}/${files.length} ${LocalMusicDebugLog.track(track)}',
-        );
-      } else {
+      if (track == null) {
         LocalMusicDebugLog.warning(
           'scan.drop_file',
           'index=${index + 1}/${files.length} path=${LocalMusicDebugLog.quote(path)}',
         );
+        emitProgress(index + 1);
+        continue;
       }
+      if (!rules.allows(sizeBytes: track.size, duration: track.duration)) {
+        LocalMusicDebugLog.info(
+          'scan.filtered',
+          'index=${index + 1}/${files.length} ${LocalMusicDebugLog.track(track)}',
+        );
+        emitProgress(index + 1);
+        continue;
+      }
+      if (rules.skipDuplicates) {
+        final key = duplicateKeyOf(track);
+        final existing = key == null ? null : duplicateIndexes[key];
+        if (key != null && existing != null) {
+          // 同一首歌通常有一份低码率、一份高码率。保留体积大的那份，
+          // 而不是保留先扫到的那份——扫描顺序取决于文件系统，不可依赖。
+          if (track.size > tracks[existing].size) {
+            tracks[existing] = track;
+          }
+          LocalMusicDebugLog.info(
+            'scan.duplicate',
+            'index=${index + 1}/${files.length} key=${LocalMusicDebugLog.quote(key)}',
+          );
+          emitProgress(index + 1);
+          continue;
+        }
+        if (key != null) duplicateIndexes[key] = tracks.length;
+      }
+      tracks.add(track);
+      LocalMusicDebugLog.info(
+        'scan.parsed',
+        'index=${index + 1}/${files.length} ${LocalMusicDebugLog.track(track)}',
+      );
       emitProgress(index + 1);
     }
     LocalMusicDebugLog.info(
@@ -319,6 +391,7 @@ class LocalMusicScanner {
             _nonEmpty(tag.title) != null && _nonEmpty(tag.artist) != null,
         hasEmbeddedArtwork: artwork != null && artwork.isNotEmpty,
         embeddedArtwork: artwork,
+        replayGainDb: tag.replayGainDb,
       );
     } catch (error, stackTrace) {
       LocalMusicDebugLog.warning(

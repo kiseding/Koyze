@@ -10,6 +10,8 @@ import '../../../core/audio/audio_handler.dart';
 import '../../../core/audio/playback_command_coordinator.dart';
 import '../../../core/state/buildless_notifier.dart';
 import '../../../core/storage/storage_service.dart';
+import '../../../core/audio/replay_gain.dart';
+import '../../local_music/presentation/local_music_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../sync/presentation/sync_phase1_provider.dart';
@@ -26,6 +28,73 @@ final playbackVolumeBindingProvider = Provider<void>((ref) {
     if (handler is LxAudioHandler) {
       handler.applyPlaybackVolume(volume);
     }
+  }, fireImmediately: true);
+});
+
+/// 把倍速同步到当前（以及重建后的）原生播放器。
+///
+/// 播放器被重建时新实例的速率会回到 1.0，所以这里既要跟随设置变化，
+/// 也要跟随 [LxAudioHandler.playerStream]——只监听设置的话，一次自动恢复
+/// 就会悄悄把用户调好的 1.5× 变回正常速度。
+final playbackSpeedBindingProvider = Provider<void>((ref) {
+  void apply(double speed) {
+    try {
+      final handler = audioHandler;
+      if (handler is LxAudioHandler) {
+        unawaited(handler.setPlaybackSpeed(speed));
+      }
+    } catch (_) {
+      // 启动引导还没完成，audioHandler 仍是未初始化的 late 变量。
+    }
+  }
+
+  ref.listen<double>(playbackSpeedProvider, (_, speed) => apply(speed));
+  try {
+    final handler = audioHandler;
+    if (handler is LxAudioHandler) {
+      apply(ref.read(playbackSpeedProvider));
+      final subscription = handler.playerStream.listen(
+        (_) => apply(ref.read(playbackSpeedProvider)),
+      );
+      ref.onDispose(subscription.cancel);
+    }
+  } catch (_) {
+    // 同上：引导完成前没有处理器可用。
+  }
+});
+
+/// 把当前曲目的 ReplayGain 应用到音量上。
+///
+/// 只对本地文件生效：在线音源的响度由服务端归一，我们没有它们的标签。
+/// 查库是异步的，用 generation 防止切换过快时旧结果覆盖新歌。
+final replayGainBindingProvider = Provider<void>((ref) {
+  var generation = 0;
+
+  Future<void> apply(MusicItem? music) async {
+    final current = ++generation;
+    final handler = audioHandler;
+    if (handler is! LxAudioHandler) return;
+    if (music == null || music.source != 'local') {
+      handler.applyTrackGain(1);
+      return;
+    }
+    try {
+      final library = await ref.read(localMusicLibraryProvider.future);
+      await library.init();
+      if (current != generation) return;
+      final db = ref.read(replayGainEnabledProvider)
+          ? library.replayGainForSongId(music.id)
+          : null;
+      if (current != generation) return;
+      handler.applyTrackGain(db == null ? 1 : replayGainFactor(db));
+    } catch (_) {
+      if (current != generation) return;
+      handler.applyTrackGain(1);
+    }
+  }
+
+  ref.listen<MusicItem?>(currentMusicProvider, (_, next) {
+    unawaited(apply(next));
   }, fireImmediately: true);
 });
 
@@ -431,13 +500,27 @@ final class SleepTimerIdle extends SleepTimerState {
 }
 
 final class SleepTimerRunning extends SleepTimerState {
-  const SleepTimerRunning(this.duration, this.scheduledEndTime);
+  const SleepTimerRunning(
+    this.duration,
+    this.scheduledEndTime, {
+    this.fadeOut = true,
+  });
 
   final Duration duration;
   final DateTime scheduledEndTime;
 
+  /// 结束前是否渐弱，避免在安静的段落里突然静音。
+  final bool fadeOut;
+
   @override
   DateTime get endTime => scheduledEndTime;
+}
+
+/// 播完当前这首就停。没有结束时间，界面不显示倒计时。
+final class SleepTimerUntilTrackEnd extends SleepTimerState {
+  const SleepTimerUntilTrackEnd({this.fadeOut = true});
+
+  final bool fadeOut;
 }
 
 enum SleepTimerFailureReason { pauseFailed }
@@ -457,10 +540,21 @@ class SleepTimerNotifier extends BuildlessNotifier<SleepTimerState> {
       _pause = pause ?? (() async {}),
       super(const SleepTimerIdle());
 
+  /// 渐弱时长。太短听不出来，太长会掐掉整段副歌。
+  static const Duration fadeDuration = Duration(seconds: 10);
+
   final Future<void> Function()? _pauseOverride;
   Future<void> Function() _pause;
   Timer? _timer;
+  Timer? _fadeTimer;
   int _generation = 0;
+  int _fadeGeneration = 0;
+  bool _awaitingTrackEnd = false;
+  bool _fadeStarted = false;
+
+  /// 最近一次启动时的渐弱选择。`SleepTimerFailed` 里不带这个字段，
+  /// 重试时若不记住它，用户关掉的渐弱会悄悄回弹成开启。
+  bool _lastFadeOut = true;
 
   @override
   SleepTimerState build() {
@@ -475,23 +569,62 @@ class SleepTimerNotifier extends BuildlessNotifier<SleepTimerState> {
         // Leave the no-op pause in place.
       }
     }
+    // 「播完这首就停」只能靠曲目切换来判断：引擎在播放结束时会立刻续上
+    // 下一首，等不到 completed 状态。代价是下一首可能已经播了几十毫秒。
+    ref.listen<AsyncValue<MediaItem?>>(currentMediaItemProvider, (
+      previous,
+      next,
+    ) {
+      if (!_awaitingTrackEnd) return;
+      final previousId = previous?.value?.id;
+      final nextId = next.value?.id;
+      if (previousId == null || nextId == null || previousId == nextId) return;
+      unawaited(_finish());
+    });
+    ref.listen<Duration>(playerPositionProvider, (_, position) {
+      if (!_awaitingTrackEnd || _fadeStarted) return;
+      final music = ref.read(currentMusicProvider);
+      final total = music?.duration;
+      if (total == null || total == Duration.zero) return;
+      if (total - position <= fadeDuration) _beginFade();
+    });
     return super.build();
   }
 
-  void startTimer(Duration duration) {
+  void startTimer(Duration duration, {bool fadeOut = true}) {
     _timer?.cancel();
+    _lastFadeOut = fadeOut;
+    _stopFade(restore: true);
+    _awaitingTrackEnd = false;
     final generation = ++_generation;
-    publish(SleepTimerRunning(duration, DateTime.now().add(duration)));
+    publish(
+      SleepTimerRunning(
+        duration,
+        DateTime.now().add(duration),
+        fadeOut: fadeOut,
+      ),
+    );
+    if (fadeOut && duration > fadeDuration * 2) {
+      final delay = duration - fadeDuration;
+      // 渐弱本身用独立的一次性定时器，到点才开始压音量。
+      _fadeTimer?.cancel();
+      _fadeTimer = Timer(delay, () {
+        if (!mounted || generation != _generation) return;
+        _beginFade();
+      });
+    }
 
     _timer = Timer(duration, () async {
       try {
         await _pause();
         if (!mounted || generation != _generation) return;
         _timer = null;
+        _stopFade(restore: true);
         publish(const SleepTimerIdle());
       } catch (_) {
         if (!mounted || generation != _generation) return;
         _timer = null;
+        _stopFade(restore: true);
         publish(
           SleepTimerFailed(SleepTimerFailureReason.pauseFailed, duration),
         );
@@ -499,24 +632,108 @@ class SleepTimerNotifier extends BuildlessNotifier<SleepTimerState> {
     });
   }
 
+  /// 播完当前曲目后暂停。切歌、手动跳转都会终止定时。
+  void startUntilTrackEnd({bool fadeOut = true}) {
+    _timer?.cancel();
+    _lastFadeOut = fadeOut;
+    _timer = null;
+    _stopFade(restore: true);
+    _generation++;
+    _awaitingTrackEnd = true;
+    _fadeStarted = false;
+    publish(SleepTimerUntilTrackEnd(fadeOut: fadeOut));
+  }
+
   void retryTimer() {
-    if (value case SleepTimerFailed(:final duration)) {
-      startTimer(duration);
+    switch (value) {
+      case SleepTimerFailed(:final duration):
+        startTimer(duration, fadeOut: _lastFadeOut);
+      case SleepTimerRunning(:final duration, :final fadeOut):
+        startTimer(duration, fadeOut: fadeOut);
+      case _:
+        break;
     }
   }
 
   void cancelTimer() {
     _generation++;
+    _awaitingTrackEnd = false;
     _timer?.cancel();
     _timer = null;
+    _stopFade(restore: true);
     publish(const SleepTimerIdle());
+  }
+
+  bool get _shouldFade => switch (value) {
+    SleepTimerRunning(:final fadeOut) => fadeOut,
+    SleepTimerUntilTrackEnd(:final fadeOut) => fadeOut,
+    _ => false,
+  };
+
+  void _beginFade() {
+    if (!_shouldFade || _fadeStarted) return;
+    _fadeStarted = true;
+    final generation = ++_fadeGeneration;
+    const steps = 20;
+    final interval = fadeDuration ~/ steps;
+    var step = 0;
+    _fadeTimer?.cancel();
+    _fadeTimer = Timer.periodic(interval, (timer) {
+      if (!mounted || generation != _fadeGeneration) {
+        timer.cancel();
+        return;
+      }
+      step++;
+      _applyTemporaryGain((1 - step / steps).clamp(0.0, 1.0).toDouble());
+      if (step >= steps) timer.cancel();
+    });
+  }
+
+  void _stopFade({required bool restore}) {
+    _fadeGeneration++;
+    _fadeTimer?.cancel();
+    _fadeTimer = null;
+    _fadeStarted = false;
+    if (restore) _applyTemporaryGain(1);
+  }
+
+  void _applyTemporaryGain(double gain) {
+    try {
+      final handler = audioHandler;
+      if (handler is LxAudioHandler) handler.applyTemporaryGain(gain);
+    } catch (_) {
+      // 引导还没完成，没有处理器可写。
+    }
+  }
+
+  Future<void> _finish() async {
+    if (!mounted) return;
+    _awaitingTrackEnd = false;
+    _generation++;
+    try {
+      await _pause();
+      if (!mounted) return;
+      _stopFade(restore: true);
+      publish(const SleepTimerIdle());
+    } catch (_) {
+      if (!mounted) return;
+      _stopFade(restore: true);
+      publish(
+        const SleepTimerFailed(
+          SleepTimerFailureReason.pauseFailed,
+          Duration.zero,
+        ),
+      );
+    }
   }
 
   @override
   void onTeardown() {
     _generation++;
+    _awaitingTrackEnd = false;
     _timer?.cancel();
     _timer = null;
+    _stopFade(restore: true);
   }
 }
 
@@ -524,6 +741,10 @@ final sleepTimerProvider =
     NotifierProvider<SleepTimerNotifier, SleepTimerState>(
       SleepTimerNotifier.new,
     );
+
+/// 睡眠定时结束前是否渐弱。会话内有效，不落盘——它只是一个夜间开关，
+/// 没有跨设备同步的价值。
+final sleepTimerFadeProvider = StateProvider<bool>((ref) => true);
 
 // 全局播放消息通知（用于展示顶部通知）
 final playerMessageProvider = StateProvider<String?>((ref) => null);

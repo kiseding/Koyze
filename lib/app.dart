@@ -12,6 +12,8 @@ import 'package:koyze/features/settings/presentation/force_landscape_binding.dar
 import 'package:koyze/features/settings/presentation/settings_provider.dart';
 import 'package:koyze/features/player/platform/android_floating_player.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
+import 'package:koyze/features/player/presentation/precache_provider.dart';
+import 'package:koyze/features/lyric/presentation/lock_screen_lyric.dart';
 import 'package:koyze/features/stats/presentation/play_history_provider.dart';
 import 'package:koyze/core/windows/windows_caption_bar.dart';
 import 'package:koyze/core/windows/windows_close_handler.dart';
@@ -77,9 +79,13 @@ class LxMusicApp extends ConsumerWidget {
     LowMemory.active = ref.watch(simplifyEffectsProvider);
     ref.watch(playbackSessionRecorderProvider);
     ref.watch(playbackVolumeBindingProvider);
+    ref.watch(playbackSpeedBindingProvider);
+    ref.watch(replayGainBindingProvider);
     ref.watch(queueArtworkWarmerProvider);
     ref.watch(recentPlayRecorderProvider);
     ref.watch(playHistoryRecorderProvider);
+    ref.watch(lockScreenLyricProvider);
+    ref.watch(precacheRunnerProvider);
     ref.watch(ratingServiceProvider);
     // Attach every local sync target before the first Pull can run. Without
     // this, settings may sync while playlist/history/source events arrive
@@ -118,19 +124,19 @@ class LxMusicApp extends ConsumerWidget {
               child: WindowsCloseHandler(
                 navigatorKey: rootNavigatorKey,
                 child: CloudSyncHost(
-                child: AppNotificationHost(
-                  child: PlayerMessageListener(
-                    child: AndroidFloatingPlayerHost(
-                      child: ForceLandscapeBinding(
-                        child: StartupCloudLoginPrompt(
-                          child: child ?? const SizedBox.shrink(),
+                  child: AppNotificationHost(
+                    child: PlayerMessageListener(
+                      child: AndroidFloatingPlayerHost(
+                        child: ForceLandscapeBinding(
+                          child: StartupCloudLoginPrompt(
+                            child: child ?? const SizedBox.shrink(),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
             ),
           ),
         );

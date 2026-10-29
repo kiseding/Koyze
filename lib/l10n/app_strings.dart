@@ -870,7 +870,8 @@ class S {
   String aiScheduleLastRun(String time) => _l10n.aiScheduleLastRun(time);
   String aiScheduleNextRun(String time) => _l10n.aiScheduleNextRun(time);
   String get aiSchedulePaused => _l10n.aiSchedulePaused;
-  String aiScheduleRunFailed(String reason) => _l10n.aiScheduleRunFailed(reason);
+  String aiScheduleRunFailed(String reason) =>
+      _l10n.aiScheduleRunFailed(reason);
   String aiScheduleRunDone(String name) => _l10n.aiScheduleRunDone(name);
   String aiScheduleRunFailedToast(String name) =>
       _l10n.aiScheduleRunFailedToast(name);
@@ -903,6 +904,7 @@ class S {
     if (diff == 1) return aiDayTomorrow;
     return weekdayName(target.weekday);
   }
+
   String get carMode => _l10n.carMode;
   String get carModeSubtitle => _l10n.carModeSubtitle;
   String get carModeAuto => _l10n.carModeAuto;
@@ -919,6 +921,69 @@ class S {
   String get aiToolGetPlaylist => _l10n.aiToolGetPlaylist;
   String get aiToolSourceStatus => _l10n.aiToolSourceStatus;
   String get aiToolCreatePlaylist => _l10n.aiToolCreatePlaylist;
+  String get playbackSpeed => _l10n.playbackSpeed;
+  String get untilTrackEnd => _l10n.untilTrackEnd;
+  String get untilTrackEndNote => _l10n.untilTrackEndNote;
+  String get fadeOutBeforeStop => _l10n.fadeOutBeforeStop;
+  String get fadeOutBeforeStopHint => _l10n.fadeOutBeforeStopHint;
+  String get queueEditTitle => _l10n.queueEditTitle;
+  String get playNext => _l10n.playNext;
+  String get removeFromQueue => _l10n.removeFromQueue;
+  String get scanRules => _l10n.scanRules;
+  String get scanRulesSubtitle => _l10n.scanRulesSubtitle;
+  String get scanRulesHint => _l10n.scanRulesHint;
+  String get scanRuleNoLimit => _l10n.scanRuleNoLimit;
+  String get scanRuleMinDuration => _l10n.scanRuleMinDuration;
+  String get scanRuleMinSize => _l10n.scanRuleMinSize;
+  String get scanRuleSkipDuplicates => _l10n.scanRuleSkipDuplicates;
+  String get scanRuleSkipDuplicatesHint => _l10n.scanRuleSkipDuplicatesHint;
+  String get scanRuleExcludedFolders => _l10n.scanRuleExcludedFolders;
+  String get scanRuleAddFolder => _l10n.scanRuleAddFolder;
+  String get scanRuleFolderHint => _l10n.scanRuleFolderHint;
+  String get scanRuleNoExcludedFolders => _l10n.scanRuleNoExcludedFolders;
+  String get scanRuleRescanHint => _l10n.scanRuleRescanHint;
+  String get savingNow => _l10n.savingNow;
+  String secondsShort(int n) => _l10n.secondsShort(n);
+  String get resetSettings => _l10n.resetSettings;
+  String get resetSettingsSubtitle => _l10n.resetSettingsSubtitle;
+  String get resetSettingsConfirm => _l10n.resetSettingsConfirm;
+  String get resetSettingsAction => _l10n.resetSettingsAction;
+  String resetSettingsDone(int count) => _l10n.resetSettingsDone(count);
+  String resetSettingsFailed(String error) => _l10n.resetSettingsFailed(error);
+  String get autoEqImport => _l10n.autoEqImport;
+  String autoEqImported(String name) => _l10n.autoEqImported(name);
+  String get autoEqImportFailed => _l10n.autoEqImportFailed;
+  String get replayGain => _l10n.replayGain;
+  String get replayGainSubtitle => _l10n.replayGainSubtitle;
+  String get lockScreenLyric => _l10n.lockScreenLyric;
+  String get lockScreenLyricSubtitle => _l10n.lockScreenLyricSubtitle;
+  String get lyricShare => _l10n.lyricShare;
+  String get lyricShareNoLine => _l10n.lyricShareNoLine;
+  String get lyricShareSave => _l10n.lyricShareSave;
+  String get lyricShareSaved => _l10n.lyricShareSaved;
+  String lyricShareFailed(String error) => _l10n.lyricShareFailed(error);
+  String get smartPlaylists => _l10n.smartPlaylists;
+  String get smartPlaylistsSubtitle => _l10n.smartPlaylistsSubtitle;
+  String get smartRecentlyAdded => _l10n.smartRecentlyAdded;
+  String get smartRecentlyAddedHint => _l10n.smartRecentlyAddedHint;
+  String get smartMostPlayed => _l10n.smartMostPlayed;
+  String get smartMostPlayedHint => _l10n.smartMostPlayedHint;
+  String get smartNeverPlayed => _l10n.smartNeverPlayed;
+  String get smartNeverPlayedHint => _l10n.smartNeverPlayedHint;
+  String get smartFavoritesHint => _l10n.smartFavoritesHint;
+  String get smartEmpty => _l10n.smartEmpty;
+  String smartSongCount(int n) => _l10n.smartSongCount(n);
+  String get radio => _l10n.radio;
+  String get radioSubtitle => _l10n.radioSubtitle;
+  String get radioSearchHint => _l10n.radioSearchHint;
+  String get radioPopular => _l10n.radioPopular;
+  String get radioLive => _l10n.radioLive;
+  String get radioEmpty => _l10n.radioEmpty;
+  String get radioFailed => _l10n.radioFailed;
+  String get precacheRecent => _l10n.precacheRecent;
+  String get precacheRecentSubtitle => _l10n.precacheRecentSubtitle;
+  String get precacheCount => _l10n.precacheCount;
+  String precacheCountValue(int n) => _l10n.precacheCountValue(n);
 }
 
 /// Maps a runtime message produced by the audio layer (currently Chinese,

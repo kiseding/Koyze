@@ -35,6 +35,9 @@ import '../../sync/data/sync_identity_store.dart';
 import '../../nas/domain/nas_url.dart';
 import '../../car_mode/presentation/car_mode_provider.dart';
 import '../../car_mode/presentation/car_mode_sheet.dart';
+import '../../local_music/presentation/scan_rules_sheet.dart';
+import '../../local_music/presentation/local_music_provider.dart';
+import '../domain/settings_reset.dart';
 import 'settings_entry.dart';
 import 'settings_search_layer.dart';
 import 'settings_section_card.dart';
@@ -300,6 +303,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             captureExpandOrigin: true,
           ),
           SettingsEntry(
+            title: s.smartPlaylists,
+            subtitle: s.smartPlaylistsSubtitle,
+            keywords: const [
+              '智能',
+              'smart',
+              '歌单',
+              'playlist',
+              '规则',
+              'rule',
+              '最近添加',
+              '最常播放',
+            ],
+            onTap: () => context.push('/smart-playlists'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.scanRules,
+            subtitle: s.scanRulesSubtitle,
+            keywords: const [
+              '扫描',
+              'scan',
+              '过滤',
+              'filter',
+              '重复',
+              'duplicate',
+              '时长',
+              'duration',
+              '排除',
+              'exclude',
+            ],
+            onTap: () => showScanRulesSheet(context, ref),
+          ),
+          SettingsEntry(
             title: s.customSources,
             subtitle: s.customSourcesSubtitle,
             keywords: const ['音源', 'source', '自定义', 'custom', '插件', 'plugin'],
@@ -314,6 +350,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             keywords: const ['nas', 'subsonic', '服务器', 'server', '乐库', '自建'],
             onTap: () => context.push('/subsonic-settings'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.radio,
+            subtitle: s.radioSubtitle,
+            keywords: const ['电台', 'radio', '直播', 'live', 'fm', '网络电台'],
+            onTap: () => context.push('/radio'),
             captureExpandOrigin: true,
           ),
         ],
@@ -336,6 +379,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
             onTap: () => _showAudioQualityDialog(context, ref),
           ),
+          SettingsEntry(
+            title: s.lockScreenLyric,
+            subtitle: s.lockScreenLyricSubtitle,
+            keywords: const [
+              '歌词',
+              'lyric',
+              '锁屏',
+              'lock',
+              '通知栏',
+              'notification',
+            ],
+            toggleValue: ref.watch(lockScreenLyricEnabledProvider),
+            onToggle: (value) {
+              ref
+                  .read(lockScreenLyricEnabledProvider.notifier)
+                  .setEnabled(value);
+            },
+          ),
+          SettingsEntry(
+            title: s.replayGain,
+            subtitle: s.replayGainSubtitle,
+            keywords: const [
+              '响度',
+              'replaygain',
+              '音量',
+              'volume',
+              '均衡',
+              'loudness',
+              '归一',
+            ],
+            toggleValue: ref.watch(replayGainEnabledProvider),
+            onToggle: (value) {
+              ref.read(replayGainEnabledProvider.notifier).setEnabled(value);
+            },
+          ),
+          SettingsEntry(
+            title: s.precacheRecent,
+            subtitle: s.precacheRecentSubtitle,
+            keywords: const [
+              '预缓存',
+              'precache',
+              '缓存',
+              'cache',
+              '常听',
+              'frequent',
+              '下载',
+            ],
+            toggleValue: ref.watch(precacheEnabledProvider),
+            onToggle: (value) {
+              ref.read(precacheEnabledProvider.notifier).setEnabled(value);
+            },
+          ),
+          if (ref.watch(precacheEnabledProvider))
+            SettingsEntry(
+              title: s.precacheCount,
+              subtitle: s.precacheCountValue(ref.watch(precacheCountProvider)),
+              keywords: const ['数量', 'count', '预缓存', 'precache'],
+              onTap: () => _showPrecacheCountDialog(context, ref),
+            ),
           SettingsEntry(
             title: s.equalizer,
             subtitle: equalizerSubtitle(
@@ -531,6 +633,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onToggle: (value) {
               ref.read(simplifyEffectsProvider.notifier).setEnabled(value);
             },
+          ),
+          SettingsEntry(
+            title: s.resetSettings,
+            subtitle: s.resetSettingsSubtitle,
+            keywords: const [
+              '重置',
+              'reset',
+              '默认',
+              'default',
+              '恢复',
+              'restore',
+              '设置',
+            ],
+            onTap: () => _resetPreferences(context, ref),
           ),
         ],
       ),
@@ -759,6 +875,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _showQualityDialog(context, ref, S.of(context).chooseQuality, false);
   }
 
+  void _showPrecacheCountDialog(BuildContext context, WidgetRef ref) {
+    showKoyzeSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _PrecacheCountPicker(title: S.of(context).precacheCount),
+    );
+  }
+
   void _showDownloadQualityDialog(BuildContext context, WidgetRef ref) {
     _showQualityDialog(context, ref, S.of(context).chooseDownloadQuality, true);
   }
@@ -775,6 +899,68 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       builder: (_) =>
           _QualityPickerDialog(title: title, isDownload: isDownload),
     );
+  }
+
+  Future<void> _resetPreferences(BuildContext context, WidgetRef ref) async {
+    final s = S.of(context);
+    final confirmed = await showKoyzeDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(s.resetSettings),
+        content: Text(s.resetSettingsConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(s.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(s.resetSettingsAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final storage = await StorageService.instance;
+      final removed = await resetPreferences(storage);
+      // 通知每个设置项重新读取：它们各自持有内存值，只删存储不会刷新界面。
+      for (final provider in <ProviderOrFamily>[
+        themeModeProvider,
+        accentColorProvider,
+        audioQualityProvider,
+        downloadQualityProvider,
+        wifiOnlyDownloadProvider,
+        autoResumePlaybackProvider,
+        androidFloatingPlayerProvider,
+        forceLandscapeProvider,
+        simplifyEffectsProvider,
+        playbackVolumeProvider,
+        playbackSpeedProvider,
+        replayGainEnabledProvider,
+        lockScreenLyricEnabledProvider,
+        precacheEnabledProvider,
+        precacheCountProvider,
+        defaultSearchPlatformProvider,
+        playerBackdropBlurProvider,
+        playerBackdropScrimProvider,
+        equalizerProvider,
+        localMusicLibraryProvider,
+      ]) {
+        ref.invalidate(provider);
+      }
+      if (!context.mounted) return;
+      showAppNotification(
+        s.resetSettingsDone(removed),
+        type: AppNotificationType.success,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      showAppNotification(
+        s.resetSettingsFailed('$error'),
+        type: AppNotificationType.error,
+      );
+    }
   }
 
   Future<void> _backupData(BuildContext context, WidgetRef ref) async {
@@ -1512,6 +1698,41 @@ class _QualityPickerDialog extends ConsumerWidget {
               },
             );
           }),
+        ],
+      ),
+    );
+  }
+}
+
+/// 预缓存数量选择：只给离散档位，避免用户填出「3 首」这种既不省流量
+/// 也换不来体验的中间值。
+class _PrecacheCountPicker extends ConsumerWidget {
+  const _PrecacheCountPicker({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(precacheCountProvider);
+    return _SettingsOptionPanel(
+      title: title,
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.only(bottom: 12),
+        children: [
+          for (final count in kPrecacheCountSteps)
+            _SettingsOptionTile(
+              icon: Icons.download_for_offline_outlined,
+              name: S.of(context).precacheCountValue(count),
+              // 按 320k 平均一首 8MB 估个量级，比只写数字更能说明代价。
+              description: '≈ ${count * 8} MB',
+              selected: count == current,
+              accent: AppColors.accentOf(context),
+              onTap: () {
+                ref.read(precacheCountProvider.notifier).setCount(count);
+                Navigator.pop(context);
+              },
+            ),
         ],
       ),
     );

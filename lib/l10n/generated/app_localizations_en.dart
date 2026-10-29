@@ -745,9 +745,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get close => 'Close';
 
   @override
-  String get add => 'Add';
-
-  @override
   String get pause => 'Pause';
 
   @override
@@ -2515,4 +2512,216 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recommendTuningCleared => 'Recommendations reset';
+
+  @override
+  String get playbackSpeed => 'Playback speed';
+
+  @override
+  String get untilTrackEnd => 'After this track';
+
+  @override
+  String get untilTrackEndNote => 'Pauses after this track';
+
+  @override
+  String get fadeOutBeforeStop => 'Fade out before stopping';
+
+  @override
+  String get fadeOutBeforeStopHint => 'Gently fades over the last 10 seconds';
+
+  @override
+  String get queueEditTitle => 'Edit queue';
+
+  @override
+  String get playNext => 'Play next';
+
+  @override
+  String get removeFromQueue => 'Remove from queue';
+
+  @override
+  String get scanRules => 'Scan rules';
+
+  @override
+  String get scanRulesSubtitle => 'Filter by duration, size and duplicates';
+
+  @override
+  String get scanRulesHint => 'Applies to future scans; nothing is deleted';
+
+  @override
+  String get scanRuleNoLimit => 'No limit';
+
+  @override
+  String get scanRuleMinDuration => 'Minimum duration';
+
+  @override
+  String get scanRuleMinSize => 'Minimum size';
+
+  @override
+  String get scanRuleSkipDuplicates => 'Skip duplicates';
+
+  @override
+  String get scanRuleSkipDuplicatesHint =>
+      'Same title, artist and length keeps the largest file';
+
+  @override
+  String get scanRuleExcludedFolders => 'Excluded folders';
+
+  @override
+  String get scanRuleAddFolder => 'Add excluded folder';
+
+  @override
+  String get scanRuleFolderHint => 'Full path';
+
+  @override
+  String get scanRuleNoExcludedFolders => 'No folder excluded yet';
+
+  @override
+  String get scanRuleRescanHint => 'Takes effect on the next scan';
+
+  @override
+  String get savingNow => 'Saving…';
+
+  @override
+  String secondsShort(int n) {
+    return '$n s';
+  }
+
+  @override
+  String get resetSettings => 'Reset settings';
+
+  @override
+  String get resetSettingsSubtitle =>
+      'Clears preferences, keeps accounts and library';
+
+  @override
+  String get resetSettingsConfirm =>
+      'All preferences return to their defaults. Accounts, NAS, playlists, history and the local library index are kept.';
+
+  @override
+  String get resetSettingsAction => 'Reset';
+
+  @override
+  String resetSettingsDone(int count) {
+    return 'Reset $count settings';
+  }
+
+  @override
+  String resetSettingsFailed(String error) {
+    return 'Reset failed: $error';
+  }
+
+  @override
+  String get autoEqImport => 'Import AutoEQ';
+
+  @override
+  String autoEqImported(String name) {
+    return 'Imported $name';
+  }
+
+  @override
+  String get autoEqImportFailed => 'No AutoEQ curve found in this file';
+
+  @override
+  String get replayGain => 'Loudness normalisation';
+
+  @override
+  String get replayGainSubtitle => 'Levels album volume using ReplayGain tags';
+
+  @override
+  String get lockScreenLyric => 'Lock screen lyrics';
+
+  @override
+  String get lockScreenLyricSubtitle =>
+      'Shows the current line on the lock screen';
+
+  @override
+  String get lyricShare => 'Share lyric card';
+
+  @override
+  String get lyricShareNoLine => 'No lyrics for this track yet';
+
+  @override
+  String get lyricShareSave => 'Save image';
+
+  @override
+  String get lyricShareSaved => 'Lyric card saved';
+
+  @override
+  String lyricShareFailed(String error) {
+    return 'Save failed: $error';
+  }
+
+  @override
+  String get smartPlaylists => 'Smart playlists';
+
+  @override
+  String get smartPlaylistsSubtitle =>
+      'Built from rules, nothing to maintain by hand';
+
+  @override
+  String get smartRecentlyAdded => 'Recently added';
+
+  @override
+  String get smartRecentlyAddedHint => 'Newest tracks in your library';
+
+  @override
+  String get smartMostPlayed => 'Most played';
+
+  @override
+  String get smartMostPlayedHint => 'Sorted by play count';
+
+  @override
+  String get smartNeverPlayed => 'Never played';
+
+  @override
+  String get smartNeverPlayedHint => 'In your library but never played';
+
+  @override
+  String get smartFavoritesHint => 'Your liked songs';
+
+  @override
+  String get smartEmpty => 'No songs match this rule yet';
+
+  @override
+  String smartSongCount(int n) {
+    return '$n songs';
+  }
+
+  @override
+  String get radio => 'Radio';
+
+  @override
+  String get radioSubtitle => 'Public stations from Radio Browser';
+
+  @override
+  String get radioSearchHint => 'Search stations or genres';
+
+  @override
+  String get radioPopular => 'Popular';
+
+  @override
+  String get radioLive => 'Live';
+
+  @override
+  String get radioEmpty => 'No stations found';
+
+  @override
+  String get radioFailed => 'Couldn\'t load stations';
+
+  @override
+  String get precacheRecent => 'Pre-cache frequent tracks';
+
+  @override
+  String get precacheRecentSubtitle =>
+      'Fetches your most played tracks on Wi-Fi so they start instantly';
+
+  @override
+  String get precacheCount => 'How many to pre-cache';
+
+  @override
+  String precacheCountValue(int n) {
+    return '$n tracks';
+  }
+
+  @override
+  String get add => 'Add';
 }

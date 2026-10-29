@@ -456,6 +456,38 @@ class PlayerService {
     );
   }
 
+  /// 把队列里的 [oldIndex] 挪到 [newIndex]。
+  ///
+  /// 走 [LxAudioHandler.updateQueue]，它按「当前曲目的 occurrence」重新定位
+  /// 播放位置——所以拖动不会打断正在播放的歌，只是后面的顺序变了。
+  Future<void> moveInQueue(int oldIndex, int newIndex) async {
+    if (audioHandler is! LxAudioHandler) return;
+    final handler = audioHandler as LxAudioHandler;
+    final items = List<MediaItem>.from(handler.queueItems);
+    if (oldIndex < 0 || oldIndex >= items.length) return;
+    final target = newIndex.clamp(0, items.length - 1);
+    if (target == oldIndex) return;
+    final generation = beginQueueReplacement();
+    final item = items.removeAt(oldIndex);
+    items.insert(target, item);
+    await handler.updateQueue(items);
+    if (!ownsQueueReplacement(generation)) return;
+  }
+
+  /// 从队列里移除一首。当前在播的那首不允许移除：那等于「跳过」，
+  /// 而用户点的是「删除」，两者语义不同，容易误触。
+  Future<void> removeFromQueue(int index) async {
+    if (audioHandler is! LxAudioHandler) return;
+    final handler = audioHandler as LxAudioHandler;
+    final items = List<MediaItem>.from(handler.queueItems);
+    if (index < 0 || index >= items.length) return;
+    if (index == handler.currentQueueIndex) return;
+    final generation = beginQueueReplacement();
+    items.removeAt(index);
+    await handler.updateQueue(items);
+    if (!ownsQueueReplacement(generation)) return;
+  }
+
   Future<void> next() {
     unawaited(HapticFeedback.selectionClick());
     return audioHandler.skipToNext();

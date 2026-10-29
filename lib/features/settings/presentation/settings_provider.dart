@@ -81,6 +81,32 @@ final playbackVolumeProvider = NotifierProvider<PlaybackVolumeNotifier, double>(
   PlaybackVolumeNotifier.new,
 );
 
+/// 锁屏 / 通知栏歌词开关。
+final lockScreenLyricEnabledProvider =
+    NotifierProvider<LockScreenLyricNotifier, bool>(
+      LockScreenLyricNotifier.new,
+    );
+
+/// 响度均衡（ReplayGain）开关。
+final replayGainEnabledProvider = NotifierProvider<ReplayGainNotifier, bool>(
+  ReplayGainNotifier.new,
+);
+
+/// 播放倍速（0.5~2.0 的离散档位）。
+final playbackSpeedProvider = NotifierProvider<PlaybackSpeedNotifier, double>(
+  PlaybackSpeedNotifier.new,
+);
+
+/// 常听预缓存开关。
+final precacheEnabledProvider = NotifierProvider<PrecacheEnabledNotifier, bool>(
+  PrecacheEnabledNotifier.new,
+);
+
+/// 预缓存的曲目数量。
+final precacheCountProvider = NotifierProvider<PrecacheCountNotifier, int>(
+  PrecacheCountNotifier.new,
+);
+
 /// 默认搜索平台：tx / kw / wy / local / favorites / subsonic / NAS
 final defaultSearchPlatformProvider =
     NotifierProvider<DefaultSearchPlatformNotifier, String>(

@@ -10,6 +10,7 @@ import 'package:koyze/features/player/domain/music_item.dart';
 import 'android_directory_access.dart';
 import 'local_music_debug_log.dart';
 import 'local_music_scanner.dart';
+import 'local_scan_rules.dart';
 import 'music_scrape_store.dart';
 import 'security_scoped_directory.dart';
 
@@ -32,6 +33,18 @@ class LocalMusicLibrary {
   static const _downloadDirKey = 'local_music_download_dir_v1';
   static const _androidMediaStoreEnabledKey =
       'local_music_android_mediastore_enabled_v1';
+  static const _scanRulesKey = 'local_scan_rules_v1';
+
+  /// 当前生效的扫描规则。
+  LocalScanRules get scanRules => _scanRules;
+  LocalScanRules _scanRules = const LocalScanRules();
+
+  /// 更新扫描规则并落盘；下一次扫描生效。
+  Future<void> setScanRules(LocalScanRules rules) async {
+    _scanRules = rules;
+    _scanner.rules = rules;
+    await _storage.setJson(_scanRulesKey, rules.toJson());
+  }
 
   final StorageService _storage;
   final LocalMusicScanner _scanner;
@@ -68,6 +81,20 @@ class LocalMusicLibrary {
 
   /// 解析出的全部本地歌曲（含刮削身份）。
   List<MusicItem> get songs => _files.values.map(_toMusicItem).toList();
+
+  /// 按「文件修改时间」倒序的歌曲列表，用于「最近添加」这类规则歌单。
+  ///
+  /// 不另存一份「入库时间」：修改时间就是用户往目录里丢文件的时间，
+  /// 而多存一个字段意味着老索引全要迁移一次。
+  List<MusicItem> get songsByRecentlyAdded {
+    final entries = _files.values.toList()
+      ..sort((a, b) {
+        final left = a['modifiedAt']?.toString() ?? '';
+        final right = b['modifiedAt']?.toString() ?? '';
+        return right.compareTo(left);
+      });
+    return entries.map(_toMusicItem).toList();
+  }
 
   /// 按 [MusicItem.id]（`local:<sha1(path)>`）查一首本地歌曲。
   ///
@@ -119,6 +146,11 @@ class LocalMusicLibrary {
     LocalMusicDebugLog.info('library.init.start', 'loading local music index');
     _directories = _storage.getStringList(_dirsKey);
     _downloadDirectory = _storage.getString(_downloadDirKey);
+    final rawRules = _storage.getJson(_scanRulesKey);
+    _scanRules = rawRules == null
+        ? const LocalScanRules()
+        : LocalScanRules.fromJson(rawRules);
+    _scanner.rules = _scanRules;
     _loadIndex();
     await _scrapeStore.init();
     LocalMusicDebugLog.info(
@@ -231,6 +263,7 @@ class LocalMusicLibrary {
       bitrate: bitrate,
       hasEmbeddedTags: cleanTitle != null && artist != null,
       hasEmbeddedArtwork: false,
+      replayGainDb: (entry['replayGainDb'] as num?)?.toDouble(),
       contentUri: contentUri,
       androidSource: entry['androidSource']?.toString(),
       safRoot: safRoot ?? entry['safRoot']?.toString(),
@@ -286,6 +319,7 @@ class LocalMusicLibrary {
         'modifiedAt': track.modifiedAt.toIso8601String(),
         'title': track.title,
         'artist': track.artist,
+        'replayGainDb': track.replayGainDb,
         'album': track.album,
         'hasEmbeddedTags': track.hasEmbeddedTags,
         'hasEmbeddedArtwork': track.hasEmbeddedArtwork,
@@ -348,6 +382,30 @@ class LocalMusicLibrary {
       return null;
     }
     return text;
+  }
+
+  /// 按歌曲 id（`local:<sha1(path)>`）取 ReplayGain 增益。
+  double? replayGainForSongId(String id) {
+    for (final entry in _files.values) {
+      final path = entry['path']?.toString() ?? '';
+      if (path.isEmpty) continue;
+      final songId = 'local:${sha1.convert(utf8.encode(path))}';
+      if (songId != id) continue;
+      return (entry['replayGainDb'] as num?)?.toDouble();
+    }
+    return null;
+  }
+
+  /// 按文件路径取 ReplayGain 增益（dB）。找不到返回 null。
+  double? replayGainForPath(String path) {
+    final normalized = normalizeLocalMusicPath(path);
+    for (final entry in _files.values) {
+      final entryPath = entry['path']?.toString() ?? '';
+      if (entryPath.isEmpty) continue;
+      if (normalizeLocalMusicPath(entryPath) != normalized) continue;
+      return (entry['replayGainDb'] as num?)?.toDouble();
+    }
+    return null;
   }
 
   int _asInt(Object? value) {

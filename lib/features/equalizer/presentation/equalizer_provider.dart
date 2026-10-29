@@ -7,6 +7,7 @@ import 'package:koyze/core/audio/audio_handler.dart';
 import 'package:koyze/core/audio/equalizer_bridge.dart';
 import 'package:koyze/core/state/buildless_notifier.dart';
 import 'package:koyze/core/storage/storage_service.dart';
+import 'package:koyze/features/equalizer/domain/autoeq.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_preset.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_settings.dart';
 
@@ -199,6 +200,23 @@ class EqualizerNotifier extends BuildlessNotifier<EqualizerState> {
 
   /// 复位成原声（保留总开关）。
   Future<void> resetToFlat() => selectPreset(kDefaultPresetId);
+
+  /// 导入 AutoEQ 文件（ParametricEQ.txt / GraphicEQ.txt）。
+  ///
+  /// 返回 false 表示文件里没有可识别的滤波器或采样点——这时宁可直接报错，
+  /// 也不要悄悄换成一条平直的曲线，让用户以为导入成功了。
+  Future<bool> importAutoEq(String content, {required String name}) async {
+    final profile = parseAutoEq(content, name: name);
+    if (profile == null || profile.curve.length < 2) return false;
+    await _commit(
+      value.settings.copyWith(
+        presetId: kAutoEqPresetId,
+        autoEqName: profile.name,
+        autoEqCurve: profile.curve,
+      ),
+    );
+    return true;
+  }
 
   /// 重新读取设备频段布局。播放器刚激活时用得上。
   Future<void> refreshLayout() => _refreshLayout();

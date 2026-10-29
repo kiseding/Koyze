@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/storage/storage_service.dart';
+import '../../../core/text/artist_names.dart';
 
 /// 单条播放事件。
 class PlayHistoryEntry {
@@ -307,7 +308,11 @@ class PlayHistoryStore extends ChangeNotifier {
     final grouped = <String, List<PlayHistoryEntry>>{};
     for (final e in entriesIn(range, now: now)) {
       if (e.artistName.isEmpty) continue;
-      grouped.putIfAbsent(e.artistName, () => []).add(e);
+      // 合唱曲目按人拆分：一首「A; B」应该给两位歌手各记一次，
+      // 否则年度报告里会出现一条「A; B」的假歌手。
+      for (final name in artistNamesOf(e.artistName)) {
+        grouped.putIfAbsent(name, () => []).add(e);
+      }
     }
     final items = grouped.entries.map((g) {
       final uniqueSongs = g.value.map((e) => e.songId).toSet().length;

@@ -25,6 +25,7 @@ import 'package:koyze/features/download/presentation/download_provider.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/settings/presentation/settings_provider.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
+import 'package:koyze/features/player/presentation/precache_provider.dart';
 import 'package:koyze/features/player/presentation/lock_screen_sync.dart';
 import 'package:koyze/features/lyric/presentation/lyric_provider.dart';
 import 'package:audio_session/audio_session.dart';
@@ -628,6 +629,18 @@ Future<void> _bootstrapUnsafe(
                 );
                 return localUrl;
               }
+              // 网络电台自带完整直链，没有「音源」可查：直接交给播放器。
+              // 注意 extras['url'] 在进解析器前就被剥掉了，直链实际来自 meta。
+              if (musicItem.source == 'radio' ||
+                  musicItem.meta?['radio'] == true) {
+                final stream =
+                    musicItem.meta?['streamUrl']?.toString() ??
+                    musicItem.url ??
+                    '';
+                if (stream.isNotEmpty) return stream;
+                debugPrint('[urlResolver] 电台缺少直链: id=$mediaId');
+                return null;
+              }
               debugPrint(
                 '[urlResolver] 歌曲信息: platform=${musicItem.platform}, source=${musicItem.source}, songmid=${musicItem.songmid}',
               );
@@ -696,6 +709,21 @@ Future<void> _bootstrapUnsafe(
           lxHandler.onError = (message) {
             container.read(playerMessageProvider.notifier).state = message;
           };
+
+          // 常听预缓存要复用同一条解析链（音源服务 + 播放缓存都在这里装配），
+          // 所以把解析器接进 provider 侧的可写钩子。租约用完即释放：预取的
+          // 目的是把文件留在缓存目录里，而不是长期占住它。
+          container.read(playbackPrewarmProvider).wire((
+            song, {
+            required quality,
+          }) async {
+            final resolution = await playbackResolver.resolve(
+              song,
+              preferredQuality: quality,
+            );
+            await resolution?.leaseOrNull?.release();
+            return resolution?.playableUrl;
+          });
         }
 
         // 恢复上次播放会话：默认只加载队列并暂停，自动恢复由设置控制。
@@ -714,6 +742,9 @@ Future<void> _bootstrapUnsafe(
           final lockScreenSync = LockScreenSyncService(
             lxHandler,
             currentLyricLine: () {
+              // 与「锁屏歌词」开关保持同一条规则，否则关掉开关后小组件仍在
+              // 显示歌词，用户会以为设置没生效。
+              if (!container.read(lockScreenLyricEnabledProvider)) return '';
               final lyrics = container.read(currentLyricLoadProvider).lyrics;
               return lyrics.getCurrentLine(lxHandler.player.position)?.text ??
                   '';

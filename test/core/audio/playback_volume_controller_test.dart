@@ -90,4 +90,62 @@ void main() {
       expect(duckedPlaybackVolumeFactor, greaterThan(0.0));
     });
   });
+
+  group('PlaybackVolumeController gains', () {
+    test('track gain scales the effective volume only', () {
+      final controller = PlaybackVolumeController()..apply(0.5);
+
+      controller.setTrackGain(1.5);
+
+      expect(controller.volume, closeTo(0.5, 1e-9));
+      expect(controller.trackGain, closeTo(1.5, 1e-9));
+      expect(controller.effectiveVolume, closeTo(0.75, 1e-9));
+    });
+
+    test('track gain is clamped to a sane range', () {
+      final controller = PlaybackVolumeController();
+      controller.setTrackGain(-3);
+      expect(controller.trackGain, 0.5);
+      controller.setTrackGain(20);
+      expect(controller.trackGain, 2.0);
+      controller.setTrackGain(double.nan);
+      expect(controller.trackGain, 1.0);
+    });
+
+    test('temporary gain fades to silence and back', () {
+      final controller = PlaybackVolumeController()..apply(0.8);
+
+      controller.setTemporaryGain(0.25);
+      expect(controller.effectiveVolume, closeTo(0.2, 1e-9));
+
+      controller.setTemporaryGain(0);
+      expect(controller.effectiveVolume, 0);
+
+      controller.clearTemporaryGain();
+      expect(controller.effectiveVolume, closeTo(0.8, 1e-9));
+      // 渐弱不应篡改用户设定。
+      expect(controller.volume, closeTo(0.8, 1e-9));
+    });
+
+    test('gains, ducking and the user volume compose multiplicatively', () {
+      final controller = PlaybackVolumeController()..apply(1.0);
+      controller.setTrackGain(0.5);
+      controller.setTemporaryGain(0.5);
+      controller.duck();
+
+      expect(
+        controller.effectiveVolume,
+        closeTo(0.5 * 0.5 * duckedPlaybackVolumeFactor, 1e-9),
+      );
+    });
+
+    test(
+      'effective volume never exceeds 1 even with a positive track gain',
+      () {
+        final controller = PlaybackVolumeController()..apply(0.9);
+        controller.setTrackGain(2.0);
+        expect(controller.effectiveVolume, 1.0);
+      },
+    );
+  });
 }

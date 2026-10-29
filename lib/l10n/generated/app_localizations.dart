@@ -1532,12 +1532,6 @@ abstract class AppLocalizations {
   /// **'Close'**
   String get close;
 
-  /// No description provided for @add.
-  ///
-  /// In en, this message translates to:
-  /// **'Add'**
-  String get add;
-
   /// No description provided for @pause.
   ///
   /// In en, this message translates to:
@@ -4597,6 +4591,390 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recommendations reset'**
   String get recommendTuningCleared;
+
+  /// No description provided for @playbackSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback speed'**
+  String get playbackSpeed;
+
+  /// No description provided for @untilTrackEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'After this track'**
+  String get untilTrackEnd;
+
+  /// No description provided for @untilTrackEndNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Pauses after this track'**
+  String get untilTrackEndNote;
+
+  /// No description provided for @fadeOutBeforeStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Fade out before stopping'**
+  String get fadeOutBeforeStop;
+
+  /// No description provided for @fadeOutBeforeStopHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Gently fades over the last 10 seconds'**
+  String get fadeOutBeforeStopHint;
+
+  /// No description provided for @queueEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit queue'**
+  String get queueEditTitle;
+
+  /// No description provided for @playNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Play next'**
+  String get playNext;
+
+  /// No description provided for @removeFromQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from queue'**
+  String get removeFromQueue;
+
+  /// No description provided for @scanRules.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan rules'**
+  String get scanRules;
+
+  /// No description provided for @scanRulesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter by duration, size and duplicates'**
+  String get scanRulesSubtitle;
+
+  /// No description provided for @scanRulesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to future scans; nothing is deleted'**
+  String get scanRulesHint;
+
+  /// No description provided for @scanRuleNoLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'No limit'**
+  String get scanRuleNoLimit;
+
+  /// No description provided for @scanRuleMinDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimum duration'**
+  String get scanRuleMinDuration;
+
+  /// No description provided for @scanRuleMinSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimum size'**
+  String get scanRuleMinSize;
+
+  /// No description provided for @scanRuleSkipDuplicates.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip duplicates'**
+  String get scanRuleSkipDuplicates;
+
+  /// No description provided for @scanRuleSkipDuplicatesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Same title, artist and length keeps the largest file'**
+  String get scanRuleSkipDuplicatesHint;
+
+  /// No description provided for @scanRuleExcludedFolders.
+  ///
+  /// In en, this message translates to:
+  /// **'Excluded folders'**
+  String get scanRuleExcludedFolders;
+
+  /// No description provided for @scanRuleAddFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Add excluded folder'**
+  String get scanRuleAddFolder;
+
+  /// No description provided for @scanRuleFolderHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Full path'**
+  String get scanRuleFolderHint;
+
+  /// No description provided for @scanRuleNoExcludedFolders.
+  ///
+  /// In en, this message translates to:
+  /// **'No folder excluded yet'**
+  String get scanRuleNoExcludedFolders;
+
+  /// No description provided for @scanRuleRescanHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Takes effect on the next scan'**
+  String get scanRuleRescanHint;
+
+  /// No description provided for @savingNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get savingNow;
+
+  /// No description provided for @secondsShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} s'**
+  String secondsShort(int n);
+
+  /// No description provided for @resetSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset settings'**
+  String get resetSettings;
+
+  /// No description provided for @resetSettingsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Clears preferences, keeps accounts and library'**
+  String get resetSettingsSubtitle;
+
+  /// No description provided for @resetSettingsConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'All preferences return to their defaults. Accounts, NAS, playlists, history and the local library index are kept.'**
+  String get resetSettingsConfirm;
+
+  /// No description provided for @resetSettingsAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get resetSettingsAction;
+
+  /// No description provided for @resetSettingsDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset {count} settings'**
+  String resetSettingsDone(int count);
+
+  /// No description provided for @resetSettingsFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset failed: {error}'**
+  String resetSettingsFailed(String error);
+
+  /// No description provided for @autoEqImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import AutoEQ'**
+  String get autoEqImport;
+
+  /// No description provided for @autoEqImported.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported {name}'**
+  String autoEqImported(String name);
+
+  /// No description provided for @autoEqImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'No AutoEQ curve found in this file'**
+  String get autoEqImportFailed;
+
+  /// No description provided for @replayGain.
+  ///
+  /// In en, this message translates to:
+  /// **'Loudness normalisation'**
+  String get replayGain;
+
+  /// No description provided for @replayGainSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Levels album volume using ReplayGain tags'**
+  String get replayGainSubtitle;
+
+  /// No description provided for @lockScreenLyric.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock screen lyrics'**
+  String get lockScreenLyric;
+
+  /// No description provided for @lockScreenLyricSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Shows the current line on the lock screen'**
+  String get lockScreenLyricSubtitle;
+
+  /// No description provided for @lyricShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share lyric card'**
+  String get lyricShare;
+
+  /// No description provided for @lyricShareNoLine.
+  ///
+  /// In en, this message translates to:
+  /// **'No lyrics for this track yet'**
+  String get lyricShareNoLine;
+
+  /// No description provided for @lyricShareSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save image'**
+  String get lyricShareSave;
+
+  /// No description provided for @lyricShareSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyric card saved'**
+  String get lyricShareSaved;
+
+  /// No description provided for @lyricShareFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Save failed: {error}'**
+  String lyricShareFailed(String error);
+
+  /// No description provided for @smartPlaylists.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart playlists'**
+  String get smartPlaylists;
+
+  /// No description provided for @smartPlaylistsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Built from rules, nothing to maintain by hand'**
+  String get smartPlaylistsSubtitle;
+
+  /// No description provided for @smartRecentlyAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently added'**
+  String get smartRecentlyAdded;
+
+  /// No description provided for @smartRecentlyAddedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Newest tracks in your library'**
+  String get smartRecentlyAddedHint;
+
+  /// No description provided for @smartMostPlayed.
+  ///
+  /// In en, this message translates to:
+  /// **'Most played'**
+  String get smartMostPlayed;
+
+  /// No description provided for @smartMostPlayedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Sorted by play count'**
+  String get smartMostPlayedHint;
+
+  /// No description provided for @smartNeverPlayed.
+  ///
+  /// In en, this message translates to:
+  /// **'Never played'**
+  String get smartNeverPlayed;
+
+  /// No description provided for @smartNeverPlayedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'In your library but never played'**
+  String get smartNeverPlayedHint;
+
+  /// No description provided for @smartFavoritesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your liked songs'**
+  String get smartFavoritesHint;
+
+  /// No description provided for @smartEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No songs match this rule yet'**
+  String get smartEmpty;
+
+  /// No description provided for @smartSongCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} songs'**
+  String smartSongCount(int n);
+
+  /// No description provided for @radio.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio'**
+  String get radio;
+
+  /// No description provided for @radioSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Public stations from Radio Browser'**
+  String get radioSubtitle;
+
+  /// No description provided for @radioSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search stations or genres'**
+  String get radioSearchHint;
+
+  /// No description provided for @radioPopular.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular'**
+  String get radioPopular;
+
+  /// No description provided for @radioLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Live'**
+  String get radioLive;
+
+  /// No description provided for @radioEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No stations found'**
+  String get radioEmpty;
+
+  /// No description provided for @radioFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load stations'**
+  String get radioFailed;
+
+  /// No description provided for @precacheRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-cache frequent tracks'**
+  String get precacheRecent;
+
+  /// No description provided for @precacheRecentSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fetches your most played tracks on Wi-Fi so they start instantly'**
+  String get precacheRecentSubtitle;
+
+  /// No description provided for @precacheCount.
+  ///
+  /// In en, this message translates to:
+  /// **'How many to pre-cache'**
+  String get precacheCount;
+
+  /// No description provided for @precacheCountValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} tracks'**
+  String precacheCountValue(int n);
+
+  /// No description provided for @add.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get add;
 }
 
 class _AppLocalizationsDelegate

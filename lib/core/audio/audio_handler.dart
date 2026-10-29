@@ -548,11 +548,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // The exact-slot patch creates a new immutable MediaItem; retain it as the
     // request identity so the subsequent source commit targets this occurrence.
     request.item = _queue[index];
-    _leases.stage(
-      request.occurrenceId,
-      resolution,
-      claimLease: true,
-    );
+    _leases.stage(request.occurrenceId, resolution, claimLease: true);
     return true;
   }
 
@@ -593,11 +589,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       return false;
     }
     request.item = _queue[index];
-    _leases.stage(
-      request.occurrenceId,
-      resolution,
-      claimLease: false,
-    );
+    _leases.stage(request.occurrenceId, resolution, claimLease: false);
     return true;
   }
 
@@ -778,6 +770,41 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// App-level loudness. Reapplied when the native player is rebuilt.
   void applyPlaybackVolume(double volume) => _volume.apply(volume);
+
+  /// 当前曲目的响度补偿（ReplayGain）。1 表示不调整。
+  void applyTrackGain(double gain) => _volume.setTrackGain(gain);
+
+  /// 睡眠定时渐弱用的一次性衰减；不影响用户音量。
+  void applyTemporaryGain(double gain) => _volume.setTemporaryGain(gain);
+
+  void clearTemporaryGain() => _volume.clearTemporaryGain();
+
+  /// 播放倍速。取值范围 0.5~2.0，非法值回落 1.0。
+  ///
+  /// 只改原生播放器的速率，不改我们自己的播放状态机：`speed` 在
+  /// `playbackState` 里是从引擎读回来的，写进去反而会覆盖引擎的真实速率。
+  double _playbackSpeed = 1.0;
+
+  double get playbackSpeed => _playbackSpeed;
+
+  Future<void> setPlaybackSpeed(double speed) async {
+    final next = speed.isFinite ? speed.clamp(0.5, 2.0).toDouble() : 1.0;
+    _playbackSpeed = next;
+    await _applySpeedToPlayer();
+  }
+
+  Future<void> _applySpeedToPlayer() async {
+    try {
+      await _player.setSpeed(_playbackSpeed);
+    } catch (error, stackTrace) {
+      AppLog.instance.record(
+        'audio.speed',
+        'setSpeed($_playbackSpeed) failed: $error',
+        level: AppLogLevel.info,
+        stackTrace: stackTrace,
+      );
+    }
+  }
 
   /// Lowers playback while another app plays, without changing user volume.
   void duckPlaybackVolume() => _volume.duck();
@@ -1321,6 +1348,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // 新播放器带的是新注入的均衡器音效，期望状态需要重新施加一次。
     _equalizer.bindPlayer(_player);
     _volume.bindPlayer(_player);
+    if (_playbackSpeed != 1.0) {
+      unawaited(_applySpeedToPlayer());
+    }
     _init();
     _playerSubject.add(_player);
     _publishPlaybackState(
@@ -3474,12 +3504,20 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       try {
         await _commands.reconcilePlayingIntent();
       } catch (error) {
-        AppLog.instance.record('audio.recovery', 'reconcilePlayingIntent failed while restoring queue position: $error', level: AppLogLevel.warning);
+        AppLog.instance.record(
+          'audio.recovery',
+          'reconcilePlayingIntent failed while restoring queue position: $error',
+          level: AppLogLevel.warning,
+        );
       }
       try {
         await _player.play();
       } catch (error) {
-        AppLog.instance.record('audio.recovery', 'resume play after queue restore failed: $error', level: AppLogLevel.warning);
+        AppLog.instance.record(
+          'audio.recovery',
+          'resume play after queue restore failed: $error',
+          level: AppLogLevel.warning,
+        );
       }
       _publishPlaybackState();
     }

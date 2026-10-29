@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +9,7 @@ import 'package:koyze/core/theme/app_colors.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/widgets/fx_icon_button.dart';
 import 'package:koyze/core/widgets/fx_switch.dart';
+import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/core/widgets/gradient_bar_backgrounds.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_preset.dart';
 import 'package:koyze/features/equalizer/presentation/equalizer_provider.dart';
@@ -29,6 +34,43 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
       if (!mounted) return;
       ref.read(equalizerProvider.notifier).refreshLayout();
     });
+  }
+
+  /// 导入 AutoEQ 文件。支持 ParametricEQ.txt 与 GraphicEQ.txt 两种导出。
+  Future<void> _importAutoEq() async {
+    final s = S.of(context);
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['txt', 'csv', 'eq'],
+        withData: true,
+      );
+      final file = result?.files.single;
+      if (file == null) return;
+      String content;
+      final bytes = file.bytes;
+      if (bytes != null) {
+        content = utf8.decode(bytes, allowMalformed: true);
+      } else if (file.path != null) {
+        content = await File(file.path!).readAsString();
+      } else {
+        return;
+      }
+      final ok = await ref
+          .read(equalizerProvider.notifier)
+          .importAutoEq(content, name: file.name);
+      if (!mounted) return;
+      showAppNotification(
+        ok ? s.autoEqImported(file.name) : s.autoEqImportFailed,
+        type: ok ? AppNotificationType.success : AppNotificationType.error,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showAppNotification(
+        s.autoEqImportFailed,
+        type: AppNotificationType.error,
+      );
+    }
   }
 
   @override
@@ -62,6 +104,15 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
             ),
           ),
           actions: [
+            IconButton(
+              tooltip: S.of(context).autoEqImport,
+              onPressed: state.supported ? () => _importAutoEq() : null,
+              icon: Icon(
+                Icons.file_open_outlined,
+                size: 20,
+                color: AppColors.onScaffold(context),
+              ),
+            ),
             TextButton.icon(
               onPressed: state.supported
                   ? () => ref.read(equalizerProvider.notifier).resetToFlat()

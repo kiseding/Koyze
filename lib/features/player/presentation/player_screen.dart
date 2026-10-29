@@ -31,14 +31,22 @@ import '../../playlist/presentation/playlist_picker.dart';
 import '../../playlist/data/playlist_repository.dart';
 import '../../download/presentation/download_provider.dart';
 import '../../settings/presentation/settings_provider.dart'
-    show playerBackdropBlurProvider, playerBackdropScrimProvider;
+    show
+        playerBackdropBlurProvider,
+        playerBackdropScrimProvider,
+        playbackSpeedProvider,
+        kPlaybackSpeedSteps,
+        playbackSpeedLabel,
+        normalizePlaybackSpeed;
 import '../../lyric/presentation/lyric_view.dart';
 import '../../lyric/presentation/lyric_provider.dart';
+import '../../lyric/presentation/lyric_share_card.dart';
 import '../../home/presentation/widgets/mini_bar.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
 import 'widgets/player_progress_bar.dart';
 import 'widgets/player_volume_button.dart';
+import 'queue_edit_sheet.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../core/logging/app_log.dart';
 
@@ -2161,10 +2169,112 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 }
               },
             ),
+            KoyzeSheetAction(
+              icon: Icons.share_rounded,
+              label: S.of(context).lyricShare,
+              onTap: () {
+                Navigator.pop(context);
+                showLyricShareSheet(context, ref);
+              },
+            ),
+            KoyzeSheetAction(
+              icon: Icons.speed_rounded,
+              label:
+                  '${S.of(context).playbackSpeed} · '
+                  '${playbackSpeedLabel(ref.watch(playbackSpeedProvider))}',
+              onTap: () {
+                Navigator.pop(context);
+                _showSpeedSheet(context);
+              },
+            ),
             const SizedBox(height: 10),
           ],
         ),
       ),
+    );
+  }
+
+  /// 倍速选择面板。只列固定档位，不做滑块：用户要的是「调到 1.5」，
+  /// 不是「大概是 1.47」。
+  void _showSpeedSheet(BuildContext context) {
+    showKoyzeSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.speed_rounded,
+                    color: AppColors.accentOf(context),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    S.of(context).playbackSpeed,
+                    style: TextStyle(
+                      color: AppColors.onScaffold(context),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            for (final step in kPlaybackSpeedSteps)
+              _SpeedTile(
+                speed: step,
+                selected:
+                    normalizePlaybackSpeed(ref.watch(playbackSpeedProvider)) ==
+                    step,
+                onTap: () {
+                  ref.read(playbackSpeedProvider.notifier).setSpeed(step);
+                  Navigator.pop(context);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 倍速面板的一行。选中的档位用强调色 + 勾，不靠颜色单独区分。
+class _SpeedTile extends StatelessWidget {
+  const _SpeedTile({
+    required this.speed,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final double speed;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      dense: true,
+      minTileHeight: 48,
+      onTap: onTap,
+      title: Text(
+        playbackSpeedLabel(speed),
+        style: TextStyle(
+          color: selected
+              ? AppColors.accentOf(context)
+              : AppColors.onScaffold(context),
+          fontSize: 15,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+      trailing: selected
+          ? Icon(Icons.check_rounded, color: AppColors.accentOf(context))
+          : null,
     );
   }
 }
@@ -2574,6 +2684,17 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                const Spacer(),
+                if (widget.queue.length > 1)
+                  TextButton.icon(
+                    onPressed: () => showQueueEditSheet(context),
+                    icon: const Icon(Icons.swap_vert_rounded, size: 18),
+                    label: Text(S.of(context).edit),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.accentOf(context),
+                      textStyle: const TextStyle(fontSize: 13),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -2773,10 +2894,7 @@ class _PlayerCoverBackdropState extends ConsumerState<_PlayerCoverBackdrop>
       parent: _controller,
       curve: MotionCurve.iosSpring,
     );
-    final current = PlayerBackdropArtwork(
-      artwork: _currentArtwork,
-      blur: blur,
-    );
+    final current = PlayerBackdropArtwork(artwork: _currentArtwork, blur: blur);
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,

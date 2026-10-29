@@ -726,9 +726,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get close => '关闭';
 
   @override
-  String get add => '添加';
-
-  @override
   String get pause => '暂停';
 
   @override
@@ -2464,4 +2461,210 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get recommendTuningCleared => '已恢复默认推荐';
+
+  @override
+  String get playbackSpeed => '播放速度';
+
+  @override
+  String get untilTrackEnd => '播完当前歌曲';
+
+  @override
+  String get untilTrackEndNote => '播完这首就暂停';
+
+  @override
+  String get fadeOutBeforeStop => '结束前渐弱';
+
+  @override
+  String get fadeOutBeforeStopHint => '最后 10 秒慢慢变小，不会突然静音';
+
+  @override
+  String get queueEditTitle => '编辑播放队列';
+
+  @override
+  String get playNext => '下一首播放';
+
+  @override
+  String get removeFromQueue => '从播放队列移除';
+
+  @override
+  String get scanRules => '扫描规则';
+
+  @override
+  String get scanRulesSubtitle => '过滤时长、体积与重复曲目';
+
+  @override
+  String get scanRulesHint => '只影响之后的扫描，不会删除已入库的歌';
+
+  @override
+  String get scanRuleNoLimit => '不限';
+
+  @override
+  String get scanRuleMinDuration => '最小时长';
+
+  @override
+  String get scanRuleMinSize => '最小体积';
+
+  @override
+  String get scanRuleSkipDuplicates => '跳过重复曲目';
+
+  @override
+  String get scanRuleSkipDuplicatesHint => '同标题、歌手、时长只保留体积最大的一份';
+
+  @override
+  String get scanRuleExcludedFolders => '排除的文件夹';
+
+  @override
+  String get scanRuleAddFolder => '添加排除文件夹';
+
+  @override
+  String get scanRuleFolderHint => '输入完整路径';
+
+  @override
+  String get scanRuleNoExcludedFolders => '还没有排除任何文件夹';
+
+  @override
+  String get scanRuleRescanHint => '改动会在下次扫描时生效';
+
+  @override
+  String get savingNow => '正在保存…';
+
+  @override
+  String secondsShort(int n) {
+    return '$n 秒';
+  }
+
+  @override
+  String get resetSettings => '恢复默认设置';
+
+  @override
+  String get resetSettingsSubtitle => '清空偏好项，保留账号与本地库';
+
+  @override
+  String get resetSettingsConfirm => '将把所有偏好设置恢复为默认值。账号、NAS、歌单、播放历史与本地库索引会保留。';
+
+  @override
+  String get resetSettingsAction => '恢复默认';
+
+  @override
+  String resetSettingsDone(int count) {
+    return '已恢复 $count 项设置';
+  }
+
+  @override
+  String resetSettingsFailed(String error) {
+    return '恢复失败：$error';
+  }
+
+  @override
+  String get autoEqImport => '导入 AutoEQ';
+
+  @override
+  String autoEqImported(String name) {
+    return '已导入 $name';
+  }
+
+  @override
+  String get autoEqImportFailed => '这个文件里没有可识别的 AutoEQ 曲线';
+
+  @override
+  String get replayGain => '响度均衡';
+
+  @override
+  String get replayGainSubtitle => '按 ReplayGain 标签拉平不同专辑的音量';
+
+  @override
+  String get lockScreenLyric => '锁屏歌词';
+
+  @override
+  String get lockScreenLyricSubtitle => '在锁屏与通知栏显示当前歌词行';
+
+  @override
+  String get lyricShare => '分享歌词卡片';
+
+  @override
+  String get lyricShareNoLine => '这首歌还没有歌词';
+
+  @override
+  String get lyricShareSave => '保存图片';
+
+  @override
+  String get lyricShareSaved => '歌词卡片已保存';
+
+  @override
+  String lyricShareFailed(String error) {
+    return '保存失败：$error';
+  }
+
+  @override
+  String get smartPlaylists => '智能歌单';
+
+  @override
+  String get smartPlaylistsSubtitle => '按规则自动整理，不需要手动维护';
+
+  @override
+  String get smartRecentlyAdded => '最近添加';
+
+  @override
+  String get smartRecentlyAddedHint => '最新入库的歌曲';
+
+  @override
+  String get smartMostPlayed => '最常播放';
+
+  @override
+  String get smartMostPlayedHint => '按播放次数排序';
+
+  @override
+  String get smartNeverPlayed => '从未播放';
+
+  @override
+  String get smartNeverPlayedHint => '入库后一直没听过的歌曲';
+
+  @override
+  String get smartFavoritesHint => '我喜欢的音乐';
+
+  @override
+  String get smartEmpty => '这个规则暂时没有歌曲';
+
+  @override
+  String smartSongCount(int n) {
+    return '$n 首';
+  }
+
+  @override
+  String get radio => '网络电台';
+
+  @override
+  String get radioSubtitle => 'Radio Browser 上的公开电台';
+
+  @override
+  String get radioSearchHint => '搜索电台或风格';
+
+  @override
+  String get radioPopular => '热门';
+
+  @override
+  String get radioLive => '直播';
+
+  @override
+  String get radioEmpty => '没有找到电台';
+
+  @override
+  String get radioFailed => '电台列表加载失败';
+
+  @override
+  String get precacheRecent => '常听预缓存';
+
+  @override
+  String get precacheRecentSubtitle => '在 Wi-Fi 下提前取回常听歌曲，点开即播';
+
+  @override
+  String get precacheCount => '预缓存数量';
+
+  @override
+  String precacheCountValue(int n) {
+    return '$n 首';
+  }
+
+  @override
+  String get add => '添加';
 }

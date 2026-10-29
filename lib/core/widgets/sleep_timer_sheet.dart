@@ -22,6 +22,8 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
         final s = S.of(context);
         final accent = AppColors.accentOf(context);
         final running = state is SleepTimerRunning;
+        final untilTrackEnd = state is SleepTimerUntilTrackEnd;
+        final fadeOut = ref.watch(sleepTimerFadeProvider);
         const options = [10, 15, 30, 60, 90];
         return SafeArea(
           top: false,
@@ -41,6 +43,23 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
                       ),
                 onClose: () => Navigator.pop(context),
               ),
+              KoyzeSheetAction(
+                icon: Icons.music_note_rounded,
+                label: s.untilTrackEnd,
+                trailing: untilTrackEnd
+                    ? Icon(Icons.check_rounded, size: 20, color: accent)
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  ref
+                      .read(sleepTimerProvider.notifier)
+                      .startUntilTrackEnd(fadeOut: fadeOut);
+                  showAppNotification(
+                    s.untilTrackEndNote,
+                    type: AppNotificationType.success,
+                  );
+                },
+              ),
               for (final minutes in options)
                 KoyzeSheetAction(
                   icon: Icons.timer_outlined,
@@ -54,14 +73,37 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
                     Navigator.pop(context);
                     ref
                         .read(sleepTimerProvider.notifier)
-                        .startTimer(Duration(minutes: minutes));
+                        .startTimer(
+                          Duration(minutes: minutes),
+                          fadeOut: fadeOut,
+                        );
                     showAppNotification(
                       s.stopsInMinutes(minutes),
                       type: AppNotificationType.success,
                     );
                   },
                 ),
-              if (running)
+              SwitchListTile.adaptive(
+                dense: true,
+                value: fadeOut,
+                onChanged: (value) =>
+                    ref.read(sleepTimerFadeProvider.notifier).state = value,
+                title: Text(
+                  s.fadeOutBeforeStop,
+                  style: TextStyle(
+                    color: AppColors.onScaffold(context),
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  s.fadeOutBeforeStopHint,
+                  style: TextStyle(
+                    color: AppColors.mutedText(context),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              if (running || untilTrackEnd)
                 KoyzeSheetAction(
                   icon: Icons.timer_off_outlined,
                   label: s.cancelSleepTimer,
@@ -96,6 +138,9 @@ String sleepTimerSubtitle(SleepTimerState state, {Locale? locale}) {
     return en
         ? 'Stops in ${minutes}m ${seconds}s'
         : '$minutes 分$seconds 秒后停止播放';
+  }
+  if (state is SleepTimerUntilTrackEnd) {
+    return en ? 'Stops after this track' : '播完当前歌曲后停止';
   }
   if (state case SleepTimerFailed()) {
     return en ? 'Last stop failed' : '上次停止播放失败';
