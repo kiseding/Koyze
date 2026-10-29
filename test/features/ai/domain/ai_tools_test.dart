@@ -82,6 +82,22 @@ void main() {
     expect((result['songs'] as List).first['title'], '晴天');
   });
 
+  test('source_status 先等脚本加载完成再读，不会把列表读成空', () async {
+    final fakes = ToolFakes();
+
+    final result = await run(fakes.toolbox(), AiToolbox.sourceStatus);
+
+    expect(fakes.sources.ensureLoadedCalls, 1);
+    expect(result['sources'], hasLength(2));
+  });
+
+  test('系统提示里带上音源启用概况，模型不用先问一次', () async {
+    final fakes = ToolFakes();
+
+    // 两个脚本里只有一个启用。
+    expect(fakes.toolbox().stateLine, contains('音源 1/2 启用'));
+  });
+
   test('source_status reports the last check per script', () async {
     final fakes = ToolFakes();
     fakes.sources.book = checkedBook();

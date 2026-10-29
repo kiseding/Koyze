@@ -326,8 +326,14 @@ class FakeSources implements AiSourcePort {
 
   SourceCheckBook book;
 
+  /// 记下有多少个工具在查脚本之前等过加载。
+  int ensureLoadedCalls = 0;
+
   @override
   List<CustomSource> get sources => items;
+
+  @override
+  Future<void> ensureLoaded() async => ensureLoadedCalls++;
 
   @override
   SourceCheckBook get checkBook => book;

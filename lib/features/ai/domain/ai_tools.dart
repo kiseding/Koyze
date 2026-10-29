@@ -197,7 +197,19 @@ class AiToolbox {
       '队列 ${playback.queue.length} 首',
       if (playback.sleepTimerRemaining case final remaining?)
         '睡眠定时 ${(remaining.inSeconds / 60).ceil()} 分钟后',
+      _sourceLine,
     ].join('，');
+  }
+
+  /// 音源概况。写进系统提示，模型不必为「能不能播」每次都调一次工具。
+  ///
+  /// 只读已加载的那一份：这里在拼系统提示，不能等异步；真要看细节仍然
+  /// 走 `source_status`，那条路径会先等加载完成。
+  String get _sourceLine {
+    final list = sources.sources;
+    if (list.isEmpty) return '未导入音源脚本';
+    final enabled = list.where((item) => item.isEnabled).length;
+    return '音源 $enabled/${list.length} 启用';
   }
 
   /// 执行一次调用。失败也返回 JSON（带 `error`），让模型自己重试或换参数。
@@ -897,6 +909,7 @@ class AiToolbox {
   }
 
   Future<Object?> _runSourceStatus(Map<String, dynamic> _) async {
+    await sources.ensureLoaded();
     final book = sources.checkBook;
     return {
       'sources': [
@@ -1337,6 +1350,7 @@ class AiToolbox {
   Future<Object?> _runToggleSource(Map<String, dynamic> args) async {
     final query = (args['source'] ?? '').toString().trim();
     if (query.isEmpty) return {'error': '需要 source'};
+    await sources.ensureLoaded();
     final source = _findSource(query);
     if (source == null) return {'error': '没有找到这个音源脚本'};
     final enabled = args['enabled'] != false;
@@ -1347,6 +1361,7 @@ class AiToolbox {
   }
 
   Future<Object?> _runRunSourceCheck(Map<String, dynamic> args) async {
+    await sources.ensureLoaded();
     final query = (args['source'] ?? '').toString().trim();
     if (query.isEmpty) {
       await sources.runCheck(null);

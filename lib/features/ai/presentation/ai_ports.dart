@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/music_source/platform/music_platform.dart';
 import '../../custom_source/domain/custom_source.dart';
+import '../../custom_source/domain/custom_source_service.dart';
 import '../../custom_source/presentation/custom_source_provider.dart';
 import '../../download/domain/download_service.dart';
 import '../../download/domain/download_task.dart';
@@ -354,10 +355,20 @@ class ProviderAiSourcePort implements AiSourcePort {
   final Ref _ref;
 
   /// 服务层持有的脚本列表是唯一真源，状态 provider 只是它的投影。
-  List<CustomSource> get _sources => _ref.read(customSourcesProvider);
+  ///
+  /// 直接读服务而不是读 provider 的 state：provider 首次 build 时是异步装载
+  /// 的，装载完成之前 state 还是空数组，AI 第一句问「启用了哪些音源」就会
+  /// 拿到 `[]`，然后回一句「没有导入任何音源」。
+  CustomSourceService get _service =>
+      _ref.read(customSourceServiceProvider);
+
+  List<CustomSource> get _sources => _service.sources;
 
   @override
   List<CustomSource> get sources => _sources;
+
+  @override
+  Future<void> ensureLoaded() => _service.init();
 
   @override
   SourceCheckBook get checkBook =>

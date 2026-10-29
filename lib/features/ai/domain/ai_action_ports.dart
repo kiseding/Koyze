@@ -104,6 +104,13 @@ abstract interface class AiSourcePort {
   List<CustomSource> get sources;
   SourceCheckBook get checkBook;
 
+  /// 等脚本列表从磁盘加载完。
+  ///
+  /// 脚本是异步读进来的：界面刚打开、AI 第一次问「现在启用了哪些音源」时，
+  /// 同步读到的那一份可能还是空的，模型于是回一句「没有导入任何音源」，
+  /// 而用户明明开着两个。所有要读脚本的工具都得先等这一步。
+  Future<void> ensureLoaded();
+
   /// 切换单个脚本的启用状态，返回切换后的状态。
   Future<bool> toggle(String id);
 
