@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:koyze/app.dart';
 import 'package:koyze/core/audio/audio_handler.dart';
 import 'package:koyze/core/audio/audio_runtime.dart';
+import 'package:koyze/core/audio/audio_session_config.dart';
 import 'package:koyze/core/audio/playback_cache_service.dart';
 import 'package:koyze/core/logging/app_log.dart';
 import 'package:koyze/core/monitoring/monitoring_service.dart';
@@ -158,13 +159,7 @@ Future<void> _bootstrapUnsafe(
         }
 
         final session = await AudioSession.instance;
-        await session.configure(
-          const AudioSessionConfiguration.music().copyWith(
-            androidAudioFocusGainType:
-                AndroidAudioFocusGainType.gainTransientMayDuck,
-            androidWillPauseWhenDucked: false,
-          ),
-        );
+        await session.configure(musicAudioSessionConfiguration());
         AppLog.instance.record('audio.session', 'audio session configured');
         final lxHandler = LxAudioHandler(
           prepareForPlayback: () async {
