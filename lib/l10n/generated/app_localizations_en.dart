@@ -50,6 +50,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nasServer => 'NAS music server';
 
   @override
+  String get sourcesAndLibrary => 'Sources & library';
+
+  @override
   String get playback => 'Playback';
 
   @override
@@ -141,6 +144,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'One accent builds the whole Material 3 palette';
 
   @override
+  String get playerBackdrop => 'Player background';
+
+  @override
+  String get playerBackdropSubtitle => 'Cover blur and dimming';
+
+  @override
+  String get playerBackdropBlur => 'Background blur';
+
+  @override
+  String get playerBackdropScrim => 'Scrim opacity';
+
+  @override
+  String get playerBackdropPreviewEmpty => 'Nothing playing';
+
+  @override
+  String get resetToDefault => 'Reset to default';
+
+  @override
+  String get general => 'General';
+
+  @override
   String get downloads => 'Downloads';
 
   @override
@@ -163,6 +187,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get data => 'Data';
+
+  @override
+  String get dataAndSync => 'Data & sync';
 
   @override
   String get backup => 'Back up';

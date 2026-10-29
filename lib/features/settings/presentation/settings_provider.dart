@@ -87,6 +87,20 @@ final defaultSearchPlatformProvider =
       DefaultSearchPlatformNotifier.new,
     );
 
+/// 全屏播放页背景的模糊档位（0~100，默认 60）与遮罩不透明度（0~1，默认 0.8）。
+///
+/// 存的是用户档位而不是生效值：性能模式仍会在其上缩放，见
+/// `GlassEffectConfig.playerBackdropBlurFor`。
+final playerBackdropBlurProvider =
+    NotifierProvider<PlayerBackdropBlurNotifier, double>(
+      PlayerBackdropBlurNotifier.new,
+    );
+
+final playerBackdropScrimProvider =
+    NotifierProvider<PlayerBackdropScrimNotifier, double>(
+      PlayerBackdropScrimNotifier.new,
+    );
+
 final cacheMaintenanceProvider = Provider<CacheMaintenanceService>((ref) {
   return CacheMaintenanceService();
 });

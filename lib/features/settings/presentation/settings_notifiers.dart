@@ -9,6 +9,7 @@ import '../../../core/storage/persisted_setting.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/theme/app_themes.dart';
 import '../../nas/domain/nas_url.dart';
+import '../../player/domain/player_backdrop.dart';
 import 'settings_provider.dart' show AudioQualityOption, audioQualityToken;
 
 // ---- Notifiers ----
@@ -339,6 +340,118 @@ class SimplifyEffectsNotifier extends _PersistedSettingNotifier<bool> {
       rethrow;
     }
   }
+}
+
+/// 滑杆类设置的公共骨架：值立刻生效，写盘合并到停下之后。
+///
+/// 拖动一次滑块会回调几十上百次 `onChanged`，每次都写一遍 SharedPreferences
+/// 既浪费又会让磁盘队列堆积。这里沿用音量的做法——内存值同步更新（界面跟手），
+/// 落盘延后 [_writeDelay]，期间只保留最后一次；页面销毁时把还没落盘的那次补上。
+abstract class _SliderSettingNotifier
+    extends _PersistedSettingNotifier<double> {
+  _SliderSettingNotifier(super.initialValue, {super.storage}) {
+    startLoad();
+  }
+
+  static const Duration _writeDelay = Duration(milliseconds: 120);
+
+  Timer? _persistTimer;
+  double? _pending;
+
+  /// 把越界值拉回合法区间。子类决定区间。
+  double normalize(double value);
+
+  /// 真正写盘。子类提供存储键。
+  Future<bool> writeValue(StorageService storage, double value);
+
+  @override
+  void onTeardown() => flush();
+
+  /// 立即生效、延迟落盘。
+  void applyLive(double value) {
+    final next = normalize(value);
+    setting.applyCommitted(next);
+    _mirrorState();
+    _pending = next;
+    _persistTimer?.cancel();
+    _persistTimer = Timer(_writeDelay, flush);
+  }
+
+  /// 把还在等待的那次写入立刻发出去。
+  ///
+  /// 面板关掉、页面销毁、测试想跳过 120ms 的等待时都走这里。
+  void flush() {
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    final pending = _pending;
+    _pending = null;
+    if (pending == null) return;
+    unawaited(
+      persist(
+        pending,
+        (storage) => writeValue(storage, pending),
+      ).catchError((_) => false),
+    );
+  }
+
+  /// 恢复出厂档位，并立刻落盘（不跟手的东西不需要延迟）。
+  Future<void> resetTo(double value) async {
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    _pending = null;
+    final next = normalize(value);
+    await persist(next, (storage) => writeValue(storage, next));
+  }
+}
+
+class PlayerBackdropBlurNotifier extends _SliderSettingNotifier {
+  PlayerBackdropBlurNotifier({StorageLoader? storage})
+    : super(PlayerBackdrop.defaultBlur, storage: storage);
+
+  static const String _storageKey = 'player_backdrop_blur';
+
+  @override
+  double normalize(double value) => PlayerBackdrop.clampBlur(value);
+
+  @override
+  double? readFrom(StorageService storage) {
+    final value = storage.getDouble(_storageKey);
+    return value == null ? null : PlayerBackdrop.clampBlur(value);
+  }
+
+  @override
+  Future<bool> writeValue(StorageService storage, double value) =>
+      storage.setDouble(_storageKey, value);
+
+  /// 拖动中调用：立刻生效，120ms 后落盘。
+  void setBlur(double value) => applyLive(value);
+
+  /// 直接写定（无拖动），例如「恢复默认」。
+  Future<void> commitBlur(double value) => resetTo(value);
+}
+
+class PlayerBackdropScrimNotifier extends _SliderSettingNotifier {
+  PlayerBackdropScrimNotifier({StorageLoader? storage})
+    : super(PlayerBackdrop.defaultScrim, storage: storage);
+
+  static const String _storageKey = 'player_backdrop_scrim';
+
+  @override
+  double normalize(double value) => PlayerBackdrop.clampScrim(value);
+
+  @override
+  double? readFrom(StorageService storage) {
+    final value = storage.getDouble(_storageKey);
+    return value == null ? null : PlayerBackdrop.clampScrim(value);
+  }
+
+  @override
+  Future<bool> writeValue(StorageService storage, double value) =>
+      storage.setDouble(_storageKey, value);
+
+  void setScrim(double value) => applyLive(value);
+
+  Future<void> commitScrim(double value) => resetTo(value);
 }
 
 class DefaultSearchPlatformNotifier extends _PersistedSettingNotifier<String> {

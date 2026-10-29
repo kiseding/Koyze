@@ -20,7 +20,9 @@ import '../../../core/widgets/pressable.dart';
 import '../../../core/widgets/play_pulse_button.dart';
 import '../../../core/network/play_url_result.dart';
 import '../domain/music_item.dart';
+import '../domain/player_backdrop.dart';
 import '../domain/player_service.dart';
+import 'player_backdrop_surface.dart';
 import 'player_provider.dart';
 import 'scrub_session.dart';
 import '../../playlist/presentation/playlist_provider.dart';
@@ -28,6 +30,8 @@ import '../../sync/presentation/sync_phase1_provider.dart';
 import '../../playlist/presentation/playlist_picker.dart';
 import '../../playlist/data/playlist_repository.dart';
 import '../../download/presentation/download_provider.dart';
+import '../../settings/presentation/settings_provider.dart'
+    show playerBackdropBlurProvider, playerBackdropScrimProvider;
 import '../../lyric/presentation/lyric_view.dart';
 import '../../lyric/presentation/lyric_provider.dart';
 import '../../home/presentation/widgets/mini_bar.dart';
@@ -2678,25 +2682,29 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
 
 /// 播放器展开动画中的交错淡入：progress 超过 [delay] 后开始淡入。
 /// 封面/歌名/歌词/进度/按钮各自延迟，形成"各元素有自己的动作"的层次感。
-class _PlayerCoverBackdrop extends StatefulWidget {
+class _PlayerCoverBackdrop extends ConsumerStatefulWidget {
   const _PlayerCoverBackdrop({required this.artwork, required this.songId});
 
   final String? artwork;
   final String? songId;
 
   @override
-  State<_PlayerCoverBackdrop> createState() => _PlayerCoverBackdropState();
+  ConsumerState<_PlayerCoverBackdrop> createState() =>
+      _PlayerCoverBackdropState();
 }
 
-class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
+class _PlayerCoverBackdropState extends ConsumerState<_PlayerCoverBackdrop>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: kFullPlayerArtworkSwitchDuration,
     value: 1,
   );
-  late Widget _current = _cover(widget.artwork);
-  Widget? _previous;
+
+  /// 存的是封面地址而不是已经建好的 Widget：模糊档位可能在下一次构建前
+  /// 就被拖动改变，缓存 Widget 会把旧的 sigma 一起锁在里面。
+  late String? _currentArtwork = widget.artwork;
+  String? _previousArtwork;
   String? _currentKey;
   String? _pendingKey;
 
@@ -2720,53 +2728,24 @@ class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
       try {
         await precacheImage(ArtworkNetworkImage(artwork), context);
       } catch (error) {
-        AppLog.instance.record('player.artwork', 'precaching artwork $artwork failed: $error', level: AppLogLevel.info);
+        AppLog.instance.record(
+          'player.artwork',
+          'precaching artwork $artwork failed: $error',
+          level: AppLogLevel.info,
+        );
       }
     }
     if (!mounted || _pendingKey != nextKey) return;
     setState(() {
-      _previous = _current;
-      _current = _cover(artwork);
+      _previousArtwork = _currentArtwork;
+      _currentArtwork = artwork;
       _currentKey = nextKey;
       _pendingKey = null;
       _controller.value = 0;
     });
     await _controller.forward();
     if (!mounted || _currentKey != nextKey) return;
-    setState(() => _previous = null);
-  }
-
-  Widget _cover(String? artwork) {
-    if (artwork == null || artwork.isEmpty) {
-      return const ColoredBox(color: Colors.transparent);
-    }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final side = constraints.biggest.longestSide;
-        return OverflowBox(
-          alignment: Alignment.center,
-          minWidth: side,
-          maxWidth: side,
-          minHeight: side,
-          maxHeight: side,
-          // 背景不是「稍微虚化的封面」，而应该是一整片从封面里长出来的颜色，
-          // 所以用播放页自己的档位（~50）而不是卡片档的 8。封面同时按 360 宽
-          // 解码再拉满屏，细节在模糊之前就已经没了，也省掉一次全分辨率解码。
-          child: ImageFiltered(
-            imageFilter: AppGlass.liquidFilter(
-              blur: GlassEffectConfig.playerBackdropBlur,
-              saturation: 1.45,
-            ),
-            child: ArtworkImage(
-              artwork,
-              cacheWidth: 360,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-            ),
-          ),
-        );
-      },
-    );
+    setState(() => _previousArtwork = null);
   }
 
   @override
@@ -2778,26 +2757,43 @@ class _PlayerCoverBackdropState extends State<_PlayerCoverBackdrop>
   @override
   Widget build(BuildContext context) {
     // 背景罩层负责把封面极端亮/暗区域压回可读范围；前景文字和图标
-    // 保持各自的主题色，不需要逐个对比度补丁。
+    // 保持各自的主题色，不需要逐个对比度补丁。两档都由设置页暴露，
+    // 因为封面的明暗分布差别太大，一档参数没法同时照顾所有专辑。
+    final blur = PlayerBackdrop.effectiveBlur(
+      ref.watch(playerBackdropBlurProvider),
+    );
     final dim = GlassEffectConfig.playerBackdropScrimFor(
       Theme.of(context).brightness,
+      opacity: PlayerBackdrop.clampScrim(
+        ref.watch(playerBackdropScrimProvider),
+      ),
     );
     final reduced = reduceMotion(context);
     final curved = CurvedAnimation(
       parent: _controller,
       curve: MotionCurve.iosSpring,
     );
+    final current = PlayerBackdropArtwork(
+      artwork: _currentArtwork,
+      blur: blur,
+    );
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
         children: [
           ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
-          if (!reduced && _previous != null)
-            FadeTransition(opacity: ReverseAnimation(curved), child: _previous),
+          if (!reduced && _previousArtwork != null)
+            FadeTransition(
+              opacity: ReverseAnimation(curved),
+              child: PlayerBackdropArtwork(
+                artwork: _previousArtwork,
+                blur: blur,
+              ),
+            ),
           if (reduced)
-            _current
+            current
           else
-            FadeTransition(opacity: curved, child: _current),
+            FadeTransition(opacity: curved, child: current),
           ColoredBox(color: dim),
         ],
       ),

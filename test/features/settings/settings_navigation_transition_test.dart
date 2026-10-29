@@ -55,6 +55,12 @@ void main() {
     );
 
     Future<void> open(String label) async {
+      // 设置页是懒加载列表，靠后的分组在首屏根本没被构建出来；
+      // 先滚到目标行，再按行点击。
+      if (find.text(label).evaluate().isEmpty) {
+        await tester.scrollUntilVisible(find.text(label), 240);
+        await tester.pumpAndSettle();
+      }
       final target = find.text(label).first;
       await Scrollable.ensureVisible(target.evaluate().single, alignment: 0.5);
       await tester.pumpAndSettle();

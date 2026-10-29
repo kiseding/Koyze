@@ -48,6 +48,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get nasServer => 'NAS 音乐服务器';
 
   @override
+  String get sourcesAndLibrary => '音源与本地库';
+
+  @override
   String get playback => '播放';
 
   @override
@@ -132,6 +135,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeColorSubtitle => '由一个强调色生成整套浅色/深色色板';
 
   @override
+  String get playerBackdrop => '全屏播放器背景';
+
+  @override
+  String get playerBackdropSubtitle => '封面的虚化与压暗程度';
+
+  @override
+  String get playerBackdropBlur => '背景模糊';
+
+  @override
+  String get playerBackdropScrim => '遮罩透明度';
+
+  @override
+  String get playerBackdropPreviewEmpty => '没有正在播放的歌曲';
+
+  @override
+  String get resetToDefault => '恢复默认';
+
+  @override
+  String get general => '通用';
+
+  @override
   String get downloads => '下载';
 
   @override
@@ -154,6 +178,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get data => '数据';
+
+  @override
+  String get dataAndSync => '数据与同步';
 
   @override
   String get backup => '备份数据';

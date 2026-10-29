@@ -337,7 +337,8 @@ void main() {
     expect(find.byType(SettingsSearchLayer), findsNothing);
     expect(find.byIcon(Icons.search_rounded), findsOneWidget);
     // 列表还在原处：第一屏那一行没被搜索层带走。
-    expect(find.text('Cloud account'), findsOneWidget);
+    // （用首行做锚点，分组调整不会把它挪出首屏。）
+    expect(find.text('AI assistant'), findsOneWidget);
   });
 }
 

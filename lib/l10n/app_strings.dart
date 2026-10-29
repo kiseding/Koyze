@@ -62,6 +62,7 @@ class S {
   String get customSources => _l10n.customSources;
   String get customSourcesSubtitle => _l10n.customSourcesSubtitle;
   String get nasServer => _l10n.nasServer;
+  String get sourcesAndLibrary => _l10n.sourcesAndLibrary;
   String get playback => _l10n.playback;
   String get audioQuality => _l10n.audioQuality;
   String get chooseQuality => _l10n.chooseQuality;
@@ -90,6 +91,13 @@ class S {
   String get followSystemLanguageSubtitle => _l10n.followSystemLanguageSubtitle;
   String get themeColor => _l10n.themeColor;
   String get themeColorSubtitle => _l10n.themeColorSubtitle;
+  String get playerBackdrop => _l10n.playerBackdrop;
+  String get playerBackdropSubtitle => _l10n.playerBackdropSubtitle;
+  String get playerBackdropBlur => _l10n.playerBackdropBlur;
+  String get playerBackdropScrim => _l10n.playerBackdropScrim;
+  String get playerBackdropPreviewEmpty => _l10n.playerBackdropPreviewEmpty;
+  String get resetToDefault => _l10n.resetToDefault;
+  String get general => _l10n.general;
   String get downloads => _l10n.downloads;
   String get downloadManager => _l10n.downloadManager;
   String get downloadManagerSubtitle => _l10n.downloadManagerSubtitle;
@@ -98,6 +106,7 @@ class S {
   String get downloadQuality => _l10n.downloadQuality;
   String get chooseDownloadQuality => _l10n.chooseDownloadQuality;
   String get data => _l10n.data;
+  String get dataAndSync => _l10n.dataAndSync;
   String get backup => _l10n.backup;
   String get backupSubtitle => _l10n.backupSubtitle;
   String get restore => _l10n.restore;

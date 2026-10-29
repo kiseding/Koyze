@@ -21,6 +21,8 @@ import '../../search/presentation/search_provider.dart';
 import '../../playlist/data/playlist_repository.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../player/platform/android_floating_player.dart';
+import '../../player/domain/player_backdrop.dart';
+import '../../player/presentation/player_backdrop_sheet.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
 import '../../download/presentation/download_provider.dart';
@@ -192,11 +194,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final themeMode = ref.watch(themeModeProvider);
     final audioQuality = ref.watch(audioQualityProvider);
     final language = ref.watch(appLanguageProvider);
+    final backdropBlur = ref.watch(playerBackdropBlurProvider);
+    final backdropScrim = ref.watch(playerBackdropScrimProvider);
     final isDark =
         themeMode == ThemeMode.dark ||
         (themeMode == ThemeMode.system &&
             MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
+    // 分组的依据是「用户想改什么」，不是「代码在哪个目录」：
+    // - 音源与本地库：内容从哪来（默认搜索平台原先混在「播放」里，
+    //   但它是选内容源，不是调播放行为）；
+    // - 播放：怎么听；
+    // - 外观：只有纯视觉；
+    // - 通用：语言、屏幕方向、性能开关这类与「听歌」无关的全局项；
+    // - 数据与同步：账号、统计、备份、缓存，都是「数据进出一个地方」。
     return [
       SettingsSectionSpec(
         title: s.aiSectionTitle,
@@ -255,20 +266,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsSectionSpec(
-        title: s.sync,
+        title: s.sourcesAndLibrary,
         entries: [
           SettingsEntry(
-            title: s.cloudAccount,
-            subtitle: s.cloudAccountSubtitle,
-            keywords: const ['同步', 'sync', '账号', 'account', '云端', 'cloud'],
-            onTap: () => context.push('/sync'),
-            captureExpandOrigin: true,
+            title: s.defaultSearchPlatform,
+            subtitle: _platformName(ref.watch(defaultSearchPlatformProvider)),
+            keywords: const [
+              '搜索',
+              'search',
+              '平台',
+              'platform',
+              '默认',
+              'default',
+              '音源',
+              'source',
+            ],
+            onTap: () => _showDefaultPlatformDialog(context, ref),
           ),
-        ],
-      ),
-      SettingsSectionSpec(
-        title: s.advanced,
-        entries: [
           SettingsEntry(
             title: s.localLibrary,
             subtitle: s.localLibrarySubtitle,
@@ -288,14 +302,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           SettingsEntry(
             title: s.customSources,
             subtitle: s.customSourcesSubtitle,
-            keywords: const [
-              '音源',
-              'source',
-              '自定义',
-              'custom',
-              '插件',
-              'plugin',
-            ],
+            keywords: const ['音源', 'source', '自定义', 'custom', '插件', 'plugin'],
             onTap: () => context.push('/custom-source'),
             captureExpandOrigin: true,
           ),
@@ -305,14 +312,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               'subsonic',
               locale: Localizations.localeOf(context),
             ),
-            keywords: const [
-              'nas',
-              'subsonic',
-              '服务器',
-              'server',
-              '乐库',
-              '自建',
-            ],
+            keywords: const ['nas', 'subsonic', '服务器', 'server', '乐库', '自建'],
             onTap: () => context.push('/subsonic-settings'),
             captureExpandOrigin: true,
           ),
@@ -360,27 +360,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ref.watch(sleepTimerProvider),
               locale: Localizations.localeOf(context),
             ),
-            keywords: const [
-              '睡眠',
-              'sleep',
-              '定时',
-              'timer',
-              '关闭播放',
-              '睡前',
-            ],
+            keywords: const ['睡眠', 'sleep', '定时', 'timer', '关闭播放', '睡前'],
             onTap: () => _showSleepTimerMenu(context, ref),
             trailing: _sleepTimerTrailing(context, ref, s),
           ),
           SettingsEntry(
             title: s.autoResume,
             subtitle: s.autoResumeSubtitle,
-            keywords: const [
-              '续播',
-              'resume',
-              'autoplay',
-              '自动播放',
-              '接着播',
-            ],
+            keywords: const ['续播', 'resume', 'autoplay', '自动播放', '接着播'],
             toggleValue: ref.watch(autoResumePlaybackProvider),
             onToggle: (value) {
               ref
@@ -389,157 +376,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
           SettingsEntry(
-            title: s.forceLandscape,
-            subtitle: s.forceLandscapeSubtitle,
-            keywords: const [
-              '横屏',
-              'landscape',
-              '旋转',
-              'rotate',
-              '方向',
-              'orientation',
-            ],
-            toggleValue: ref.watch(forceLandscapeProvider),
-            onToggle: (value) {
-              ref.read(forceLandscapeProvider.notifier).setEnabled(value);
-            },
-          ),
-          SettingsEntry(
             title: s.carMode,
             subtitle: carModeStatusText(ref.watch(carConnectionProvider), s),
-            keywords: const [
-              '车机',
-              'car',
-              'hicar',
-              '车载',
-              '投屏',
-              '驾驶',
-            ],
+            keywords: const ['车机', 'car', 'hicar', '车载', '投屏', '驾驶'],
             onTap: () => showCarModeSheet(context, ref),
-          ),
-          SettingsEntry(
-            title: s.simplifyEffects,
-            subtitle: s.simplifyEffectsSubtitle,
-            keywords: const [
-              '动效',
-              'effects',
-              '动画',
-              'animation',
-              '流畅',
-              '性能',
-              'performance',
-            ],
-            toggleValue: ref.watch(simplifyEffectsProvider),
-            onToggle: (value) {
-              ref.read(simplifyEffectsProvider.notifier).setEnabled(value);
-            },
           ),
           if (androidFloatingPlayerSupported)
             SettingsEntry(
               title: s.floatingPlayer,
               subtitle: s.floatingPlayerSubtitle,
-              keywords: const [
-                '悬浮',
-                'floating',
-                '浮窗',
-                'overlay',
-                '小窗',
-                '桌面',
-              ],
+              keywords: const ['悬浮', 'floating', '浮窗', 'overlay', '小窗', '桌面'],
               toggleValue: ref.watch(androidFloatingPlayerProvider),
               onToggle: (value) => _setFloatingPlayer(context, ref, value),
             ),
-          SettingsEntry(
-            title: s.defaultSearchPlatform,
-            subtitle: _platformName(ref.watch(defaultSearchPlatformProvider)),
-            keywords: const [
-              '搜索',
-              'search',
-              '平台',
-              'platform',
-              '默认',
-              'default',
-              '音源',
-            ],
-            onTap: () => _showDefaultPlatformDialog(context, ref),
-          ),
-          SettingsEntry(
-            title: s.listeningStats,
-            subtitle: s.listeningStatsSubtitle,
-            keywords: const [
-              '统计',
-              'stats',
-              '听歌',
-              '报告',
-              'report',
-              '数据',
-            ],
-            onTap: () => context.push('/stats'),
-            captureExpandOrigin: true,
-          ),
         ],
       ),
       SettingsSectionSpec(
         title: s.appearance,
         entries: [
-          SettingsEntry(
-            title: s.language,
-            subtitle: s.languageName(language),
-            keywords: const [
-              '语言',
-              'language',
-              '中文',
-              'english',
-              '英文',
-              '简体',
-            ],
-            onTap: () => _showLanguageDialog(context),
-          ),
-          SettingsEntry(
-            title: s.darkMode,
-            subtitle: s.darkModeSubtitle,
-            keywords: const [
-              '深色',
-              'dark',
-              '夜间',
-              'night',
-              '黑色',
-              '模式',
-            ],
-            toggleValue: isDark && themeMode != ThemeMode.system,
-            onToggle: (value) {
-              ref
-                  .read(themeModeProvider.notifier)
-                  .setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
-            },
-          ),
-          SettingsEntry(
-            title: s.followSystem,
-            subtitle: s.followSystemThemeSubtitle,
-            keywords: const [
-              '跟随',
-              'follow',
-              'system',
-              '系统',
-              '主题',
-              '自动',
-            ],
-            toggleValue: themeMode == ThemeMode.system,
-            onToggle: (value) {
-              if (value) {
-                ref
-                    .read(themeModeProvider.notifier)
-                    .setThemeMode(ThemeMode.system);
-              } else {
-                final darkNow =
-                    MediaQuery.platformBrightnessOf(context) ==
-                    Brightness.dark;
-                ref
-                    .read(themeModeProvider.notifier)
-                    .setThemeMode(darkNow ? ThemeMode.dark : ThemeMode.light);
-              }
-            },
-          ),
           SettingsEntry(
             title: s.themeColor,
             subtitle: s.themeColorSubtitle,
@@ -570,6 +424,114 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
           ),
+          SettingsEntry(
+            title: s.darkMode,
+            subtitle: s.darkModeSubtitle,
+            keywords: const ['深色', 'dark', '夜间', 'night', '黑色', '模式'],
+            toggleValue: isDark && themeMode != ThemeMode.system,
+            onToggle: (value) {
+              ref
+                  .read(themeModeProvider.notifier)
+                  .setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
+            },
+          ),
+          SettingsEntry(
+            title: s.followSystem,
+            subtitle: s.followSystemThemeSubtitle,
+            keywords: const ['跟随', 'follow', 'system', '系统', '主题', '自动'],
+            toggleValue: themeMode == ThemeMode.system,
+            onToggle: (value) {
+              if (value) {
+                ref
+                    .read(themeModeProvider.notifier)
+                    .setThemeMode(ThemeMode.system);
+              } else {
+                final darkNow =
+                    MediaQuery.platformBrightnessOf(context) == Brightness.dark;
+                ref
+                    .read(themeModeProvider.notifier)
+                    .setThemeMode(darkNow ? ThemeMode.dark : ThemeMode.light);
+              }
+            },
+          ),
+          SettingsEntry(
+            title: s.playerBackdrop,
+            subtitle: s.playerBackdropSubtitle,
+            keywords: const [
+              '背景',
+              'background',
+              '模糊',
+              'blur',
+              '遮罩',
+              'scrim',
+              '透明度',
+              'opacity',
+              '播放页',
+              '封面',
+              'cover',
+              '虚化',
+            ],
+            onTap: () => showPlayerBackdropSheet(context),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${PlayerBackdrop.blurLabel(backdropBlur)} · '
+                  '${PlayerBackdrop.scrimLabel(backdropScrim)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.mutedText(context),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(Icons.chevron_right, color: AppColors.mutedText(context)),
+              ],
+            ),
+          ),
+        ],
+      ),
+      SettingsSectionSpec(
+        title: s.general,
+        entries: [
+          SettingsEntry(
+            title: s.language,
+            subtitle: s.languageName(language),
+            keywords: const ['语言', 'language', '中文', 'english', '英文', '简体'],
+            onTap: () => _showLanguageDialog(context),
+          ),
+          SettingsEntry(
+            title: s.forceLandscape,
+            subtitle: s.forceLandscapeSubtitle,
+            keywords: const [
+              '横屏',
+              'landscape',
+              '旋转',
+              'rotate',
+              '方向',
+              'orientation',
+            ],
+            toggleValue: ref.watch(forceLandscapeProvider),
+            onToggle: (value) {
+              ref.read(forceLandscapeProvider.notifier).setEnabled(value);
+            },
+          ),
+          SettingsEntry(
+            title: s.simplifyEffects,
+            subtitle: s.simplifyEffectsSubtitle,
+            keywords: const [
+              '动效',
+              'effects',
+              '动画',
+              'animation',
+              '流畅',
+              '性能',
+              'performance',
+            ],
+            toggleValue: ref.watch(simplifyEffectsProvider),
+            onToggle: (value) {
+              ref.read(simplifyEffectsProvider.notifier).setEnabled(value);
+            },
+          ),
         ],
       ),
       SettingsSectionSpec(
@@ -585,15 +547,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           SettingsEntry(
             title: s.wifiOnly,
             subtitle: s.wifiOnlySubtitle,
-            keywords: const [
-              'wifi',
-              '无线',
-              '流量',
-              'data',
-              '网络',
-              'network',
-              '下载',
-            ],
+            keywords: const ['wifi', '无线', '流量', 'data', '网络', 'network', '下载'],
             toggleValue: ref.watch(wifiOnlyDownloadProvider),
             onToggle: (value) {
               ref.read(wifiOnlyDownloadProvider.notifier).setWifiOnly(value);
@@ -616,45 +570,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsSectionSpec(
-        title: s.data,
+        title: s.dataAndSync,
         entries: [
+          SettingsEntry(
+            title: s.cloudAccount,
+            subtitle: s.cloudAccountSubtitle,
+            keywords: const ['同步', 'sync', '账号', 'account', '云端', 'cloud'],
+            onTap: () => context.push('/sync'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.listeningStats,
+            subtitle: s.listeningStatsSubtitle,
+            keywords: const ['统计', 'stats', '听歌', '报告', 'report', '数据'],
+            onTap: () => context.push('/stats'),
+            captureExpandOrigin: true,
+          ),
           SettingsEntry(
             title: s.backup,
             subtitle: s.backupSubtitle,
-            keywords: const [
-              '备份',
-              'backup',
-              '导出',
-              'export',
-              '数据',
-              'data',
-            ],
+            keywords: const ['备份', 'backup', '导出', 'export', '数据', 'data'],
             onTap: () => _backupData(context, ref),
           ),
           SettingsEntry(
             title: s.restore,
             subtitle: s.restoreSubtitle,
-            keywords: const [
-              '恢复',
-              'restore',
-              '导入',
-              'import',
-              '数据',
-              'data',
-            ],
+            keywords: const ['恢复', 'restore', '导入', 'import', '数据', 'data'],
             onTap: () => _restoreData(context, ref),
           ),
           SettingsEntry(
             title: s.clearCache,
             subtitle: s.clearCacheSubtitle,
-            keywords: const [
-              '缓存',
-              'cache',
-              '清理',
-              'clean',
-              '空间',
-              'storage',
-            ],
+            keywords: const ['缓存', 'cache', '清理', 'clean', '空间', 'storage'],
             onTap: () => _clearCache(context, ref),
           ),
         ],

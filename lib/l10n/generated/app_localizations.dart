@@ -176,6 +176,12 @@ abstract class AppLocalizations {
   /// **'NAS music server'**
   String get nasServer;
 
+  /// No description provided for @sourcesAndLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Sources & library'**
+  String get sourcesAndLibrary;
+
   /// No description provided for @playback.
   ///
   /// In en, this message translates to:
@@ -344,6 +350,48 @@ abstract class AppLocalizations {
   /// **'One accent builds the whole Material 3 palette'**
   String get themeColorSubtitle;
 
+  /// No description provided for @playerBackdrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Player background'**
+  String get playerBackdrop;
+
+  /// No description provided for @playerBackdropSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cover blur and dimming'**
+  String get playerBackdropSubtitle;
+
+  /// No description provided for @playerBackdropBlur.
+  ///
+  /// In en, this message translates to:
+  /// **'Background blur'**
+  String get playerBackdropBlur;
+
+  /// No description provided for @playerBackdropScrim.
+  ///
+  /// In en, this message translates to:
+  /// **'Scrim opacity'**
+  String get playerBackdropScrim;
+
+  /// No description provided for @playerBackdropPreviewEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing playing'**
+  String get playerBackdropPreviewEmpty;
+
+  /// No description provided for @resetToDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to default'**
+  String get resetToDefault;
+
+  /// No description provided for @general.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get general;
+
   /// No description provided for @downloads.
   ///
   /// In en, this message translates to:
@@ -391,6 +439,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Data'**
   String get data;
+
+  /// No description provided for @dataAndSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Data & sync'**
+  String get dataAndSync;
 
   /// No description provided for @backup.
   ///
