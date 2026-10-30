@@ -1967,7 +1967,12 @@ class _AccentSwatch extends StatelessWidget {
             ),
           ),
           child: selected
-              ? const Icon(Icons.check, size: 18, color: Colors.white)
+              // 勾号跟着色块明暗走：亮黄、亮橙上用白勾等于没画。
+              ? Icon(
+                  Icons.check,
+                  size: 18,
+                  color: AppThemes.onAccentColor(color),
+                )
               : null,
         ),
       ),

@@ -17,15 +17,25 @@ void main() {
       expect(theme.scaffoldBackgroundColor, AppColors.bg);
     });
 
-    test('darkTheme primary is the accent, lifted for a dark surface', () {
-      final theme = AppTheme.darkTheme();
-      expect(
-        theme.colorScheme.primary,
-        AppThemes.keyColor(
-          AppThemes.defaultAccentColor,
-          isDark: true,
-        ),
-      );
+    test('primary 就是设置里选的那支颜色，深浅色都不改写', () {
+      for (final accent in AppThemes.accentColors) {
+        expect(
+          AppTheme.darkTheme(seedColor: accent).colorScheme.primary,
+          accent,
+        );
+        expect(
+          AppTheme.lightTheme(seedColor: accent).colorScheme.primary,
+          accent,
+        );
+      }
+    });
+
+    test('onPrimary 跟着强调色明暗走，压在色块上的图标仍然看得清', () {
+      final indigo = AppTheme.lightTheme(seedColor: const Color(0xFF3F51B5));
+      expect(indigo.colorScheme.onPrimary, Colors.white);
+
+      final amber = AppTheme.lightTheme(seedColor: const Color(0xFFF9A825));
+      expect(amber.colorScheme.onPrimary, Colors.black);
     });
 
     test('changing the accent leaves page surfaces neutral', () {
