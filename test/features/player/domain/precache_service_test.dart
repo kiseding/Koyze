@@ -60,7 +60,7 @@ void main() {
       },
     );
 
-    test('skips local files and live radio', () async {
+    test('skips local files', () async {
       final resolved = <String>[];
       final service = PrecacheService(
         prewarm: PlaybackPrewarm()
@@ -74,8 +74,6 @@ void main() {
       await service.run(
         candidates: [
           _song('local', source: 'local'),
-          _song('radio', source: 'radio'),
-          _song('meta-radio', meta: {'radio': true}),
           _song('meta-local', meta: {'local': true}),
           _song('ok'),
         ],

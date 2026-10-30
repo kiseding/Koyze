@@ -2631,27 +2631,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get radio => '网络电台';
-
-  @override
-  String get radioSubtitle => 'Radio Browser 上的公开电台';
-
-  @override
-  String get radioSearchHint => '搜索电台或风格';
-
-  @override
-  String get radioPopular => '热门';
-
-  @override
-  String get radioLive => '直播';
-
-  @override
-  String get radioEmpty => '没有找到电台';
-
-  @override
-  String get radioFailed => '电台列表加载失败';
-
-  @override
   String get precacheRecent => '常听预缓存';
 
   @override

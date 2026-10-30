@@ -4904,48 +4904,6 @@ abstract class AppLocalizations {
   /// **'{n} songs'**
   String smartSongCount(int n);
 
-  /// No description provided for @radio.
-  ///
-  /// In en, this message translates to:
-  /// **'Radio'**
-  String get radio;
-
-  /// No description provided for @radioSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Public stations from Radio Browser'**
-  String get radioSubtitle;
-
-  /// No description provided for @radioSearchHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Search stations or genres'**
-  String get radioSearchHint;
-
-  /// No description provided for @radioPopular.
-  ///
-  /// In en, this message translates to:
-  /// **'Popular'**
-  String get radioPopular;
-
-  /// No description provided for @radioLive.
-  ///
-  /// In en, this message translates to:
-  /// **'Live'**
-  String get radioLive;
-
-  /// No description provided for @radioEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'No stations found'**
-  String get radioEmpty;
-
-  /// No description provided for @radioFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Couldn\'t load stations'**
-  String get radioFailed;
-
   /// No description provided for @precacheRecent.
   ///
   /// In en, this message translates to:

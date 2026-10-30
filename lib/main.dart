@@ -629,18 +629,6 @@ Future<void> _bootstrapUnsafe(
                 );
                 return localUrl;
               }
-              // 网络电台自带完整直链，没有「音源」可查：直接交给播放器。
-              // 注意 extras['url'] 在进解析器前就被剥掉了，直链实际来自 meta。
-              if (musicItem.source == 'radio' ||
-                  musicItem.meta?['radio'] == true) {
-                final stream =
-                    musicItem.meta?['streamUrl']?.toString() ??
-                    musicItem.url ??
-                    '';
-                if (stream.isNotEmpty) return stream;
-                debugPrint('[urlResolver] 电台缺少直链: id=$mediaId');
-                return null;
-              }
               debugPrint(
                 '[urlResolver] 歌曲信息: platform=${musicItem.platform}, source=${musicItem.source}, songmid=${musicItem.songmid}',
               );

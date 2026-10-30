@@ -462,7 +462,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// Completion already continues when the in-memory window is a single item
   /// but more tracks can still be pulled. Failure auto-skip must do the same:
-  /// radio / paged playlists often shrink to one remaining item, and a
+  /// a paged playlist can shrink to one remaining item, and a
   /// `_queue.length > 1` guard would stall on an unplayable song.
   bool get _canAdvanceAfterTrackFailure => _queue.length > 1 || _usesLazyQueue;
 

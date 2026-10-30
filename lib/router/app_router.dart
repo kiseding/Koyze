@@ -23,7 +23,6 @@ import '../features/leaderboard/presentation/leaderboard_screen.dart';
 import '../features/leaderboard/presentation/leaderboard_settings_screen.dart';
 import '../features/sync/presentation/sync_screen.dart';
 import '../features/playlist/presentation/smart_playlists_screen.dart';
-import '../features/radio/presentation/radio_screen.dart';
 import '../features/stats/presentation/stats_screen.dart';
 import '../features/playlist/presentation/duplicate_screen.dart';
 import '../features/recommend/presentation/recommendation_screen.dart';
@@ -485,16 +484,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const SmartPlaylistsScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
-      ),
-    ),
-    GoRoute(
-      path: '/radio',
-      parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const RadioScreen(),
         expandRect: consumeCardExpandRect(),
         expandSnapshot: consumeCardExpandSnapshot(),
       ),

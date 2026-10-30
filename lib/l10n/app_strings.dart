@@ -973,13 +973,6 @@ class S {
   String get smartFavoritesHint => _l10n.smartFavoritesHint;
   String get smartEmpty => _l10n.smartEmpty;
   String smartSongCount(int n) => _l10n.smartSongCount(n);
-  String get radio => _l10n.radio;
-  String get radioSubtitle => _l10n.radioSubtitle;
-  String get radioSearchHint => _l10n.radioSearchHint;
-  String get radioPopular => _l10n.radioPopular;
-  String get radioLive => _l10n.radioLive;
-  String get radioEmpty => _l10n.radioEmpty;
-  String get radioFailed => _l10n.radioFailed;
   String get precacheRecent => _l10n.precacheRecent;
   String get precacheRecentSubtitle => _l10n.precacheRecentSubtitle;
   String get precacheCount => _l10n.precacheCount;

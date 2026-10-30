@@ -352,13 +352,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => context.push('/subsonic-settings'),
             captureExpandOrigin: true,
           ),
-          SettingsEntry(
-            title: s.radio,
-            subtitle: s.radioSubtitle,
-            keywords: const ['电台', 'radio', '直播', 'live', 'fm', '网络电台'],
-            onTap: () => context.push('/radio'),
-            captureExpandOrigin: true,
-          ),
         ],
       ),
       SettingsSectionSpec(

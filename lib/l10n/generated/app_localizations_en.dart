@@ -2687,27 +2687,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get radio => 'Radio';
-
-  @override
-  String get radioSubtitle => 'Public stations from Radio Browser';
-
-  @override
-  String get radioSearchHint => 'Search stations or genres';
-
-  @override
-  String get radioPopular => 'Popular';
-
-  @override
-  String get radioLive => 'Live';
-
-  @override
-  String get radioEmpty => 'No stations found';
-
-  @override
-  String get radioFailed => 'Couldn\'t load stations';
-
-  @override
   String get precacheRecent => 'Pre-cache frequent tracks';
 
   @override

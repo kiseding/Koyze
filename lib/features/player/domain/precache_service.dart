@@ -88,13 +88,13 @@ class PrecacheService {
     return warmed;
   }
 
-  /// 本地文件不需要解析、电台是直播流（下载下来也没有意义）。
+  /// 本地文件不需要解析，预缓存没有意义。
   bool _isPrecachable(MusicItem song) {
     if (song.id.trim().isEmpty) return false;
     final source = song.source.trim().toLowerCase();
-    if (source == 'local' || source == 'radio') return false;
+    if (source == 'local') return false;
     final meta = song.meta;
-    if (meta != null && (meta['local'] == true || meta['radio'] == true)) {
+    if (meta != null && meta['local'] == true) {
       return false;
     }
     return true;
