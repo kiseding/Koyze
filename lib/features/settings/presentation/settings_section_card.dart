@@ -25,8 +25,12 @@ class SettingsSectionCard extends StatelessWidget {
         _SectionHeader(title: title),
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16),
+          // 设置页一屏能同时出现四五张这种整宽卡片，背后又是纯色页面底。
+          // 每张都挂一层 BackdropFilter 等于每次滚动都重算四五次全宽模糊，
+          // 中端机上就是偶尔掉帧；关掉采样、直接混出实色，画面一模一样。
           child: GlassSurface(
             style: AppGlassStyle.regular,
+            backdrop: false,
             borderRadius: BorderRadius.circular(18),
             border: Border.fromBorderSide(
               AppGlass.hairline(context, emphasized: false),

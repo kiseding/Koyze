@@ -206,6 +206,7 @@ class GlassSurface extends StatelessWidget {
     this.vivid = true,
     this.emphasized = false,
     this.alphaScale = 1,
+    this.backdrop = true,
   });
 
   final Widget child;
@@ -229,6 +230,17 @@ class GlassSurface extends StatelessWidget {
 
   /// 整体透明度倍率（0–1）。
   final double alphaScale;
+
+  /// 是否采样背后的内容做模糊。
+  ///
+  /// 为 false 时直接按玻璃底色与页面底色混出一块实色——背后是纯色页面底
+  /// 的场合（设置页分区卡片），模糊采到的就是同一个颜色，画出来一模一样，
+  /// 却省掉一整条全宽 [BackdropFilter]。那种卡片一屏能同时出现四五张，
+  /// 滚动时每帧都要重算一遍模糊，正是掉帧的来源。
+  ///
+  /// 只对「背后是纯色」的大块面成立：浮在封面、列表内容上的胶囊、弹窗
+  /// 仍然要真模糊。为 false 时 [fade] 不生效。
+  final bool backdrop;
 
   @override
   Widget build(BuildContext context) {
@@ -255,6 +267,24 @@ class GlassSurface extends StatelessWidget {
       return DecoratedBox(
         decoration: BoxDecoration(
           color: opaque,
+          borderRadius: radius,
+          border: side,
+          boxShadow: boxShadow ?? const <BoxShadow>[],
+        ),
+        child: ClipRRect(
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: material,
+        ),
+      );
+    }
+    if (!backdrop) {
+      // 背后是纯色页面底：把底色混上去和「模糊一层纯色再混」是同一个结果，
+      // 但不用每帧做一次全宽 BackdropFilter + 饱和度矩阵。
+      final flat = Color.alphaBlend(base, AppColors.scaffold(context));
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: flat,
           borderRadius: radius,
           border: side,
           boxShadow: boxShadow ?? const <BoxShadow>[],
