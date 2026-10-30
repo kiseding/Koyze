@@ -2,8 +2,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
-import '../performance/low_memory.dart';
 import 'app_colors.dart';
+import 'effect_policy.dart';
 import 'glass_config.dart';
 
 /// 玻璃材质，照搬 origo-x 的 `GlassControlSurface`。
@@ -259,7 +259,9 @@ class GlassSurface extends StatelessWidget {
     // 不给它一层透明 Material，Flutter 会直接断言"ink 可能不可见"，而且点击
     // 反馈会被这层底色盖住。
     final material = Material(type: MaterialType.transparency, child: content);
-    if (LowMemory.active || sigma <= 0) {
+    // 简化特效、增强对比度、系统关掉动画：这三种情况都不该再为「看见背后」
+    // 付出每帧一次全宽采样，直接按底色混出一块实色。
+    if (prefersFlatSurfaces(context) || sigma <= 0) {
       final opaque = Color.alphaBlend(
         base.withValues(alpha: 0.94),
         AppColors.scaffold(context),

@@ -6,6 +6,7 @@ import '../motion/motion_tokens.dart';
 import '../performance/low_memory.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
+import '../theme/effect_policy.dart';
 
 /// Koyze 的模态语言：一层压暗 + 磨砂的背景，一块浮在上面的玻璃面板。
 ///
@@ -62,7 +63,7 @@ Future<T?> showKoyzeDialog<T>({
           return Stack(
             fit: StackFit.expand,
             children: [
-              if (!LowMemory.active && t > 0.01)
+              if (!prefersFlatSurfaces(context) && t > 0.01)
                 Positioned.fill(
                   child: IgnorePointer(
                     child: BackdropFilter(

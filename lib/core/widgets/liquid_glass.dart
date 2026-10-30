@@ -2,13 +2,11 @@
 // 技术要点：BackdropFilter 采样背后的真实内容 → 低 alpha 染色 → 斜向薄膜高光
 // → 0.8px 亮边。只有"一块胶囊/一条栏"用这层材质，整屏不再铺毛玻璃。
 
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
-import '../performance/low_memory.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
+import '../theme/effect_policy.dart';
 
 /// 液态玻璃：真正透出背后内容的玻璃面。
 ///
@@ -61,7 +59,7 @@ class LiquidGlassSurface extends StatelessWidget {
             ? Colors.white.withValues(alpha: 0.20 * opacity)
             : const Color(0xFF3C3C43).withValues(alpha: 0.14 * opacity));
 
-    if (LowMemory.active) {
+    if (prefersFlatSurfaces(context)) {
       return _fallback(context, base: base, edge: edge);
     }
 
@@ -128,7 +126,8 @@ class LiquidGlassSurface extends StatelessWidget {
     );
   }
 
-  /// 低内存/低端机：不做 backdrop 采样，退回一层接近不透明的底色。
+  /// 简化特效 / 增强对比度 / 系统关掉动画：不做 backdrop 采样，退回一层接近
+  /// 不透明的底色。判定见 [prefersFlatSurfaces]。
   Widget _fallback(
     BuildContext context, {
     required Color base,

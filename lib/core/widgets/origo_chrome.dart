@@ -3,9 +3,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../motion/motion_tokens.dart';
-import '../performance/low_memory.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
+import '../theme/effect_policy.dart';
 
 /// Shared chrome surface for floating controls.
 ///
@@ -221,7 +221,8 @@ class GradientFrost extends StatelessWidget {
     );
     // 简化特效时不能只留一层 18% 的染色：底下的列表文字会清晰地压在标题上，
     // 读起来像标题栏没画完。退回接近不透明的底色，只在最后 15% 淡出。
-    final reduce = LowMemory.active || sigma <= 0;
+    // 增强对比度、系统关掉动画同理——见 [prefersFlatSurfaces]。
+    final reduce = prefersFlatSurfaces(context) || sigma <= 0;
     final solidTint = reduce
         ? Color.alphaBlend(
             tint.withValues(alpha: 0.97),
