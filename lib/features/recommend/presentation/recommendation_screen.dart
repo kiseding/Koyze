@@ -14,11 +14,28 @@ import '../../../core/widgets/loading_widget.dart';
 
 const Color kRecommendColor = Color(0xFFFF8F1F);
 
-class RecommendationScreen extends ConsumerWidget {
+class RecommendationScreen extends ConsumerStatefulWidget {
   const RecommendationScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RecommendationScreen> createState() =>
+      _RecommendationScreenState();
+}
+
+class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // 进来就问一句：歌单或收藏在上次见面之后变过的话，立刻重算，不再
+    // 等 12 小时 TTL 或下一次冷启动。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(recommendationProvider.notifier).refreshIfStale(urgent: true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final recommendationsAsync = ref.watch(recommendationProvider);
     final tuning = ref.watch(recommendationTuningProvider);
     final playProvider = ref.read(playerServiceProvider);
@@ -41,106 +58,124 @@ class RecommendationScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            if (tuning.isNotEmpty) _tuningBar(context, ref, tuning),
-            Expanded(
-              child: recommendationsAsync.when(
-          skipLoadingOnReload: true,
-          skipLoadingOnRefresh: true,
-          loading: () => const Center(child: AppLoadingIndicator()),
-          error: (error, _) => _buildError(context, ref, error),
-          data: (recommendations) => recommendations.isEmpty
-              ? _buildEmpty(context)
-              : AdaptiveSongList.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                  landscapeItemExtent: 76,
-                  itemCount: recommendations.length,
-                  itemBuilder: (context, index) {
-                    final rec = recommendations[index];
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      leading: SizedBox(
-                        width: 28,
-                        child: Consumer(
-                          builder: (context, ref, _) {
-                            final isPlaying = ref.watch(
-                              currentMusicProvider.select(
-                                (current) =>
-                                    current?.identityKey ==
-                                    rec.song.identityKey,
-                              ),
-                            );
-                            if (isPlaying) {
-                              return Icon(
-                                Icons.play_arrow,
-                                size: 22,
-                                color: AppColors.accentOf(context),
+      // 列表滚到底 / 空态 / 键盘让位时，底下露出来的必须是页面底色。
+      // 只靠 Scaffold.backgroundColor 时，body 里那些透明片段会落到上层
+      // 的默认画布上，深色主题下就是一块刺眼的白。
+      body: Material(
+        color: AppColors.scaffold(context),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              if (tuning.isNotEmpty) _tuningBar(context, ref, tuning),
+              Expanded(
+                child: recommendationsAsync.when(
+                  skipLoadingOnReload: true,
+                  skipLoadingOnRefresh: true,
+                  loading: () => const Center(child: AppLoadingIndicator()),
+                  error: (error, _) => _buildError(context, ref, error),
+                  data: (recommendations) => RefreshIndicator(
+                    color: kRecommendColor,
+                    // 手动下拉永远绕过 TTL：用户都已经做出「刷新」这个动作了，
+                    // 不该再被缓存挡一次。
+                    onRefresh: () =>
+                        ref.read(recommendationProvider.notifier).retry(),
+                    child: recommendations.isEmpty
+                        ? _buildEmptyScrollable(context)
+                        : AdaptiveSongList.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            landscapeItemExtent: 76,
+                            itemCount: recommendations.length,
+                            itemBuilder: (context, index) {
+                              final rec = recommendations[index];
+                              return ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                leading: SizedBox(
+                                  width: 28,
+                                  child: Consumer(
+                                    builder: (context, ref, _) {
+                                      final isPlaying = ref.watch(
+                                        currentMusicProvider.select(
+                                          (current) =>
+                                              current?.identityKey ==
+                                              rec.song.identityKey,
+                                        ),
+                                      );
+                                      if (isPlaying) {
+                                        return Icon(
+                                          Icons.play_arrow,
+                                          size: 22,
+                                          color: AppColors.accentOf(context),
+                                        );
+                                      }
+                                      return Text(
+                                        '${index + 1}',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w800,
+                                          color: index < 3
+                                              ? kRecommendColor
+                                              : AppColors.mutedText(context),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                title: Text(
+                                  rec.song.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.onScaffold(context),
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  rec.reasons.isEmpty
+                                      ? rec.song.singer
+                                      : '${rec.song.singer} · ${rec.reasons.join('、')}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.mutedText(context),
+                                  ),
+                                ),
+                                trailing: FxIconButton(
+                                  tooltip: S
+                                      .of(context)
+                                      .playNamed(rec.song.name),
+                                  icon: const Icon(
+                                    Icons.play_circle_outline,
+                                    size: 24,
+                                    color: kRecommendColor,
+                                  ),
+                                  onPressed: () => playProvider.playPlaylist(
+                                    recommendations.map((r) => r.song).toList(),
+                                    index: index,
+                                    manualPlayName:
+                                        recommendations[index].song.name,
+                                  ),
+                                ),
+                                onTap: () => playProvider.playPlaylist(
+                                  recommendations.map((r) => r.song).toList(),
+                                  index: index,
+                                  manualPlayName:
+                                      recommendations[index].song.name,
+                                ),
                               );
-                            }
-                            return Text(
-                              '${index + 1}',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: index < 3
-                                    ? kRecommendColor
-                                    : AppColors.mutedText(context),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      title: Text(
-                        rec.song.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.onScaffold(context),
-                        ),
-                      ),
-                      subtitle: Text(
-                        rec.reasons.isEmpty
-                            ? rec.song.singer
-                            : '${rec.song.singer} · ${rec.reasons.join('、')}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.mutedText(context),
-                        ),
-                      ),
-                      trailing: FxIconButton(
-                        tooltip: S.of(context).playNamed(rec.song.name),
-                        icon: const Icon(
-                          Icons.play_circle_outline,
-                          size: 24,
-                          color: kRecommendColor,
-                        ),
-                        onPressed: () => playProvider.playPlaylist(
-                          recommendations.map((r) => r.song).toList(),
-                          index: index,
-                          manualPlayName: recommendations[index].song.name,
-                        ),
-                      ),
-                      onTap: () => playProvider.playPlaylist(
-                        recommendations.map((r) => r.song).toList(),
-                        index: index,
-                        manualPlayName: recommendations[index].song.name,
-                      ),
-                    );
-                  },
+                            },
+                          ),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -192,6 +227,19 @@ class RecommendationScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 空态也要能下拉：没有候选往往正是最想重试的时候。
+  Widget _buildEmptyScrollable(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: _buildEmpty(context),
+        ),
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
@@ -457,6 +458,11 @@ class HomeHeroCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final id = ref.watch(homeHeroCardProvider);
+    if (id == HomeHeroCardId.recommend) {
+      // 收藏或歌单变过的话，卡片上的数量和曲目要跟着换，不能等重启。
+      // 节流在 notifier 里，这里每次构建只是问一句。
+      unawaited(ref.read(recommendationProvider.notifier).refreshIfStale());
+    }
     final spec = homeHeroCardOptions.firstWhere((item) => item.id == id);
     final playMode = ref.watch(homeHeroPlayModeProvider);
     final model = _resolve(context, ref, spec, playMode);

@@ -61,6 +61,31 @@ List<String> recommendationSearchPlatforms({
 /// 只有缓存过期后才重新计算一次。
 const Duration kRecommendationCacheTtl = Duration(hours: 12);
 
+/// 数据变了之后，最少隔多久才允许重算一次。
+///
+/// 收藏是一首一首点的，首页大卡片和推荐页的 build 都会来问一句「要不要
+/// 刷新」；没有这道闸，连着收藏五首就会重算五轮，而每轮都要为每个常听
+/// 歌手 × 每个音源各发一次搜索。
+const Duration kRecommendationMinRefreshGap = Duration(minutes: 3);
+
+/// 空结果的缓存时长。
+///
+/// 没候选（音源还没就绪、搜索全部失败）时如果也按 12 小时算，用户只能
+/// 重启软件再赌一次。留三分钟，够坏网络缓过来，也不至于一直空转。
+const Duration kRecommendationEmptyTtl = Duration(minutes: 3);
+
+/// 会影响推荐结果的数据版本。
+///
+/// 只跟收藏和「歌单里的歌」有关：刻意不监听 `playlistRevisionProvider`，
+/// 它连最近播放的每次更新都会发一次，播一首歌就把推荐标脏再重算一遍，
+/// 成本完全不值。
+final recommendationDataRevisionProvider = Provider<int>((ref) {
+  final favorites =
+      ref.watch(playlistFavoritesRevisionProvider).valueOrNull ?? 0;
+  final pages = ref.watch(playlistPageRevisionProvider).valueOrNull ?? 0;
+  return Object.hash(favorites, pages);
+});
+
 final recommendationTuningStoreProvider = Provider<RecommendationTuningStore>(
   (ref) => RecommendationTuningStore(),
 );
@@ -124,9 +149,20 @@ class RecommendationNotifier
   bool _inFlight = false;
   int _generation = 0;
 
+  /// 上次算完之后数据又变了：下次有人来问就重算。
+  bool _stale = false;
+
+  /// 计算时看到的数据版本，用来判断 [_stale] 是不是真的新。
+  int? _dataRevision;
+
+  /// 上次结果是不是空的：空结果的缓存要短得多。
+  bool _lastEmpty = false;
+
+  Duration get _ttl =>
+      _lastEmpty ? kRecommendationEmptyTtl : kRecommendationCacheTtl;
+
   bool get _expired =>
-      _loadedAt == null ||
-      DateTime.now().difference(_loadedAt!) >= kRecommendationCacheTtl;
+      _loadedAt == null || DateTime.now().difference(_loadedAt!) >= _ttl;
 
   Future<void> _ensureData({bool force = false}) async {
     if (_inFlight) return;
@@ -137,6 +173,9 @@ class RecommendationNotifier
       final result = await _loader();
       if (!mounted || generation != _generation) return;
       _loadedAt = DateTime.now();
+      _lastEmpty = result.isEmpty;
+      _stale = false;
+      _dataRevision = _currentRevision();
       publish(AsyncValue.data(result));
       _scheduleNextRefresh();
     } catch (error, stackTrace) {
@@ -148,12 +187,21 @@ class RecommendationNotifier
     }
   }
 
+  /// 当前数据版本。直接构造（测试里不走容器）时读不到，当作未知。
+  int? _currentRevision() {
+    try {
+      return ref.read(recommendationDataRevisionProvider);
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _scheduleNextRefresh() {
     _refreshTimer?.cancel();
     final age = _loadedAt == null
         ? Duration.zero
         : DateTime.now().difference(_loadedAt!);
-    final remaining = kRecommendationCacheTtl - age;
+    final remaining = _ttl - age;
     _refreshTimer = Timer(
       remaining <= Duration.zero ? const Duration(seconds: 1) : remaining,
       () => _ensureData(force: true),
@@ -170,9 +218,30 @@ class RecommendationNotifier
   /// 调校改完之后立刻重算，不用等 12 小时缓存过期。
   Future<void> refresh() => retry();
 
+  /// 数据（收藏 / 歌单曲目）变了就重算。
+  ///
+  /// 首页大卡片和推荐页都会在构建时问一次：推荐结果不能再靠「重启软件」
+  /// 或 12 小时 TTL 才更新。默认按 [kRecommendationMinRefreshGap] 节流，
+  /// 用户主动打开推荐页时传 [urgent] 跳过节流。
+  Future<void> refreshIfStale({bool urgent = false}) {
+    if (_inFlight) return Future<void>.value();
+    if (!_stale && !_expired) return Future<void>.value();
+    if (!urgent &&
+        !_expired &&
+        _loadedAt != null &&
+        DateTime.now().difference(_loadedAt!) < kRecommendationMinRefreshGap) {
+      return Future<void>.value();
+    }
+    return _ensureData(force: true);
+  }
+
   @override
   AsyncValue<List<RecommendedSong>> build() {
     _loader = _loaderOverride ?? (() => computeRecommendations(ref));
+    ref.listen<int>(recommendationDataRevisionProvider, (previous, next) {
+      // 首算还没回来时不用标脏：那一次本来就会读到最新数据。
+      if (_loadedAt != null && next != _dataRevision) _stale = true;
+    });
     if (!_loadStarted) {
       _loadStarted = true;
       unawaited(_ensureData());
@@ -272,9 +341,7 @@ Future<List<RecommendedSong>> computeRecommendations(Ref ref) async {
   for (final definition in tuning.pinned) {
     final song = await _resolvePinned(ref, definition);
     if (song == null) continue;
-    pinned.add(
-      RecommendedSong(song: song, score: 1, reasons: const ['置顶']),
-    );
+    pinned.add(RecommendedSong(song: song, score: 1, reasons: const ['置顶']));
   }
 
   final merged = <RecommendedSong>[];
@@ -334,4 +401,3 @@ Future<MusicItem?> _resolvePinned(Ref ref, SongRef definition) async {
   } catch (_) {}
   return null;
 }
-
