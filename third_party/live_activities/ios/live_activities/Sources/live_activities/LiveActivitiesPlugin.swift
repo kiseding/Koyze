@@ -252,7 +252,7 @@ public class LiveActivitiesPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
                     let removeWhenAppIsKilled = args["removeWhenAppIsKilled"] as? Bool ?? false
                     let enableRemoteUpdates = args["enableRemoteUpdates"] as? Bool ?? true
                     let staleIn = args["staleIn"] as? Int? ?? nil
-                    createOrUpdateActivity(data: data, activityId: activityId, removeWhenAppIsKilled: removeWhenAppIsKilled, enableRemoteUpdates: enableRemoteUpdates, staleIn: staleIn, result: result,)
+                    createOrUpdateActivity(data: data, activityId: activityId, removeWhenAppIsKilled: removeWhenAppIsKilled, enableRemoteUpdates: enableRemoteUpdates, staleIn: staleIn, result: result)
                 } else {
                     result(FlutterError(code: "WRONG_ARGS", message: "argument are not valid, check if 'data', 'activityId' is valid", details: nil))
                 }
@@ -311,14 +311,16 @@ public class LiveActivitiesPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
                 result(FlutterError(code: "LIVE_ACTIVITY_ERROR", message: "can't launch live activity", details: error.localizedDescription))
             }
         }
-        if (deliveryActivity != nil) {
+        if let activity = deliveryActivity {
             if removeWhenAppIsKilled {
-                appLifecycleLiveActivityIds.append(deliveryActivity!.id)
+                appLifecycleLiveActivityIds.append(activity.id)
             }
+            // 闭包里只能捕获 let：捕获可变的 deliveryActivity 在 Swift 5 模式下
+            // 是硬错误（Reference to captured var in concurrently-executing code）。
             Task { @MainActor in
-                self.attachObserversIfNeeded(deliveryActivity!)
+                self.attachObserversIfNeeded(activity)
             }
-            result(deliveryActivity!.id)
+            result(activity.id)
         }
     }
     
