@@ -2755,4 +2755,68 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get add => 'Add';
+
+  @override
+  String get folders => 'Folders';
+
+  @override
+  String get unknownAlbum => 'Unknown album';
+
+  @override
+  String get unknownArtist => 'Unknown artist';
+
+  @override
+  String get addServer => 'Add server';
+
+  @override
+  String get deleteServer => 'Delete server';
+
+  @override
+  String get browseDirectory => 'Browse';
+
+  @override
+  String get useThisFolder => 'Use this folder';
+
+  @override
+  String get plexPinLogin => 'Sign in with Plex';
+
+  @override
+  String plexPinWaiting(String code) {
+    return 'Login code $code. Open plex.tv/link in a browser and enter it; sign-in finishes automatically.';
+  }
+
+  @override
+  String get streamQuality => 'Streaming quality';
+
+  @override
+  String get qualityOriginal => 'Original';
+
+  @override
+  String get downloadCollection => 'Download all';
+
+  @override
+  String get nasCacheOfflineHint =>
+      'Server is unreachable; showing the last synced list';
+
+  @override
+  String songCountValue(int n) {
+    return '$n songs';
+  }
+
+  @override
+  String downloadQueued(int n) {
+    return 'Queued $n downloads';
+  }
+
+  @override
+  String get savedServers => 'Saved servers';
+
+  @override
+  String deleteServerConfirm(String name) {
+    return 'This removes \"$name\" and its saved credentials. Continue?';
+  }
+
+  @override
+  String get noServersYet =>
+      'No server saved yet — fill in the address below and connect';
 }

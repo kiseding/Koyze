@@ -5,6 +5,32 @@ import '../../player/domain/music_item.dart';
 import 'nas_config.dart';
 import 'nas_kind.dart';
 
+/// 一次拉取的上限。以前是 500，超过的库会被静默截断；现在默认拉全量，
+/// 这个值只作为防止异常服务器拖死客户端的保险丝。
+const kNasLibraryLimit = 20000;
+
+/// 串流码率：`original` 表示不转码，直接给服务器上的原文件。
+const kNasQualityOriginal = 'original';
+
+/// 可以选的档位。数字只是 kbps 上限，具体转成什么由服务器决定。
+const kNasQualityOptions = <String>[
+  kNasQualityOriginal,
+  '320k',
+  '192k',
+  '128k',
+];
+
+/// `quality` 是应用统一的音质档位（hires / flac24bit / flac / 320k / 192k / 128k）。
+/// NAS 侧只关心一件事：要不要压码率。无损档位放原文件，其余按 kbps 上限转码。
+int? nasBitrateCapKbps(String quality) {
+  return switch (quality) {
+    '320k' => 320,
+    '192k' => 192,
+    '128k' => 128,
+    _ => null,
+  };
+}
+
 class NasApiException implements Exception {
   const NasApiException(this.message, {this.code});
 
@@ -54,7 +80,7 @@ abstract class NasClient {
   Future<List<MusicItem>> getLibrarySongs(
     NasConfig config,
     NasSecrets secrets, {
-    int limit = 500,
+    int limit = kNasLibraryLimit,
   });
 
   Future<List<MusicItem>> search(
@@ -87,6 +113,11 @@ abstract class NasClient {
       url: streamUrl(config, secrets, music, quality: quality),
     );
   }
+
+  /// 封面图请求头。默认空——把凭证放在 URL 里的协议（Emby 的 api_key、
+  /// Plex 的 X-Plex-Token）不需要额外头；WebDAV 走 Authorization，必须覆盖。
+  Map<String, String> artworkHeaders(NasConfig config, NasSecrets secrets) =>
+      const {};
 
   Future<String?> getLyrics(
     NasConfig config,

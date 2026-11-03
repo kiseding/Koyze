@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/network/app_http_client.dart';
+import '../../nas/domain/nas_client.dart';
 import '../../player/domain/music_item.dart';
 import 'subsonic_auth.dart';
 import 'subsonic_config.dart';
@@ -308,16 +309,16 @@ class SubsonicClient {
     String songId, {
     required String quality,
   }) {
-    final _ = quality;
-    return _restUrl(
-      config,
-      password,
-      'stream',
-      extra: {
-        'id': songId,
-        'format': 'raw',
-      },
-    );
+    final cap = nasBitrateCapKbps(quality);
+    final extra = <String, String>{'id': songId};
+    if (cap == null) {
+      // 无损档位：要原文件，别让服务器转码。
+      extra['format'] = 'raw';
+    } else {
+      extra['format'] = 'mp3';
+      extra['maxBitRate'] = '$cap';
+    }
+    return _restUrl(config, password, 'stream', extra: extra);
   }
 
   String coverArtUrl(

@@ -5,20 +5,36 @@ import 'nas_client.dart';
 import 'nas_config.dart';
 import 'nas_kind.dart';
 
+class PlexPinSession {
+  const PlexPinSession({
+    required this.id,
+    required this.code,
+    required this.clientId,
+  });
+
+  final String id;
+  final String code;
+  final String clientId;
+}
+
 class PlexNasClient extends NasClient {
   PlexNasClient({Dio? dio, String? clientId})
       : _clientId = clientId ?? 'koyze-plex',
         super(dio: dio);
 
-  final String _clientId;
+  /// PIN 登录拿到的 clientId 要沿用到后续请求，否则 plex.tv 那边
+  /// 会认为是另一台设备，token 的授权关系对不上。
+  String _clientId;
+
+  String get clientId => _clientId;
 
   @override
   NasKind get kind => NasKind.plex;
 
-  Map<String, String> _headers({String? token}) {
+  Map<String, String> _headers({String? token, String? clientId}) {
     return {
       'Accept': 'application/json',
-      'X-Plex-Client-Identifier': _clientId,
+      'X-Plex-Client-Identifier': clientId ?? _clientId,
       'X-Plex-Product': nasClientName,
       'X-Plex-Version': nasClientVersion,
       'X-Plex-Platform': 'Web',
@@ -29,10 +45,14 @@ class PlexNasClient extends NasClient {
     };
   }
 
-  Options _options({String? token, String contentType = 'application/json'}) {
+  Options _options({
+    String? token,
+    String? clientId,
+    String contentType = 'application/json',
+  }) {
     return Options(
       headers: {
-        ..._headers(token: token),
+        ..._headers(token: token, clientId: clientId),
         'Content-Type': contentType,
       },
     );
@@ -91,6 +111,7 @@ class PlexNasClient extends NasClient {
   @override
   Future<NasPingResult> connect(NasConfig config, NasSecrets secrets) async {
     try {
+      if (config.deviceId.isNotEmpty) _clientId = config.deviceId;
       final token = await _resolveToken(config, secrets);
       final data = asMap(await _get(config.baseUrl, token: token));
       final container = asMap(data?['MediaContainer']) ?? data;
@@ -157,9 +178,9 @@ class PlexNasClient extends NasClient {
   Future<List<MusicItem>> getLibrarySongs(
     NasConfig config,
     NasSecrets secrets, {
-    int limit = 500,
+    int limit = kNasLibraryLimit,
   }) async {
-    final cap = limit < 1 ? 500 : limit;
+    final cap = limit < 1 ? kNasLibraryLimit : limit;
     final sections = _container(
       await _get('${config.baseUrl}/library/sections', token: secrets.token),
     );
@@ -318,12 +339,35 @@ class PlexNasClient extends NasClient {
     );
   }
 
+  /// 封面不再把 token 拼进 URL：图片加载器通过 [artworkHeaders] 拿凭证，
+  /// 这样缓存下来的 MusicItem / 日志里不会留下长期有效的 Plex token。
   String coverUrl(NasConfig config, NasSecrets secrets, String thumb) {
-    final token = secrets.token ?? '';
+    final _ = secrets;
     final thumbUrl = thumb.startsWith('http')
         ? thumb
         : '${config.baseUrl}$thumb';
-    return '${config.baseUrl}/photo/:/transcode?width=300&height=300&minSize=1&upscale=1&url=${Uri.encodeQueryComponent('$thumbUrl?X-Plex-Token=$token')}&X-Plex-Token=$token';
+    return '${config.baseUrl}/photo/:/transcode?width=300&height=300&minSize=1&upscale=1&url=${Uri.encodeQueryComponent(thumbUrl)}';
+  }
+
+  @override
+  Map<String, String> artworkHeaders(NasConfig config, NasSecrets secrets) {
+    final token = secrets.token ?? '';
+    if (token.isEmpty) return const {};
+    return {'X-Plex-Token': token};
+  }
+
+  @override
+  Future<NasPlayUrlResult> streamResult(
+    NasConfig config,
+    NasSecrets secrets,
+    MusicItem music, {
+    required String quality,
+  }) async {
+    return NasPlayUrlResult(
+      url: streamUrl(config, secrets, music, quality: quality),
+      headers: artworkHeaders(config, secrets),
+      trustedNetwork: true,
+    );
   }
 
   @override
@@ -333,22 +377,31 @@ class PlexNasClient extends NasClient {
     MusicItem music, {
     required String quality,
   }) {
-    final _ = quality;
-    final token = secrets.token ?? '';
+    final cap = nasBitrateCapKbps(quality);
     final partKey = music.meta?['partKey']?.toString();
-    if (partKey != null && partKey.isNotEmpty) {
-      final path = partKey.startsWith('/') ? partKey : '/$partKey';
-      return '${config.baseUrl}$path?X-Plex-Token=$token&X-Plex-Platform=Web';
+    final hasPart = partKey != null && partKey.isNotEmpty;
+    final partPath = hasPart
+        ? (partKey.startsWith('/') ? partKey : '/$partKey')
+        : null;
+    if (cap == null && partPath != null) {
+      return '${config.baseUrl}$partPath';
     }
     final id = music.songmid?.isNotEmpty == true ? music.songmid! : music.id;
     final session = DateTime.now().millisecondsSinceEpoch.toRadixString(16);
     final query = <String, String>{
-      'path': '/library/metadata/$id',
-      'directPlay': '1',
+      'path': partPath ?? '/library/metadata/$id',
       'session': session,
-      'X-Plex-Token': token,
       'X-Plex-Platform': 'Web',
     };
+    if (cap != null) {
+      // Plex 只有转码接口认码率上限；directPlay=0 才会真的压。
+      query['directPlay'] = '0';
+      query['directStream'] = '0';
+      query['protocol'] = 'http';
+      query['maxAudioBitrate'] = '$cap';
+    } else {
+      query['directPlay'] = '1';
+    }
     final encoded = query.entries
         .map(
           (entry) =>
@@ -356,6 +409,48 @@ class PlexNasClient extends NasClient {
         )
         .join('&');
     return '${config.baseUrl}/music/:/transcode/universal/start?$encoded';
+  }
+
+  /// Plex 官方推荐的登录方式：生成登录码，用户去 plex.tv/link 输入，
+  /// 客户端轮询拿 token。全程不需要把账号密码交给应用。
+  Future<PlexPinSession> createPin({required String clientId}) async {
+    try {
+      final response = await dio.post<dynamic>(
+        'https://plex.tv/api/v2/pins',
+        queryParameters: const {'strong': 'true'},
+        options: _options(clientId: clientId),
+      );
+      final data = asMap(response.data) ?? const {};
+      final id = data['id']?.toString() ?? '';
+      final code = data['code']?.toString() ?? '';
+      if (id.isEmpty || code.isEmpty) {
+        throw const NasApiException('Plex 未返回登录码');
+      }
+      return PlexPinSession(id: id, code: code, clientId: clientId);
+    } on DioException catch (error) {
+      throw NasApiException(
+        describeDio(error),
+        code: error.response?.statusCode,
+      );
+    }
+  }
+
+  /// 返回 null 表示用户还没在浏览器里授权。
+  Future<String?> fetchPinToken(PlexPinSession session) async {
+    try {
+      final response = await dio.get<dynamic>(
+        'https://plex.tv/api/v2/pins/${session.id}',
+        options: _options(clientId: session.clientId),
+      );
+      final data = asMap(response.data) ?? const {};
+      final token = data['authToken']?.toString();
+      return token == null || token.isEmpty ? null : token;
+    } on DioException catch (error) {
+      throw NasApiException(
+        describeDio(error),
+        code: error.response?.statusCode,
+      );
+    }
   }
 
   @override

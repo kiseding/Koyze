@@ -198,9 +198,9 @@ class AudioStationNasClient extends NasClient {
   Future<List<MusicItem>> getLibrarySongs(
     NasConfig config,
     NasSecrets secrets, {
-    int limit = 500,
+    int limit = kNasLibraryLimit,
   }) async {
-    final cap = limit < 1 ? 500 : limit;
+    final cap = limit < 1 ? kNasLibraryLimit : limit;
     final data = await _cgi(
       config,
       path: '/webapi/AudioStation/song.cgi',

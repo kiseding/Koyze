@@ -10,8 +10,13 @@ import '../../../core/widgets/origo_chrome.dart';
 import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/fx_switch.dart';
+import '../../../core/widgets/koyze_modal.dart';
+import '../../nas/domain/nas_client.dart';
 import '../../nas/domain/nas_config.dart';
 import '../../nas/domain/nas_kind.dart';
+import '../../nas/domain/webdav_client.dart';
+import '../../nas/presentation/plex_pin_dialog.dart';
+import '../../nas/presentation/webdav_directory_picker.dart';
 import '../../nas/domain/nas_url.dart';
 import '../../nas/domain/self_hosted_kind.dart';
 import '../../nas/presentation/nas_provider.dart';
@@ -44,6 +49,7 @@ class _SubsonicSettingsScreenState
   SelfHostedKind? _hydratedKind;
   SelfHostedKind? _seededKind;
   NasAuthMethod _webDavAuth = NasAuthMethod.basic;
+  String? _plexClientId;
 
   @override
   void initState() {
@@ -67,6 +73,33 @@ class _SubsonicSettingsScreenState
   SelfHostedKind get _kind => ref.read(selfHostedKindProvider);
 
   bool get _isWebDav => _kind == SelfHostedKind.webdav;
+
+  /// WebDAV 与群晖只吐静态文件，压码率这档对它们没有意义。
+  bool get _supportsTranscoding {
+    final nasKind = _kind.nasKind;
+    if (nasKind == null) return true;
+    return nasKind != NasKind.webdav && nasKind != NasKind.audiostation;
+  }
+
+  String _qualityLabel(BuildContext context, String quality) {
+    if (quality == kNasQualityOriginal) return S.of(context).qualityOriginal;
+    final kbps = quality.replaceAll('k', '');
+    return '$kbps kbps';
+  }
+
+  Future<void> _setQuality(String quality) async {
+    final nasKind = _kind.nasKind;
+    try {
+      if (nasKind == null) {
+        await setSubsonicStreamQuality(ref, quality);
+      } else {
+        await setNasStreamQuality(ref, nasKind, quality);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      showAppNotification('$error', type: AppNotificationType.error);
+    }
+  }
 
   void _selectKind(SelfHostedKind kind) {
     if (kind == _kind) return;
@@ -220,6 +253,7 @@ class _SubsonicSettingsScreenState
             password: password,
             rootPath: rootPath,
             authMethod: isWebDav ? _webDavAuth : null,
+            deviceId: nasKind == NasKind.plex ? _plexClientId : null,
           );
       if (!mounted) return;
       if (result.ok) {
@@ -241,6 +275,211 @@ class _SubsonicSettingsScreenState
       showAppNotification('$error', type: AppNotificationType.error);
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Plex 开了两步验证之后密码登录走不通，改用登录码：
+  /// 先跟 plex.tv 换一个 4 位码，用户在 plex.tv/link 里授权，再回来拿 token。
+  Future<void> _loginWithPlex() async {
+    final client = ref.read(nasServiceProvider(NasKind.plex)).plexClient;
+    if (client == null) return;
+    final result = await showPlexPinDialog(
+      context,
+      client: client,
+      clientId: client.clientId,
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _passwordController.text = result.token;
+      _plexClientId = result.clientId;
+    });
+    await _connectNas(NasKind.plex);
+  }
+
+  Future<void> _selectServer(String baseUrl) async {
+    final nasKind = _kind.nasKind;
+    setState(() => _busy = true);
+    try {
+      if (nasKind == null) {
+        await switchSubsonicServer(ref, baseUrl);
+      } else {
+        await switchNasServer(ref, nasKind, baseUrl);
+      }
+      if (!mounted) return;
+      setState(() {
+        // 让 build 里的 hydrate 重新把新服务器的配置灌进表单。
+        _hydrated = false;
+        _passwordController.clear();
+        _plexClientId = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      showAppNotification('$error', type: AppNotificationType.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deleteServer(_SavedServer server) async {
+    final s = S.of(context);
+    final confirmed = await showKoyzeDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(s.deleteServer),
+        content: Text(s.deleteServerConfirm(server.label)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(s.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(s.deleteServer),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final nasKind = _kind.nasKind;
+    setState(() => _busy = true);
+    try {
+      if (nasKind == null) {
+        await removeSubsonicServer(ref, server.baseUrl);
+      } else {
+        await removeNasServer(ref, nasKind, server.baseUrl);
+      }
+      if (!mounted) return;
+      setState(() {
+        _hydrated = false;
+        _passwordController.clear();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      showAppNotification('$error', type: AppNotificationType.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// 清空表单，从「再加一台」开始填。
+  void _addServer() {
+    setState(() {
+      _hydrated = true;
+      _hydratedKind = _kind;
+      _urlController.clear();
+      _usernameController.clear();
+      _passwordController.clear();
+      _rootPathController.clear();
+      _webDavAuth = NasAuthMethod.basic;
+      _plexClientId = null;
+    });
+  }
+
+  Widget _serverTile(
+    BuildContext context,
+    _SavedServer server,
+    String currentBaseUrl,
+  ) {
+    final on = AppColors.onScaffold(context);
+    final muted = AppColors.mutedText(context);
+    final accent = AppColors.accentOf(context);
+    final selected = server.baseUrl == currentBaseUrl;
+    return InkWell(
+      onTap: _busy || selected ? null : () => _selectServer(server.baseUrl),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        child: Row(
+          children: [
+            Icon(
+              selected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              size: 16,
+              color: selected ? accent : muted,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    server.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: on,
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                  if (server.username.isNotEmpty)
+                    Text(
+                      server.username,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: muted, fontSize: 11),
+                    ),
+                ],
+              ),
+            ),
+            FxIconButton(
+              tooltip: S.of(context).deleteServer,
+              icon: Icon(Icons.delete_outline, size: 16, color: muted),
+              onPressed: _busy ? null : () => _deleteServer(server),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 手打 `/volume1/music` 太容易出错，直接列目录让人挑。
+  Future<void> _browseWebDavRoot() async {
+    final typedPassword = _passwordController.text;
+    final bearer = _webDavAuth == NasAuthMethod.bearer;
+    WebDavNasClient? tempClient;
+    Future<List<WebDavDirectory>> Function(String) loader;
+    try {
+      final baseUrl = validateNasServiceUrl(_urlController.text.trim());
+      if (typedPassword.isNotEmpty) {
+        final client = tempClient = WebDavNasClient();
+        final config = NasConfig(
+          kind: NasKind.webdav,
+          baseUrl: baseUrl,
+          username: _usernameController.text.trim(),
+          authMethod: _webDavAuth,
+        );
+        final secrets = bearer
+            ? NasSecrets(token: typedPassword)
+            : NasSecrets(password: typedPassword);
+        loader = (path) => client.listDirectories(config, secrets, path);
+      } else {
+        final service = ref.read(nasServiceProvider(NasKind.webdav));
+        await service.init();
+        loader = service.listDirectories;
+      }
+    } catch (error) {
+      showAppNotification(
+        error is ArgumentError ? error.message ?? '$error' : '$error',
+        type: AppNotificationType.error,
+      );
+      return;
+    }
+    if (!mounted) {
+      tempClient?.dispose();
+      return;
+    }
+    final picked = await showWebDavDirectoryPicker(
+      context,
+      load: loader,
+      onDispose: tempClient?.dispose,
+      initialPath: _rootPathController.text.trim().isEmpty
+          ? '/'
+          : _rootPathController.text.trim(),
+    );
+    if (picked != null && mounted) {
+      setState(() => _rootPathController.text = picked);
     }
   }
 
@@ -283,6 +522,29 @@ class _SubsonicSettingsScreenState
     } else {
       _hydrateNas(nasConfig!, kind);
     }
+    final savedServers = nasKind == null
+        ? [
+            for (final server in ref.watch(subsonicServersProvider))
+              _SavedServer(
+                baseUrl: server.baseUrl,
+                label: server.hostLabel,
+                username: server.username,
+              ),
+          ]
+        : [
+            for (final server in ref.watch(nasServersProvider(nasKind)))
+              _SavedServer(
+                baseUrl: server.baseUrl,
+                label: server.hostLabel,
+                username: server.username,
+              ),
+          ];
+    final currentBaseUrl = nasKind == null
+        ? subsonicConfig.baseUrl
+        : nasConfig!.baseUrl;
+    final currentQuality = nasKind == null
+        ? ref.watch(subsonicStreamQualityProvider)
+        : ref.watch(nasStreamQualityProvider(nasKind));
     final connected = nasKind == null ? subsonicConnected : nasConnected;
     final hostLabel = nasKind == null
         ? subsonicConfig.hostLabel
@@ -346,7 +608,46 @@ class _SubsonicSettingsScreenState
                   kind.intro,
                   style: TextStyle(color: muted, fontSize: 13, height: 1.4),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        S.of(context).savedServers,
+                        style: TextStyle(
+                          color: muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _busy ? null : _addServer,
+                      icon: const Icon(Icons.add, size: 16),
+                      label: Text(
+                        S.of(context).addServer,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: const Size(0, 30),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ),
+                if (savedServers.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      S.of(context).noServersYet,
+                      style: TextStyle(color: muted, fontSize: 12),
+                    ),
+                  )
+                else
+                  for (final server in savedServers)
+                    _serverTile(context, server, currentBaseUrl),
+                const SizedBox(height: 12),
                 _field(
                   label: S.of(context).serverAddress,
                   child: TextField(
@@ -372,6 +673,16 @@ class _SubsonicSettingsScreenState
                       style: TextStyle(color: on, fontSize: 14),
                       decoration: _decoration(
                         hint: S.of(context).webDavRootPathHint,
+                      ).copyWith(
+                        suffixIcon: TextButton.icon(
+                          onPressed: _busy ? null : _browseWebDavRoot,
+                          icon: const Icon(Icons.folder_open_outlined, size: 16),
+                          label: Text(S.of(context).browseDirectory),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.accentOf(context),
+                            textStyle: const TextStyle(fontSize: 12),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -468,6 +779,20 @@ class _SubsonicSettingsScreenState
                         ),
                   ),
                 ),
+                if (kind == SelfHostedKind.plex) ...[
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _busy ? null : _loginWithPlex,
+                      icon: const Icon(Icons.login_outlined, size: 16),
+                      label: Text(
+                        S.of(context).plexPinLogin,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ],
                 if (kind == SelfHostedKind.subsonic) ...[
                   const SizedBox(height: 8),
                   GlassSurface(
@@ -505,6 +830,26 @@ class _SubsonicSettingsScreenState
                               ? null
                               : (value) => setState(() => _legacyAuth = value),
                         ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (_supportsTranscoding) ...[
+                  const SizedBox(height: 12),
+                  _field(
+                    label: S.of(context).streamQuality,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final quality in kNasQualityOptions)
+                          KoyzeChoicePill(
+                            label: _qualityLabel(context, quality),
+                            selected: currentQuality == quality,
+                            onPressed: _busy
+                                ? null
+                                : () => _setQuality(quality),
+                          ),
                       ],
                     ),
                   ),
@@ -598,4 +943,16 @@ class _SubsonicSettingsScreenState
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
   }
+}
+
+class _SavedServer {
+  const _SavedServer({
+    required this.baseUrl,
+    required this.label,
+    required this.username,
+  });
+
+  final String baseUrl;
+  final String label;
+  final String username;
 }

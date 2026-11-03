@@ -7,6 +7,7 @@ import 'package:koyze/features/custom_source/domain/custom_source_service.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/subsonic/domain/subsonic_auth.dart';
 import 'package:koyze/features/subsonic/domain/subsonic_client.dart';
+import 'package:koyze/features/nas/domain/nas_client.dart';
 import 'package:koyze/features/subsonic/domain/subsonic_config.dart';
 import 'package:koyze/features/subsonic/domain/subsonic_service.dart';
 import 'package:koyze/features/subsonic/domain/subsonic_store.dart';
@@ -218,11 +219,24 @@ void main() {
   test('stream URL stays on original HTTP scheme', () {
     final client = SubsonicClient(saltGenerator: () => 'fixedsalt12');
     addTearDown(client.dispose);
-    final url = client.streamUrl(config, 'secret', '42', quality: '320k');
+    final url = client.streamUrl(
+      config,
+      'secret',
+      '42',
+      quality: kNasQualityOriginal,
+    );
     expect(url.startsWith('http://192.168.1.8:4533/rest/stream?'), isTrue);
     expect(url, contains('format=raw'));
     expect(url, isNot(contains('maxBitRate=')));
     expect(url, contains('id=42'));
+  });
+
+  test('capped quality asks the server to transcode', () {
+    final client = SubsonicClient(saltGenerator: () => 'fixedsalt12');
+    addTearDown(client.dispose);
+    final url = client.streamUrl(config, 'secret', '42', quality: '192k');
+    expect(url, contains('maxBitRate=192'));
+    expect(url, contains('format=mp3'));
   });
 
   test('connect stores credentials and resolves play URL', () async {

@@ -221,9 +221,9 @@ class MediaBrowserNasClient extends NasClient {
   Future<List<MusicItem>> getLibrarySongs(
     NasConfig config,
     NasSecrets secrets, {
-    int limit = 500,
+    int limit = kNasLibraryLimit,
   }) async {
-    final cap = limit < 1 ? 500 : limit;
+    final cap = limit < 1 ? kNasLibraryLimit : limit;
     final data = asMap(
       await _get(
         config,
@@ -355,13 +355,19 @@ class MediaBrowserNasClient extends NasClient {
     MusicItem music, {
     required String quality,
   }) {
-    final _ = quality;
     final id = music.songmid?.isNotEmpty == true ? music.songmid! : music.id;
     final token = secrets.token ?? '';
-    final query = <String, String>{
-      'api_key': token,
-      'static': 'true',
-    };
+    final cap = nasBitrateCapKbps(quality);
+    final query = <String, String>{'api_key': token};
+    if (cap == null) {
+      query['static'] = 'true';
+    } else {
+      // static=false 走服务端转码，MaxStreamingBitrate 的单位是 bps。
+      query['static'] = 'false';
+      query['MaxStreamingBitrate'] = '${cap * 1000}';
+      query['AudioCodec'] = 'mp3';
+      query['Container'] = 'mp3';
+    }
     final encoded = query.entries
         .map(
           (entry) =>

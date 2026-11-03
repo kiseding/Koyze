@@ -391,6 +391,25 @@ class S {
   String get songs => _l10n.songs;
   String get artists => _l10n.artists;
   String get albums => _l10n.albums;
+  String get folders => _l10n.folders;
+  String get unknownAlbum => _l10n.unknownAlbum;
+  String get unknownArtist => _l10n.unknownArtist;
+  String get addServer => _l10n.addServer;
+  String get deleteServer => _l10n.deleteServer;
+  String get browseDirectory => _l10n.browseDirectory;
+  String get useThisFolder => _l10n.useThisFolder;
+  String get plexPinLogin => _l10n.plexPinLogin;
+  String plexPinWaiting(String code) => _l10n.plexPinWaiting(code);
+  String get streamQuality => _l10n.streamQuality;
+  String get qualityOriginal => _l10n.qualityOriginal;
+  String get downloadCollection => _l10n.downloadCollection;
+  String get nasCacheOfflineHint => _l10n.nasCacheOfflineHint;
+  String get savedServers => _l10n.savedServers;
+  String get noServersYet => _l10n.noServersYet;
+  String deleteServerConfirm(String name) =>
+      _l10n.deleteServerConfirm(name);
+  String songCountValue(int n) => _l10n.songCountValue(n);
+  String downloadQueued(int n) => _l10n.downloadQueued(n);
   String get noData => _l10n.noData;
   String get loadFailed => _l10n.loadFailed;
   String get noDuplicateFavorites => _l10n.noDuplicateFavorites;

@@ -709,7 +709,11 @@ class DownloadService {
               await _sourceMediaTransport.download(
                 downloadUrl,
                 partPath,
-                headers: _downloadHeaders(downloadUrl, resolved.platform),
+                headers: _downloadHeaders(
+                  downloadUrl,
+                  resolved.platform,
+                  extra: resolved.headers,
+                ),
                 cancelToken: cancelToken,
                 byteLimit: ceiling,
               );
@@ -721,6 +725,7 @@ class DownloadService {
                 cancelToken,
                 ceiling,
                 attempt,
+                headers: resolved.headers,
               );
             }
           } on DioException catch (e) {
@@ -923,8 +928,12 @@ class DownloadService {
     return null;
   }
 
-  Map<String, String> _downloadHeaders(String url, String platform) {
-    return {
+  Map<String, String> _downloadHeaders(
+    String url,
+    String platform, {
+    Map<String, String>? extra,
+  }) {
+    final headers = {
       'User-Agent':
           'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
       'Referer': _refererFor(url, platform),
@@ -933,6 +942,14 @@ class DownloadService {
       'Cache-Control': 'no-cache',
       'Pragma': 'no-cache',
     };
+    // 自建服务器的鉴权头（Plex 的 X-Plex-Token、WebDAV 的 Basic）由解析
+    // 播放地址时一并给出，不带上就只会拿到 401。
+    if (extra != null) {
+      for (final entry in extra.entries) {
+        headers.putIfAbsent(entry.key, () => entry.value);
+      }
+    }
+    return headers;
   }
 
   Future<void> _downloadBoundedWithDio(
@@ -941,13 +958,14 @@ class DownloadService {
     String platform,
     CancelToken token,
     int ceiling,
-    _DownloadAttempt attempt,
-  ) async {
+    _DownloadAttempt attempt, {
+    Map<String, String>? headers,
+  }) async {
     final response = await _dio.get<ResponseBody>(
       url,
       cancelToken: token,
       options: Options(
-        headers: _downloadHeaders(url, platform),
+        headers: _downloadHeaders(url, platform, extra: headers),
         responseType: ResponseType.stream,
         receiveTimeout: const Duration(minutes: 5),
         sendTimeout: const Duration(seconds: 30),

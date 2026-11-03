@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../../core/storage/secure_token_store.dart';
 import '../../../core/storage/storage_service.dart';
+import 'nas_client.dart';
 import 'nas_config.dart';
 import 'nas_kind.dart';
 import '../../../core/logging/app_log.dart';
@@ -20,6 +21,8 @@ class NasStore {
   final SecureTokenStore _tokenStore;
 
   String get _configKey => '${kind.id}_config';
+  String get _serversKey => '${kind.id}_servers';
+  String get _qualityKey => '${kind.id}_stream_quality';
   String get _passwordNs => '${kind.id}_password';
   String get _tokenNs => '${kind.id}_token';
 
@@ -37,6 +40,56 @@ class NasStore {
 
   Future<void> saveConfig(NasConfig config) async {
     await (await _storage()).setString(_configKey, jsonEncode(config.toJson()));
+  }
+
+  /// 同一个协议下可能有不止一台服务器（家里一台、公司一台）。
+  /// 列表存在普通存储里，凭据还是按 origin 分别进钥匙串。
+  Future<List<NasConfig>> loadServers() async {
+    try {
+      final raw = (await _storage()).getString(_serversKey);
+      if (raw == null || raw.isEmpty) {
+        // 老版本只存了单台，读出来当成唯一的服务器。
+        final legacy = await loadConfig();
+        return legacy.isConfigured ? [legacy] : const [];
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      final servers = <NasConfig>[];
+      for (final item in decoded) {
+        if (item is! Map) continue;
+        final config = NasConfig.fromJson(
+          kind,
+          Map<String, dynamic>.from(item),
+        );
+        if (config.baseUrl.isEmpty) continue;
+        servers.add(config);
+      }
+      return servers;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> saveServers(List<NasConfig> servers) async {
+    await (await _storage()).setString(
+      _serversKey,
+      jsonEncode([for (final server in servers) server.toJson()]),
+    );
+  }
+
+  /// 串流码率档位。默认 original：不动原文件，行为和老版本一致。
+  Future<String> loadStreamQuality() async {
+    try {
+      final raw = (await _storage()).getString(_qualityKey);
+      if (raw == null || raw.isEmpty) return kNasQualityOriginal;
+      return raw;
+    } catch (_) {
+      return kNasQualityOriginal;
+    }
+  }
+
+  Future<void> saveStreamQuality(String quality) async {
+    await (await _storage()).setString(_qualityKey, quality);
   }
 
   Future<NasSecrets> loadSecrets(String baseUrl) async {

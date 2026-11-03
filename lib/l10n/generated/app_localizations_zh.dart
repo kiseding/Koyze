@@ -2695,4 +2695,66 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get add => '添加';
+
+  @override
+  String get folders => '文件夹';
+
+  @override
+  String get unknownAlbum => '未知专辑';
+
+  @override
+  String get unknownArtist => '未知艺术家';
+
+  @override
+  String get addServer => '添加服务器';
+
+  @override
+  String get deleteServer => '删除服务器';
+
+  @override
+  String get browseDirectory => '浏览目录';
+
+  @override
+  String get useThisFolder => '使用这个目录';
+
+  @override
+  String get plexPinLogin => '用 Plex 账号登录';
+
+  @override
+  String plexPinWaiting(String code) {
+    return '已生成登录码 $code。请在浏览器打开 plex.tv/link 并输入该码，授权后会自动完成登录。';
+  }
+
+  @override
+  String get streamQuality => '串流码率';
+
+  @override
+  String get qualityOriginal => '原始码率';
+
+  @override
+  String get downloadCollection => '下载全部';
+
+  @override
+  String get nasCacheOfflineHint => '服务器现在连不上，先显示上次同步的列表';
+
+  @override
+  String songCountValue(int n) {
+    return '$n 首';
+  }
+
+  @override
+  String downloadQueued(int n) {
+    return '已加入下载队列：$n 首';
+  }
+
+  @override
+  String get savedServers => '已保存的服务器';
+
+  @override
+  String deleteServerConfirm(String name) {
+    return '会删掉「$name」以及它的登录凭据，确定吗？';
+  }
+
+  @override
+  String get noServersYet => '还没有保存过服务器，填好下面的地址后点连接就行';
 }

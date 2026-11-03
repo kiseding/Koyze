@@ -5023,6 +5023,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add'**
   String get add;
+
+  /// No description provided for @folders.
+  ///
+  /// In en, this message translates to:
+  /// **'Folders'**
+  String get folders;
+
+  /// No description provided for @unknownAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown album'**
+  String get unknownAlbum;
+
+  /// No description provided for @unknownArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown artist'**
+  String get unknownArtist;
+
+  /// No description provided for @addServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add server'**
+  String get addServer;
+
+  /// No description provided for @deleteServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete server'**
+  String get deleteServer;
+
+  /// No description provided for @browseDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse'**
+  String get browseDirectory;
+
+  /// No description provided for @useThisFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this folder'**
+  String get useThisFolder;
+
+  /// No description provided for @plexPinLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Plex'**
+  String get plexPinLogin;
+
+  /// No description provided for @plexPinWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Login code {code}. Open plex.tv/link in a browser and enter it; sign-in finishes automatically.'**
+  String plexPinWaiting(String code);
+
+  /// No description provided for @streamQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Streaming quality'**
+  String get streamQuality;
+
+  /// No description provided for @qualityOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Original'**
+  String get qualityOriginal;
+
+  /// No description provided for @downloadCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Download all'**
+  String get downloadCollection;
+
+  /// No description provided for @nasCacheOfflineHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Server is unreachable; showing the last synced list'**
+  String get nasCacheOfflineHint;
+
+  /// No description provided for @songCountValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} songs'**
+  String songCountValue(int n);
+
+  /// No description provided for @downloadQueued.
+  ///
+  /// In en, this message translates to:
+  /// **'Queued {n} downloads'**
+  String downloadQueued(int n);
+
+  /// No description provided for @savedServers.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved servers'**
+  String get savedServers;
+
+  /// No description provided for @deleteServerConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes \"{name}\" and its saved credentials. Continue?'**
+  String deleteServerConfirm(String name);
+
+  /// No description provided for @noServersYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No server saved yet — fill in the address below and connect'**
+  String get noServersYet;
 }
 
 class _AppLocalizationsDelegate

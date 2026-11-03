@@ -30,6 +30,38 @@ final subsonicConnectedProvider = Provider<bool>((ref) {
   return ref.watch(subsonicServiceProvider).isConnected;
 });
 
+final subsonicStreamQualityProvider = Provider<String>((ref) {
+  ref.watch(subsonicRevisionProvider);
+  return ref.watch(subsonicServiceProvider).streamQuality;
+});
+
+Future<void> setSubsonicStreamQuality(WidgetRef ref, String quality) async {
+  final service = ref.read(subsonicServiceProvider);
+  await service.init();
+  await service.setStreamQuality(quality);
+}
+
+final subsonicServersProvider = Provider<List<SubsonicConfig>>((ref) {
+  ref.watch(subsonicRevisionProvider);
+  return ref.watch(subsonicServiceProvider).servers;
+});
+
+/// 切到另一台 Navidrome / Subsonic。密码按 origin 分开存在钥匙串里。
+Future<bool> switchSubsonicServer(WidgetRef ref, String baseUrl) async {
+  final service = ref.read(subsonicServiceProvider);
+  await service.init();
+  final ok = await service.switchTo(baseUrl);
+  if (ok) ref.invalidate(subsonicLibrarySongsProvider);
+  return ok;
+}
+
+Future<void> removeSubsonicServer(WidgetRef ref, String baseUrl) async {
+  final service = ref.read(subsonicServiceProvider);
+  await service.init();
+  await service.removeServer(baseUrl);
+  ref.invalidate(subsonicLibrarySongsProvider);
+}
+
 final subsonicPlaylistsProvider =
     FutureProvider.autoDispose<List<SubsonicPlaylistInfo>>((ref) async {
   ref.watch(subsonicRevisionProvider);

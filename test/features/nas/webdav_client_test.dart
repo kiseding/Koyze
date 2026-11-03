@@ -433,4 +433,10 @@ class _FakeNasStore extends NasStore {
 
   @override
   Future<void> deleteSecrets(String baseUrl) async {}
+
+  @override
+  Future<List<NasConfig>> loadServers() async => <NasConfig>[];
+
+  @override
+  Future<void> saveServers(List<NasConfig> servers) async {}
 }

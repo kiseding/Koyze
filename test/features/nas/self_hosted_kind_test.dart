@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/storage/storage_service.dart';
-import 'package:koyze/core/widgets/origo_chrome.dart';
 import 'package:koyze/features/nas/domain/nas_config.dart';
 import 'package:koyze/features/nas/domain/nas_kind.dart';
 import 'package:koyze/features/nas/domain/self_hosted_kind.dart';
@@ -113,9 +112,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byType(KoyzeChoicePill), findsNWidgets(6));
-    expect(find.text('Subsonic'), findsOneWidget);
-    expect(find.text('群晖'), findsOneWidget);
+    // 协议 chip 之外还有码率档位 chip，所以按文案逐个确认而不是数总数。
+    for (final label in ['Subsonic', 'Emby', 'Jellyfin', 'Plex', '群晖', 'WebDAV']) {
+      expect(find.text(label), findsOneWidget);
+    }
 
     await tester.tap(find.text('Emby'));
     await tester.pumpAndSettle();

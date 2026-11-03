@@ -32,6 +32,8 @@ import '../features/nas/domain/self_hosted_kind.dart';
 import '../features/nas/presentation/nas_library_screen.dart';
 import '../features/nas/presentation/nas_playlist_detail_screen.dart';
 import '../features/nas/presentation/nas_settings_screen.dart';
+import '../features/nas/domain/nas_library_groups.dart';
+import '../features/nas/presentation/nas_collection_screen.dart';
 import '../features/subsonic/presentation/subsonic_library_screen.dart';
 import '../features/subsonic/presentation/subsonic_playlist_detail_screen.dart';
 import '../features/subsonic/presentation/subsonic_settings_screen.dart';
@@ -388,6 +390,28 @@ final appRouter = GoRouter(
         expandRect: consumeCardExpandRect(),
         expandSnapshot: consumeCardExpandSnapshot(),
       ),
+    ),
+    GoRoute(
+      path: '/subsonic/collection',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) {
+        final collection = state.extra;
+        return expandablePage(
+          state.pageKey,
+          NasCollectionScreen(
+            collection: collection is NasCollection
+                ? collection
+                : const NasCollection(
+                    key: '',
+                    title: '',
+                    subtitle: '',
+                    songs: [],
+                  ),
+          ),
+          expandRect: consumeCardExpandRect(),
+          expandSnapshot: consumeCardExpandSnapshot(),
+        );
+      },
     ),
     GoRoute(
       path: '/subsonic/playlist/:id',

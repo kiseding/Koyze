@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../core/network/artwork_auth_registry.dart';
 import '../../player/domain/music_item.dart';
 import 'nas_client.dart';
 import 'nas_clients.dart';
@@ -7,6 +8,8 @@ import 'nas_config.dart';
 import 'nas_kind.dart';
 import 'nas_store.dart';
 import 'nas_url.dart';
+import 'plex_client.dart';
+import 'webdav_client.dart';
 
 class NasService {
   NasService({required NasKind kind, NasStore? store, NasClient? client})
@@ -22,12 +25,35 @@ class NasService {
       StreamController<int>.broadcast();
 
   NasConfig _config;
+  List<NasConfig> _servers = const [];
+  String _streamQuality = kNasQualityOriginal;
   NasSecrets _secrets = const NasSecrets();
   bool _initialized = false;
   Future<void>? _initFuture;
   int _revision = 0;
 
   NasConfig get config => _config;
+
+  /// 这个协议下记住的所有服务器，最后一个是最近用的。
+  List<NasConfig> get servers => _servers;
+
+  /// 串流码率档位：original / 320k / 192k / 128k。
+  String get streamQuality => _streamQuality;
+
+  Future<void> setStreamQuality(String quality) async {
+    await _ensureInit();
+    if (_streamQuality == quality) return;
+    _streamQuality = quality;
+    await _store.saveStreamQuality(quality);
+    _revisionController.add(++_revision);
+  }
+
+  /// Plex 的「用账号登录」要先跟 plex.tv 换 token，这一步发生在 connect 之前，
+  /// 所以把底层客户端借出去，让设置页能拿到同一个 clientId。
+  PlexNasClient? get plexClient {
+    final client = _client;
+    return client is PlexNasClient ? client : null;
+  }
   bool get isConnected =>
       _config.isConfigured &&
       _config.enabled &&
@@ -42,11 +68,33 @@ class NasService {
   }
 
   Future<void> _load() async {
+    _servers = await _store.loadServers();
+    _streamQuality = await _store.loadStreamQuality();
     _config = await _store.loadConfig();
+    if (_config.baseUrl.isEmpty) {
+      // 配置丢了但列表还在（换版本/清缓存），退回到最近一台。
+      for (final server in _servers.reversed) {
+        if (server.isConfigured) {
+          _config = server;
+          break;
+        }
+      }
+    }
     if (_config.baseUrl.isNotEmpty) {
       _secrets = await _store.loadSecrets(_config.baseUrl);
     }
+    _registerArtworkAuth();
     _revisionController.add(++_revision);
+  }
+
+  /// WebDAV 的封面图要带 Authorization；把当前连接的头登记到全局表，
+  /// 让图片加载器能取到。
+  void _registerArtworkAuth() {
+    if (_config.baseUrl.isEmpty) return;
+    registerArtworkAuth(
+      _config.baseUrl,
+      _client.artworkHeaders(_config, _secrets),
+    );
   }
 
   Future<void> _ensureInit() async {
@@ -60,6 +108,7 @@ class NasService {
     required String password,
     String? rootPath,
     NasAuthMethod? authMethod,
+    String? deviceId,
   }) async {
     await _ensureInit();
     final normalized = validateNasServiceUrl(baseUrl);
@@ -71,7 +120,7 @@ class NasService {
       baseUrl: normalized,
       username: username.trim(),
       userId: _config.userId,
-      deviceId: _config.deviceId,
+      deviceId: deviceId ?? _config.deviceId,
       rootPath: kind == NasKind.webdav
           ? normalizeNasRootPath(rootPath ?? _config.rootPath)
           : '/',
@@ -108,11 +157,81 @@ class NasService {
     );
     await _store.saveConfig(next);
     await _store.saveSecrets(normalized, _secrets);
+    _servers = _upsertServer(_servers, next);
+    await _store.saveServers(_servers);
     if (previousUrl.isNotEmpty && previousUrl != normalized) {
-      await _store.deleteSecrets(previousUrl);
+      // 换到另一台服务器不等于不要旧的那台：凭据按 origin 存，
+      // 留着才能随时切回去。只有显式 disconnect / removeServer 才删。
+      clearArtworkAuth(previousUrl);
     }
+    _registerArtworkAuth();
     _revisionController.add(++_revision);
     return ping;
+  }
+
+  /// 切到另一台已经连过的服务器。凭据按 origin 存在钥匙串里，
+  /// 所以这里只要换 config + 重新读一次密码就行。
+  Future<bool> switchTo(String baseUrl) async {
+    await _ensureInit();
+    final target = _serverWith(baseUrl);
+    if (target == null) return false;
+    if (target.baseUrl == _config.baseUrl) return true;
+    final previousUrl = _config.baseUrl;
+    _secrets = await _store.loadSecrets(target.baseUrl);
+    _config = target;
+    await _store.saveConfig(target);
+    if (previousUrl.isNotEmpty) clearArtworkAuth(previousUrl);
+    _registerArtworkAuth();
+    _revisionController.add(++_revision);
+    return true;
+  }
+
+  Future<void> removeServer(String baseUrl) async {
+    await _ensureInit();
+    if (baseUrl.trim().isEmpty) return;
+    final remaining = [
+      for (final server in _servers)
+        if (server.baseUrl != baseUrl) server,
+    ];
+    _servers = remaining;
+    await _store.saveServers(remaining);
+    await _store.deleteSecrets(baseUrl);
+    clearArtworkAuth(baseUrl);
+    if (_config.baseUrl == baseUrl) {
+      if (remaining.isEmpty) {
+        _config = NasConfig.empty(kind);
+        _secrets = const NasSecrets();
+        await _store.saveConfig(_config);
+      } else {
+        _config = remaining.last;
+        _secrets = await _store.loadSecrets(_config.baseUrl);
+        await _store.saveConfig(_config);
+        _registerArtworkAuth();
+      }
+    }
+    _revisionController.add(++_revision);
+  }
+
+  NasConfig? _serverWith(String baseUrl) {
+    for (final server in _servers) {
+      if (server.baseUrl == baseUrl) return server;
+    }
+    return null;
+  }
+
+  List<NasConfig> _upsertServer(List<NasConfig> list, NasConfig config) {
+    final next = <NasConfig>[];
+    var replaced = false;
+    for (final server in list) {
+      if (server.baseUrl == config.baseUrl) {
+        next.add(config);
+        replaced = true;
+      } else {
+        next.add(server);
+      }
+    }
+    if (!replaced) next.add(config);
+    return next;
   }
 
   Future<void> disconnect() async {
@@ -120,8 +239,15 @@ class NasService {
     final previousUrl = _config.baseUrl;
     _config = NasConfig.empty(kind);
     _secrets = const NasSecrets();
+    // 断开 = 忘掉这台，连同它在服务器列表里的条目。
+    _servers = [
+      for (final server in _servers)
+        if (server.baseUrl != previousUrl) server,
+    ];
     await _store.saveConfig(_config);
+    await _store.saveServers(_servers);
     await _store.deleteSecrets(previousUrl);
+    clearArtworkAuth(previousUrl);
     _revisionController.add(++_revision);
   }
 
@@ -141,7 +267,7 @@ class NasService {
     );
   }
 
-  Future<List<MusicItem>> getLibrarySongs({int limit = 500}) async {
+  Future<List<MusicItem>> getLibrarySongs({int limit = kNasLibraryLimit}) async {
     final session = await _session();
     if (session == null) return const [];
     return _client.getLibrarySongs(
@@ -179,13 +305,28 @@ class NasService {
       session.config,
       session.secrets,
       music,
-      quality: quality,
+      quality: _effectiveQuality(quality),
     );
   }
 
   Future<String?> getPlayUrl(MusicItem music, {String quality = '320k'}) async {
     final result = await getPlayUrlResult(music, quality: quality);
     return result?.url;
+  }
+
+  /// NAS 有自己的档位设置，选了具体档位就照它来；没设过才跟随全局音质。
+  String _effectiveQuality(String requested) =>
+      _streamQuality.isEmpty ? requested : _streamQuality;
+
+  /// 目录选择器用：列出 WebDAV 服务下的子目录。
+  Future<List<WebDavDirectory>> listDirectories(String path) async {
+    final session = await _session();
+    if (session == null) return const [];
+    final client = _client;
+    if (client is WebDavNasClient) {
+      return client.listDirectories(session.config, session.secrets, path);
+    }
+    return const [];
   }
 
   Future<String?> getLyric(MusicItem music) async {

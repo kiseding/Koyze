@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../network/artwork_auth_registry.dart';
 import '../network/outbound_url.dart';
 import 'artwork_disk_cache.dart';
 
@@ -19,6 +20,14 @@ const String kArtworkUserAgent =
     'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
 
 Map<String, String> artworkRequestHeaders(String url) {
+  // 自己搭的 WebDAV 封面要带 Authorization，按 origin 取登记过的头。
+  final registered = artworkAuthFor(url);
+  if (registered != null) {
+    return {
+      ...registered,
+      'User-Agent': registered['User-Agent'] ?? kArtworkUserAgent,
+    };
+  }
   final lower = url.toLowerCase();
   if (lower.contains('music.126.net') ||
       lower.contains('126.net') ||
