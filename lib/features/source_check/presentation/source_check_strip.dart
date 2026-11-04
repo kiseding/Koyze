@@ -7,14 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../l10n/app_strings.dart';
 import '../../custom_source/domain/custom_source.dart';
+import 'source_check_details.dart';
 import 'source_check_provider.dart';
-
-/// 统一的检测时间写法：`10/28 11:20`。卡片和检测页共用，避免两处格式漂移。
-String formatSourceCheckTime(DateTime time) {
-  final local = time.toLocal();
-  String two(int value) => value.toString().padLeft(2, '0');
-  return '${local.month}/${local.day} ${two(local.hour)}:${two(local.minute)}';
-}
 
 /// 音源卡片里的那一栏「音源检测」。
 ///
@@ -109,7 +103,7 @@ class SourceCheckStrip extends ConsumerWidget {
                   .cancel,
               child: Text(s.cancel),
             )
-          else
+          else ...[
             TextButton(
               onPressed: blocked
                   ? null
@@ -118,7 +112,69 @@ class SourceCheckStrip extends ConsumerWidget {
                         .runSource(source),
               child: Text(tested ? s.sourceCheckRerun : s.sourceCheckStart),
             ),
+            // 检测完成后才出现：点开看每个平台、每一档音质的明细。
+            if (report != null)
+              _DetailsBadge(
+                onTap: () => showSourceCheckDetails(
+                  context,
+                  sourceName: source.name,
+                  report: report,
+                ),
+              ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// 检测明细的入口：卡片右侧的一枚「?」。
+///
+/// 只有跑过检测才出现——没测过时右侧仍然是「开始检测」，不给一个点开空的入口。
+class _DetailsBadge extends StatelessWidget {
+  const _DetailsBadge({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(left: 2),
+      child: Tooltip(
+        message: s.sourceCheckDetailsOpen,
+        child: Semantics(
+          button: true,
+          label: s.sourceCheckDetailsOpen,
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // 用卡片底色而不是 fill2：这枚按钮本身就在 fill2 的条上，
+                  // 同色会让它看起来只是块描边，像「挖」出来的按钮更清楚。
+                  color: AppColors.card(context),
+                  border: Border.all(color: AppColors.cardBorder(context)),
+                ),
+                child: Text(
+                  '?',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.1,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.secondaryText(context),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

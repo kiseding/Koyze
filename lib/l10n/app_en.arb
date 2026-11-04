@@ -1329,6 +1329,22 @@
       }
     }
   },
+  "sourceCheckDetails": "Test details",
+  "sourceCheckDetailsOpen": "View test details",
+  "sourceCheckDetailsIntro": "Every platform resolved one real audio URL from a sample track. Latency, size and failure reasons are below.",
+  "sourceCheckVerdictOk": "Works",
+  "sourceCheckVerdictSoft": "Timed out",
+  "sourceCheckVerdictHard": "Failed",
+  "sourceCheckDefaultQuality": "Default quality",
+  "sourceCheckColdStart": "Cold start",
+  "sourceCheckSkipped": "Not tested (no sample track): {platforms}",
+  "@sourceCheckSkipped": {
+    "placeholders": {
+      "platforms": {
+        "type": "String"
+      }
+    }
+  },
   "aiSettingsTitle": "AI settings",
   "aiSettingsIntro": "Works with any OpenAI-compatible endpoint. The key goes into the system secure storage and is only sent to the URL you enter here.",
   "aiBaseUrl": "API base URL",

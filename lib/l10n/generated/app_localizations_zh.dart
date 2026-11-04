@@ -2074,6 +2074,35 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get sourceCheckDetails => '检测详情';
+
+  @override
+  String get sourceCheckDetailsOpen => '查看检测详情';
+
+  @override
+  String get sourceCheckDetailsIntro => '每个平台都按样本曲真实取了一次音频地址，下面是延迟、体积与失败原因。';
+
+  @override
+  String get sourceCheckVerdictOk => '可用';
+
+  @override
+  String get sourceCheckVerdictSoft => '超时';
+
+  @override
+  String get sourceCheckVerdictHard => '失败';
+
+  @override
+  String get sourceCheckDefaultQuality => '默认音质';
+
+  @override
+  String get sourceCheckColdStart => '冷启动';
+
+  @override
+  String sourceCheckSkipped(String platforms) {
+    return '没有样本曲，未测：$platforms';
+  }
+
+  @override
   String get aiSettingsTitle => 'AI 设置';
 
   @override

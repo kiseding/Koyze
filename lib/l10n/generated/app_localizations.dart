@@ -3860,6 +3860,60 @@ abstract class AppLocalizations {
   /// **'{ok}/{total} platforms usable · {time}'**
   String sourceCheckSummary(int ok, int total, String time);
 
+  /// No description provided for @sourceCheckDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Test details'**
+  String get sourceCheckDetails;
+
+  /// No description provided for @sourceCheckDetailsOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'View test details'**
+  String get sourceCheckDetailsOpen;
+
+  /// No description provided for @sourceCheckDetailsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Every platform resolved one real audio URL from a sample track. Latency, size and failure reasons are below.'**
+  String get sourceCheckDetailsIntro;
+
+  /// No description provided for @sourceCheckVerdictOk.
+  ///
+  /// In en, this message translates to:
+  /// **'Works'**
+  String get sourceCheckVerdictOk;
+
+  /// No description provided for @sourceCheckVerdictSoft.
+  ///
+  /// In en, this message translates to:
+  /// **'Timed out'**
+  String get sourceCheckVerdictSoft;
+
+  /// No description provided for @sourceCheckVerdictHard.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get sourceCheckVerdictHard;
+
+  /// No description provided for @sourceCheckDefaultQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Default quality'**
+  String get sourceCheckDefaultQuality;
+
+  /// No description provided for @sourceCheckColdStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Cold start'**
+  String get sourceCheckColdStart;
+
+  /// No description provided for @sourceCheckSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Not tested (no sample track): {platforms}'**
+  String sourceCheckSkipped(String platforms);
+
   /// No description provided for @aiSettingsTitle.
   ///
   /// In en, this message translates to:

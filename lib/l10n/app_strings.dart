@@ -406,8 +406,7 @@ class S {
   String get nasCacheOfflineHint => _l10n.nasCacheOfflineHint;
   String get savedServers => _l10n.savedServers;
   String get noServersYet => _l10n.noServersYet;
-  String deleteServerConfirm(String name) =>
-      _l10n.deleteServerConfirm(name);
+  String deleteServerConfirm(String name) => _l10n.deleteServerConfirm(name);
   String songCountValue(int n) => _l10n.songCountValue(n);
   String downloadQueued(int n) => _l10n.downloadQueued(n);
   String get noData => _l10n.noData;
@@ -802,6 +801,16 @@ class S {
   String get sourceCheckRerun => _l10n.sourceCheckRerun;
   String sourceCheckSummary(int ok, int total, String time) =>
       _l10n.sourceCheckSummary(ok, total, time);
+  String get sourceCheckDetails => _l10n.sourceCheckDetails;
+  String get sourceCheckDetailsOpen => _l10n.sourceCheckDetailsOpen;
+  String get sourceCheckDetailsIntro => _l10n.sourceCheckDetailsIntro;
+  String get sourceCheckVerdictOk => _l10n.sourceCheckVerdictOk;
+  String get sourceCheckVerdictSoft => _l10n.sourceCheckVerdictSoft;
+  String get sourceCheckVerdictHard => _l10n.sourceCheckVerdictHard;
+  String get sourceCheckDefaultQuality => _l10n.sourceCheckDefaultQuality;
+  String get sourceCheckColdStart => _l10n.sourceCheckColdStart;
+  String sourceCheckSkipped(String platforms) =>
+      _l10n.sourceCheckSkipped(platforms);
   String get aiSettingsTitle => _l10n.aiSettingsTitle;
   String get aiSettingsIntro => _l10n.aiSettingsIntro;
   String get aiBaseUrl => _l10n.aiBaseUrl;

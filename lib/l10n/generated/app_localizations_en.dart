@@ -2114,6 +2114,36 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get sourceCheckDetails => 'Test details';
+
+  @override
+  String get sourceCheckDetailsOpen => 'View test details';
+
+  @override
+  String get sourceCheckDetailsIntro =>
+      'Every platform resolved one real audio URL from a sample track. Latency, size and failure reasons are below.';
+
+  @override
+  String get sourceCheckVerdictOk => 'Works';
+
+  @override
+  String get sourceCheckVerdictSoft => 'Timed out';
+
+  @override
+  String get sourceCheckVerdictHard => 'Failed';
+
+  @override
+  String get sourceCheckDefaultQuality => 'Default quality';
+
+  @override
+  String get sourceCheckColdStart => 'Cold start';
+
+  @override
+  String sourceCheckSkipped(String platforms) {
+    return 'Not tested (no sample track): $platforms';
+  }
+
+  @override
   String get aiSettingsTitle => 'AI settings';
 
   @override
