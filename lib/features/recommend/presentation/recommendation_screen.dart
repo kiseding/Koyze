@@ -63,8 +63,13 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
       // 的默认画布上，深色主题下就是一块刺眼的白。
       body: Material(
         color: AppColors.scaffold(context),
+        // 底部安全区不在这里让位：列表要一直画到屏幕最底边。否则滚动视口
+        // 会在 Home 指示条上方就结束，最后一行被齐刷刷砍断，下面还留一条
+        // 空带——看起来就像凭空多出一块白。
+        // 该留的间距改到列表自己的 bottom padding 里（见 _listPadding）。
         child: SafeArea(
           top: false,
+          bottom: false,
           child: Column(
             children: [
               if (tuning.isNotEmpty) _tuningBar(context, ref, tuning),
@@ -72,8 +77,14 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
                 child: recommendationsAsync.when(
                   skipLoadingOnReload: true,
                   skipLoadingOnRefresh: true,
-                  loading: () => const Center(child: AppLoadingIndicator()),
-                  error: (error, _) => _buildError(context, ref, error),
+                  loading: () => const SafeArea(
+                    top: false,
+                    child: Center(child: AppLoadingIndicator()),
+                  ),
+                  error: (error, _) => SafeArea(
+                    top: false,
+                    child: _buildError(context, ref, error),
+                  ),
                   data: (recommendations) => RefreshIndicator(
                     color: kRecommendColor,
                     // 手动下拉永远绕过 TTL：用户都已经做出「刷新」这个动作了，
@@ -83,7 +94,7 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
                     child: recommendations.isEmpty
                         ? _buildEmptyScrollable(context)
                         : AdaptiveSongList.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                            padding: _listPadding(context),
                             physics: const AlwaysScrollableScrollPhysics(),
                             landscapeItemExtent: 76,
                             itemCount: recommendations.length,
@@ -231,16 +242,32 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
     );
   }
 
+  /// 列表底部留白：24 的视觉呼吸 + 系统手势条高度。
+  ///
+  /// 页面已经画到屏幕底边，最后一行靠这段 padding 才不会被 Home 指示条
+  /// 压住；同时滚到底时它还能正常露出来，不会被安全区「截断」。
+  EdgeInsets _listPadding(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    return EdgeInsets.fromLTRB(16, 8, 16, 24 + bottom);
+  }
+
   /// 空态也要能下拉：没有候选往往正是最想重试的时候。
   Widget _buildEmptyScrollable(BuildContext context) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
     return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: constraints.maxHeight),
-          child: _buildEmpty(context),
-        ),
-      ),
+      builder: (context, constraints) {
+        final visible = constraints.maxHeight > bottom
+            ? constraints.maxHeight - bottom
+            : 0.0;
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.only(bottom: bottom),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: visible),
+            child: _buildEmpty(context),
+          ),
+        );
+      },
     );
   }
 
