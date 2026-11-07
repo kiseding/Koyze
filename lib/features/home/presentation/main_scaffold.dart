@@ -10,6 +10,7 @@ import '../../../core/motion/motion_tokens.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/effect_policy.dart';
 import '../../car_mode/presentation/car_mode_provider.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
@@ -56,6 +57,32 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
   // 上一帧 progress：判定方向——下滑/关闭（progress 下降）时 chrome
   // 全程立即显示，迷你栏绝不"消失一下"；打开（上升）保留退场窗口。
   double _prevProgress = 0;
+
+  // 滚动期间固定迷你栏下方的内容不断变化，实时玻璃会随每一帧重采样；
+  // 只在滚动开始/结束时切换到 Minimal 档，保留静态玻璃观感。
+  final ValueNotifier<GlassQuality> _miniPlayerGlassQuality = ValueNotifier(
+    GlassQuality.premium,
+  );
+
+  @override
+  void dispose() {
+    _miniPlayerGlassQuality.dispose();
+    super.dispose();
+  }
+
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    final shouldMinimize = notification is ScrollStartNotification;
+    final shouldRestore = notification is ScrollEndNotification;
+    if (shouldMinimize &&
+        _miniPlayerGlassQuality.value != GlassQuality.minimal) {
+      _miniPlayerGlassQuality.value = GlassQuality.minimal;
+    } else if (shouldRestore &&
+        _miniPlayerGlassQuality.value == GlassQuality.minimal) {
+      _miniPlayerGlassQuality.value = GlassQuality.premium;
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -195,42 +222,51 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             ],
           );
 
-          final content = Stack(
-            children: [
-              Positioned.fill(
-                child: Opacity(
-                  opacity: chromeOpacity,
-                  child: Transform.translate(
-                    offset: Offset(0, -tabPush * eased),
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        right: contentRightInset,
-                        top: contentTopInset,
-                      ),
-                      child: chrome,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: usesSideNavigation ? miniInset : kMiniBarSideMargin,
-                right: usesSideNavigation
-                    ? contentRightInset + miniInset
-                    : kMiniBarSideMargin,
-                bottom: miniBottom,
-                child: Transform.scale(
-                  alignment: Alignment.bottomCenter,
-                  scale: 1 + 0.035 * eased,
+          final content = NotificationListener<ScrollNotification>(
+            onNotification: _handleScrollNotification,
+            child: Stack(
+              children: [
+                Positioned.fill(
                   child: Opacity(
                     opacity: chromeOpacity,
-                    child: MiniPlayer(
-                      floating: usesSideNavigation,
-                      alwaysShow: true,
+                    child: Transform.translate(
+                      offset: Offset(0, -tabPush * eased),
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: contentRightInset,
+                          top: contentTopInset,
+                        ),
+                        child: chrome,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+                Positioned(
+                  left: usesSideNavigation ? miniInset : kMiniBarSideMargin,
+                  right: usesSideNavigation
+                      ? contentRightInset + miniInset
+                      : kMiniBarSideMargin,
+                  bottom: miniBottom,
+                  child: Transform.scale(
+                    alignment: Alignment.bottomCenter,
+                    scale: 1 + 0.035 * eased,
+                    child: Opacity(
+                      opacity: chromeOpacity,
+                      child: ValueListenableBuilder<GlassQuality>(
+                        valueListenable: _miniPlayerGlassQuality,
+                        builder: (context, glassQuality, _) {
+                          return MiniPlayer(
+                            floating: usesSideNavigation,
+                            alwaysShow: true,
+                            glassQuality: glassQuality,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           );
 
           return RootTabScope(

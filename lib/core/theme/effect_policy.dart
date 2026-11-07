@@ -5,6 +5,42 @@ import 'package:flutter/widgets.dart';
 
 import '../performance/low_memory.dart';
 
+/// 玻璃渲染质量档位。
+///
+/// 这是材质层的统一协议：页面不需要知道底层使用的是 BackdropFilter、轻量
+/// Shader 还是静态叠层，后续替换渲染后端时只需要改材质实现。
+enum GlassQuality {
+  /// 静止时的完整实时玻璃：背景模糊、饱和度和高光全部开启。
+  premium,
+
+  /// 降低模糊半径和色彩处理，但仍然实时采样背景。
+  standard,
+
+  /// 不读取背景，只保留半透明染色、薄膜高光和边缘。
+  minimal,
+
+  /// 接近不透明的实色面，适合低内存、无障碍和关闭效果的环境。
+  off,
+}
+
+/// 根据系统和用户偏好收敛最终材质档位。
+///
+/// 滚动期由调用方主动传入 [scrolling]，默认只把高成本的实时档降到
+/// [GlassQuality.minimal]；已经明确要求更低档位时不会被提升。
+GlassQuality resolveGlassQuality(
+  BuildContext context, {
+  GlassQuality requested = GlassQuality.premium,
+  bool scrolling = false,
+}) {
+  if (prefersFlatSurfaces(context)) return GlassQuality.off;
+  if (scrolling &&
+      (requested == GlassQuality.premium ||
+          requested == GlassQuality.standard)) {
+    return GlassQuality.minimal;
+  }
+  return requested;
+}
+
 /// 是否应该把玻璃面画成实色，而不是把背后的内容糊一层。
 ///
 /// 三个信号任一成立就退实色：

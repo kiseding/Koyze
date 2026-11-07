@@ -29,12 +29,20 @@ class LiquidGlassSurface extends StatelessWidget {
     this.boxShadow,
     this.sheen = true,
     this.borderColor,
+    this.quality = GlassQuality.premium,
+    this.backdrop = true,
   });
 
   final Widget child;
   final BorderRadius borderRadius;
   final double blur;
   final double saturation;
+
+  /// 材质质量。调用方只描述场景，具体渲染后端由组件统一决定。
+  final GlassQuality quality;
+
+  /// 兼容旧调用点的显式开关；为 false 时等价于 [GlassQuality.minimal]。
+  final bool backdrop;
 
   /// 0–1 倍率：淡出、收起时整体减淡。
   final double opacity;
@@ -58,11 +66,44 @@ class LiquidGlassSurface extends StatelessWidget {
         (isDark
             ? Colors.white.withValues(alpha: 0.20 * opacity)
             : const Color(0xFF3C3C43).withValues(alpha: 0.14 * opacity));
+    final requested = backdrop ? quality : GlassQuality.minimal;
+    final resolved = resolveGlassQuality(context, requested: requested);
 
-    if (prefersFlatSurfaces(context)) {
-      return _fallback(context, base: base, edge: edge);
-    }
+    return switch (resolved) {
+      GlassQuality.off => _fallback(context, base: base, edge: edge),
+      GlassQuality.minimal => _minimal(
+        base: base,
+        edge: edge,
+        alpha: alpha,
+        isDark: isDark,
+      ),
+      GlassQuality.standard => _backdrop(
+        base: base,
+        edge: edge,
+        alpha: alpha,
+        isDark: isDark,
+        blur: blur.clamp(0, 12).toDouble(),
+        saturation: 1.0,
+      ),
+      GlassQuality.premium => _backdrop(
+        base: base,
+        edge: edge,
+        alpha: alpha,
+        isDark: isDark,
+        blur: blur,
+        saturation: saturation,
+      ),
+    };
+  }
 
+  Widget _backdrop({
+    required Color base,
+    required Color edge,
+    required double alpha,
+    required bool isDark,
+    required double blur,
+    required double saturation,
+  }) {
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: borderRadius,
@@ -72,57 +113,89 @@ class LiquidGlassSurface extends StatelessWidget {
         borderRadius: borderRadius,
         clipBehavior: Clip.antiAlias,
         child: BackdropFilter(
-          filter: AppGlass.liquidFilter(
-            blur: blur,
-            saturation: saturation,
-          ),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: base.withValues(alpha: alpha),
-                  ),
-                ),
-              ),
-              if (sheen)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          stops: const [0, 0.42, 1],
-                          colors: [
-                            Colors.white.withValues(
-                              alpha: (isDark ? 0.14 : 0.42) * opacity,
-                            ),
-                            Colors.white.withValues(
-                              alpha: (isDark ? 0.03 : 0.08) * opacity,
-                            ),
-                            Colors.white.withValues(alpha: 0),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              child,
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: borderRadius,
-                      border: Border.all(color: edge, width: 0.8),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          filter: AppGlass.liquidFilter(blur: blur, saturation: saturation),
+          child: _layers(base: base, edge: edge, alpha: alpha, isDark: isDark),
         ),
       ),
+    );
+  }
+
+  /// 滚动期使用的 Minimal 档：不读取背后纹理，只做一次普通透明混合，
+  /// 再保留高光和边缘。因此视觉上仍是玻璃，但不会触发 BackdropFilter 的重采样。
+  Widget _minimal({
+    required Color base,
+    required Color edge,
+    required double alpha,
+    required bool isDark,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: base.withValues(alpha: alpha),
+        borderRadius: borderRadius,
+        boxShadow: boxShadow,
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        clipBehavior: Clip.antiAlias,
+        child: _layers(
+          base: Colors.transparent,
+          edge: edge,
+          alpha: 0,
+          isDark: isDark,
+        ),
+      ),
+    );
+  }
+
+  Widget _layers({
+    required Color base,
+    required Color edge,
+    required double alpha,
+    required bool isDark,
+  }) {
+    return Stack(
+      children: [
+        if (alpha > 0)
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: base.withValues(alpha: alpha)),
+            ),
+          ),
+        if (sheen)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    stops: const [0, 0.42, 1],
+                    colors: [
+                      Colors.white.withValues(
+                        alpha: (isDark ? 0.14 : 0.42) * opacity,
+                      ),
+                      Colors.white.withValues(
+                        alpha: (isDark ? 0.03 : 0.08) * opacity,
+                      ),
+                      Colors.white.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        child,
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: borderRadius,
+                border: Border.all(color: edge, width: 0.8),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -141,13 +214,17 @@ class LiquidGlassSurface extends StatelessWidget {
       decoration: BoxDecoration(
         color: opaque,
         borderRadius: borderRadius,
-        border: Border.all(color: edge, width: 0.8),
         boxShadow: boxShadow,
       ),
       child: ClipRRect(
         borderRadius: borderRadius,
         clipBehavior: Clip.antiAlias,
-        child: child,
+        child: _layers(
+          base: Colors.transparent,
+          edge: edge,
+          alpha: 0,
+          isDark: AppColors.isDark(context),
+        ),
       ),
     );
   }

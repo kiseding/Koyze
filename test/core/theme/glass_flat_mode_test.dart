@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/performance/low_memory.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
+import 'package:koyze/core/theme/effect_policy.dart';
 import 'package:koyze/core/widgets/liquid_glass.dart';
 import 'package:koyze/core/widgets/origo_chrome.dart';
 
@@ -19,9 +20,7 @@ Widget _host(
           disableAnimations: disableAnimations,
         ),
         child: Scaffold(
-          body: Center(
-            child: SizedBox(width: 320, height: 72, child: child),
-          ),
+          body: Center(child: SizedBox(width: 320, height: 72, child: child)),
         ),
       ),
     ),
@@ -83,11 +82,51 @@ void main() {
       expect(find.byType(BackdropFilter), findsNothing);
       expect(find.text('胶囊'), findsOneWidget);
     });
+
+    testWidgets('滚动期 Minimal 档保留静态玻璃但不采样背后', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          LiquidGlassSurface(
+            borderRadius: BorderRadius.circular(22),
+            quality: GlassQuality.minimal,
+            child: const Center(child: Text('轻量胶囊')),
+          ),
+        ),
+      );
+      expect(find.byType(BackdropFilter), findsNothing);
+      expect(find.text('轻量胶囊'), findsOneWidget);
+    });
+
+    testWidgets('Standard 档仍然保留实时采样', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          LiquidGlassSurface(
+            borderRadius: BorderRadius.circular(22),
+            quality: GlassQuality.standard,
+            child: const Center(child: Text('标准胶囊')),
+          ),
+        ),
+      );
+      expect(find.byType(BackdropFilter), findsOneWidget);
+    });
+
+    testWidgets('关闭背后采样兼容旧调用方式', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          LiquidGlassSurface(
+            borderRadius: BorderRadius.circular(22),
+            backdrop: false,
+            child: const Center(child: Text('静态胶囊')),
+          ),
+        ),
+      );
+      expect(find.byType(BackdropFilter), findsNothing);
+      expect(find.text('静态胶囊'), findsOneWidget);
+    });
   });
 
   group('GradientFrost', () {
-    Widget frost() =>
-        const GradientFrost(child: SizedBox.expand());
+    Widget frost() => const GradientFrost(child: SizedBox.expand());
 
     testWidgets('默认仍然采样背后', (tester) async {
       await tester.pumpWidget(_host(frost()));
@@ -100,10 +139,9 @@ void main() {
     });
 
     testWidgets('sigma 为 0 时本来就不采样', (tester) async {
-      await tester.pumpWidget(_host(const GradientFrost(
-        sigma: 0,
-        child: SizedBox.expand(),
-      )));
+      await tester.pumpWidget(
+        _host(const GradientFrost(sigma: 0, child: SizedBox.expand())),
+      );
       expect(find.byType(BackdropFilter), findsNothing);
     });
   });

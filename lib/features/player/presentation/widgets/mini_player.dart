@@ -5,6 +5,7 @@ import '../../../../core/motion/motion_tokens.dart';
 import '../../../../core/player_route_progress.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_tokens.dart';
+import '../../../../core/theme/effect_policy.dart';
 import '../../../../core/widgets/artwork_image.dart';
 import '../../../../core/widgets/liquid_glass.dart';
 import '../../../../core/widgets/pressable.dart';
@@ -53,8 +54,14 @@ class _MiniLyricText extends ConsumerWidget {
 class MiniPlayer extends ConsumerStatefulWidget {
   final bool floating;
   final bool alwaysShow;
+  final GlassQuality glassQuality;
 
-  const MiniPlayer({super.key, this.floating = false, this.alwaysShow = false});
+  const MiniPlayer({
+    super.key,
+    this.floating = false,
+    this.alwaysShow = false,
+    this.glassQuality = GlassQuality.premium,
+  });
 
   @override
   ConsumerState<MiniPlayer> createState() => _MiniPlayerState();
@@ -72,6 +79,11 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     }
 
     final isPlayingValue = isPlaying.value ?? false;
+    // 无歌曲时播放条只是占位，直接使用 Minimal 档，避免固定层在滚动时
+    // 为不存在的内容付出背景采样成本。
+    final quality = currentMusic == null
+        ? GlassQuality.minimal
+        : widget.glassQuality;
 
     final titleColor = AppColors.onScaffold(context);
     final subColor = AppColors.secondaryText(context);
@@ -87,6 +99,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
         child: LiquidGlassSurface(
           borderRadius: BorderRadius.circular(widget.floating ? 24 : 20),
           blur: 22,
+          quality: quality,
           boxShadow: AppGlass.shadowFor(
             context,
             style: AppGlassStyle.bar,
