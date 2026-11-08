@@ -216,4 +216,52 @@ void main() {
     expect(lyrics.lines[1].words![1].time, const Duration(milliseconds: 7070));
     expect(lyrics.lines[1].words![1].text, 'G');
   });
+
+  group('attachParallelText', () {
+    test('按时间戳挂上翻译与音译', () {
+      final main = LyricParser.parseLrc('''
+[00:12.00]沈むように
+[00:16.00]溶けてゆく
+''');
+      final merged = LyricParser.attachParallelText(
+        main,
+        translation: '''
+[00:12.00]像要沉下去一般
+[00:16.00]渐渐融化
+''',
+        roman: '''
+[00:12.00]shizumu you ni
+[00:16.00]tokete yuku
+''',
+      );
+
+      expect(merged.lines[0].translation, '像要沉下去一般');
+      expect(merged.lines[0].roman, 'shizumu you ni');
+      expect(merged.lines[1].translation, '渐渐融化');
+    });
+
+    test('时间戳差 80ms 内仍按最近一行挂载', () {
+      final main = LyricParser.parseLrc('[00:12.00]原文');
+      final merged = LyricParser.attachParallelText(
+        main,
+        translation: '[00:12.06]译文',
+      );
+      expect(merged.lines.single.translation, '译文');
+    });
+
+    test('差得太远时宁可留空也不错行', () {
+      final main = LyricParser.parseLrc('[00:12.00]原文');
+      final merged = LyricParser.attachParallelText(
+        main,
+        translation: '[00:13.50]别的句子',
+      );
+      expect(merged.lines.single.translation, isNull);
+    });
+
+    test('没有附加文本时原样返回', () {
+      final main = LyricParser.parseLrc('[00:12.00]原文');
+      final merged = LyricParser.attachParallelText(main);
+      expect(identical(merged, main), isTrue);
+    });
+  });
 }

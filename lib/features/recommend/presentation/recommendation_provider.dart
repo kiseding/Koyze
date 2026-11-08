@@ -12,6 +12,7 @@ import '../../playlist/presentation/playlist_provider.dart';
 import '../../search/presentation/search_provider.dart';
 import '../../stats/presentation/play_history_provider.dart';
 import '../data/recommendation_tuning_store.dart';
+import '../domain/heart_mode.dart';
 import '../domain/recommendation_engine.dart';
 import '../domain/recommendation_tuning.dart';
 
@@ -401,3 +402,12 @@ Future<MusicItem?> _resolvePinned(Ref ref, SongRef definition) async {
   } catch (_) {}
   return null;
 }
+
+/// 心动模式：以当前歌为种子，搜同歌手/同专辑的歌接着放。
+final heartModeServiceProvider = Provider<HeartModeService>((ref) {
+  final source = ref.watch(musicSourceServiceProvider);
+  return HeartModeService(
+    search: (keyword, {int limit = 40}) =>
+        source.search(keyword, limit: limit),
+  );
+});

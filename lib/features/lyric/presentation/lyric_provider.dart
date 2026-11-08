@@ -6,6 +6,7 @@ import '../domain/lyric.dart';
 import '../domain/lyric_service.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
+import '../../settings/presentation/settings_provider.dart';
 import '../../search/presentation/search_provider.dart';
 
 final lyricServiceProvider = Provider<LyricService>((ref) {
@@ -126,9 +127,22 @@ class LyricNotifier extends BuildlessNotifier<LyricLoadState> {
   }
 }
 
+/// 播放进度叠加用户校准偏移后的「歌词时间轴」。
+///
+/// 所有歌词渲染都读它而不是直接读播放进度，偏移因此只在一处生效：换行判定、
+/// 逐字填充、锁屏歌词、分享卡片全都跟着走。正值表示歌词整体推后（用户觉得
+/// 歌词比人声早），所以这里是**减去**偏移。
+final lyricPositionProvider = Provider<Duration>((ref) {
+  final position = ref.watch(playerPositionProvider);
+  final offsetMs = ref.watch(lyricOffsetProvider);
+  if (offsetMs == 0) return position;
+  final shifted = position - Duration(milliseconds: offsetMs);
+  return shifted < Duration.zero ? Duration.zero : shifted;
+});
+
 // 当前行索引
 final currentLineIndexProvider = Provider<int>((ref) {
-  final position = ref.watch(playerPositionProvider);
+  final position = ref.watch(lyricPositionProvider);
   final lyrics = ref.watch(currentLyricProvider);
 
   final pos = position;

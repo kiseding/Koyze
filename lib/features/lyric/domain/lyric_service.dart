@@ -59,13 +59,14 @@ class LyricService {
     if (_preferredLyricLoader != null || _musicSourceService != null) {
       try {
         debugPrint('[LyricService] 尝试从 MusicSourceService 获取歌词');
-        final lyricStr =
-            await (_preferredLyricLoader?.call(music) ??
-                _musicSourceService!.getLyric(music));
-        if (lyricStr != null && lyricStr.isNotEmpty) {
-          final lyrics = _parseLyricString(lyricStr);
+        final payload = _musicSourceService != null
+            ? await _musicSourceService.getLyricPayload(music)
+            : await _loadPreferred(music);
+        if (payload != null && payload.main.isNotEmpty) {
+          final lyrics = _parsePayload(payload);
           debugPrint(
-            '[LyricService] MusicSourceService 获取成功, ${lyrics.lines.length} 行',
+            '[LyricService] MusicSourceService 获取成功, ${lyrics.lines.length} 行'
+            '${payload.hasExtras ? '（含翻译/音译）' : ''}',
           );
           _cache.set(cacheKey, lyrics);
           return lyrics;
@@ -120,6 +121,29 @@ class LyricService {
 
   void clearCache() {
     _cache.clear();
+  }
+
+  /// 把一次请求的结果（主歌词 + 可选的翻译 / 音译）解析成 [Lyrics]。
+  ///
+  /// 翻译与音译是各自独立的 LRC 片段，交给解析器按时间戳挂到对应行上；
+  /// 对不上的行宁可留空，也不要错行显示。
+  Lyrics _parsePayload(LyricPayload payload) {
+    final lyrics = _parseLyricString(payload.main);
+    if (!payload.hasExtras) return lyrics;
+    return LyricParser.attachParallelText(
+      lyrics,
+      translation: payload.translation,
+      roman: payload.roman,
+    );
+  }
+
+  /// 没有 [MusicSourceService] 时的单来源加载（测试与轻量嵌入用）。
+  Future<LyricPayload?> _loadPreferred(MusicItem music) async {
+    final loader = _preferredLyricLoader;
+    if (loader == null) return null;
+    final text = await loader(music);
+    if (text == null || text.isEmpty) return null;
+    return LyricPayload(main: text);
   }
 
   Lyrics _parseLyricString(String lyricStr) {

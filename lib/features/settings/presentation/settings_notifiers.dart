@@ -867,3 +867,226 @@ int normalizePrecacheCount(int count) {
   }
   return best;
 }
+
+// ---- 歌词显示 ----
+//
+// 这几项只影响渲染，不改歌词数据本身：偏移是"用户耳朵对不上"的兜底，
+// 比例是"我这台设备看不清"的兜底，翻译/音译是"我不想看两行"的兜底。
+
+/// 歌词时间偏移，单位毫秒（-2000 ~ +2000，100ms 一档）。
+///
+/// 外挂字幕、live 版、不同版本前奏长度都会让歌词整体早/晚半秒，而歌词源
+/// 由平台决定、用户改不了。给一个 ±2s 的滑杆是唯一可行的解法。
+class LyricOffsetNotifier extends _PersistedSettingNotifier<int> {
+  LyricOffsetNotifier({StorageLoader? storage}) : super(0, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'lyric_offset_ms';
+  static const int minOffsetMs = -2000;
+  static const int maxOffsetMs = 2000;
+
+  static int clampOffset(int value) =>
+      value.clamp(minOffsetMs, maxOffsetMs);
+
+  @override
+  int? readFrom(StorageService storage) {
+    final value = storage.getInt(storageKey);
+    return value == null ? null : clampOffset(value);
+  }
+
+  void setOffset(int milliseconds) {
+    final next = clampOffset(milliseconds);
+    if (next == setting.value) return;
+    setting.applyCommitted(next);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(persist(next, (storage) => storage.setInt(storageKey, next)));
+  }
+}
+
+/// 歌词字号倍率（0.85 ~ 1.35）。
+class LyricScaleNotifier extends _PersistedSettingNotifier<double> {
+  LyricScaleNotifier({StorageLoader? storage}) : super(1.0, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'lyric_scale';
+  static const double minScale = 0.85;
+  static const double maxScale = 1.35;
+
+  static double clampScale(double value) => value.clamp(minScale, maxScale);
+
+  @override
+  double? readFrom(StorageService storage) {
+    final value = storage.getDouble(storageKey);
+    return value == null ? null : clampScale(value);
+  }
+
+  void setScale(double scale) {
+    final next = clampScale(scale);
+    if ((next - setting.value).abs() < 0.001) return;
+    setting.applyCommitted(next);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(persist(next, (storage) => storage.setDouble(storageKey, next)));
+  }
+}
+
+/// 当前行在视口中的位置（0 = 顶部，1 = 底部）。默认 0.38 略偏上。
+class LyricAlignNotifier extends _PersistedSettingNotifier<double> {
+  LyricAlignNotifier({StorageLoader? storage})
+    : super(0.38, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'lyric_align';
+  static const double minAlign = 0.22;
+  static const double maxAlign = 0.62;
+
+  static double clampAlign(double value) => value.clamp(minAlign, maxAlign);
+
+  @override
+  double? readFrom(StorageService storage) {
+    final value = storage.getDouble(storageKey);
+    return value == null ? null : clampAlign(value);
+  }
+
+  void setAlign(double align) {
+    final next = clampAlign(align);
+    if ((next - setting.value).abs() < 0.001) return;
+    setting.applyCommitted(next);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(persist(next, (storage) => storage.setDouble(storageKey, next)));
+  }
+}
+
+class LyricTranslationNotifier extends _PersistedSettingNotifier<bool> {
+  LyricTranslationNotifier({StorageLoader? storage})
+    : super(true, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'lyric_show_translation';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setEnabled(bool enabled) {
+    setting.applyCommitted(enabled);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
+    );
+  }
+}
+
+class LyricRomanNotifier extends _PersistedSettingNotifier<bool> {
+  LyricRomanNotifier({StorageLoader? storage}) : super(true, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'lyric_show_roman';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setEnabled(bool enabled) {
+    setting.applyCommitted(enabled);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
+    );
+  }
+}
+
+/// 主题色是否跟随当前封面。
+///
+/// 关掉时用用户手选的颜色；打开时每首歌换一套配色，手选值保留下来——
+/// 用户关掉开关应当回到他挑的那支颜色，而不是回到默认绿。
+class CoverThemedAccentNotifier extends _PersistedSettingNotifier<bool> {
+  CoverThemedAccentNotifier({StorageLoader? storage})
+    : super(false, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'accent_follows_cover';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setEnabled(bool enabled) {
+    setting.applyCommitted(enabled);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
+    );
+  }
+}
+
+/// 歌词呈现方式（0 滚动列表 / 1 单行 / 2 轮盘）。
+///
+/// 存 int 而不是枚举名：枚举改名时不会让用户的选择悄悄失效（越界回退到 0）。
+class LyricLayoutNotifier extends _PersistedSettingNotifier<int> {
+  LyricLayoutNotifier({StorageLoader? storage}) : super(0, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'lyric_layout';
+  static const int maxLayout = 2;
+
+  @override
+  int? readFrom(StorageService storage) {
+    final value = storage.getInt(storageKey);
+    if (value == null) return null;
+    return value.clamp(0, maxLayout);
+  }
+
+  void setLayout(int index) {
+    final next = index.clamp(0, maxLayout);
+    if (next == setting.value) return;
+    setting.applyCommitted(next);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(persist(next, (storage) => storage.setInt(storageKey, next)));
+  }
+}
+
+/// 单行歌词的入场动画（0 上滑 / 1 淡入 / 2 缩放 / 3 模糊）。
+class SingleLineAnimationNotifier extends _PersistedSettingNotifier<int> {
+  SingleLineAnimationNotifier({StorageLoader? storage})
+    : super(0, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'lyric_single_line_animation';
+  static const int maxAnimation = 3;
+
+  @override
+  int? readFrom(StorageService storage) {
+    final value = storage.getInt(storageKey);
+    if (value == null) return null;
+    return value.clamp(0, maxAnimation);
+  }
+
+  void setAnimation(int index) {
+    final next = index.clamp(0, maxAnimation);
+    if (next == setting.value) return;
+    setting.applyCommitted(next);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(persist(next, (storage) => storage.setInt(storageKey, next)));
+  }
+}

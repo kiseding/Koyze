@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import '../domain/lyric.dart';
 
 class _ParsedLine {
@@ -26,7 +25,6 @@ class LyricParser {
   }
 
   static Lyrics parseLrc(String lrc) {
-    debugPrint('[LyricParser] parseLrc 开始, 长度=${lrc.length}');
     final lines = <LyricLine>[];
     final List<String> lineList = lrc.split('\n');
     final offset = _parseOffset(lrc);
@@ -367,6 +365,73 @@ class LyricParser {
       text: text,
       duration: durMs > 0 ? Duration(milliseconds: durMs) : null,
     );
+  }
+
+  /// 把并列的翻译 / 音译歌词挂到主歌词行上。
+  ///
+  /// 网易把三者放在同一次响应的三个字段里（`lrc` / `tlyric` / `romalrc`），
+  /// 时间戳各自独立、不保证逐字对齐。这里按时间戳匹配：先精确命中，再退到
+  /// 最近的一行（容差 80ms）——两者对不上的时候宁可少显示一行，也不要把
+  /// 上一句的翻译挂到这一句上。
+  static Lyrics attachParallelText(
+    Lyrics lyrics, {
+    String? translation,
+    String? roman,
+  }) {
+    final translationMap = _timeMap(translation);
+    final romanMap = _timeMap(roman);
+    if (translationMap.isEmpty && romanMap.isEmpty) return lyrics;
+
+    final lines = [
+      for (final line in lyrics.lines)
+        line.copyWith(
+          translation:
+              _lookupNearest(translationMap, line.time) ?? line.translation,
+          roman: _lookupNearest(romanMap, line.time),
+        ),
+    ];
+    return Lyrics(raw: lyrics.raw, lines: lines);
+  }
+
+  /// LRC → 时间戳（毫秒）到文本的映射。全局 `[offset:]` 一并应用，
+  /// 否则主歌词平移了、翻译没平移，两行会错开。
+  static Map<int, String> _timeMap(String? lrc) {
+    if (lrc == null || lrc.trim().isEmpty) return const {};
+    final offsetMs = _parseOffset(lrc).inMilliseconds;
+    final result = <int, String>{};
+    final regExp = RegExp(r'\[(\d{2}):(\d{2})[.:](\d{2,3})\]');
+    for (final raw in lrc.split('\n')) {
+      final match = regExp.firstMatch(raw);
+      if (match == null) continue;
+      final body = raw.replaceAll(regExp, '').trim();
+      if (body.isEmpty) continue;
+      final fraction = match.group(3)!.padRight(3, '0').substring(0, 3);
+      final ms =
+          int.parse(match.group(1)!) * 60000 +
+          int.parse(match.group(2)!) * 1000 +
+          int.parse(fraction) +
+          offsetMs;
+      if (ms < 0) continue;
+      result[ms] = body;
+    }
+    return result;
+  }
+
+  static String? _lookupNearest(Map<int, String> map, Duration time) {
+    if (map.isEmpty) return null;
+    final key = time.inMilliseconds;
+    final exact = map[key];
+    if (exact != null) return exact;
+    var bestDelta = 81;
+    String? best;
+    for (final entry in map.entries) {
+      final delta = (entry.key - key).abs();
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        best = entry.value;
+      }
+    }
+    return best;
   }
 
   static Lyrics parseQrc(String qrc) {

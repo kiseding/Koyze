@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../network/app_http_client.dart';
+import '../../../features/lyric/domain/lyric.dart';
 import '../../../features/player/domain/music_item.dart';
 
 enum SourceFailureKind { offline, timeout, http, unexpected }
@@ -162,6 +163,17 @@ abstract class MusicPlatform {
   // 并在设置中启用的音源脚本提供。故意不在这里定义 getMusicUrl 之类的
   // 方法，避免以后又把取址逻辑塞回内置平台。
   Future<String?> getLyric(MusicItem music);
+
+  /// 带翻译 / 音译的歌词。
+  ///
+  /// 默认实现只是把 [getLyric] 包一层，实现方按需覆盖：只有能一次请求同时
+  /// 拿到多个字段的平台（目前是网易）才值得重写，其他平台维持原样即可。
+  Future<LyricPayload?> getLyricPayload(MusicItem music) async {
+    final main = await getLyric(music);
+    if (main == null || main.isEmpty) return null;
+    return LyricPayload(main: main);
+  }
+
   Future<String?> getArtwork(MusicItem music) async => null;
 
   // 歌单搜索接口（可选实现）

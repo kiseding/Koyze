@@ -144,3 +144,48 @@ final playerBackdropScrimProvider =
 final cacheMaintenanceProvider = Provider<CacheMaintenanceService>((ref) {
   return CacheMaintenanceService();
 });
+
+// ---- 歌词显示 ----
+
+/// 歌词整体时间偏移（毫秒）。正值让歌词更晚出现。
+final lyricOffsetProvider = NotifierProvider<LyricOffsetNotifier, int>(
+  LyricOffsetNotifier.new,
+);
+
+/// 歌词字号倍率。
+final lyricScaleProvider = NotifierProvider<LyricScaleNotifier, double>(
+  LyricScaleNotifier.new,
+);
+
+/// 当前行在视口中的纵向位置。
+final lyricAlignProvider = NotifierProvider<LyricAlignNotifier, double>(
+  LyricAlignNotifier.new,
+);
+
+/// 是否显示翻译行。
+final lyricTranslationProvider =
+    NotifierProvider<LyricTranslationNotifier, bool>(
+      LyricTranslationNotifier.new,
+    );
+
+/// 是否显示音译（罗马音）行。
+final lyricRomanProvider = NotifierProvider<LyricRomanNotifier, bool>(
+  LyricRomanNotifier.new,
+);
+
+/// 主题色是否跟随当前封面（每首歌一套配色）。
+final coverThemedAccentProvider =
+    NotifierProvider<CoverThemedAccentNotifier, bool>(
+      CoverThemedAccentNotifier.new,
+    );
+
+/// 歌词呈现方式。索引对应 `LyricLayout.values`。
+final lyricLayoutProvider = NotifierProvider<LyricLayoutNotifier, int>(
+  LyricLayoutNotifier.new,
+);
+
+/// 单行歌词的入场动画。索引对应 `SingleLineAnimation.values`。
+final singleLineAnimationProvider =
+    NotifierProvider<SingleLineAnimationNotifier, int>(
+      SingleLineAnimationNotifier.new,
+    );

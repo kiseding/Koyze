@@ -1,3 +1,4 @@
+import '../../../features/lyric/domain/lyric.dart';
 import '../../../features/player/domain/music_item.dart';
 import 'music_platform.dart';
 import 'kg_source.dart';
@@ -40,6 +41,16 @@ class BuiltInSourceManager {
     final platform = _platforms[platformId];
     if (platform == null) return null;
     return platform.getLyric(music);
+  }
+
+  /// 带翻译 / 音译的歌词；平台未覆盖时退化成 [getLyric]。
+  Future<LyricPayload?> getLyricPayload(
+    String platformId,
+    MusicItem music,
+  ) async {
+    final platform = _platforms[platformId];
+    if (platform == null) return null;
+    return platform.getLyricPayload(music);
   }
 
   Future<String?> getArtwork(String platformId, MusicItem music) async {

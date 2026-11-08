@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:koyze/core/performance/low_memory.dart';
 import 'package:koyze/core/theme/app_theme.dart';
+import 'package:koyze/core/theme/cover_palette_provider.dart';
+
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/core/widgets/compact_high_resolution_scale.dart';
 import 'package:koyze/router/app_router.dart';
@@ -74,7 +76,14 @@ class LxMusicApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
-    final accentColor = ref.watch(accentColorProvider);
+    final manualAccent = ref.watch(accentColorProvider);
+    // 跟随封面时用取色结果替换强调色；取不到（封面缺失/纯黑白/加载中）就
+    // 退回手选色，界面不会出现一段时间没有主题色的空档。
+    final followCover = ref.watch(coverThemedAccentProvider);
+    final coverPalette = followCover
+        ? ref.watch(coverPaletteProvider).valueOrNull
+        : null;
+    final accentColor = coverPalette?.accent ?? manualAccent;
     final language = ref.watch(appLanguageProvider);
     LowMemory.active = ref.watch(simplifyEffectsProvider);
     ref.watch(playbackSessionRecorderProvider);

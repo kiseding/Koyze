@@ -2849,4 +2849,78 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get noServersYet =>
       'No server saved yet — fill in the address below and connect';
+
+  @override
+  String get lyricDisplay => 'Lyrics display';
+
+  @override
+  String get lyricDisplaySubtitle =>
+      'Timing offset, text size and the extra rows';
+
+  @override
+  String get lyricOffset => 'Timing offset';
+
+  @override
+  String get lyricOffsetHint =>
+      'Positive delays the lyrics; use it when they run ahead of the vocal';
+
+  @override
+  String get lyricFontScale => 'Text size';
+
+  @override
+  String get lyricAlign => 'Active line position';
+
+  @override
+  String get lyricTranslation => 'Translation row';
+
+  @override
+  String get lyricRoman => 'Romanization row';
+
+  @override
+  String get lyricOffsetReset => 'Reset offset';
+
+  @override
+  String get accentFollowsCover => 'Match colours to artwork';
+
+  @override
+  String get accentFollowsCoverSubtitle =>
+      'Recolour the app from the current cover';
+
+  @override
+  String get heartMode => 'Radio';
+
+  @override
+  String heartModeAdded(Object n) {
+    return 'Added $n similar songs';
+  }
+
+  @override
+  String get heartModeEmpty => 'No similar songs found';
+
+  @override
+  String get lyricLayout => 'Layout';
+
+  @override
+  String get lyricLayoutScroll => 'Scroll';
+
+  @override
+  String get lyricLayoutSingle => 'Single line';
+
+  @override
+  String get lyricLayoutRoulette => 'Roulette';
+
+  @override
+  String get lyricEntrance => 'Entrance';
+
+  @override
+  String get lyricEntranceSlide => 'Slide up';
+
+  @override
+  String get lyricEntranceFade => 'Fade';
+
+  @override
+  String get lyricEntranceZoom => 'Zoom';
+
+  @override
+  String get lyricEntranceBlur => 'Blur';
 }

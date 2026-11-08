@@ -23,6 +23,7 @@ import '../../playlist/presentation/playlist_provider.dart';
 import '../../player/platform/android_floating_player.dart';
 import '../../player/domain/player_backdrop.dart';
 import '../../player/presentation/player_backdrop_sheet.dart';
+import '../../lyric/presentation/lyric_display_sheet.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
 import '../../download/presentation/download_provider.dart';
@@ -553,6 +554,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           SettingsEntry(
+            title: s.accentFollowsCover,
+            subtitle: s.accentFollowsCoverSubtitle,
+            keywords: const [
+              '封面',
+              'cover',
+              '取色',
+              'palette',
+              '跟随',
+              'follow',
+              '配色',
+              'accent',
+              'artwork',
+            ],
+            toggleValue: ref.watch(coverThemedAccentProvider),
+            onToggle: (value) =>
+                ref.read(coverThemedAccentProvider.notifier).setEnabled(value),
+          ),
+          SettingsEntry(
             title: s.darkMode,
             subtitle: s.darkModeSubtitle,
             keywords: const ['深色', 'dark', '夜间', 'night', '黑色', '模式'],
@@ -615,6 +634,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Icon(Icons.chevron_right, color: AppColors.mutedText(context)),
               ],
             ),
+          ),
+          SettingsEntry(
+            title: s.lyricDisplay,
+            subtitle: s.lyricDisplaySubtitle,
+            keywords: const [
+              '歌词',
+              'lyric',
+              '偏移',
+              'offset',
+              '对不上',
+              '延迟',
+              'delay',
+              '字号',
+              'font',
+              '大小',
+              'size',
+              '音译',
+              '罗马音',
+              'roman',
+              'romaji',
+              '翻译',
+              'translation',
+            ],
+            onTap: () => showLyricDisplaySheet(context),
           ),
         ],
       ),

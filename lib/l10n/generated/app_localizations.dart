@@ -5185,6 +5185,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No server saved yet — fill in the address below and connect'**
   String get noServersYet;
+
+  /// No description provided for @lyricDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyrics display'**
+  String get lyricDisplay;
+
+  /// No description provided for @lyricDisplaySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Timing offset, text size and the extra rows'**
+  String get lyricDisplaySubtitle;
+
+  /// No description provided for @lyricOffset.
+  ///
+  /// In en, this message translates to:
+  /// **'Timing offset'**
+  String get lyricOffset;
+
+  /// No description provided for @lyricOffsetHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Positive delays the lyrics; use it when they run ahead of the vocal'**
+  String get lyricOffsetHint;
+
+  /// No description provided for @lyricFontScale.
+  ///
+  /// In en, this message translates to:
+  /// **'Text size'**
+  String get lyricFontScale;
+
+  /// No description provided for @lyricAlign.
+  ///
+  /// In en, this message translates to:
+  /// **'Active line position'**
+  String get lyricAlign;
+
+  /// No description provided for @lyricTranslation.
+  ///
+  /// In en, this message translates to:
+  /// **'Translation row'**
+  String get lyricTranslation;
+
+  /// No description provided for @lyricRoman.
+  ///
+  /// In en, this message translates to:
+  /// **'Romanization row'**
+  String get lyricRoman;
+
+  /// No description provided for @lyricOffsetReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset offset'**
+  String get lyricOffsetReset;
+
+  /// No description provided for @accentFollowsCover.
+  ///
+  /// In en, this message translates to:
+  /// **'Match colours to artwork'**
+  String get accentFollowsCover;
+
+  /// No description provided for @accentFollowsCoverSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recolour the app from the current cover'**
+  String get accentFollowsCoverSubtitle;
+
+  /// No description provided for @heartMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio'**
+  String get heartMode;
+
+  /// No description provided for @heartModeAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Added {n} similar songs'**
+  String heartModeAdded(Object n);
+
+  /// No description provided for @heartModeEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No similar songs found'**
+  String get heartModeEmpty;
+
+  /// No description provided for @lyricLayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Layout'**
+  String get lyricLayout;
+
+  /// No description provided for @lyricLayoutScroll.
+  ///
+  /// In en, this message translates to:
+  /// **'Scroll'**
+  String get lyricLayoutScroll;
+
+  /// No description provided for @lyricLayoutSingle.
+  ///
+  /// In en, this message translates to:
+  /// **'Single line'**
+  String get lyricLayoutSingle;
+
+  /// No description provided for @lyricLayoutRoulette.
+  ///
+  /// In en, this message translates to:
+  /// **'Roulette'**
+  String get lyricLayoutRoulette;
+
+  /// No description provided for @lyricEntrance.
+  ///
+  /// In en, this message translates to:
+  /// **'Entrance'**
+  String get lyricEntrance;
+
+  /// No description provided for @lyricEntranceSlide.
+  ///
+  /// In en, this message translates to:
+  /// **'Slide up'**
+  String get lyricEntranceSlide;
+
+  /// No description provided for @lyricEntranceFade.
+  ///
+  /// In en, this message translates to:
+  /// **'Fade'**
+  String get lyricEntranceFade;
+
+  /// No description provided for @lyricEntranceZoom.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom'**
+  String get lyricEntranceZoom;
+
+  /// No description provided for @lyricEntranceBlur.
+  ///
+  /// In en, this message translates to:
+  /// **'Blur'**
+  String get lyricEntranceBlur;
 }
 
 class _AppLocalizationsDelegate

@@ -25,6 +25,7 @@ import '../domain/player_backdrop.dart';
 import '../domain/player_service.dart';
 import 'player_backdrop_surface.dart';
 import 'player_provider.dart';
+import '../../recommend/presentation/recommendation_provider.dart';
 import 'scrub_session.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../sync/presentation/sync_phase1_provider.dart';
@@ -2456,6 +2457,8 @@ class _PlaybackQueueSheet extends ConsumerStatefulWidget {
 }
 
 class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
+  bool _heartModeBusy = false;
+
   static const double _queueTileHeight = 56.0;
 
   late int _pageIndex;
@@ -2732,6 +2735,8 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const Spacer(),
+                  _heartModeButton(context),
                 ],
               ),
             ),
@@ -2794,6 +2799,63 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
     return _buildShortQueue(context, currentIndex);
   }
 
+  Widget _heartModeButton(BuildContext context) {
+    return Tooltip(
+      message: S.of(context).heartMode,
+      child: TextButton.icon(
+        onPressed: _heartModeBusy ? null : _startHeartMode,
+        icon: _heartModeBusy
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: AppLoadingIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.favorite_border, size: 18),
+        label: Text(S.of(context).heartMode),
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.accentOf(context),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          textStyle: const TextStyle(fontSize: 12.5),
+        ),
+      ),
+    );
+  }
+
+  /// 以当前歌曲为种子，把一批「同歌手 / 同专辑」的歌追加到队列尾部。
+  ///
+  /// 选择追加而不是替换：用户在放到一半时点心动，期待的是"这首别停，后面
+  /// 接着来"，替换队列会把当前这首直接掐掉。
+  Future<void> _startHeartMode() async {
+    final music = ref.read(currentMusicProvider);
+    if (music == null) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final s = S.of(context);
+    final player = ref.read(playerServiceProvider);
+    final existing = {
+      for (final item in player.queue)
+        (item.extras?['identityKey'] as String?) ?? item.id,
+    };
+    setState(() => _heartModeBusy = true);
+    try {
+      final songs = await ref
+          .read(heartModeServiceProvider)
+          .buildRadio(music, exclude: existing);
+      if (!mounted) return;
+      if (songs.isEmpty) {
+        messenger?.showSnackBar(SnackBar(content: Text(s.heartModeEmpty)));
+        return;
+      }
+      await player.enqueueSongs(songs);
+      messenger?.showSnackBar(
+        SnackBar(content: Text(s.heartModeAdded(songs.length))),
+      );
+    } finally {
+      if (mounted) setState(() => _heartModeBusy = false);
+    }
+  }
+
   Widget _buildShortQueue(
     BuildContext context,
     int currentIndex, {
@@ -2839,6 +2901,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                   ),
                 ),
                 const Spacer(),
+                _heartModeButton(context),
                 if (widget.queue.length > 1)
                   TextButton.icon(
                     onPressed: () => showQueueEditSheet(context),

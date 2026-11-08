@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
+import '../../../features/lyric/domain/lyric.dart';
 import '../../../features/player/domain/music_item.dart';
 import 'music_platform.dart';
 import 'source_utils.dart';
@@ -231,6 +232,17 @@ class WySource extends MusicPlatform {
 
   @override
   Future<String?> getLyric(MusicItem music) async {
+    final payload = await getLyricPayload(music);
+    return payload?.main;
+  }
+
+  /// 一次请求同时取回主歌词、翻译与音译。
+  ///
+  /// 网易把这三者放在同一响应的 `lrc` / `tlyric` / `romalrc` 三个字段里，
+  /// 分成三次请求既慢又可能拿到不同版本（改过歌词的歌尤其明显）。这里保持
+  /// 一次请求、一次解析，由上层决定要不要显示后两行。
+  @override
+  Future<LyricPayload?> getLyricPayload(MusicItem music) async {
     try {
       final id = music.songmid ?? music.id;
       if (id.isEmpty) return null;
@@ -273,10 +285,19 @@ class WySource extends MusicPlatform {
       // 转成 LRCX 逐字格式（<start,dur>字）让解析器进入逐字渲染。
       final yrc = body['yrc'] as Map?;
       final yrcLyric = yrc?['lyric'] as String?;
+      final translation = _nestedLyric(body, 'tlyric');
+      // 新版接口把音译拆成 romalrc（原文罗马音）与 yromalrc（逐字罗马音），
+      // 两者都可能缺席；优先用逐字的 yromalrc，回退普通 romalrc。
+      final roman =
+          _nestedLyric(body, 'yromalrc') ?? _nestedLyric(body, 'romalrc');
       if (yrcLyric != null && yrcLyric.isNotEmpty) {
         final converted = wyYrcToLrc(yrcLyric);
         if (converted != null && converted.isNotEmpty) {
-          return converted;
+          return LyricPayload(
+            main: converted,
+            translation: translation,
+            roman: roman,
+          );
         }
       }
 
@@ -286,11 +307,24 @@ class WySource extends MusicPlatform {
       final lyric = lrc['lyric'] as String?;
       if (lyric == null || lyric.isEmpty) return null;
 
-      return lyric;
+      return LyricPayload(
+        main: lyric,
+        translation: translation,
+        roman: roman,
+      );
     } catch (e) {
       noteFailure('lyric', e);
       return null;
     }
+  }
+
+  /// 取响应里 `{字段: {lyric: "..."}}` 结构的文本；缺失或为空返回 null。
+  static String? _nestedLyric(Map<dynamic, dynamic> body, String key) {
+    final node = body[key];
+    if (node is! Map) return null;
+    final text = node['lyric'] as String?;
+    if (text == null || text.trim().isEmpty) return null;
+    return text;
   }
 
   /// 将网易云 yrc 逐字歌词（JSON 行 + 逐字行）转换为 LRCX 逐字格式。

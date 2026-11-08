@@ -2786,4 +2786,75 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get noServersYet => '还没有保存过服务器，填好下面的地址后点连接就行';
+
+  @override
+  String get lyricDisplay => '歌词显示';
+
+  @override
+  String get lyricDisplaySubtitle => '时间偏移、字号与附加行';
+
+  @override
+  String get lyricOffset => '时间偏移';
+
+  @override
+  String get lyricOffsetHint => '正值让歌词更晚出现；歌词比人声早时调大';
+
+  @override
+  String get lyricFontScale => '字号';
+
+  @override
+  String get lyricAlign => '当前行位置';
+
+  @override
+  String get lyricTranslation => '翻译行';
+
+  @override
+  String get lyricRoman => '音译行';
+
+  @override
+  String get lyricOffsetReset => '清零偏移';
+
+  @override
+  String get accentFollowsCover => '主题色跟随封面';
+
+  @override
+  String get accentFollowsCoverSubtitle => '每首歌从封面提取一套配色';
+
+  @override
+  String get heartMode => '心动模式';
+
+  @override
+  String heartModeAdded(Object n) {
+    return '已加入 $n 首相似歌曲';
+  }
+
+  @override
+  String get heartModeEmpty => '没找到相似歌曲';
+
+  @override
+  String get lyricLayout => '呈现方式';
+
+  @override
+  String get lyricLayoutScroll => '滚动';
+
+  @override
+  String get lyricLayoutSingle => '单行';
+
+  @override
+  String get lyricLayoutRoulette => '轮盘';
+
+  @override
+  String get lyricEntrance => '入场动画';
+
+  @override
+  String get lyricEntranceSlide => '上滑';
+
+  @override
+  String get lyricEntranceFade => '淡入';
+
+  @override
+  String get lyricEntranceZoom => '缩放';
+
+  @override
+  String get lyricEntranceBlur => '模糊';
 }

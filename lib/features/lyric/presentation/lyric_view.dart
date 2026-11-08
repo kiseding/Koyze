@@ -1,11 +1,16 @@
 import 'dart:async';
 import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../domain/lyric.dart';
 import '../presentation/lyric_provider.dart';
+import 'compact_lyric_view.dart';
+import 'interlude_dots.dart';
+import 'word_motion.dart';
 import '../../player/presentation/player_provider.dart';
+import '../../settings/presentation/settings_provider.dart';
 import '../../player/domain/music_item.dart';
 import '../../../core/motion/motion_tokens.dart';
 import '../../../core/widgets/loading_widget.dart';
@@ -34,8 +39,22 @@ class _LyricViewState extends ConsumerState<LyricView> {
   bool _programmaticScroll = false;
   Timer? _resumeFollowTimer;
 
-  double get _itemExtent => widget.isFullScreen ? 56.0 : 44.0;
+  double get _baseItemExtent => widget.isFullScreen ? 56.0 : 44.0;
   double get _verticalPadding => widget.isFullScreen ? 150.0 : 80.0;
+
+  /// 行高随内容与字号变化。
+  ///
+  /// `ListView.builder` 用了 [itemExtent]，滚动定位才能靠 `index * extent` 直接
+  /// 算出来（未构建的行拿不到 `RenderObject`）。代价是每行高度必须一致：多出
+  /// 音译/翻译一行就要把整个行高一起抬高，否则最后一行会被裁掉。
+  double _itemExtent(Lyrics lyrics, double scale) {
+    final hasExtras = lyrics.lines.any(
+      (line) =>
+          (line.translation != null && line.translation!.isNotEmpty) ||
+          (line.roman != null && line.roman!.isNotEmpty),
+    );
+    return _baseItemExtent * scale + (hasExtras ? 15.0 * scale : 0.0);
+  }
 
   @override
   void initState() {
@@ -82,18 +101,22 @@ class _LyricViewState extends ConsumerState<LyricView> {
     _scrollToLine(idx);
   }
 
-  void _scrollToLine(int index) {
+  void _scrollToLine(int index, {double? extent, double? align}) {
     if (!_scrollController.hasClients) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _scrollToLine(index);
+        if (mounted) _scrollToLine(index, extent: extent, align: align);
       });
       return;
     }
     _attachScrollListener();
     final position = _scrollController.position;
     final viewport = position.viewportDimension;
+    final itemExtent =
+        extent ??
+        _itemExtent(ref.read(currentLyricProvider), ref.read(lyricScaleProvider));
+    final double anchor = align ?? ref.read<double>(lyricAlignProvider);
     // 固定行高估算：ListView.builder 未构建的行 ensureVisible 会失败
-    final rawOffset = _verticalPadding + index * _itemExtent - viewport * 0.38;
+    final rawOffset = _verticalPadding + index * itemExtent - viewport * anchor;
     final target = rawOffset.clamp(0.0, position.maxScrollExtent);
 
     _programmaticScroll = true;
@@ -187,114 +210,145 @@ class _LyricViewState extends ConsumerState<LyricView> {
       );
     }
 
-    final lyricList = ShaderMask(
-      shaderCallback: (Rect bounds) {
-        return const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.transparent,
-            Colors.white,
-            Colors.white,
-            Colors.transparent,
-          ],
-          stops: [0.0, 0.1, 0.9, 1.0],
-        ).createShader(bounds);
-      },
-      blendMode: BlendMode.dstIn,
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: EdgeInsets.symmetric(vertical: _verticalPadding),
-        itemExtent: _itemExtent,
-        itemCount: lyrics.lines.length,
-        itemBuilder: (context, index) {
-          final line = lyrics.lines[index];
-          final isCurrent = index == currentLineIndex;
+    // 单行 / 轮盘不画列表：它们只关心"这一行"，列表的滚动与定位全部用不上。
+    final layoutIndex = ref.watch(lyricLayoutProvider);
+    if (layoutIndex > 0) {
+      return CompactLyricView(
+        layout: LyricLayout.values[layoutIndex.clamp(0, 2)],
+        animation: SingleLineAnimation.values[
+            ref.watch(singleLineAnimationProvider).clamp(0, 3)],
+        align: widget.isFullScreen ? Alignment.centerLeft : Alignment.center,
+      );
+    }
 
-          final lineColor = isCurrent
-              ? accent
-              : (widget.isFullScreen ? primary.withValues(alpha: 0.35) : muted);
-          final dimColor = isCurrent
-              ? (line.hasWordTiming
-                    ? primary
-                    : lineColor.withValues(alpha: 0.35))
-              : lineColor;
-          final transColor = isCurrent
-              ? secondary
-              : muted.withValues(alpha: 0.55);
+    final scale = ref.watch(lyricScaleProvider);
+    final showTranslation = ref.watch(lyricTranslationProvider);
+    final showRoman = ref.watch(lyricRomanProvider);
+    final itemExtent = _itemExtent(lyrics, scale);
 
-          final fontSize = isCurrent
-              ? (widget.isFullScreen ? 20.0 : 16.0)
-              : (widget.isFullScreen ? 16.0 : 14.0);
-          final weight = isCurrent ? FontWeight.bold : FontWeight.normal;
+    // 上下渐隐以前用 ShaderMask 包住整个列表：那是一层视口大小的离屏缓冲，
+    // 播放中每 100ms 重做一次、滚动时每帧一次。改成按「离当前行的距离」直接
+    // 算文字透明度——远近层次还在，但没有整屏合成。
+    Color fadeByDistance(Color base, int index) {
+      if (currentLineIndex < 0) return base;
+      final distance = (index - currentLineIndex).abs();
+      if (distance <= 1) return base;
+      final factor = (1.0 - (distance - 1) * 0.2).clamp(0.2, 1.0);
+      return base.withValues(alpha: base.a * factor);
+    }
 
-          final lineContent = Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isCurrent && line.hasWordTiming)
-                  _PositionedKtvLyricLine(
-                    line: line,
-                    lineIndex: index,
-                    lyrics: lyrics,
-                    // 逐字高亮始终使用主题绿色，浅色主题下也不能退化为黑色。
-                    activeColor: accent,
-                    dimColor: dimColor,
+    final lyricList = ListView.builder(
+      controller: _scrollController,
+      padding: EdgeInsets.symmetric(vertical: _verticalPadding),
+      itemExtent: itemExtent,
+      itemCount: lyrics.lines.length,
+      itemBuilder: (context, index) {
+        final line = lyrics.lines[index];
+        final isCurrent = index == currentLineIndex;
+
+        final rawLineColor = isCurrent
+            ? accent
+            : (widget.isFullScreen ? primary.withValues(alpha: 0.35) : muted);
+        final lineColor = fadeByDistance(rawLineColor, index);
+        final dimColor = isCurrent
+            ? (line.hasWordTiming
+                  ? primary
+                  : lineColor.withValues(alpha: 0.35))
+            : lineColor;
+        final transColor = fadeByDistance(
+          isCurrent ? secondary : muted.withValues(alpha: 0.55),
+          index,
+        );
+
+        final baseFontSize = isCurrent
+            ? (widget.isFullScreen ? 20.0 : 16.0)
+            : (widget.isFullScreen ? 16.0 : 14.0);
+        final fontSize = baseFontSize * scale;
+        final weight = isCurrent ? FontWeight.bold : FontWeight.normal;
+
+        final lineContent = Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isCurrent && line.hasWordTiming)
+                _PositionedKtvLyricLine(
+                  line: line,
+                  lineIndex: index,
+                  lyrics: lyrics,
+                  // 逐字高亮始终使用主题绿色，浅色主题下也不能退化为黑色。
+                  activeColor: accent,
+                  dimColor: dimColor,
+                  fontSize: fontSize,
+                  fontWeight: weight,
+                )
+              else
+                AnimatedDefaultTextStyle(
+                  duration: MotionDuration.normal,
+                  curve: MotionCurve.easeOut,
+                  style: TextStyle(
+                    color: lineColor,
                     fontSize: fontSize,
                     fontWeight: weight,
-                  )
-                else
-                  AnimatedDefaultTextStyle(
-                    duration: MotionDuration.normal,
-                    curve: MotionCurve.easeOut,
-                    style: TextStyle(
-                      color: lineColor,
-                      fontSize: fontSize,
-                      fontWeight: weight,
-                    ),
-                    child: Text(
-                      line.text,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
                   ),
-                if (line.translation != null)
-                  AnimatedDefaultTextStyle(
-                    duration: MotionDuration.normal,
-                    curve: MotionCurve.easeOut,
-                    style: TextStyle(
-                      color: transColor,
-                      fontSize: isCurrent
-                          ? (widget.isFullScreen ? 13 : 11)
-                          : (widget.isFullScreen ? 11 : 10),
-                    ),
-                    child: Text(
-                      line.translation!,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  child: Text(
+                    line.text,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-              ],
-            ),
-          );
+                ),
+              if (showRoman && line.roman != null && line.roman!.isNotEmpty)
+                AnimatedDefaultTextStyle(
+                  duration: MotionDuration.normal,
+                  curve: MotionCurve.easeOut,
+                  style: TextStyle(
+                    color: transColor.withValues(
+                      alpha: transColor.a * 0.85,
+                    ),
+                    fontSize: (isCurrent ? 11.5 : 10.0) * scale,
+                  ),
+                  child: Text(
+                    line.roman!,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              if (showTranslation &&
+                  line.translation != null &&
+                  line.translation!.isNotEmpty)
+                AnimatedDefaultTextStyle(
+                  duration: MotionDuration.normal,
+                  curve: MotionCurve.easeOut,
+                  style: TextStyle(
+                    color: transColor,
+                    fontSize: (isCurrent ? 13.0 : 11.0) * scale,
+                  ),
+                  child: Text(
+                    line.translation!,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+          ),
+        );
 
-          return GestureDetector(
+        return GestureDetector(
+          onTap: () => ref.read(seekProvider)(line.time),
+          behavior: HitTestBehavior.opaque,
+          child: Semantics(
+            button: true,
+            selected: isCurrent,
+            label: line.text,
+            value: _formatLyricTime(line.time),
             onTap: () => ref.read(seekProvider)(line.time),
-            behavior: HitTestBehavior.opaque,
-            child: Semantics(
-              button: true,
-              selected: isCurrent,
-              label: line.text,
-              value: _formatLyricTime(line.time),
-              onTap: () => ref.read(seekProvider)(line.time),
-              child: ExcludeSemantics(child: lineContent),
-            ),
-          );
-        },
-      ),
+            child: ExcludeSemantics(child: lineContent),
+          ),
+        );
+      },
     );
 
     final currentText =
@@ -307,6 +361,51 @@ class _LyricViewState extends ConsumerState<LyricView> {
     final nextIndex = lyrics.isEmpty || currentLineIndex < 0
         ? -1
         : (currentLineIndex + 1).clamp(0, lyrics.lines.length - 1);
+
+    final interlude = _resolveInterlude(lyrics, currentLineIndex);
+    final body = interlude == null
+        ? lyricList
+        : Stack(
+            children: [
+              Positioned.fill(child: lyricList),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: _scrollController,
+                    builder: (context, _) {
+                      if (!_scrollController.hasClients) {
+                        return const SizedBox.shrink();
+                      }
+                      // 下一行的槽位（列表按固定行高排布，可以算术定位）。
+                      final top =
+                          _verticalPadding +
+                          interlude.nextLineIndex * itemExtent -
+                          _scrollController.offset;
+                      return Stack(
+                        children: [
+                          Positioned(
+                            top: top,
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: InterludeDots(
+                                start: interlude.start,
+                                end: interlude.end,
+                                position: () =>
+                                    ref.read(lyricPositionProvider),
+                                color: accent.withValues(alpha: 0.85),
+                                dotSize: widget.isFullScreen ? 4.5 : 3.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
 
     return Semantics(
       label: S.of(context).lyrics,
@@ -321,7 +420,47 @@ class _LyricViewState extends ConsumerState<LyricView> {
       onIncrease: nextIndex < 0
           ? null
           : () => ref.read(seekProvider)(lyrics.lines[nextIndex].time),
-      child: lyricList,
+      child: body,
+    );
+  }
+
+  /// 判断当前行之后是否存在一段值得画呼吸点的间奏。
+  ///
+  /// 判定依据是「到下一行的间隔」而不是「这一行唱了多久」——普通 LRC 没有行
+  /// 结束时间，间隔是唯一可靠信号。间隔超过 3.8s 才画，否则间奏点会和正常的
+  /// 换行重叠，看起来像卡顿。
+  ({int nextLineIndex, Duration start, Duration end})? _resolveInterlude(
+    Lyrics lyrics,
+    int currentLineIndex,
+  ) {
+    if (currentLineIndex < 0 || currentLineIndex + 1 >= lyrics.lines.length) {
+      return null;
+    }
+    final current = lyrics.lines[currentLineIndex];
+    final next = lyrics.lines[currentLineIndex + 1];
+    final gap = next.time - current.time;
+    if (gap < const Duration(milliseconds: 3800)) return null;
+
+    // 有逐字时间时，最后一个字唱完就是本行的真实结束点。
+    Duration lineEnd = current.time;
+    final words = current.words;
+    if (words != null && words.isNotEmpty) {
+      final last = words.last;
+      lineEnd = last.time + (last.duration ?? Duration.zero);
+    } else {
+      final guess = gap * 0.45;
+      lineEnd = current.time +
+          (guess > const Duration(milliseconds: 2500)
+              ? const Duration(milliseconds: 2500)
+              : guess);
+    }
+    if (lineEnd <= current.time) lineEnd = current.time;
+    if (lineEnd >= next.time) return null;
+
+    return (
+      nextLineIndex: currentLineIndex + 1,
+      start: lineEnd,
+      end: next.time,
     );
   }
 
@@ -423,8 +562,10 @@ class _PositionedKtvLyricLine extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final position = ref.watch(playerPositionProvider);
-    // 10Hz 逐字进度只重绘当前行，避免 ShaderMask 全列表反复离屏合成。
+    // 读的是歌词时间轴（已叠加用户校准偏移），不是原始播放进度。
+    final position = ref.watch(lyricPositionProvider);
+    final playing = ref.watch(isPlayingProvider).valueOrNull ?? false;
+    // 10Hz 逐字进度只重绘当前行，避免整列表反复离屏合成。
     return RepaintBoundary(
       child: _KtvLyricLine(
         line: line,
@@ -435,6 +576,7 @@ class _PositionedKtvLyricLine extends ConsumerWidget {
         dimColor: dimColor,
         fontSize: fontSize,
         fontWeight: fontWeight,
+        playing: playing,
       ),
     );
   }
@@ -457,6 +599,9 @@ class _KtvLyricLine extends StatefulWidget {
   final double fontSize;
   final FontWeight fontWeight;
 
+  /// 正在播放时才逐帧推进动画；暂停时停表，避免歌词自己往前跑。
+  final bool playing;
+
   const _KtvLyricLine({
     required this.line,
     required this.lineIndex,
@@ -466,35 +611,29 @@ class _KtvLyricLine extends StatefulWidget {
     required this.dimColor,
     required this.fontSize,
     required this.fontWeight,
+    required this.playing,
   });
 
   @override
   State<_KtvLyricLine> createState() => _KtvLyricLineState();
 }
 
-class _KtvLyricLineState extends State<_KtvLyricLine> {
-  /// 位置更新间隔的估计值：插值时长略大于典型 tick 周期，
-  /// 让当前字始终"追"向最新目标而不会停滞。
-  static const Duration _fillChaseDuration = Duration(milliseconds: 120);
+class _KtvLyricLineState extends State<_KtvLyricLine>
+    with SingleTickerProviderStateMixin {
+  /// 本地推进的播放位置。
+  ///
+  /// 播放器每 100ms 才推一次位置，用这个值直接算动画会看到明显的台阶。这里
+  /// 用 ticker 按帧推进，只在外部位置与本地推算偏差过大（拖动、跳转、暂停后
+  /// 恢复）时才对齐一次。
+  Duration _local = Duration.zero;
+  Duration _lastElapsed = Duration.zero;
+  Ticker? _ticker;
+  bool _ticking = false;
 
-  int _prefixCount = -1;
-  late List<Widget> _prefixChildren;
-  int _suffixStart = -1;
-  late List<Widget> _suffixChildren;
-  int _activeIndex = -1;
-  double _lastFill = 0;
-
-  TextStyle get _textStyle => TextStyle(
-    fontSize: widget.fontSize,
-    fontWeight: widget.fontWeight,
-    height: 1.15,
-  );
-
-  void _resetCaches() {
-    _prefixCount = -1;
-    _suffixStart = -1;
-    _activeIndex = -1;
-    _lastFill = 0;
+  @override
+  void initState() {
+    super.initState();
+    _local = widget.position;
   }
 
   @override
@@ -506,101 +645,137 @@ class _KtvLyricLineState extends State<_KtvLyricLine> {
         oldWidget.fontWeight != widget.fontWeight ||
         oldWidget.activeColor != widget.activeColor ||
         oldWidget.dimColor != widget.dimColor) {
-      _resetCaches();
+      _local = widget.position;
+      _lastElapsed = Duration.zero;
+    } else {
+      final drift = (widget.position - _local).abs();
+      // 100ms 的正常步进不该被拉回，否则本地推进毫无意义；超过 250ms
+      // 只可能是 seek / 切歌 / 暂停恢复，必须对齐。
+      if (drift > const Duration(milliseconds: 250)) {
+        _local = widget.position;
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.dispose();
+    super.dispose();
+  }
+
+  void _onTick(Duration elapsed) {
+    final delta = elapsed - _lastElapsed;
+    _lastElapsed = elapsed;
+    if (!mounted) return;
+    setState(() => _local += delta);
+  }
+
+  void _ensureTicking(bool shouldTick) {
+    if (shouldTick) {
+      if (_ticking) return;
+      _ticking = true;
+      _lastElapsed = Duration.zero;
+      _ticker ??= createTicker(_onTick);
+      _ticker!.start();
+    } else if (_ticking) {
+      _ticking = false;
+      _ticker?.stop();
+    }
+  }
+
+  /// 词的结束时间：有 duration 就用它，没有就按下一个词的起点估算。
+  int _wordEndMs(int index, List<LyricWord> words, int lineStartMs) {
+    final word = words[index];
+    final start = word.time.inMilliseconds;
+    final explicit = word.duration?.inMilliseconds ?? 0;
+    if (explicit > 0) return start + explicit;
+    if (index + 1 < words.length) return words[index + 1].time.inMilliseconds;
+    return start + 400;
   }
 
   @override
   Widget build(BuildContext context) {
     final words = widget.line.words!;
-    final lyrics = widget.lyrics;
-    final position = widget.position;
-    var active = lyrics.getCurrentWordIndex(position, widget.lineIndex);
+    final lineStartMs = widget.line.time.inMilliseconds;
+    final positionMs = _local.inMilliseconds;
+    final lineEndMs = _wordEndMs(words.length - 1, words, lineStartMs);
+    final playing = widget.playing;
 
-    // 行首前 / 行尾后：整行统一暗色或亮色，无需动画。
-    if (active < 0 || active >= words.length) {
-      final fill = active >= words.length ? 1.0 : 0.0;
-      _resetCaches();
-      return Wrap(
-        alignment: WrapAlignment.center,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          for (var i = 0; i < words.length; i++)
-            _KtvWord(
-              text: words[i].text,
-              fill: fill,
-              activeColor: widget.activeColor,
-              dimColor: widget.dimColor,
-              fontSize: widget.fontSize,
-              fontWeight: widget.fontWeight,
-            ),
-        ],
-      );
-    }
-
-    final textStyle = _textStyle;
-    if (_prefixCount != active) {
-      _prefixChildren = [
-        for (var i = 0; i < active; i++)
-          _KtvWord(
-            text: words[i].text,
-            fill: 1.0,
-            activeColor: widget.activeColor,
-            dimColor: widget.dimColor,
-            fontSize: widget.fontSize,
-            fontWeight: widget.fontWeight,
-          ),
-      ];
-      _prefixCount = active;
-    }
-    final suffixStart = active + 1;
-    if (_suffixStart != suffixStart) {
-      _suffixChildren = [
-        for (var i = suffixStart; i < words.length; i++)
-          _KtvWord(
-            text: words[i].text,
-            fill: 0.0,
-            activeColor: widget.activeColor,
-            dimColor: widget.dimColor,
-            fontSize: widget.fontSize,
-            fontWeight: widget.fontWeight,
-          ),
-      ];
-      _suffixStart = suffixStart;
-    }
-
-    if (_activeIndex != active) {
-      _activeIndex = active;
-      _lastFill = 0;
-    }
-    final rawFill = lyrics.getWordFillProgress(
-      position,
-      widget.lineIndex,
-      active,
+    // 只有这一行真的在唱的时候才逐帧推进：整页歌词里同时只有一行会是
+    // active 行，成本可控；行外空转等于让引擎永远不休眠。
+    _ensureTicking(
+      playing && positionMs >= lineStartMs - 250 && positionMs <= lineEndMs + 250,
     );
-    final targetFill = rawFill.clamp(0.0, 1.0);
+
+    final active = widget.lyrics.getCurrentWordIndex(_local, widget.lineIndex);
+    final relativeMs = (positionMs - lineStartMs).toDouble();
+
+    final children = <Widget>[
+      for (var i = 0; i < words.length; i++)
+        _animatedWord(
+          index: i,
+          words: words,
+          active: active,
+          relativeMs: relativeMs,
+          lineStartMs: lineStartMs,
+        ),
+    ];
 
     return Wrap(
       alignment: WrapAlignment.center,
       crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        ..._prefixChildren,
-        TweenAnimationBuilder<double>(
-          key: ValueKey(active),
-          tween: Tween<double>(begin: _lastFill, end: targetFill),
-          duration: _fillChaseDuration,
-          curve: Curves.linear,
-          builder: (context, fill, child) => _PartialKtvWord(
-            key: ValueKey('partial-$active'),
-            text: words[active].text,
-            fill: fill,
-            activeColor: widget.activeColor,
-            dimColor: widget.dimColor,
-            style: textStyle,
-          ),
-        ),
-        ..._suffixChildren,
-      ],
+      children: children,
+    );
+  }
+
+  /// 单个词的位移 / 缩放 / 辉光 / 填充比例。
+  Widget _animatedWord({
+    required int index,
+    required List<LyricWord> words,
+    required int active,
+    required double relativeMs,
+    required int lineStartMs,
+  }) {
+    final word = words[index];
+    final startMs = word.time.inMilliseconds - lineStartMs;
+    final endMs = _wordEndMs(index, words, lineStartMs) - lineStartMs;
+    final emphasized = shouldEmphasize(
+      durationMs: endMs - startMs,
+      text: word.text,
+    );
+    final motion = solveWordMotion(
+      positionMs: relativeMs,
+      wordStartMs: startMs.toDouble(),
+      wordEndMs: endMs.toDouble(),
+      isEmphasized: emphasized,
+    );
+    final fill = index < active
+        ? 1.0
+        : (index == active
+              ? widget.lyrics
+                    .getWordFillProgress(_local, widget.lineIndex, index)
+                    .clamp(0.0, 1.0)
+              : 0.0);
+
+    final child = _PartialKtvWord(
+      text: word.text,
+      fill: fill,
+      activeColor: widget.activeColor,
+      dimColor: widget.dimColor,
+      glowAlpha: motion.glowAlpha,
+      style: TextStyle(
+        fontSize: widget.fontSize,
+        fontWeight: widget.fontWeight,
+        height: 1.15,
+      ),
+    );
+
+    if (motion == WordMotion.idle) return child;
+    return Transform.translate(
+      offset: Offset(0, motion.offsetEm * widget.fontSize),
+      child: motion.scale == 1
+          ? child
+          : Transform.scale(scale: motion.scale, child: child),
     );
   }
 }
@@ -611,75 +786,51 @@ class _PartialKtvWord extends StatelessWidget {
   final double fill;
   final Color activeColor;
   final Color dimColor;
+
+  /// 长词强调的辉光强度 0~1。
+  final double glowAlpha;
   final TextStyle style;
 
   const _PartialKtvWord({
-    super.key,
     required this.text,
     required this.fill,
     required this.activeColor,
     required this.dimColor,
     required this.style,
+    this.glowAlpha = 0,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    if (fill <= 0) {
-      return Text(text, style: style.copyWith(color: dimColor));
-    }
-    if (fill >= 1) {
-      return Text(text, style: style.copyWith(color: activeColor));
-    }
-    return Stack(
-      children: [
-        Text(text, style: style.copyWith(color: dimColor)),
-        ClipRect(
-          clipper: _FractionClipper(fill),
-          child: Text(text, style: style.copyWith(color: activeColor)),
+  TextStyle _glow(TextStyle base, Color color) {
+    if (glowAlpha <= 0.01) return base;
+    return base.copyWith(
+      shadows: [
+        Shadow(
+          color: color.withValues(alpha: color.a * glowAlpha * 0.55),
+          blurRadius: 12,
         ),
       ],
     );
   }
-}
-
-class _KtvWord extends StatelessWidget {
-  final String text;
-  final double fill;
-  final Color activeColor;
-  final Color dimColor;
-  final double fontSize;
-  final FontWeight fontWeight;
-
-  const _KtvWord({
-    required this.text,
-    required this.fill,
-    required this.activeColor,
-    required this.dimColor,
-    required this.fontSize,
-    required this.fontWeight,
-  });
 
   @override
   Widget build(BuildContext context) {
-    final style = TextStyle(
-      fontSize: fontSize,
-      fontWeight: fontWeight,
-      height: 1.15,
-    );
-
     if (fill <= 0) {
       return Text(text, style: style.copyWith(color: dimColor));
     }
     if (fill >= 1) {
-      return Text(text, style: style.copyWith(color: activeColor));
+      return Text(text, style: _glow(style, activeColor).copyWith(
+        color: activeColor,
+      ));
     }
-
     return Stack(
       children: [
         Text(text, style: style.copyWith(color: dimColor)),
         ClipRect(
           clipper: _FractionClipper(fill),
-          child: Text(text, style: style.copyWith(color: activeColor)),
+          child: Text(
+            text,
+            style: _glow(style, activeColor).copyWith(color: activeColor),
+          ),
         ),
       ],
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import '../../features/lyric/domain/lyric.dart';
 import '../../features/player/domain/music_item.dart';
 import '../../features/custom_source/domain/custom_source_service.dart';
 import '../../features/source_check/domain/source_check_policy.dart';
@@ -803,6 +804,17 @@ class MusicSourceService {
   }
 
   Future<String?> getLyric(MusicItem music) async {
+    final payload = await getLyricPayload(music);
+    return payload?.main;
+  }
+
+  /// 取歌词，保留翻译 / 音译。
+  ///
+  /// 与 [getLyric] 走完全相同的回退链（子源 → NAS → 内置平台 → 自定义源 →
+  /// 跨平台匹配），区别只在于内置平台那一步用 [BuiltInSourceManager
+  /// .getLyricPayload]，把同一响应里的翻译与音译一并带回来。自定义源只有
+  /// 一个字符串接口，因此拿不到附行。
+  Future<LyricPayload?> getLyricPayload(MusicItem music) async {
     debugPrint(
       '[MusicSourceService] getLyric: platform=${music.platform}, source=${music.source}, songmid=${music.songmid}',
     );
@@ -813,7 +825,9 @@ class MusicSourceService {
         try {
           await subsonic.init();
           final lyric = await subsonic.getLyric(music);
-          if (lyric != null && lyric.isNotEmpty) return lyric;
+          if (lyric != null && lyric.isNotEmpty) {
+            return LyricPayload(main: lyric);
+          }
         } catch (error) {
           debugPrint('[MusicSourceService] Subsonic 歌词失败: $error');
         }
@@ -826,7 +840,9 @@ class MusicSourceService {
           try {
             await nas.init();
             final lyric = await nas.getLyric(music);
-            if (lyric != null && lyric.isNotEmpty) return lyric;
+            if (lyric != null && lyric.isNotEmpty) {
+              return LyricPayload(main: lyric);
+            }
           } catch (error) {
             debugPrint('[MusicSourceService] ${nasKind.title} 歌词失败: $error');
           }
@@ -840,10 +856,10 @@ class MusicSourceService {
       // over a custom source's plain LRC so an enabled source cannot silently
       // remove the platform's word-by-word rendering.
       debugPrint('[MusicSourceService] 尝试内置源 platform=$platform');
-      final lyric = await _builtInSources.getLyric(platform, music);
-      if (lyric != null && lyric.isNotEmpty) {
+      final payload = await _builtInSources.getLyricPayload(platform, music);
+      if (payload != null && payload.main.isNotEmpty) {
         debugPrint('[MusicSourceService] 内置源 $platform 返回歌词');
-        return lyric;
+        return payload;
       }
       debugPrint('[MusicSourceService] 内置源 $platform 返回空');
     }
@@ -861,7 +877,7 @@ class MusicSourceService {
           });
       if (lyric != null && lyric.isNotEmpty) {
         debugPrint('[MusicSourceService] 自定义源 ${source.id} 返回歌词');
-        return lyric;
+        return LyricPayload(main: lyric);
       }
     }
 
@@ -877,19 +893,19 @@ class MusicSourceService {
           .catchError((_) => <MusicItem>[]);
       final candidate = _bestSongMatch(music, matches);
       if (candidate == null) continue;
-      final lyric = await _builtInSources.getLyric(pid, candidate);
-      if (lyric != null && lyric.isNotEmpty) {
+      final payload = await _builtInSources.getLyricPayload(pid, candidate);
+      if (payload != null && payload.main.isNotEmpty) {
         debugPrint('[MusicSourceService] 歌词跨平台回退 $sourcePlatform -> $pid');
-        return lyric;
+        return payload;
       }
     }
 
     for (final pid in MusicSourceService.fallbackPlatforms) {
       if (pid == platform) continue;
-      final lyric = await _builtInSources.getLyric(pid, music);
-      if (lyric != null && lyric.isNotEmpty) {
+      final payload = await _builtInSources.getLyricPayload(pid, music);
+      if (payload != null && payload.main.isNotEmpty) {
         debugPrint('[MusicSourceService] 兜底源 $pid 返回歌词');
-        return lyric;
+        return payload;
       }
     }
 
