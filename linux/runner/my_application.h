@@ -3,6 +3,9 @@
 
 #include <gtk/gtk.h>
 
+#include "desktop_media.h"
+#include "desktop_lyric_window.h"
+
 G_DECLARE_FINAL_TYPE(MyApplication,
                      my_application,
                      MY,

@@ -8,6 +8,7 @@ import '../domain/lyric.dart';
 import '../presentation/lyric_provider.dart';
 import 'compact_lyric_view.dart';
 import 'interlude_dots.dart';
+import 'pixel_lyric.dart';
 import 'word_motion.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
@@ -47,13 +48,18 @@ class _LyricViewState extends ConsumerState<LyricView> {
   /// `ListView.builder` 用了 [itemExtent]，滚动定位才能靠 `index * extent` 直接
   /// 算出来（未构建的行拿不到 `RenderObject`）。代价是每行高度必须一致：多出
   /// 音译/翻译一行就要把整个行高一起抬高，否则最后一行会被裁掉。
-  double _itemExtent(Lyrics lyrics, double scale) {
+  double _itemExtent(Lyrics lyrics, double scale, {bool pixel = false}) {
     final hasExtras = lyrics.lines.any(
       (line) =>
           (line.translation != null && line.translation!.isNotEmpty) ||
           (line.roman != null && line.roman!.isNotEmpty),
     );
-    return _baseItemExtent * scale + (hasExtras ? 15.0 * scale : 0.0);
+    // 像素主题的行高由栅格图的放大倍数决定，和普通字体的行高不同；两者
+    // 混用会让滚动定位和实际行位对不上，所以这里必须跟着换。
+    final base = pixel
+        ? kPixelLyricGridSize * kPixelLyricScale * 1.5 + 12.0
+        : _baseItemExtent;
+    return base * scale + (hasExtras ? 15.0 * scale : 0.0);
   }
 
   @override
@@ -113,7 +119,11 @@ class _LyricViewState extends ConsumerState<LyricView> {
     final viewport = position.viewportDimension;
     final itemExtent =
         extent ??
-        _itemExtent(ref.read(currentLyricProvider), ref.read(lyricScaleProvider));
+        _itemExtent(
+          ref.read(currentLyricProvider),
+          ref.read(lyricScaleProvider),
+          pixel: ref.read(lyricThemeProvider) == 1,
+        );
     final double anchor = align ?? ref.read<double>(lyricAlignProvider);
     // 固定行高估算：ListView.builder 未构建的行 ensureVisible 会失败
     final rawOffset = _verticalPadding + index * itemExtent - viewport * anchor;
@@ -224,7 +234,8 @@ class _LyricViewState extends ConsumerState<LyricView> {
     final scale = ref.watch(lyricScaleProvider);
     final showTranslation = ref.watch(lyricTranslationProvider);
     final showRoman = ref.watch(lyricRomanProvider);
-    final itemExtent = _itemExtent(lyrics, scale);
+    final pixelTheme = ref.watch(lyricThemeProvider) == 1;
+    final itemExtent = _itemExtent(lyrics, scale, pixel: pixelTheme);
 
     // 上下渐隐以前用 ShaderMask 包住整个列表：那是一层视口大小的离屏缓冲，
     // 播放中每 100ms 重做一次、滚动时每帧一次。改成按「离当前行的距离」直接
@@ -271,7 +282,7 @@ class _LyricViewState extends ConsumerState<LyricView> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (isCurrent && line.hasWordTiming)
+              if (isCurrent && line.hasWordTiming && !pixelTheme)
                 _PositionedKtvLyricLine(
                   line: line,
                   lineIndex: index,
@@ -281,6 +292,23 @@ class _LyricViewState extends ConsumerState<LyricView> {
                   dimColor: dimColor,
                   fontSize: fontSize,
                   fontWeight: weight,
+                )
+              else if (isCurrent && line.hasWordTiming)
+                _PixelKtvLyricLine(
+                  line: line,
+                  lineIndex: index,
+                  lyrics: lyrics,
+                  activeColor: accent,
+                  dimColor: dimColor,
+                  scale: scale,
+                  fontWeight: weight,
+                )
+              else if (pixelTheme)
+                PixelLyricText(
+                  text: line.text,
+                  color: lineColor,
+                  fontWeight: weight,
+                  scale: scale,
                 )
               else
                 AnimatedDefaultTextStyle(
@@ -538,6 +566,135 @@ class _LyricViewState extends ConsumerState<LyricView> {
   Future<void> _retryLyric(MusicItem? music) async {
     if (music == null) return;
     await ref.read(currentLyricLoadProvider.notifier).retry();
+  }
+}
+
+/// 像素主题下的当前行：整行栅格图按已唱比例裁剪。
+///
+/// 不用逐字裁剪是因为像素图的每个字宽度不同，逐字裁会让相邻字的栅格起点
+/// 错开、看起来像锯齿；整行裁则是一条连续的硬边。
+class _PixelKtvLyricLine extends ConsumerStatefulWidget {
+  final LyricLine line;
+  final int lineIndex;
+  final Lyrics lyrics;
+  final Color activeColor;
+  final Color dimColor;
+  final double scale;
+  final FontWeight fontWeight;
+
+  const _PixelKtvLyricLine({
+    required this.line,
+    required this.lineIndex,
+    required this.lyrics,
+    required this.activeColor,
+    required this.dimColor,
+    required this.scale,
+    required this.fontWeight,
+  });
+
+  @override
+  ConsumerState<_PixelKtvLyricLine> createState() =>
+      _PixelKtvLyricLineState();
+}
+
+class _PixelKtvLyricLineState extends ConsumerState<_PixelKtvLyricLine>
+    with SingleTickerProviderStateMixin {
+  /// 本地推进的播放位置，理由同 [_KtvLyricLineState]：播放器 100ms 才推一次。
+  Duration _local = Duration.zero;
+  Duration _lastElapsed = Duration.zero;
+  Ticker? _ticker;
+  bool _ticking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _local = ref.read(lyricPositionProvider);
+  }
+
+  @override
+  void didUpdateWidget(covariant _PixelKtvLyricLine oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.line != widget.line || oldWidget.scale != widget.scale) {
+      _local = ref.read(lyricPositionProvider);
+      _lastElapsed = Duration.zero;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.dispose();
+    super.dispose();
+  }
+
+  void _onTick(Duration elapsed) {
+    final delta = elapsed - _lastElapsed;
+    _lastElapsed = elapsed;
+    if (!mounted) return;
+    setState(() => _local += delta);
+  }
+
+  void _ensureTicking(bool shouldTick) {
+    if (shouldTick) {
+      if (_ticking) return;
+      _ticking = true;
+      _lastElapsed = Duration.zero;
+      _ticker ??= createTicker(_onTick);
+      _ticker!.start();
+    } else if (_ticking) {
+      _ticking = false;
+      _ticker?.stop();
+    }
+  }
+
+  /// 整行的已唱比例。
+  ///
+  /// 按字数加权：像素图里每个字的宽度不一样，但同一行内按字数铺开已经足够
+  /// 接近——逐字算真实字宽需要先排版整行，成本远超收益。
+  double _lineFill(Duration position) {
+    final words = widget.line.words;
+    if (words == null || words.isEmpty) return 0;
+    final total = words.fold<int>(0, (sum, word) => sum + word.text.length);
+    if (total == 0) return 0;
+    final active = widget.lyrics.getCurrentWordIndex(
+      position,
+      widget.lineIndex,
+    );
+    if (active < 0) return 0;
+    var filled = 0.0;
+    for (var i = 0; i < active; i++) {
+      filled += words[i].text.length;
+    }
+    filled +=
+        words[active].text.length *
+        widget.lyrics
+            .getWordFillProgress(position, widget.lineIndex, active)
+            .clamp(0.0, 1.0);
+    return (filled / total).clamp(0.0, 1.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final position = widget.line.time;
+    final nextLineTime = widget.lineIndex + 1 < widget.lyrics.lines.length
+        ? widget.lyrics.lines[widget.lineIndex + 1].time
+        : position + const Duration(seconds: 4);
+    final playing = ref.watch(isPlayingProvider).valueOrNull ?? false;
+    _ensureTicking(
+      playing &&
+          _local >= position - const Duration(milliseconds: 250) &&
+          _local <= nextLineTime + const Duration(milliseconds: 250),
+    );
+
+    return RepaintBoundary(
+      child: PixelLyricFillText(
+        text: widget.line.text,
+        fill: _lineFill(_local),
+        activeColor: widget.activeColor,
+        dimColor: widget.dimColor,
+        fontWeight: widget.fontWeight,
+        scale: widget.scale,
+      ),
+    );
   }
 }
 

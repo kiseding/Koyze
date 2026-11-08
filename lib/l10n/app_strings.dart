@@ -120,6 +120,9 @@ class S {
   String get lyricEntranceFade => _l10n.lyricEntranceFade;
   String get lyricEntranceZoom => _l10n.lyricEntranceZoom;
   String get lyricEntranceBlur => _l10n.lyricEntranceBlur;
+  String get lyricTheme => _l10n.lyricTheme;
+  String get lyricThemeDefault => _l10n.lyricThemeDefault;
+  String get lyricThemePixel => _l10n.lyricThemePixel;
   String get songInfo => _l10n.songInfo;
   String get songInfoComments => _l10n.songInfoComments;
   String get songInfoSimilar => _l10n.songInfoSimilar;
@@ -150,6 +153,7 @@ class S {
   String get updateNoAsset => _l10n.updateNoAsset;
   String get flowingBackdrop => _l10n.flowingBackdrop;
   String get flowingBackdropSubtitle => _l10n.flowingBackdropSubtitle;
+
   /// 条款要点。ARB 表达不了列表，逐条拼在门面层。
   List<String> get onboardingTermsPoints => [
     _l10n.onboardingTermsPoint1,
@@ -280,6 +284,22 @@ class S {
   String get saveFailed => _l10n.saveFailed;
   String get choosePlatform => _l10n.choosePlatform;
   String get platform => _l10n.platform;
+  String get importTabLink => _l10n.importTabLink;
+  String get importTabFile => _l10n.importTabFile;
+  String get importTabAccount => _l10n.importTabAccount;
+  String get importM3uHint => _l10n.importM3uHint;
+  String get importM3uPick => _l10n.importM3uPick;
+  String get importM3uPickHint => _l10n.importM3uPickHint;
+  String get importM3uOnlyLocal => _l10n.importM3uOnlyLocal;
+  String get importPlatformLoginIntro => _l10n.importPlatformLoginIntro;
+  String get platformLoginUnavailableQQ => _l10n.platformLoginUnavailableQQ;
+  String get platformLoginUnavailableKuwo => _l10n.platformLoginUnavailableKuwo;
+  String get platformLoginUnavailableKugou =>
+      _l10n.platformLoginUnavailableKugou;
+  String get platformLoginUnavailableNetease =>
+      _l10n.platformLoginUnavailableNetease;
+  String get platformLoginUnavailableAction =>
+      _l10n.platformLoginUnavailableAction;
   String get searchFieldHint => _l10n.searchFieldHint;
   String get searchAction => _l10n.searchAction;
   String get settingsSearch => _l10n.settingsSearch;
@@ -1045,6 +1065,10 @@ class S {
   String get replayGainSubtitle => _l10n.replayGainSubtitle;
   String get lockScreenLyric => _l10n.lockScreenLyric;
   String get lockScreenLyricSubtitle => _l10n.lockScreenLyricSubtitle;
+  String get desktopLyricWindow => _l10n.desktopLyricWindow;
+  String get desktopLyricWindowSubtitle => _l10n.desktopLyricWindowSubtitle;
+  String get desktopLyricLock => _l10n.desktopLyricLock;
+  String get desktopLyricLockSubtitle => _l10n.desktopLyricLockSubtitle;
   String get lyricShare => _l10n.lyricShare;
   String get lyricShareNoLine => _l10n.lyricShareNoLine;
   String get lyricShareSave => _l10n.lyricShareSave;

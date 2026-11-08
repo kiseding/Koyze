@@ -374,12 +374,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
             onTap: () => _showAudioQualityDialog(context, ref),
           ),
+          if (Platform.isWindows || Platform.isLinux) ...[
+            SettingsEntry(
+              title: s.desktopLyricWindow,
+              subtitle: s.desktopLyricWindowSubtitle,
+              keywords: const ['桌面歌词', 'desktop lyrics', '歌词窗', 'overlay'],
+              toggleValue: ref.watch(desktopLyricEnabledProvider),
+              onToggle: (value) => ref
+                  .read(desktopLyricEnabledProvider.notifier)
+                  .setEnabled(value),
+            ),
+            if (ref.watch(desktopLyricEnabledProvider))
+              SettingsEntry(
+                title: s.desktopLyricLock,
+                subtitle: s.desktopLyricLockSubtitle,
+                keywords: const ['锁定歌词窗', 'click through', '穿透'],
+                toggleValue: ref.watch(desktopLyricLockedProvider),
+                onToggle: (value) => ref
+                    .read(desktopLyricLockedProvider.notifier)
+                    .setLocked(value),
+              ),
+          ],
           SettingsEntry(
             title: s.lockScreenLyric,
             subtitle: s.lockScreenLyricSubtitle,
             keywords: const [
               '歌词',
               'lyric',
+              '桌面歌词',
+              'desktop lyrics',
               '锁屏',
               'lock',
               '通知栏',
@@ -395,15 +418,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           SettingsEntry(
             title: s.playbackFade,
             subtitle: s.playbackFadeSubtitle,
-            keywords: const [
-              '淡入',
-              '淡出',
-              'fade',
-              '爆音',
-              'pop',
-              '渐变',
-              'ramp',
-            ],
+            keywords: const ['淡入', '淡出', 'fade', '爆音', 'pop', '渐变', 'ramp'],
             toggleValue: ref.watch(playbackFadeEnabledProvider),
             onToggle: (value) {
               ref.read(playbackFadeEnabledProvider.notifier).setEnabled(value);
@@ -412,14 +427,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           SettingsEntry(
             title: s.skipSilence,
             subtitle: s.skipSilenceSubtitle,
-            keywords: const [
-              '静音',
-              'silence',
-              '跳过',
-              'skip',
-              '空白',
-              'gapless',
-            ],
+            keywords: const ['静音', 'silence', '跳过', 'skip', '空白', 'gapless'],
             toggleValue: ref.watch(skipSilenceEnabledProvider),
             onToggle: (value) {
               ref.read(skipSilenceEnabledProvider.notifier).setEnabled(value);
@@ -1027,6 +1035,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         playbackFadeEnabledProvider,
         replayGainEnabledProvider,
         lockScreenLyricEnabledProvider,
+        desktopLyricEnabledProvider,
+        desktopLyricLockedProvider,
+        desktopLyricFontSizeProvider,
         precacheEnabledProvider,
         precacheCountProvider,
         defaultSearchPlatformProvider,

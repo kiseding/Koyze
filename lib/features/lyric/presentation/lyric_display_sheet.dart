@@ -32,6 +32,7 @@ class LyricDisplaySheet extends ConsumerWidget {
     final roman = ref.watch(lyricRomanProvider);
     final layoutIndex = ref.watch(lyricLayoutProvider);
     final entranceIndex = ref.watch(singleLineAnimationProvider);
+    final themeIndex = ref.watch(lyricThemeProvider);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -77,6 +78,16 @@ class LyricDisplaySheet extends ConsumerWidget {
                 ),
               ],
               const SizedBox(height: 10),
+              _LyricChoiceRow(
+                label: s.lyricTheme,
+                values: [
+                  (0, s.lyricThemeDefault),
+                  (1, s.lyricThemePixel),
+                ],
+                selected: themeIndex,
+                onSelected: (value) =>
+                    ref.read(lyricThemeProvider.notifier).setTheme(value),
+              ),
               _LyricSlider(
                 label: s.lyricOffset,
                 valueText: _offsetLabel(offset),

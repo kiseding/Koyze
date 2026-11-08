@@ -1124,6 +1124,84 @@ abstract class AppLocalizations {
   /// **'Source'**
   String get platform;
 
+  /// No description provided for @importTabLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Link'**
+  String get importTabLink;
+
+  /// No description provided for @importTabFile.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get importTabFile;
+
+  /// No description provided for @importTabAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in'**
+  String get importTabAccount;
+
+  /// No description provided for @importM3uHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick an M3U / M3U8 file from this device'**
+  String get importM3uHint;
+
+  /// No description provided for @importM3uPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose file'**
+  String get importM3uPick;
+
+  /// No description provided for @importM3uPickHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a playlist file from this device using the button below.'**
+  String get importM3uPickHint;
+
+  /// No description provided for @importM3uOnlyLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Only matches songs already in your local library; nothing is searched online'**
+  String get importM3uOnlyLocal;
+
+  /// No description provided for @importPlatformLoginIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose QQ Music, Kuwo, Kugou, or NetEase Cloud Music. Official authorization and eligibility differ by platform.'**
+  String get importPlatformLoginIntro;
+
+  /// No description provided for @platformLoginUnavailableQQ.
+  ///
+  /// In en, this message translates to:
+  /// **'QQ Music personal playlists require QPlay authorization on Android and an approved partner integration. The official OpenAPI is not currently available to individual developers; this app has no approved access.'**
+  String get platformLoginUnavailableQQ;
+
+  /// No description provided for @platformLoginUnavailableKuwo.
+  ///
+  /// In en, this message translates to:
+  /// **'Kugou\'s official disclosure lists Kuwo\'s account-authorization SDK for importing Kuwo playlists, but no application or integration docs for general third-party developers were found. This app will not use unofficial web or cookie sign-in.'**
+  String get platformLoginUnavailableKuwo;
+
+  /// No description provided for @platformLoginUnavailableKugou.
+  ///
+  /// In en, this message translates to:
+  /// **'Kugou\'s official mini-app API supports authorized user playlists (Android SDK 1.0.8+). That does not establish a general sign-in API for standalone apps; this app has not integrated Kugou mini-app capabilities.'**
+  String get platformLoginUnavailableKugou;
+
+  /// No description provided for @platformLoginUnavailableNetease.
+  ///
+  /// In en, this message translates to:
+  /// **'NetEase states that individual use is limited to its official ncm-cli; vendor OpenAPI access requires business engagement. This app has not integrated ncm-cli or obtained vendor access.'**
+  String get platformLoginUnavailableNetease;
+
+  /// No description provided for @platformLoginUnavailableAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Official sign-in is not connected yet'**
+  String get platformLoginUnavailableAction;
+
   /// No description provided for @searchFieldHint.
   ///
   /// In en, this message translates to:
@@ -4862,6 +4940,30 @@ abstract class AppLocalizations {
   /// **'Shows the current line on the lock screen'**
   String get lockScreenLyricSubtitle;
 
+  /// No description provided for @desktopLyricWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop lyric window'**
+  String get desktopLyricWindow;
+
+  /// No description provided for @desktopLyricWindowSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Shows the current and next lyric line on the desktop'**
+  String get desktopLyricWindowSubtitle;
+
+  /// No description provided for @desktopLyricLock.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock lyric window'**
+  String get desktopLyricLock;
+
+  /// No description provided for @desktopLyricLockSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Locked window lets mouse clicks pass through'**
+  String get desktopLyricLockSubtitle;
+
   /// No description provided for @lyricShare.
   ///
   /// In en, this message translates to:
@@ -5323,6 +5425,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Blur'**
   String get lyricEntranceBlur;
+
+  /// No description provided for @lyricTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Lyric typeface'**
+  String get lyricTheme;
+
+  /// No description provided for @lyricThemeDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get lyricThemeDefault;
+
+  /// No description provided for @lyricThemePixel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pixel'**
+  String get lyricThemePixel;
 
   /// No description provided for @songInfo.
   ///

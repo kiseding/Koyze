@@ -125,11 +125,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   semanticLabel: S.of(context).importPlaylist,
                   onTap: () => _showImportDialog(context, ref),
                 ),
-                FrostedHeaderButton(
-                  icon: Icons.upload_file_rounded,
-                  semanticLabel: S.of(context).importM3u,
-                  onTap: () => _importM3uFile(context, ref),
-                ),
               ],
             ),
             if (!isLandscapeShell)
@@ -713,6 +708,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         queue = await ref.read(subsonicServiceProvider).getLibrarySongs();
       }
       if (queue.isEmpty) {
+        if (!mounted) return;
         showAppNotification(
           S.of(context).noSongsOnServer,
           type: AppNotificationType.info,
@@ -1118,7 +1114,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
   ///
   /// 只匹配本地曲库里已有的歌：M3U 没有音源标识，硬去在线搜索很容易把
   /// 翻唱、现场版都搜进来，导入结果反而更差。
-  Future<void> _importM3uFile(BuildContext context, WidgetRef ref) async {
+  Future<bool> _importM3uFile(BuildContext context, WidgetRef ref) async {
     final s = S.of(context);
     try {
       final picked = await FilePicker.pickFiles(
@@ -1126,10 +1122,10 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         allowedExtensions: const ['m3u', 'm3u8'],
         withData: true,
       );
-      if (picked == null || picked.files.isEmpty) return;
+      if (picked == null || picked.files.isEmpty) return false;
       final file = picked.files.first;
       final bytes = file.bytes;
-      if (bytes == null) return;
+      if (bytes == null) return false;
 
       final doc = parseM3u(
         decodeM3uBytes(bytes),
@@ -1137,10 +1133,10 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       );
       final library = await ref.read(localMusicLibraryProvider.future);
       final result = matchM3uToLibrary(doc, library.songs);
-      if (!context.mounted) return;
+      if (!context.mounted) return false;
       if (result.isEmpty) {
         showAppNotification(s.importM3uEmpty, type: AppNotificationType.info);
-        return;
+        return false;
       }
       final name = file.name.replaceFirst(
         RegExp(r'\.m3u8?$', caseSensitive: false),
@@ -1149,17 +1145,19 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       await ref
           .read(playlistServiceProvider)
           .createPlaylist(name: name, songs: result.songs);
-      if (!context.mounted) return;
+      if (!context.mounted) return false;
       showAppNotification(
         s.importM3uResult(result.songs.length, result.skipped),
         type: AppNotificationType.success,
       );
+      return true;
     } catch (error) {
-      if (!context.mounted) return;
+      if (!context.mounted) return false;
       showAppNotification(
         S.of(context).actionFailedShort,
         type: AppNotificationType.error,
       );
+      return false;
     }
   }
 
@@ -1177,6 +1175,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     final inputFocus = FocusNode();
     var keyboardRequested = false;
     var platform = 'tx';
+    var importTab = 0;
     var busy = false;
     String? error;
     // 网易云歌单需要分批拉取曲目详情，展示进度避免用户以为卡住。
@@ -1186,17 +1185,17 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        if (!keyboardRequested) {
-          keyboardRequested = true;
-          requestTextInput(
-            ctx,
-            inputFocus,
-            initialDelay: const Duration(milliseconds: 280),
-            retryDelay: const Duration(milliseconds: 220),
-          );
-        }
         return StatefulBuilder(
           builder: (ctx, setLocal) {
+            if (importTab == 0 && !keyboardRequested) {
+              keyboardRequested = true;
+              requestTextInput(
+                ctx,
+                inputFocus,
+                initialDelay: const Duration(milliseconds: 280),
+                retryDelay: const Duration(milliseconds: 220),
+              );
+            }
             return KoyzeDialog(
               backgroundColor: AppColors.dialogBg(context),
               insetPadding: const EdgeInsets.symmetric(
@@ -1242,10 +1241,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
-                                  S.of(context).pastePlaylistLink,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
+                                Text(switch (importTab) {
+                                  0 => S.of(context).pastePlaylistLink,
+                                  1 => S.of(context).importM3uHint,
+                                  _ => S.of(context).importTabAccount,
+                                }, style: const TextStyle(fontSize: 12)),
                               ],
                             ),
                           ),
@@ -1267,78 +1267,228 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              S.of(context).sourcePlatform,
-                              style: TextStyle(
-                                color: AppColors.secondaryText(ctx),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            SegmentedButton<String>(
+                            SegmentedButton<int>(
                               segments: [
-                                const ButtonSegment(
-                                  value: 'tx',
-                                  label: Text('QQ'),
-                                  icon: Icon(Icons.music_note_rounded),
+                                ButtonSegment(
+                                  value: 0,
+                                  label: Text(S.of(context).importTabLink),
+                                  icon: const Icon(Icons.link_rounded),
                                 ),
                                 ButtonSegment(
-                                  value: 'kw',
-                                  label: Text(S.of(context).kuwoShort),
-                                  icon: const Icon(Icons.graphic_eq_rounded),
+                                  value: 1,
+                                  label: Text(S.of(context).importTabFile),
+                                  icon: const Icon(
+                                    Icons.insert_drive_file_outlined,
+                                  ),
                                 ),
                                 ButtonSegment(
-                                  value: 'kg',
-                                  label: Text(S.of(context).kugouShort),
-                                  icon: const Icon(Icons.headphones_rounded),
-                                ),
-                                ButtonSegment(
-                                  value: 'wy',
-                                  label: Text(S.of(context).neteaseShort),
-                                  icon: const Icon(Icons.album_rounded),
+                                  value: 2,
+                                  label: Text(S.of(context).importTabAccount),
+                                  icon: const Icon(Icons.login_rounded),
                                 ),
                               ],
-                              selected: {platform},
+                              selected: {importTab},
                               showSelectedIcon: false,
                               onSelectionChanged: busy
                                   ? null
-                                  : (value) =>
-                                        setLocal(() => platform = value.first),
+                                  : (value) => setLocal(() {
+                                      importTab = value.first;
+                                      error = null;
+                                    }),
                             ),
                             const SizedBox(height: 20),
-                            Text(
-                              S.of(context).playlistLinkOrId,
-                              style: TextStyle(
-                                color: AppColors.secondaryText(ctx),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                            if (importTab == 0) ...[
+                              Text(
+                                S.of(context).sourcePlatform,
+                                style: TextStyle(
+                                  color: AppColors.secondaryText(ctx),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: inputCtrl,
-                              focusNode: inputFocus,
-                              keyboardType: desktopSafeKeyboardType(
-                                TextInputType.url,
-                              ),
-                              textInputAction: TextInputAction.done,
-                              autocorrect: false,
-                              enabled: !busy,
-                              minLines: 2,
-                              maxLines: 3,
-                              style: TextStyle(
-                                color: AppColors.onScaffold(ctx),
-                              ),
-                              decoration:
-                                  InputDecoration(
-                                    hintText: S.of(context).playlistLinkExample,
-                                    alignLabelWithHint: true,
-                                    prefixIcon: const Icon(Icons.link_rounded),
-                                  ).applyDefaults(
-                                    Theme.of(ctx).inputDecorationTheme,
+                              const SizedBox(height: 8),
+                              DropdownButtonFormField<String>(
+                                initialValue: platform,
+                                decoration:
+                                    const InputDecoration(
+                                      prefixIcon: Icon(
+                                        Icons.library_music_rounded,
+                                      ),
+                                      border: OutlineInputBorder(),
+                                    ).applyDefaults(
+                                      Theme.of(ctx).inputDecorationTheme,
+                                    ),
+                                items: [
+                                  const DropdownMenuItem(
+                                    value: 'tx',
+                                    child: Text('QQ 音乐'),
                                   ),
-                            ),
+                                  DropdownMenuItem(
+                                    value: 'kw',
+                                    child: Text(S.of(context).kuwoShort),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'kg',
+                                    child: Text(S.of(context).kugouShort),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'wy',
+                                    child: Text(S.of(context).neteaseShort),
+                                  ),
+                                ],
+                                onChanged: busy
+                                    ? null
+                                    : (value) {
+                                        if (value != null) {
+                                          setLocal(() => platform = value);
+                                        }
+                                      },
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                S.of(context).playlistLinkOrId,
+                                style: TextStyle(
+                                  color: AppColors.secondaryText(ctx),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: inputCtrl,
+                                focusNode: inputFocus,
+                                keyboardType: desktopSafeKeyboardType(
+                                  TextInputType.url,
+                                ),
+                                textInputAction: TextInputAction.done,
+                                autocorrect: false,
+                                enabled: !busy,
+                                minLines: 2,
+                                maxLines: 3,
+                                style: TextStyle(
+                                  color: AppColors.onScaffold(ctx),
+                                ),
+                                decoration:
+                                    InputDecoration(
+                                      hintText: S
+                                          .of(context)
+                                          .playlistLinkExample,
+                                      alignLabelWithHint: true,
+                                      prefixIcon: const Icon(
+                                        Icons.link_rounded,
+                                      ),
+                                    ).applyDefaults(
+                                      Theme.of(ctx).inputDecorationTheme,
+                                    ),
+                              ),
+                            ] else if (importTab == 1) ...[
+                              Text(
+                                S.of(context).importM3uHint,
+                                style: TextStyle(
+                                  color: AppColors.secondaryText(ctx),
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                S.of(context).importM3uOnlyLocal,
+                                style: TextStyle(
+                                  color: AppColors.mutedText(ctx),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                S.of(context).importM3uPickHint,
+                                style: TextStyle(
+                                  color: AppColors.secondaryText(ctx),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ] else ...[
+                              Text(
+                                S.of(context).importPlatformLoginIntro,
+                                style: TextStyle(
+                                  color: AppColors.secondaryText(ctx),
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                initialValue: platform,
+                                decoration:
+                                    const InputDecoration(
+                                      prefixIcon: Icon(
+                                        Icons.library_music_rounded,
+                                      ),
+                                      border: OutlineInputBorder(),
+                                    ).applyDefaults(
+                                      Theme.of(ctx).inputDecorationTheme,
+                                    ),
+                                items: [
+                                  const DropdownMenuItem(
+                                    value: 'tx',
+                                    child: Text('QQ 音乐'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'kw',
+                                    child: Text(S.of(context).kuwoShort),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'kg',
+                                    child: Text(S.of(context).kugouShort),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'wy',
+                                    child: Text(S.of(context).neteaseShort),
+                                  ),
+                                ],
+                                onChanged: busy
+                                    ? null
+                                    : (value) {
+                                        if (value != null) {
+                                          setLocal(() => platform = value);
+                                        }
+                                      },
+                              ),
+                              const SizedBox(height: 12),
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: AppColors.card(ctx),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: AppColors.cardBorder(ctx),
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Text(
+                                    switch (platform) {
+                                      'tx' =>
+                                        S
+                                            .of(context)
+                                            .platformLoginUnavailableQQ,
+                                      'kw' =>
+                                        S
+                                            .of(context)
+                                            .platformLoginUnavailableKuwo,
+                                      'kg' =>
+                                        S
+                                            .of(context)
+                                            .platformLoginUnavailableKugou,
+                                      _ =>
+                                        S
+                                            .of(context)
+                                            .platformLoginUnavailableNetease,
+                                    },
+                                    style: TextStyle(
+                                      color: AppColors.secondaryText(ctx),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                             if (error != null) ...[
                               const SizedBox(height: 12),
                               DecoratedBox(
@@ -1370,147 +1520,199 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                         ),
                         color: AppColors.dialogBg(ctx),
                       ),
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(50),
-                        ),
-                        onPressed: busy
-                            ? null
-                            : () async {
-                                final input = inputCtrl.text.trim();
-                                if (input.isEmpty) {
-                                  setLocal(
-                                    () => error = S.of(context).enterLinkOrId,
-                                  );
-                                  return;
-                                }
-                                setLocal(() {
-                                  busy = true;
-                                  error = null;
-                                  progress = '';
-                                });
-                                try {
-                                  final imported = await PlaylistImportService()
-                                      .import(
-                                        input: input,
-                                        platformHint: platform,
-                                        onProgress: (loaded, total) {
-                                          if (!ctx.mounted) return;
-                                          setLocal(() {
-                                            progress = total > 0
-                                                ? S
-                                                      .of(context)
-                                                      .importProgress(
-                                                        loaded,
-                                                        total,
-                                                      )
-                                                : '';
-                                          });
-                                        },
-                                      );
-                                  if (!ctx.mounted) return;
-                                  final ok = await showKoyzeDialog<bool>(
-                                    context: ctx,
-                                    builder: (c2) => KoyzeDialog(
-                                      backgroundColor: AppColors.dialogBg(
-                                        context,
-                                      ),
-                                      title: Text(
-                                        imported.name,
-                                        style: TextStyle(
-                                          color: AppColors.onScaffold(context),
-                                        ),
-                                      ),
-                                      content: Text(
-                                        S
-                                            .of(context)
-                                            .confirmImport(
-                                              imported.songs.length,
-                                            ),
-                                        style: TextStyle(
-                                          color: AppColors.mutedText(context),
-                                        ),
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(c2, false),
-                                          child: Text(
-                                            S.of(context).cancel,
-                                            style: TextStyle(
-                                              color: AppColors.mutedText(
-                                                context,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(c2, true),
-                                          child: Text(
-                                            S.of(context).importAction,
-                                            style: TextStyle(
-                                              color: AppColors.accentOf(
-                                                context,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (ok == true) {
-                                    await ref
-                                        .read(playlistServiceProvider)
-                                        .createPlaylist(
-                                          name: imported.name,
-                                          description: S
+                      child: importTab == 0
+                          ? FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(50),
+                              ),
+                              onPressed: busy
+                                  ? null
+                                  : () async {
+                                      final input = inputCtrl.text.trim();
+                                      if (input.isEmpty) {
+                                        setLocal(
+                                          () => error = S
                                               .of(context)
-                                              .importedFrom(imported.source),
-                                          songs: imported.songs,
+                                              .enterLinkOrId,
                                         );
-                                    if (ctx.mounted) Navigator.pop(ctx);
-                                    if (context.mounted) {
-                                      showAppNotification(
-                                        S
+                                        return;
+                                      }
+                                      setLocal(() {
+                                        busy = true;
+                                        error = null;
+                                        progress = '';
+                                      });
+                                      try {
+                                        final imported =
+                                            await PlaylistImportService()
+                                                .import(
+                                                  input: input,
+                                                  platformHint: platform,
+                                                  onProgress: (loaded, total) {
+                                                    if (!ctx.mounted) return;
+                                                    setLocal(() {
+                                                      progress = total > 0
+                                                          ? S
+                                                                .of(context)
+                                                                .importProgress(
+                                                                  loaded,
+                                                                  total,
+                                                                )
+                                                          : '';
+                                                    });
+                                                  },
+                                                );
+                                        if (!ctx.mounted) return;
+                                        final importedDescription = S
                                             .of(context)
-                                            .importedResult(
-                                              imported.name,
-                                              imported.songs.length,
+                                            .importedFrom(imported.source);
+                                        final ok = await showKoyzeDialog<bool>(
+                                          context: ctx,
+                                          builder: (c2) => KoyzeDialog(
+                                            backgroundColor: AppColors.dialogBg(
+                                              context,
                                             ),
-                                        type: AppNotificationType.success,
+                                            title: Text(
+                                              imported.name,
+                                              style: TextStyle(
+                                                color: AppColors.onScaffold(
+                                                  context,
+                                                ),
+                                              ),
+                                            ),
+                                            content: Text(
+                                              S
+                                                  .of(context)
+                                                  .confirmImport(
+                                                    imported.songs.length,
+                                                  ),
+                                              style: TextStyle(
+                                                color: AppColors.mutedText(
+                                                  context,
+                                                ),
+                                              ),
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(c2, false),
+                                                child: Text(
+                                                  S.of(context).cancel,
+                                                  style: TextStyle(
+                                                    color: AppColors.mutedText(
+                                                      context,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(c2, true),
+                                                child: Text(
+                                                  S.of(context).importAction,
+                                                  style: TextStyle(
+                                                    color: AppColors.accentOf(
+                                                      context,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (ok == true) {
+                                          await ref
+                                              .read(playlistServiceProvider)
+                                              .createPlaylist(
+                                                name: imported.name,
+                                                description:
+                                                    importedDescription,
+                                                songs: imported.songs,
+                                              );
+                                          if (ctx.mounted) {
+                                            Navigator.pop(ctx);
+                                          }
+                                          if (context.mounted) {
+                                            showAppNotification(
+                                              S
+                                                  .of(context)
+                                                  .importedResult(
+                                                    imported.name,
+                                                    imported.songs.length,
+                                                  ),
+                                              type: AppNotificationType.success,
+                                            );
+                                          }
+                                        } else {
+                                          if (!ctx.mounted) return;
+                                          setLocal(() => busy = false);
+                                        }
+                                      } catch (e) {
+                                        if (!ctx.mounted) return;
+                                        setLocal(() {
+                                          busy = false;
+                                          error = e.toString().replaceFirst(
+                                            'Exception: ',
+                                            '',
+                                          );
+                                        });
+                                      }
+                                    },
+                              icon: busy
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: AppLoadingIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.auto_awesome_rounded),
+                              label: Text(
+                                busy
+                                    ? (progress.isEmpty
+                                          ? S.of(context).parsingPlaylist
+                                          : S
+                                                .of(context)
+                                                .parsingProgress(progress))
+                                    : S.of(context).parsePlaylist,
+                              ),
+                            )
+                          : importTab == 1
+                          ? FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(50),
+                              ),
+                              onPressed: busy
+                                  ? null
+                                  : () async {
+                                      setLocal(() {
+                                        busy = true;
+                                        error = null;
+                                      });
+                                      final imported = await _importM3uFile(
+                                        ctx,
+                                        ref,
                                       );
-                                    }
-                                  } else {
-                                    if (!ctx.mounted) return;
-                                    setLocal(() => busy = false);
-                                  }
-                                } catch (e) {
-                                  if (!ctx.mounted) return;
-                                  setLocal(() {
-                                    busy = false;
-                                    error = e.toString().replaceFirst(
-                                      'Exception: ',
-                                      '',
-                                    );
-                                  });
-                                }
-                              },
-                        icon: busy
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: AppLoadingIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.auto_awesome_rounded),
-                        label: Text(
-                          busy
-                              ? (progress.isEmpty
-                                    ? S.of(context).parsingPlaylist
-                                    : S.of(context).parsingProgress(progress))
-                              : S.of(context).parsePlaylist,
-                        ),
-                      ),
+                                      if (!ctx.mounted) return;
+                                      if (imported) {
+                                        Navigator.pop(ctx);
+                                      } else {
+                                        setLocal(() => busy = false);
+                                      }
+                                    },
+                              icon: const Icon(Icons.folder_open_rounded),
+                              label: Text(S.of(context).importM3uPick),
+                            )
+                          : FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(50),
+                              ),
+                              onPressed: null,
+                              icon: const Icon(Icons.lock_outline_rounded),
+                              label: Text(
+                                S.of(context).platformLoginUnavailableAction,
+                              ),
+                            ),
                     ),
                   ],
                 ),

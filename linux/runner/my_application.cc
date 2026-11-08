@@ -5,11 +5,16 @@
 #include <gdk/gdkx.h>
 #endif
 
+#include "desktop_media.h"
+#include "desktop_lyric_window.h"
 #include "flutter/generated_plugin_registrant.h"
 
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  // MPRIS 媒体面板集成。Dart 侧通过 koyze/desktop_media 通道驱动它。
+  DesktopMedia* desktop_media;
+  DesktopLyricWindow* desktop_lyric_window;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -153,6 +158,30 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
+  // 媒体面板通道：与 Windows runner 使用同名通道和同一套方法语义，
+  // Dart 侧因此只需要一份 DesktopMediaSession。
+  FlEngine* engine = fl_view_get_engine(view);
+  if (engine != nullptr) {
+    g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+    FlMethodChannel* media_channel = fl_method_channel_new(
+        fl_engine_get_binary_messenger(engine), "koyze/desktop_media",
+        FL_METHOD_CODEC(codec));
+    self->desktop_media = new DesktopMedia(media_channel);
+    fl_method_channel_set_method_call_handler(
+        media_channel, DesktopMedia::OnMethodCall, self->desktop_media,
+        nullptr);
+    g_object_unref(media_channel);
+
+    FlMethodChannel* lyric_channel = fl_method_channel_new(
+        fl_engine_get_binary_messenger(engine), "koyze/desktop_lyric",
+        FL_METHOD_CODEC(codec));
+    self->desktop_lyric_window = new DesktopLyricWindow(lyric_channel);
+    fl_method_channel_set_method_call_handler(
+        lyric_channel, DesktopLyricWindow::OnMethodCall,
+        self->desktop_lyric_window, nullptr);
+    g_object_unref(lyric_channel);
+  }
+
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
@@ -199,6 +228,10 @@ static void my_application_shutdown(GApplication* application) {
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  delete self->desktop_lyric_window;
+  self->desktop_lyric_window = nullptr;
+  delete self->desktop_media;
+  self->desktop_media = nullptr;
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 
@@ -211,7 +244,11 @@ static void my_application_class_init(MyApplicationClass* klass) {
   G_OBJECT_CLASS(klass)->dispose = my_application_dispose;
 }
 
-static void my_application_init(MyApplication* self) {}
+static void my_application_init(MyApplication* self) {
+  self->dart_entrypoint_arguments = nullptr;
+  self->desktop_media = nullptr;
+  self->desktop_lyric_window = nullptr;
+}
 
 MyApplication* my_application_new() {
   // Set the program name to the application ID, which helps various systems

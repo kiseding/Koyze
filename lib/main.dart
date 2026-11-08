@@ -15,6 +15,11 @@ import 'package:koyze/core/network/music_source_service.dart';
 import 'package:koyze/core/storage/cache_maintenance_service.dart';
 import 'package:koyze/core/storage/portable_mode.dart';
 import 'package:koyze/core/widgets/artwork_disk_cache.dart';
+import 'package:koyze/core/desktop/desktop_media_channel.dart';
+import 'package:koyze/core/desktop/desktop_media_session.dart';
+import 'package:koyze/core/desktop/desktop_lyric_window_channel.dart';
+import 'package:koyze/core/desktop/desktop_lyric_window_controller.dart';
+import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/custom_source/presentation/custom_source_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/local_music/domain/android_directory_access.dart';
@@ -725,6 +730,76 @@ Future<void> _bootstrapUnsafe(
             debugPrint('[startup] 恢复播放会话失败: $e');
           }),
         );
+
+        // 桌面端系统媒体面板（Windows SMTC / Linux MPRIS）。要排在播放会话
+        // 恢复之前：恢复出来的队列会立刻触发一次元数据推送，面板一打开就是
+        // 正确的那首歌，而不是空白。
+        if (DesktopMediaSession.supported) {
+          final mediaSession = DesktopMediaSession(
+            source: AudioHandlerMediaSource(lxHandler),
+            channel: MethodChannelDesktopMediaChannel(),
+          );
+          disposals.register(mediaSession.dispose);
+          unawaited(mediaSession.init());
+
+          container.read(currentLyricLoadProvider);
+          final lyricController = DesktopLyricWindowController(
+            channel: MethodChannelDesktopLyricWindowChannel(),
+            storage: () => StorageService.instance,
+            lyrics: () => container.read(currentLyricLoadProvider).lyrics,
+            position: () => container.read(playerPositionProvider),
+            onEnabledChanged: (enabled) async {
+              container
+                  .read(desktopLyricEnabledProvider.notifier)
+                  .setEnabled(enabled);
+            },
+            onFontSizeChanged: (fontSize) async {
+              container
+                  .read(desktopLyricFontSizeProvider.notifier)
+                  .setFontSize(fontSize);
+            },
+          );
+          final lyricEnabledSubscription = container.listen<bool>(
+            desktopLyricEnabledProvider,
+            (_, next) => unawaited(lyricController.setEnabled(next)),
+          );
+          final lyricLockSubscription = container.listen<bool>(
+            desktopLyricLockedProvider,
+            (_, next) => unawaited(
+              lyricController.updateStyle(
+                locked: next,
+                fontSize: container.read(desktopLyricFontSizeProvider),
+              ),
+            ),
+          );
+          final lyricFontSizeSubscription = container.listen<int>(
+            desktopLyricFontSizeProvider,
+            (_, next) => unawaited(
+              lyricController.updateStyle(
+                locked: container.read(desktopLyricLockedProvider),
+                fontSize: next,
+              ),
+            ),
+          );
+          final lyricDataSubscription = container.listen<LyricLoadState>(
+            currentLyricLoadProvider,
+            (_, __) => unawaited(lyricController.refresh()),
+          );
+          disposals.register(() async {
+            lyricEnabledSubscription.close();
+            lyricLockSubscription.close();
+            lyricFontSizeSubscription.close();
+            lyricDataSubscription.close();
+            await lyricController.dispose();
+          });
+          unawaited(
+            lyricController.init(
+              enabled: preferences.getBool('desktop_lyric_enabled') ?? false,
+              locked: preferences.getBool('desktop_lyric_locked') ?? false,
+              fontSize: preferences.getInt('desktop_lyric_font_size') ?? 28,
+            ),
+          );
+        }
 
         if (Platform.isIOS) {
           final lockScreenSync = LockScreenSyncService(

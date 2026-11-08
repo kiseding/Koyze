@@ -586,6 +586,79 @@ class PlaybackVolumeNotifier extends _PersistedSettingNotifier<double> {
   }
 }
 
+class DesktopLyricEnabledNotifier extends _PersistedSettingNotifier<bool> {
+  DesktopLyricEnabledNotifier({StorageLoader? storage})
+    : super(false, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'desktop_lyric_enabled';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setEnabled(bool enabled) {
+    setting.applyCommitted(enabled);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
+    );
+  }
+}
+
+class DesktopLyricFontSizeNotifier extends _PersistedSettingNotifier<int> {
+  DesktopLyricFontSizeNotifier({StorageLoader? storage})
+    : super(28, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'desktop_lyric_font_size';
+  static const int minFontSize = 16;
+  static const int maxFontSize = 72;
+
+  static int clampFontSize(int value) => value.clamp(minFontSize, maxFontSize);
+
+  @override
+  int? readFrom(StorageService storage) {
+    final value = storage.getInt(storageKey);
+    return value == null ? null : clampFontSize(value);
+  }
+
+  void setFontSize(int fontSize) {
+    final next = clampFontSize(fontSize);
+    if (next == setting.value) return;
+    setting.applyCommitted(next);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(persist(next, (storage) => storage.setInt(storageKey, next)));
+  }
+}
+
+class DesktopLyricLockedNotifier extends _PersistedSettingNotifier<bool> {
+  DesktopLyricLockedNotifier({StorageLoader? storage})
+    : super(false, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'desktop_lyric_locked';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setLocked(bool locked) {
+    setting.applyCommitted(locked);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(locked, (storage) => storage.setBool(storageKey, locked)),
+    );
+  }
+}
+
 /// 锁屏 / 通知栏显示当前歌词行。默认关闭：它会让 mediaItem 频繁更新。
 class LockScreenLyricNotifier extends _PersistedSettingNotifier<bool> {
   LockScreenLyricNotifier({StorageLoader? storage})
@@ -658,15 +731,14 @@ class PitchSemitonesNotifier extends _PersistedSettingNotifier<double> {
     try {
       if (state != setting.value) state = setting.value;
     } catch (_) {}
-    unawaited(
-      persist(next, (storage) => storage.setDouble(storageKey, next)),
-    );
+    unawaited(persist(next, (storage) => storage.setDouble(storageKey, next)));
   }
 }
 
 /// 跳过静音（仅 Android 的原生 skipSilence）。
 class SkipSilenceNotifier extends _PersistedSettingNotifier<bool> {
-  SkipSilenceNotifier({StorageLoader? storage}) : super(false, storage: storage) {
+  SkipSilenceNotifier({StorageLoader? storage})
+    : super(false, storage: storage) {
     startLoad();
   }
 
@@ -886,8 +958,7 @@ class LyricOffsetNotifier extends _PersistedSettingNotifier<int> {
   static const int minOffsetMs = -2000;
   static const int maxOffsetMs = 2000;
 
-  static int clampOffset(int value) =>
-      value.clamp(minOffsetMs, maxOffsetMs);
+  static int clampOffset(int value) => value.clamp(minOffsetMs, maxOffsetMs);
 
   @override
   int? readFrom(StorageService storage) {
@@ -937,8 +1008,7 @@ class LyricScaleNotifier extends _PersistedSettingNotifier<double> {
 
 /// 当前行在视口中的位置（0 = 顶部，1 = 底部）。默认 0.38 略偏上。
 class LyricAlignNotifier extends _PersistedSettingNotifier<double> {
-  LyricAlignNotifier({StorageLoader? storage})
-    : super(0.38, storage: storage) {
+  LyricAlignNotifier({StorageLoader? storage}) : super(0.38, storage: storage) {
     startLoad();
   }
 
@@ -1082,6 +1152,36 @@ class SingleLineAnimationNotifier extends _PersistedSettingNotifier<int> {
 
   void setAnimation(int index) {
     final next = index.clamp(0, maxAnimation);
+    if (next == setting.value) return;
+    setting.applyCommitted(next);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(persist(next, (storage) => storage.setInt(storageKey, next)));
+  }
+}
+
+/// 歌词主题（0 默认 / 1 像素点阵）。
+///
+/// 用 int 而不是枚举名，理由同 [LyricLayoutNotifier]：枚举改名不该让用户的
+/// 选择悄悄失效。
+class LyricThemeNotifier extends _PersistedSettingNotifier<int> {
+  LyricThemeNotifier({StorageLoader? storage}) : super(0, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'lyric_theme';
+  static const int maxTheme = 1;
+
+  @override
+  int? readFrom(StorageService storage) {
+    final value = storage.getInt(storageKey);
+    if (value == null) return null;
+    return value.clamp(0, maxTheme);
+  }
+
+  void setTheme(int index) {
+    final next = index.clamp(0, maxTheme);
     if (next == setting.value) return;
     setting.applyCommitted(next);
     try {

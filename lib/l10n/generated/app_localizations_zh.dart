@@ -522,6 +522,50 @@ class AppLocalizationsZh extends AppLocalizations {
   String get platform => '平台';
 
   @override
+  String get importTabLink => '链接';
+
+  @override
+  String get importTabFile => '文件';
+
+  @override
+  String get importTabAccount => '登录';
+
+  @override
+  String get importM3uHint => '选择手机或电脑上的 M3U / M3U8 文件';
+
+  @override
+  String get importM3uPick => '选择文件';
+
+  @override
+  String get importM3uPickHint => '点击下方按钮选择本地歌单文件。';
+
+  @override
+  String get importM3uOnlyLocal => '只匹配本地曲库中已有的歌曲，不会在线搜索';
+
+  @override
+  String get importPlatformLoginIntro =>
+      '选择 QQ 音乐、酷我、酷狗或网易云音乐。各平台的官方授权范围和接入条件不同。';
+
+  @override
+  String get platformLoginUnavailableQQ =>
+      'QQ 音乐个人歌单需通过 QPlay Android 授权，且应用须先取得合作接入和审核。官方 OpenAPI 暂不支持个人开发者申请；本应用尚未获准接入。';
+
+  @override
+  String get platformLoginUnavailableKuwo =>
+      '酷狗 App 的官方信息清单列有酷我账号授权 SDK，用于导入酷我歌单；但尚未找到面向一般第三方开发者的申请或接入文档。本应用不会使用非官方网页登录或 Cookie 登录。';
+
+  @override
+  String get platformLoginUnavailableKugou =>
+      '酷狗官方小程序提供用户授权后的自建和收藏歌单接口（Android SDK 1.0.8 起）。该能力不等于独立 App 的通用登录接口；本应用尚未接入酷狗小程序能力。';
+
+  @override
+  String get platformLoginUnavailableNetease =>
+      '网易云官方说明个人场景仅可使用 ncm-cli；厂商 OpenAPI 需商务接入。本应用尚未集成 ncm-cli 或获批的厂商接入，因此暂不可登录。';
+
+  @override
+  String get platformLoginUnavailableAction => '该平台暂未接入官方登录';
+
+  @override
   String get searchFieldHint => '搜索歌曲、歌单...';
 
   @override
@@ -2608,6 +2652,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lockScreenLyricSubtitle => '在锁屏与通知栏显示当前歌词行';
 
   @override
+  String get desktopLyricWindow => '桌面歌词窗';
+
+  @override
+  String get desktopLyricWindowSubtitle => '在桌面显示当前歌词与下一行';
+
+  @override
+  String get desktopLyricLock => '锁定歌词窗';
+
+  @override
+  String get desktopLyricLockSubtitle => '锁定后鼠标点击会穿透歌词窗';
+
+  @override
   String get lyricShare => '分享歌词卡片';
 
   @override
@@ -2857,6 +2913,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get lyricEntranceBlur => '模糊';
+
+  @override
+  String get lyricTheme => '歌词字体';
+
+  @override
+  String get lyricThemeDefault => '默认';
+
+  @override
+  String get lyricThemePixel => '像素点阵';
 
   @override
   String get songInfo => '歌曲信息';

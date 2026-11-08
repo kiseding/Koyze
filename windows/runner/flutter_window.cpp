@@ -59,6 +59,13 @@ bool FlutterWindow::OnCreate() {
       });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
+  // 系统媒体面板。放在 SetChildContent 之后：SMTC 需要窗口已经真正存在，
+  // 否则 GetForWindow 会拿到一个还没被系统接纳的 HWND。
+  desktop_media_ = std::make_unique<DesktopMedia>(
+      flutter_controller_->engine()->messenger(), GetHandle());
+  desktop_lyric_window_ = std::make_unique<DesktopLyricWindow>(
+      flutter_controller_->engine()->messenger());
+
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();
   });
@@ -72,6 +79,11 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  // 先放掉 SMTC：它持有的 channel 引用引擎的 messenger，
+  // 引擎一销毁就成悬空指针。
+  desktop_lyric_window_.reset();
+  desktop_media_.reset();
+
   if (window_channel_) {
     window_channel_->SetMethodCallHandler(nullptr);
   }

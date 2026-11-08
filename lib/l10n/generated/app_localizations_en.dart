@@ -539,6 +539,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String get platform => 'Source';
 
   @override
+  String get importTabLink => 'Link';
+
+  @override
+  String get importTabFile => 'File';
+
+  @override
+  String get importTabAccount => 'Sign in';
+
+  @override
+  String get importM3uHint => 'Pick an M3U / M3U8 file from this device';
+
+  @override
+  String get importM3uPick => 'Choose file';
+
+  @override
+  String get importM3uPickHint =>
+      'Choose a playlist file from this device using the button below.';
+
+  @override
+  String get importM3uOnlyLocal =>
+      'Only matches songs already in your local library; nothing is searched online';
+
+  @override
+  String get importPlatformLoginIntro =>
+      'Choose QQ Music, Kuwo, Kugou, or NetEase Cloud Music. Official authorization and eligibility differ by platform.';
+
+  @override
+  String get platformLoginUnavailableQQ =>
+      'QQ Music personal playlists require QPlay authorization on Android and an approved partner integration. The official OpenAPI is not currently available to individual developers; this app has no approved access.';
+
+  @override
+  String get platformLoginUnavailableKuwo =>
+      'Kugou\'s official disclosure lists Kuwo\'s account-authorization SDK for importing Kuwo playlists, but no application or integration docs for general third-party developers were found. This app will not use unofficial web or cookie sign-in.';
+
+  @override
+  String get platformLoginUnavailableKugou =>
+      'Kugou\'s official mini-app API supports authorized user playlists (Android SDK 1.0.8+). That does not establish a general sign-in API for standalone apps; this app has not integrated Kugou mini-app capabilities.';
+
+  @override
+  String get platformLoginUnavailableNetease =>
+      'NetEase states that individual use is limited to its official ncm-cli; vendor OpenAPI access requires business engagement. This app has not integrated ncm-cli or obtained vendor access.';
+
+  @override
+  String get platformLoginUnavailableAction =>
+      'Official sign-in is not connected yet';
+
+  @override
   String get searchFieldHint => 'Songs, playlists...';
 
   @override
@@ -2664,6 +2711,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'Shows the current line on the lock screen';
 
   @override
+  String get desktopLyricWindow => 'Desktop lyric window';
+
+  @override
+  String get desktopLyricWindowSubtitle =>
+      'Shows the current and next lyric line on the desktop';
+
+  @override
+  String get desktopLyricLock => 'Lock lyric window';
+
+  @override
+  String get desktopLyricLockSubtitle =>
+      'Locked window lets mouse clicks pass through';
+
+  @override
   String get lyricShare => 'Share lyric card';
 
   @override
@@ -2923,6 +2984,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get lyricEntranceBlur => 'Blur';
+
+  @override
+  String get lyricTheme => 'Lyric typeface';
+
+  @override
+  String get lyricThemeDefault => 'Default';
+
+  @override
+  String get lyricThemePixel => 'Pixel';
 
   @override
   String get songInfo => 'About this song';

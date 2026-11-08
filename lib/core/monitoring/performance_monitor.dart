@@ -15,6 +15,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../logging/app_log.dart';
+import 'debug_probe.dart';
 
 /// Performance metric entry
 class PerformanceMetric {
@@ -157,26 +158,45 @@ class PerformanceMonitor {
 
     _isMonitoring = true;
 
-    // Monitor frame rendering when a binding exists. Unit tests and very
-    // early startup do not have one; metrics collection still works.
-    final scheduler = kIsWeb ? null : _schedulerBindingOrNull();
-    if (scheduler != null) {
-      scheduler.addTimingsCallback(_onFrameTiming);
-      _listeningToFrames = true;
-    }
+    // 帧探针只在明确打开时才接线（见 DebugProbe）：帧回调与 2 秒汇总定时器
+    // 对正常用户没有任何产出，却要一直付调度开销。
+    if (DebugProbe.enabled) startFrameProbe();
 
     // Periodic memory snapshots
     _memoryCheckTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       _captureMemorySnapshot();
     });
 
+    debugPrint('📊 Performance monitoring initialized '
+        '(frame probe: ${DebugProbe.describe()})');
+  }
+
+  /// 帧探针是否正在采集。
+  bool get frameProbeRunning => _listeningToFrames;
+
+  /// 打开帧探针。诊断面板打开、或设置里手动开启时调用；可重复调用。
+  void startFrameProbe() {
+    if (_listeningToFrames) return;
+    final scheduler = kIsWeb ? null : _schedulerBindingOrNull();
+    if (scheduler == null) return;
+    scheduler.addTimingsCallback(_onFrameTiming);
+    _listeningToFrames = true;
     // 每 2 秒把这一窗口的帧耗时写进运行日志。AppLog 只在诊断面板打开时
-    // 真正记录，所以平时没有开销；用户开着面板滑一下就能看到真实数字。
-    _frameSummaryTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+    // 真正记录，所以面板没开时也只是一次内存里的百分位计算。
+    _frameSummaryTimer ??= Timer.periodic(const Duration(seconds: 2), (_) {
       _flushFrameWindow();
     });
+  }
 
-    debugPrint('📊 Performance monitoring initialized');
+  /// 关闭帧探针，并清掉未汇总的样本。
+  void stopFrameProbe() {
+    _frameSummaryTimer?.cancel();
+    _frameSummaryTimer = null;
+    if (_listeningToFrames) {
+      _schedulerBindingOrNull()?.removeTimingsCallback(_onFrameTiming);
+      _listeningToFrames = false;
+    }
+    _clearFrameWindow();
   }
 
   /// 输出并清空当前窗口的帧统计。
@@ -423,14 +443,8 @@ class PerformanceMonitor {
 
   void dispose() {
     _memoryCheckTimer?.cancel();
-    _frameSummaryTimer?.cancel();
-    _clearFrameWindow();
+    stopFrameProbe();
     _isMonitoring = false;
-
-    if (_listeningToFrames) {
-      _schedulerBindingOrNull()?.removeTimingsCallback(_onFrameTiming);
-      _listeningToFrames = false;
-    }
   }
 }
 

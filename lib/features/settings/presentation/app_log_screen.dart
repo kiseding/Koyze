@@ -3,6 +3,8 @@ import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/logging/app_log.dart';
+import '../../../core/monitoring/debug_probe.dart';
+import '../../../core/monitoring/performance_monitor.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
@@ -21,6 +23,9 @@ void showDiagnosticLogOverlay(BuildContext context) {
   final overlay = Overlay.of(context, rootOverlay: true);
   final log = AppLog.instance;
   log.start();
+  // 面板同时是性能探针的开关：用户打开它就说明现在需要数字，关掉就不再付
+  // 帧回调的开销。带 KOYZE_PROBE 编译的诊断包不受影响（关面板不停探针）。
+  PerformanceMonitor().startFrameProbe();
   log.record('app', 'diagnostic log opened');
   _diagnosticLogEntry = OverlayEntry(
     builder: (_) => _DiagnosticLogOverlay(key: _diagnosticLogKey, log: log),
@@ -30,6 +35,9 @@ void showDiagnosticLogOverlay(BuildContext context) {
 
 void _closeDiagnosticLogOverlay() {
   AppLog.instance.stop();
+  if (!DebugProbe.staticallyEnabled) {
+    PerformanceMonitor().stopFrameProbe();
+  }
   _diagnosticLogEntry?.remove();
   _diagnosticLogEntry = null;
 }

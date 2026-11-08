@@ -87,6 +87,21 @@ final lockScreenLyricEnabledProvider =
       LockScreenLyricNotifier.new,
     );
 
+final desktopLyricEnabledProvider =
+    NotifierProvider<DesktopLyricEnabledNotifier, bool>(
+      DesktopLyricEnabledNotifier.new,
+    );
+
+final desktopLyricLockedProvider =
+    NotifierProvider<DesktopLyricLockedNotifier, bool>(
+      DesktopLyricLockedNotifier.new,
+    );
+
+final desktopLyricFontSizeProvider =
+    NotifierProvider<DesktopLyricFontSizeNotifier, int>(
+      DesktopLyricFontSizeNotifier.new,
+    );
+
 /// 响度均衡（ReplayGain）开关。
 final replayGainEnabledProvider = NotifierProvider<ReplayGainNotifier, bool>(
   ReplayGainNotifier.new,
@@ -98,14 +113,14 @@ final playbackSpeedProvider = NotifierProvider<PlaybackSpeedNotifier, double>(
 );
 
 /// 播放音调（±12 半音，0.5 步长）。
-final pitchSemitonesProvider =
-    NotifierProvider<PitchSemitonesNotifier, double>(
-      PitchSemitonesNotifier.new,
-    );
+final pitchSemitonesProvider = NotifierProvider<PitchSemitonesNotifier, double>(
+  PitchSemitonesNotifier.new,
+);
 
 /// 跳过静音（Android）。
-final skipSilenceEnabledProvider =
-    NotifierProvider<SkipSilenceNotifier, bool>(SkipSilenceNotifier.new);
+final skipSilenceEnabledProvider = NotifierProvider<SkipSilenceNotifier, bool>(
+  SkipSilenceNotifier.new,
+);
 
 /// 播放/暂停淡入淡出。
 final playbackFadeEnabledProvider =
@@ -190,6 +205,11 @@ final singleLineAnimationProvider =
       SingleLineAnimationNotifier.new,
     );
 
+/// 歌词主题。索引 0 默认字体，1 像素点阵。
+final lyricThemeProvider = NotifierProvider<LyricThemeNotifier, int>(
+  LyricThemeNotifier.new,
+);
+
 /// 首启引导是否已完成（同意过免责声明）。
 final onboardingAcceptedProvider =
     NotifierProvider<OnboardingAcceptedNotifier, bool>(
@@ -197,7 +217,6 @@ final onboardingAcceptedProvider =
     );
 
 /// 播放页背景缓慢漂移。
-final flowingBackdropProvider =
-    NotifierProvider<FlowingBackdropNotifier, bool>(
-      FlowingBackdropNotifier.new,
-    );
+final flowingBackdropProvider = NotifierProvider<FlowingBackdropNotifier, bool>(
+  FlowingBackdropNotifier.new,
+);
