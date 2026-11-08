@@ -14,6 +14,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../logging/app_log.dart';
+
 /// Performance metric entry
 class PerformanceMetric {
   final String name;
@@ -132,7 +134,14 @@ class PerformanceMonitor {
   bool _isMonitoring = false;
   bool _listeningToFrames = false;
   Timer? _memoryCheckTimer;
+  Timer? _frameSummaryTimer;
   MemorySnapshot? _lastMemorySnapshot;
+
+  /// 当前统计窗口内的分段耗时。帧率本身说明不了问题——掉帧要看是 UI 线程
+  /// 超预算（build）还是 GPU 超预算（raster），改的地方完全不同。
+  final List<double> _windowBuild = <double>[];
+  final List<double> _windowRaster = <double>[];
+  final List<double> _windowTotal = <double>[];
 
   SchedulerBinding? _schedulerBindingOrNull() {
     try {
@@ -157,11 +166,60 @@ class PerformanceMonitor {
     }
 
     // Periodic memory snapshots
-    _memoryCheckTimer = Timer.periodic(Duration(minutes: 5), (_) {
+    _memoryCheckTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       _captureMemorySnapshot();
     });
 
+    // 每 2 秒把这一窗口的帧耗时写进运行日志。AppLog 只在诊断面板打开时
+    // 真正记录，所以平时没有开销；用户开着面板滑一下就能看到真实数字。
+    _frameSummaryTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      _flushFrameWindow();
+    });
+
     debugPrint('📊 Performance monitoring initialized');
+  }
+
+  /// 输出并清空当前窗口的帧统计。
+  void _flushFrameWindow() {
+    if (_windowTotal.length < 8) {
+      // 空闲期的零星帧没有参考价值。
+      _clearFrameWindow();
+      return;
+    }
+    var dropped = 0;
+    var worst = 0.0;
+    for (final total in _windowTotal) {
+      if (total > _budgetMs) dropped++;
+      if (total > worst) worst = total;
+    }
+    final summary =
+        'frames=${_windowTotal.length} '
+        'build_p50=${_percentile(_windowBuild, 0.5)} '
+        'build_p95=${_percentile(_windowBuild, 0.95)} '
+        'raster_p50=${_percentile(_windowRaster, 0.5)} '
+        'raster_p95=${_percentile(_windowRaster, 0.95)} '
+        'dropped=$dropped worst=${worst.toStringAsFixed(1)}';
+    AppLog.instance.record('perf', 'frame $summary');
+    if (!kReleaseMode) debugPrint('FRAMEPROBE $summary');
+    _clearFrameWindow();
+  }
+
+  void _clearFrameWindow() {
+    _windowBuild.clear();
+    _windowRaster.clear();
+    _windowTotal.clear();
+  }
+
+  static const double _budgetMs = 16.7;
+
+  static String _percentile(List<double> samples, double quantile) {
+    if (samples.isEmpty) return '0.0';
+    final sorted = List<double>.of(samples)..sort();
+    final index = ((sorted.length - 1) * quantile).round().clamp(
+      0,
+      sorted.length - 1,
+    );
+    return sorted[index].toStringAsFixed(1);
   }
 
   /// Record a performance metric
@@ -216,6 +274,10 @@ class PerformanceMonitor {
       final totalDuration = buildDuration + rasterDuration;
 
       _frameTimes.add(totalDuration);
+
+      _windowBuild.add(buildDuration);
+      _windowRaster.add(rasterDuration);
+      _windowTotal.add(totalDuration);
 
       // Limit samples
       if (_frameTimes.length > _maxFrameSamples) {
@@ -361,6 +423,8 @@ class PerformanceMonitor {
 
   void dispose() {
     _memoryCheckTimer?.cancel();
+    _frameSummaryTimer?.cancel();
+    _clearFrameWindow();
     _isMonitoring = false;
 
     if (_listeningToFrames) {

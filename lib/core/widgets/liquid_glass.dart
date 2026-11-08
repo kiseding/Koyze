@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import '../theme/effect_policy.dart';
+import 'glass_backdrop.dart';
 
 /// 液态玻璃：真正透出背后内容的玻璃面。
 ///
@@ -112,8 +113,9 @@ class LiquidGlassSurface extends StatelessWidget {
       child: ClipRRect(
         borderRadius: borderRadius,
         clipBehavior: Clip.antiAlias,
-        child: BackdropFilter(
-          filter: AppGlass.liquidFilter(blur: blur, saturation: saturation),
+        child: GlassBackdrop(
+          sigma: blur,
+          saturation: saturation,
           child: _layers(base: base, edge: edge, alpha: alpha, isDark: isDark),
         ),
       ),

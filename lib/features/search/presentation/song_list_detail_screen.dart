@@ -226,6 +226,9 @@ class _SongListRow extends ConsumerWidget {
       child: GlassSurface(
         style: AppGlassStyle.regular,
         borderRadius: BorderRadius.circular(16),
+        // 行背后是纯色页面底，模糊与实色完全相同；搜索结果动辄几十上百行，
+        // 每行一次背景采样在滑动时是纯浪费。
+        backdrop: false,
         border: Border.fromBorderSide(
           AppGlass.hairline(context, emphasized: false),
         ),

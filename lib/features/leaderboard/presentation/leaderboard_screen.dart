@@ -1414,6 +1414,9 @@ class _LeaderboardSongRow extends ConsumerWidget {
         child: GlassSurface(
           style: AppGlassStyle.regular,
           borderRadius: BorderRadius.circular(16),
+          // 每行都在同一块纯白页面底上，模糊前后是同一个颜色。榜单能有上百行，
+          // 一屏可见十来行——不改这一处，滚动时每帧要白跑十几次背景采样。
+          backdrop: false,
           border: Border.fromBorderSide(
             AppGlass.hairline(context, emphasized: false),
           ),

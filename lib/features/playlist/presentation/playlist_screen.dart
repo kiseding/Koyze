@@ -474,6 +474,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       child: GlassSurface(
         style: AppGlassStyle.regular,
         borderRadius: BorderRadius.circular(16),
+        // 每一行都铺在同一块纯色页面底上，模糊前后是同一个像素；这里每行都
+        // 采样一次纯属白烧 GPU，歌单一长就是每帧几十次。
+        backdrop: false,
         border: Border.fromBorderSide(
           AppGlass.hairline(context, emphasized: false),
         ),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'app_colors.dart';
 import 'effect_policy.dart';
 import 'glass_config.dart';
+import '../widgets/glass_backdrop.dart';
 
 /// 玻璃材质，照搬 origo-x 的 `GlassControlSurface`。
 ///
@@ -302,8 +303,9 @@ class GlassSurface extends StatelessWidget {
       borderRadius: radius,
       clipBehavior: Clip.antiAlias,
       child: fade == AppGlassFade.none
-          ? BackdropFilter(
-              filter: _filter(sigma, vivid: vivid),
+          ? GlassBackdrop(
+              sigma: sigma,
+              saturation: vivid ? AppGlass.saturate : null,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: base,
@@ -352,19 +354,6 @@ class GlassSurface extends StatelessWidget {
     final nudge = AppColors.isDark(context) ? 0.05 : 0.04;
     return Color.lerp(themed, color!.withValues(alpha: themed.a), nudge)!;
   }
-
-  static ImageFilter _filter(double sigma, {bool vivid = true}) {
-    final blur = ImageFilter.blur(
-      sigmaX: sigma,
-      sigmaY: sigma,
-      tileMode: TileMode.mirror,
-    );
-    if (!vivid) return blur;
-    return ImageFilter.compose(
-      outer: blur,
-      inner: ColorFilter.matrix(AppGlass._saturationMatrix(AppGlass.saturate)),
-    );
-  }
 }
 
 class _FadingFrost extends StatelessWidget {
@@ -398,8 +387,9 @@ class _FadingFrost extends StatelessWidget {
         Positioned.fill(
           child: IgnorePointer(
             child: ClipRect(
-              child: BackdropFilter(
-                filter: GlassSurface._filter(sigma, vivid: vivid),
+              child: GlassBackdrop(
+                sigma: sigma,
+                saturation: vivid ? AppGlass.saturate : null,
                 child: const ColoredBox(color: Color(0x00000000)),
               ),
             ),

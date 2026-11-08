@@ -1,11 +1,10 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../motion/motion_tokens.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import '../theme/effect_policy.dart';
+import 'glass_backdrop.dart';
 
 /// Shared chrome surface for floating controls.
 ///
@@ -23,6 +22,7 @@ class OrigoChromeSurface extends StatelessWidget {
     this.emphasized = false,
     this.boxShadow,
     this.blur,
+    this.backdrop = true,
   });
 
   final Widget child;
@@ -41,6 +41,13 @@ class OrigoChromeSurface extends StatelessWidget {
   /// （横屏侧栏左边就是空的）必须这样做，原因见侧栏那边的注释。
   final double? blur;
 
+  /// 是否采样背后的内容做模糊。背后是纯色页面底时为 false：模糊一层纯色
+  /// 和直接混出同一个颜色在屏幕上完全一样，却要占一次全屏背景采样。
+  ///
+  /// 首页那排快捷卡是最典型的例子——一屏十张卡各自抓一次背景，全都在采样
+  /// 同一块纯色底。手机上这类多余采样正是滑动掉帧的主因之一。
+  final bool backdrop;
+
   @override
   Widget build(BuildContext context) {
     final tint = accent ?? AppColors.accentOf(context);
@@ -50,6 +57,7 @@ class OrigoChromeSurface extends StatelessWidget {
       borderRadius: borderRadius,
       emphasized: emphasized,
       blur: blur,
+      backdrop: backdrop,
       border: Border.fromBorderSide(
         AppGlass.hairline(context, emphasized: emphasized),
       ),
@@ -255,12 +263,9 @@ class GradientFrost extends StatelessWidget {
           Positioned.fill(
             child: IgnorePointer(
               child: ClipRect(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(
-                    sigmaX: sigma,
-                    sigmaY: sigma,
-                    tileMode: TileMode.mirror,
-                  ),
+                // 走统一的玻璃采样层：同一个 BackdropGroup 内只抓一次背景。
+                child: GlassBackdrop(
+                  sigma: sigma,
                   child: const ColoredBox(color: Color(0x00000000)),
                 ),
               ),

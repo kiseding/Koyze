@@ -313,6 +313,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         borderRadius: BorderRadius.circular(18),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         accent: AppColors.accentOf(context),
+        // 背后是整页的纯色底，模糊前后一模一样；省掉这次全屏采样。
+        backdrop: false,
         child: Row(
           children: [
             Icon(Icons.search_rounded, color: hint, size: 21),
@@ -628,6 +630,9 @@ class _QuickEntryCard extends ConsumerWidget {
       child: OrigoChromeSurface(
         borderRadius: BorderRadius.circular(18),
         padding: EdgeInsets.all(inset),
+        // 一屏十张快捷卡，每张都在同一块纯色底上抓一次背景，却看不出差别。
+        // 改成实色混合同一个底色，八次全屏采样直接省掉。
+        backdrop: false,
         child: Row(
           children: [
             Container(
