@@ -11,7 +11,7 @@
 
 namespace {
 
-constexpr char kChannelName[] = "koyze/desktop_lyric";
+// 通道由 my_application.cc 创建后传给本类，这里不再重复定义常量。
 constexpr int kDefaultWidth = 720;
 constexpr int kDefaultHeight = 116;
 constexpr int kMinFontSize = 16;

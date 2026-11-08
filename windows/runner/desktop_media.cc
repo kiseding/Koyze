@@ -31,6 +31,17 @@ namespace {
 using flutter::EncodableMap;
 using flutter::EncodableValue;
 
+// C++/WinRT 的投影类型删除了 operator new：它们只能由 ABI 工厂产出，不能
+// 直接 new，也不能放进 make_unique。把需要长期持有的两个对象放进一个普通
+// 结构体，new/delete 作用在这层壳上即可。
+struct SmtcState {
+  winrt::Windows::Media::SystemMediaTransportControls controls{nullptr};
+  winrt::Windows::Media::SystemMediaTransportControlsDisplayUpdater updater{
+      nullptr};
+};
+
+SmtcState* StateOf(void* raw) { return static_cast<SmtcState*>(raw); }
+
 // 通道名与 Linux runner 完全一致。
 constexpr char kChannelName[] = "koyze/desktop_media";
 
@@ -84,23 +95,16 @@ DesktopMedia::~DesktopMedia() {
 }
 
 void DesktopMedia::ReleaseSmtcObjects() {
-  if (smtc_ != nullptr) {
-    auto* controls =
-        static_cast<winrt::Windows::Media::SystemMediaTransportControls*>(smtc_);
+  if (state_ != nullptr) {
+    auto* state = StateOf(state_);
     try {
-      controls->ButtonPressed(nullptr);
-      controls->IsEnabled(false);
+      state->controls.ButtonPressed(nullptr);
+      state->controls.IsEnabled(false);
     } catch (...) {
       // 释放阶段不关心失败。
     }
-    delete controls;
-    smtc_ = nullptr;
-  }
-  if (updater_ != nullptr) {
-    delete static_cast<
-        winrt::Windows::Media::SystemMediaTransportControlsDisplayUpdater*>(
-        updater_);
-    updater_ = nullptr;
+    delete state;
+    state_ = nullptr;
   }
   available_ = false;
 }
@@ -164,9 +168,10 @@ bool DesktopMedia::EnsureInitialized() {
           }
         });
 
-    smtc_ = new winrt::Windows::Media::SystemMediaTransportControls(controls);
-    updater_ = new winrt::Windows::Media::SystemMediaTransportControlsDisplayUpdater(
-        controls.DisplayUpdater());
+    auto* state = new SmtcState;
+    state->controls = controls;
+    state->updater = controls.DisplayUpdater();
+    state_ = state;
     available_ = true;
   } catch (const winrt::hresult_error& error) {
     ::OutputDebugStringW(
@@ -205,12 +210,10 @@ void DesktopMedia::HandleMethodCall(
 void DesktopMedia::ApplyUpdate(const EncodableMap& args) {
   if (!EnsureInitialized()) return;
 
-  auto* controls =
-      static_cast<winrt::Windows::Media::SystemMediaTransportControls*>(smtc_);
-  auto* updater = static_cast<
-      winrt::Windows::Media::SystemMediaTransportControlsDisplayUpdater*>(
-      updater_);
-  if (controls == nullptr || updater == nullptr) return;
+  auto* state = StateOf(state_);
+  if (state == nullptr) return;
+  auto& controls = state->controls;
+  auto& updater = state->updater;
 
   const std::string title = StringOf(args, "title");
   const std::string artist = StringOf(args, "artist");
@@ -221,8 +224,8 @@ void DesktopMedia::ApplyUpdate(const EncodableMap& args) {
   const bool can_previous = BoolOf(args, "canGoPrevious", true);
 
   try {
-    updater->Type(winrt::Windows::Media::MediaPlaybackType::Music);
-    auto music = updater->MusicProperties();
+    updater.Type(winrt::Windows::Media::MediaPlaybackType::Music);
+    auto music = updater.MusicProperties();
     if (music.Title() != WideFromUtf8(title)) {
       music.Title(WideFromUtf8(title));
     }
@@ -238,14 +241,14 @@ void DesktopMedia::ApplyUpdate(const EncodableMap& args) {
       LoadThumbnail(WideFromUtf8(artwork));
       last_artwork_ = artwork;
     }
-    updater->Update();
+    updater.Update();
 
-    controls->PlaybackStatus(
+    controls.PlaybackStatus(
         playing ? winrt::Windows::Media::MediaPlaybackStatus::Playing
                 : winrt::Windows::Media::MediaPlaybackStatus::Paused);
-    controls->IsEnabled(true);
-    controls->IsNextEnabled(can_next);
-    controls->IsPreviousEnabled(can_previous);
+    controls.IsEnabled(true);
+    controls.IsNextEnabled(can_next);
+    controls.IsPreviousEnabled(can_previous);
   } catch (const winrt::hresult_error&) {
     // 系统拒绝写入（例如面板被组策略关掉）时不该影响播放。
   }
@@ -253,17 +256,14 @@ void DesktopMedia::ApplyUpdate(const EncodableMap& args) {
 
 void DesktopMedia::ApplyClear() {
   if (!available_) return;
-  auto* controls =
-      static_cast<winrt::Windows::Media::SystemMediaTransportControls*>(smtc_);
-  auto* updater = static_cast<
-      winrt::Windows::Media::SystemMediaTransportControlsDisplayUpdater*>(
-      updater_);
-  if (controls == nullptr || updater == nullptr) return;
+  auto* state = StateOf(state_);
+  if (state == nullptr) return;
 
   try {
-    controls->PlaybackStatus(winrt::Windows::Media::MediaPlaybackStatus::Closed);
-    updater->ClearAll();
-    controls->IsEnabled(false);
+    state->controls.PlaybackStatus(
+        winrt::Windows::Media::MediaPlaybackStatus::Closed);
+    state->updater.ClearAll();
+    state->controls.IsEnabled(false);
   } catch (const winrt::hresult_error&) {
   }
   last_artwork_.clear();
@@ -272,10 +272,8 @@ void DesktopMedia::ApplyClear() {
 }
 
 void DesktopMedia::LoadThumbnail(const std::wstring& path) {
-  auto* updater = static_cast<
-      winrt::Windows::Media::SystemMediaTransportControlsDisplayUpdater*>(
-      updater_);
-  if (updater == nullptr || path.empty()) return;
+  auto* state = StateOf(state_);
+  if (state == nullptr || path.empty()) return;
 
   // 用 file:// URI 让系统自己去读图，全程不阻塞 UI 线程。
   //
@@ -290,7 +288,7 @@ void DesktopMedia::LoadThumbnail(const std::wstring& path) {
     if (normalized.rfind(L"file:///", 0) != 0) {
       normalized = L"file:///" + normalized;
     }
-    updater->Thumbnail(
+    state->updater.Thumbnail(
         winrt::Windows::Storage::Streams::RandomAccessStreamReference::
             CreateFromUri(winrt::Windows::Foundation::Uri(normalized)));
   } catch (const winrt::hresult_error&) {

@@ -50,8 +50,11 @@ class DesktopMedia {
 
   // 用 void* 持有 C++/WinRT 对象：本头文件不引入 <winrt/...>，
   // 这样任何编译单元 include 它都不必开启 C++/WinRT 的异常设置。
-  void* smtc_ = nullptr;
-  void* updater_ = nullptr;
+  //
+  // 实际指向 .cc 里的 SmtcState。C++/WinRT 的投影类型删除了 operator new
+  // （它们只能由 ABI 工厂产出），所以不能 new 单个对象，只能把要保存的几个
+  // 对象放进一个普通结构体，再对那层壳分配。
+  void* state_ = nullptr;
   HWND window_ = nullptr;
 
   bool initialized_ = false;
