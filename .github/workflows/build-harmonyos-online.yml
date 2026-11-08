@@ -64,7 +64,11 @@ jobs:
       # CLT 放 D 盘：分卷 2.6GB + 解压 7.8GB，C 盘只剩 ~14GB 不够；workspace 也在 D:
       HOS_SDK_HOME: D:/fo/command-line-tools/sdk
       DEVECO_SDK_HOME: D:/fo/command-line-tools/sdk
-      PUB_HOSTED_URL: https://pub.flutter-io.cn
+      # 依赖走官方 pub.dev：runner 在海外，国内镜像 pub.flutter-io.cn 的 CDN
+      # 边缘节点对同一版本会返回与自身元数据哈希不一致的归档，pub 直接以
+      # "wrong content-hash"（退出码 75）失败，且每次命中的包随机。
+      # 引擎工件仍走下面的镜像 / 华为 OBS，与 pub 依赖无关。
+      PUB_HOSTED_URL: https://pub.dev
       FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
       FLUTTER_OHOS_STORAGE_BASE_URL: https://flutter-ohos.obs.cn-south-1.myhuaweicloud.com
       # 必须和 workspace 同盘！flutter-hvigor-plugin 用 path.relative 算插件
