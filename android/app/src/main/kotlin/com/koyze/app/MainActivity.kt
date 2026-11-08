@@ -80,6 +80,17 @@ class MainActivity : AudioServiceActivity() {
                             result.success(writeFileBytes(path, bytes))
                         }
                     }
+                    // 应用内更新：把下载好的 APK 交给系统安装器。
+                    // 返回 false 表示"没能直接安装"（文件缺失 / 未授予安装未知来源权限），
+                    // 前者调用方提示失败，后者系统已经跳去授权页。
+                    "installApk" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("invalid_args", "Missing path", null)
+                        } else {
+                            result.success(installApk(path))
+                        }
+                    }
                     "readFileBytes" -> {
                         val path = call.argument<String>("path")
                         if (path == null) {
@@ -571,4 +582,39 @@ private fun applyCompactDensity(context: Context) {
     config.smallestScreenWidthDp = (shortestPx / targetDensity).roundToInt()
     @Suppress("DEPRECATION")
     resources.updateConfiguration(config, metrics)
+}
+
+/// 把下载好的 APK 交给系统安装器。
+///
+/// Android 8 起安装未知来源应用需要用户在系统设置里单独授权；没授权时这里
+/// 直接把用户送到该页面，而不是无声失败——否则用户只会看到"点了没反应"。
+private fun MainActivity.installApk(path: String): Boolean {
+    return try {
+        val file = File(path)
+        if (!file.exists() || file.length() == 0L) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !packageManager.canRequestPackageInstalls()
+        ) {
+            val settingsIntent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName"),
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(settingsIntent)
+            return false
+        }
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            this,
+            "$packageName.koyze.updater",
+            file,
+        )
+        val install = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(install)
+        true
+    } catch (e: Exception) {
+        false
+    }
 }

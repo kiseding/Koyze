@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 只开放 cache 下的 update 子目录：更新包是唯一的对外暴露面。 -->
+<paths>
+    <cache-path name="koyze_updates" path="update/" />
+</paths>

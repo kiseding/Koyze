@@ -6,6 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:koyze/core/performance/low_memory.dart';
 import 'package:koyze/core/theme/app_theme.dart';
 import 'package:koyze/core/theme/cover_palette_provider.dart';
+import 'package:koyze/features/onboarding/presentation/first_run_gate.dart';
 
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/core/widgets/compact_high_resolution_scale.dart';
@@ -139,7 +140,9 @@ class LxMusicApp extends ConsumerWidget {
                       child: AndroidFloatingPlayerHost(
                         child: ForceLandscapeBinding(
                           child: StartupCloudLoginPrompt(
-                            child: child ?? const SizedBox.shrink(),
+                            child: FirstRunGate(
+                              child: child ?? const SizedBox.shrink(),
+                            ),
                           ),
                         ),
                       ),

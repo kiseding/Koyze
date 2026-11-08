@@ -2923,4 +2923,123 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get lyricEntranceBlur => 'Blur';
+
+  @override
+  String get songInfo => 'About this song';
+
+  @override
+  String get songInfoComments => 'Comments';
+
+  @override
+  String get songInfoSimilar => 'Similar';
+
+  @override
+  String get songInfoMemory => 'Your history';
+
+  @override
+  String get songInfoMemoryEmpty => 'Nothing played yet';
+
+  @override
+  String get songInfoEmpty => 'Nothing here yet';
+
+  @override
+  String songInfoCommentsTotal(Object n) {
+    return '$n comments';
+  }
+
+  @override
+  String get onboardingWelcome => 'Welcome to Koyze';
+
+  @override
+  String get onboardingTermsIntro =>
+      'Before you start, a few things worth reading.';
+
+  @override
+  String get onboardingTermsPoint1 =>
+      'Koyze is a player, not a music service. It does not host, upload or distribute any audio; every track is resolved from sources you configure yourself.';
+
+  @override
+  String get onboardingTermsPoint2 =>
+      'Audio, lyrics and artwork belong to their respective platforms and rights holders. Please make sure your use complies with local law and each platform’s terms.';
+
+  @override
+  String get onboardingTermsPoint3 =>
+      'Custom sources are third-party scripts. They run with the app’s permissions, and what they do is decided by whoever wrote them.';
+
+  @override
+  String get onboardingTermsPoint4 =>
+      'Playback records, playlists and settings are stored on this device only, and are removed with the app.';
+
+  @override
+  String get onboardingAgree => 'I understand and agree';
+
+  @override
+  String get onboardingSourceTitle => 'Add a source';
+
+  @override
+  String get onboardingSourceBody =>
+      'Koyze does not bundle any audio source. Add at least one custom source to search and play music. You can also do this later in Settings → Sources.';
+
+  @override
+  String get onboardingSourceConfigure => 'Configure sources';
+
+  @override
+  String get onboardingSkip => 'Later';
+
+  @override
+  String get onboardingDoneTitle => 'You are all set';
+
+  @override
+  String get onboardingDoneBody =>
+      'Search for a song, or start from recommendations. Every screen has a long-press menu for more actions.';
+
+  @override
+  String get onboardingDoneNoSource =>
+      'No source enabled yet — search will return nothing until you add one in Settings → Sources.';
+
+  @override
+  String get onboardingStart => 'Start listening';
+
+  @override
+  String get checkUpdates => 'Check for updates';
+
+  @override
+  String checkUpdatesSubtitle(Object v) {
+    return 'Current version $v';
+  }
+
+  @override
+  String updateAvailable(Object v) {
+    return 'Version $v is available';
+  }
+
+  @override
+  String get updateLatest => 'You are on the latest version';
+
+  @override
+  String get updateCheckFailed => 'Could not check for updates';
+
+  @override
+  String get updateDownloadInstall => 'Download and install';
+
+  @override
+  String updateDownloading(Object p) {
+    return 'Downloading $p%';
+  }
+
+  @override
+  String get updateNotes => 'What changed';
+
+  @override
+  String get updateInstallHint =>
+      'The system installer opens when the download finishes.';
+
+  @override
+  String get updateNoAsset => 'This release has no APK attached';
+
+  @override
+  String get flowingBackdrop => 'Drifting background';
+
+  @override
+  String get flowingBackdropSubtitle => 'Slowly pan the blurred artwork';
 }

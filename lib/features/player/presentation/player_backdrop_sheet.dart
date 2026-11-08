@@ -69,6 +69,28 @@ class PlayerBackdropSheet extends ConsumerWidget {
                     .setScrim(value),
               ),
               const SizedBox(height: 6),
+              SwitchListTile.adaptive(
+                value: ref.watch(flowingBackdropProvider),
+                onChanged: (value) =>
+                    ref.read(flowingBackdropProvider.notifier).setEnabled(value),
+                title: Text(
+                  s.flowingBackdrop,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.onScaffold(context),
+                  ),
+                ),
+                subtitle: Text(
+                  s.flowingBackdropSubtitle,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.mutedText(context),
+                  ),
+                ),
+                contentPadding: EdgeInsets.zero,
+                activeThumbColor: AppColors.accentOf(context),
+              ),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(

@@ -2857,4 +2857,117 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get lyricEntranceBlur => '模糊';
+
+  @override
+  String get songInfo => '歌曲信息';
+
+  @override
+  String get songInfoComments => '评论';
+
+  @override
+  String get songInfoSimilar => '相似歌曲';
+
+  @override
+  String get songInfoMemory => '回忆坐标';
+
+  @override
+  String get songInfoMemoryEmpty => '还没有播放记录';
+
+  @override
+  String get songInfoEmpty => '暂无内容';
+
+  @override
+  String songInfoCommentsTotal(Object n) {
+    return '$n 条评论';
+  }
+
+  @override
+  String get onboardingWelcome => '欢迎使用 Koyze';
+
+  @override
+  String get onboardingTermsIntro => '开始之前，有几件事需要你知道。';
+
+  @override
+  String get onboardingTermsPoint1 =>
+      'Koyze 是播放器，不是音乐服务。它不存放、不上传、不分发任何音频，所有曲目都来自你自己配置的音源。';
+
+  @override
+  String get onboardingTermsPoint2 =>
+      '音频、歌词与封面的权利归各平台与权利人所有，请确认你的使用方式符合当地法律与平台条款。';
+
+  @override
+  String get onboardingTermsPoint3 => '自定义音源是第三方脚本，它随应用一起运行，具体行为由脚本作者决定。';
+
+  @override
+  String get onboardingTermsPoint4 => '播放记录、歌单与设置只保存在本机，卸载应用即一并删除。';
+
+  @override
+  String get onboardingAgree => '我已阅读并同意';
+
+  @override
+  String get onboardingSourceTitle => '先添加一个音源';
+
+  @override
+  String get onboardingSourceBody =>
+      'Koyze 不内置任何音频来源。至少添加一个自定义音源，才能搜索与播放音乐。也可以稍后在「设置 → 音源」里配置。';
+
+  @override
+  String get onboardingSourceConfigure => '去配置音源';
+
+  @override
+  String get onboardingSkip => '稍后再说';
+
+  @override
+  String get onboardingDoneTitle => '准备就绪';
+
+  @override
+  String get onboardingDoneBody => '搜一首歌，或者从「猜你喜欢」开始。列表里长按歌曲有更多操作。';
+
+  @override
+  String get onboardingDoneNoSource => '还没有启用音源——在「设置 → 音源」里添加之前，搜索不会有结果。';
+
+  @override
+  String get onboardingStart => '开始听歌';
+
+  @override
+  String get checkUpdates => '检查更新';
+
+  @override
+  String checkUpdatesSubtitle(Object v) {
+    return '当前版本 $v';
+  }
+
+  @override
+  String updateAvailable(Object v) {
+    return '发现新版本 $v';
+  }
+
+  @override
+  String get updateLatest => '已经是最新版本';
+
+  @override
+  String get updateCheckFailed => '暂时无法检查更新';
+
+  @override
+  String get updateDownloadInstall => '下载并安装';
+
+  @override
+  String updateDownloading(Object p) {
+    return '正在下载 $p%';
+  }
+
+  @override
+  String get updateNotes => '更新内容';
+
+  @override
+  String get updateInstallHint => '下载完成后会拉起系统安装器。';
+
+  @override
+  String get updateNoAsset => '这一版没有附带安装包';
+
+  @override
+  String get flowingBackdrop => '流光背景';
+
+  @override
+  String get flowingBackdropSubtitle => '让模糊封面缓慢漂移';
 }

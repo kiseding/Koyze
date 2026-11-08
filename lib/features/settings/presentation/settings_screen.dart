@@ -24,6 +24,7 @@ import '../../player/platform/android_floating_player.dart';
 import '../../player/domain/player_backdrop.dart';
 import '../../player/presentation/player_backdrop_sheet.dart';
 import '../../lyric/presentation/lyric_display_sheet.dart';
+import '../../updates/presentation/update_sheet.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
 import '../../download/presentation/download_provider.dart';
@@ -800,6 +801,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ],
         entries: [
+          if (Platform.isAndroid)
+            SettingsEntry(
+              title: s.checkUpdates,
+              subtitle: s.checkUpdatesSubtitle(kAppVersion),
+              keywords: const [
+                '更新',
+                'update',
+                '升级',
+                'upgrade',
+                '版本',
+                'version',
+                '新版本',
+              ],
+              onTap: () => showUpdateSheet(context),
+            ),
           SettingsEntry(
             title: s.diagnostics,
             subtitle: s.diagnosticsSubtitle,

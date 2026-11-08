@@ -120,6 +120,43 @@ class S {
   String get lyricEntranceFade => _l10n.lyricEntranceFade;
   String get lyricEntranceZoom => _l10n.lyricEntranceZoom;
   String get lyricEntranceBlur => _l10n.lyricEntranceBlur;
+  String get songInfo => _l10n.songInfo;
+  String get songInfoComments => _l10n.songInfoComments;
+  String get songInfoSimilar => _l10n.songInfoSimilar;
+  String get songInfoMemory => _l10n.songInfoMemory;
+  String get songInfoMemoryEmpty => _l10n.songInfoMemoryEmpty;
+  String get songInfoEmpty => _l10n.songInfoEmpty;
+  String songInfoCommentsTotal(int n) => _l10n.songInfoCommentsTotal(n);
+  String get onboardingWelcome => _l10n.onboardingWelcome;
+  String get onboardingTermsIntro => _l10n.onboardingTermsIntro;
+  String get onboardingAgree => _l10n.onboardingAgree;
+  String get onboardingSourceTitle => _l10n.onboardingSourceTitle;
+  String get onboardingSourceBody => _l10n.onboardingSourceBody;
+  String get onboardingSourceConfigure => _l10n.onboardingSourceConfigure;
+  String get onboardingSkip => _l10n.onboardingSkip;
+  String get onboardingDoneTitle => _l10n.onboardingDoneTitle;
+  String get onboardingDoneBody => _l10n.onboardingDoneBody;
+  String get onboardingDoneNoSource => _l10n.onboardingDoneNoSource;
+  String get onboardingStart => _l10n.onboardingStart;
+  String get checkUpdates => _l10n.checkUpdates;
+  String checkUpdatesSubtitle(String v) => _l10n.checkUpdatesSubtitle(v);
+  String updateAvailable(String v) => _l10n.updateAvailable(v);
+  String get updateLatest => _l10n.updateLatest;
+  String get updateCheckFailed => _l10n.updateCheckFailed;
+  String get updateDownloadInstall => _l10n.updateDownloadInstall;
+  String updateDownloading(int p) => _l10n.updateDownloading(p);
+  String get updateNotes => _l10n.updateNotes;
+  String get updateInstallHint => _l10n.updateInstallHint;
+  String get updateNoAsset => _l10n.updateNoAsset;
+  String get flowingBackdrop => _l10n.flowingBackdrop;
+  String get flowingBackdropSubtitle => _l10n.flowingBackdropSubtitle;
+  /// 条款要点。ARB 表达不了列表，逐条拼在门面层。
+  List<String> get onboardingTermsPoints => [
+    _l10n.onboardingTermsPoint1,
+    _l10n.onboardingTermsPoint2,
+    _l10n.onboardingTermsPoint3,
+    _l10n.onboardingTermsPoint4,
+  ];
   String get general => _l10n.general;
   String get downloads => _l10n.downloads;
   String get downloadManager => _l10n.downloadManager;

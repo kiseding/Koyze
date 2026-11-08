@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import '../../../features/lyric/domain/lyric.dart';
+import '../../../features/song_info/domain/song_comment.dart';
 import '../../../features/player/domain/music_item.dart';
 import 'music_platform.dart';
 import 'source_utils.dart';
@@ -315,6 +316,159 @@ class WySource extends MusicPlatform {
     } catch (e) {
       noteFailure('lyric', e);
       return null;
+    }
+  }
+
+  // ==================== 评论 / 相似歌曲 ====================
+
+  /// 歌曲评论（热门 + 最新）。
+  ///
+  /// 走 `/api/v1/resource/comments/R_SO_4_<id>`：首屏返回 `hotComments` 与
+  /// `comments`，翻页只有 `comments`。匿名可用，不需要登录态。
+  Future<SongCommentsPage?> fetchComments(
+    String songId, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    try {
+      final dio = createDioForService(headers: {
+        'User-Agent':
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
+        'Origin': 'https://music.163.com',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      });
+      final path = '/api/v1/resource/comments/R_SO_4_$songId';
+      final params = eapi(path, {
+        'rid': songId,
+        'offset': offset,
+        'total': offset == 0,
+        'limit': limit,
+      });
+      final response = await dio.post(
+        'https://interface.music.163.com/eapi/v1/resource/comments/R_SO_4_$songId',
+        data: 'params=${params['params']}',
+      );
+      final raw = response.data;
+      final body = raw is String ? jsonDecode(raw) : raw;
+      if (body is! Map || body['code'] != 200) return null;
+
+      final total = body['total'] is num ? (body['total'] as num).toInt() : 0;
+      final latest = _parseComments(body['comments']);
+      final hot = offset == 0
+          ? _parseComments(body['hotComments'])
+          : const <SongComment>[];
+      return SongCommentsPage(
+        hot: hot,
+        latest: latest,
+        total: total,
+        hasMore: offset + latest.length < total,
+      );
+    } catch (e) {
+      noteFailure('comments', e);
+      return null;
+    }
+  }
+
+  static List<SongComment> _parseComments(Object? node) {
+    if (node is! List) return const [];
+    final result = <SongComment>[];
+    for (final item in node) {
+      if (item is! Map) continue;
+      final content = item['content']?.toString() ?? '';
+      if (content.trim().isEmpty) continue;
+      final user = item['user'];
+      final timeMs = item['time'] is num ? (item['time'] as num).toInt() : 0;
+      String? replyTo;
+      final beReplied = item['beReplied'];
+      if (beReplied is List && beReplied.isNotEmpty && beReplied.first is Map) {
+        final repliedUser = (beReplied.first as Map)['user'];
+        if (repliedUser is Map) {
+          replyTo = repliedUser['nickname']?.toString();
+        }
+      }
+      result.add(
+        SongComment(
+          id: item['commentId']?.toString() ?? '',
+          userName: user is Map ? (user['nickname']?.toString() ?? '') : '',
+          avatarUrl: user is Map ? user['avatarUrl']?.toString() : null,
+          content: content,
+          likedCount: item['likedCount'] is num
+              ? (item['likedCount'] as num).toInt()
+              : 0,
+          time: DateTime.fromMillisecondsSinceEpoch(timeMs),
+          replyTo: replyTo,
+          location: item['ipLocation']?.toString(),
+        ),
+      );
+    }
+    return result;
+  }
+
+  /// 相似歌曲。比推荐引擎更贴近「当前这一首」，用来接续播放。
+  Future<List<MusicItem>> fetchSimilarSongs(
+    String songId, {
+    int limit = 20,
+  }) async {
+    try {
+      final dio = createDioForService(headers: {
+        'User-Agent':
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
+        'Origin': 'https://music.163.com',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      });
+      final params = eapi('/api/discovery/simiSong', {
+        'songid': songId,
+        'limit': limit,
+        'offset': 0,
+      });
+      final response = await dio.post(
+        'https://interface.music.163.com/eapi/discovery/simiSong',
+        data: 'params=${params['params']}',
+      );
+      final raw = response.data;
+      final body = raw is String ? jsonDecode(raw) : raw;
+      if (body is! Map || body['code'] != 200) return const [];
+      final songs = body['songs'];
+      if (songs is! List) return const [];
+
+      final result = <MusicItem>[];
+      for (final item in songs) {
+        if (item is! Map) continue;
+        final id = item['id']?.toString() ?? '';
+        final name = item['name']?.toString() ?? '';
+        if (id.isEmpty || name.isEmpty) continue;
+        final artists = item['artists'];
+        final singer = artists is List
+            ? artists
+                  .whereType<Map>()
+                  .map((a) => a['name']?.toString() ?? '')
+                  .where((n) => n.isNotEmpty)
+                  .join(' / ')
+            : '';
+        final album = item['album'];
+        final albumName = album is Map ? (album['name']?.toString() ?? '') : '';
+        final cover = album is Map ? album['picUrl']?.toString() : null;
+        final durationMs = item['duration'] is num
+            ? (item['duration'] as num).toInt()
+            : 0;
+        result.add(
+          MusicItem(
+            id: id,
+            name: name,
+            singer: singer,
+            album: albumName,
+            duration: Duration(milliseconds: durationMs),
+            source: 'wy',
+            platform: 'wy',
+            songmid: id,
+            artwork: cover,
+          ),
+        );
+      }
+      return result;
+    } catch (e) {
+      noteFailure('similar', e);
+      return const [];
     }
   }
 

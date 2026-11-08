@@ -131,3 +131,11 @@ final customSourceEventStreamProvider =
     Provider.family<Stream<Map<String, dynamic>>, String>((ref, sourceId) {
       return ref.read(customSourcesProvider.notifier).getEventStream(sourceId);
     });
+
+/// 是否至少启用了一个音源。
+///
+/// 没有音源就没有任何歌能播——首启引导靠它决定要不要停下来让用户配置。
+final hasEnabledCustomSourceProvider = Provider<bool>((ref) {
+  final sources = ref.watch(customSourcesProvider);
+  return sources.any((source) => source.isEnabled);
+});

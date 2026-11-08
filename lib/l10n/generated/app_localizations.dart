@@ -5323,6 +5323,210 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Blur'**
   String get lyricEntranceBlur;
+
+  /// No description provided for @songInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'About this song'**
+  String get songInfo;
+
+  /// No description provided for @songInfoComments.
+  ///
+  /// In en, this message translates to:
+  /// **'Comments'**
+  String get songInfoComments;
+
+  /// No description provided for @songInfoSimilar.
+  ///
+  /// In en, this message translates to:
+  /// **'Similar'**
+  String get songInfoSimilar;
+
+  /// No description provided for @songInfoMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'Your history'**
+  String get songInfoMemory;
+
+  /// No description provided for @songInfoMemoryEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing played yet'**
+  String get songInfoMemoryEmpty;
+
+  /// No description provided for @songInfoEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing here yet'**
+  String get songInfoEmpty;
+
+  /// No description provided for @songInfoCommentsTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} comments'**
+  String songInfoCommentsTotal(Object n);
+
+  /// No description provided for @onboardingWelcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome to Koyze'**
+  String get onboardingWelcome;
+
+  /// No description provided for @onboardingTermsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Before you start, a few things worth reading.'**
+  String get onboardingTermsIntro;
+
+  /// No description provided for @onboardingTermsPoint1.
+  ///
+  /// In en, this message translates to:
+  /// **'Koyze is a player, not a music service. It does not host, upload or distribute any audio; every track is resolved from sources you configure yourself.'**
+  String get onboardingTermsPoint1;
+
+  /// No description provided for @onboardingTermsPoint2.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio, lyrics and artwork belong to their respective platforms and rights holders. Please make sure your use complies with local law and each platform’s terms.'**
+  String get onboardingTermsPoint2;
+
+  /// No description provided for @onboardingTermsPoint3.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom sources are third-party scripts. They run with the app’s permissions, and what they do is decided by whoever wrote them.'**
+  String get onboardingTermsPoint3;
+
+  /// No description provided for @onboardingTermsPoint4.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback records, playlists and settings are stored on this device only, and are removed with the app.'**
+  String get onboardingTermsPoint4;
+
+  /// No description provided for @onboardingAgree.
+  ///
+  /// In en, this message translates to:
+  /// **'I understand and agree'**
+  String get onboardingAgree;
+
+  /// No description provided for @onboardingSourceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a source'**
+  String get onboardingSourceTitle;
+
+  /// No description provided for @onboardingSourceBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Koyze does not bundle any audio source. Add at least one custom source to search and play music. You can also do this later in Settings → Sources.'**
+  String get onboardingSourceBody;
+
+  /// No description provided for @onboardingSourceConfigure.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure sources'**
+  String get onboardingSourceConfigure;
+
+  /// No description provided for @onboardingSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get onboardingSkip;
+
+  /// No description provided for @onboardingDoneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'You are all set'**
+  String get onboardingDoneTitle;
+
+  /// No description provided for @onboardingDoneBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Search for a song, or start from recommendations. Every screen has a long-press menu for more actions.'**
+  String get onboardingDoneBody;
+
+  /// No description provided for @onboardingDoneNoSource.
+  ///
+  /// In en, this message translates to:
+  /// **'No source enabled yet — search will return nothing until you add one in Settings → Sources.'**
+  String get onboardingDoneNoSource;
+
+  /// No description provided for @onboardingStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start listening'**
+  String get onboardingStart;
+
+  /// No description provided for @checkUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get checkUpdates;
+
+  /// No description provided for @checkUpdatesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Current version {v}'**
+  String checkUpdatesSubtitle(Object v);
+
+  /// No description provided for @updateAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {v} is available'**
+  String updateAvailable(Object v);
+
+  /// No description provided for @updateLatest.
+  ///
+  /// In en, this message translates to:
+  /// **'You are on the latest version'**
+  String get updateLatest;
+
+  /// No description provided for @updateCheckFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check for updates'**
+  String get updateCheckFailed;
+
+  /// No description provided for @updateDownloadInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Download and install'**
+  String get updateDownloadInstall;
+
+  /// No description provided for @updateDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading {p}%'**
+  String updateDownloading(Object p);
+
+  /// No description provided for @updateNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'What changed'**
+  String get updateNotes;
+
+  /// No description provided for @updateInstallHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The system installer opens when the download finishes.'**
+  String get updateInstallHint;
+
+  /// No description provided for @updateNoAsset.
+  ///
+  /// In en, this message translates to:
+  /// **'This release has no APK attached'**
+  String get updateNoAsset;
+
+  /// No description provided for @flowingBackdrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Drifting background'**
+  String get flowingBackdrop;
+
+  /// No description provided for @flowingBackdropSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Slowly pan the blurred artwork'**
+  String get flowingBackdropSubtitle;
 }
 
 class _AppLocalizationsDelegate

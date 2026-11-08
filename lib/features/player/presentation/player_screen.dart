@@ -26,6 +26,7 @@ import '../domain/player_service.dart';
 import 'player_backdrop_surface.dart';
 import 'player_provider.dart';
 import '../../recommend/presentation/recommendation_provider.dart';
+import '../../song_info/presentation/song_info_sheet.dart';
 import 'scrub_session.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../sync/presentation/sync_phase1_provider.dart';
@@ -34,6 +35,7 @@ import '../../playlist/data/playlist_repository.dart';
 import '../../download/presentation/download_provider.dart';
 import '../../settings/presentation/settings_provider.dart'
     show
+        flowingBackdropProvider,
         playerBackdropBlurProvider,
         playerBackdropScrimProvider,
         playbackSpeedProvider,
@@ -2107,6 +2109,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             ),
             koyzeSheetActionGap,
             KoyzeSheetAction(
+              icon: Icons.info_outline_rounded,
+              label: S.of(context).songInfo,
+              onTap: () {
+                Navigator.pop(context);
+                showSongInfoSheet(pageContext, music);
+              },
+            ),
+            KoyzeSheetAction(
               icon: Icons.favorite_border_rounded,
               label: S.of(context).favorite,
               onTap: () async {
@@ -3111,7 +3121,16 @@ class _PlayerCoverBackdropState extends ConsumerState<_PlayerCoverBackdrop>
       parent: _controller,
       curve: MotionCurve.iosSpring,
     );
-    final current = PlayerBackdropArtwork(artwork: _currentArtwork, blur: blur);
+    // 只在播放时漂移：暂停时背景还在动会让人以为播放没停，而且一直跑动画
+    // 等于让引擎永不休眠（pumpAndSettle 这类等待也就永远等不到静止）。
+    final flowing =
+        ref.watch(flowingBackdropProvider) &&
+        (ref.watch(isPlayingProvider).valueOrNull ?? false);
+    final current = PlayerBackdropArtwork(
+      artwork: _currentArtwork,
+      blur: blur,
+      flowing: flowing,
+    );
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
@@ -3123,6 +3142,8 @@ class _PlayerCoverBackdropState extends ConsumerState<_PlayerCoverBackdrop>
               child: PlayerBackdropArtwork(
                 artwork: _previousArtwork,
                 blur: blur,
+                // 交叉淡入的那张不漂移：两张各按自己的相位动，接缝会跳。
+                flowing: false,
               ),
             ),
           if (reduced)
