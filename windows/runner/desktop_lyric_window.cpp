@@ -230,8 +230,13 @@ void DesktopLyricWindow::EmitPosition() {
   RECT rect{};
   if (!GetWindowRect(window_, &rect)) return;
   flutter::EncodableMap payload;
-  payload[flutter::EncodableValue("x")] = flutter::EncodableValue(rect.left);
-  payload[flutter::EncodableValue("y")] = flutter::EncodableValue(rect.top);
+  // EncodableValue 的变体里只有 int32/int64/double，而 RECT 的成员是 LONG
+  // （Windows 上是 long）。不做窄化转换的话，变体构造会因为多个候选同样可
+  // 转换而报歧义。
+  payload[flutter::EncodableValue("x")] =
+      flutter::EncodableValue(static_cast<int32_t>(rect.left));
+  payload[flutter::EncodableValue("y")] =
+      flutter::EncodableValue(static_cast<int32_t>(rect.top));
   EmitEvent("position", &payload);
 }
 

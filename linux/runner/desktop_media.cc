@@ -185,7 +185,11 @@ void DesktopMedia::EnsureRegistered() {
   }
 
   const GDBusInterfaceVTable vtable = VTable();
-  for (gint i = 0; i < node_info_->n_interfaces; i++) {
+  // GDBusNodeInfo 没有 n_interfaces 字段：interfaces 是一个以 NULL 结尾的
+  // 数组，只能按哨兵遍历。
+  for (gint i = 0;
+       node_info_->interfaces != nullptr && node_info_->interfaces[i] != nullptr;
+       i++) {
     GDBusInterfaceInfo* info = node_info_->interfaces[i];
     const guint registration = g_dbus_connection_register_object(
         connection_, kObjectPath, info, &vtable, this, nullptr, &error);

@@ -815,4 +815,30 @@ void main() {
     expect(audioPlayer, contains('describeError'));
     expect(audioPlayer, contains('prepareResult = null'));
   });
+
+  test('runner CMake source lists reference files that exist', () {
+    // 原生构建要等 Flutter 打包完成后才进 CMake。清单里写错文件名（例如把
+    // .cc 写成 .cpp）时，CI 要跑十几分钟才失败，而且报错落在 CMake 的
+    // configure 阶段，看不出是哪次改动引入的。这里用文件存在性提前钉住。
+    final entry = RegExp(r'"([^"]+\.(?:cc|cpp|c|h|hh|hpp|rc|manifest))"');
+
+    for (final platform in ['windows', 'linux']) {
+      final cmake = File('$platform/runner/CMakeLists.txt');
+      expect(cmake.existsSync(), isTrue, reason: platform);
+
+      final checked = <String>[];
+      for (final match in entry.allMatches(cmake.readAsStringSync())) {
+        final name = match.group(1)!;
+        // Flutter 生成目录里的文件由 `flutter pub get` 产出，仓库里没有。
+        if (name.contains(r'${')) continue;
+        checked.add(name);
+        expect(
+          File('$platform/runner/$name').existsSync(),
+          isTrue,
+          reason: '$platform/runner/CMakeLists.txt 引用了不存在的文件 $name',
+        );
+      }
+      expect(checked, isNotEmpty, reason: '$platform 未解析到任何源文件');
+    }
+  });
 }

@@ -76,7 +76,9 @@ double DrawLine(cairo_t* cr, const std::string& text, double center_y,
   pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
   // 歌词一行放不下就截断，不要折行——桌面歌词窗只有一行的高度。
   pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
-  pango_layout_set_lines(layout, 1);
+  // 限制成一行：pango_layout_set_height 传负值是「行数」语义（正值为像素
+  // 高度），配合上面的 ellipsize 就能做到「超出即省略」而不是折行。
+  pango_layout_set_height(layout, -1);
 
   int text_width = 0;
   int text_height = 0;

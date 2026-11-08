@@ -7,15 +7,21 @@
 
 #include <windows.h>
 
+// 本工程开启了 /W4 /WX，而 C++/WinRT 与 SDK 互操作头在 /W4 下会带出大量
+// 与业务无关的警告。只在这几个 include 期间降级，出了包围块立刻恢复，避免
+// 顺手把自家代码的警告也一起放过。
+//
 // ISystemMediaTransportControlsInterop 不随 C++/WinRT 投影导出：它是
-// Win32 侧的互操作接口，声明在这个 SDK 头里。没有它就没法把 SMTC 绑到
+// Win32 侧的互操作接口，声明在下面这个 SDK 头里。没有它就没法把 SMTC 绑到
 // 具体窗口（GetForWindow），只能绑到进程，多窗口时会串台。
+#pragma warning(push, 0)
 #include <systemmediatransportcontrolsinterop.h>
 
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Media.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <winrt/base.h>
+#pragma warning(pop)
 
 #include <algorithm>
 #include <string>
@@ -27,19 +33,6 @@ using flutter::EncodableValue;
 
 // 通道名与 Linux runner 完全一致。
 constexpr char kChannelName[] = "koyze/desktop_media";
-
-std::string Utf8FromWide(const std::wstring& text) {
-  if (text.empty()) return std::string();
-  const int size = ::WideCharToMultiByte(CP_UTF8, 0, text.c_str(),
-                                         static_cast<int>(text.size()),
-                                         nullptr, 0, nullptr, nullptr);
-  if (size <= 0) return std::string();
-  std::string out(static_cast<size_t>(size), '\0');
-  ::WideCharToMultiByte(CP_UTF8, 0, text.c_str(),
-                        static_cast<int>(text.size()), out.data(), size,
-                        nullptr, nullptr);
-  return out;
-}
 
 std::wstring WideFromUtf8(const std::string& text) {
   if (text.empty()) return std::wstring();
@@ -59,17 +52,6 @@ std::string StringOf(const EncodableMap& map, const char* key,
   if (it == map.end()) return fallback;
   const auto* text = std::get_if<std::string>(&it->second);
   return text == nullptr ? fallback : *text;
-}
-
-int64_t IntOf(const EncodableMap& map, const char* key, int64_t fallback = 0) {
-  const auto it = map.find(EncodableValue(key));
-  if (it == map.end()) return fallback;
-  if (const auto* value = std::get_if<int32_t>(&it->second)) return *value;
-  if (const auto* value = std::get_if<int64_t>(&it->second)) return *value;
-  if (const auto* value = std::get_if<double>(&it->second)) {
-    return static_cast<int64_t>(*value);
-  }
-  return fallback;
 }
 
 bool BoolOf(const EncodableMap& map, const char* key, bool fallback = false) {
