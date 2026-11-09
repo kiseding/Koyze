@@ -374,6 +374,14 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   int? _lastCountedFailedOccurrenceId;
   int? _playRecoveryAttemptedOccurrenceId;
   final Set<int> _badCacheRetriedOccurrenceIds = {};
+
+  /// 本轮连失败里已经失败的 occurrence，用于在队尾回绕时避开同一首。
+  ///
+  /// 队列中段失败靠「下一首」就能继续播；只有失败的是最后一首（或窗口里
+  /// 只剩一首）时才没有前向目标。此时若不回绕，后台播放会直接停在原地，
+  /// 用户看到的就是「一首解析不了，整段播放结束」。懒加载队列本身在取不到
+  /// 新页时就会绕回开头，非懒队列在这一点上保持一致。
+  final Set<int> _failedOccurrencesInStreak = {};
   bool _automaticFailureSkippingHalted = false;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
   AudioServiceShuffleMode _shuffleMode = AudioServiceShuffleMode.none;
@@ -1030,6 +1038,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _playRecoveryAttemptedOccurrenceId = null;
     _automaticFailureSkippingHalted = false;
     _badCacheRetriedOccurrenceIds.clear();
+    _failedOccurrencesInStreak.clear();
   }
 
   void _recordSuccessfulPlayback() {
@@ -1048,11 +1057,27 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _consecutiveAutomaticTrackFailures = 0;
     _lastCountedFailedOccurrenceId = null;
     _playRecoveryAttemptedOccurrenceId = null;
+    _failedOccurrencesInStreak.clear();
+  }
+
+  /// 本轮连失败里第一个还没失败过的曲目下标；没有则返回 -1。
+  ///
+  /// 只用于「前向已经没有下一首」的兜底，避免把已经确认播不了的曲目
+  /// 反复挑出来。真正终止整段播放由 [_maximumConsecutiveFailedTracks] 兜底。
+  int _firstUntriedOccurrenceIndex() {
+    for (var i = 0; i < _queue.length; i++) {
+      final occurrenceId = _occurrenceIdAt(i);
+      if (occurrenceId == _activeOccurrenceId) continue;
+      if (_failedOccurrencesInStreak.contains(occurrenceId)) continue;
+      return i;
+    }
+    return -1;
   }
 
   Future<void> _advanceAfterAuthoritativeTrackFailure({
     required int occurrenceId,
     required PlaybackStartProvenance provenance,
+    bool allowWrap = true,
   }) async {
     if (_disposed ||
         occurrenceId != _activeOccurrenceId ||
@@ -1061,6 +1086,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     if (_lastCountedFailedOccurrenceId == occurrenceId) return;
     _lastCountedFailedOccurrenceId = occurrenceId;
+    _failedOccurrencesInStreak.add(occurrenceId);
     _consecutiveAutomaticTrackFailures++;
     if (_consecutiveAutomaticTrackFailures >= _maximumConsecutiveFailedTracks) {
       _automaticFailureSkippingHalted = true;
@@ -1089,7 +1115,22 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       onError?.call('连续 5 首歌曲播放失败，已停止自动播放');
       return;
     }
-    await _skipToNextInternal(seamless: true, provenance: provenance);
+    // 前向没有目标时（失败的正好是最后一首，或窗口里只剩这一首）不能就
+    // 此收手：后台播放会停在那里，用户听到的是「一首解析不了，整段播放
+    // 就结束了」。自动连播时回绕到本轮还没失败过的曲目，让队列继续走。
+    //
+    // 手动切歌不走回绕：用户点的是「下一首」，跳到一首播不了的歌之后又
+    // 自己弹回上一首，比停下来更让人困惑。
+    final forward = await _resolveSkipTarget(forward: true);
+    final target = forward >= 0
+        ? forward
+        : (allowWrap ? _firstUntriedOccurrenceIndex() : -1);
+    if (target < 0) return;
+    await _skipToNextInternal(
+      seamless: true,
+      provenance: provenance,
+      targetIndex: target,
+    );
   }
 
   Future<void> _stopPlayerSource() => _commands.stop();
@@ -3245,6 +3286,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               await _advanceAfterAuthoritativeTrackFailure(
                 occurrenceId: occurrenceId,
                 provenance: startProvenance,
+                allowWrap: seamless,
               );
             }
           }
@@ -3458,6 +3500,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               await _advanceAfterAuthoritativeTrackFailure(
                 occurrenceId: occurrenceId,
                 provenance: startProvenance,
+                allowWrap: seamless,
               );
             }
           }

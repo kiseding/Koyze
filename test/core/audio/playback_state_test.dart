@@ -1916,6 +1916,59 @@ void main() {
     expect(handler.queueItems[1].extras?['artCacheFile'], preloadArt.toFilePath());
     expect(handler.queueItems[1].artUri, preloadArt);
   });
+
+  test('queue tail resolve failure wraps instead of stopping playback', () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async =>
+        id == 'B' ? null : 'file:///tmp/$id.mp3';
+    await handler.setPlaylist(const [
+      MediaItem(id: 'A', title: 'A'),
+      MediaItem(id: 'B', title: 'B'),
+    ]);
+    expect(handler.mediaItem.value?.id, 'A');
+    expect(player.playing, isTrue);
+
+    // A 播完自动进 B，B 解析失败且它已经是最后一首：过去这里会直接停在
+    // 原地，后台播放就此结束。现在应回绕到本轮还没失败过的 A 继续播。
+    player.emit(processingState: ProcessingState.completed);
+    await pumpEventQueue();
+    await pumpEventQueue();
+    await pumpEventQueue();
+
+    expect(handler.mediaItem.value?.id, 'A');
+    expect(handler.currentQueueIndex, 0);
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(player.playing, isTrue);
+    expect(handler.debugConsecutiveAutomaticTrackFailures, 1);
+    expect(handler.debugAutomaticFailureSkippingHalted, isFalse);
+  });
+
+  test('stops only after every track in the queue failed', () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    final resolved = <String>[];
+    handler.urlResolver = (id, [extras]) async {
+      resolved.add(id);
+      return null;
+    };
+    await handler.setPlaylist(const [
+      MediaItem(id: 'A', title: 'A'),
+      MediaItem(id: 'B', title: 'B'),
+    ]);
+    await pumpEventQueue();
+
+    // 两首都试过仍无可播内容：这才允许真正停下。
+    expect(resolved, ['A', 'B']);
+    expect(handler.debugConsecutiveAutomaticTrackFailures, 2);
+    expect(handler.debugAutomaticFailureSkippingHalted, isFalse);
+    expect(handler.playbackState.value.playing, isFalse);
+    expect(player.playing, isFalse);
+  });
 }
 
 class _PlaybackStateAudioPlayer extends AudioPlayer {
