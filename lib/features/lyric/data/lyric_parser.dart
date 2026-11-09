@@ -69,27 +69,72 @@ class LyricParser {
     while (i < adjusted.length) {
       final current = adjusted[i];
       String? translation;
+      String? roman;
 
-      if (i + 1 < adjusted.length &&
-          adjusted[i + 1].time == current.time &&
-          adjusted[i + 1].text != current.text) {
-        translation = adjusted[i + 1].text;
-        i += 2;
-      } else {
-        i++;
+      // 同一时间戳连写的多行是「原文 / 翻译 / 音译」。日语歌词尤其常见：
+      // 三行的行首时间戳完全一样，逐行读会变成三句同时高亮的重复歌词。
+      // 第三行只有确实是拉丁转写（原文里有假名或谚文）才归为音译，
+      // 否则保持原样另起一行，免得把第二种翻译错标成罗马音。
+      var cursor = i + 1;
+      while (cursor < adjusted.length &&
+          adjusted[cursor].time == current.time &&
+          adjusted[cursor].text != current.text) {
+        if (translation == null) {
+          translation = adjusted[cursor].text;
+        } else if (roman == null &&
+            _looksLikeRomanization(adjusted[cursor].text, current.text)) {
+          roman = adjusted[cursor].text;
+        } else {
+          break;
+        }
+        cursor++;
       }
+      i = cursor;
 
       lines.add(
         LyricLine(
           time: current.time,
           text: current.text,
           translation: translation,
+          roman: roman,
           words: current.words,
         ),
       );
     }
 
     return Lyrics(raw: lrc, lines: lines);
+  }
+
+  /// 判断一行是不是原文的拉丁转写。
+  ///
+  /// 只看两点：原文里得有假名或谚文（中文歌的「罗马音」通常是英文翻译，
+  /// 标错了反而会在音译开关打开时多出一行噪音），候选行得是纯 ASCII 字母。
+  static bool _looksLikeRomanization(String candidate, String source) {
+    if (!_hasKanaOrHangul(source)) return false;
+    if (_hasKanaOrHangul(candidate)) return false;
+    var letters = 0;
+    for (final rune in candidate.runes) {
+      final isAsciiLetter =
+          (rune >= 0x41 && rune <= 0x5A) || (rune >= 0x61 && rune <= 0x7A);
+      if (isAsciiLetter) {
+        letters++;
+        continue;
+      }
+      // 空格、撇号、连字符是转写里常见的分隔符。
+      if (rune == 0x20 || rune == 0x27 || rune == 0x2D) continue;
+      return false;
+    }
+    return letters >= 2;
+  }
+
+  static bool _hasKanaOrHangul(String text) {
+    for (final rune in text.runes) {
+      final isKana = rune >= 0x3040 && rune <= 0x30FF;
+      final isHangul = rune >= 0xAC00 && rune <= 0xD7AF;
+      final isHangulJamo = rune >= 0x1100 && rune <= 0x11FF;
+      if (isKana || isHangul || isHangulJamo) return true;
+    }
+    return false;
   }
 
   static void _clampKuwoWordsToNextLine(List<_ParsedLine> lines) {

@@ -217,6 +217,43 @@ void main() {
     expect(lyrics.lines[1].words![1].text, 'G');
   });
 
+  group('同时间戳多行', () {
+    test('三行连写时第三行归为音译，不再多出一句重复歌词', () {
+      final lyrics = LyricParser.parseLrc('''
+[00:15.03]悴んだ心
+[00:15.03]憔悴的心
+[00:15.03]shi zu n da ko ko ro
+''');
+
+      expect(lyrics.lines, hasLength(1));
+      expect(lyrics.lines.single.text, '悴んだ心');
+      expect(lyrics.lines.single.translation, '憔悴的心');
+      expect(lyrics.lines.single.roman, 'shi zu n da ko ko ro');
+    });
+
+    test('原文是中文时，第三行不被当成音译', () {
+      final lyrics = LyricParser.parseLrc('''
+[00:15.03]晴天
+[00:15.03]Sunny day
+[00:15.03]Another translation
+''');
+
+      expect(lyrics.lines.first.translation, 'Sunny day');
+      expect(lyrics.lines.first.roman, isNull);
+    });
+
+    test('两行连写仍然只挂翻译', () {
+      final lyrics = LyricParser.parseLrc('''
+[00:15.03]沈むように
+[00:15.03]像要沉下去一般
+''');
+
+      expect(lyrics.lines, hasLength(1));
+      expect(lyrics.lines.single.translation, '像要沉下去一般');
+      expect(lyrics.lines.single.roman, isNull);
+    });
+  });
+
   group('attachParallelText', () {
     test('按时间戳挂上翻译与音译', () {
       final main = LyricParser.parseLrc('''
