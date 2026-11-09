@@ -452,6 +452,13 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// 单曲 URL 解析总超时：音源不可用时不会无限等待，超时视为解析失败。
   static const _defaultResolveTimeout = Duration(seconds: 25);
+
+  /// 缓存整首文件的兜底预算。
+  ///
+  /// 「音源多久给出地址」和「把整首文件下完」是两个量级：前者要快，后者
+  /// 取决于网速和文件大小（慢网下一张 50MB 的 flac 要几分钟）。真正的中断
+  /// 由 Dio 的 receiveTimeout（5 分钟无数据）负责，这里只是最后一道兜底。
+  static const _cacheDownloadTimeout = Duration(minutes: 5);
   static const _completionRecoveryDelay = Duration(seconds: 2);
   static const _maximumCompletionRecoveryAttempts = 3;
   static const _maximumConsecutiveFailedTracks = 5;
@@ -3073,33 +3080,68 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     required Map<String, dynamic> extras,
     required int generation,
     required int occurrenceId,
-  }) async {
+  }) {
     final resolver = urlResolver;
-    if (resolver == null) return null;
+    if (resolver == null) return Future<String?>.value();
     final cancelToken = CancelToken();
     extras['_playbackResolutionCancelToken'] = cancelToken;
     _resolveTimedOutOccurrenceId = null;
-    final resolution = resolver(mediaId, extras).then<String?>((url) => url);
-    return resolution.timeout(
-      _resolveTimeout,
-      onTimeout: () {
-        _resolveTimedOutOccurrenceId = occurrenceId;
-        if (!cancelToken.isCancelled) {
-          cancelToken.cancel('Playback URL resolution timed out');
-        }
-        final request = _foregroundResolutionRequest;
-        if (!_isStale(generation) &&
-            request != null &&
-            request.generation == generation &&
-            request.occurrenceId == occurrenceId &&
-            request.mediaId == mediaId) {
-          _foregroundResolutionRequest = null;
-          _cancelForegroundCacheWork();
-        }
-        debugPrint('[AudioHandler] URL resolution timed out id=$mediaId');
-        return null;
-      },
-    );
+
+    final completer = Completer<String?>();
+    Timer? watchdog;
+
+    void finish(String? url) {
+      watchdog?.cancel();
+      watchdog = null;
+      if (!completer.isCompleted) completer.complete(url);
+    }
+
+    void onTimeout() {
+      _resolveTimedOutOccurrenceId = occurrenceId;
+      if (!cancelToken.isCancelled) {
+        cancelToken.cancel('Playback URL resolution timed out');
+      }
+      final request = _foregroundResolutionRequest;
+      if (!_isStale(generation) &&
+          request != null &&
+          request.generation == generation &&
+          request.occurrenceId == occurrenceId &&
+          request.mediaId == mediaId) {
+        _foregroundResolutionRequest = null;
+        _cancelForegroundCacheWork();
+      }
+      debugPrint('[AudioHandler] URL resolution timed out id=$mediaId');
+      finish(null);
+    }
+
+    void arm(Duration budget) {
+      watchdog?.cancel();
+      watchdog = Timer(budget, onTimeout);
+    }
+
+    // 音源给地址和把整首文件缓存下来是两件事：前者要快，后者取决于网速和
+    // 文件大小。缓存一开始就换成更长的预算，否则慢网下「正在下载」会被当成
+    // 「解析失败」直接跳过。
+    extras['_playbackCacheDownloadStarted'] = () {
+      arm(_cacheDownloadTimeout);
+    };
+    arm(_resolveTimeout);
+
+    resolver(mediaId, extras)
+        .then<String?>((url) {
+          finish(url);
+          return url;
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          watchdog?.cancel();
+          watchdog = null;
+          if (!completer.isCompleted) {
+            completer.completeError(error, stackTrace);
+          }
+          return null;
+        });
+
+    return completer.future;
   }
 
   Future<void> _loadQueueItemImpl(

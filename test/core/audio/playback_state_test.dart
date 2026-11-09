@@ -1983,6 +1983,31 @@ void main() {
     expect(handler.playbackState.value.playing, isTrue);
   });
 
+  test('cache download phase escapes the resolve timeout', () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(
+      player: player,
+      resolveTimeout: const Duration(milliseconds: 120),
+    );
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async {
+      // 解析器拿到地址后进入「缓存整首文件」阶段。这一步跟网速相关，
+      // 不能继续套用给地址用的 120ms 预算。
+      final notify = extras?['_playbackCacheDownloadStarted'];
+      if (notify is void Function()) notify();
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      return 'file:///tmp/$id.mp3';
+    };
+
+    await handler.setPlaylist(const [MediaItem(id: 'A', title: 'A')]);
+
+    expect(handler.mediaItem.value?.id, 'A');
+    expect(player.playing, isTrue);
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(handler.debugConsecutiveAutomaticTrackFailures, 0);
+  });
+
   test('shuffle never re-picks a failed track nor spins on it', () async {
     final player = _PlaybackStateAudioPlayer()
       ..sourceInstallProcessingState = ProcessingState.ready;

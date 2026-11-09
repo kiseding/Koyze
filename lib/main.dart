@@ -664,6 +664,13 @@ Future<void> _bootstrapUnsafe(
                 cancelToken: resolutionCancelToken is CancelToken
                     ? resolutionCancelToken
                     : null,
+                // 缓存下载阶段单独计时：整首落盘可能要几十秒到几分钟，
+                // 不能和「音源多久给出地址」共用一个预算。
+                onCacheDownloadStarted: () {
+                  final notify =
+                      rawExtras['_playbackCacheDownloadStarted'];
+                  if (notify is void Function()) notify();
+                },
               );
               if (resolution == null) {
                 debugPrint('[urlResolver] 源未返回可播地址(q=$requested)');

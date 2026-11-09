@@ -369,6 +369,7 @@ class PlaybackUrlResolver<T> {
     int? generation,
     bool exclusive = false,
     CancelToken? cancelToken,
+    void Function()? onCacheDownloadStarted,
   }) async {
     final gen = generation ?? beginGeneration(cancelPrevious: exclusive);
     if (!_generationKeys.containsKey(gen) && generation != null) {
@@ -398,6 +399,7 @@ class PlaybackUrlResolver<T> {
         cancelled: cancelled,
         loader: resolvePlayableUrl,
         cancelableLoader: resolvePlayableUrlWithCancel,
+        onCacheDownloadStarted: onCacheDownloadStarted,
       );
       if (primary != null) return primary;
 
@@ -420,6 +422,7 @@ class PlaybackUrlResolver<T> {
           cancelled: cancelled,
           loader: fallbackLoader,
           cancelableLoader: cancelableFallbackLoader,
+          onCacheDownloadStarted: onCacheDownloadStarted,
         );
         if (fallback != null) return fallback;
       }
@@ -439,6 +442,7 @@ class PlaybackUrlResolver<T> {
     required bool Function() cancelled,
     required PlaybackUrlLoader<T> loader,
     required PlaybackCancelableUrlLoader<T>? cancelableLoader,
+    void Function()? onCacheDownloadStarted,
   }) async {
     final songId = songIdFor(music);
     for (final candidateQuality in _qualityCandidates(preferredQuality)) {
@@ -467,6 +471,7 @@ class PlaybackUrlResolver<T> {
         fallbackSongId: songId,
         generation: generation,
         cancelled: cancelled,
+        onCacheDownloadStarted: onCacheDownloadStarted,
       );
       if (resolution != null) return resolution;
     }
@@ -484,6 +489,7 @@ class PlaybackUrlResolver<T> {
     required bool Function() cancelled,
     required PlaybackPlatformUrlLoader<T>? loader,
     required PlaybackCancelablePlatformUrlLoader<T>? cancelableLoader,
+    void Function()? onCacheDownloadStarted,
   }) async {
     final songId = songIdFor(music);
     for (final candidateQuality in _qualityCandidates(preferredQuality)) {
@@ -517,6 +523,7 @@ class PlaybackUrlResolver<T> {
         fallbackSongId: songId,
         generation: generation,
         cancelled: cancelled,
+        onCacheDownloadStarted: onCacheDownloadStarted,
       );
       if (resolution != null) return resolution;
     }
@@ -530,6 +537,7 @@ class PlaybackUrlResolver<T> {
     required String fallbackSongId,
     required int generation,
     required bool Function() cancelled,
+    void Function()? onCacheDownloadStarted,
   }) async {
     final qualityKey = result.actualQuality.isNotEmpty
         ? result.actualQuality
@@ -550,6 +558,9 @@ class PlaybackUrlResolver<T> {
 
     PlaybackCacheLease? lease;
     try {
+      // 从这一刻起是「把整首文件落盘」，耗时与网速直接相关，跟前面拿地址
+      // 完全不是一个量级。调用方据此切换超时预算。
+      onCacheDownloadStarted?.call();
       final acquire = result.fromCustomSource
           ? acquireCustomOrDownload ?? acquireOrDownload
           : acquireOrDownload;
