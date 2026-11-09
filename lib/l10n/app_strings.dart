@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../features/settings/domain/terms_section.dart';
 import '../features/settings/presentation/settings_provider.dart';
 import 'generated/app_localizations.dart';
 
@@ -132,12 +133,11 @@ class S {
   String get songInfoMemoryEmpty => _l10n.songInfoMemoryEmpty;
   String get songInfoEmpty => _l10n.songInfoEmpty;
   String songInfoCommentsTotal(int n) => _l10n.songInfoCommentsTotal(n);
-  String get onboardingTermsEyebrow => _l10n.onboardingTermsEyebrow;
-  String get onboardingTermsTitle => _l10n.onboardingTermsTitle;
-  String get onboardingTermsIntro => _l10n.onboardingTermsIntro;
-  String get onboardingTermsConsent => _l10n.onboardingTermsConsent;
-  String get onboardingContinue => _l10n.onboardingContinue;
-  String get onboardingTermsFootnote => _l10n.onboardingTermsFootnote;
+  String get termsTitle => _l10n.termsTitle;
+  String get termsEntrySubtitle => _l10n.termsEntrySubtitle;
+  String get termsUpdated => _l10n.termsUpdated;
+  String get termsPreamble => _l10n.termsPreamble;
+  String get termsFooter => _l10n.termsFooter;
   String get checkUpdates => _l10n.checkUpdates;
   String checkUpdatesSubtitle(String v) => _l10n.checkUpdatesSubtitle(v);
   String updateAvailable(String v) => _l10n.updateAvailable(v);
@@ -151,12 +151,16 @@ class S {
   String get flowingBackdrop => _l10n.flowingBackdrop;
   String get flowingBackdropSubtitle => _l10n.flowingBackdropSubtitle;
 
-  /// 条款要点。ARB 表达不了列表，逐条拼在门面层。
-  List<String> get onboardingTermsPoints => [
-    _l10n.onboardingTermsPoint1,
-    _l10n.onboardingTermsPoint2,
-    _l10n.onboardingTermsPoint3,
-    _l10n.onboardingTermsPoint4,
+  /// 条款正文分节。ARB 表达不了列表结构，逐节拼在门面层。
+  List<TermsSection> get termsSections => [
+    TermsSection(_l10n.termsSection1Title, _l10n.termsSection1Body),
+    TermsSection(_l10n.termsSection2Title, _l10n.termsSection2Body),
+    TermsSection(_l10n.termsSection3Title, _l10n.termsSection3Body),
+    TermsSection(_l10n.termsSection4Title, _l10n.termsSection4Body),
+    TermsSection(_l10n.termsSection5Title, _l10n.termsSection5Body),
+    TermsSection(_l10n.termsSection6Title, _l10n.termsSection6Body),
+    TermsSection(_l10n.termsSection7Title, _l10n.termsSection7Body),
+    TermsSection(_l10n.termsSection8Title, _l10n.termsSection8Body),
   ];
   String get general => _l10n.general;
   String get downloads => _l10n.downloads;

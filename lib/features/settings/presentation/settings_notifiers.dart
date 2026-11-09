@@ -1224,33 +1224,6 @@ class LyricThemeNotifier extends _PersistedSettingNotifier<int> {
   }
 }
 
-/// 首次启动是否已经走过引导。
-///
-/// 只记「用户是否按过同意」这一件事；引导要停在哪个步骤**不存进度**，而是
-/// 每次由真实状态推导（是否同意、是否配了音源）。这样中途被杀进程、或者事后
-/// 把音源全关了再进来，落点都不会错位。
-class OnboardingAcceptedNotifier extends _PersistedSettingNotifier<bool> {
-  OnboardingAcceptedNotifier({StorageLoader? storage})
-    : super(false, storage: storage) {
-    startLoad();
-  }
-
-  static const String storageKey = 'onboarding_accepted_v1';
-
-  @override
-  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
-
-  void setAccepted(bool accepted) {
-    setting.applyCommitted(accepted);
-    try {
-      if (state != setting.value) state = setting.value;
-    } catch (_) {}
-    unawaited(
-      persist(accepted, (storage) => storage.setBool(storageKey, accepted)),
-    );
-  }
-}
-
 /// 播放页背景是否缓慢漂移（流光）。
 class FlowingBackdropNotifier extends _PersistedSettingNotifier<bool> {
   FlowingBackdropNotifier({StorageLoader? storage})

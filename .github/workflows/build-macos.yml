@@ -9,10 +9,10 @@ on:
   workflow_dispatch:
     inputs:
       runner:
-        description: 'Runner image label. arm64: macos-15 / macos-14 / macos-26; Intel x64: macos-15-intel'
+        description: 'Runner image label. Intel x64（默认）: macos-15-intel；arm64: macos-15 / macos-26'
         required: false
         type: string
-        default: macos-15
+        default: macos-15-intel
 
 permissions:
   contents: write
@@ -23,7 +23,11 @@ concurrency:
 
 jobs:
   build-macos:
-    runs-on: ${{ inputs.runner || 'macos-15' }}
+    # 跑在 x64 池：arm64 池（macos-15 / macos-26）在 2026-11 长时间没有容量，
+    # 排队 15 分钟就被系统判失败。产物是 universal 包（Release 未开
+    # ONLY_ACTIVE_ARCH，ARCHS_STANDARD 含 x86_64 与 arm64），换机队不影响
+    # 二进制内容；arm64 池恢复后可把默认值改回 macos-15。
+    runs-on: ${{ inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 60
 
     steps:

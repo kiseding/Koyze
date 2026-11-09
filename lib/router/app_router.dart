@@ -13,6 +13,7 @@ import '../features/search/presentation/search_screen.dart';
 import '../features/playlist/presentation/playlist_screen.dart';
 import '../features/playlist/presentation/playlist_detail_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
+import '../features/settings/presentation/terms_screen.dart';
 import '../features/download/presentation/download_screen.dart';
 import '../features/custom_source/presentation/custom_source_screen.dart';
 import '../features/ai/presentation/ai_assistant_screen.dart';
@@ -518,6 +519,16 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const StatsScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+      ),
+    ),
+    GoRoute(
+      path: '/terms',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const TermsScreen(),
         expandRect: consumeCardExpandRect(),
         expandSnapshot: consumeCardExpandSnapshot(),
       ),

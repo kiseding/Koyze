@@ -217,12 +217,6 @@ final lyricThemeProvider = NotifierProvider<LyricThemeNotifier, int>(
   LyricThemeNotifier.new,
 );
 
-/// 首启引导是否已完成（同意过免责声明）。
-final onboardingAcceptedProvider =
-    NotifierProvider<OnboardingAcceptedNotifier, bool>(
-      OnboardingAcceptedNotifier.new,
-    );
-
 /// 播放页背景缓慢漂移。
 final flowingBackdropProvider = NotifierProvider<FlowingBackdropNotifier, bool>(
   FlowingBackdropNotifier.new,

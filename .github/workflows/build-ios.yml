@@ -9,10 +9,10 @@ on:
   workflow_dispatch:
     inputs:
       runner:
-        description: 'Runner image label. arm64: macos-15 / macos-14 / macos-26; Intel x64: macos-15-intel'
+        description: 'Runner image label. Intel x64（默认）: macos-15-intel；arm64: macos-15 / macos-26'
         required: false
         type: string
-        default: macos-15
+        default: macos-15-intel
 
 permissions:
   contents: write
@@ -23,7 +23,9 @@ concurrency:
 
 jobs:
   build-ios:
-    runs-on: ${{ inputs.runner || 'macos-15' }}
+    # 原因同 build-macos.yml：arm64 池无容量时改走 x64 池。iOS 设备目标
+    # 恒为 arm64，构建主机的架构不影响产出的 IPA。
+    runs-on: ${{ inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 60
 
     steps:

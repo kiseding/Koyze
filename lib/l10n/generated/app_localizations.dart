@@ -5498,65 +5498,131 @@ abstract class AppLocalizations {
   /// **'{n} comments'**
   String songInfoCommentsTotal(Object n);
 
-  /// No description provided for @onboardingTermsEyebrow.
+  /// No description provided for @termsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Before you start'**
-  String get onboardingTermsEyebrow;
+  /// **'Terms of Use and Disclaimer'**
+  String get termsTitle;
 
-  /// No description provided for @onboardingTermsTitle.
+  /// No description provided for @termsEntrySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Terms & Disclaimer'**
-  String get onboardingTermsTitle;
+  /// **'What the app is, where content comes from, and the limits of liability'**
+  String get termsEntrySubtitle;
 
-  /// No description provided for @onboardingTermsIntro.
+  /// No description provided for @termsUpdated.
   ///
   /// In en, this message translates to:
-  /// **'Koyze is a player, not a music service. Before continuing, please make sure you understand the four points below.'**
-  String get onboardingTermsIntro;
+  /// **'Last updated: November 2026'**
+  String get termsUpdated;
 
-  /// No description provided for @onboardingTermsPoint1.
+  /// No description provided for @termsPreamble.
   ///
   /// In en, this message translates to:
-  /// **'Koyze is a player, not a music service. It does not host, upload or distribute any audio; every track is resolved from sources you configure yourself.'**
-  String get onboardingTermsPoint1;
+  /// **'These Terms of Use and Disclaimer (the “Terms”) apply to the Koyze desktop and mobile clients (the “App”). Please read them in full before use. By downloading, installing, launching or otherwise using the App, you confirm that you have read, understood and accepted the Terms in their entirety. If you do not agree with any part of them, please stop using the App and uninstall it.'**
+  String get termsPreamble;
 
-  /// No description provided for @onboardingTermsPoint2.
+  /// No description provided for @termsSection1Title.
   ///
   /// In en, this message translates to:
-  /// **'Audio, lyrics and artwork belong to their respective platforms and rights holders. Please make sure your use complies with local law and each platform’s terms.'**
-  String get onboardingTermsPoint2;
+  /// **'1. Nature of the App'**
+  String get termsSection1Title;
 
-  /// No description provided for @onboardingTermsPoint3.
+  /// No description provided for @termsSection1Body.
   ///
   /// In en, this message translates to:
-  /// **'Custom sources are third-party scripts. They run with the app’s permissions, and what they do is decided by whoever wrote them.'**
-  String get onboardingTermsPoint3;
+  /// **'The App is a music player built around local playback. Its functions are limited to reading, organising and playing audio resources that you provide yourself, and to supporting that playback through its interface, lyrics and controls. The App is not a music service: it does not operate a catalogue, does not offer search, recommendations or streaming for the purpose of supplying content, and does not obtain licences on any user’s behalf.\n\nAll playback capability in the App presupposes audio resources that you have lawfully obtained. Using the App neither creates nor replaces any licensing relationship between you and any content provider.'**
+  String get termsSection1Body;
 
-  /// No description provided for @onboardingTermsPoint4.
+  /// No description provided for @termsSection2Title.
   ///
   /// In en, this message translates to:
-  /// **'Playback records, playlists and settings are stored on this device only, and are removed with the app.'**
-  String get onboardingTermsPoint4;
+  /// **'2. Sources of Content and Ownership of Rights'**
+  String get termsSection2Title;
 
-  /// No description provided for @onboardingTermsConsent.
+  /// No description provided for @termsSection2Body.
   ///
   /// In en, this message translates to:
-  /// **'I have read and agree to the terms above'**
-  String get onboardingTermsConsent;
+  /// **'The App bundles no audio content and does not break or circumvent any platform’s payment mechanism or technical protection measure. The tracks you play come from local files you add, media services you run or subscribe to (for example a NAS or a Subsonic-compatible server), and third-party source scripts you configure.\n\nCopyright and related rights in audio, lyrics, artwork, artist information and other material supplied with a track belong to their respective holders, and the App claims no rights in that material. You are responsible for confirming that your access to and use of it complies with the law of your jurisdiction, the terms of the platforms involved and the scope of the rights holders’ authorisations.'**
+  String get termsSection2Body;
 
-  /// No description provided for @onboardingContinue.
+  /// No description provided for @termsSection3Title.
   ///
   /// In en, this message translates to:
-  /// **'Agree and continue'**
-  String get onboardingContinue;
+  /// **'3. Third-Party Source Scripts'**
+  String get termsSection3Title;
 
-  /// No description provided for @onboardingTermsFootnote.
+  /// No description provided for @termsSection3Body.
   ///
   /// In en, this message translates to:
-  /// **'You cannot use the app without accepting these terms.'**
-  String get onboardingTermsFootnote;
+  /// **'The App exposes an interface for loading source scripts, through which you may connect third-party services of your own choosing. Such scripts are written and maintained by third-party authors; their code, their data sources and their behaviour are not controlled by the App and do not form part of it.\n\nScripts run inside the App’s process and therefore have technical access to data held by the App. You should satisfy yourself as to the origin and authorship of a script before loading it. Consequences arising from loading, using or relying on a third-party script fall to you and to the script’s author.'**
+  String get termsSection3Body;
+
+  /// No description provided for @termsSection4Title.
+  ///
+  /// In en, this message translates to:
+  /// **'4. Acceptable Use'**
+  String get termsSection4Title;
+
+  /// No description provided for @termsSection4Body.
+  ///
+  /// In en, this message translates to:
+  /// **'You must not use the App to: infringe copyright, related rights or other lawful interests of others; circumvent technical protection measures or payment mechanisms; produce, copy or disseminate unlawful or infringing material; interfere with or disrupt the App or the services it connects to; or pursue any purpose that violates the law of your jurisdiction.\n\nYou are responsible for your actions within the App and for their consequences.'**
+  String get termsSection4Body;
+
+  /// No description provided for @termsSection5Title.
+  ///
+  /// In en, this message translates to:
+  /// **'5. Data and Privacy'**
+  String get termsSection5Title;
+
+  /// No description provided for @termsSection5Body.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback history, playlists, settings and caches are stored on your device by default and are deleted when the App is uninstalled. The App does not collect personal information about what you play, and does not upload it to servers controlled by the developer.\n\nWhere you choose to enable cloud sync or sign in to a related service, the data necessary for that sync is uploaded to the corresponding service, and is used only to the extent the sync feature requires. The App’s backup and export functions let you keep your own copy of that data.'**
+  String get termsSection5Body;
+
+  /// No description provided for @termsSection6Title.
+  ///
+  /// In en, this message translates to:
+  /// **'6. Disclaimer'**
+  String get termsSection6Title;
+
+  /// No description provided for @termsSection6Body.
+  ///
+  /// In en, this message translates to:
+  /// **'The App is provided “as is”. The developer makes no express or implied warranty as to its fitness, continuity, accuracy or reliability, including any warranty of fitness for a particular purpose, of uninterrupted operation or of freedom from error.\n\nTo the extent permitted by law, the developer is not liable for: indirect, incidental, special or punitive loss arising from use of or inability to use the App; interruptions, errors or data loss caused by third-party sources, third-party services or network conditions; any liability arising from your breach of the law or of third-party terms; or data damage caused by device failure, system changes or mistaken operation.\n\nThe App is open-source software. The developer is under no obligation to provide technical support, ongoing updates or defect fixes, but will maintain it as circumstances allow.'**
+  String get termsSection6Body;
+
+  /// No description provided for @termsSection7Title.
+  ///
+  /// In en, this message translates to:
+  /// **'7. Changes and Termination'**
+  String get termsSection7Title;
+
+  /// No description provided for @termsSection7Body.
+  ///
+  /// In en, this message translates to:
+  /// **'The developer may revise these Terms to reflect changes in functionality or requirements of law. Revised text will be published on this page and takes effect on the date of publication. Continued use of the App after a revision constitutes acceptance of it.\n\nYou may end the application of these Terms at any time by ceasing to use the App and uninstalling it.'**
+  String get termsSection7Body;
+
+  /// No description provided for @termsSection8Title.
+  ///
+  /// In en, this message translates to:
+  /// **'8. Miscellaneous'**
+  String get termsSection8Title;
+
+  /// No description provided for @termsSection8Body.
+  ///
+  /// In en, this message translates to:
+  /// **'These Terms constitute the entire agreement between you and the developer concerning the App, and supersede any prior oral or written statement on the same subject. If any provision is held invalid or unenforceable, the remaining provisions remain in effect.\n\nThese Terms are written in Simplified Chinese. Translations are provided for reference only; where a translation differs from the Chinese text, the Chinese text prevails.'**
+  String get termsSection8Body;
+
+  /// No description provided for @termsFooter.
+  ///
+  /// In en, this message translates to:
+  /// **'Questions about these Terms may be raised through the project repository’s issue tracker.'**
+  String get termsFooter;
 
   /// No description provided for @checkUpdates.
   ///
