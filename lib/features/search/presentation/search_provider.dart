@@ -15,6 +15,7 @@ import '../../nas/domain/nas_url.dart';
 import '../../nas/presentation/nas_provider.dart';
 import '../../source_check/presentation/source_check_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
+import '../domain/local_song_search.dart';
 import '../../../core/logging/app_log.dart';
 
 final musicSourceServiceProvider = Provider<MusicSourceService>((ref) {
@@ -334,8 +335,14 @@ final searchStateProvider = NotifierProvider<SearchNotifier, SearchState>(
   SearchNotifier.new,
 );
 
+/// 本地曲库的拼音索引，跨搜索复用。
+final localSongSearchCacheProvider = Provider<LocalSongSearchCache>(
+  (ref) => LocalSongSearchCache(),
+);
+
 SearchLoader _defaultSearchLoader(Ref ref) {
   final service = ref.watch(musicSourceServiceProvider);
+  final searchCache = ref.watch(localSongSearchCacheProvider);
   return (query, sourceId, page) async {
     if (sourceId == 'local' || sourceId == 'favorites') {
       final library = await ref.read(localMusicLibraryProvider.future);
@@ -343,12 +350,8 @@ SearchLoader _defaultSearchLoader(Ref ref) {
       final sourceSongs = sourceId == 'local'
           ? library.songs
           : await ref.read(playlistServiceProvider).getAllSongs('favorites');
-      final normalized = query.trim().toLowerCase();
-      final matches = sourceSongs.where((song) {
-        return song.name.toLowerCase().contains(normalized) ||
-            song.singer.toLowerCase().contains(normalized) ||
-            song.album.toLowerCase().contains(normalized);
-      }).toList();
+      final index = await searchCache.indexFor(sourceSongs);
+      final matches = [for (final hit in index.search(query)) hit.song];
       final start = (page - 1) * 20;
       if (start >= matches.length) return const [];
       return matches.skip(start).take(20).toList();
@@ -411,22 +414,15 @@ Future<List<MusicItem>> _searchConnectedNas(
   return results;
 }
 
-/// 本地补充结果：按标题、歌手或专辑模糊匹配。
+/// 本地补充结果：标题、歌手、专辑都参与匹配，支持拼音与首字母。
 LocalMatchLoader _loadLocalMusicMatches(Ref ref) {
+  final searchCache = ref.read(localSongSearchCacheProvider);
   return (String query, int limit) async {
     try {
       final library = await ref.read(localMusicLibraryProvider.future);
       await library.init();
-      final normalized = query.toLowerCase();
-      final matches = library.songs
-          .where((song) {
-            return song.name.toLowerCase().contains(normalized) ||
-                song.singer.toLowerCase().contains(normalized) ||
-                song.album.toLowerCase().contains(normalized);
-          })
-          .take(limit)
-          .toList();
-      return matches;
+      final index = await searchCache.indexFor(library.songs);
+      return [for (final hit in index.search(query, limit: limit)) hit.song];
     } catch (error) {
       return const [];
     }
