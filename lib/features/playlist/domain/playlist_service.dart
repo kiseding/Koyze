@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../core/text/pinyin_text.dart';
 import '../../player/domain/music_item.dart';
 import '../data/playlist_repository.dart';
 import 'playlist.dart';
@@ -498,10 +499,12 @@ class PlaylistService {
     return moved;
   }
 
+  // 名称与歌手按拼音排序：直接 compareTo 比的是 UTF-16 码值，中文歌名
+  // 在列表里的顺序等于随机，用户看不出这是「按名称」。
   Future<bool> sortSongsByName(String playlistId, {bool ascending = true}) {
     return _sortSongs(
       playlistId,
-      (a, b) => a.name.compareTo(b.name),
+      (a, b) => PinyinText.compare(a.name, b.name),
       ascending,
     );
   }
@@ -509,7 +512,7 @@ class PlaylistService {
   Future<bool> sortSongsByArtist(String playlistId, {bool ascending = true}) {
     return _sortSongs(
       playlistId,
-      (a, b) => a.singer.compareTo(b.singer),
+      (a, b) => PinyinText.compare(a.singer, b.singer),
       ascending,
     );
   }

@@ -1052,10 +1052,36 @@ void main() {
     },
   );
 
+  test('中文名称按拼音排序而不是 UTF-16 码值', () async {
+    final repository = MemoryPlaylistRepository(
+      systemSnapshot(
+        additional: [
+          playlist(
+            'custom',
+            songs: [
+              detailedSong('qingtian', name: '晴天'),
+              detailedSong('daoxiang', name: '稻香'),
+            ],
+          ),
+        ],
+      ),
+    );
+    final service = PlaylistService(repository: repository, clock: () => _now);
+    await service.init();
+
+    expect(await service.sortSongsByName('custom'), isTrue);
+    // 码值比较（晴 U+6674 早于 稻 U+7A3B）会给出「晴天、稻香」；
+    // 按拼音 daoxiang < qingtian，稻香在前。
+    expect(service.getPlaylist('custom')!.songs.map((song) => song.name), [
+      '稻香',
+      '晴天',
+    ]);
+    await service.dispose();
+  });
+
   test(
     'reorder validates both indices before adjusted equal-index no-op',
-    () async {
-      final repository = MemoryPlaylistRepository(
+    () async {      final repository = MemoryPlaylistRepository(
         systemSnapshot(
           additional: [
             playlist('custom', songs: [song('a'), song('b')]),
