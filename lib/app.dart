@@ -6,6 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:koyze/core/performance/low_memory.dart';
 import 'package:koyze/core/theme/app_theme.dart';
 import 'package:koyze/core/theme/cover_palette_provider.dart';
+import 'package:koyze/core/theme/glass_config.dart';
 import 'package:koyze/features/onboarding/presentation/first_run_gate.dart';
 
 import 'package:koyze/core/widgets/app_notification.dart';
@@ -87,6 +88,9 @@ class LxMusicApp extends ConsumerWidget {
     final accentColor = coverPalette?.accent ?? manualAccent;
     final language = ref.watch(appLanguageProvider);
     LowMemory.active = ref.watch(simplifyEffectsProvider);
+    // 界面材质的统一不透明度：玻璃面只剩透明度，这一档在根节点写进静态配置，
+    // 之后所有 GlassSurface / LiquidGlassSurface 取值时都会乘上它。
+    GlassEffectConfig.setSurfaceOpacity(ref.watch(glassOpacityProvider));
     ref.watch(playbackSessionRecorderProvider);
     ref.watch(playbackVolumeBindingProvider);
     ref.watch(playbackSpeedBindingProvider);

@@ -20,11 +20,27 @@ abstract final class GlassEffectConfig {
   static double _blurScale = 0.85;
   static bool _reduceEffects = false;
   static bool _disableAllGlassEffects = false;
+  static double _surfaceOpacity = 1;
+
+  /// 设置页暴露的「界面不透明度」下限。
+  ///
+  /// 再往下玻璃就只剩一条边，列表文字会直接压在下面的内容上；0.3 是还能
+  /// 认出"这里有一块面板"的最后一档。
+  static const double minSurfaceOpacity = 0.3;
 
   static void applyPerformanceMode({required bool reduceEffects}) {
     _reduceEffects = reduceEffects;
     _syncBlurScale();
   }
+
+  /// 全局材质不透明度倍率（0.3~1）。1 表示设计稿原样。
+  static void setSurfaceOpacity(double value) {
+    _surfaceOpacity = value.isFinite
+        ? value.clamp(minSurfaceOpacity, 1.0).toDouble()
+        : 1.0;
+  }
+
+  static double get surfaceOpacity => _surfaceOpacity;
 
   static void setDisableAllGlassEffects(bool disabled) {
     _disableAllGlassEffects = disabled;
@@ -84,18 +100,15 @@ abstract final class GlassEffectConfig {
   static const double _lightChromeOpacityNoBlur = 0.82;
 
   static double chromeOpacityFor(Brightness brightness, {bool blurred = false}) {
-    if (blurred) {
-      return effectiveOpacity(
-        brightness == Brightness.light
-            ? _lightChromeOpacityBase
-            : _chromeOpacityBase,
-      );
-    }
-    return effectiveOpacity(
-      brightness == Brightness.light
-          ? _lightChromeOpacityNoBlur
-          : _chromeOpacityNoBlur,
-    );
+    if (_disableAllGlassEffects) return 1.0;
+    final base = blurred
+        ? (brightness == Brightness.light
+              ? _lightChromeOpacityBase
+              : _chromeOpacityBase)
+        : (brightness == Brightness.light
+              ? _lightChromeOpacityNoBlur
+              : _chromeOpacityNoBlur);
+    return (base * _surfaceOpacity).clamp(0.0, 1.0);
   }
 
   /// 浅色下把底色往白里提亮，深色保持主题色本身。

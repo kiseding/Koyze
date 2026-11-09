@@ -46,6 +46,8 @@
   "playerBackdropSubtitle": "Cover blur and dimming",
   "playerBackdropBlur": "Background blur",
   "playerBackdropScrim": "Scrim opacity",
+  "glassOpacity": "Interface opacity",
+  "glassOpacitySubtitle": "Lower it to see more of what sits behind bars and cards",
   "playerBackdropPreviewEmpty": "Nothing playing",
   "resetToDefault": "Reset to default",
   "general": "General",

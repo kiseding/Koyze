@@ -156,6 +156,13 @@ final playerBackdropScrimProvider =
       PlayerBackdropScrimNotifier.new,
     );
 
+/// 界面材质的不透明度倍率（0.3~1，默认 1）。
+///
+/// 给除播放器以外的所有玻璃面统一缩放染色浓度——它们已经不做背景模糊，
+/// 只剩透明度这一档可调。
+final glassOpacityProvider =
+    NotifierProvider<GlassOpacityNotifier, double>(GlassOpacityNotifier.new);
+
 final cacheMaintenanceProvider = Provider<CacheMaintenanceService>((ref) {
   return CacheMaintenanceService();
 });

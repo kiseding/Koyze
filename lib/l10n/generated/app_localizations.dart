@@ -374,6 +374,18 @@ abstract class AppLocalizations {
   /// **'Scrim opacity'**
   String get playerBackdropScrim;
 
+  /// No description provided for @glassOpacity.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface opacity'**
+  String get glassOpacity;
+
+  /// No description provided for @glassOpacitySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lower it to see more of what sits behind bars and cards'**
+  String get glassOpacitySubtitle;
+
   /// No description provided for @playerBackdropPreviewEmpty.
   ///
   /// In en, this message translates to:

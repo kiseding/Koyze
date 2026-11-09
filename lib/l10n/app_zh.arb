@@ -46,6 +46,8 @@
   "playerBackdropSubtitle": "封面的虚化与压暗程度",
   "playerBackdropBlur": "背景模糊",
   "playerBackdropScrim": "遮罩透明度",
+  "glassOpacity": "界面不透明度",
+  "glassOpacitySubtitle": "调低更透；顶栏、卡片、菜单都跟着变",
   "playerBackdropPreviewEmpty": "没有正在播放的歌曲",
   "resetToDefault": "恢复默认",
   "general": "通用",

@@ -11,6 +11,7 @@ import '../../../core/io/bounded_input.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_themes.dart';
+import '../../../core/theme/glass_config.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/storage/storage_service.dart';
@@ -531,6 +532,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       SettingsSectionSpec(
         title: s.appearance,
+        // 面板浓度直接在列表里调：拖动时周围的分区卡片就是预览，不用另开
+        // 一个"看不见变化"的弹层。
+        leadIn: const [_GlassOpacitySlider()],
         entries: [
           SettingsEntry(
             title: s.themeColor,
@@ -1043,6 +1047,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         defaultSearchPlatformProvider,
         playerBackdropBlurProvider,
         playerBackdropScrimProvider,
+        glassOpacityProvider,
         equalizerProvider,
         localMusicLibraryProvider,
       ]) {
@@ -1431,8 +1436,82 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
   }
 }
 
-class _SettingRow extends StatelessWidget {
-  final String name;
+/// 「界面不透明度」滑杆。
+///
+/// 除全屏播放器外，界面上的玻璃面都只剩透明度（不再模糊），这一档统一缩放
+/// 它们的染色浓度：拖动时设置页自己的分区卡片就是预览，所以不需要单独的面板。
+class _GlassOpacitySlider extends ConsumerWidget {
+  const _GlassOpacitySlider();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    final value = ref.watch(glassOpacityProvider);
+    final percent = '${(value * 100).round()}%';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s.glassOpacity,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.onScaffold(context),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      s.glassOpacitySubtitle,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.35,
+                        color: AppColors.secondaryText(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                percent,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: AppColors.secondaryText(context),
+                ),
+              ),
+            ],
+          ),
+          Slider(
+            value: value,
+            min: GlassEffectConfig.minSurfaceOpacity,
+            max: 1,
+            // 5% 一档：再细就找不到"刚好看得清"的位置了。
+            divisions: 14,
+            label: percent,
+            onChanged: (next) {
+              // 立刻写进静态配置，同一帧里周围的面板就跟着变。
+              GlassEffectConfig.setSurfaceOpacity(next);
+              ref.read(glassOpacityProvider.notifier).setOpacity(next);
+            },
+            onChangeEnd: (_) =>
+                ref.read(glassOpacityProvider.notifier).flush(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingRow extends StatelessWidget {  final String name;
   final String value;
 
   const _SettingRow({required this.name, required this.value});

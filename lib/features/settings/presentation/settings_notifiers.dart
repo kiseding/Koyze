@@ -9,6 +9,7 @@ import '../../../core/performance/low_memory.dart';
 import '../../../core/storage/persisted_setting.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/theme/app_themes.dart';
+import '../../../core/theme/glass_config.dart';
 import '../../nas/domain/nas_url.dart';
 import '../../player/domain/player_backdrop.dart';
 import 'settings_provider.dart' show AudioQualityOption, audioQualityToken;
@@ -453,6 +454,38 @@ class PlayerBackdropScrimNotifier extends _SliderSettingNotifier {
   void setScrim(double value) => applyLive(value);
 
   Future<void> commitScrim(double value) => resetTo(value);
+}
+
+/// 界面材质的不透明度倍率（0.3~1，默认 1）。
+///
+/// 除了全屏播放器，界面上所有玻璃面（顶栏、卡片、菜单、胶囊）都只剩透明度，
+/// 这个值统一缩放它们的染色浓度。播放器那层模糊背景不受影响。
+class GlassOpacityNotifier extends _SliderSettingNotifier {
+  GlassOpacityNotifier({StorageLoader? storage})
+    : super(1, storage: storage);
+
+  static const String storageKey = 'glass_surface_opacity';
+
+  @override
+  double normalize(double value) => value.isFinite
+      ? value
+            .clamp(GlassEffectConfig.minSurfaceOpacity, 1.0)
+            .toDouble()
+      : 1;
+
+  @override
+  double? readFrom(StorageService storage) {
+    final value = storage.getDouble(storageKey);
+    return value == null ? null : normalize(value);
+  }
+
+  @override
+  Future<bool> writeValue(StorageService storage, double value) =>
+      storage.setDouble(storageKey, value);
+
+  void setOpacity(double value) => applyLive(value);
+
+  Future<void> commitOpacity(double value) => resetTo(value);
 }
 
 class DefaultSearchPlatformNotifier extends _PersistedSettingNotifier<String> {

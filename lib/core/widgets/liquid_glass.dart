@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import '../theme/effect_policy.dart';
+import '../theme/glass_config.dart';
 import 'glass_backdrop.dart';
 
 /// 液态玻璃：真正透出背后内容的玻璃面。
@@ -68,12 +69,13 @@ class LiquidGlassSurface extends StatelessWidget {
     final isDark = AppColors.isDark(context);
     final base = tint ?? AppGlass.tintBase(context);
     // 有模糊垫底时染色可以很淡（0.22 / 0.46）；只剩透明度时同一档会让字
-    // 糊在背景里，所以浓一档。
+    // 糊在背景里，所以浓一档。设置里的「界面不透明度」在这里统一缩放。
     final alpha =
         (blurBehind
             ? (isDark ? 0.22 : 0.46)
             : (isDark ? 0.58 : 0.74)) *
-        opacity;
+        opacity *
+        GlassEffectConfig.surfaceOpacity;
     final edge =
         borderColor ??
         (isDark

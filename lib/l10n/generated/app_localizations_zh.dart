@@ -147,6 +147,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerBackdropScrim => '遮罩透明度';
 
   @override
+  String get glassOpacity => '界面不透明度';
+
+  @override
+  String get glassOpacitySubtitle => '调低更透；顶栏、卡片、菜单都跟着变';
+
+  @override
   String get playerBackdropPreviewEmpty => '没有正在播放的歌曲';
 
   @override

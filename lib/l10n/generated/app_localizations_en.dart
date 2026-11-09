@@ -156,6 +156,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerBackdropScrim => 'Scrim opacity';
 
   @override
+  String get glassOpacity => 'Interface opacity';
+
+  @override
+  String get glassOpacitySubtitle =>
+      'Lower it to see more of what sits behind bars and cards';
+
+  @override
   String get playerBackdropPreviewEmpty => 'Nothing playing';
 
   @override
