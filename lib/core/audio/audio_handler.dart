@@ -453,12 +453,14 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// 单曲 URL 解析总超时：音源不可用时不会无限等待，超时视为解析失败。
   static const _defaultResolveTimeout = Duration(seconds: 25);
 
-  /// 缓存整首文件的兜底预算。
+  /// 缓存整首文件的兜底预算，从「开始缓存」那一刻起算。
   ///
   /// 「音源多久给出地址」和「把整首文件下完」是两个量级：前者要快，后者
-  /// 取决于网速和文件大小（慢网下一张 50MB 的 flac 要几分钟）。真正的中断
-  /// 由 Dio 的 receiveTimeout（5 分钟无数据）负责，这里只是最后一道兜底。
-  static const _cacheDownloadTimeout = Duration(minutes: 5);
+  /// 取决于网速和文件大小。60s 是权衡后的上限——20MB 的文件在 350KB/s 以上
+  /// 都下得完；比这更慢的连接与其让用户盯着界面干等五分钟，不如按超时处理
+  /// （同一首会重试一次，不直接跳过）。真正「连接死了」的判断仍由传输层的
+  /// 无数据超时负责。
+  static const _cacheDownloadTimeout = Duration(minutes: 1);
   static const _completionRecoveryDelay = Duration(seconds: 2);
   static const _maximumCompletionRecoveryAttempts = 3;
   static const _maximumConsecutiveFailedTracks = 5;
@@ -1016,6 +1018,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @visibleForTesting
   bool get debugAutomaticFailureSkippingHalted =>
       _automaticFailureSkippingHalted;
+
+  /// 缓存阶段的兜底预算，单测用来钉住这个数值不被悄悄改长。
+  @visibleForTesting
+  static Duration get debugCacheDownloadTimeout => _cacheDownloadTimeout;
 
   @visibleForTesting
   void debugSchedulePreload() => _schedulePreload();

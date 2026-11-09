@@ -2008,6 +2008,16 @@ void main() {
     expect(handler.debugConsecutiveAutomaticTrackFailures, 0);
   });
 
+  test('cache download budget stays within a minute', () {
+    // 这个预算决定「弱网下最多干等多久」。它一度是 5 分钟：慢网确实需要
+    // 时间，但卡住时用户要盯着界面五分钟才等到跳过。钉在 60s，避免以后
+    // 为了迁就大文件又把它调回去。
+    expect(
+      LxAudioHandler.debugCacheDownloadTimeout,
+      const Duration(minutes: 1),
+    );
+  });
+
   test('shuffle never re-picks a failed track nor spins on it', () async {
     final player = _PlaybackStateAudioPlayer()
       ..sourceInstallProcessingState = ProcessingState.ready;
