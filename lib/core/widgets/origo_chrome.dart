@@ -195,19 +195,21 @@ class OrigoAmbientBackdrop extends StatelessWidget {
   }
 }
 
-/// Chrome backdrop: one full-width blur with the tint fading out downward.
+/// Chrome backdrop: a flat tint at whatever opacity the slider says.
 ///
 /// 早先按 6 条窄带做「模糊半径渐变」，想消掉糊边；但每条带都是在已经模糊过的
 /// 结果上再采样，叠加后并不是真正的渐变，只是一条条更糊的横条。改成单层
 /// [BackdropFilter] 后，边缘由染色层的淡出负责——那才是 iOS 标题栏的做法，
 /// 也少采样五次。
+///
+/// 现在连染色层也不再淡出：设置里选 80%，整条栏就画 80%。留着渐隐的话底边全
+/// 透明，平均下来只剩一半出头，看到的永远比滑杆上的数字淡。
 class GradientFrost extends StatelessWidget {
   const GradientFrost({
     super.key,
     required this.child,
     this.sigma = 16,
     this.base,
-    this.leadingAlpha,
   });
 
   final Widget child;
@@ -216,9 +218,6 @@ class GradientFrost extends StatelessWidget {
 
   /// Tint colour; defaults to the themed bar base.
   final Color? base;
-
-  /// Opacity at the top edge. Defaults to the dark/light bar value.
-  final double? leadingAlpha;
 
   @override
   Widget build(BuildContext context) {
@@ -231,52 +230,27 @@ class GradientFrost extends StatelessWidget {
 
   Widget _buildTint(BuildContext context) {
     final tint = base ?? AppGlass.tintBase(context, style: AppGlassStyle.bar);
-    final (defaultAlpha, _) = AppGlass.overlayAlphas(
-      context,
-      style: AppGlassStyle.bar,
-    );
-    // 简化特效时不能只留一层 18% 的染色：底下的列表文字会清晰地压在标题上，
-    // 读起来像标题栏没画完。退回接近不透明的底色，只在最后 15% 淡出。
+    // 简化特效时不能只留一层半透明染色：底下的列表文字会清晰地压在标题上，
+    // 读起来像标题栏没画完。退回接近不透明的底色。
     // 增强对比度、系统关掉动画同理——见 [prefersFlatSurfaces]。
     final reduce = prefersFlatSurfaces(context) || sigma <= 0;
-    // 滑杆拖到 100% 时不再保留顶栏底边那一道淡出：用户要的是实色，
-    // 留着渐隐等于还是能看见底下的列表。
-    final fullySolid = GlassEffectConfig.surfaceOpacity >= 1;
+    final alpha = reduce ? 1.0 : GlassEffectConfig.surfaceAlpha;
     final solidTint = reduce
         ? Color.alphaBlend(
             tint.withValues(alpha: 0.97),
             AppColors.scaffold(context),
           )
         : tint;
-    final alpha = reduce ? 1.0 : (leadingAlpha ?? defaultAlpha);
     final tintLayer = IgnorePointer(
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            stops: fullySolid
-                ? const [0, 1]
-                : (reduce ? const [0, 0.85, 1] : const [0, 0.58, 1]),
-            colors: fullySolid
-                ? [
-                    solidTint.withValues(alpha: 1),
-                    solidTint.withValues(alpha: 1),
-                  ]
-                : [
-                    solidTint.withValues(alpha: alpha),
-                    solidTint.withValues(alpha: alpha * (reduce ? 0.92 : 0.52)),
-                    solidTint.withValues(alpha: 0),
-                  ],
-          ),
-        ),
+        decoration: BoxDecoration(color: solidTint.withValues(alpha: alpha)),
       ),
     );
     return Stack(
       children: [
         // 早期这里是整条栏一层的 BackdropFilter（更早还按 6 条横带做「渐变
-        // 模糊」）。现在全 App 只有播放器保留背景模糊，标题栏只用透明度：
-        // 染色自上而下淡出，浓度提上来之后文字依旧压得住底下滚动的列表。
+        // 模糊」）。现在全 App 只有播放器保留背景模糊，标题栏只用一层平涂的
+        // 染色压住底下滚动的列表。
         Positioned.fill(child: tintLayer),
         child,
       ],

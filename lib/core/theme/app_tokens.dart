@@ -62,24 +62,14 @@ abstract final class AppGlass {
 
   /// 染色透明度。
   ///
-  /// [blurred] 表示这块玻璃背后真的有模糊（目前只有全屏播放器）：糊过的
-  /// 背景本身已经变平，0.30/0.60 的淡染色就够。没有模糊的界面只剩透明度，
-  /// 同一档会透出背后清晰的列表文字与封面细节，所以浓度提高到 0.66/0.82。
-  static (double, double) overlayAlphas(
-    BuildContext context, {
-    AppGlassStyle style = AppGlassStyle.regular,
-    bool emphasized = false,
-    bool blurred = false,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    final alpha =
-        GlassEffectConfig.chromeOpacityFor(
-          scheme.brightness,
-          blurred: blurred,
-        ) +
-        (emphasized ? 0.06 : 0);
-    final clamped = alpha.clamp(0.0, 1.0);
-    return (clamped, clamped);
+  /// 只有一档：设置里选的那个百分比（见 `GlassEffectConfig.surfaceAlpha`）。
+  /// 不再按「背后糊没糊」分基础浓度——同一个档位在不同材质上显示成四种深浅，
+  /// 正是滑杆数字和实际效果对不上的根源。
+  ///
+  /// 返回一对是为了兼容早先「顶边 / 底边」两段渐变的调用方式，现在两值相同。
+  static (double, double) overlayAlphas() {
+    final alpha = GlassEffectConfig.surfaceAlpha;
+    return (alpha, alpha);
   }
 
   /// 玻璃面最终颜色：单色，不是渐变。
@@ -88,19 +78,13 @@ abstract final class AppGlass {
     AppGlassStyle style = AppGlassStyle.regular,
     bool emphasized = false,
     double alphaScale = 1,
-    bool blurred = false,
   }) {
     final base = tintBase(context, style: style);
     final isDark = AppColors.isDark(context);
     final lifted = emphasized
         ? Color.lerp(base, Colors.white, isDark ? 0.05 : 0.14)!
         : base;
-    final (alpha, _) = overlayAlphas(
-      context,
-      style: style,
-      emphasized: emphasized,
-      blurred: blurred,
-    );
+    final (alpha, _) = overlayAlphas();
     return lifted.withValues(alpha: (alpha * alphaScale).clamp(0.0, 1.0));
   }
 
@@ -246,8 +230,8 @@ class GlassSurface extends StatelessWidget {
   /// 是否采样背后的内容做模糊。
   ///
   /// 全 App 只有全屏播放器保留背景模糊，所以默认 false：玻璃面统一是
-  /// 「半透明染色 + 高光 + 细边」。为 false 时不建 [BackdropFilter]，染色
-  /// 浓度也更高一档（见 `GlassEffectConfig.chromeOpacityFor`）。
+  /// 「半透明染色 + 高光 + 细边」。为 false 时不建 [BackdropFilter]；染色
+  /// 浓度不受这里影响，始终等于设置里选的那一档。
   ///
   /// 另一个用途是「背后是纯色」的大块面（设置页分区卡片）：把底色混上去和
   /// 「模糊一层纯色再混」结果一样，却省掉一整条全宽采样。
@@ -373,7 +357,6 @@ class GlassSurface extends StatelessWidget {
       style: style,
       emphasized: emphasized,
       alphaScale: alphaScale,
-      blurred: blurBehind,
     );
     if (color == null) return themed;
     final nudge = AppColors.isDark(context) ? 0.05 : 0.04;

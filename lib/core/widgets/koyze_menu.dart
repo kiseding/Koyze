@@ -345,18 +345,16 @@ BoxDecoration _menuDecoration(BuildContext context, Color? color) {
     Colors.white,
     AppColors.isDark(context) ? 0.12 : 0.24,
   )!;
-  // 和顶栏、卡片共用同一档「界面不透明度」。菜单是独立路由，打开时按当时
-  // 的档位画一次就够，不需要跟着滑杆逐帧变。
-  final dark = AppColors.isDark(context);
+  // 和顶栏、卡片共用同一档「界面不透明度」：滑杆上的数字就是最终 alpha。
+  // 菜单是独立路由，打开时按当时的档位画一次就够，不需要跟着滑杆逐帧变。
+  final alpha = GlassEffectConfig.surfaceAlpha;
   return BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        highlight.withValues(
-          alpha: GlassEffectConfig.alphaFor(dark ? 0.64 : 0.82),
-        ),
-        base.withValues(alpha: GlassEffectConfig.alphaFor(dark ? 0.58 : 0.74)),
+        highlight.withValues(alpha: alpha),
+        base.withValues(alpha: alpha),
       ],
     ),
   );

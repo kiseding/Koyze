@@ -77,15 +77,8 @@ class LiquidGlassSurface extends StatelessWidget {
   Widget _buildSurface(BuildContext context) {
     final isDark = AppColors.isDark(context);
     final base = tint ?? AppGlass.tintBase(context);
-    // 有模糊垫底时染色可以很淡（0.22 / 0.46）；只剩透明度时同一档会让字
-    // 糊在背景里，所以浓一档。设置里的「界面不透明度」在这里统一换算，
-    // 100% 会得到完全的实色，而不是把基础浓度乘一乘。
-    final baseAlpha =
-        (blurBehind
-            ? (isDark ? 0.22 : 0.46)
-            : (isDark ? 0.58 : 0.74)) *
-        opacity;
-    final alpha = GlassEffectConfig.alphaFor(baseAlpha);
+    // 设置里的档位就是最终 alpha，这里只乘调用方给的整体倍率（淡出、收起）。
+    final alpha = (GlassEffectConfig.surfaceAlpha * opacity).clamp(0.0, 1.0);
     final edge =
         borderColor ??
         (isDark

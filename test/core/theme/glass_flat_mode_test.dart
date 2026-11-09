@@ -23,6 +23,25 @@ double _surfaceAlpha(WidgetTester tester, Type type) {
   fail('$type 下面没有带底色的 DecoratedBox');
 }
 
+/// 读顶栏那层染色实际画出来的 alpha。
+///
+/// 顶栏现在是一层平涂（不再自上而下淡出），整条栏只有一个浓度。
+double _barAlpha(WidgetTester tester) {
+  final boxes = tester.widgetList<DecoratedBox>(
+    find.descendant(
+      of: find.byType(GradientFrost),
+      matching: find.byType(DecoratedBox),
+    ),
+  );
+  for (final box in boxes) {
+    final decoration = box.decoration;
+    if (decoration is BoxDecoration && decoration.color != null) {
+      return decoration.color!.a;
+    }
+  }
+  fail('顶栏没有带底色的 DecoratedBox');
+}
+
 /// 把被测材质放进带指定无障碍偏好的环境里。
 Widget _host(
   Widget child, {
@@ -102,25 +121,41 @@ void main() {
   });
 
   group('染色浓度', () {
-    testWidgets('没有模糊时浓度更高，才压得住背后的列表', (tester) async {
-      late Color plain;
-      late Color blurred;
+    testWidgets('染色直接取滑杆上的那一档', (tester) async {
+      late Color fill;
       await tester.pumpWidget(
         MaterialApp(
           theme: ThemeData(brightness: Brightness.dark),
           home: Builder(
             builder: (context) {
-              plain = AppGlass.fillColor(context);
-              blurred = AppGlass.fillColor(context, blurred: true);
+              GlassEffectConfig.setSurfaceOpacity(0.55);
+              fill = AppGlass.fillColor(context);
               return const SizedBox.shrink();
             },
           ),
         ),
       );
 
-      expect(plain.a, greaterThan(blurred.a));
-      // 播放器那档保持原值，不在这次改动里被动变浓。
-      expect(blurred.a, closeTo(0.30, 0.001));
+      expect(fill.a, closeTo(0.55, 0.001));
+    });
+
+    testWidgets('背后模不模糊不再改变浓度', (tester) async {
+      // 播放器那几块面板以前按「糊过所以更淡」单独降一档；现在滑杆说什么
+      // 就是什么，同一个数字在所有玻璃面上是同一个 alpha。
+      await tester.pumpWidget(
+        _host(
+          GlassSurface(
+            borderRadius: BorderRadius.circular(16),
+            blurBehind: true,
+            child: const Center(child: Text('播放器面板')),
+          ),
+        ),
+      );
+
+      GlassEffectConfig.setSurfaceOpacity(0.55);
+      await tester.pump();
+
+      expect(_surfaceAlpha(tester, GlassSurface), closeTo(0.55, 0.001));
     });
   });
 
@@ -262,49 +297,32 @@ void main() {
       await tester.pumpWidget(
         _host(const GradientFrost(child: SizedBox.expand())),
       );
-      double firstStop() {
-        final box = tester.widget<DecoratedBox>(
-          find
-              .descendant(
-                of: find.byType(GradientFrost),
-                matching: find.byType(DecoratedBox),
-              )
-              .first,
-        );
-        return ((box.decoration as BoxDecoration).gradient! as LinearGradient)
-            .colors
-            .first
-            .a;
-      }
 
-      final before = firstStop();
+      expect(
+        _barAlpha(tester),
+        closeTo(GlassEffectConfig.defaultSurfaceOpacity, 0.001),
+      );
 
       GlassEffectConfig.setSurfaceOpacity(0.4);
       await tester.pump();
 
-      expect(firstStop(), closeTo(before * 0.5, 0.02));
+      expect(_barAlpha(tester), closeTo(0.4, 0.001));
     });
 
-    testWidgets('顶栏在 100% 时不再渐隐，真正压住底下的列表', (tester) async {
+    testWidgets('顶栏是一层平涂，滑杆多少就画多少', (tester) async {
       await tester.pumpWidget(
         _host(const GradientFrost(child: SizedBox.expand())),
       );
 
-      GlassEffectConfig.setSurfaceOpacity(1);
-      await tester.pump();
+      for (final value in [0.35, 0.7, 1.0]) {
+        GlassEffectConfig.setSurfaceOpacity(value);
+        await tester.pump();
 
-      final box = tester.widget<DecoratedBox>(
-        find
-            .descendant(
-              of: find.byType(GradientFrost),
-              matching: find.byType(DecoratedBox),
-            )
-            .first,
-      );
-      final gradient =
-          (box.decoration as BoxDecoration).gradient! as LinearGradient;
-      for (final color in gradient.colors) {
-        expect(color.a, 1.0, reason: '顶栏还留着透明的渐隐段');
+        expect(
+          _barAlpha(tester),
+          closeTo(value, 0.001),
+          reason: '档位 $value 的顶栏浓度对不上',
+        );
       }
     });
 
@@ -339,13 +357,9 @@ void main() {
 
       expect(_surfaceAlpha(tester, LiquidGlassSurface), 1.0);
       expect(
-        GlassEffectConfig.chromeOpacityFor(Brightness.dark),
+        GlassEffectConfig.surfaceAlpha,
         1.0,
-        reason: '顶栏走的也是同一套换算',
-      );
-      expect(
-        GlassEffectConfig.chromeOpacityFor(Brightness.light, blurred: true),
-        1.0,
+        reason: '顶栏、菜单和卡片读的都是这一个值',
       );
     });
 

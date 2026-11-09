@@ -57,38 +57,18 @@ void main() {
     expect(prefs.getDouble(GlassOpacityNotifier.storageKey), 0.45);
   });
 
-  test('the setting actually scales the glass tint', () {
-    final blurredBefore = GlassEffectConfig.chromeOpacityFor(
-      Brightness.dark,
-      blurred: true,
-    );
-    final plainBefore = GlassEffectConfig.chromeOpacityFor(Brightness.dark);
-
-    // 0.4 相对默认档 0.8 正好是一半：减淡这一段是等比缩放。
-    GlassEffectConfig.setSurfaceOpacity(0.4);
-
-    expect(
-      GlassEffectConfig.chromeOpacityFor(Brightness.dark, blurred: true),
-      closeTo(blurredBefore * 0.5, 0.001),
-    );
-    expect(
-      GlassEffectConfig.chromeOpacityFor(Brightness.dark),
-      closeTo(plainBefore * 0.5, 0.001),
-    );
+  test('the slider percentage is the alpha itself, with no curve', () {
+    // 选 45% 就画 0.45。以前这里要按各材质的基础浓度分两段换算，同一个数字
+    // 在顶栏、卡片、菜单上会显示成四种深浅，滑杆等于白调。
+    for (final value in [0.3, 0.45, 0.6, 0.8, 0.93]) {
+      GlassEffectConfig.setSurfaceOpacity(value);
+      expect(GlassEffectConfig.surfaceAlpha, closeTo(value, 1e-9));
+    }
   });
 
   test('the top of the slider is genuinely solid', () {
-    // 100% 必须是实色：这里钉住「乘法到不了 1」这个旧毛病不再回来。
-    for (final brightness in Brightness.values) {
-      for (final blurred in [true, false]) {
-        GlassEffectConfig.setSurfaceOpacity(1);
-        expect(
-          GlassEffectConfig.chromeOpacityFor(brightness, blurred: blurred),
-          1.0,
-          reason: 'brightness=$brightness blurred=$blurred 没有归到实色',
-        );
-      }
-    }
+    GlassEffectConfig.setSurfaceOpacity(1);
+    expect(GlassEffectConfig.surfaceAlpha, 1.0);
   });
 
   testWidgets('AppGlass.fillColor honours the multiplier', (tester) async {
@@ -111,6 +91,11 @@ void main() {
       ),
     );
 
-    expect(half.a, closeTo(full.a * 0.5, 0.001));
+    expect(
+      full.a,
+      closeTo(GlassEffectConfig.defaultSurfaceOpacity, 0.001),
+      reason: '默认档就是 0.8，不是 0.82 或 0.66',
+    );
+    expect(half.a, closeTo(0.4, 0.001));
   });
 }

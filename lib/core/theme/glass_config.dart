@@ -26,14 +26,12 @@ abstract final class GlassEffectConfig {
   /// 设置页暴露的「界面不透明度」下限。
   ///
   /// 再往下玻璃就只剩一条边，列表文字会直接压在下面的内容上；0.3 是还能
-  /// 认出"这里有一块面板"的最后一档。
+  /// 认出「这里有一块面板」的最后一档。
   static const double minSurfaceOpacity = 0.3;
 
-  /// 「界面不透明度」的默认档，等同于设计稿浓度。
+  /// 「界面不透明度」的默认档。
   ///
-  /// 不动这一档时，界面和没有这个设置之前完全一样；往右拖只会把玻璃朝实色
-  /// 补齐。**100% 就是真正的实色**，不再是「基础浓度 × 1」——乘法永远到不了
-  /// 1，这正是之前拖到底还透着的原因。
+  /// 只是出厂值，不参与任何换算——见 [surfaceAlpha]。
   static const double defaultSurfaceOpacity = 0.8;
 
   static void applyPerformanceMode({required bool reduceEffects}) {
@@ -64,22 +62,17 @@ abstract final class GlassEffectConfig {
 
   static double get surfaceOpacity => _surfaceOpacity;
 
-  /// 把某种材质的基础浓度换算成此刻该用的 alpha。
+  /// 此刻真正画到玻璃上的 alpha——**就是设置里选的那个百分比**。
   ///
-  /// 默认档以下按比例减淡（0.4 相当于原浓度的一半）；默认档以上朝 1.0 补齐
-  /// （1.0 得到完全不透明）。分两段而不是统一乘系数，是为了同时保住两件事：
-  /// 各材质之间「有模糊更淡、无模糊更浓」的相对关系，以及滑杆拖到底时真的
-  /// 变成实色。
-  static double alphaFor(double baseAlpha) {
-    if (_disableAllGlassEffects) return 1.0;
-    final base = baseAlpha.clamp(0.0, 1.0);
-    if (_surfaceOpacity <= defaultSurfaceOpacity) {
-      return base * (_surfaceOpacity / defaultSurfaceOpacity);
-    }
-    final t =
-        (_surfaceOpacity - defaultSurfaceOpacity) / (1 - defaultSurfaceOpacity);
-    return (base + (1 - base) * t).clamp(0.0, 1.0);
-  }
+  /// 这里不做任何曲线换算。早先为了让「背后糊过就更淡、没糊就更浓」的相对
+  /// 关系成立，把档位映射成两段：默认档以下按比例减淡，以上朝 1.0 补齐。
+  /// 代价是同一个 80%，顶栏显示成 0.30、卡片 0.82、菜单 0.64，滑杆上的数字
+  /// 和眼睛看到的永远对不上。
+  ///
+  /// 现在档位即最终值：选 50% 就是半透明，选 100% 就是实色，所见即所得。
+  /// 各材质之间不再有浓度差，需要更淡就把滑杆往左拖。
+  static double get surfaceAlpha =>
+      _disableAllGlassEffects ? 1.0 : _surfaceOpacity;
 
   static void setDisableAllGlassEffects(bool disabled) {
     _disableAllGlassEffects = disabled;
@@ -129,25 +122,9 @@ abstract final class GlassEffectConfig {
 
   // ============ 透明度 (alpha: 0.0-1.0) ============
   //
-  // 两套浓度，按「背后到底糊没糊」选：
-  // - 糊过（目前只有全屏播放器）：0.30 / 0.60。背景已经变平，一层淡染色就够。
-  // - 没糊（其余全部界面）：0.66 / 0.82。只剩透明度时，同一档会透出背后
-  //   清晰的列表文字与封面细节，标题会读不出来。
-  static const double _chromeOpacityBase = 0.30;
-  static const double _lightChromeOpacityBase = 0.60;
-  static const double _chromeOpacityNoBlur = 0.66;
-  static const double _lightChromeOpacityNoBlur = 0.82;
-
-  static double chromeOpacityFor(Brightness brightness, {bool blurred = false}) {
-    final base = blurred
-        ? (brightness == Brightness.light
-              ? _lightChromeOpacityBase
-              : _chromeOpacityBase)
-        : (brightness == Brightness.light
-              ? _lightChromeOpacityNoBlur
-              : _chromeOpacityNoBlur);
-    return alphaFor(base);
-  }
+  // 只有一档浓度：设置里选的那个百分比，见 [surfaceAlpha]。原先按「背后糊
+  // 没糊」分 0.30/0.60 与 0.66/0.82 两套基础浓度，再乘用户档位；同一个数字
+  // 落在不同材质上会显示成四种深浅，滑杆因此失去了意义。
 
   /// 浅色下把底色往白里提亮，深色保持主题色本身。
   static Color chromeBaseColor(
@@ -179,9 +156,7 @@ abstract final class GlassEffectConfig {
           resolvedBrightness == Brightness.light ? 0.08 : 0.06,
         )!;
     final base = chromeBaseColor(themedSource, resolvedBrightness);
-    return base.withValues(
-      alpha: effectiveOpacity(opacity ?? chromeOpacityFor(resolvedBrightness)),
-    );
+    return base.withValues(alpha: effectiveOpacity(opacity ?? surfaceAlpha));
   }
 
   static bool get shouldDisableBlur => _disableAllGlassEffects;
