@@ -7,6 +7,7 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -49,32 +50,74 @@ class CoverPalette {
 /// 解码尺寸固定 48×48：再小色相会糊，再大对结果没有帮助却要多算几十万像素。
 /// 一张封面只算一次，按 URL 缓存；同一 URL 并发请求合并成一次计算。
 class CoverPaletteService {
-  CoverPaletteService({Future<Uint8List?> Function(String url)? bytesLoader})
-    : _bytesLoader = bytesLoader ?? _defaultLoader;
+  CoverPaletteService({
+    Future<Uint8List?> Function(String url)? bytesLoader,
+    DateTime Function()? clock,
+  }) : _bytesLoader = bytesLoader ?? _defaultLoader,
+       _clock = clock ?? DateTime.now;
 
   static final CoverPaletteService instance = CoverPaletteService();
 
-  /// 取色失败时缓存这个值，避免每次切歌都重试同一张坏图。
-  static const CoverPalette? _failed = null;
+  /// 取色失败后多久才允许为同一张封面重新发请求。
+  ///
+  /// 不能像以前那样把失败永久记住：换歌的瞬间封面常常还没下载完，一次
+  /// 抢先的失败会让这首歌整首都用不上封面颜色；可完全不记又会在坏图上
+  /// 反复发请求。取一个能兜住换歌窗口、又不会打爆 CDN 的折中值。
+  static const Duration failureCooldown = Duration(seconds: 20);
 
   final Future<Uint8List?> Function(String url) _bytesLoader;
-  final Map<String, CoverPalette?> _cache = {};
+  final DateTime Function() _clock;
+  final Map<String, CoverPalette> _cache = {};
   final Map<String, Future<CoverPalette?>> _inflight = {};
+
+  /// 失败时间戳。成功后从这张表里删掉，避免和 [_cache] 两套状态打架。
+  final Map<String, DateTime> _failedAt = {};
   final Map<String, int> _cacheOrder = {};
   int _tick = 0;
 
   /// 缓存上限。封面 URL 带尺寸参数，同一首歌可能有多套，留 64 条足够。
   static const int _maxEntries = 64;
 
+  /// 直接读封面字节。
+  ///
+  /// 优先命中磁盘/内存缓存（列表、播放页、锁屏封面都会往这里写）；没命中
+  /// 就自己下载一次并落盘——换歌时取色往往比播放页解封面更早，只读缓存
+  /// 会一直"取不到颜色"，表现就是主题色只有开启那一刻生效。
   static Future<Uint8List?> _defaultLoader(String url) async {
-    // 封面已经被列表/播放页显示过时这里直接命中磁盘缓存，不再发请求。
-    return ArtworkDiskCache.instance.bytesForUrl(url);
+    final uri = Uri.tryParse(url);
+    if (uri != null && uri.scheme == 'file') {
+      // 本地音乐的封面是落盘文件，没有 HTTP 可取。
+      try {
+        final bytes = await File(uri.toFilePath()).readAsBytes();
+        return bytes.isEmpty ? null : bytes;
+      } catch (_) {
+        return null;
+      }
+    }
+    final cached = await ArtworkDiskCache.instance.bytesForUrl(url);
+    if (cached != null && cached.isNotEmpty) return cached;
+    final file = await ArtworkDiskCache.instance.ensureLocalFile(url);
+    if (file == null) return null;
+    try {
+      final bytes = await file.readAsBytes();
+      return bytes.isEmpty ? null : bytes;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// 取 [url] 的调色板；不可用返回 null。
-  Future<CoverPalette?> paletteFor(String url) async {
+  ///
+  /// [ignoreFailureCooldown] 给"同一次播放里的补试"用：调用方知道自己在
+  /// 重试同一首歌，应该允许穿过冷却期再试一次。
+  Future<CoverPalette?> paletteFor(
+    String url, {
+    bool ignoreFailureCooldown = false,
+  }) async {
     if (url.isEmpty) return null;
-    if (_cache.containsKey(url)) return _cache[url];
+    final cached = _cache[url];
+    if (cached != null) return cached;
+    if (!ignoreFailureCooldown && _isCoolingDown(url)) return null;
     final pending = _inflight[url];
     if (pending != null) return pending;
 
@@ -91,8 +134,23 @@ class CoverPaletteService {
   /// 同步读缓存，用于首帧就想要颜色的场景（命中不了就返回 null）。
   CoverPalette? cachedFor(String url) => _cache[url];
 
+  bool _isCoolingDown(String url) {
+    final failedAt = _failedAt[url];
+    if (failedAt == null) return false;
+    if (_clock().difference(failedAt) < failureCooldown) return true;
+    _failedAt.remove(url);
+    return false;
+  }
+
   void _remember(String url, CoverPalette? palette) {
-    _cache[url] = palette ?? _failed;
+    if (palette == null) {
+      // 失败只记时间戳，冷却期过后换个时间点或补试仍有机会成功。
+      _failedAt[url] = _clock();
+      if (_failedAt.length > _maxEntries * 2) _failedAt.clear();
+      return;
+    }
+    _failedAt.remove(url);
+    _cache[url] = palette;
     _cacheOrder[url] = ++_tick;
     if (_cache.length > _maxEntries) {
       // 淘汰最早写入的一条，不做 LRU 记账——这里没有"访问热点"可言。
@@ -246,6 +304,7 @@ class CoverPaletteService {
   @visibleForTesting
   void clearCache() {
     _cache.clear();
+    _failedAt.clear();
     _cacheOrder.clear();
   }
 }

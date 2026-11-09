@@ -164,11 +164,19 @@ final currentMusicProvider = Provider<MusicItem?>((ref) {
 
   // 从 extras 中恢复 MusicItem 对象（含 actualQuality 等扩展字段）
   if (mediaItem.extras != null) {
-    final item = MusicItem.fromJson(mediaItem.extras!);
+    var item = MusicItem.fromJson(mediaItem.extras!);
     // 保证 platform 字段可用
     final p = mediaItem.extras!['platform']?.toString();
     if (p != null && p.isNotEmpty && item.platform != p) {
-      return item.copyWith(platform: p);
+      item = item.copyWith(platform: p);
+    }
+    // extras 里没带封面时退回 MediaItem.artUri：取色、分享卡片都靠这个字段，
+    // 空着会让"主题色跟随封面"直接退回手选色。
+    final art = mediaItem.artUri?.toString();
+    if ((item.artwork == null || item.artwork!.isEmpty) &&
+        art != null &&
+        art.isNotEmpty) {
+      item = item.copyWith(artwork: art);
     }
     return item;
   }
