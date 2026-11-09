@@ -37,7 +37,15 @@ Future<T?> showKoyzeDialog<T>({
         MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor: Colors.transparent,
     transitionDuration: reduce ? Duration.zero : MotionDuration.dialog,
-    pageBuilder: (context, _, _) => builder(context),
+    // 这里必须自己补一层 Material。`showGeneralDialog` 不会给页面包
+    // Material，而 `MaterialApp` 装在根部的是 debug 用的 `_errorTextStyle`
+    // ——红色等宽字，外加一条黄色双下划线。弹窗内容只要没自带 Material，
+    // 这套兜底样式就会 merge 到每一行文字上。歌词分享卡片导出成 PNG 时那组
+    // 黄色双下划线，以及侧边栏（见 22c8eb2）当初的症状，都是这个原因。
+    pageBuilder: (context, _, _) => Material(
+      type: MaterialType.transparency,
+      child: builder(context),
+    ),
     transitionBuilder: (context, animation, _, child) {
       if (reduce) {
         return Stack(
