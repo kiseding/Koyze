@@ -1946,6 +1946,43 @@ void main() {
     expect(handler.debugAutomaticFailureSkippingHalted, isFalse);
   });
 
+  test('resolve timeout retries the same track instead of skipping it', () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(
+      player: player,
+      resolveTimeout: const Duration(milliseconds: 120),
+    );
+    addTearDown(player.dispose);
+    final calls = <String>[];
+    handler.urlResolver = (id, [extras]) async {
+      calls.add(id);
+      if (id == 'A' && calls.where((c) => c == 'A').length == 1) {
+        // 第一次超过 resolveTimeout，模拟音源在弱网下没及时回话。
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        return 'file:///tmp/A.mp3';
+      }
+      return 'file:///tmp/$id.mp3';
+    };
+
+    await handler.setPlaylist(const [
+      MediaItem(id: 'A', title: 'A'),
+      MediaItem(id: 'B', title: 'B'),
+    ]);
+
+    // 超时不能算成「这首不能播」：不跳到 B，也不占用失败额度。
+    expect(handler.mediaItem.value?.id, 'A');
+    expect(handler.debugConsecutiveAutomaticTrackFailures, 0);
+
+    // 重试被排在 2s 之后，等它跑完。
+    await Future<void>.delayed(const Duration(milliseconds: 2600));
+
+    expect(calls.where((c) => c == 'A').length, 2);
+    expect(handler.mediaItem.value?.id, 'A');
+    expect(player.playing, isTrue);
+    expect(handler.playbackState.value.playing, isTrue);
+  });
+
   test('shuffle never re-picks a failed track nor spins on it', () async {
     final player = _PlaybackStateAudioPlayer()
       ..sourceInstallProcessingState = ProcessingState.ready;

@@ -381,6 +381,15 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// 用户看到的就是「一首解析不了，整段播放结束」。懒加载队列本身在取不到
   /// 新页时就会绕回开头，非懒队列在这一点上保持一致。
   final Set<int> _failedOccurrencesInStreak = {};
+
+  /// 最近一次前台解析是不是超时，以及超时发生在哪个 occurrence 上。
+  ///
+  /// 「超时」和「这首确实拿不到地址」必须分开：网络抖动时前者重试一次就能
+  /// 继续播，当成失败去跳过会把整段播放搅乱。
+  int? _resolveTimedOutOccurrenceId;
+
+  /// 已经因为超时重试过的 occurrence（同一首只重试一次）。
+  final Set<int> _timeoutRetriedOccurrences = {};
   bool _automaticFailureSkippingHalted = false;
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
   AudioServiceShuffleMode _shuffleMode = AudioServiceShuffleMode.none;
@@ -1037,6 +1046,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _automaticFailureSkippingHalted = false;
     _badCacheRetriedOccurrenceIds.clear();
     _failedOccurrencesInStreak.clear();
+    _resolveTimedOutOccurrenceId = null;
+    _timeoutRetriedOccurrences.clear();
   }
 
   void _recordSuccessfulPlayback() {
@@ -1055,6 +1066,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _consecutiveAutomaticTrackFailures = 0;
     _playRecoveryAttemptedOccurrenceId = null;
     _failedOccurrencesInStreak.clear();
+    _resolveTimedOutOccurrenceId = null;
+    _timeoutRetriedOccurrences.clear();
   }
 
   /// 从 [index] 往后（含回绕）第一个本轮还没失败过的曲目下标；没有返回 -1。
@@ -1153,6 +1166,19 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       provenance: provenance,
       targetIndex: target,
     );
+  }
+
+  /// 弱网下解析超时后，隔两秒重试同一条目。
+  ///
+  /// 用延时把重试排到当前播放事务之外：直接 await 递归会撞上
+  /// `_trackOperation` 的串行队列。
+  void _scheduleTimeoutRetry({required int occurrenceId}) {
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (_disposed || _activeOccurrenceId != occurrenceId) return;
+      final index = _indexOfOccurrence(occurrenceId);
+      if (index < 0) return;
+      unawaited(_loadQueueItem(index, preserveUserIntent: true));
+    });
   }
 
   Future<void> _stopPlayerSource() => _commands.stop();
@@ -1555,6 +1581,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _consecutiveAutomaticTrackFailures = 0;
     _playRecoveryAttemptedOccurrenceId = null;
     _failedOccurrencesInStreak.clear();
+    _resolveTimedOutOccurrenceId = null;
+    _timeoutRetriedOccurrences.clear();
     // 自动连播视为用户仍要听：拖进度 pause 不 clearIntent 时仍可连播
     if (!_userWantsPlay) return;
     if (interruptionActive) return;
@@ -3050,10 +3078,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (resolver == null) return null;
     final cancelToken = CancelToken();
     extras['_playbackResolutionCancelToken'] = cancelToken;
+    _resolveTimedOutOccurrenceId = null;
     final resolution = resolver(mediaId, extras).then<String?>((url) => url);
     return resolution.timeout(
       _resolveTimeout,
       onTimeout: () {
+        _resolveTimedOutOccurrenceId = occurrenceId;
         if (!cancelToken.isCancelled) {
           cancelToken.cancel('Playback URL resolution timed out');
         }
@@ -3293,6 +3323,15 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           transactionIndex = activeItemIndex();
           if (transactionIndex < 0) return;
           debugPrint('[AudioHandler] 无法获取播放链接: ${item.title} id=${item.id}');
+          // 超时不是「这首不能播」。音源在弱网下 25s 内没回话很常见，直接
+          // 判失败会一路跳歌：跳过去的每一首都要再等一次超时，听感就是
+          // 「整段播放乱跳然后停掉」。同一首给一次重试，且不占用失败额度。
+          if (_resolveTimedOutOccurrenceId == occurrenceId &&
+              _timeoutRetriedOccurrences.add(occurrenceId)) {
+            onError?.call('音源响应超时，正在重试');
+            _scheduleTimeoutRetry(occurrenceId: occurrenceId);
+            return;
+          }
           onError?.call('无法解析歌曲 "${item.title}" 的播放地址（源无效地址或本地缓存失败，已尝试降级音质）');
           if (_canAdvanceAfterTrackFailure &&
               _currentIndex == transactionIndex) {
