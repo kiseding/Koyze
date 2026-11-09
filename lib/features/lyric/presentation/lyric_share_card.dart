@@ -126,7 +126,7 @@ class _LyricCardDialogState extends State<_LyricCardDialog> {
               child: SingleChildScrollView(
                 child: RepaintBoundary(
                   key: _boundaryKey,
-                  child: _LyricCard(
+                  child: LyricShareCard(
                     title: widget.title,
                     artist: widget.artist,
                     line: widget.line,
@@ -134,6 +134,7 @@ class _LyricCardDialogState extends State<_LyricCardDialog> {
                     next: widget.next,
                     dark: dark,
                     appName: 'Koyze',
+                    artwork: widget.artwork,
                   ),
                 ),
               ),
@@ -161,8 +162,14 @@ class _LyricCardDialogState extends State<_LyricCardDialog> {
   }
 }
 
-class _LyricCard extends StatelessWidget {
-  const _LyricCard({
+/// 歌词分享卡片本体。
+///
+/// 单独公开是为了能在测试里直接渲染并导出 PNG：分享图一旦有渲染问题
+/// （比如继承了外层的下划线、封面加载失败留空洞），用户保存下来的图就是脏的，
+/// 事后无法修补。渲染测试能把这些挡在发布前。
+class LyricShareCard extends StatelessWidget {
+  const LyricShareCard({
+    super.key,
     required this.title,
     required this.artist,
     required this.line,
@@ -170,6 +177,7 @@ class _LyricCard extends StatelessWidget {
     required this.next,
     required this.dark,
     required this.appName,
+    this.artwork,
   });
 
   final String title;
@@ -179,94 +187,228 @@ class _LyricCard extends StatelessWidget {
   final String next;
   final bool dark;
   final String appName;
+  final String? artwork;
+
+  /// 卡片里的所有文字都显式关掉下划线。
+  ///
+  /// 这里不是多此一举：`Text` 会把自身样式 merge 到上层 `DefaultTextStyle` 上，
+  /// 只要祖先（主题、系统文字样式、某个包裹层）带了下划线，卡片上的每一行都会
+  /// 被画上一条装饰线——分享图是导出成 PNG 的，脏了就洗不掉。
+  TextStyle _text({
+    required double size,
+    required Color color,
+    FontWeight weight = FontWeight.w400,
+    double? height,
+    double? letterSpacing,
+  }) {
+    return TextStyle(
+      fontSize: size,
+      color: color,
+      fontWeight: weight,
+      height: height,
+      letterSpacing: letterSpacing,
+      decoration: TextDecoration.none,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final background = dark ? const Color(0xFF14161C) : const Color(0xFFF7F5F1);
-    final foreground = dark ? const Color(0xFFF2F3F5) : const Color(0xFF1B1D22);
-    final muted = foreground.withValues(alpha: 0.45);
+    final accent = AppColors.accentOf(context);
+    final background = dark
+        ? const [Color(0xFF191B22), Color(0xFF0E1014)]
+        : const [Color(0xFFFDFCF9), Color(0xFFF1EDE4)];
+    final foreground = dark ? const Color(0xFFF3F4F6) : const Color(0xFF14161B);
+    final muted = foreground.withValues(alpha: dark ? 0.58 : 0.44);
+
     return Container(
-      width: 320,
-      padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
+      width: 336,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: background,
+        ),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: foreground.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '“',
-            style: TextStyle(
-              fontSize: 44,
-              height: 0.8,
-              color: muted,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            line,
-            style: TextStyle(
-              fontSize: 22,
-              height: 1.45,
-              fontWeight: FontWeight.w600,
-              color: foreground,
-            ),
-          ),
-          if (previous.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              previous,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, color: muted),
-            ),
-          ],
-          if (next.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              next,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13, color: muted),
-            ),
-          ],
-          const SizedBox(height: 28),
-          Container(height: 1, color: foreground.withValues(alpha: 0.08)),
-          const SizedBox(height: 14),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: foreground,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            artist,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, color: muted),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(color: muted, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 6),
-              Text(appName, style: TextStyle(fontSize: 10, color: muted)),
-            ],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: dark ? 0.45 : 0.16),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
           ),
         ],
+      ),
+      child: Stack(
+        children: [
+          // 右上角的柔光：给纯色底一点纵深，同时把主题色带进画面。
+          Positioned(
+            top: -78,
+            right: -56,
+            child: IgnorePointer(
+              child: Container(
+                width: 208,
+                height: 208,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      accent.withValues(alpha: dark ? 0.30 : 0.16),
+                      accent.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(26, 24, 26, 22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      appName.toUpperCase(),
+                      style: _text(
+                        size: 10,
+                        color: muted,
+                        weight: FontWeight.w700,
+                        letterSpacing: 1.6,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                if (previous.isNotEmpty) ...[
+                  Text(
+                    previous,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _text(size: 13, color: muted, height: 1.4),
+                  ),
+                  const SizedBox(height: 7),
+                ],
+                Text(
+                  line,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: _text(
+                    size: 23,
+                    color: foreground,
+                    weight: FontWeight.w700,
+                    height: 1.35,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                if (next.isNotEmpty) ...[
+                  const SizedBox(height: 7),
+                  Text(
+                    next,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _text(size: 13, color: muted, height: 1.4),
+                  ),
+                ],
+                const SizedBox(height: 22),
+                Container(height: 1, color: foreground.withValues(alpha: 0.08)),
+                const SizedBox(height: 15),
+                Row(
+                  children: [
+                    _Artwork(url: artwork, accent: accent),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _text(
+                              size: 14,
+                              color: foreground,
+                              weight: FontWeight.w600,
+                              height: 1.25,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _text(size: 12, color: muted, height: 1.25),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 封面缩略图。拿不到图时退回一块主题色渐变 + 波形图标，
+/// 导出的 PNG 里也不会留下一个空洞。
+class _Artwork extends StatelessWidget {
+  const _Artwork({required this.url, required this.accent});
+
+  final String? url;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            accent.withValues(alpha: 0.92),
+            accent.withValues(alpha: 0.48),
+          ],
+        ),
+      ),
+      child: Icon(
+        Icons.graphic_eq_rounded,
+        size: 20,
+        color: Colors.white.withValues(alpha: 0.92),
+      ),
+    );
+    final source = url?.trim() ?? '';
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: source.isEmpty
+            ? fallback
+            : Image.network(
+                source,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (_, _, _) => fallback,
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded || frame != null) return child;
+                  return fallback;
+                },
+              ),
       ),
     );
   }

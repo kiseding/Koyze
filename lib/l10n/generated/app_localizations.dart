@@ -5486,16 +5486,22 @@ abstract class AppLocalizations {
   /// **'{n} comments'**
   String songInfoCommentsTotal(Object n);
 
-  /// No description provided for @onboardingWelcome.
+  /// No description provided for @onboardingTermsEyebrow.
   ///
   /// In en, this message translates to:
-  /// **'Welcome to Koyze'**
-  String get onboardingWelcome;
+  /// **'Before you start'**
+  String get onboardingTermsEyebrow;
+
+  /// No description provided for @onboardingTermsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms & Disclaimer'**
+  String get onboardingTermsTitle;
 
   /// No description provided for @onboardingTermsIntro.
   ///
   /// In en, this message translates to:
-  /// **'Before you start, a few things worth reading.'**
+  /// **'Koyze is a player, not a music service. Before continuing, please make sure you understand the four points below.'**
   String get onboardingTermsIntro;
 
   /// No description provided for @onboardingTermsPoint1.
@@ -5522,59 +5528,23 @@ abstract class AppLocalizations {
   /// **'Playback records, playlists and settings are stored on this device only, and are removed with the app.'**
   String get onboardingTermsPoint4;
 
-  /// No description provided for @onboardingAgree.
+  /// No description provided for @onboardingTermsConsent.
   ///
   /// In en, this message translates to:
-  /// **'I understand and agree'**
-  String get onboardingAgree;
+  /// **'I have read and agree to the terms above'**
+  String get onboardingTermsConsent;
 
-  /// No description provided for @onboardingSourceTitle.
+  /// No description provided for @onboardingContinue.
   ///
   /// In en, this message translates to:
-  /// **'Add a source'**
-  String get onboardingSourceTitle;
+  /// **'Agree and continue'**
+  String get onboardingContinue;
 
-  /// No description provided for @onboardingSourceBody.
+  /// No description provided for @onboardingTermsFootnote.
   ///
   /// In en, this message translates to:
-  /// **'Koyze does not bundle any audio source. Add at least one custom source to search and play music. You can also do this later in Settings → Sources.'**
-  String get onboardingSourceBody;
-
-  /// No description provided for @onboardingSourceConfigure.
-  ///
-  /// In en, this message translates to:
-  /// **'Configure sources'**
-  String get onboardingSourceConfigure;
-
-  /// No description provided for @onboardingSkip.
-  ///
-  /// In en, this message translates to:
-  /// **'Later'**
-  String get onboardingSkip;
-
-  /// No description provided for @onboardingDoneTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'You are all set'**
-  String get onboardingDoneTitle;
-
-  /// No description provided for @onboardingDoneBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Search for a song, or start from recommendations. Every screen has a long-press menu for more actions.'**
-  String get onboardingDoneBody;
-
-  /// No description provided for @onboardingDoneNoSource.
-  ///
-  /// In en, this message translates to:
-  /// **'No source enabled yet — search will return nothing until you add one in Settings → Sources.'**
-  String get onboardingDoneNoSource;
-
-  /// No description provided for @onboardingStart.
-  ///
-  /// In en, this message translates to:
-  /// **'Start listening'**
-  String get onboardingStart;
+  /// **'You cannot use the app without accepting these terms.'**
+  String get onboardingTermsFootnote;
 
   /// No description provided for @checkUpdates.
   ///

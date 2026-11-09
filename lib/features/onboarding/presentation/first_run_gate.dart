@@ -2,22 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../custom_source/presentation/custom_source_provider.dart';
-import '../../custom_source/presentation/custom_source_screen.dart';
 import '../../settings/presentation/settings_provider.dart';
 
-/// 首启引导。
+/// 首启条款闸门。
 ///
-/// 挂在 `MaterialApp.router` 的 builder 上，盖住整个导航树：还没同意条款时
+/// 挂在 `MaterialApp.router` 的 builder 上，盖住整个导航树：没同意条款之前
 /// 后面的页面不该被访问到，先渲染再遮住也会闪一下。
 ///
-/// 步骤**不存进度**，每次由真实状态推导：
-///   1. 未同意 → 条款；
-///   2. 已同意但没有任何音源 → 配音源（可跳过）；
-///   3. 其余 → 直接放行。
-/// 这样中途被杀、或者配好音源后又全关掉，再打开都会落回正确的一步。
+/// 这里只做一件事——让用户读条款并明确同意。曾经的三步引导（条款 → 配音源
+/// → 完成）已经去掉：配音源属于「用起来之后自然会做的事」，塞进首启只会让
+/// 第一次打开变成填表；而条款是必须留下的一道门。
 class FirstRunGate extends ConsumerStatefulWidget {
   const FirstRunGate({super.key, required this.child});
 
@@ -28,103 +23,155 @@ class FirstRunGate extends ConsumerStatefulWidget {
 }
 
 class _FirstRunGateState extends ConsumerState<FirstRunGate> {
-  final PageController _controller = PageController();
-  int _step = 0;
-  bool _skippedSources = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  bool _agreed = false;
 
   bool get _accepted => ref.watch(onboardingAcceptedProvider);
 
-  void _goTo(int step) {
-    setState(() => _step = step);
-    _controller.animateToPage(
-      step,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
-    );
+  void _accept() {
+    if (!_agreed) return;
+    ref.read(onboardingAcceptedProvider.notifier).setAccepted(true);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_accepted) return widget.child;
 
-    final hasSource = ref.watch(hasEnabledCustomSourceProvider);
-    // 已经配过音源的用户不该再被拦一次：直接从条款进到完成。
-    final effectiveStep = _step == 1 && hasSource ? 2 : _step;
+    final s = S.of(context);
+    final accent = AppColors.accentOf(context);
+    final onAccent = AppColors.onAccentOf(context);
+    final muted = AppColors.mutedText(context);
+    final secondary = AppColors.secondaryText(context);
 
     return Stack(
       children: [
-        // 底下这层是真实界面，引导关掉后不需要重建路由栈。
+        // 底下这层是真实界面，同意之后不需要重建路由栈。
         Positioned.fill(child: widget.child),
         Positioned.fill(
-          child: ColoredBox(
+          // 用 Material 而不是 ColoredBox：下面的整行可点区域（InkWell）
+          // 和 Checkbox 都需要 Material 祖先才能画水波纹，缺了会直接抛
+          // 「No Material widget found」。
+          child: Material(
             color: AppColors.scaffold(context),
             child: SafeArea(
-              child: Column(
-                children: [
-                  Expanded(
-                    child: PageView(
-                      controller: _controller,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: [
-                        _TermsPage(onAccept: () {
-                          ref
-                              .read(onboardingAcceptedProvider.notifier)
-                              .setAccepted(true);
-                          _goTo(hasSource ? 2 : 1);
-                        }),
-                        _SourcePage(
-                          onConfigure: () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const CustomSourceScreen(),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 26, 24, 22),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight - 48,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        // 内容在上、操作在下：高屏上按钮贴底，短屏上整体可滚。
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _BrandMark(accent: accent),
+                              const SizedBox(height: 26),
+                              Text(
+                                s.onboardingTermsEyebrow.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.6,
+                                  color: accent,
+                                  decoration: TextDecoration.none,
+                                ),
                               ),
-                            );
-                            if (!context.mounted) return;
-                            if (ref.read(hasEnabledCustomSourceProvider)) {
-                              _goTo(2);
-                            }
-                          },
-                          onSkip: () {
-                            setState(() => _skippedSources = true);
-                            _goTo(2);
-                          },
-                        ),
-                        _DonePage(
-                          skippedSources: _skippedSources,
-                          onFinish: () => Navigator.of(context).maybePop(),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var i = 0; i < 3; i++)
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 220),
-                            margin: const EdgeInsets.symmetric(horizontal: 3),
-                            width: i == effectiveStep ? 18 : 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: i == effectiveStep
-                                  ? AppColors.accentOf(context)
-                                  : AppColors.cardBorder(context),
-                              borderRadius: BorderRadius.circular(3),
+                              const SizedBox(height: 10),
+                              Text(
+                                s.onboardingTermsTitle,
+                                style: TextStyle(
+                                  fontSize: 27,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.4,
+                                  color: AppColors.onScaffold(context),
+                                  decoration: TextDecoration.none,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                s.onboardingTermsIntro,
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  height: 1.6,
+                                  color: secondary,
+                                  decoration: TextDecoration.none,
+                                ),
+                              ),
+                              const SizedBox(height: 22),
+                              _TermsCard(
+                                points: s.onboardingTermsPoints,
+                                accent: accent,
+                                secondary: secondary,
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 18),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _ConsentRow(
+                                  value: _agreed,
+                                  label: s.onboardingTermsConsent,
+                                  accent: accent,
+                                  secondary: secondary,
+                                  onChanged: (value) =>
+                                      setState(() => _agreed = value),
+                                ),
+                                const SizedBox(height: 14),
+                                FilledButton(
+                                  onPressed: _agreed ? _accept : null,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: accent,
+                                    foregroundColor: onAccent,
+                                    disabledBackgroundColor: accent.withValues(
+                                      alpha: 0.14,
+                                    ),
+                                    disabledForegroundColor: muted,
+                                    elevation: 0,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 15,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    s.onboardingContinue,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Center(
+                                  child: Text(
+                                    s.onboardingTermsFootnote,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      height: 1.4,
+                                      color: muted,
+                                      decoration: TextDecoration.none,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  if (effectiveStep == 2) const SizedBox.shrink(),
-                ],
+                  );
+                },
               ),
             ),
           ),
@@ -134,230 +181,192 @@ class _FirstRunGateState extends ConsumerState<FirstRunGate> {
   }
 }
 
-class _TermsPage extends StatelessWidget {
-  const _TermsPage({required this.onAccept});
+/// 左上角的品牌标记：一个带主题色渐变的圆角方块。
+class _BrandMark extends StatelessWidget {
+  const _BrandMark({required this.accent});
 
-  final VoidCallback onAccept;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
-    final s = S.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 32, 28, 12),
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(13),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                accent,
+                Color.lerp(accent, Colors.black, 0.22) ?? accent,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: 0.28),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.graphic_eq_rounded,
+            size: 22,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(width: 11),
+        Text(
+          'Koyze',
+          style: TextStyle(
+            fontSize: 17,
+            height: 1.1,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
+            color: AppColors.onScaffold(context),
+            decoration: TextDecoration.none,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 条款正文。用编号卡片承载，长段落也不会糊成一片。
+class _TermsCard extends StatelessWidget {
+  const _TermsCard({
+    required this.points,
+    required this.accent,
+    required this.secondary,
+  });
+
+  final List<String> points;
+  final Color accent;
+  final Color secondary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+      decoration: BoxDecoration(
+        color: AppColors.fill2(context),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.cardBorder(context)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.music_note_rounded,
-            size: 34,
-            color: AppColors.accentOf(context),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            s.onboardingWelcome,
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w700,
-              color: AppColors.onScaffold(context),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            s.onboardingTermsIntro,
-            style: TextStyle(
-              fontSize: 13.5,
-              height: 1.6,
-              color: AppColors.secondaryText(context),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
+          for (var i = 0; i < points.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final line in s.onboardingTermsPoints)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6, right: 8),
-                            child: Container(
-                              width: 4,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: AppColors.mutedText(context),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              line,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                height: 1.6,
-                                color: AppColors.secondaryText(context),
-                              ),
-                            ),
-                          ),
-                        ],
+                  Container(
+                    width: 21,
+                    height: 21,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.14),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${i + 1}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1,
+                        fontWeight: FontWeight.w700,
+                        color: accent,
+                        decoration: TextDecoration.none,
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Text(
+                        points[i],
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.65,
+                          color: secondary,
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onAccept,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accentOf(context),
-                foregroundColor: AppColors.onAccentOf(context),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: Text(s.onboardingAgree),
-            ),
-          ),
         ],
       ),
     );
   }
 }
 
-class _SourcePage extends StatelessWidget {
-  const _SourcePage({required this.onConfigure, required this.onSkip});
+/// 「我已阅读并同意」——整行可点，不必精确点中复选框。
+class _ConsentRow extends StatelessWidget {
+  const _ConsentRow({
+    required this.value,
+    required this.label,
+    required this.accent,
+    required this.secondary,
+    required this.onChanged,
+  });
 
-  final VoidCallback onConfigure;
-  final VoidCallback onSkip;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = S.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 32, 28, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.extension_outlined,
-            size: 32,
-            color: AppColors.accentOf(context),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            s.onboardingSourceTitle,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.onScaffold(context),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            s.onboardingSourceBody,
-            style: TextStyle(
-              fontSize: 13.5,
-              height: 1.65,
-              color: AppColors.secondaryText(context),
-            ),
-          ),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onConfigure,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accentOf(context),
-                foregroundColor: AppColors.onAccentOf(context),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: Text(s.onboardingSourceConfigure),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: onSkip,
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.mutedText(context),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: Text(s.onboardingSkip),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DonePage extends StatelessWidget {
-  const _DonePage({required this.skippedSources, required this.onFinish});
-
-  final bool skippedSources;
-  final VoidCallback onFinish;
+  final bool value;
+  final String label;
+  final Color accent;
+  final Color secondary;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final s = S.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 32, 28, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.check_circle_outline_rounded,
-            size: 32,
-            color: AppColors.accentOf(context),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            s.onboardingDoneTitle,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.onScaffold(context),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            skippedSources ? s.onboardingDoneNoSource : s.onboardingDoneBody,
-            style: TextStyle(
-              fontSize: 13.5,
-              height: 1.65,
-              color: AppColors.secondaryText(context),
-            ),
-          ),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            child: Pressable(
-              onTap: onFinish,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.accentOf(context),
-                  borderRadius: BorderRadius.circular(12),
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 26,
+              height: 26,
+              child: Checkbox(
+                value: value,
+                onChanged: (next) => onChanged(next ?? false),
+                activeColor: accent,
+                checkColor: AppColors.onAccentOf(context),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                side: BorderSide(
+                  color: AppColors.cardBorder(context),
+                  width: 1.4,
                 ),
-                child: Text(
-                  s.onboardingStart,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.onAccentOf(context),
-                  ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
                 ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.45,
+                  color: secondary,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

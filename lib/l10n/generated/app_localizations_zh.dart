@@ -2947,10 +2947,13 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get onboardingWelcome => '欢迎使用 Koyze';
+  String get onboardingTermsEyebrow => '使用前必读';
 
   @override
-  String get onboardingTermsIntro => '开始之前，有几件事需要你知道。';
+  String get onboardingTermsTitle => '用户条款与免责声明';
+
+  @override
+  String get onboardingTermsIntro => 'Koyze 只是一个播放器，不是音乐服务。继续之前，请确认你理解下面四件事。';
 
   @override
   String get onboardingTermsPoint1 =>
@@ -2967,32 +2970,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get onboardingTermsPoint4 => '播放记录、歌单与设置只保存在本机，卸载应用即一并删除。';
 
   @override
-  String get onboardingAgree => '我已阅读并同意';
+  String get onboardingTermsConsent => '我已阅读并同意上述条款';
 
   @override
-  String get onboardingSourceTitle => '先添加一个音源';
+  String get onboardingContinue => '同意并继续';
 
   @override
-  String get onboardingSourceBody =>
-      'Koyze 不内置任何音频来源。至少添加一个自定义音源，才能搜索与播放音乐。也可以稍后在「设置 → 音源」里配置。';
-
-  @override
-  String get onboardingSourceConfigure => '去配置音源';
-
-  @override
-  String get onboardingSkip => '稍后再说';
-
-  @override
-  String get onboardingDoneTitle => '准备就绪';
-
-  @override
-  String get onboardingDoneBody => '搜一首歌，或者从「猜你喜欢」开始。列表里长按歌曲有更多操作。';
-
-  @override
-  String get onboardingDoneNoSource => '还没有启用音源——在「设置 → 音源」里添加之前，搜索不会有结果。';
-
-  @override
-  String get onboardingStart => '开始听歌';
+  String get onboardingTermsFootnote => '不同意上述条款将无法进入应用。';
 
   @override
   String get checkUpdates => '检查更新';

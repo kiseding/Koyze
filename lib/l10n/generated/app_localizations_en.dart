@@ -3018,11 +3018,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get onboardingWelcome => 'Welcome to Koyze';
+  String get onboardingTermsEyebrow => 'Before you start';
+
+  @override
+  String get onboardingTermsTitle => 'Terms & Disclaimer';
 
   @override
   String get onboardingTermsIntro =>
-      'Before you start, a few things worth reading.';
+      'Koyze is a player, not a music service. Before continuing, please make sure you understand the four points below.';
 
   @override
   String get onboardingTermsPoint1 =>
@@ -3041,34 +3044,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Playback records, playlists and settings are stored on this device only, and are removed with the app.';
 
   @override
-  String get onboardingAgree => 'I understand and agree';
+  String get onboardingTermsConsent =>
+      'I have read and agree to the terms above';
 
   @override
-  String get onboardingSourceTitle => 'Add a source';
+  String get onboardingContinue => 'Agree and continue';
 
   @override
-  String get onboardingSourceBody =>
-      'Koyze does not bundle any audio source. Add at least one custom source to search and play music. You can also do this later in Settings → Sources.';
-
-  @override
-  String get onboardingSourceConfigure => 'Configure sources';
-
-  @override
-  String get onboardingSkip => 'Later';
-
-  @override
-  String get onboardingDoneTitle => 'You are all set';
-
-  @override
-  String get onboardingDoneBody =>
-      'Search for a song, or start from recommendations. Every screen has a long-press menu for more actions.';
-
-  @override
-  String get onboardingDoneNoSource =>
-      'No source enabled yet — search will return nothing until you add one in Settings → Sources.';
-
-  @override
-  String get onboardingStart => 'Start listening';
+  String get onboardingTermsFootnote =>
+      'You cannot use the app without accepting these terms.';
 
   @override
   String get checkUpdates => 'Check for updates';
