@@ -1946,6 +1946,31 @@ void main() {
     expect(handler.debugAutomaticFailureSkippingHalted, isFalse);
   });
 
+  test('shuffle never re-picks a failed track nor spins on it', () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    final resolved = <String>[];
+    handler.urlResolver = (id, [extras]) async {
+      resolved.add(id);
+      return null;
+    };
+    await handler.setPlaylist(const [
+      MediaItem(id: 'A', title: 'A'),
+      MediaItem(id: 'B', title: 'B'),
+    ]);
+    await handler.setShuffleMode(AudioServiceShuffleMode.all);
+    await pumpEventQueue();
+
+    // 随机模式下只有两首可选，很容易重复抽到同一首。必须做到：
+    // 同一首不重复占用失败额度，全队列试完就停，而不是在 A/B 之间打转。
+    expect(resolved.toSet(), {'A', 'B'});
+    expect(resolved.length, lessThanOrEqualTo(2));
+    expect(handler.debugConsecutiveAutomaticTrackFailures, 2);
+    expect(handler.playbackState.value.playing, isFalse);
+  });
+
   test('stops only after every track in the queue failed', () async {
     final player = _PlaybackStateAudioPlayer()
       ..sourceInstallProcessingState = ProcessingState.ready;
