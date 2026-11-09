@@ -462,7 +462,7 @@ class PlayerBackdropScrimNotifier extends _SliderSettingNotifier {
 /// 这个值统一缩放它们的染色浓度。播放器那层模糊背景不受影响。
 class GlassOpacityNotifier extends _SliderSettingNotifier {
   GlassOpacityNotifier({StorageLoader? storage})
-    : super(1, storage: storage);
+    : super(GlassEffectConfig.defaultSurfaceOpacity, storage: storage);
 
   static const String storageKey = 'glass_surface_opacity';
 
@@ -471,7 +471,7 @@ class GlassOpacityNotifier extends _SliderSettingNotifier {
       ? value
             .clamp(GlassEffectConfig.minSurfaceOpacity, 1.0)
             .toDouble()
-      : 1;
+      : GlassEffectConfig.defaultSurfaceOpacity;
 
   @override
   double? readFrom(StorageService storage) {

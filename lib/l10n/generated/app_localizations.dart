@@ -383,7 +383,7 @@ abstract class AppLocalizations {
   /// No description provided for @glassOpacitySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Lower it to see more of what sits behind bars, cards, menus and the mini player'**
+  /// **'100% is solid; lower it to see through'**
   String get glassOpacitySubtitle;
 
   /// No description provided for @playerBackdropPreviewEmpty.

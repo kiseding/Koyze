@@ -47,7 +47,9 @@ Widget _host(
 void main() {
   tearDown(() {
     LowMemory.active = false;
-    GlassEffectConfig.setSurfaceOpacity(1);
+    GlassEffectConfig.setSurfaceOpacity(
+      GlassEffectConfig.defaultSurfaceOpacity,
+    );
   });
 
   group('GlassSurface', () {
@@ -230,7 +232,7 @@ void main() {
       );
       final before = _surfaceAlpha(tester, GlassSurface);
 
-      GlassEffectConfig.setSurfaceOpacity(0.5);
+      GlassEffectConfig.setSurfaceOpacity(0.4);
       await tester.pump();
 
       final after = _surfaceAlpha(tester, GlassSurface);
@@ -253,7 +255,7 @@ void main() {
       await tester.pump();
 
       final after = _surfaceAlpha(tester, LiquidGlassSurface);
-      expect(after, closeTo(before * 0.4, 0.02));
+      expect(after, closeTo(before * 0.5, 0.02));
     });
 
     testWidgets('顶栏染色跟着变，不会留一条旧浓度的标题栏', (tester) async {
@@ -277,10 +279,74 @@ void main() {
 
       final before = firstStop();
 
-      GlassEffectConfig.setSurfaceOpacity(0.5);
+      GlassEffectConfig.setSurfaceOpacity(0.4);
       await tester.pump();
 
       expect(firstStop(), closeTo(before * 0.5, 0.02));
+    });
+
+    testWidgets('顶栏在 100% 时不再渐隐，真正压住底下的列表', (tester) async {
+      await tester.pumpWidget(
+        _host(const GradientFrost(child: SizedBox.expand())),
+      );
+
+      GlassEffectConfig.setSurfaceOpacity(1);
+      await tester.pump();
+
+      final box = tester.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.byType(GradientFrost),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      final gradient =
+          (box.decoration as BoxDecoration).gradient! as LinearGradient;
+      for (final color in gradient.colors) {
+        expect(color.a, 1.0, reason: '顶栏还留着透明的渐隐段');
+      }
+    });
+
+    testWidgets('拖到 100% 是完全实色，不是「设计浓度乘一」', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          GlassSurface(
+            borderRadius: BorderRadius.circular(16),
+            child: const Center(child: Text('卡片')),
+          ),
+        ),
+      );
+
+      GlassEffectConfig.setSurfaceOpacity(1);
+      await tester.pump();
+
+      expect(_surfaceAlpha(tester, GlassSurface), 1.0);
+    });
+
+    testWidgets('液态玻璃与顶栏在 100% 时同样归为实色', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          LiquidGlassSurface(
+            borderRadius: BorderRadius.circular(22),
+            child: const Center(child: Text('迷你栏')),
+          ),
+        ),
+      );
+
+      GlassEffectConfig.setSurfaceOpacity(1);
+      await tester.pump();
+
+      expect(_surfaceAlpha(tester, LiquidGlassSurface), 1.0);
+      expect(
+        GlassEffectConfig.chromeOpacityFor(Brightness.dark),
+        1.0,
+        reason: '顶栏走的也是同一套换算',
+      );
+      expect(
+        GlassEffectConfig.chromeOpacityFor(Brightness.light, blurred: true),
+        1.0,
+      );
     });
 
     testWidgets('关掉玻璃效果时固定回实色，不受滑杆影响', (tester) async {

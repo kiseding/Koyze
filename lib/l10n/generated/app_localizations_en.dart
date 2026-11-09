@@ -159,8 +159,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get glassOpacity => 'Interface opacity';
 
   @override
-  String get glassOpacitySubtitle =>
-      'Lower it to see more of what sits behind bars, cards, menus and the mini player';
+  String get glassOpacitySubtitle => '100% is solid; lower it to see through';
 
   @override
   String get playerBackdropPreviewEmpty => 'Nothing playing';

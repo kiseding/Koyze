@@ -150,7 +150,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get glassOpacity => '界面不透明度';
 
   @override
-  String get glassOpacitySubtitle => '调低更透；顶栏、卡片、菜单、迷你播放条都跟着变';
+  String get glassOpacitySubtitle => '100% 为完全实色，调低更透';
 
   @override
   String get playerBackdropPreviewEmpty => '没有正在播放的歌曲';

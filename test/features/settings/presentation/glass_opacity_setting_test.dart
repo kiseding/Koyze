@@ -11,7 +11,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  tearDown(() => GlassEffectConfig.setSurfaceOpacity(1));
+  tearDown(
+    () => GlassEffectConfig.setSurfaceOpacity(
+      GlassEffectConfig.defaultSurfaceOpacity,
+    ),
+  );
 
   Future<StorageService> storageWith(Map<String, Object> values) async {
     SharedPreferences.setMockInitialValues(values);
@@ -23,7 +27,7 @@ void main() {
     final notifier = GlassOpacityNotifier(storage: () async => storage);
     await Future<void>.delayed(Duration.zero);
 
-    expect(notifier.value, 1);
+    expect(notifier.value, GlassEffectConfig.defaultSurfaceOpacity);
   });
 
   test('values below the floor are clamped on load', () async {
@@ -60,7 +64,8 @@ void main() {
     );
     final plainBefore = GlassEffectConfig.chromeOpacityFor(Brightness.dark);
 
-    GlassEffectConfig.setSurfaceOpacity(0.5);
+    // 0.4 相对默认档 0.8 正好是一半：减淡这一段是等比缩放。
+    GlassEffectConfig.setSurfaceOpacity(0.4);
 
     expect(
       GlassEffectConfig.chromeOpacityFor(Brightness.dark, blurred: true),
@@ -72,6 +77,20 @@ void main() {
     );
   });
 
+  test('the top of the slider is genuinely solid', () {
+    // 100% 必须是实色：这里钉住「乘法到不了 1」这个旧毛病不再回来。
+    for (final brightness in Brightness.values) {
+      for (final blurred in [true, false]) {
+        GlassEffectConfig.setSurfaceOpacity(1);
+        expect(
+          GlassEffectConfig.chromeOpacityFor(brightness, blurred: blurred),
+          1.0,
+          reason: 'brightness=$brightness blurred=$blurred 没有归到实色',
+        );
+      }
+    }
+  });
+
   testWidgets('AppGlass.fillColor honours the multiplier', (tester) async {
     late Color full;
     late Color half;
@@ -80,9 +99,11 @@ void main() {
         theme: ThemeData(brightness: Brightness.dark),
         home: Builder(
           builder: (context) {
-            GlassEffectConfig.setSurfaceOpacity(1);
+            GlassEffectConfig.setSurfaceOpacity(
+              GlassEffectConfig.defaultSurfaceOpacity,
+            );
             full = AppGlass.fillColor(context);
-            GlassEffectConfig.setSurfaceOpacity(0.5);
+            GlassEffectConfig.setSurfaceOpacity(0.4);
             half = AppGlass.fillColor(context);
             return const SizedBox.shrink();
           },

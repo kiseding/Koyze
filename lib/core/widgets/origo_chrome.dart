@@ -239,6 +239,9 @@ class GradientFrost extends StatelessWidget {
     // 读起来像标题栏没画完。退回接近不透明的底色，只在最后 15% 淡出。
     // 增强对比度、系统关掉动画同理——见 [prefersFlatSurfaces]。
     final reduce = prefersFlatSurfaces(context) || sigma <= 0;
+    // 滑杆拖到 100% 时不再保留顶栏底边那一道淡出：用户要的是实色，
+    // 留着渐隐等于还是能看见底下的列表。
+    final fullySolid = GlassEffectConfig.surfaceOpacity >= 1;
     final solidTint = reduce
         ? Color.alphaBlend(
             tint.withValues(alpha: 0.97),
@@ -252,12 +255,19 @@ class GradientFrost extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            stops: reduce ? const [0, 0.85, 1] : const [0, 0.58, 1],
-            colors: [
-              solidTint.withValues(alpha: alpha),
-              solidTint.withValues(alpha: alpha * (reduce ? 0.92 : 0.52)),
-              solidTint.withValues(alpha: 0),
-            ],
+            stops: fullySolid
+                ? const [0, 1]
+                : (reduce ? const [0, 0.85, 1] : const [0, 0.58, 1]),
+            colors: fullySolid
+                ? [
+                    solidTint.withValues(alpha: 1),
+                    solidTint.withValues(alpha: 1),
+                  ]
+                : [
+                    solidTint.withValues(alpha: alpha),
+                    solidTint.withValues(alpha: alpha * (reduce ? 0.92 : 0.52)),
+                    solidTint.withValues(alpha: 0),
+                  ],
           ),
         ),
       ),

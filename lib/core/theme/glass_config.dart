@@ -21,13 +21,20 @@ abstract final class GlassEffectConfig {
   static double _blurScale = 0.85;
   static bool _reduceEffects = false;
   static bool _disableAllGlassEffects = false;
-  static double _surfaceOpacity = 1;
+  static double _surfaceOpacity = defaultSurfaceOpacity;
 
   /// 设置页暴露的「界面不透明度」下限。
   ///
   /// 再往下玻璃就只剩一条边，列表文字会直接压在下面的内容上；0.3 是还能
   /// 认出"这里有一块面板"的最后一档。
   static const double minSurfaceOpacity = 0.3;
+
+  /// 「界面不透明度」的默认档，等同于设计稿浓度。
+  ///
+  /// 不动这一档时，界面和没有这个设置之前完全一样；往右拖只会把玻璃朝实色
+  /// 补齐。**100% 就是真正的实色**，不再是「基础浓度 × 1」——乘法永远到不了
+  /// 1，这正是之前拖到底还透着的原因。
+  static const double defaultSurfaceOpacity = 0.8;
 
   static void applyPerformanceMode({required bool reduceEffects}) {
     _reduceEffects = reduceEffects;
@@ -40,22 +47,39 @@ abstract final class GlassEffectConfig {
   /// 卡片、迷你播放条都还停在旧的一帧，看起来就是「拖了没反应」。玻璃面
   /// 各自监听这个信号，改完当帧重画自己，不必等外层重建。
   static final ValueNotifier<double> _surfaceOpacitySignal =
-      ValueNotifier<double>(1);
+      ValueNotifier<double>(defaultSurfaceOpacity);
 
   static ValueListenable<double> get surfaceOpacityListenable =>
       _surfaceOpacitySignal;
 
-  /// 全局材质不透明度倍率（0.3~1）。1 表示设计稿原样。
+  /// 全局材质不透明度（0.3~1）。0.8 是设计稿原样，1 是完全实色。
   static void setSurfaceOpacity(double value) {
     final next = value.isFinite
         ? value.clamp(minSurfaceOpacity, 1.0).toDouble()
-        : 1.0;
+        : defaultSurfaceOpacity;
     if (next == _surfaceOpacity) return;
     _surfaceOpacity = next;
     _surfaceOpacitySignal.value = next;
   }
 
   static double get surfaceOpacity => _surfaceOpacity;
+
+  /// 把某种材质的基础浓度换算成此刻该用的 alpha。
+  ///
+  /// 默认档以下按比例减淡（0.4 相当于原浓度的一半）；默认档以上朝 1.0 补齐
+  /// （1.0 得到完全不透明）。分两段而不是统一乘系数，是为了同时保住两件事：
+  /// 各材质之间「有模糊更淡、无模糊更浓」的相对关系，以及滑杆拖到底时真的
+  /// 变成实色。
+  static double alphaFor(double baseAlpha) {
+    if (_disableAllGlassEffects) return 1.0;
+    final base = baseAlpha.clamp(0.0, 1.0);
+    if (_surfaceOpacity <= defaultSurfaceOpacity) {
+      return base * (_surfaceOpacity / defaultSurfaceOpacity);
+    }
+    final t =
+        (_surfaceOpacity - defaultSurfaceOpacity) / (1 - defaultSurfaceOpacity);
+    return (base + (1 - base) * t).clamp(0.0, 1.0);
+  }
 
   static void setDisableAllGlassEffects(bool disabled) {
     _disableAllGlassEffects = disabled;
@@ -115,7 +139,6 @@ abstract final class GlassEffectConfig {
   static const double _lightChromeOpacityNoBlur = 0.82;
 
   static double chromeOpacityFor(Brightness brightness, {bool blurred = false}) {
-    if (_disableAllGlassEffects) return 1.0;
     final base = blurred
         ? (brightness == Brightness.light
               ? _lightChromeOpacityBase
@@ -123,7 +146,7 @@ abstract final class GlassEffectConfig {
         : (brightness == Brightness.light
               ? _lightChromeOpacityNoBlur
               : _chromeOpacityNoBlur);
-    return (base * _surfaceOpacity).clamp(0.0, 1.0);
+    return alphaFor(base);
   }
 
   /// 浅色下把底色往白里提亮，深色保持主题色本身。
