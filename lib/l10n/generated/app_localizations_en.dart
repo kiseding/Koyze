@@ -160,7 +160,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get glassOpacitySubtitle =>
-      'Lower it to see more of what sits behind bars and cards';
+      'Lower it to see more of what sits behind bars, cards, menus and the mini player';
 
   @override
   String get playerBackdropPreviewEmpty => 'Nothing playing';

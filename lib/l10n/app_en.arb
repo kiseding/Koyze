@@ -47,7 +47,7 @@
   "playerBackdropBlur": "Background blur",
   "playerBackdropScrim": "Scrim opacity",
   "glassOpacity": "Interface opacity",
-  "glassOpacitySubtitle": "Lower it to see more of what sits behind bars and cards",
+  "glassOpacitySubtitle": "Lower it to see more of what sits behind bars, cards, menus and the mini player",
   "playerBackdropPreviewEmpty": "Nothing playing",
   "resetToDefault": "Reset to default",
   "general": "General",
