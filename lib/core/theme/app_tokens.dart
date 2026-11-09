@@ -258,6 +258,15 @@ class GlassSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 设置里的「界面不透明度」是全局静态档位，改它不会让外层重建；这里直接
+    // 监听信号，拖动滑杆时这一块当帧重画。
+    return ValueListenableBuilder<double>(
+      valueListenable: GlassEffectConfig.surfaceOpacityListenable,
+      builder: (context, _, _) => _buildSurface(context),
+    );
+  }
+
+  Widget _buildSurface(BuildContext context) {
     final radius = borderRadius ?? BorderRadius.circular(16);
     final sigma = blur ?? AppGlass.blurFor(style);
     final base = _baseColor(context);

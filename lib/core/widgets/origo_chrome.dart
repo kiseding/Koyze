@@ -4,6 +4,7 @@ import '../motion/motion_tokens.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import '../theme/effect_policy.dart';
+import '../theme/glass_config.dart';
 
 /// Shared chrome surface for floating controls.
 ///
@@ -221,6 +222,14 @@ class GradientFrost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 顶栏染色浓度也吃「界面不透明度」这一档，同样要随滑杆当场重画。
+    return ValueListenableBuilder<double>(
+      valueListenable: GlassEffectConfig.surfaceOpacityListenable,
+      builder: (context, _, _) => _buildTint(context),
+    );
+  }
+
+  Widget _buildTint(BuildContext context) {
     final tint = base ?? AppGlass.tintBase(context, style: AppGlassStyle.bar);
     final (defaultAlpha, _) = AppGlass.overlayAlphas(
       context,

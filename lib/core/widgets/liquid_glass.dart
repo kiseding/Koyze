@@ -66,6 +66,15 @@ class LiquidGlassSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 迷你播放条、tab 胶囊都挂在这块材质上：设置里拖「界面不透明度」时，
+    // 它们得当场跟着变，而不是等下一次路由重建。
+    return ValueListenableBuilder<double>(
+      valueListenable: GlassEffectConfig.surfaceOpacityListenable,
+      builder: (context, _, _) => _buildSurface(context),
+    );
+  }
+
+  Widget _buildSurface(BuildContext context) {
     final isDark = AppColors.isDark(context);
     final base = tint ?? AppGlass.tintBase(context);
     // 有模糊垫底时染色可以很淡（0.22 / 0.46）；只剩透明度时同一档会让字

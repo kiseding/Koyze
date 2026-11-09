@@ -3,8 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/performance/low_memory.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/theme/effect_policy.dart';
+import 'package:koyze/core/theme/glass_config.dart';
 import 'package:koyze/core/widgets/liquid_glass.dart';
 import 'package:koyze/core/widgets/origo_chrome.dart';
+
+/// 读某个材质最外层那块 DecoratedBox 的底色 alpha。
+///
+/// 界面不透明度最终就落在这一层上：调低就是 alpha 变小，不需要去猜像素。
+double _surfaceAlpha(WidgetTester tester, Type type) {
+  final boxes = tester.widgetList<DecoratedBox>(
+    find.descendant(of: find.byType(type), matching: find.byType(DecoratedBox)),
+  );
+  for (final box in boxes) {
+    final decoration = box.decoration;
+    if (decoration is BoxDecoration && decoration.color != null) {
+      return decoration.color!.a;
+    }
+  }
+  fail('$type 下面没有带底色的 DecoratedBox');
+}
 
 /// 把被测材质放进带指定无障碍偏好的环境里。
 Widget _host(
@@ -28,7 +45,10 @@ Widget _host(
 }
 
 void main() {
-  tearDown(() => LowMemory.active = false);
+  tearDown(() {
+    LowMemory.active = false;
+    GlassEffectConfig.setSurfaceOpacity(1);
+  });
 
   group('GlassSurface', () {
     Widget surface() => GlassSurface(
@@ -193,6 +213,92 @@ void main() {
         _host(const GradientFrost(sigma: 0, child: SizedBox.expand())),
       );
       expect(find.byType(BackdropFilter), findsNothing);
+    });
+  });
+
+  group('界面不透明度', () {
+    // 设置页的滑杆改的是全局静态档位。外层路由不会因此重建，所以每块玻璃面
+    // 必须自己监听——否则就是"拖了没反应，回上一页才变"。
+    testWidgets('GlassSurface 不重建父级也会当场变透', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          GlassSurface(
+            borderRadius: BorderRadius.circular(16),
+            child: const Center(child: Text('卡片')),
+          ),
+        ),
+      );
+      final before = _surfaceAlpha(tester, GlassSurface);
+
+      GlassEffectConfig.setSurfaceOpacity(0.5);
+      await tester.pump();
+
+      final after = _surfaceAlpha(tester, GlassSurface);
+      expect(after, lessThan(before));
+      expect(after, closeTo(before * 0.5, 0.02));
+    });
+
+    testWidgets('迷你播放条用的液态玻璃同样当场变透', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          LiquidGlassSurface(
+            borderRadius: BorderRadius.circular(22),
+            child: const Center(child: Text('迷你栏')),
+          ),
+        ),
+      );
+      final before = _surfaceAlpha(tester, LiquidGlassSurface);
+
+      GlassEffectConfig.setSurfaceOpacity(0.4);
+      await tester.pump();
+
+      final after = _surfaceAlpha(tester, LiquidGlassSurface);
+      expect(after, closeTo(before * 0.4, 0.02));
+    });
+
+    testWidgets('顶栏染色跟着变，不会留一条旧浓度的标题栏', (tester) async {
+      await tester.pumpWidget(
+        _host(const GradientFrost(child: SizedBox.expand())),
+      );
+      double firstStop() {
+        final box = tester.widget<DecoratedBox>(
+          find
+              .descendant(
+                of: find.byType(GradientFrost),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        );
+        return ((box.decoration as BoxDecoration).gradient! as LinearGradient)
+            .colors
+            .first
+            .a;
+      }
+
+      final before = firstStop();
+
+      GlassEffectConfig.setSurfaceOpacity(0.5);
+      await tester.pump();
+
+      expect(firstStop(), closeTo(before * 0.5, 0.02));
+    });
+
+    testWidgets('关掉玻璃效果时固定回实色，不受滑杆影响', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          LiquidGlassSurface(
+            borderRadius: BorderRadius.circular(22),
+            child: const Center(child: Text('胶囊')),
+          ),
+          highContrast: true,
+        ),
+      );
+      final before = _surfaceAlpha(tester, LiquidGlassSurface);
+
+      GlassEffectConfig.setSurfaceOpacity(0.4);
+      await tester.pump();
+
+      expect(_surfaceAlpha(tester, LiquidGlassSurface), closeTo(before, 0.001));
     });
   });
 }

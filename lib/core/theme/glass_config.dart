@@ -1,6 +1,7 @@
 // 文件说明：毛玻璃效果配置，照搬 origo-x 的 GlassEffectConfig。
 // 技术要点：模糊半径与透明度集中管理，性能模式下统一缩放。
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// 毛玻璃参数集中管理。
@@ -33,11 +34,25 @@ abstract final class GlassEffectConfig {
     _syncBlurScale();
   }
 
+  /// 透明度变了会通知这里。
+  ///
+  /// 光改一个静态字段不会让已经建好的界面重画——设置页滑杆在动，但顶栏、
+  /// 卡片、迷你播放条都还停在旧的一帧，看起来就是「拖了没反应」。玻璃面
+  /// 各自监听这个信号，改完当帧重画自己，不必等外层重建。
+  static final ValueNotifier<double> _surfaceOpacitySignal =
+      ValueNotifier<double>(1);
+
+  static ValueListenable<double> get surfaceOpacityListenable =>
+      _surfaceOpacitySignal;
+
   /// 全局材质不透明度倍率（0.3~1）。1 表示设计稿原样。
   static void setSurfaceOpacity(double value) {
-    _surfaceOpacity = value.isFinite
+    final next = value.isFinite
         ? value.clamp(minSurfaceOpacity, 1.0).toDouble()
         : 1.0;
+    if (next == _surfaceOpacity) return;
+    _surfaceOpacity = next;
+    _surfaceOpacitySignal.value = next;
   }
 
   static double get surfaceOpacity => _surfaceOpacity;
