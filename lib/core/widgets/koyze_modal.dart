@@ -1,18 +1,15 @@
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 
 import '../motion/motion_tokens.dart';
 import '../performance/low_memory.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
-import '../theme/effect_policy.dart';
 
-/// Koyze 的模态语言：一层压暗 + 磨砂的背景，一块浮在上面的玻璃面板。
+/// Koyze 的模态语言：一层压暗 + 一块浮在上面的玻璃面板。
 ///
 /// Material 默认对话框只有一个淡入的不透明纸片，放在这套玻璃界面里会像
 /// 贴上去的贴纸。这里改成 Origo-x 的做法：
-/// - 遮罩先压暗再模糊，底层页面退到后面但保留颜色；
+/// - 遮罩单纯压暗（不再糊背景：全 App 只有播放器保留模糊）；
 /// - 面板从 92% 弹到 100%，用带轻微过冲的曲线，收起时直接走 easeIn；
 /// - 面板用与 Dock / 弹窗同一套 [GlassSurface]，圆角、边线、投影全部走 token。
 Future<T?> showKoyzeDialog<T>({
@@ -71,19 +68,8 @@ Future<T?> showKoyzeDialog<T>({
           return Stack(
             fit: StackFit.expand,
             children: [
-              if (!prefersFlatSurfaces(context) && t > 0.01)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(
-                        sigmaX: 12 * t,
-                        sigmaY: 12 * t,
-                        tileMode: TileMode.mirror,
-                      ),
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                ),
+              // 只用透明度：遮罩已经负责压暗背景，再去糊一层只是每帧多一次
+              // 全屏离屏采样。全 App 只有播放器保留背景模糊。
               Positioned.fill(
                 child: IgnorePointer(
                   child: ColoredBox(

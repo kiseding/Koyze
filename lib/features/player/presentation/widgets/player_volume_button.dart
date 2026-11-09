@@ -253,6 +253,8 @@ class _VolumePanel extends StatelessWidget {
       type: MaterialType.transparency,
       child: GlassSurface(
         borderRadius: BorderRadius.circular(horizontal ? 20 : 28),
+        // 播放器里的音量面板也在封面之上，保留实时模糊。
+        blurBehind: true,
         padding: horizontal
             ? const EdgeInsets.fromLTRB(8, 8, 12, 8)
             : const EdgeInsets.fromLTRB(8, 14, 8, 10),

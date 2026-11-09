@@ -14,11 +14,26 @@ Widget _host(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
   group('GlassBackdrop 背景采样', () {
-    testWidgets('没有分组时走独立采样', (tester) async {
+    testWidgets('默认不采样：除了播放器，界面只用透明度', (tester) async {
       await tester.pumpWidget(
         _host(
           const GlassBackdrop(
             sigma: 12,
+            child: SizedBox(width: 120, height: 48),
+          ),
+        ),
+      );
+      // 这是本轮产品约定：全 App 只有全屏播放器保留背景模糊。
+      // 谁把默认值改成 true，首页一屏十块玻璃就又是十次全屏拷贝。
+      expect(find.byType(BackdropFilter), findsNothing);
+    });
+
+    testWidgets('显式允许时没有分组走独立采样', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          const GlassBackdrop(
+            sigma: 12,
+            allowBlur: true,
             child: SizedBox(width: 120, height: 48),
           ),
         ),
@@ -36,6 +51,7 @@ void main() {
             backdropKey: groupKey,
             child: const GlassBackdrop(
               sigma: 12,
+              allowBlur: true,
               child: SizedBox(width: 120, height: 48),
             ),
           ),
@@ -56,10 +72,12 @@ void main() {
               children: const [
                 GlassBackdrop(
                   sigma: 8,
+                  allowBlur: true,
                   child: SizedBox(width: 120, height: 48),
                 ),
                 GlassBackdrop(
                   sigma: 16,
+                  allowBlur: true,
                   child: SizedBox(width: 120, height: 48),
                 ),
               ],
@@ -71,7 +89,10 @@ void main() {
       final keys = find
           .byType(BackdropFilter)
           .evaluate()
-          .map((element) => (element.renderObject! as RenderBackdropFilter).backdropKey)
+          .map(
+            (element) =>
+                (element.renderObject! as RenderBackdropFilter).backdropKey,
+          )
           .toList();
       expect(keys, everyElement(same(groupKey)));
     });
@@ -81,6 +102,7 @@ void main() {
         _host(
           const GlassBackdrop(
             sigma: 0,
+            allowBlur: true,
             child: SizedBox(width: 120, height: 48),
           ),
         ),
@@ -93,6 +115,7 @@ void main() {
         _host(
           const GlassBackdrop(
             sigma: 10,
+            allowBlur: true,
             child: SizedBox(width: 120, height: 48),
           ),
         ),

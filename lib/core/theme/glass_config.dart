@@ -73,14 +73,28 @@ abstract final class GlassEffectConfig {
   }
 
   // ============ 透明度 (alpha: 0.0-1.0) ============
-  static const double _chromeOpacityBase = 0.3;
+  //
+  // 两套浓度，按「背后到底糊没糊」选：
+  // - 糊过（目前只有全屏播放器）：0.30 / 0.60。背景已经变平，一层淡染色就够。
+  // - 没糊（其余全部界面）：0.66 / 0.82。只剩透明度时，同一档会透出背后
+  //   清晰的列表文字与封面细节，标题会读不出来。
+  static const double _chromeOpacityBase = 0.30;
   static const double _lightChromeOpacityBase = 0.60;
+  static const double _chromeOpacityNoBlur = 0.66;
+  static const double _lightChromeOpacityNoBlur = 0.82;
 
-  static double chromeOpacityFor(Brightness brightness) {
+  static double chromeOpacityFor(Brightness brightness, {bool blurred = false}) {
+    if (blurred) {
+      return effectiveOpacity(
+        brightness == Brightness.light
+            ? _lightChromeOpacityBase
+            : _chromeOpacityBase,
+      );
+    }
     return effectiveOpacity(
       brightness == Brightness.light
-          ? _lightChromeOpacityBase
-          : _chromeOpacityBase,
+          ? _lightChromeOpacityNoBlur
+          : _chromeOpacityNoBlur,
     );
   }
 

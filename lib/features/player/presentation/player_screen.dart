@@ -1484,6 +1484,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             child: GlassSurface(
               style: AppGlassStyle.chrome,
               borderRadius: BorderRadius.circular(18),
+              // 全屏播放器是唯一保留背景模糊的界面：圆钮背后就是封面，
+              // 模糊 + 淡染色才压得住浅色封面上的一片高光。
+              blurBehind: true,
               child: Pressable(
                 tooltip: _currentPage == 0
                     ? S.of(context).collapsePlayer
@@ -2095,6 +2098,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           builder: (context, scrollController) => GlassSurface(
             style: AppGlassStyle.regular,
             borderRadius: BorderRadius.circular(koyzeSheetRadius),
+            // 播放器内的队列面板同样压在封面上，保留实时模糊。
+            blurBehind: true,
             child: Material(
               color: Colors.transparent,
               child: _PlaybackQueueSheet(

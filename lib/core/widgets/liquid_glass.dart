@@ -17,7 +17,10 @@ import 'glass_backdrop.dart';
 /// 3. 边缘是一条 0.8px 的亮线，靠它收口，而不是靠实色底和投影。
 ///
 /// 所以这个组件只应该用在"浮在内容上的一小块"——tab 胶囊、迷你播放条。
-/// 整条栏铺满屏幕宽度时把 alpha 留在 0.2 以下，否则又变成一张毛玻璃板。
+///
+/// 注意：App 内只有全屏播放器允许背景模糊，这里默认走 [GlassQuality.minimal]
+/// （不采样背后，只做透明混合 + 高光 + 细边）。因此染色浓度比"配模糊"的
+/// 0.22 / 0.46 高——没有模糊垫底时，太淡会让胶囊上的字被背景吃掉。
 class LiquidGlassSurface extends StatelessWidget {
   const LiquidGlassSurface({
     super.key,
@@ -32,6 +35,7 @@ class LiquidGlassSurface extends StatelessWidget {
     this.borderColor,
     this.quality = GlassQuality.premium,
     this.backdrop = true,
+    this.blurBehind = false,
   });
 
   final Widget child;
@@ -44,6 +48,9 @@ class LiquidGlassSurface extends StatelessWidget {
 
   /// 兼容旧调用点的显式开关；为 false 时等价于 [GlassQuality.minimal]。
   final bool backdrop;
+
+  /// 是否允许实时采样背后做模糊。默认 false，只有全屏播放器才该打开。
+  final bool blurBehind;
 
   /// 0–1 倍率：淡出、收起时整体减淡。
   final double opacity;
@@ -60,14 +67,20 @@ class LiquidGlassSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = AppColors.isDark(context);
     final base = tint ?? AppGlass.tintBase(context);
-    // 比旧的 chrome 档（0.30 / 0.60）再淡一档：玻璃要能看到背后的东西。
-    final alpha = (isDark ? 0.22 : 0.46) * opacity;
+    // 有模糊垫底时染色可以很淡（0.22 / 0.46）；只剩透明度时同一档会让字
+    // 糊在背景里，所以浓一档。
+    final alpha =
+        (blurBehind
+            ? (isDark ? 0.22 : 0.46)
+            : (isDark ? 0.58 : 0.74)) *
+        opacity;
     final edge =
         borderColor ??
         (isDark
             ? Colors.white.withValues(alpha: 0.20 * opacity)
             : const Color(0xFF3C3C43).withValues(alpha: 0.14 * opacity));
-    final requested = backdrop ? quality : GlassQuality.minimal;
+    // 产品约定：只有全屏播放器允许模糊，其余界面只做透明混合。
+    final requested = (backdrop && blurBehind) ? quality : GlassQuality.minimal;
     final resolved = resolveGlassQuality(context, requested: requested);
 
     return switch (resolved) {
@@ -116,6 +129,7 @@ class LiquidGlassSurface extends StatelessWidget {
         child: GlassBackdrop(
           sigma: blur,
           saturation: saturation,
+          allowBlur: blurBehind,
           child: _layers(base: base, edge: edge, alpha: alpha, isDark: isDark),
         ),
       ),

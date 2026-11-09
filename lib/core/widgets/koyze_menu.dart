@@ -259,39 +259,35 @@ class _KoyzeMenuRoute<T> extends PopupRoute<T> {
                       ),
                       child: ClipPath(
                         clipper: clipper,
-                        child: BackdropFilter(
-                          filter: ui.ImageFilter.blur(
-                            sigmaX: AppGlass.blurFor(AppGlassStyle.chrome),
-                            sigmaY: AppGlass.blurFor(AppGlassStyle.chrome),
-                          ),
-                          child: DecoratedBox(
-                            decoration: _menuDecoration(context, color),
-                            child: Material(
-                              type: MaterialType.transparency,
-                              child: Stack(
-                                children: [
-                                  IgnorePointer(
-                                    ignoring:
-                                        animation.status !=
-                                        AnimationStatus.completed,
-                                    child: Opacity(
-                                      opacity: reveal,
-                                      child: child,
-                                    ),
+                        // 只用透明度：菜单底色本身就是不低的浓度（0.64/0.82），
+                        // 去掉背景采样后依旧读得清，也省掉每次弹出一次离屏模糊。
+                        child: DecoratedBox(
+                          decoration: _menuDecoration(context, color),
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: Stack(
+                              children: [
+                                IgnorePointer(
+                                  ignoring:
+                                      animation.status !=
+                                      AnimationStatus.completed,
+                                  child: Opacity(
+                                    opacity: reveal,
+                                    child: child,
                                   ),
-                                  if (anchorIcon != null && progress < 1)
-                                    Positioned.fill(
-                                      child: CustomSingleChildLayout(
-                                        delegate: _AnchorIconLayout(geometry),
-                                        child: Opacity(
-                                          opacity: (1 - animation.value / 0.24)
-                                              .clamp(0.0, 1.0),
-                                          child: anchorIcon,
-                                        ),
+                                ),
+                                if (anchorIcon != null && progress < 1)
+                                  Positioned.fill(
+                                    child: CustomSingleChildLayout(
+                                      delegate: _AnchorIconLayout(geometry),
+                                      child: Opacity(
+                                        opacity: (1 - animation.value / 0.24)
+                                            .clamp(0.0, 1.0),
+                                        child: anchorIcon,
                                       ),
                                     ),
-                                ],
-                              ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),

@@ -60,15 +60,23 @@ abstract final class AppGlass {
     };
   }
 
-  /// 染色透明度：深色 0.30、浅色 0.60（origo 的 chrome 档位）。
+  /// 染色透明度。
+  ///
+  /// [blurred] 表示这块玻璃背后真的有模糊（目前只有全屏播放器）：糊过的
+  /// 背景本身已经变平，0.30/0.60 的淡染色就够。没有模糊的界面只剩透明度，
+  /// 同一档会透出背后清晰的列表文字与封面细节，所以浓度提高到 0.66/0.82。
   static (double, double) overlayAlphas(
     BuildContext context, {
     AppGlassStyle style = AppGlassStyle.regular,
     bool emphasized = false,
+    bool blurred = false,
   }) {
     final scheme = Theme.of(context).colorScheme;
     final alpha =
-        GlassEffectConfig.chromeOpacityFor(scheme.brightness) +
+        GlassEffectConfig.chromeOpacityFor(
+          scheme.brightness,
+          blurred: blurred,
+        ) +
         (emphasized ? 0.06 : 0);
     final clamped = alpha.clamp(0.0, 1.0);
     return (clamped, clamped);
@@ -80,6 +88,7 @@ abstract final class AppGlass {
     AppGlassStyle style = AppGlassStyle.regular,
     bool emphasized = false,
     double alphaScale = 1,
+    bool blurred = false,
   }) {
     final base = tintBase(context, style: style);
     final isDark = AppColors.isDark(context);
@@ -90,6 +99,7 @@ abstract final class AppGlass {
       context,
       style: style,
       emphasized: emphasized,
+      blurred: blurred,
     );
     return lifted.withValues(alpha: (alpha * alphaScale).clamp(0.0, 1.0));
   }
@@ -208,6 +218,7 @@ class GlassSurface extends StatelessWidget {
     this.emphasized = false,
     this.alphaScale = 1,
     this.backdrop = true,
+    this.blurBehind = false,
   });
 
   final Widget child;
@@ -234,14 +245,16 @@ class GlassSurface extends StatelessWidget {
 
   /// 是否采样背后的内容做模糊。
   ///
-  /// 为 false 时直接按玻璃底色与页面底色混出一块实色——背后是纯色页面底
-  /// 的场合（设置页分区卡片），模糊采到的就是同一个颜色，画出来一模一样，
-  /// 却省掉一整条全宽 [BackdropFilter]。那种卡片一屏能同时出现四五张，
-  /// 滚动时每帧都要重算一遍模糊，正是掉帧的来源。
+  /// 全 App 只有全屏播放器保留背景模糊，所以默认 false：玻璃面统一是
+  /// 「半透明染色 + 高光 + 细边」。为 false 时不建 [BackdropFilter]，染色
+  /// 浓度也更高一档（见 `GlassEffectConfig.chromeOpacityFor`）。
   ///
-  /// 只对「背后是纯色」的大块面成立：浮在封面、列表内容上的胶囊、弹窗
-  /// 仍然要真模糊。为 false 时 [fade] 不生效。
+  /// 另一个用途是「背后是纯色」的大块面（设置页分区卡片）：把底色混上去和
+  /// 「模糊一层纯色再混」结果一样，却省掉一整条全宽采样。
   final bool backdrop;
+
+  /// 是否允许真的采样背后做模糊；只有全屏播放器该打开。
+  final bool blurBehind;
 
   @override
   Widget build(BuildContext context) {
@@ -306,6 +319,7 @@ class GlassSurface extends StatelessWidget {
           ? GlassBackdrop(
               sigma: sigma,
               saturation: vivid ? AppGlass.saturate : null,
+              allowBlur: blurBehind,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: base,
@@ -322,6 +336,7 @@ class GlassSurface extends StatelessWidget {
               radius: radius,
               border: side,
               vivid: vivid,
+              allowBlur: blurBehind,
               child: material,
             ),
     );
@@ -349,6 +364,7 @@ class GlassSurface extends StatelessWidget {
       style: style,
       emphasized: emphasized,
       alphaScale: alphaScale,
+      blurred: blurBehind,
     );
     if (color == null) return themed;
     final nudge = AppColors.isDark(context) ? 0.05 : 0.04;
@@ -365,6 +381,7 @@ class _FadingFrost extends StatelessWidget {
     required this.border,
     required this.vivid,
     required this.child,
+    required this.allowBlur,
   });
 
   final double sigma;
@@ -373,6 +390,7 @@ class _FadingFrost extends StatelessWidget {
   final BorderRadius radius;
   final Border border;
   final bool vivid;
+  final bool allowBlur;
   final Widget child;
 
   @override
@@ -390,6 +408,7 @@ class _FadingFrost extends StatelessWidget {
               child: GlassBackdrop(
                 sigma: sigma,
                 saturation: vivid ? AppGlass.saturate : null,
+                allowBlur: allowBlur,
                 child: const ColoredBox(color: Color(0x00000000)),
               ),
             ),

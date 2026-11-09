@@ -4,7 +4,6 @@ import '../motion/motion_tokens.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import '../theme/effect_policy.dart';
-import 'glass_backdrop.dart';
 
 /// Shared chrome surface for floating controls.
 ///
@@ -256,21 +255,9 @@ class GradientFrost extends StatelessWidget {
     );
     return Stack(
       children: [
-        // 整条栏共用一个 BackdropFilter。之前按 6 条横带做「渐变模糊」，
-        // 但每次采样都建立在上一层已模糊的结果上，叠加后并没有变清楚，反而
-        // 在真机上出现条带接缝；一条完整的模糊配合染色淡出更接近 iOS。
-        if (!reduce)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: ClipRect(
-                // 走统一的玻璃采样层：同一个 BackdropGroup 内只抓一次背景。
-                child: GlassBackdrop(
-                  sigma: sigma,
-                  child: const ColoredBox(color: Color(0x00000000)),
-                ),
-              ),
-            ),
-          ),
+        // 早期这里是整条栏一层的 BackdropFilter（更早还按 6 条横带做「渐变
+        // 模糊」）。现在全 App 只有播放器保留背景模糊，标题栏只用透明度：
+        // 染色自上而下淡出，浓度提上来之后文字依旧压得住底下滚动的列表。
         Positioned.fill(child: tintLayer),
         child,
       ],
