@@ -123,8 +123,10 @@ void main() {
       ),
       (
         'lib/features/player/presentation/widgets/mini_player.dart',
-        'padding: EdgeInsets.fromLTRB(widget.floating ? 10 : 8, 7, 7, 7)',
-        'width: widget.floating ? 164 : 180,',
+        // 标记改成常量名：这两个数字已经挪进 mini_bar.dart 统一定义，
+        // 用字面量当锚点一改尺寸就会把守卫测试带崩。
+        'widget.floating ? kMiniBarFloatingPaddingLeft : kMiniBarPaddingLeft',
+        'widget.floating\n                      ? kMiniBarFloatingControlsWidth',
       ),
     ];
 

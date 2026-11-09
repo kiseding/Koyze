@@ -1,4 +1,5 @@
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show StackParentData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:koyze/features/lyric/domain/lyric.dart';
 import 'package:koyze/features/lyric/presentation/lyric_provider.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/player/domain/player_service.dart';
+import 'package:koyze/features/home/presentation/widgets/mini_bar.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
 import 'package:koyze/features/player/presentation/player_screen.dart';
 
@@ -158,6 +160,37 @@ void main() {
         reason: 'progress 增大时 morph 矩形应随之变大',
       );
       expect(areas[1], lessThan(areas[2]));
+    });
+
+    testWidgets('横屏/桌面展开起点对齐悬浮迷你卡', (tester) async {
+      // 横屏和桌面走侧栏布局，用的是 78 高的悬浮迷你卡（封面 62、内边距
+      // 10）。播放页曾按竖屏那条 66 高的玻璃栏算收起目标，于是打开时飞行
+      // 封面比真实封面小一圈、还低 12px，头几帧再弹回原位——肉眼就是
+      // "闪一下"。
+      tester.view.physicalSize = const Size(900, 420);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      playerRouteProgress.value = 0.0001;
+      await tester.pumpWidget(harness());
+      await tester.pump();
+      final rects = morphRects(tester);
+      final bar = rects.firstWhere(
+        (r) => r.width > 300 && r.height > 40 && r.height < 120,
+        orElse: () => Rect.zero,
+      );
+      expect(bar, isNot(Rect.zero), reason: '应存在收起目标的迷你卡矩形');
+      expect(bar.height, closeTo(kMiniBarFloatingHeight, 1.5));
+      final cover = rects.firstWhere(
+        (r) => (r.width - kMiniBarFloatingArtworkSize).abs() < 1.5,
+        orElse: () => Rect.zero,
+      );
+      expect(cover, isNot(Rect.zero), reason: '应存在飞行封面矩形');
+      expect(
+        cover.left - bar.left,
+        closeTo(kMiniBarFloatingPaddingLeft, 1.5),
+        reason: '飞行封面必须从迷你卡里真实封面的位置起飞',
+      );
     });
 
     testWidgets('morph 覆盖层不拦截点击', (tester) async {

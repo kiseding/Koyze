@@ -370,7 +370,13 @@ class _FullPlayerArtworkSwitcherState extends State<_FullPlayerArtworkSwitcher>
   Future<void> _prepareAndSwitch(String nextKey, String? artwork) async {
     _pendingKey = nextKey;
     if (artwork != null && artwork.isNotEmpty) {
-      final provider = ArtworkNetworkImage(artwork);
+      // 必须预热「按 1080 解码」那一档：直接预热原始 provider 命中的是
+      // 另一个缓存条目，切歌时封面仍会空白一两帧再淡入。
+      final provider = ResizeImage.resizeIfNeeded(
+        kPlayerArtworkDecodeWidth,
+        null,
+        ArtworkNetworkImage(artwork),
+      );
       try {
         await precacheImage(provider, context);
       } catch (_) {
@@ -399,7 +405,7 @@ class _FullPlayerArtworkSwitcherState extends State<_FullPlayerArtworkSwitcher>
     return ArtworkImage(
       artwork,
       // 与飞行封面同一解码宽度，交接时不会换一张更糊或更锐的图。
-      cacheWidth: 1080,
+      cacheWidth: kPlayerArtworkDecodeWidth,
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => widget.fallback(),
     );
@@ -452,8 +458,8 @@ const kFullPlayerTrackSwitchReverseDuration = MotionDuration.playerReverse;
 Rect _miniArtworkRect(Rect miniRect) {
   // 迷你栏两种高度：78（悬浮卡片，横屏/桌面）与 66（竖屏玻璃栏）。
   final floating = miniRect.height > 70;
-  final cover = floating ? 62.0 : 50.0;
-  final left = floating ? 10.0 : 8.0;
+  final cover = floating ? kMiniBarFloatingArtworkSize : kMiniBarArtworkSize;
+  final left = floating ? kMiniBarFloatingPaddingLeft : kMiniBarPaddingLeft;
   return Rect.fromLTWH(
     miniRect.left + left,
     miniRect.top + (miniRect.height - cover) / 2,
@@ -514,8 +520,10 @@ Rect _fullArtworkRect(
 
 Rect _miniPlayButtonRect(Rect miniRect) {
   final floating = miniRect.height > 70;
-  final controls = floating ? 164.0 : kMiniBarControlsWidth;
-  final size = floating ? 44.0 : 38.0;
+  final controls = floating
+      ? kMiniBarFloatingControlsWidth
+      : kMiniBarControlsWidth;
+  final size = floating ? kMiniBarFloatingPlaySize : 38.0;
   return Rect.fromCenter(
     center: Offset(
       miniRect.right - kMiniBarPaddingRight - controls / 2,
@@ -530,10 +538,15 @@ Rect _miniPlayButtonRect(Rect miniRect) {
 /// 起点在封面右侧，到右侧控件区之前，纵向落在标题/歌词那一行的下半部。
 Rect _miniLyricRowRect(Rect miniRect) {
   final floating = miniRect.height > 70;
-  final cover = floating ? 62.0 : 50.0;
-  final gap = floating ? 12.0 : 12.0;
-  final left = (floating ? 10.0 : 8.0) + cover + gap;
-  final controls = floating ? 164.0 : kMiniBarControlsWidth;
+  final cover = floating ? kMiniBarFloatingArtworkSize : kMiniBarArtworkSize;
+  const gap = 12.0;
+  final left =
+      (floating ? kMiniBarFloatingPaddingLeft : kMiniBarPaddingLeft) +
+      cover +
+      gap;
+  final controls = floating
+      ? kMiniBarFloatingControlsWidth
+      : kMiniBarControlsWidth;
   final width = miniRect.width - left - kMiniBarPaddingRight - controls - 8;
   return Rect.fromLTWH(
     miniRect.left + left,
@@ -614,7 +627,7 @@ class _RouteArtworkMorphOverlay extends StatelessWidget {
         ? ArtworkImage(
             artwork!,
             // 矩形每帧都在变。若按当前宽度重新解码，封面会一帧一张图，看起来一直在闪。
-            cacheWidth: 1080,
+            cacheWidth: kPlayerArtworkDecodeWidth,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => fallback(),
           )
@@ -930,7 +943,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
         final navHeight =
             36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
-        const miniHeight = 66.0;
+        // 收起目标必须与壳层实际摆放的迷你栏完全一致：竖屏是 66 高的玻璃
+        // 栏，横屏/桌面是 78 高的悬浮卡。这里曾固定按 66 算，桌面和横屏下
+        // 打开播放器时飞行封面比真实封面小一圈、还低 12px，头几帧再弹回
+        // 原位，肉眼就是"打开前闪一下"。
+        final miniHeight = usesSideNavigation
+            ? kMiniBarFloatingHeight
+            : kMiniBarHeight;
         const miniGap = 11.0;
         final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
         final trailingInset = media.padding.right > media.viewPadding.right

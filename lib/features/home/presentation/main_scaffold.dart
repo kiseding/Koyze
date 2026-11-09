@@ -157,7 +157,9 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
     const sideRailWidth = 0.0;
     // 横屏/桌面没有底部导航：迷你播放条仍是一张完整卡片；竖屏是横跨
     // 内容区的一条玻璃栏。
-    final miniHeight = usesSideNavigation ? 78.0 : kMiniBarHeight;
+    final miniHeight = usesSideNavigation
+        ? kMiniBarFloatingHeight
+        : kMiniBarHeight;
     final miniBottom = usesSideNavigation
         ? (bottomInset == 0 ? 8.0 : 6.0)
         : miniBar.bottom;

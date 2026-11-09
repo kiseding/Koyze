@@ -242,6 +242,13 @@ class ArtworkBytesLoader {
   }
 }
 
+/// 全屏播放器（正文封面与飞行封面）共用的解码宽度。
+///
+/// 两处必须一致，否则交接时会换一张更糊或更锐的图；预热也必须用同一档位，
+/// 否则预热的是另一个缓存条目，打开播放器时封面仍要重新解码，头几帧空白
+/// 看起来就是"闪一下"。
+const int kPlayerArtworkDecodeWidth = 1080;
+
 /// Physical pixels to decode a cover at. Explicit [cacheWidth] wins.
 /// Otherwise the layout width is scaled by the device pixel ratio and capped
 /// so a 1000×1000 CDN image is not decoded at full size for a list tile.

@@ -15,6 +15,18 @@ const double kMiniBarPaddingLeft = 8;
 const double kMiniBarPaddingRight = 7;
 const double kMiniBarControlsWidth = 180;
 
+/// 横屏 / 桌面用的悬浮迷你卡：比竖屏玻璃栏高一档，封面也更大。
+///
+/// 这三个数字原来散在 `MiniPlayer`、壳层和播放页里各写一遍，播放页漏改过
+/// 一次（按 66 算收起目标），结果从迷你卡打开全屏播放器时，飞行封面会比
+/// 真实封面小一圈、位置低 12px，头几帧再弹回正确位置——看起来像"闪一下"。
+/// 统一到这里，谁再要改尺寸只改一处。
+const double kMiniBarFloatingHeight = 78;
+const double kMiniBarFloatingArtworkSize = 62;
+const double kMiniBarFloatingPaddingLeft = 10;
+const double kMiniBarFloatingControlsWidth = 164;
+const double kMiniBarFloatingPlaySize = 44;
+
 class KoyzeMiniBarMetrics {
   KoyzeMiniBarMetrics({required this.screen, required this.bottomInset});
 

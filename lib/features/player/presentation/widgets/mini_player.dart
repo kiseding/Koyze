@@ -13,6 +13,7 @@ import '../../../../router/app_router.dart';
 import '../../../../core/widgets/play_pulse_button.dart';
 import '../player_provider.dart';
 import '../../../lyric/presentation/lyric_provider.dart';
+import '../../../home/presentation/widgets/mini_bar.dart';
 
 class _MiniLyricText extends ConsumerWidget {
   final bool hasSong;
@@ -68,11 +69,37 @@ class MiniPlayer extends ConsumerStatefulWidget {
 }
 
 class _MiniPlayerState extends ConsumerState<MiniPlayer> {
+  /// 已按播放器档位预热过封面的地址。
+  String? _prewarmedArtwork;
+
+  /// 迷你栏是打开全屏播放器的主入口，播放器里的飞行封面按 1080 解码。
+  /// 在这一档提前预热，点开时封面已经解码好，不会先空一两帧再弹出来。
+  void _prewarmPlayerArtwork(String? artwork) {
+    if (artwork == null || artwork.isEmpty || artwork == _prewarmedArtwork) {
+      return;
+    }
+    _prewarmedArtwork = artwork;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _prewarmedArtwork != artwork) return;
+      precacheImage(
+        ResizeImage.resizeIfNeeded(
+          kPlayerArtworkDecodeWidth,
+          null,
+          ArtworkNetworkImage(artwork),
+        ),
+        context,
+      ).catchError((Object _) {
+        // 预热失败不影响迷你栏；打开播放器时会走正常的按需加载。
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentMusic = ref.watch(currentMusicProvider);
     final isPlaying = ref.watch(isPlayingProvider);
     final playerService = ref.watch(playerServiceProvider);
+    _prewarmPlayerArtwork(currentMusic?.artwork);
 
     if (currentMusic == null && !widget.alwaysShow) {
       return const SizedBox.shrink();
@@ -95,7 +122,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     return Material(
       color: Colors.transparent,
       child: SizedBox(
-        height: widget.floating ? 78 : 66,
+        height: widget.floating ? kMiniBarFloatingHeight : kMiniBarHeight,
         child: LiquidGlassSurface(
           borderRadius: BorderRadius.circular(widget.floating ? 24 : 20),
           blur: 22,
@@ -106,7 +133,12 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
             emphasized: widget.floating,
           ),
           child: Padding(
-            padding: EdgeInsets.fromLTRB(widget.floating ? 10 : 8, 7, 7, 7),
+            padding: EdgeInsets.fromLTRB(
+              widget.floating ? kMiniBarFloatingPaddingLeft : kMiniBarPaddingLeft,
+              7,
+              kMiniBarPaddingRight,
+              7,
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -122,8 +154,12 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                       child: Row(
                         children: [
                           Container(
-                            width: widget.floating ? 62 : 50,
-                            height: widget.floating ? 62 : 50,
+                            width: widget.floating
+                                ? kMiniBarFloatingArtworkSize
+                                : kMiniBarArtworkSize,
+                            height: widget.floating
+                                ? kMiniBarFloatingArtworkSize
+                                : kMiniBarArtworkSize,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(
                                 widget.floating ? 17 : 13,
@@ -217,7 +253,9 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                   ),
                 ),
                 SizedBox(
-                  width: widget.floating ? 164 : 180,
+                  width: widget.floating
+                      ? kMiniBarFloatingControlsWidth
+                      : kMiniBarControlsWidth,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -242,7 +280,9 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             ? null
                             : () => playerService.togglePlay(),
                         enabled: currentMusic != null,
-                        size: widget.floating ? 44 : 38,
+                        size: widget.floating
+                            ? kMiniBarFloatingPlaySize
+                            : 38,
                         iconSize: widget.floating ? 26 : 24,
                         mini: true,
                       ),
