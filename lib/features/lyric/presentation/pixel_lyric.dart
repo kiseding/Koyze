@@ -588,6 +588,10 @@ class _PixelFillClipper extends CustomClipper<Rect> {
 
   @override
   Rect getClip(Size size) {
+    // 点阵还没就绪时画的是占位文字，没有「点阵宽度」可言，退回按容器切。
+    if (imageWidth <= 0) {
+      return Rect.fromLTWH(0, 0, size.width * fraction, size.height);
+    }
     // 已唱范围是「整行点阵宽度」的比例，不是容器宽度的比例：短句居中时两边
     // 各有几十像素空白，按容器算会让绿色慢半拍才开始、又提前唱完。
     final width = imageWidth * cell;
