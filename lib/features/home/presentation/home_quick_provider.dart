@@ -178,7 +178,8 @@ const homeQuickFeatures = <HomeQuickFeature>[
     id: 'leaderboard_settings',
     title: '榜单设置',
     subtitle: '调整榜单显示内容',
-    icon: Icons.tune_rounded,
+    // 与榜单页右上角同一枚图标：快捷方式与页面入口对得上。
+    icon: Icons.dashboard_customize_rounded,
     route: '/leaderboard-settings',
     color: Color(0xFF6A1B9A),
   ),
@@ -282,7 +283,8 @@ class HomeQuickSettingsNotifier extends BuildlessNotifier<HomeQuickSettings> {
   Future<void> _load() async {
     try {
       final storage = await _storage();
-      final raw = storage.getJson(_key) ?? _migrateLegacy(storage.getJson(_legacyKey));
+      final raw =
+          storage.getJson(_key) ?? _migrateLegacy(storage.getJson(_legacyKey));
       final order = raw?['order'];
       if (order is! List) return;
       final known = _defaultOrder.toSet();

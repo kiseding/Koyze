@@ -51,7 +51,10 @@ void main() {
     expect(source, isNot(contains("route: '/sync'")));
     expect(quick, contains('Icons.palette_outlined'));
     expect(source, contains('homeQuickSettingsProvider'));
-    expect(source, contains('semanticLabel: S.of(context).heroCardSettingsAction'));
+    expect(
+      source,
+      contains('semanticLabel: S.of(context).heroCardSettingsAction'),
+    );
     expect(source, contains('semanticLabel: S.of(context).shortcutSettings'));
     expect(strings, contains('设置首页大卡片'));
     expect(strings, contains('快捷功能设置'));
@@ -68,49 +71,55 @@ void main() {
       'lib/features/playlist/presentation/playlist_screen.dart',
     ).readAsStringSync();
 
-    expect(source, contains('_BodyHeader(title: S.of(context).customPlaylists'));
-  });
-
-  test('search sheet follows the Origo search surface and delays keyboard focus', () {
-    final sheet = readSource('lib/core/widgets/search_sheet.dart');
-    final search = File(
-      'lib/features/search/presentation/search_screen.dart',
-    ).readAsStringSync();
-    final controls = File(
-      'lib/features/search/presentation/search_controls.dart',
-    ).readAsStringSync();
-
-    expect(sheet, contains('autofocusDelay'));
-    expect(sheet, contains('topInset'));
-    expect(sheet, contains('rootNavigator: true'));
-    expect(sheet, contains('barrierDismissible'));
     expect(
-      sheet,
-      isNot(contains('margin: EdgeInsets.only(top: widget.topInset)')),
+      source,
+      contains('_BodyHeader(title: S.of(context).customPlaylists'),
     );
-    // 拖拽、回弹和退场都由自绘路由的同一进度驱动，不再叠系统弹层手势。
-    expect(sheet, contains('class _SearchSheetRoute extends PopupRoute'));
-    expect(sheet, contains('onVerticalDragUpdate'));
-    expect(sheet, contains('_endDrag'));
-    expect(sheet, contains('Transform.translate'));
-    expect(sheet, contains('_settleBack'));
-    expect(sheet, isNot(contains('showModalBottomSheet')));
-    expect(search, contains('autofocusDelay'));
-    expect(search, contains('Timer(delay'));
-    // 面板靠下滑关闭，输入行左侧不再挂返回箭头；清空交给右侧胶囊。
-    expect(controls, isNot(contains('Icons.arrow_back_rounded')));
-    expect(search, contains('onCancel: clear'));
-    expect(sheet, contains('liveSearch: true'));
-    expect(search, contains('Timer(const Duration(milliseconds: 250)'));
-    // 控件整体做轻微上浮淡入，不再左右对冲。
-    expect(search, contains('Offset(0, 6 * (1 - t))'));
-    // 输入行与平台胶囊各自成组件，弹窗里固定上下堆叠，独立页横屏才并排。
-    expect(controls, contains('class SearchFieldBar'));
-    expect(controls, contains('class SearchSourceChips'));
-    expect(controls, contains('onCancel'));
-    expect(controls, contains('onChanged'));
-    expect(search, contains('final wide = size.width > size.height * 1.15;'));
   });
+
+  test(
+    'search sheet follows the Origo search surface and delays keyboard focus',
+    () {
+      final sheet = readSource('lib/core/widgets/search_sheet.dart');
+      final search = File(
+        'lib/features/search/presentation/search_screen.dart',
+      ).readAsStringSync();
+      final controls = File(
+        'lib/features/search/presentation/search_controls.dart',
+      ).readAsStringSync();
+
+      expect(sheet, contains('autofocusDelay'));
+      expect(sheet, contains('topInset'));
+      expect(sheet, contains('rootNavigator: true'));
+      expect(sheet, contains('barrierDismissible'));
+      expect(
+        sheet,
+        isNot(contains('margin: EdgeInsets.only(top: widget.topInset)')),
+      );
+      // 拖拽、回弹和退场都由自绘路由的同一进度驱动，不再叠系统弹层手势。
+      expect(sheet, contains('class _SearchSheetRoute extends PopupRoute'));
+      expect(sheet, contains('onVerticalDragUpdate'));
+      expect(sheet, contains('_endDrag'));
+      expect(sheet, contains('Transform.translate'));
+      expect(sheet, contains('_settleBack'));
+      expect(sheet, isNot(contains('showModalBottomSheet')));
+      expect(search, contains('autofocusDelay'));
+      expect(search, contains('Timer(delay'));
+      // 面板靠下滑关闭，输入行左侧不再挂返回箭头；清空交给右侧胶囊。
+      expect(controls, isNot(contains('Icons.arrow_back_rounded')));
+      expect(search, contains('onCancel: clear'));
+      expect(sheet, contains('liveSearch: true'));
+      expect(search, contains('Timer(const Duration(milliseconds: 250)'));
+      // 控件整体做轻微上浮淡入，不再左右对冲。
+      expect(search, contains('Offset(0, 6 * (1 - t))'));
+      // 输入行与平台胶囊各自成组件，弹窗里固定上下堆叠，独立页横屏才并排。
+      expect(controls, contains('class SearchFieldBar'));
+      expect(controls, contains('class SearchSourceChips'));
+      expect(controls, contains('onCancel'));
+      expect(controls, contains('onChanged'));
+      expect(search, contains('final wide = size.width > size.height * 1.15;'));
+    },
+  );
 
   test('home does not duplicate leaderboard cards', () {
     final source = File(
@@ -155,12 +164,17 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('leaderboardSongsProvider(category.id).future'));
-    expect(source, contains("context.push('/leaderboard-settings')"));
+    // 榜单设置从独立页面改成弹窗：入口直接调 showLeaderboardSettingsSheet。
+    expect(source, contains('showLeaderboardSettingsSheet(context)'));
+    // 首页 hero 设置已经用了 tune，这一页换成仪表盘图标以示区分。
+    expect(source, contains('Icons.dashboard_customize_rounded'));
     expect(source, isNot(contains('ReorderableDelayedDragStartListener')));
+    expect(settings, contains('LeaderboardSettingsSheet'));
     expect(settings, contains('FxSwitch'));
     expect(settings, contains('_CategoryVisibilityTile'));
     expect(settings, isNot(contains('Reorderable')));
-    expect(settings, contains('hidePlatform'));
+    // 平台总开关连同其下榜单一起切换，而不是只藏平台头。
+    expect(settings, contains('setPlatformVisible'));
   });
 
   test('tab container snaps when the route index changes mid-swipe', () {

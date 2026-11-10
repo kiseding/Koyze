@@ -21,6 +21,8 @@ import '../../playlist/presentation/playlist_provider.dart';
 import 'leaderboard_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/platform_colors.dart';
+import 'leaderboard_settings_screen.dart';
 
 /// 每个平台段里挑出来当主卡的榜。
 ///
@@ -201,10 +203,11 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                         title: S.of(context).charts,
                         actions: [
                           FrostedHeaderButton(
-                            icon: Icons.tune_rounded,
+                            // 首页的 hero 设置用的是 tune；这一页换成
+                            // 自定义仪表盘，两个 tab 的右上角不再撞图标。
+                            icon: Icons.dashboard_customize_rounded,
                             semanticLabel: S.of(context).chartSettings,
-                            onTap: () =>
-                                context.push('/leaderboard-settings'),
+                            onTap: () => showLeaderboardSettingsSheet(context),
                           ),
                         ],
                       ),
@@ -596,9 +599,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     bool dense = false,
   }) {
     final onColor = AppColors.onScaffold(context);
-    final background = selected
-        ? onColor
-        : onColor.withValues(alpha: 0.06);
+    final background = selected ? onColor : onColor.withValues(alpha: 0.06);
     final foreground = selected
         ? AppColors.scaffold(context)
         : AppColors.secondaryText(context);
@@ -732,10 +733,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   }
 
   /// 横屏列头：平台色点 + 名称 + 数量，底部一条细线（方案 A 的列头形态）。
-  Widget _buildColumnHeader(
-    BuildContext context,
-    _LeaderboardSection section,
-  ) {
+  Widget _buildColumnHeader(BuildContext context, _LeaderboardSection section) {
     final platform = section.platform ?? 'other';
     final divider = AppColors.onScaffold(context).withValues(alpha: 0.07);
     return Container(
@@ -811,20 +809,10 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     }
   }
 
-  Color _platformColor(BuildContext context, String platform) {
-    switch (platform) {
-      case 'kw':
-        return const Color(0xFF6B3FA0);
-      case 'tx':
-        return const Color(0xFF2355C0);
-      case 'wy':
-        return const Color(0xFF9B3060);
-      case 'kg':
-        return const Color(0xFF2B7CD3);
-      default:
-        return AppColors.accentOf(context);
-    }
-  }
+  /// 平台品牌色集中在 [platformBrandColor] 里，榜单设置与导入弹窗共用
+  /// 同一份取值，换色不会只改到其中一页。
+  Color _platformColor(BuildContext context, String platform) =>
+      platformBrandColor(context, platform);
 }
 
 /// 榜单卡的底色，与「歌单」页 `_PresetCard`（OrigoChromeSurface → chrome 档）
@@ -899,78 +887,78 @@ class _LeaderboardChartTile extends ConsumerWidget {
             border: Border.fromBorderSide(AppGlass.hairline(context)),
           ),
           child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: SizedBox(
-                width: 48,
-                height: 48,
-                child: cover != null && cover.isNotEmpty
-                    ? ArtworkImage(
-                        cover,
-                        cacheWidth: 144,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: cover != null && cover.isNotEmpty
+                      ? ArtworkImage(
+                          cover,
+                          cacheWidth: 144,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _LeaderboardPlaceholder(
+                            platform: platform,
+                            name: category.name,
+                            iconSize: 20,
+                          ),
+                        )
+                      : _LeaderboardPlaceholder(
                           platform: platform,
                           name: category.name,
                           iconSize: 20,
                         ),
-                      )
-                    : _LeaderboardPlaceholder(
-                        platform: platform,
-                        name: category.name,
-                        iconSize: 20,
-                      ),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    category.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.1,
-                      height: 1.2,
-                      color: AppColors.onScaffold(context),
-                    ),
-                  ),
-                  // 副标题（平台 · 榜单数量）已经去掉：平台在分组标题里
-                  // 写着，数量对听众没有决策价值，留白只给榜名和前三首。
-                  if (songLine != null) ...[
-                    // 8 而不是 5：去掉副标题后两行贴得太紧，榜名和歌曲挤成
-                    // 一块。卡片高度由 48 的封面决定（两行文字加起来 38），
-                    // 加 3 也不会把行撑高。
-                    const SizedBox(height: 8),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      songLine,
+                      category.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.1,
                         height: 1.2,
-                        color: AppColors.secondaryText(context),
+                        color: AppColors.onScaffold(context),
                       ),
                     ),
+                    // 副标题（平台 · 榜单数量）已经去掉：平台在分组标题里
+                    // 写着，数量对听众没有决策价值，留白只给榜名和前三首。
+                    if (songLine != null) ...[
+                      // 8 而不是 5：去掉副标题后两行贴得太紧，榜名和歌曲挤成
+                      // 一块。卡片高度由 48 的封面决定（两行文字加起来 38），
+                      // 加 3 也不会把行撑高。
+                      const SizedBox(height: 8),
+                      Text(
+                        songLine,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.2,
+                          color: AppColors.secondaryText(context),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            _TilePlayButton(
-              category: category,
-              onPressed: onPlay,
-              diameter: 38,
-            ),
-          ],
-        ),
+              const SizedBox(width: 10),
+              _TilePlayButton(
+                category: category,
+                onPressed: onPlay,
+                diameter: 38,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1119,9 +1107,7 @@ class _TilePlayButton extends ConsumerWidget {
     );
     final onColor = AppColors.onScaffold(context);
     final accent = AppColors.accentOf(context);
-    final background = isNowPlaying
-        ? accent
-        : onColor.withValues(alpha: 0.06);
+    final background = isNowPlaying ? accent : onColor.withValues(alpha: 0.06);
     final iconColor = isNowPlaying ? Colors.white : onColor;
     return CardPlayButton(
       size: diameter,

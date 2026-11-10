@@ -878,6 +878,18 @@ abstract class AppLocalizations {
   /// **'Chart settings'**
   String get chartSettings;
 
+  /// No description provided for @chartVisibilityRatio.
+  ///
+  /// In en, this message translates to:
+  /// **'{visible} of {total} shown'**
+  String chartVisibilityRatio(int visible, int total);
+
+  /// No description provided for @chartSettingsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden charts stay off the Charts tab until you turn them back on.'**
+  String get chartSettingsHint;
+
   /// No description provided for @refreshCharts.
   ///
   /// In en, this message translates to:
@@ -1157,19 +1169,19 @@ abstract class AppLocalizations {
   /// No description provided for @importM3uHint.
   ///
   /// In en, this message translates to:
-  /// **'Pick an M3U / M3U8 file from this device'**
+  /// **'Pick a text playlist: M3U, M3U8, PLS, XSPF, WPL, ASX or TXT'**
   String get importM3uHint;
 
   /// No description provided for @importM3uPick.
   ///
   /// In en, this message translates to:
-  /// **'Choose file'**
+  /// **'Choose playlist file'**
   String get importM3uPick;
 
   /// No description provided for @importM3uPickHint.
   ///
   /// In en, this message translates to:
-  /// **'Choose a playlist file from this device using the button below.'**
+  /// **'A playlist is a text list, not an audio file. M3U / M3U8 / PLS / XSPF / WPL / ASX / TXT are supported.'**
   String get importM3uPickHint;
 
   /// No description provided for @importM3uOnlyLocal.
@@ -1177,6 +1189,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only matches songs already in your local library; nothing is searched online'**
   String get importM3uOnlyLocal;
+
+  /// No description provided for @importFileIsAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'That is an audio file, not a playlist. Pick an M3U, PLS, XSPF, WPL or TXT file.'**
+  String get importFileIsAudio;
+
+  /// No description provided for @importFileBinary.
+  ///
+  /// In en, this message translates to:
+  /// **'That file is not readable text. Pick a text playlist.'**
+  String get importFileBinary;
+
+  /// No description provided for @importFileEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No usable entries in that playlist'**
+  String get importFileEmpty;
+
+  /// No description provided for @importFileMalformed.
+  ///
+  /// In en, this message translates to:
+  /// **'That playlist could not be parsed. Check that the file is complete.'**
+  String get importFileMalformed;
 
   /// No description provided for @importPlatformLoginIntro.
   ///

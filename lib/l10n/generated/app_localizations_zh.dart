@@ -399,6 +399,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chartSettings => '榜单设置';
 
   @override
+  String chartVisibilityRatio(int visible, int total) {
+    return '已显示 $visible / $total';
+  }
+
+  @override
+  String get chartSettingsHint => '隐藏的榜单不会出现在榜单页，随时可以在这里恢复。';
+
+  @override
   String get refreshCharts => '刷新榜单';
 
   @override
@@ -537,16 +545,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get importTabAccount => '登录';
 
   @override
-  String get importM3uHint => '选择手机或电脑上的 M3U / M3U8 文件';
+  String get importM3uHint => '选择设备上的文本歌单：M3U、M3U8、PLS、XSPF、WPL、ASX 或 TXT';
 
   @override
-  String get importM3uPick => '选择文件';
+  String get importM3uPick => '选择歌单文件';
 
   @override
-  String get importM3uPickHint => '点击下方按钮选择本地歌单文件。';
+  String get importM3uPickHint =>
+      '歌单是文本清单，不是音频文件。支持 M3U / M3U8 / PLS / XSPF / WPL / ASX / TXT。';
 
   @override
   String get importM3uOnlyLocal => '只匹配本地曲库中已有的歌曲，不会在线搜索';
+
+  @override
+  String get importFileIsAudio =>
+      '这是音频文件，不是歌单。请选择 M3U、PLS、XSPF、WPL 或 TXT 文本歌单。';
+
+  @override
+  String get importFileBinary => '无法读取该文件，请选择文本歌单。';
+
+  @override
+  String get importFileEmpty => '歌单里没有可识别的曲目';
+
+  @override
+  String get importFileMalformed => '歌单格式无法解析，请确认文件完整';
 
   @override
   String get importPlatformLoginIntro =>

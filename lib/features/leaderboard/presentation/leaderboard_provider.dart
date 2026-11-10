@@ -376,16 +376,23 @@ class LeaderboardLayoutNotifier
     _persist();
   }
 
-  /// 隐藏平台：隐藏平台头及其全部榜单。
-  void hidePlatform(String platformId) {
+  /// 平台总开关：连同其下所有榜单一起切换。
+  ///
+  /// 只切平台头是不够的：关掉时榜单还留在「显式可见」状态，再打开会得到
+  /// 一个空平台；反过来，打开时只恢复平台头，其下的榜仍然是隐藏的。
+  /// 用户点的是「这个平台要不要显示」，语义上就是整块。
+  void setPlatformVisible(String platformId, bool visible) {
     _setHidden(
       (item) =>
           item.isPlatform && item.platformId == platformId ||
           item.isCategory &&
               item.categoryId?.startsWith('$platformId:') == true,
-      true,
+      !visible,
     );
   }
+
+  /// 隐藏平台：隐藏平台头及其全部榜单。
+  void hidePlatform(String platformId) => setPlatformVisible(platformId, false);
 
   void hideCategory(String categoryId) {
     _setHidden((item) => item.key == 'category:$categoryId', true);

@@ -242,6 +242,9 @@ class S {
   String get noChartData => _l10n.noChartData;
   String get chartsHidden => _l10n.chartsHidden;
   String get chartSettings => _l10n.chartSettings;
+  String chartVisibilityRatio(int visible, int total) =>
+      _l10n.chartVisibilityRatio(visible, total);
+  String get chartSettingsHint => _l10n.chartSettingsHint;
   String get refreshCharts => _l10n.refreshCharts;
   String get noSongData => _l10n.noSongData;
   String get showAll => _l10n.showAll;
@@ -292,6 +295,10 @@ class S {
   String get importM3uPick => _l10n.importM3uPick;
   String get importM3uPickHint => _l10n.importM3uPickHint;
   String get importM3uOnlyLocal => _l10n.importM3uOnlyLocal;
+  String get importFileIsAudio => _l10n.importFileIsAudio;
+  String get importFileBinary => _l10n.importFileBinary;
+  String get importFileEmpty => _l10n.importFileEmpty;
+  String get importFileMalformed => _l10n.importFileMalformed;
   String get importPlatformLoginIntro => _l10n.importPlatformLoginIntro;
   String get platformLoginUnavailableQQ => _l10n.platformLoginUnavailableQQ;
   String get platformLoginUnavailableKuwo => _l10n.platformLoginUnavailableKuwo;

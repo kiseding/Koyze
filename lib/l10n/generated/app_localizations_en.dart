@@ -416,6 +416,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chartSettings => 'Chart settings';
 
   @override
+  String chartVisibilityRatio(int visible, int total) {
+    return '$visible of $total shown';
+  }
+
+  @override
+  String get chartSettingsHint =>
+      'Hidden charts stay off the Charts tab until you turn them back on.';
+
+  @override
   String get refreshCharts => 'Refresh charts';
 
   @override
@@ -554,18 +563,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get importTabAccount => 'Sign in';
 
   @override
-  String get importM3uHint => 'Pick an M3U / M3U8 file from this device';
+  String get importM3uHint =>
+      'Pick a text playlist: M3U, M3U8, PLS, XSPF, WPL, ASX or TXT';
 
   @override
-  String get importM3uPick => 'Choose file';
+  String get importM3uPick => 'Choose playlist file';
 
   @override
   String get importM3uPickHint =>
-      'Choose a playlist file from this device using the button below.';
+      'A playlist is a text list, not an audio file. M3U / M3U8 / PLS / XSPF / WPL / ASX / TXT are supported.';
 
   @override
   String get importM3uOnlyLocal =>
       'Only matches songs already in your local library; nothing is searched online';
+
+  @override
+  String get importFileIsAudio =>
+      'That is an audio file, not a playlist. Pick an M3U, PLS, XSPF, WPL or TXT file.';
+
+  @override
+  String get importFileBinary =>
+      'That file is not readable text. Pick a text playlist.';
+
+  @override
+  String get importFileEmpty => 'No usable entries in that playlist';
+
+  @override
+  String get importFileMalformed =>
+      'That playlist could not be parsed. Check that the file is complete.';
 
   @override
   String get importPlatformLoginIntro =>
