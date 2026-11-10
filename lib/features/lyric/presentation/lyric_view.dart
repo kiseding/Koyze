@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../domain/lyric.dart';
 import '../presentation/lyric_provider.dart';
-import 'compact_lyric_view.dart';
 import 'interlude_dots.dart';
-import 'pixel_lyric.dart';
+import 'lyric_effects.dart';
+import 'lyric_font_provider.dart';
 import 'word_motion.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
@@ -39,7 +39,6 @@ class _LyricViewState extends ConsumerState<LyricView> {
   bool _scrollListenerAttached = false;
   bool _programmaticScroll = false;
   Timer? _resumeFollowTimer;
-  String? _pixelPrefetchKey;
 
   double get _baseItemExtent => widget.isFullScreen ? 56.0 : 44.0;
   double get _verticalPadding => widget.isFullScreen ? 150.0 : 80.0;
@@ -49,16 +48,13 @@ class _LyricViewState extends ConsumerState<LyricView> {
   /// `ListView.builder` 用了 [itemExtent]，滚动定位才能靠 `index * extent` 直接
   /// 算出来（未构建的行拿不到 `RenderObject`）。代价是每行高度必须一致：多出
   /// 音译/翻译一行就要把整个行高一起抬高，否则最后一行会被裁掉。
-  double _itemExtent(Lyrics lyrics, double scale, {bool pixel = false}) {
+  double _itemExtent(Lyrics lyrics, double scale) {
     final hasExtras = lyrics.lines.any(
       (line) =>
           (line.translation != null && line.translation!.isNotEmpty) ||
           (line.roman != null && line.roman!.isNotEmpty),
     );
-    // 像素主题的行高由点阵的决定，和普通字体的行高不同；两者混用会让滚动
-    // 定位和实际行位对不上，所以这里必须跟着换。
-    final base = pixel ? pixelLyricLineHeight(1) : _baseItemExtent;
-    return base * scale + (hasExtras ? 15.0 * scale : 0.0);
+    return _baseItemExtent * scale + (hasExtras ? 15.0 * scale : 0.0);
   }
 
   @override
@@ -86,22 +82,6 @@ class _LyricViewState extends ConsumerState<LyricView> {
           _scrollToCurrent(force: true);
         });
       }
-    });
-  }
-
-  /// 像素主题下把歌词提前栅格化。
-  ///
-  /// 二值化要读像素，只能异步；不预热的话，滚到新的一行时会先看到一帧普通
-  /// 文字再「啪」地变成点阵。这里只预热当前歌的前几十行，够覆盖可见范围。
-  void _prefetchPixelLyrics(Lyrics lyrics) {
-    final family = DefaultTextStyle.of(context).style.fontFamily;
-    final key = '${lyrics.raw.hashCode}|$family';
-    if (_pixelPrefetchKey == key) return;
-    _pixelPrefetchKey = key;
-    final texts = [for (final line in lyrics.lines.take(60)) line.text];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      PixelLyricPainter.prefetch(texts, family);
     });
   }
 
@@ -137,7 +117,6 @@ class _LyricViewState extends ConsumerState<LyricView> {
         _itemExtent(
           ref.read(currentLyricProvider),
           ref.read(lyricScaleProvider),
-          pixel: ref.read(lyricThemeProvider) == 1,
         );
     final double anchor = align ?? ref.read<double>(lyricAlignProvider);
     // 固定行高估算：ListView.builder 未构建的行 ensureVisible 会失败
@@ -235,27 +214,16 @@ class _LyricViewState extends ConsumerState<LyricView> {
       );
     }
 
-    // 单行 / 轮盘不画列表：它们只关心"这一行"，列表的滚动与定位全部用不上。
-    final layoutIndex = ref.watch(lyricLayoutProvider);
-    if (layoutIndex > 0) {
-      return CompactLyricView(
-        layout: LyricLayout.values[layoutIndex.clamp(0, 2)],
-        animation: SingleLineAnimation
-            .values[ref.watch(singleLineAnimationProvider).clamp(0, 3)],
-        align: widget.isFullScreen ? Alignment.centerLeft : Alignment.center,
-      );
-    }
-
     final scale = ref.watch(lyricScaleProvider);
     final showTranslation = ref.watch(lyricTranslationProvider);
     final showRoman = ref.watch(lyricRomanProvider);
-    final pixelTheme = ref.watch(lyricThemeProvider) == 1;
-    if (pixelTheme) _prefetchPixelLyrics(lyrics);
-    final itemExtent = _itemExtent(lyrics, scale, pixel: pixelTheme);
-
-    // 上下渐隐以前用 ShaderMask 包住整个列表：那是一层视口大小的离屏缓冲，
-    // 播放中每 100ms 重做一次、滚动时每帧一次。改成按「离当前行的距离」直接
-    // 算文字透明度——远近层次还在，但没有整屏合成。
+    final blurAmount = ref.watch(lyricBlurProvider);
+    final entrance =
+        LyricEntranceStyle.values[ref.watch(lyricEntranceProvider).clamp(0, 3)];
+    // 自定义字体的字体族是异步注册的：没注册好之前 family 为 null，退回主题
+    // 字体，注册完成后这个 provider 一变，整段歌词就换成新字体。
+    final lyricFamily = ref.watch(lyricFontProvider).family;
+    final itemExtent = _itemExtent(lyrics, scale);
     Color fadeByDistance(Color base, int index) {
       if (currentLineIndex < 0) return base;
       final distance = (index - currentLineIndex).abs();
@@ -292,9 +260,12 @@ class _LyricViewState extends ConsumerState<LyricView> {
         final weight = isCurrent ? FontWeight.bold : FontWeight.normal;
 
         // AnimatedDefaultTextStyle 的样式是整体替换而非合并：直接给一个裸
-        // TextStyle 会把主题字体（以及中文回退）一起丢掉，点阵歌词按继承样式
-        // 取 fontFamily 时就会栅格化成方块。
+        // TextStyle 会把主题字体（以及中文回退）一起丢掉。
         final baseStyle = DefaultTextStyle.of(context).style;
+        final blur = lyricBlurSigmaFor(
+          distance: (index - currentLineIndex).abs(),
+          amount: blurAmount,
+        );
 
         final lineContent = Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -304,83 +275,78 @@ class _LyricViewState extends ConsumerState<LyricView> {
               // 整行套一层动画样式，而不是给 Text 单独套：当前行放大时，逐字
               // 歌词也要跟着同一个插值变大。分开套的话，切到 KTV 的那一帧
               // 字号会直接跳到终值，看起来就是"闪一下"。
-              AnimatedDefaultTextStyle(
-                duration: MotionDuration.normal,
-                curve: MotionCurve.easeOut,
-                style: baseStyle.copyWith(
-                  color: lineColor,
-                  fontSize: fontSize,
-                  fontWeight: weight,
-                  height: 1.15,
-                ),
-                child: isCurrent && line.hasWordTiming && !pixelTheme
-                    ? _PositionedKtvLyricLine(
-                        line: line,
-                        lineIndex: index,
-                        lyrics: lyrics,
-                        // 逐字高亮始终使用主题绿色，浅色主题下也不能退化为黑色。
-                        activeColor: accent,
-                        dimColor: dimColor,
-                      )
-                    : isCurrent && line.hasWordTiming
-                    ? _PixelKtvLyricLine(
-                        line: line,
-                        lineIndex: index,
-                        lyrics: lyrics,
-                        activeColor: accent,
-                        dimColor: dimColor,
-                        scale: scale,
-                        fontWeight: weight,
-                      )
-                    : pixelTheme
-                    ? PixelLyricText(
-                        text: line.text,
-                        color: lineColor,
-                        fontWeight: weight,
-                        scale: scale,
-                      )
-                    : Text(
-                        line.text,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-              ),
-              if (showRoman && line.roman != null && line.roman!.isNotEmpty)
+              lyricBlurred(
                 AnimatedDefaultTextStyle(
                   duration: MotionDuration.normal,
                   curve: MotionCurve.easeOut,
                   style: baseStyle.copyWith(
-                    color: transColor.withValues(alpha: transColor.a * 0.85),
-                    fontSize: (isCurrent ? 11.5 : 10.0) * scale,
-                    // 这两行以前靠合并父样式拿到 1.15，现在显式写出来，
-                    // 免得从 bodyMedium 继承到 1.43 把行撑高。
+                    color: lineColor,
+                    fontFamily: lyricFamily,
+                    fontSize: fontSize,
+                    fontWeight: weight,
                     height: 1.15,
                   ),
-                  child: Text(
-                    line.roman!,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: isCurrent && line.hasWordTiming
+                      ? _PositionedKtvLyricLine(
+                          line: line,
+                          lineIndex: index,
+                          lyrics: lyrics,
+                          // 逐字高亮始终使用主题绿色，浅色主题下也不能退化为黑色。
+                          activeColor: accent,
+                          dimColor: dimColor,
+                        )
+                      : Text(
+                          line.text,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                ),
+                blur,
+              ),
+              if (showRoman && line.roman != null && line.roman!.isNotEmpty)
+                lyricBlurred(
+                  AnimatedDefaultTextStyle(
+                    duration: MotionDuration.normal,
+                    curve: MotionCurve.easeOut,
+                    style: baseStyle.copyWith(
+                      color: transColor.withValues(alpha: transColor.a * 0.85),
+                      fontFamily: lyricFamily,
+                      fontSize: (isCurrent ? 11.5 : 10.0) * scale,
+                      // 这两行以前靠合并父样式拿到 1.15，现在显式写出来，
+                      // 免得从 bodyMedium 继承到 1.43 把行撑高。
+                      height: 1.15,
+                    ),
+                    child: Text(
+                      line.roman!,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
+                  blur,
                 ),
               if (showTranslation &&
                   line.translation != null &&
                   line.translation!.isNotEmpty)
-                AnimatedDefaultTextStyle(
-                  duration: MotionDuration.normal,
-                  curve: MotionCurve.easeOut,
-                  style: baseStyle.copyWith(
-                    color: transColor,
-                    fontSize: (isCurrent ? 13.0 : 11.0) * scale,
-                    height: 1.15,
+                lyricBlurred(
+                  AnimatedDefaultTextStyle(
+                    duration: MotionDuration.normal,
+                    curve: MotionCurve.easeOut,
+                    style: baseStyle.copyWith(
+                      color: transColor,
+                      fontFamily: lyricFamily,
+                      fontSize: (isCurrent ? 13.0 : 11.0) * scale,
+                      height: 1.15,
+                    ),
+                    child: Text(
+                      line.translation!,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  child: Text(
-                    line.translation!,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  blur,
                 ),
             ],
           ),
@@ -418,46 +384,51 @@ class _LyricViewState extends ConsumerState<LyricView> {
     // 之前是「有间奏才包一层 Stack」：进到长间奏那一行时树结构从 ListView
     // 变成 Stack(ListView)，ListView 会被整个摘下来重建，滚动位置有一帧是
     // 0，看起来就是歌词闪一下再滚回去——而且刚好发生在换行的瞬间。
-    final body = Stack(
-      children: [
-        Positioned.fill(child: lyricList),
-        if (interlude != null)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: AnimatedBuilder(
-                animation: _scrollController,
-                builder: (context, _) {
-                  if (!_scrollController.hasClients) {
-                    return const SizedBox.shrink();
-                  }
-                  // 下一行的槽位（列表按固定行高排布，可以算术定位）。
-                  final top =
-                      _verticalPadding +
-                      interlude.nextLineIndex * itemExtent -
-                      _scrollController.offset;
-                  return Stack(
-                    children: [
-                      Positioned(
-                        top: top,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: InterludeDots(
-                            start: interlude.start,
-                            end: interlude.end,
-                            position: () => ref.read(lyricPositionProvider),
-                            color: accent.withValues(alpha: 0.85),
-                            dotSize: widget.isFullScreen ? 4.5 : 3.5,
+    final body = LyricEntrance(
+      style: entrance,
+      // 换歌才重放：同一个播放位置的重建不该让整片歌词再进场一次。
+      playKey: currentMusic?.id ?? '',
+      child: Stack(
+        children: [
+          Positioned.fill(child: lyricList),
+          if (interlude != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _scrollController,
+                  builder: (context, _) {
+                    if (!_scrollController.hasClients) {
+                      return const SizedBox.shrink();
+                    }
+                    // 下一行的槽位（列表按固定行高排布，可以算术定位）。
+                    final top =
+                        _verticalPadding +
+                        interlude.nextLineIndex * itemExtent -
+                        _scrollController.offset;
+                    return Stack(
+                      children: [
+                        Positioned(
+                          top: top,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: InterludeDots(
+                              start: interlude.start,
+                              end: interlude.end,
+                              position: () => ref.read(lyricPositionProvider),
+                              color: accent.withValues(alpha: 0.85),
+                              dotSize: widget.isFullScreen ? 4.5 : 3.5,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
 
     return Semantics(
@@ -592,134 +563,6 @@ class _LyricViewState extends ConsumerState<LyricView> {
   Future<void> _retryLyric(MusicItem? music) async {
     if (music == null) return;
     await ref.read(currentLyricLoadProvider.notifier).retry();
-  }
-}
-
-/// 像素主题下的当前行：整行栅格图按已唱比例裁剪。
-///
-/// 不用逐字裁剪是因为像素图的每个字宽度不同，逐字裁会让相邻字的栅格起点
-/// 错开、看起来像锯齿；整行裁则是一条连续的硬边。
-class _PixelKtvLyricLine extends ConsumerStatefulWidget {
-  final LyricLine line;
-  final int lineIndex;
-  final Lyrics lyrics;
-  final Color activeColor;
-  final Color dimColor;
-  final double scale;
-  final FontWeight fontWeight;
-
-  const _PixelKtvLyricLine({
-    required this.line,
-    required this.lineIndex,
-    required this.lyrics,
-    required this.activeColor,
-    required this.dimColor,
-    required this.scale,
-    required this.fontWeight,
-  });
-
-  @override
-  ConsumerState<_PixelKtvLyricLine> createState() => _PixelKtvLyricLineState();
-}
-
-class _PixelKtvLyricLineState extends ConsumerState<_PixelKtvLyricLine>
-    with SingleTickerProviderStateMixin {
-  /// 本地推进的播放位置，理由同 [_KtvLyricLineState]：播放器 100ms 才推一次。
-  Duration _local = Duration.zero;
-  Duration _lastElapsed = Duration.zero;
-  Ticker? _ticker;
-  bool _ticking = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _local = ref.read(lyricPositionProvider);
-  }
-
-  @override
-  void didUpdateWidget(covariant _PixelKtvLyricLine oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.line != widget.line || oldWidget.scale != widget.scale) {
-      _local = ref.read(lyricPositionProvider);
-      _lastElapsed = Duration.zero;
-    }
-  }
-
-  @override
-  void dispose() {
-    _ticker?.dispose();
-    super.dispose();
-  }
-
-  void _onTick(Duration elapsed) {
-    final delta = elapsed - _lastElapsed;
-    _lastElapsed = elapsed;
-    if (!mounted) return;
-    setState(() => _local += delta);
-  }
-
-  void _ensureTicking(bool shouldTick) {
-    if (shouldTick) {
-      if (_ticking) return;
-      _ticking = true;
-      _lastElapsed = Duration.zero;
-      _ticker ??= createTicker(_onTick);
-      _ticker!.start();
-    } else if (_ticking) {
-      _ticking = false;
-      _ticker?.stop();
-    }
-  }
-
-  /// 整行的已唱比例。
-  ///
-  /// 按字数加权：像素图里每个字的宽度不一样，但同一行内按字数铺开已经足够
-  /// 接近——逐字算真实字宽需要先排版整行，成本远超收益。
-  double _lineFill(Duration position) {
-    final words = widget.line.words;
-    if (words == null || words.isEmpty) return 0;
-    final total = words.fold<int>(0, (sum, word) => sum + word.text.length);
-    if (total == 0) return 0;
-    final active = widget.lyrics.getCurrentWordIndex(
-      position,
-      widget.lineIndex,
-    );
-    if (active < 0) return 0;
-    var filled = 0.0;
-    for (var i = 0; i < active; i++) {
-      filled += words[i].text.length;
-    }
-    filled +=
-        words[active].text.length *
-        widget.lyrics
-            .getWordFillProgress(position, widget.lineIndex, active)
-            .clamp(0.0, 1.0);
-    return (filled / total).clamp(0.0, 1.0);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final position = widget.line.time;
-    final nextLineTime = widget.lineIndex + 1 < widget.lyrics.lines.length
-        ? widget.lyrics.lines[widget.lineIndex + 1].time
-        : position + const Duration(seconds: 4);
-    final playing = ref.watch(isPlayingProvider).valueOrNull ?? false;
-    _ensureTicking(
-      playing &&
-          _local >= position - const Duration(milliseconds: 250) &&
-          _local <= nextLineTime + const Duration(milliseconds: 250),
-    );
-
-    return RepaintBoundary(
-      child: PixelLyricFillText(
-        text: widget.line.text,
-        fill: _lineFill(_local),
-        activeColor: widget.activeColor,
-        dimColor: widget.dimColor,
-        fontWeight: widget.fontWeight,
-        scale: widget.scale,
-      ),
-    );
   }
 }
 

@@ -154,7 +154,9 @@ class _SubsonicLibraryScreenState extends ConsumerState<SubsonicLibraryScreen> {
                           Icons.auto_fix_high_outlined,
                           color: _scraping ? accent : on,
                         ),
-                        onPressed: _scraping ? null : () => _scrape(songs, kind),
+                        onPressed: _scraping
+                            ? null
+                            : () => _scrape(songs, kind),
                       ),
                 orElse: () => const SizedBox.shrink(),
               ),
@@ -190,110 +192,114 @@ class _SubsonicLibraryScreenState extends ConsumerState<SubsonicLibraryScreen> {
                 )
               : null,
         ),
-        body: Column(
-          children: [
-            if (_scraping)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: GlassSurface(
-                  style: AppGlassStyle.regular,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.fromBorderSide(
-                    AppGlass.hairline(context, emphasized: false),
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      LinearProgressIndicator(
-                        value: _scrapeTotal == 0
-                            ? null
-                            : _scrapeDone / _scrapeTotal,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        S
-                            .of(context)
-                            .scrapingProgress(_scrapeDone, _scrapeTotal),
-                        style: TextStyle(color: muted, fontSize: 12),
-                      ),
-                    ],
+        extendBodyBehindAppBar: true,
+        body: KoyzeAppBarBody(
+          child: Column(
+            children: [
+              if (_scraping)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: GlassSurface(
+                    style: AppGlassStyle.regular,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.fromBorderSide(
+                      AppGlass.hairline(context, emphasized: false),
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        LinearProgressIndicator(
+                          value: _scrapeTotal == 0
+                              ? null
+                              : _scrapeDone / _scrapeTotal,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          S
+                              .of(context)
+                              .scrapingProgress(_scrapeDone, _scrapeTotal),
+                          style: TextStyle(color: muted, fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            Expanded(
-              child: !connected
-                  ? _empty(
-                      context,
-                      icon: Icons.cloud_off_outlined,
-                      title: S.of(context).notConnected(kind.title),
-                      subtitle: kind.intro,
-                      actionLabel: S.of(context).goConnect,
-                      onAction: () =>
-                          context.push('/subsonic-settings', extra: kind),
-                    )
-                  : songsAsync.when(
-                      loading: () => const Center(child: AppLoadingIndicator()),
-                      error: (error, _) => _empty(
+              Expanded(
+                child: !connected
+                    ? _empty(
                         context,
-                        icon: Icons.error_outline,
-                        title: S.of(context).loadSongsFailed,
-                        subtitle: '$error',
-                        actionLabel: S.of(context).retry,
-                        onAction: () => _invalidateSongs(kind),
-                      ),
-                      data: (songs) {
-                        if (songs.isEmpty) {
-                          return _empty(
-                            context,
-                            icon: Icons.library_music_outlined,
-                            title: S.of(context).noSongsOnServer,
-                            subtitle: S.of(context).connectedHost(configHost),
-                            actionLabel: S.of(context).refresh,
-                            onAction: () => _refreshSongs(kind),
-                          );
-                        }
-                        if (tabCount == 1) return _songList(songs);
-                        return TabBarView(
-                          children: [
-                            _songList(songs),
-                            _collectionList(
+                        icon: Icons.cloud_off_outlined,
+                        title: S.of(context).notConnected(kind.title),
+                        subtitle: kind.intro,
+                        actionLabel: S.of(context).goConnect,
+                        onAction: () =>
+                            context.push('/subsonic-settings', extra: kind),
+                      )
+                    : songsAsync.when(
+                        loading: () =>
+                            const Center(child: AppLoadingIndicator()),
+                        error: (error, _) => _empty(
+                          context,
+                          icon: Icons.error_outline,
+                          title: S.of(context).loadSongsFailed,
+                          subtitle: '$error',
+                          actionLabel: S.of(context).retry,
+                          onAction: () => _invalidateSongs(kind),
+                        ),
+                        data: (songs) {
+                          if (songs.isEmpty) {
+                            return _empty(
                               context,
-                              groupNasSongs(
-                                songs,
-                                NasGrouping.album,
-                                unknownAlbum: S.of(context).unknownAlbum,
-                                unknownArtist: S.of(context).unknownArtist,
-                              ),
-                              icon: Icons.album_outlined,
-                            ),
-                            _collectionList(
-                              context,
-                              groupNasSongs(
-                                songs,
-                                NasGrouping.artist,
-                                unknownAlbum: S.of(context).unknownAlbum,
-                                unknownArtist: S.of(context).unknownArtist,
-                              ),
-                              icon: Icons.person_outline,
-                            ),
-                            if (showFolders)
+                              icon: Icons.library_music_outlined,
+                              title: S.of(context).noSongsOnServer,
+                              subtitle: S.of(context).connectedHost(configHost),
+                              actionLabel: S.of(context).refresh,
+                              onAction: () => _refreshSongs(kind),
+                            );
+                          }
+                          if (tabCount == 1) return _songList(songs);
+                          return TabBarView(
+                            children: [
+                              _songList(songs),
                               _collectionList(
                                 context,
                                 groupNasSongs(
                                   songs,
-                                  NasGrouping.folder,
+                                  NasGrouping.album,
                                   unknownAlbum: S.of(context).unknownAlbum,
                                   unknownArtist: S.of(context).unknownArtist,
                                 ),
-                                icon: Icons.folder_outlined,
+                                icon: Icons.album_outlined,
                               ),
-                          ],
-                        );
-                      },
-                    ),
-            ),
-          ],
+                              _collectionList(
+                                context,
+                                groupNasSongs(
+                                  songs,
+                                  NasGrouping.artist,
+                                  unknownAlbum: S.of(context).unknownAlbum,
+                                  unknownArtist: S.of(context).unknownArtist,
+                                ),
+                                icon: Icons.person_outline,
+                              ),
+                              if (showFolders)
+                                _collectionList(
+                                  context,
+                                  groupNasSongs(
+                                    songs,
+                                    NasGrouping.folder,
+                                    unknownAlbum: S.of(context).unknownAlbum,
+                                    unknownArtist: S.of(context).unknownArtist,
+                                  ),
+                                  icon: Icons.folder_outlined,
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -359,8 +365,7 @@ class _SubsonicLibraryScreenState extends ConsumerState<SubsonicLibraryScreen> {
       itemBuilder: (context, index) {
         final collection = collections[index];
         return ListTile(
-          onTap: () =>
-              context.push('/subsonic/collection', extra: collection),
+          onTap: () => context.push('/subsonic/collection', extra: collection),
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
@@ -377,11 +382,8 @@ class _SubsonicLibraryScreenState extends ConsumerState<SubsonicLibraryScreen> {
                   : ArtworkImage(
                       collection.artwork!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(
-                        icon,
-                        color: muted,
-                        size: 22,
-                      ),
+                      errorBuilder: (_, __, ___) =>
+                          Icon(icon, color: muted, size: 22),
                     ),
             ),
           ),

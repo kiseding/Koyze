@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 
 /// Application Performance Monitoring (APM) service.
-/// 
+///
 /// Tracks performance metrics including:
 /// - Operation latency
 /// - Memory usage
@@ -32,11 +32,11 @@ class PerformanceMetric {
   });
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'timestamp': timestamp.toIso8601String(),
-        'durationMs': durationMs,
-        'attributes': attributes,
-      };
+    'name': name,
+    'timestamp': timestamp.toIso8601String(),
+    'durationMs': durationMs,
+    'attributes': attributes,
+  };
 }
 
 /// Performance trace for tracking operations
@@ -47,8 +47,8 @@ class PerformanceTrace {
   final Stopwatch _stopwatch;
 
   PerformanceTrace(this.name, {this.attributes = const {}})
-      : startTime = DateTime.now(),
-        _stopwatch = Stopwatch()..start();
+    : startTime = DateTime.now(),
+      _stopwatch = Stopwatch()..start();
 
   /// Stop the trace and record metric
   PerformanceMetric stop() {
@@ -83,18 +83,18 @@ class FrameStats {
     required this.collectedAt,
   });
 
-  double get droppedFrameRate => 
+  double get droppedFrameRate =>
       totalFrames > 0 ? (droppedFrames / totalFrames) * 100 : 0.0;
 
   Map<String, dynamic> toJson() => {
-        'totalFrames': totalFrames,
-        'droppedFrames': droppedFrames,
-        'droppedFrameRate': droppedFrameRate,
-        'averageFrameTime': averageFrameTime,
-        'p95FrameTime': p95FrameTime,
-        'p99FrameTime': p99FrameTime,
-        'collectedAt': collectedAt.toIso8601String(),
-      };
+    'totalFrames': totalFrames,
+    'droppedFrames': droppedFrames,
+    'droppedFrameRate': droppedFrameRate,
+    'averageFrameTime': averageFrameTime,
+    'p95FrameTime': p95FrameTime,
+    'p99FrameTime': p99FrameTime,
+    'collectedAt': collectedAt.toIso8601String(),
+  };
 }
 
 /// Memory usage snapshot
@@ -113,12 +113,12 @@ class MemorySnapshot {
   double get heapMB => heapBytes / (1024 * 1024);
 
   Map<String, dynamic> toJson() => {
-        'rssBytes': rssBytes,
-        'heapBytes': heapBytes,
-        'rssMB': rssMB,
-        'heapMB': heapMB,
-        'timestamp': timestamp.toIso8601String(),
-      };
+    'rssBytes': rssBytes,
+    'heapBytes': heapBytes,
+    'rssMB': rssMB,
+    'heapMB': heapMB,
+    'timestamp': timestamp.toIso8601String(),
+  };
 }
 
 /// Performance monitoring service
@@ -144,6 +144,24 @@ class PerformanceMonitor {
   final List<double> _windowRaster = <double>[];
   final List<double> _windowTotal = <double>[];
 
+  /// 连续「明显卡顿」的窗口数，用来给日志加一个严重程度。
+  int _stutterStreak = 0;
+  DateTime? _lastStutterLoggedAt;
+
+  /// 掉帧率超过这个比例才记录。
+  ///
+  /// 设置页滑一下、列表惯性滚动，偶尔夹一两帧 17ms 是常态；把这些都写进
+  /// 日志会把真正的问题淹掉。25% 意味着「四帧里至少掉一帧」，用户已经能
+  /// 明显感到不跟手了。
+  static const double _stutterDroppedRatio = 0.25;
+
+  /// 最差单帧超过这个毫秒数也算明显卡顿——哪怕整体掉帧率不高，一次 80ms
+  /// 的停顿（一次同步 IO、一次大图解码）主观上就是一个「卡住」。
+  static const double _stutterWorstMs = 48;
+
+  /// 同一个窗口连续上报的最小间隔，避免一段长卡顿每 2 秒刷一条。
+  static const Duration _stutterLogInterval = Duration(seconds: 6);
+
   SchedulerBinding? _schedulerBindingOrNull() {
     try {
       return SchedulerBinding.instance;
@@ -167,8 +185,10 @@ class PerformanceMonitor {
       _captureMemorySnapshot();
     });
 
-    debugPrint('📊 Performance monitoring initialized '
-        '(frame probe: ${DebugProbe.describe()})');
+    debugPrint(
+      '📊 Performance monitoring initialized '
+      '(frame probe: ${DebugProbe.describe()})',
+    );
   }
 
   /// 帧探针是否正在采集。
@@ -196,10 +216,26 @@ class PerformanceMonitor {
       _schedulerBindingOrNull()?.removeTimingsCallback(_onFrameTiming);
       _listeningToFrames = false;
     }
+    _stutterStreak = 0;
+    _lastStutterLoggedAt = null;
     _clearFrameWindow();
   }
 
   /// 输出并清空当前窗口的帧统计。
+  ///
+  /// **只在明显卡顿时写日志。** 诊断面板一开就是几分钟，每 2 秒一条
+  /// `frames=120 build_p50=3.1 …` 会把用户真正关心的错误挤到屏幕外，也没人
+  /// 会去读「一切正常」的那几十行。所以这里先判一次「这一窗是不是真的卡」：
+  ///
+  /// * 掉帧率 ≥ 25%（四帧掉一帧，已经明显不跟手），或
+  /// * 最差单帧 ≥ 48ms（一次可以感知到的停顿）；
+  ///
+  /// 两条都不满足就什么都不写。连续卡顿的窗口会带上 `streak=N`，并且最多
+  /// 每 6 秒记一条，避免一段持续卡顿把日志刷满。
+  ///
+  /// 探针本身（[startFrameProbe]）依然每 2 秒跑一次，只是绝大多数窗口不会
+  /// 产生日志——这也正是「启用期间包含帧率诊断」与「不然记录太多」之间的
+  /// 平衡点。
   void _flushFrameWindow() {
     if (_windowTotal.length < 8) {
       // 空闲期的零星帧没有参考价值。
@@ -212,15 +248,42 @@ class PerformanceMonitor {
       if (total > _budgetMs) dropped++;
       if (total > worst) worst = total;
     }
-    final summary =
-        'frames=${_windowTotal.length} '
-        'build_p50=${_percentile(_windowBuild, 0.5)} '
-        'build_p95=${_percentile(_windowBuild, 0.95)} '
-        'raster_p50=${_percentile(_windowRaster, 0.5)} '
-        'raster_p95=${_percentile(_windowRaster, 0.95)} '
-        'dropped=$dropped worst=${worst.toStringAsFixed(1)}';
-    AppLog.instance.record('perf', 'frame $summary');
-    if (!kReleaseMode) debugPrint('FRAMEPROBE $summary');
+    final ratio = dropped / _windowTotal.length;
+    final stutters = ratio >= _stutterDroppedRatio || worst >= _stutterWorstMs;
+    if (!stutters) {
+      // 这一段是流畅的：清掉连击，下次卡顿重新计数。
+      _stutterStreak = 0;
+      _clearFrameWindow();
+      return;
+    }
+
+    _stutterStreak++;
+    final now = DateTime.now();
+    final last = _lastStutterLoggedAt;
+    final throttled =
+        last != null && now.difference(last) < _stutterLogInterval;
+    if (!throttled) {
+      _lastStutterLoggedAt = now;
+      final summary =
+          'frames=${_windowTotal.length} '
+          'dropped=$dropped (${(ratio * 100).round()}%) '
+          'worst=${worst.toStringAsFixed(1)}ms '
+          'build_p50=${_percentile(_windowBuild, 0.5)} '
+          'build_p95=${_percentile(_windowBuild, 0.95)} '
+          'raster_p50=${_percentile(_windowRaster, 0.5)} '
+          'raster_p95=${_percentile(_windowRaster, 0.95)} '
+          'streak=$_stutterStreak';
+      AppLog.instance.record(
+        'perf',
+        'jank $summary',
+        // 单帧 80ms 以上、或已经连续卡了三窗，多半是用户能明确抱怨的程度，
+        // 标成 warning 让诊断面板的黄色过滤能直接筛出来。
+        level: (worst >= 80 || _stutterStreak >= 3)
+            ? AppLogLevel.warning
+            : AppLogLevel.info,
+      );
+      if (!kReleaseMode) debugPrint('FRAMEPROBE $summary');
+    }
     _clearFrameWindow();
   }
 
@@ -253,7 +316,9 @@ class PerformanceMonitor {
 
     // Log slow operations
     if (metric.durationMs > 1000) {
-      debugPrint('⚠️ Slow operation: ${metric.name} took ${metric.durationMs}ms');
+      debugPrint(
+        '⚠️ Slow operation: ${metric.name} took ${metric.durationMs}ms',
+      );
     }
   }
 
@@ -263,7 +328,11 @@ class PerformanceMonitor {
   }
 
   /// Measure a synchronous operation
-  T measure<T>(String name, T Function() operation, {Map<String, dynamic>? attributes}) {
+  T measure<T>(
+    String name,
+    T Function() operation, {
+    Map<String, dynamic>? attributes,
+  }) {
     final trace = startTrace(name, attributes: attributes);
     try {
       return operation();
@@ -335,7 +404,7 @@ class PerformanceMonitor {
 
       final info = ProcessInfo.currentRss;
       // Note: Dart doesn't expose heap size directly, using RSS as approximation
-      
+
       final snapshot = MemorySnapshot(
         rssBytes: info,
         heapBytes: info, // Approximation
@@ -346,7 +415,9 @@ class PerformanceMonitor {
 
       // Warn on high memory usage
       if (snapshot.rssMB > 500) {
-        debugPrint('⚠️ High memory usage: ${snapshot.rssMB.toStringAsFixed(1)} MB');
+        debugPrint(
+          '⚠️ High memory usage: ${snapshot.rssMB.toStringAsFixed(1)} MB',
+        );
       }
 
       return snapshot;
@@ -364,11 +435,11 @@ class PerformanceMonitor {
   /// Get metrics by name
   List<PerformanceMetric> getMetrics(String name, {int? limit}) {
     var filtered = _metrics.where((m) => m.name == name).toList();
-    
+
     if (limit != null && filtered.length > limit) {
       filtered = filtered.sublist(filtered.length - limit);
     }
-    
+
     return filtered;
   }
 
@@ -402,7 +473,7 @@ class PerformanceMonitor {
   /// Export performance report
   Map<String, dynamic> exportReport() {
     final frameStats = getFrameStats();
-    
+
     // Group metrics by name
     final metricsByName = <String, List<PerformanceMetric>>{};
     for (final metric in _metrics) {
@@ -451,6 +522,10 @@ class PerformanceMonitor {
 /// Extension for easy performance tracking
 extension PerformanceTrackingExtension<T> on Future<T> Function() {
   Future<T> track(String name, {Map<String, dynamic>? attributes}) {
-    return PerformanceMonitor().measureAsync(name, this, attributes: attributes);
+    return PerformanceMonitor().measureAsync(
+      name,
+      this,
+      attributes: attributes,
+    );
   }
 }

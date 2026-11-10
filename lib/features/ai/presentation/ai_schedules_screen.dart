@@ -62,10 +62,11 @@ class AiSchedulesScreen extends ConsumerWidget {
           const SizedBox(width: 4),
         ],
       ),
+      extendBodyBehindAppBar: true,
       body: tasks.isEmpty
           ? _emptyState(context, s)
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+              padding: koyzeAppBarContentPadding(context),
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(4, 4, 4, 14),

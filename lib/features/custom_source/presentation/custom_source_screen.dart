@@ -86,37 +86,40 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
           ),
         ],
       ),
+      extendBodyBehindAppBar: true,
       body: sources.isEmpty
           ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.code,
-                    size: 64,
-                    color: AppColors.mutedText(context),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    S.of(context).noCustomSources,
-                    style: TextStyle(
+              child: KoyzeAppBarBody(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.code,
+                      size: 64,
                       color: AppColors.mutedText(context),
-                      fontSize: 16,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    S.of(context).addCustomSourceHint,
-                    style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 14,
+                    const SizedBox(height: 16),
+                    Text(
+                      S.of(context).noCustomSources,
+                      style: TextStyle(
+                        color: AppColors.mutedText(context),
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Text(
+                      S.of(context).addCustomSourceHint,
+                      style: TextStyle(
+                        color: AppColors.mutedText(context),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           : ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: koyzeAppBarContentPadding(context),
               itemCount: sources.length,
               itemBuilder: (context, index) {
                 final source = sources[index];

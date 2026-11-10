@@ -1,7 +1,6 @@
 // Copyright 2024 Koyze Contributors
 // Licensed under the Apache License, Version 2.0
 
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -120,32 +119,35 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: Column(
-        children: [
-          if (!config.isConfigured) _configBanner(context, s),
-          Expanded(
-            child: chat.entries.isEmpty && !chat.busy
-                ? _emptyState(context, s)
-                : ListView.builder(
-                    controller: _scroll,
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                    itemCount: chat.entries.length + (chat.busy ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index >= chat.entries.length) {
-                        return _busyBubble(context, s, chat.activeTool);
-                      }
-                      final entry = chat.entries[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: entry.isUser
-                            ? _userBubble(context, s, entry)
-                            : _assistantBubble(context, s, entry),
-                      );
-                    },
-                  ),
-          ),
-          _composer(context, s, chat),
-        ],
+      extendBodyBehindAppBar: true,
+      body: KoyzeAppBarBody(
+        child: Column(
+          children: [
+            if (!config.isConfigured) _configBanner(context, s),
+            Expanded(
+              child: chat.entries.isEmpty && !chat.busy
+                  ? _emptyState(context, s)
+                  : ListView.builder(
+                      controller: _scroll,
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                      itemCount: chat.entries.length + (chat.busy ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index >= chat.entries.length) {
+                          return _busyBubble(context, s, chat.activeTool);
+                        }
+                        final entry = chat.entries[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: entry.isUser
+                              ? _userBubble(context, s, entry)
+                              : _assistantBubble(context, s, entry),
+                        );
+                      },
+                    ),
+            ),
+            _composer(context, s, chat),
+          ],
+        ),
       ),
     );
   }
@@ -349,7 +351,11 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.error_outline_rounded, size: 15, color: errorColor),
+                  Icon(
+                    Icons.error_outline_rounded,
+                    size: 15,
+                    color: errorColor,
+                  ),
                   const SizedBox(width: 7),
                   Expanded(
                     child: Column(
@@ -397,7 +403,9 @@ class _AiAssistantScreenState extends ConsumerState<AiAssistantScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: AppColors.isDark(context) ? 0.20 : 0.13),
+        color: accent.withValues(
+          alpha: AppColors.isDark(context) ? 0.20 : 0.13,
+        ),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(

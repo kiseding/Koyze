@@ -179,8 +179,9 @@ class _NasSettingsScreenState extends ConsumerState<NasSettingsScreen> {
           ),
         ),
       ),
+      extendBodyBehindAppBar: true,
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        padding: koyzeAppBarContentPadding(context),
         children: [
           GlassSurface(
             style: AppGlassStyle.regular,

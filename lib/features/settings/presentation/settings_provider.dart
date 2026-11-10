@@ -160,8 +160,9 @@ final playerBackdropScrimProvider =
 ///
 /// 给除播放器以外的所有玻璃面统一缩放染色浓度——它们已经不做背景模糊，
 /// 只剩透明度这一档可调。
-final glassOpacityProvider =
-    NotifierProvider<GlassOpacityNotifier, double>(GlassOpacityNotifier.new);
+final glassOpacityProvider = NotifierProvider<GlassOpacityNotifier, double>(
+  GlassOpacityNotifier.new,
+);
 
 final cacheMaintenanceProvider = Provider<CacheMaintenanceService>((ref) {
   return CacheMaintenanceService();
@@ -201,21 +202,16 @@ final coverThemedAccentProvider =
       CoverThemedAccentNotifier.new,
     );
 
-/// 歌词呈现方式。索引对应 `LyricLayout.values`。
-final lyricLayoutProvider = NotifierProvider<LyricLayoutNotifier, int>(
-  LyricLayoutNotifier.new,
+/// 歌词上下两侧的模糊程度（0~1）。
+final lyricBlurProvider = NotifierProvider<LyricBlurNotifier, double>(
+  LyricBlurNotifier.new,
 );
 
-/// 单行歌词的入场动画。索引对应 `SingleLineAnimation.values`。
-final singleLineAnimationProvider =
+/// 歌词入场动画。索引对应 `SingleLineAnimation.values`。
+final lyricEntranceProvider =
     NotifierProvider<SingleLineAnimationNotifier, int>(
       SingleLineAnimationNotifier.new,
     );
-
-/// 歌词主题。索引 0 默认字体，1 像素点阵。
-final lyricThemeProvider = NotifierProvider<LyricThemeNotifier, int>(
-  LyricThemeNotifier.new,
-);
 
 /// 播放页背景缓慢漂移。
 final flowingBackdropProvider = NotifierProvider<FlowingBackdropNotifier, bool>(

@@ -84,25 +84,29 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
             ),
           ],
         ),
-        body: Column(
-          children: [
-            _buildHeader(context, dirs, downloadDir, mediaStoreEnabled),
-            if (_scanning || _scraping || _tagWriting) _buildProgress(context),
-            Expanded(
-              child: Center(
-                child: Text(
-                  songCount == 0
-                      ? S.of(context).noLocalSongs
-                      : S.of(context).localSongCount(songCount),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.mutedText(context),
-                    fontSize: 14,
+        extendBodyBehindAppBar: true,
+        body: KoyzeAppBarBody(
+          child: Column(
+            children: [
+              _buildHeader(context, dirs, downloadDir, mediaStoreEnabled),
+              if (_scanning || _scraping || _tagWriting)
+                _buildProgress(context),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    songCount == 0
+                        ? S.of(context).noLocalSongs
+                        : S.of(context).localSongCount(songCount),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.mutedText(context),
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -76,6 +76,14 @@ abstract final class GlassEffectConfig {
   static double get surfaceAlpha =>
       _disableAllGlassEffects ? 1.0 : _surfaceOpacity;
 
+  /// 把一个「本来该是实色」的 chrome 底色，按当前档位调淡。
+  ///
+  /// 标题栏、tab 胶囊这些以前是写死的常量色（`0x28FFFFFF`、纯白…），滑杆
+  /// 拖到 40% 时它们还是原样——用户看到的就是「这一栏不跟随设置」。统一走
+  /// 这个函数，透明度会乘到各自的底色上，各自原本的浓淡差异仍然保留。
+  static Color withSurfaceOpacity(Color color) =>
+      color.withValues(alpha: (color.a * surfaceAlpha).clamp(0.0, 1.0));
+
   static void setDisableAllGlassEffects(bool disabled) {
     _disableAllGlassEffects = disabled;
     _syncBlurScale();

@@ -2875,7 +2875,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lyricDisplay => '歌词显示';
 
   @override
-  String get lyricDisplaySubtitle => '时间偏移、字号与附加行';
+  String get lyricDisplaySubtitle => '模糊、字体、字号与时间偏移';
 
   @override
   String get lyricOffset => '时间偏移';
@@ -2916,18 +2916,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get heartModeEmpty => '没找到相似歌曲';
 
   @override
-  String get lyricLayout => '呈现方式';
-
-  @override
-  String get lyricLayoutScroll => '滚动';
-
-  @override
-  String get lyricLayoutSingle => '单行';
-
-  @override
-  String get lyricLayoutRoulette => '轮盘';
-
-  @override
   String get lyricEntrance => '入场动画';
 
   @override
@@ -2943,13 +2931,55 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lyricEntranceBlur => '模糊';
 
   @override
-  String get lyricTheme => '歌词字体';
+  String get lyricDistortion => '模糊与字型';
 
   @override
-  String get lyricThemeDefault => '默认';
+  String get lyricBlur => '上下模糊';
 
   @override
-  String get lyricThemePixel => '像素点阵';
+  String get lyricBlurHint => '中间当前行始终清晰，越往上下两侧越模糊；0 就是完全不糊';
+
+  @override
+  String get lyricFont => '歌词字体';
+
+  @override
+  String get lyricFontDefaultName => '跟随主题字体';
+
+  @override
+  String get lyricFontFormats => '支持 ttf / otf，最大 64 MB';
+
+  @override
+  String get lyricFontPick => '选择字体';
+
+  @override
+  String get lyricFontReset => '恢复默认';
+
+  @override
+  String get lyricFontApplied => '已应用该字体';
+
+  @override
+  String get lyricFontUnsupported => '这个格式不支持，请选择 ttf 或 otf 字体文件';
+
+  @override
+  String get lyricFontTooLarge => '字体文件太大了（上限 64 MB）';
+
+  @override
+  String get lyricFontEmpty => '这个文件是空的';
+
+  @override
+  String get lyricFontInvalid => '这个文件不是有效的字体';
+
+  @override
+  String get lyricFontReadFailed => '读取字体文件失败';
+
+  @override
+  String get lyricFontLoadFailed => '字体加载失败，可能已损坏';
+
+  @override
+  String get lyricTiming => '时间与位置';
+
+  @override
+  String get lyricExtras => '附加内容';
 
   @override
   String get songInfo => '歌曲信息';

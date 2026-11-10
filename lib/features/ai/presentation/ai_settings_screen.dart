@@ -239,8 +239,9 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           ),
         ),
       ),
+      extendBodyBehindAppBar: true,
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        padding: koyzeAppBarContentPadding(context),
         children: [
           Text(
             s.aiSettingsIntro,

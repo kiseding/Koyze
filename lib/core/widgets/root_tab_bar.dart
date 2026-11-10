@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 
 import '../motion/motion_tokens.dart';
 import '../theme/app_colors.dart';
+import '../theme/glass_config.dart';
 import '../../l10n/app_strings.dart';
 import 'pressable.dart';
 
@@ -197,7 +198,6 @@ class _RootTabBarState extends State<RootTabBar>
     _controller.value = 1;
   }
 
-
   double _measure(BuildContext context, String text, TextStyle style) {
     final painter = TextPainter(
       text: TextSpan(text: text, style: style),
@@ -241,9 +241,7 @@ class _RootTabBarState extends State<RootTabBar>
     // 拖动没有预定目标，按方向取相邻项。
     final other =
         rootBranchDragTarget.value ??
-        (p > 0
-            ? (current + 1) % count
-            : (current + count - 1) % count);
+        (p > 0 ? (current + 1) % count : (current + count - 1) % count);
     return (other: other, t: p.abs().clamp(0.0, 1.0));
   }
 
@@ -277,10 +275,10 @@ class _RootTabBarState extends State<RootTabBar>
 
     // 药丸沿用原来的中性面：浅色纯白，深色一层薄白。导航是结构，不蘸
     // 强调色——换主题时这条栏不该跟着变。
-    final pillFill = isDark ? const Color(0x28FFFFFF) : Colors.white;
-    final pillEdge = isDark
-        ? const Color(0x24FFFFFF)
-        : const Color(0x12000000);
+    //
+    // 但「结构」不等于「实心」：设置里的界面不透明度拖到 60%，这一栏也得
+    // 跟着透（见下面的 ValueListenableBuilder）。这里只负责与不透明度无关
+    // 的那部分样式。
     final pillShadow = isDark
         ? null
         : const [
@@ -293,34 +291,44 @@ class _RootTabBarState extends State<RootTabBar>
 
     return SizedBox(
       height: widget.height,
-      child: ListenableBuilder(
-        // 胶囊的两条时间线：点击切换的 [AnimationController]，和手势滑动
-        // 的实时进度。任何一个变动都要重算展开度。
-        listenable: Listenable.merge([_controller, rootBranchDrag]),
-        builder: (context, _) {
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 0; i < _labels.length; i++) ...[
-                if (i > 0) const SizedBox(width: _kItemGap),
-                _tab(
-                  context,
-                  index: i,
-                  label: _labels[i],
-                  textWidth: _textWidths[i],
-                  selected: _to == i,
-                  onSurface: onSurface,
-                  idle: idle,
-                  pillFill: pillFill,
-                  pillEdge: pillEdge,
-                  pillShadow: pillShadow,
-                  style: style,
-                  onTap: scope == null ? null : () => scope.onTap(i),
-                ),
+      child: ValueListenableBuilder<double>(
+        // 药丸底色跟着「界面不透明度」走，滑杆拖动时要当帧重画。
+        valueListenable: GlassEffectConfig.surfaceOpacityListenable,
+        builder: (context, _, _) => ListenableBuilder(
+          // 胶囊的两条时间线：点击切换的 [AnimationController]，和手势滑动
+          // 的实时进度。任何一个变动都要重算展开度。
+          listenable: Listenable.merge([_controller, rootBranchDrag]),
+          builder: (context, _) {
+            final pillFill = GlassEffectConfig.withSurfaceOpacity(
+              isDark ? const Color(0x28FFFFFF) : Colors.white,
+            );
+            final pillEdge = GlassEffectConfig.withSurfaceOpacity(
+              isDark ? const Color(0x24FFFFFF) : const Color(0x12000000),
+            );
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < _labels.length; i++) ...[
+                  if (i > 0) const SizedBox(width: _kItemGap),
+                  _tab(
+                    context,
+                    index: i,
+                    label: _labels[i],
+                    textWidth: _textWidths[i],
+                    selected: _to == i,
+                    onSurface: onSurface,
+                    idle: idle,
+                    pillFill: pillFill,
+                    pillEdge: pillEdge,
+                    pillShadow: pillShadow,
+                    style: style,
+                    onTap: scope == null ? null : () => scope.onTap(i),
+                  ),
+                ],
               ],
-            ],
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -394,9 +402,7 @@ class _RootTabBarState extends State<RootTabBar>
                       transitionBuilder: (child, animation) => FadeTransition(
                         opacity: animation,
                         child: ScaleTransition(
-                          scale: animation.drive(
-                            Tween(begin: 0.72, end: 1.0),
-                          ),
+                          scale: animation.drive(Tween(begin: 0.72, end: 1.0)),
                           child: child,
                         ),
                       ),

@@ -113,129 +113,135 @@ class _NasLibraryScreenState extends ConsumerState<NasLibraryScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_scraping)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: GlassSurface(
-                style: AppGlassStyle.regular,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.fromBorderSide(
-                  AppGlass.hairline(context, emphasized: false),
-                ),
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    LinearProgressIndicator(
-                      value: _scrapeTotal == 0
-                          ? null
-                          : _scrapeDone / _scrapeTotal,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      S.of(context).scrapingProgress(_scrapeDone, _scrapeTotal),
-                      style: TextStyle(
-                        color: AppColors.mutedText(context),
-                        fontSize: 12,
+      extendBodyBehindAppBar: true,
+      body: KoyzeAppBarBody(
+        child: Column(
+          children: [
+            if (_scraping)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: GlassSurface(
+                  style: AppGlassStyle.regular,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.fromBorderSide(
+                    AppGlass.hairline(context, emphasized: false),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      LinearProgressIndicator(
+                        value: _scrapeTotal == 0
+                            ? null
+                            : _scrapeDone / _scrapeTotal,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      Text(
+                        S
+                            .of(context)
+                            .scrapingProgress(_scrapeDone, _scrapeTotal),
+                        style: TextStyle(
+                          color: AppColors.mutedText(context),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          Expanded(
-            child: !connected
-                ? _empty(
-                    context,
-                    icon: Icons.cloud_off_outlined,
-                    title: S.of(context).notConnected(kind.title),
-                    subtitle: kind.settingsSubtitle,
-                    actionLabel: S.of(context).goConnect,
-                    onAction: () => context.push(kind.settingsRoute),
-                  )
-                : songsAsync.when(
-                    loading: () => const Center(child: AppLoadingIndicator()),
-                    error: (error, _) => _empty(
+            Expanded(
+              child: !connected
+                  ? _empty(
                       context,
-                      icon: Icons.error_outline,
-                      title: S.of(context).loadSongsFailed,
-                      subtitle: '$error',
-                      actionLabel: S.of(context).retry,
-                      onAction: () =>
-                          ref.invalidate(nasLibrarySongsProvider(kind)),
-                    ),
-                    data: (songs) {
-                      if (songs.isEmpty) {
-                        return _empty(
-                          context,
-                          icon: Icons.library_music_outlined,
-                          title: S.of(context).noSongsOnServer,
-                          subtitle: S
-                              .of(context)
-                              .connectedHost(config.hostLabel),
-                          actionLabel: S.of(context).refresh,
-                          onAction: () =>
-                              ref.invalidate(nasLibrarySongsProvider(kind)),
-                        );
-                      }
-                      return AdaptiveSongList.builder(
-                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 32),
-                        landscapeItemExtent: 82,
-                        itemCount: songs.length,
-                        itemBuilder: (context, index) {
-                          final song = songs[index];
-                          return ListTile(
-                            onTap: () => _play(songs, index),
-                            leading: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: SizedBox(
-                                width: 44,
-                                height: 44,
-                                child:
-                                    song.artwork == null ||
-                                        song.artwork!.isEmpty
-                                    ? Icon(
-                                        Icons.music_note,
-                                        color: AppColors.mutedText(context),
-                                      )
-                                    : ArtworkImage(
-                                        song.artwork!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Icon(
+                      icon: Icons.cloud_off_outlined,
+                      title: S.of(context).notConnected(kind.title),
+                      subtitle: kind.settingsSubtitle,
+                      actionLabel: S.of(context).goConnect,
+                      onAction: () => context.push(kind.settingsRoute),
+                    )
+                  : songsAsync.when(
+                      loading: () => const Center(child: AppLoadingIndicator()),
+                      error: (error, _) => _empty(
+                        context,
+                        icon: Icons.error_outline,
+                        title: S.of(context).loadSongsFailed,
+                        subtitle: '$error',
+                        actionLabel: S.of(context).retry,
+                        onAction: () =>
+                            ref.invalidate(nasLibrarySongsProvider(kind)),
+                      ),
+                      data: (songs) {
+                        if (songs.isEmpty) {
+                          return _empty(
+                            context,
+                            icon: Icons.library_music_outlined,
+                            title: S.of(context).noSongsOnServer,
+                            subtitle: S
+                                .of(context)
+                                .connectedHost(config.hostLabel),
+                            actionLabel: S.of(context).refresh,
+                            onAction: () =>
+                                ref.invalidate(nasLibrarySongsProvider(kind)),
+                          );
+                        }
+                        return AdaptiveSongList.builder(
+                          padding: const EdgeInsets.fromLTRB(8, 8, 8, 32),
+                          landscapeItemExtent: 82,
+                          itemCount: songs.length,
+                          itemBuilder: (context, index) {
+                            final song = songs[index];
+                            return ListTile(
+                              onTap: () => _play(songs, index),
+                              leading: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: SizedBox(
+                                  width: 44,
+                                  height: 44,
+                                  child:
+                                      song.artwork == null ||
+                                          song.artwork!.isEmpty
+                                      ? Icon(
                                           Icons.music_note,
                                           color: AppColors.mutedText(context),
+                                        )
+                                      : ArtworkImage(
+                                          song.artwork!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Icon(
+                                            Icons.music_note,
+                                            color: AppColors.mutedText(context),
+                                          ),
                                         ),
-                                      ),
+                                ),
                               ),
-                            ),
-                            title: Text(
-                              song.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: on, fontSize: 14),
-                            ),
-                            subtitle: Text(
-                              [
-                                if (song.singer.trim().isNotEmpty) song.singer,
-                                if (song.album.trim().isNotEmpty) song.album,
-                              ].join(' · '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: AppColors.mutedText(context),
-                                fontSize: 12,
+                              title: Text(
+                                song.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: on, fontSize: 14),
                               ),
-                            ),
-                            trailing: FavoriteButton(song: song),
-                          );
-                        },
-                      );
-                    },
-                  ),
-          ),
-        ],
+                              subtitle: Text(
+                                [
+                                  if (song.singer.trim().isNotEmpty)
+                                    song.singer,
+                                  if (song.album.trim().isNotEmpty) song.album,
+                                ].join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.mutedText(context),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              trailing: FavoriteButton(song: song),
+                            );
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

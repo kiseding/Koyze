@@ -2946,8 +2946,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lyricDisplay => 'Lyrics display';
 
   @override
-  String get lyricDisplaySubtitle =>
-      'Timing offset, text size and the extra rows';
+  String get lyricDisplaySubtitle => 'Blur, font, text size and timing offset';
 
   @override
   String get lyricOffset => 'Timing offset';
@@ -2990,18 +2989,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get heartModeEmpty => 'No similar songs found';
 
   @override
-  String get lyricLayout => 'Layout';
-
-  @override
-  String get lyricLayoutScroll => 'Scroll';
-
-  @override
-  String get lyricLayoutSingle => 'Single line';
-
-  @override
-  String get lyricLayoutRoulette => 'Roulette';
-
-  @override
   String get lyricEntrance => 'Entrance';
 
   @override
@@ -3017,13 +3004,58 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lyricEntranceBlur => 'Blur';
 
   @override
-  String get lyricTheme => 'Lyric typeface';
+  String get lyricDistortion => 'Blur & typeface';
 
   @override
-  String get lyricThemeDefault => 'Default';
+  String get lyricBlur => 'Edge blur';
 
   @override
-  String get lyricThemePixel => 'Pixel';
+  String get lyricBlurHint =>
+      'The current line stays sharp; lines further away fade out of focus. 0 turns it off';
+
+  @override
+  String get lyricFont => 'Typeface';
+
+  @override
+  String get lyricFontDefaultName => 'Follow theme';
+
+  @override
+  String get lyricFontFormats => 'ttf / otf, up to 64 MB';
+
+  @override
+  String get lyricFontPick => 'Choose file';
+
+  @override
+  String get lyricFontReset => 'Reset';
+
+  @override
+  String get lyricFontApplied => 'Typeface applied';
+
+  @override
+  String get lyricFontUnsupported =>
+      'Unsupported format — pick a ttf or otf font';
+
+  @override
+  String get lyricFontTooLarge => 'That font is too large (64 MB max)';
+
+  @override
+  String get lyricFontEmpty => 'That file is empty';
+
+  @override
+  String get lyricFontInvalid => 'That file is not a usable font';
+
+  @override
+  String get lyricFontReadFailed => 'Could not read the font file';
+
+  @override
+  String get lyricFontLoadFailed =>
+      'The font failed to load and may be damaged';
+
+  @override
+  String get lyricTiming => 'Timing & position';
+
+  @override
+  String get lyricExtras => 'Extras';
 
   @override
   String get songInfo => 'About this song';

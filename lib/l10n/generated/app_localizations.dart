@@ -5345,7 +5345,7 @@ abstract class AppLocalizations {
   /// No description provided for @lyricDisplaySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Timing offset, text size and the extra rows'**
+  /// **'Blur, font, text size and timing offset'**
   String get lyricDisplaySubtitle;
 
   /// No description provided for @lyricOffset.
@@ -5420,30 +5420,6 @@ abstract class AppLocalizations {
   /// **'No similar songs found'**
   String get heartModeEmpty;
 
-  /// No description provided for @lyricLayout.
-  ///
-  /// In en, this message translates to:
-  /// **'Layout'**
-  String get lyricLayout;
-
-  /// No description provided for @lyricLayoutScroll.
-  ///
-  /// In en, this message translates to:
-  /// **'Scroll'**
-  String get lyricLayoutScroll;
-
-  /// No description provided for @lyricLayoutSingle.
-  ///
-  /// In en, this message translates to:
-  /// **'Single line'**
-  String get lyricLayoutSingle;
-
-  /// No description provided for @lyricLayoutRoulette.
-  ///
-  /// In en, this message translates to:
-  /// **'Roulette'**
-  String get lyricLayoutRoulette;
-
   /// No description provided for @lyricEntrance.
   ///
   /// In en, this message translates to:
@@ -5474,23 +5450,107 @@ abstract class AppLocalizations {
   /// **'Blur'**
   String get lyricEntranceBlur;
 
-  /// No description provided for @lyricTheme.
+  /// No description provided for @lyricDistortion.
   ///
   /// In en, this message translates to:
-  /// **'Lyric typeface'**
-  String get lyricTheme;
+  /// **'Blur & typeface'**
+  String get lyricDistortion;
 
-  /// No description provided for @lyricThemeDefault.
+  /// No description provided for @lyricBlur.
   ///
   /// In en, this message translates to:
-  /// **'Default'**
-  String get lyricThemeDefault;
+  /// **'Edge blur'**
+  String get lyricBlur;
 
-  /// No description provided for @lyricThemePixel.
+  /// No description provided for @lyricBlurHint.
   ///
   /// In en, this message translates to:
-  /// **'Pixel'**
-  String get lyricThemePixel;
+  /// **'The current line stays sharp; lines further away fade out of focus. 0 turns it off'**
+  String get lyricBlurHint;
+
+  /// No description provided for @lyricFont.
+  ///
+  /// In en, this message translates to:
+  /// **'Typeface'**
+  String get lyricFont;
+
+  /// No description provided for @lyricFontDefaultName.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow theme'**
+  String get lyricFontDefaultName;
+
+  /// No description provided for @lyricFontFormats.
+  ///
+  /// In en, this message translates to:
+  /// **'ttf / otf, up to 64 MB'**
+  String get lyricFontFormats;
+
+  /// No description provided for @lyricFontPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose file'**
+  String get lyricFontPick;
+
+  /// No description provided for @lyricFontReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get lyricFontReset;
+
+  /// No description provided for @lyricFontApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'Typeface applied'**
+  String get lyricFontApplied;
+
+  /// No description provided for @lyricFontUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported format — pick a ttf or otf font'**
+  String get lyricFontUnsupported;
+
+  /// No description provided for @lyricFontTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'That font is too large (64 MB max)'**
+  String get lyricFontTooLarge;
+
+  /// No description provided for @lyricFontEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'That file is empty'**
+  String get lyricFontEmpty;
+
+  /// No description provided for @lyricFontInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'That file is not a usable font'**
+  String get lyricFontInvalid;
+
+  /// No description provided for @lyricFontReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the font file'**
+  String get lyricFontReadFailed;
+
+  /// No description provided for @lyricFontLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The font failed to load and may be damaged'**
+  String get lyricFontLoadFailed;
+
+  /// No description provided for @lyricTiming.
+  ///
+  /// In en, this message translates to:
+  /// **'Timing & position'**
+  String get lyricTiming;
+
+  /// No description provided for @lyricExtras.
+  ///
+  /// In en, this message translates to:
+  /// **'Extras'**
+  String get lyricExtras;
 
   /// No description provided for @songInfo.
   ///

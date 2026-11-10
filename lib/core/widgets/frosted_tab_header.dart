@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/glass_config.dart';
 import 'gradient_bar_backgrounds.dart';
 import 'liquid_glass.dart';
 import 'pressable.dart';
@@ -59,77 +60,96 @@ class FrostedTabHeader extends StatelessWidget {
     final top = MediaQuery.paddingOf(context).top;
     final tabs = RootTabScope.maybeOf(context);
     if (tabs != null) {
-      final surface = AppColors.scaffold(context);
-      return Stack(
-        children: [
-          // 导航行需要一层底：列表滚上来时是从图标和药丸背后穿过的，
-          // 没有这层渐隐，文字会和歌词/歌名糊在一起。整块 chrome 高度上
-          // 保持实心，只在最后一段淡出——半透明会把封面上的亮色漏到
-          // 图标之间，看着像栏「脏了」。
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: top + barHeight + 28,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    stops: const [0, 0.82, 1],
-                    colors: [
-                      surface,
-                      surface,
-                      surface.withValues(alpha: 0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, top + _topPadding, 12, _bottomPadding),
-            child: SizedBox(
-              height: _navRowHeight,
-              // 标题不再画出来，但定位锚点还得有落点：首页搜索弹窗用这个
-              // key 量顶部留白。挂在导航行上，量到的仍是整条栏的位置。
-              child: KeyedSubtree(
-                key: titleKey,
-                child: Row(
-                  children: [
-                    // tab 条从左起排。展开项会让整条变宽，窄屏上等比缩一下，
-                    // 比让 Row 溢出好看。
-                    const Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: RootTabBar(),
-                        ),
-                      ),
-                    ),
-                    if (actions.isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      for (final action in actions)
-                        SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Center(child: action),
-                        ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+      return ValueListenableBuilder<double>(
+        valueListenable: GlassEffectConfig.surfaceOpacityListenable,
+        builder: (context, _, __) {
+          // 底色要跟着「界面不透明度」走：写死实色时滑杆拖到 40%，这一栏
+          // 还是原样，看着就是「根页不跟随设置」。乘上档位之后，列表从
+          // 图标和药丸背后穿过时才能真正透出来。
+          final surface = GlassEffectConfig.withSurfaceOpacity(
+            AppColors.scaffold(context),
+          );
+          return _buildTabHeader(context, top: top, surface: surface);
+        },
       );
     }
-    return _titleBar(context, top);
+    return _buildPlainHeader(context, top: top);
   }
 
-  Widget _titleBar(BuildContext context, double top) {
+  Widget _buildTabHeader(
+    BuildContext context, {
+    required double top,
+    required Color surface,
+  }) {
+    return Stack(
+      children: [
+        // 导航行需要一层底：列表滚上来时是从图标和药丸背后穿过的，
+        // 没有这层渐隐，文字会和歌词/歌名糊在一起。整块 chrome 高度上
+        // 保持实心，只在最后一段淡出——半透明会把封面上的亮色漏到
+        // 图标之间，看着像栏「脏了」。
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: top + barHeight + 28,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0, 0.82, 1],
+                  colors: [surface, surface, surface.withValues(alpha: 0)],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            top + _topPadding,
+            12,
+            _bottomPadding,
+          ),
+          child: SizedBox(
+            height: _navRowHeight,
+            // 标题不再画出来，但定位锚点还得有落点：首页搜索弹窗用这个
+            // key 量顶部留白。挂在导航行上，量到的仍是整条栏的位置。
+            child: KeyedSubtree(
+              key: titleKey,
+              child: Row(
+                children: [
+                  // tab 条从左起排。展开项会让整条变宽，窄屏上等比缩一下，
+                  // 比让 Row 溢出好看。
+                  const Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: RootTabBar(),
+                      ),
+                    ),
+                  ),
+                  if (actions.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    for (final action in actions)
+                      SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Center(child: action),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPlainHeader(BuildContext context, {required double top}) {
     final accent = AppColors.accentOf(context);
     final isDark = AppColors.isDark(context);
     return GradientAppBarBackground(

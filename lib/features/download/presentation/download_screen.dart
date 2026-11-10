@@ -118,65 +118,70 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
             ),
           ],
         ),
+        extendBodyBehindAppBar: true,
         body: tasks.isEmpty
             ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.download_done,
-                      size: 64,
-                      color: AppColors.mutedText(context),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      S.of(context).noDownloadTasks,
-                      style: TextStyle(
+                child: KoyzeAppBarBody(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.download_done,
+                        size: 64,
                         color: AppColors.mutedText(context),
-                        fontSize: 16,
                       ),
+                      const SizedBox(height: 16),
+                      Text(
+                        S.of(context).noDownloadTasks,
+                        style: TextStyle(
+                          color: AppColors.mutedText(context),
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : KoyzeAppBarBody(
+                child: Column(
+                  children: [
+                    // 汇总进度卡片
+                    _buildProgressCard(
+                      completedCount,
+                      totalCount,
+                      overallProgress,
+                      totalSpeed,
+                      totalDownloaded,
+                    ),
+                    const SizedBox(height: 12),
+                    // Tab 栏
+                    _buildTabs(completedCount, totalCount),
+                    const SizedBox(height: 4),
+                    // 列表
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Text(
+                                S.of(context).noTasks,
+                                style: TextStyle(
+                                  color: AppColors.mutedText(context),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            )
+                          : AdaptiveSongList.builder(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              landscapeItemExtent: 156,
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) =>
+                                  _buildTaskItem(context, ref, filtered[index]),
+                            ),
                     ),
                   ],
                 ),
-              )
-            : Column(
-                children: [
-                  // 汇总进度卡片
-                  _buildProgressCard(
-                    completedCount,
-                    totalCount,
-                    overallProgress,
-                    totalSpeed,
-                    totalDownloaded,
-                  ),
-                  const SizedBox(height: 12),
-                  // Tab 栏
-                  _buildTabs(completedCount, totalCount),
-                  const SizedBox(height: 4),
-                  // 列表
-                  Expanded(
-                    child: filtered.isEmpty
-                        ? Center(
-                            child: Text(
-                              S.of(context).noTasks,
-                              style: TextStyle(
-                                color: AppColors.mutedText(context),
-                                fontSize: 14,
-                              ),
-                            ),
-                          )
-                        : AdaptiveSongList.builder(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            landscapeItemExtent: 156,
-                            itemCount: filtered.length,
-                            itemBuilder: (context, index) =>
-                                _buildTaskItem(context, ref, filtered[index]),
-                          ),
-                  ),
-                ],
               ),
       ),
     );

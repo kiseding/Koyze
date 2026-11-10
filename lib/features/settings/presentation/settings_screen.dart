@@ -24,7 +24,7 @@ import '../../playlist/presentation/playlist_provider.dart';
 import '../../player/platform/android_floating_player.dart';
 import '../../player/domain/player_backdrop.dart';
 import '../../player/presentation/player_backdrop_sheet.dart';
-import '../../lyric/presentation/lyric_display_sheet.dart';
+import '../../lyric/presentation/lyric_display_screen.dart';
 import '../../updates/presentation/update_sheet.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
@@ -661,8 +661,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               'delay',
               '字号',
               'font',
+              '字体',
+              'typeface',
               '大小',
               'size',
+              '模糊',
+              'blur',
+              '景深',
               '音译',
               '罗马音',
               'roman',
@@ -670,7 +675,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               '翻译',
               'translation',
             ],
-            onTap: () => showLyricDisplaySheet(context),
+            onTap: () => openLyricDisplaySettings(context),
           ),
         ],
       ),
@@ -1520,8 +1525,7 @@ class _GlassOpacitySlider extends ConsumerWidget {
               GlassEffectConfig.setSurfaceOpacity(next);
               ref.read(glassOpacityProvider.notifier).setOpacity(next);
             },
-            onChangeEnd: (_) =>
-                ref.read(glassOpacityProvider.notifier).flush(),
+            onChangeEnd: (_) => ref.read(glassOpacityProvider.notifier).flush(),
           ),
         ],
       ),
@@ -1529,7 +1533,8 @@ class _GlassOpacitySlider extends ConsumerWidget {
   }
 }
 
-class _SettingRow extends StatelessWidget {  final String name;
+class _SettingRow extends StatelessWidget {
+  final String name;
   final String value;
 
   const _SettingRow({required this.name, required this.value});

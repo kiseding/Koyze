@@ -66,120 +66,123 @@ class NasCollectionScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: collection.artwork == null
-                        ? ColoredBox(
-                            color: AppGlass.fill(
-                              context,
-                              style: AppGlassStyle.regular,
-                            ),
-                            child: Icon(
-                              Icons.album_outlined,
-                              color: muted,
-                              size: 30,
-                            ),
-                          )
-                        : ArtworkImage(
-                            collection.artwork!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              Icons.album_outlined,
-                              color: muted,
-                              size: 30,
-                            ),
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        collection.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: on,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (collection.subtitle.trim().isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          collection.subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: muted, fontSize: 12),
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      Text(
-                        S.of(context).songCountValue(songs.length),
-                        style: TextStyle(color: muted, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: AdaptiveSongList.builder(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 32),
-              landscapeItemExtent: 82,
-              itemCount: songs.length,
-              itemBuilder: (context, index) {
-                final song = songs[index];
-                return ListTile(
-                  onTap: () => _play(ref, songs, index),
-                  leading: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+      extendBodyBehindAppBar: true,
+      body: KoyzeAppBarBody(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
                     child: SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: song.artwork == null || song.artwork!.isEmpty
-                          ? Icon(Icons.music_note, color: muted)
+                      width: 72,
+                      height: 72,
+                      child: collection.artwork == null
+                          ? ColoredBox(
+                              color: AppGlass.fill(
+                                context,
+                                style: AppGlassStyle.regular,
+                              ),
+                              child: Icon(
+                                Icons.album_outlined,
+                                color: muted,
+                                size: 30,
+                              ),
+                            )
                           : ArtworkImage(
-                              song.artwork!,
+                              collection.artwork!,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  Icon(Icons.music_note, color: muted),
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.album_outlined,
+                                color: muted,
+                                size: 30,
+                              ),
                             ),
                     ),
                   ),
-                  title: Text(
-                    song.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: on, fontSize: 14),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          collection.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: on,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (collection.subtitle.trim().isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            collection.subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: muted, fontSize: 12),
+                          ),
+                        ],
+                        const SizedBox(height: 6),
+                        Text(
+                          S.of(context).songCountValue(songs.length),
+                          style: TextStyle(color: muted, fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
-                  subtitle: Text(
-                    [
-                      if (song.singer.trim().isNotEmpty) song.singer,
-                      if (song.album.trim().isNotEmpty) song.album,
-                    ].join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: muted, fontSize: 12),
-                  ),
-                  trailing: FavoriteButton(song: song),
-                );
-              },
+                ],
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: AdaptiveSongList.builder(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 32),
+                landscapeItemExtent: 82,
+                itemCount: songs.length,
+                itemBuilder: (context, index) {
+                  final song = songs[index];
+                  return ListTile(
+                    onTap: () => _play(ref, songs, index),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: song.artwork == null || song.artwork!.isEmpty
+                            ? Icon(Icons.music_note, color: muted)
+                            : ArtworkImage(
+                                song.artwork!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    Icon(Icons.music_note, color: muted),
+                              ),
+                      ),
+                    ),
+                    title: Text(
+                      song.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: on, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      [
+                        if (song.singer.trim().isNotEmpty) song.singer,
+                        if (song.album.trim().isNotEmpty) song.album,
+                      ].join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: muted, fontSize: 12),
+                    ),
+                    trailing: FavoriteButton(song: song),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -189,11 +192,7 @@ class NasCollectionScreen extends ConsumerWidget {
     try {
       await ref
           .read(playerServiceProvider)
-          .playPlaylist(
-            songs,
-            index: index,
-            manualPlayName: songs[index].name,
-          );
+          .playPlaylist(songs, index: index, manualPlayName: songs[index].name);
     } catch (_) {
       // 播放失败由播放器自己提示。
     }

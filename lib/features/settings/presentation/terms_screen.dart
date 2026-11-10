@@ -36,11 +36,17 @@ class TermsScreen extends StatelessWidget {
           ),
         ),
       ),
+      extendBodyBehindAppBar: true,
       body: SafeArea(
         top: false,
         child: SelectionArea(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(22, 10, 22, 44),
+            padding: EdgeInsets.fromLTRB(
+              22,
+              koyzeAppBarExtent(context) + 10,
+              22,
+              44,
+            ),
             children: [
               Text(
                 s.termsUpdated,

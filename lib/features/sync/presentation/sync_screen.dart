@@ -60,8 +60,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
         ),
         iconTheme: IconThemeData(color: AppColors.onScaffold(context)),
       ),
+      extendBodyBehindAppBar: true,
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+        padding: koyzeAppBarContentPadding(context, extra: 20),
         children: [
           _card(
             child: ListTile(

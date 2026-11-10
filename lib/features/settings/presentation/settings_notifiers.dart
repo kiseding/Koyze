@@ -468,9 +468,7 @@ class GlassOpacityNotifier extends _SliderSettingNotifier {
 
   @override
   double normalize(double value) => value.isFinite
-      ? value
-            .clamp(GlassEffectConfig.minSurfaceOpacity, 1.0)
-            .toDouble()
+      ? value.clamp(GlassEffectConfig.minSurfaceOpacity, 1.0).toDouble()
       : GlassEffectConfig.defaultSurfaceOpacity;
 
   @override
@@ -1137,32 +1135,40 @@ class CoverThemedAccentNotifier extends _PersistedSettingNotifier<bool> {
   }
 }
 
-/// 歌词呈现方式（0 滚动列表 / 1 单行 / 2 轮盘）。
+/// 歌词上下两侧的模糊程度（0 = 完全不糊，1 = 最远那一行糊到认不出）。
 ///
-/// 存 int 而不是枚举名：枚举改名时不会让用户的选择悄悄失效（越界回退到 0）。
-class LyricLayoutNotifier extends _PersistedSettingNotifier<int> {
-  LyricLayoutNotifier({StorageLoader? storage}) : super(0, storage: storage) {
+/// 存的是 0~1 的档位而不是 sigma：实际模糊半径还要跟字号、屏密度一起换算，
+/// 把「用户觉得多糊」和「渲染要多少像素」分开存，以后调曲线不用迁移数据。
+class LyricBlurNotifier extends _PersistedSettingNotifier<double> {
+  LyricBlurNotifier({StorageLoader? storage})
+    : super(defaultBlur, storage: storage) {
     startLoad();
   }
 
-  static const String storageKey = 'lyric_layout';
-  static const int maxLayout = 2;
+  static const String storageKey = 'lyric_blur';
+  static const double minBlur = 0;
+  static const double maxBlur = 1;
+
+  /// 出厂值。0.4 时相邻行只有很轻的虚化，远一点的行明显退到背景里；
+  /// 再往上（0.7+）近距离的行也开始糊，适合想要强烈景深的用户。
+  static const double defaultBlur = 0.4;
+
+  static double clampBlur(double value) => value.clamp(minBlur, maxBlur);
 
   @override
-  int? readFrom(StorageService storage) {
-    final value = storage.getInt(storageKey);
-    if (value == null) return null;
-    return value.clamp(0, maxLayout);
+  double? readFrom(StorageService storage) {
+    final value = storage.getDouble(storageKey);
+    return value == null ? null : clampBlur(value);
   }
 
-  void setLayout(int index) {
-    final next = index.clamp(0, maxLayout);
-    if (next == setting.value) return;
+  void setBlur(double blur) {
+    final next = clampBlur(blur);
+    if ((next - setting.value).abs() < 0.001) return;
     setting.applyCommitted(next);
     try {
       if (state != setting.value) state = setting.value;
     } catch (_) {}
-    unawaited(persist(next, (storage) => storage.setInt(storageKey, next)));
+    unawaited(persist(next, (storage) => storage.setDouble(storageKey, next)));
   }
 }
 
@@ -1185,36 +1191,6 @@ class SingleLineAnimationNotifier extends _PersistedSettingNotifier<int> {
 
   void setAnimation(int index) {
     final next = index.clamp(0, maxAnimation);
-    if (next == setting.value) return;
-    setting.applyCommitted(next);
-    try {
-      if (state != setting.value) state = setting.value;
-    } catch (_) {}
-    unawaited(persist(next, (storage) => storage.setInt(storageKey, next)));
-  }
-}
-
-/// 歌词主题（0 默认 / 1 像素点阵）。
-///
-/// 用 int 而不是枚举名，理由同 [LyricLayoutNotifier]：枚举改名不该让用户的
-/// 选择悄悄失效。
-class LyricThemeNotifier extends _PersistedSettingNotifier<int> {
-  LyricThemeNotifier({StorageLoader? storage}) : super(0, storage: storage) {
-    startLoad();
-  }
-
-  static const String storageKey = 'lyric_theme';
-  static const int maxTheme = 1;
-
-  @override
-  int? readFrom(StorageService storage) {
-    final value = storage.getInt(storageKey);
-    if (value == null) return null;
-    return value.clamp(0, maxTheme);
-  }
-
-  void setTheme(int index) {
-    final next = index.clamp(0, maxTheme);
     if (next == setting.value) return;
     setting.applyCommitted(next);
     try {

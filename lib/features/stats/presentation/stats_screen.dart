@@ -65,12 +65,13 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           ),
         ),
       ),
+      extendBodyBehindAppBar: true,
       body: SafeArea(
         top: false,
         child: store.entries.isEmpty
             ? _buildEmpty(context)
             : ListView(
-                padding: const EdgeInsets.all(16),
+                padding: koyzeAppBarContentPadding(context, extra: 16),
                 children: [
                   _buildRangeSelector(),
                   const SizedBox(height: 14),

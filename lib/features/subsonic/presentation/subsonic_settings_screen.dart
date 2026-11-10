@@ -577,8 +577,9 @@ class _SubsonicSettingsScreenState
           ),
         ),
       ),
+      extendBodyBehindAppBar: true,
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        padding: koyzeAppBarContentPadding(context, bottom: 32),
         children: [
           GlassSurface(
             style: AppGlassStyle.regular,
