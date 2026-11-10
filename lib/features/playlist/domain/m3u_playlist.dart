@@ -109,7 +109,7 @@ M3uDocument parseM3u(String content, {String? baseDirectory}) {
           ? null
           : Duration(seconds: seconds.round());
       final label = info.group(2)!.trim();
-      final split = _splitArtistTitle(label);
+      final split = splitArtistTitle(label);
       pendingArtist = split.$1;
       pendingTitle = split.$2;
       hasPending = true;
@@ -123,7 +123,7 @@ M3uDocument parseM3u(String content, {String? baseDirectory}) {
 
     entries.add(
       M3uEntry(
-        location: _resolveLocation(line, baseDirectory),
+        location: resolvePlaylistLocation(line, baseDirectory),
         title: pendingTitle,
         artist: pendingArtist,
         duration: pendingDuration,
@@ -151,7 +151,10 @@ String buildM3u(Iterable<M3uEntry> entries) {
 }
 
 /// `周杰伦 - 晴天` → (周杰伦, 晴天)；没有分隔符时整段当标题。
-(String?, String) _splitArtistTitle(String label) {
+///
+/// PLS / TXT 这类只写一行文字的格式也复用同一套拆分规则：歌名里带连字符
+/// 的情况远多于歌手名带，所以只在「 - 」两侧都有空格时才拆。
+(String?, String) splitArtistTitle(String label) {
   if (label.isEmpty) return (null, '');
   // 只用「 - 」（两侧带空格）拆：歌名本身带连字符的情况远多于歌手名带。
   final separator = label.indexOf(' - ');
@@ -162,15 +165,19 @@ String buildM3u(Iterable<M3uEntry> entries) {
   );
 }
 
-String _resolveLocation(String location, String? baseDirectory) {
+/// 把清单里的相对路径按清单所在目录展开。
+///
+/// URL 和绝对路径原样返回。PLS / XSPF / WPL / ASX 共用这一套规则，否则
+/// 同一台机器上「和歌单放在一起」的相对路径只有 M3U 能解析。
+String resolvePlaylistLocation(String location, String? baseDirectory) {
   if (baseDirectory == null || baseDirectory.isEmpty) return location;
   // URL 和已经是绝对路径的（含盘符或根斜杠）不需要展开。
   if (location.contains('://')) return location;
-  if (location.startsWith('/') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(location)) {
+  if (location.startsWith('/') ||
+      RegExp(r'^[A-Za-z]:[\\/]').hasMatch(location)) {
     return location;
   }
-  final separator = baseDirectory.endsWith('/') ||
-          baseDirectory.endsWith(r'\')
+  final separator = baseDirectory.endsWith('/') || baseDirectory.endsWith(r'\')
       ? ''
       : '/';
   return '$baseDirectory$separator$location';

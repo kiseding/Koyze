@@ -9,6 +9,7 @@ import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/platform_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/auto_text_input.dart';
@@ -18,6 +19,7 @@ import '../domain/playlist.dart';
 import '../domain/m3u_import.dart';
 import '../domain/m3u_playlist.dart';
 import '../domain/playlist_import_service.dart';
+import '../domain/text_playlist.dart';
 import '../domain/playlist_service.dart';
 import '../../player/domain/music_item.dart';
 import '../../local_music/presentation/local_music_provider.dart';
@@ -1110,47 +1112,67 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     );
   }
 
-  /// 从 M3U / M3U8 文件导入歌单。
+  /// 从文本歌单文件导入歌单。
   ///
-  /// 只匹配本地曲库里已有的歌：M3U 没有音源标识，硬去在线搜索很容易把
-  /// 翻唱、现场版都搜进来，导入结果反而更差。
-  Future<bool> _importM3uFile(BuildContext context, WidgetRef ref) async {
+  /// 支持 M3U / M3U8 / PLS / XSPF / WPL / ASX / TXT：这些都是「曲目清单」，
+  /// 不是音频，解析后只匹配本地曲库里已有的歌。M3U 没有音源标识，硬去
+  /// 在线搜索很容易把翻唱、现场版都搜进来，导入结果反而更差。
+  Future<bool> _importPlaylistFile(BuildContext context, WidgetRef ref) async {
     final s = S.of(context);
     try {
       final picked = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['m3u', 'm3u8'],
+        // 不按扩展名过滤：Android 把 .m3u 归到音频 MIME，custom 过滤既会
+        // 混进音频文件，也会漏掉 PLS/XSPF。放开选择、读进来按内容判断，
+        // 选错时给一句「这是音频文件」比列一堆选不中的扩展名更有用。
+        type: FileType.any,
         withData: true,
       );
       if (picked == null || picked.files.isEmpty) return false;
       final file = picked.files.first;
       final bytes = file.bytes;
-      if (bytes == null) return false;
+      if (bytes == null) {
+        if (!context.mounted) return false;
+        showAppNotification(
+          s.importFileBinary,
+          type: AppNotificationType.error,
+        );
+        return false;
+      }
 
-      final doc = parseM3u(
-        decodeM3uBytes(bytes),
+      final parsed = parseTextPlaylist(
+        fileName: file.name,
+        content: decodeM3uBytes(bytes),
         baseDirectory: _directoryOf(file.path),
       );
       final library = await ref.read(localMusicLibraryProvider.future);
-      final result = matchM3uToLibrary(doc, library.songs);
+      final result = matchM3uToLibrary(parsed.document, library.songs);
       if (!context.mounted) return false;
       if (result.isEmpty) {
         showAppNotification(s.importM3uEmpty, type: AppNotificationType.info);
         return false;
       }
-      final name = file.name.replaceFirst(
-        RegExp(r'\.m3u8?$', caseSensitive: false),
-        '',
-      );
+      final name = file.name.replaceFirst(RegExp(r'\.[^.]+$'), '').trim();
       await ref
           .read(playlistServiceProvider)
-          .createPlaylist(name: name, songs: result.songs);
+          .createPlaylist(
+            name: name.isEmpty ? parsed.format.label : name,
+            songs: result.songs,
+          );
       if (!context.mounted) return false;
       showAppNotification(
         s.importM3uResult(result.songs.length, result.skipped),
         type: AppNotificationType.success,
       );
       return true;
+    } on PlaylistFileException catch (error) {
+      if (!context.mounted) return false;
+      showAppNotification(switch (error.failure) {
+        PlaylistReadFailure.audioFile => s.importFileIsAudio,
+        PlaylistReadFailure.binaryFile => s.importFileBinary,
+        PlaylistReadFailure.empty => s.importFileEmpty,
+        PlaylistReadFailure.malformed => s.importFileMalformed,
+      }, type: AppNotificationType.error);
+      return false;
     } catch (error) {
       if (!context.mounted) return false;
       showAppNotification(
@@ -1307,42 +1329,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              DropdownButtonFormField<String>(
-                                initialValue: platform,
-                                decoration:
-                                    const InputDecoration(
-                                      prefixIcon: Icon(
-                                        Icons.library_music_rounded,
-                                      ),
-                                      border: OutlineInputBorder(),
-                                    ).applyDefaults(
-                                      Theme.of(ctx).inputDecorationTheme,
-                                    ),
-                                items: [
-                                  const DropdownMenuItem(
-                                    value: 'tx',
-                                    child: Text('QQ 音乐'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'kw',
-                                    child: Text(S.of(context).kuwoShort),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'kg',
-                                    child: Text(S.of(context).kugouShort),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'wy',
-                                    child: Text(S.of(context).neteaseShort),
-                                  ),
-                                ],
-                                onChanged: busy
-                                    ? null
-                                    : (value) {
-                                        if (value != null) {
-                                          setLocal(() => platform = value);
-                                        }
-                                      },
+                              _ImportPlatformSelector(
+                                value: platform,
+                                enabled: !busy,
+                                onChanged: (value) =>
+                                    setLocal(() => platform = value),
                               ),
                               const SizedBox(height: 16),
                               Text(
@@ -1387,23 +1378,74 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                 style: TextStyle(
                                   color: AppColors.secondaryText(ctx),
                                   fontSize: 13,
+                                  height: 1.35,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                S.of(context).importM3uOnlyLocal,
-                                style: TextStyle(
-                                  color: AppColors.mutedText(ctx),
-                                  fontSize: 12,
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.fromLTRB(
+                                  14,
+                                  12,
+                                  14,
+                                  14,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.fill(ctx),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: AppColors.cardBorder(ctx),
+                                    width: 0.6,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.description_outlined,
+                                          size: 16,
+                                          color: AppColors.accentOf(ctx),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            S.of(context).importM3uPickHint,
+                                            style: TextStyle(
+                                              color: AppColors.mutedText(ctx),
+                                              fontSize: 12,
+                                              height: 1.35,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    const _PlaylistFormatChips(),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              Text(
-                                S.of(context).importM3uPickHint,
-                                style: TextStyle(
-                                  color: AppColors.secondaryText(ctx),
-                                  fontSize: 12,
-                                ),
+                              const SizedBox(height: 12),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.info_outline_rounded,
+                                    size: 15,
+                                    color: AppColors.mutedText(ctx),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      S.of(context).importM3uOnlyLocal,
+                                      style: TextStyle(
+                                        color: AppColors.mutedText(ctx),
+                                        fontSize: 12,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ] else ...[
                               Text(
@@ -1414,42 +1456,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              DropdownButtonFormField<String>(
-                                initialValue: platform,
-                                decoration:
-                                    const InputDecoration(
-                                      prefixIcon: Icon(
-                                        Icons.library_music_rounded,
-                                      ),
-                                      border: OutlineInputBorder(),
-                                    ).applyDefaults(
-                                      Theme.of(ctx).inputDecorationTheme,
-                                    ),
-                                items: [
-                                  const DropdownMenuItem(
-                                    value: 'tx',
-                                    child: Text('QQ 音乐'),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'kw',
-                                    child: Text(S.of(context).kuwoShort),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'kg',
-                                    child: Text(S.of(context).kugouShort),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: 'wy',
-                                    child: Text(S.of(context).neteaseShort),
-                                  ),
-                                ],
-                                onChanged: busy
-                                    ? null
-                                    : (value) {
-                                        if (value != null) {
-                                          setLocal(() => platform = value);
-                                        }
-                                      },
+                              _ImportPlatformSelector(
+                                value: platform,
+                                enabled: !busy,
+                                onChanged: (value) =>
+                                    setLocal(() => platform = value),
                               ),
                               const SizedBox(height: 12),
                               DecoratedBox(
@@ -1689,10 +1700,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                         busy = true;
                                         error = null;
                                       });
-                                      final imported = await _importM3uFile(
-                                        ctx,
-                                        ref,
-                                      );
+                                      final imported =
+                                          await _importPlaylistFile(ctx, ref);
                                       if (!ctx.mounted) return;
                                       if (imported) {
                                         Navigator.pop(ctx);
@@ -2066,4 +2075,152 @@ class _BodyLoading extends _PlaylistBodyItem {
 
 class _BodyEmptyResult extends _PlaylistBodyItem {
   const _BodyEmptyResult();
+}
+
+/// 导入弹窗里的平台选择器。
+///
+/// 原来是 Material 的 DropdownButtonFormField：描边输入框 + 系统下拉菜单，
+/// 在这个全玻璃的弹窗里像一块放错位置的设置项。改成四颗等宽的品牌色胶囊：
+/// 选中态是平台色淡底 + 细描边，未选中是中性填充，和榜单页的平台胶囊
+/// 同一套视觉语言，也不用再弹一层菜单。
+class _ImportPlatformSelector extends StatelessWidget {
+  const _ImportPlatformSelector({
+    required this.value,
+    required this.onChanged,
+    this.enabled = true,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+  final bool enabled;
+
+  static const List<({String id, IconData icon})> _options = [
+    (id: 'tx', icon: Icons.music_note_rounded),
+    (id: 'kw', icon: Icons.graphic_eq_rounded),
+    (id: 'kg', icon: Icons.headphones_rounded),
+    (id: 'wy', icon: Icons.album_rounded),
+  ];
+
+  String _label(BuildContext context, String id) => switch (id) {
+    'tx' => 'QQ',
+    'kw' => S.of(context).kuwoShort,
+    'kg' => S.of(context).kugouShort,
+    _ => S.of(context).neteaseShort,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 160),
+      opacity: enabled ? 1 : 0.55,
+      child: Row(
+        children: [
+          for (var index = 0; index < _options.length; index++) ...[
+            if (index > 0) const SizedBox(width: 6),
+            Expanded(child: _buildOption(context, _options[index])),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOption(
+    BuildContext context,
+    ({String id, IconData icon}) option,
+  ) {
+    final selected = value == option.id;
+    final color = platformBrandColor(context, option.id);
+    final isDark = AppColors.isDark(context);
+    return Pressable(
+      borderRadius: BorderRadius.circular(12),
+      selected: selected,
+      onTap: enabled ? () => onChanged(option.id) : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected
+              ? color.withValues(alpha: isDark ? 0.20 : 0.10)
+              : AppColors.fill(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? color.withValues(alpha: 0.55)
+                : Colors.transparent,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              option.icon,
+              size: 14,
+              color: selected ? color : AppColors.mutedText(context),
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  _label(context, option.id),
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.1,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected ? color : AppColors.secondaryText(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 导入弹窗里的格式标签：一眼看清「歌单是文本，不是音频」。
+class _PlaylistFormatChips extends StatelessWidget {
+  const _PlaylistFormatChips();
+
+  static const List<String> _formats = [
+    'M3U',
+    'M3U8',
+    'PLS',
+    'XSPF',
+    'WPL',
+    'ASX',
+    'TXT',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final format in _formats)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.fill2(context),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              format,
+              style: TextStyle(
+                fontSize: 10.5,
+                height: 1.1,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.4,
+                color: AppColors.secondaryText(context),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }

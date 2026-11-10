@@ -53,16 +53,25 @@ void main() {
       expect(importDialog, contains('importTabLink'));
       expect(importDialog, contains('importTabFile'));
       expect(importDialog, contains('importTabAccount'));
-      expect(importDialog, contains('DropdownButtonFormField<String>'));
-      expect(importDialog, contains('final imported = await _importM3uFile('));
+      // 平台选择换成品牌色胶囊：链接页与登录页各一处，不再用系统下拉菜单。
+      expect(
+        RegExp(r'_ImportPlatformSelector\(').allMatches(importDialog).length,
+        2,
+      );
+      expect(importDialog, isNot(contains('DropdownButtonFormField')));
+      // 文件页读的是文本歌单，不是音频。
+      expect(importDialog, contains('_importPlaylistFile('));
+      expect(importDialog, contains('_PlaylistFormatChips'));
       expect(importDialog, contains('onPressed: null'));
       expect(importDialog, isNot(contains('importAccountIntro')));
     },
   );
 
   test('platform sign-in notices match verified official access scopes', () {
-    final zh = jsonDecode(readSource('lib/l10n/app_zh.arb')) as Map<String, dynamic>;
-    final en = jsonDecode(readSource('lib/l10n/app_en.arb')) as Map<String, dynamic>;
+    final zh =
+        jsonDecode(readSource('lib/l10n/app_zh.arb')) as Map<String, dynamic>;
+    final en =
+        jsonDecode(readSource('lib/l10n/app_en.arb')) as Map<String, dynamic>;
 
     expect(zh['platformLoginUnavailableQQ'], contains('合作接入和审核'));
     expect(zh['platformLoginUnavailableQQ'], contains('个人开发者'));
@@ -73,7 +82,10 @@ void main() {
     expect(zh['platformLoginUnavailableNetease'], contains('ncm-cli'));
     expect(zh['platformLoginUnavailableNetease'], contains('商务接入'));
     expect(en['platformLoginUnavailableQQ'], contains('individual developers'));
-    expect(en['platformLoginUnavailableKuwo'], contains('third-party developer'));
+    expect(
+      en['platformLoginUnavailableKuwo'],
+      contains('third-party developer'),
+    );
     expect(en['platformLoginUnavailableKugou'], contains('mini-app API'));
     expect(en['platformLoginUnavailableNetease'], contains('ncm-cli'));
   });
