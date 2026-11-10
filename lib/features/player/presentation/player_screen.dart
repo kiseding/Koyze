@@ -13,6 +13,7 @@ import '../../car_mode/presentation/car_mode_provider.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/glass_config.dart';
+import '../../../core/theme/system_bars.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/favorite_button.dart';
@@ -929,275 +930,288 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     final dismissThreshold = screenH * 0.4; // 超过 2/5 关闭
     _dragDistance = screenH * 0.42; // 拖动跟手 morph 的满程距离
 
-    return ValueListenableBuilder<double>(
-      valueListenable: playerRouteProgress,
-      builder: (context, progress, _) {
-        // 读取真实布局几何（上一帧已布局），morph 覆盖层终点与页面内容
-        // 严格一致，展开/收起全程无跳变；未布局（首帧）时回退估算值。
-        _recordMorphTargets();
-        final media = MediaQuery.of(context);
-        final bottomInset = media.padding.bottom > media.viewPadding.bottom
-            ? media.padding.bottom
-            : media.viewPadding.bottom;
-        final bottomSpacing = bottomInset == 0 ? 2.0 : 0.0;
-        final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
-        final navHeight =
-            36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
-        // 收起目标必须与壳层实际摆放的迷你栏完全一致：竖屏是 66 高的玻璃
-        // 栏，横屏/桌面是 78 高的悬浮卡。这里曾固定按 66 算，桌面和横屏下
-        // 打开播放器时飞行封面比真实封面小一圈、还低 12px，头几帧再弹回
-        // 原位，肉眼就是"打开前闪一下"。
-        final miniHeight = usesSideNavigation
-            ? kMiniBarFloatingHeight
-            : kMiniBarHeight;
-        const miniGap = 11.0;
-        final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
-        final trailingInset = media.padding.right > media.viewPadding.right
-            ? media.padding.right
-            : media.viewPadding.right;
-        final contentRightInset = usesSideNavigation
-            ? (trailingInset > 20 ? trailingInset : 20.0)
-            : 0.0;
-        // 横屏迷你栏没有底栏，并且和侧栏让出的内容区对齐。
-        final miniBottom = usesSideNavigation
-            ? (bottomInset == 0 ? 8.0 : 6.0)
-            : bottomInset == 0
-            ? navHeight + 16 + bottomClearance + miniGap
-            : navHeight + miniGap;
-        final pageWidth = screenW - contentRightInset;
-        final miniInset = miniPlayerSideInset(
-          pageWidth: pageWidth,
-          usesSideNavigation: usesSideNavigation,
-        );
-        final miniWidth = (screenW - contentRightInset - miniInset * 2).clamp(
-          0.0,
-          screenW,
-        );
-        // 竖屏收起目标是底部迷你播放条；横屏是浮动迷你卡片。
-        final miniBar = KoyzeMiniBarMetrics(
-          screen: Size(screenW, screenH),
-          bottomInset: bottomInset,
-        );
-        final miniRect = usesSideNavigation
-            ? Rect.fromLTWH(
-                miniInset,
-                screenH - miniBottom - miniHeight,
-                miniWidth,
-                miniHeight,
-              )
-            : miniBar.barRect;
-        final fullRect = Offset.zero & Size(screenW, screenH);
-        final portraitLyrics = _currentPage == 1 && !landscape;
-        final lyricCollapsing =
-            portraitLyrics &&
-            (progress < 1 ||
-                playerRouteDismissLocked ||
-                _draggingDown ||
-                _collapsing ||
-                _settleController.isAnimating ||
-                edgeDragActive);
-        final closeT = 1 - progress;
-        // 对称收起（卡片式）：矩形从全屏线性收向目标——封面页→底部 dock，
-        // 歌词页→dock 上方的控件行；内容以矩形中心锚定并按宽度比等比缩放，
-        // 上下从两侧对称裁剪（焦点 = 矩形中心）。
-        final lyricCollapseRect = usesSideNavigation
-            ? _miniLyricRowRect(miniRect)
-            : Rect.fromCenter(center: miniRect.center, width: 210, height: 18);
-        final collapseTarget = lyricCollapsing ? lyricCollapseRect : miniRect;
-        final currentRect = Rect.lerp(collapseTarget, fullRect, progress)!;
-        final miniArtworkRect = usesSideNavigation
-            ? _miniArtworkRect(miniRect)
-            : miniBar.artworkRect;
-        final fullArtworkRect =
-            _artworkRect ??
-            _fullArtworkRect(context, screenW: screenW, screenH: screenH);
-        final artworkMorphRect = Rect.lerp(
-          miniArtworkRect,
-          fullArtworkRect,
-          progress,
-        )!;
-        final miniPlayButtonRect = usesSideNavigation
-            ? _miniPlayButtonRect(miniRect)
-            : miniBar.playRect;
-        final lyricTargetRect =
-            _lyricPlayRect ??
-            _fullLyricPlayButtonRect(
-              context,
-              screenW: screenW,
-              screenH: screenH,
-            );
-        final controlsTargetRect =
-            _controlsPlayRect ??
-            _fullControlsPlayButtonRect(
-              context,
-              screenW: screenW,
-              screenH: screenH,
-            );
-        // 播放键 morph：打开时从迷你栏按钮起飞到当前页按钮位（控件栏/歌词页），
-        // 关闭/拖动时反向**跟手归位**回迷你栏按钮——按钮随滑动进度实时
-        // 缩小并移向迷你栏，松手后从当前位置继续，直到被迷你栏接管。
-        final playButtonTarget = portraitLyrics
-            ? lyricTargetRect
-            : controlsTargetRect;
-        // 播放按钮不跟随整体进度隐没：保持原位置不动，直到动效进入
-        // 最后 35%（progress < 0.35）才开始飞回迷你栏归位，确保肉眼
-        // 可见的归位过程。
-        final btnMorphT = (progress / 0.35).clamp(0.0, 1.0);
-        final playButtonMorphRect = Rect.lerp(
-          playButtonTarget,
-          miniPlayButtonRect,
-          1 - btnMorphT,
-        )!;
-        // 下滑/收拢/回弹期间（拖动中或 settle 动画进行中）除"飞行封面"外
-        // 其它元素随进度线性渐隐：位移 0~10%（progress 1→0.9）内切到
-        // 全透明，回弹时同样线性恢复——松手瞬间不会因公式切换而"卡一下"。
-        final animating =
-            _draggingDown ||
-            _collapsing ||
-            _settleController.isAnimating ||
-            edgeDragActive;
-        // overlay（飞行封面/播放按钮）只在"打开已完成"时让位正文；
-        // 一旦进入关闭/手势驱动则全程可见（封面/按钮随进度完整归位）。
-        final closing = animating || playerRouteDismissLocked;
-        // 仅关闭时：前 5%（progress 1.00→0.95）除封面/歌词外全部淡到全透明。
-        // 打开（progress 上升）不做这个淡出。
-        final dismissing = closing && progress < 1;
-        final chromeFade = dismissing
-            ? ((progress - 0.95) / 0.05).clamp(0.0, 1.0)
-            : 1.0;
-        // 关闭时控件/磨砂/背景走 chromeFade；打开按进度淡入正文。
-        //
-        // 正文是按**宽度比**缩放的（见下方 Transform.scale），而迷你栏本来
-        // 就有约 95% 屏宽，所以第一帧正文就已经是最终尺寸的 94%，到六成
-        // 进度已是 98%。卡片只往上长高，正文于是变成「早就落位、只被一张
-        // 黑幕从下往上揭开」：最先露出来的是最底下的进度条和时间，还被卡片
-        // 下缘切掉半截，观感像界面没搭好。打开时改成随进度淡入，卡片先长成
-        // 形，内容再浮现；关闭保持不透明，否则收拢开头会先灰一层。
-        final contentOpacity = closing
-            ? 1.0
-            : Curves.easeOut.transform(
-                ((progress - 0.50) / 0.42).clamp(0.0, 1.0),
-              );
-        // 动效全程隐藏正文封面，只留飞行快照封面；progress=1 再交棒，
-        // 避免全屏/迷你栏真封面与快照叠在一起。
-        final artworkReveal = progress >= 1.0 ? 1.0 : 0.0;
-        // 背景动画期间也跟手透明（阴影已移除，不会发灰）；
-        // 非动画阶段保持纯色。
-        // 歌词页关闭：sheet 与主壳底色同色，若不变色则缩小的背景在
-        // 视觉上不可见（观感成"只有元素在缩"）。底色全程渐变成迷你栏
-        // 同款灰，让"卡片"边界从头可见、与元素同步收缩。
-        final sheetColor = lyricCollapsing
-            ? Color.lerp(
-                Theme.of(context).scaffoldBackgroundColor,
-                AppColors.miniBar(context),
-                closeT,
-              )!
-            : Theme.of(context).scaffoldBackgroundColor.withValues(
-                alpha: closing ? chromeFade : 1.0,
-              );
-        // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
-        final hideLayer = lyricCollapsing && closeT >= 0.99;
-        // 单一渲染结构：Positioned.fromRect(currentRect) + 中心锚定 +
-        // 按宽度比等比缩放。封面页与歌词页共用（仅 currentRect 目标不同），
-        // 避免 lyricCollapsing 翻转时子树销毁重建导致 PageView 回退。
-        final sheetContent = Opacity(
-          opacity: contentOpacity,
-          child: _buildPlayerBody(
-            context,
-            currentMusic,
-            playerService,
-            isPlaying,
-            playMode,
-            duration,
-            screenH,
+    // 播放页的背景是封面压暗后的深色，和主题亮度无关：浅色主题下打开
+    // 播放器，背景照样是暗的，状态栏这时必须用白色图标。不套这层的话
+    // 会跟着根节点的兜底走成深色图标，压在暗背景上同样看不见。
+    return DarkSystemBars(
+      child: ValueListenableBuilder<double>(
+        valueListenable: playerRouteProgress,
+        builder: (context, progress, _) {
+          // 读取真实布局几何（上一帧已布局），morph 覆盖层终点与页面内容
+          // 严格一致，展开/收起全程无跳变；未布局（首帧）时回退估算值。
+          _recordMorphTargets();
+          final media = MediaQuery.of(context);
+          final bottomInset = media.padding.bottom > media.viewPadding.bottom
+              ? media.padding.bottom
+              : media.viewPadding.bottom;
+          final bottomSpacing = bottomInset == 0 ? 2.0 : 0.0;
+          final textScale = media.textScaler.scale(1).clamp(1.0, 2.0);
+          final navHeight =
+              36.0 + (textScale - 1) * 20 + bottomInset + bottomSpacing;
+          // 收起目标必须与壳层实际摆放的迷你栏完全一致：竖屏是 66 高的玻璃
+          // 栏，横屏/桌面是 78 高的悬浮卡。这里曾固定按 66 算，桌面和横屏下
+          // 打开播放器时飞行封面比真实封面小一圈、还低 12px，头几帧再弹回
+          // 原位，肉眼就是"打开前闪一下"。
+          final miniHeight = usesSideNavigation
+              ? kMiniBarFloatingHeight
+              : kMiniBarHeight;
+          const miniGap = 11.0;
+          final bottomClearance = bottomInset == 0 ? 11.0 : 0.0;
+          final trailingInset = media.padding.right > media.viewPadding.right
+              ? media.padding.right
+              : media.viewPadding.right;
+          final contentRightInset = usesSideNavigation
+              ? (trailingInset > 20 ? trailingInset : 20.0)
+              : 0.0;
+          // 横屏迷你栏没有底栏，并且和侧栏让出的内容区对齐。
+          final miniBottom = usesSideNavigation
+              ? (bottomInset == 0 ? 8.0 : 6.0)
+              : bottomInset == 0
+              ? navHeight + 16 + bottomClearance + miniGap
+              : navHeight + miniGap;
+          final pageWidth = screenW - contentRightInset;
+          final miniInset = miniPlayerSideInset(
+            pageWidth: pageWidth,
+            usesSideNavigation: usesSideNavigation,
+          );
+          final miniWidth = (screenW - contentRightInset - miniInset * 2).clamp(
+            0.0,
             screenW,
-            landscape,
-            dismissThreshold,
-            artworkReveal,
-            chromeFade,
-          ),
-        );
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            if (!hideLayer && (progress > 0 || closing))
-              Positioned.fromRect(
-                rect: currentRect,
-                // 收拢锁定后 sheet 缩在目标位置且不可见，必须放行点击，
-                // 否则迷你栏要等路由移除后才能交互。
-                child: IgnorePointer(
-                  ignoring: progress <= 0 && !animating,
-                  // 歌词页收拢时随进度浮现卡片阴影（与迷你栏同款）；
-                  // 封面页路径无阴影。
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16 * (1 - progress)),
-                      boxShadow: lyricCollapsing
-                          ? [
-                              BoxShadow(
-                                color: Colors.black.withValues(
-                                  alpha:
-                                      (AppColors.isDark(context)
-                                          ? 0.40
-                                          : 0.10) *
-                                      closeT,
+          );
+          // 竖屏收起目标是底部迷你播放条；横屏是浮动迷你卡片。
+          final miniBar = KoyzeMiniBarMetrics(
+            screen: Size(screenW, screenH),
+            bottomInset: bottomInset,
+          );
+          final miniRect = usesSideNavigation
+              ? Rect.fromLTWH(
+                  miniInset,
+                  screenH - miniBottom - miniHeight,
+                  miniWidth,
+                  miniHeight,
+                )
+              : miniBar.barRect;
+          final fullRect = Offset.zero & Size(screenW, screenH);
+          final portraitLyrics = _currentPage == 1 && !landscape;
+          final lyricCollapsing =
+              portraitLyrics &&
+              (progress < 1 ||
+                  playerRouteDismissLocked ||
+                  _draggingDown ||
+                  _collapsing ||
+                  _settleController.isAnimating ||
+                  edgeDragActive);
+          final closeT = 1 - progress;
+          // 对称收起（卡片式）：矩形从全屏线性收向目标——封面页→底部 dock，
+          // 歌词页→dock 上方的控件行；内容以矩形中心锚定并按宽度比等比缩放，
+          // 上下从两侧对称裁剪（焦点 = 矩形中心）。
+          final lyricCollapseRect = usesSideNavigation
+              ? _miniLyricRowRect(miniRect)
+              : Rect.fromCenter(
+                  center: miniRect.center,
+                  width: 210,
+                  height: 18,
+                );
+          final collapseTarget = lyricCollapsing ? lyricCollapseRect : miniRect;
+          final currentRect = Rect.lerp(collapseTarget, fullRect, progress)!;
+          final miniArtworkRect = usesSideNavigation
+              ? _miniArtworkRect(miniRect)
+              : miniBar.artworkRect;
+          final fullArtworkRect =
+              _artworkRect ??
+              _fullArtworkRect(context, screenW: screenW, screenH: screenH);
+          final artworkMorphRect = Rect.lerp(
+            miniArtworkRect,
+            fullArtworkRect,
+            progress,
+          )!;
+          final miniPlayButtonRect = usesSideNavigation
+              ? _miniPlayButtonRect(miniRect)
+              : miniBar.playRect;
+          final lyricTargetRect =
+              _lyricPlayRect ??
+              _fullLyricPlayButtonRect(
+                context,
+                screenW: screenW,
+                screenH: screenH,
+              );
+          final controlsTargetRect =
+              _controlsPlayRect ??
+              _fullControlsPlayButtonRect(
+                context,
+                screenW: screenW,
+                screenH: screenH,
+              );
+          // 播放键 morph：打开时从迷你栏按钮起飞到当前页按钮位（控件栏/歌词页），
+          // 关闭/拖动时反向**跟手归位**回迷你栏按钮——按钮随滑动进度实时
+          // 缩小并移向迷你栏，松手后从当前位置继续，直到被迷你栏接管。
+          final playButtonTarget = portraitLyrics
+              ? lyricTargetRect
+              : controlsTargetRect;
+          // 播放按钮不跟随整体进度隐没：保持原位置不动，直到动效进入
+          // 最后 35%（progress < 0.35）才开始飞回迷你栏归位，确保肉眼
+          // 可见的归位过程。
+          final btnMorphT = (progress / 0.35).clamp(0.0, 1.0);
+          final playButtonMorphRect = Rect.lerp(
+            playButtonTarget,
+            miniPlayButtonRect,
+            1 - btnMorphT,
+          )!;
+          // 下滑/收拢/回弹期间（拖动中或 settle 动画进行中）除"飞行封面"外
+          // 其它元素随进度线性渐隐：位移 0~10%（progress 1→0.9）内切到
+          // 全透明，回弹时同样线性恢复——松手瞬间不会因公式切换而"卡一下"。
+          final animating =
+              _draggingDown ||
+              _collapsing ||
+              _settleController.isAnimating ||
+              edgeDragActive;
+          // overlay（飞行封面/播放按钮）只在"打开已完成"时让位正文；
+          // 一旦进入关闭/手势驱动则全程可见（封面/按钮随进度完整归位）。
+          final closing = animating || playerRouteDismissLocked;
+          // 仅关闭时：前 5%（progress 1.00→0.95）除封面/歌词外全部淡到全透明。
+          // 打开（progress 上升）不做这个淡出。
+          final dismissing = closing && progress < 1;
+          final chromeFade = dismissing
+              ? ((progress - 0.95) / 0.05).clamp(0.0, 1.0)
+              : 1.0;
+          // 关闭时控件/磨砂/背景走 chromeFade；打开按进度淡入正文。
+          //
+          // 正文是按**宽度比**缩放的（见下方 Transform.scale），而迷你栏本来
+          // 就有约 95% 屏宽，所以第一帧正文就已经是最终尺寸的 94%，到六成
+          // 进度已是 98%。卡片只往上长高，正文于是变成「早就落位、只被一张
+          // 黑幕从下往上揭开」：最先露出来的是最底下的进度条和时间，还被卡片
+          // 下缘切掉半截，观感像界面没搭好。打开时改成随进度淡入，卡片先长成
+          // 形，内容再浮现；关闭保持不透明，否则收拢开头会先灰一层。
+          final contentOpacity = closing
+              ? 1.0
+              : Curves.easeOut.transform(
+                  ((progress - 0.50) / 0.42).clamp(0.0, 1.0),
+                );
+          // 动效全程隐藏正文封面，只留飞行快照封面；progress=1 再交棒，
+          // 避免全屏/迷你栏真封面与快照叠在一起。
+          final artworkReveal = progress >= 1.0 ? 1.0 : 0.0;
+          // 背景动画期间也跟手透明（阴影已移除，不会发灰）；
+          // 非动画阶段保持纯色。
+          // 歌词页关闭：sheet 与主壳底色同色，若不变色则缩小的背景在
+          // 视觉上不可见（观感成"只有元素在缩"）。底色全程渐变成迷你栏
+          // 同款灰，让"卡片"边界从头可见、与元素同步收缩。
+          final sheetColor = lyricCollapsing
+              ? Color.lerp(
+                  Theme.of(context).scaffoldBackgroundColor,
+                  AppColors.miniBar(context),
+                  closeT,
+                )!
+              : Theme.of(context).scaffoldBackgroundColor.withValues(
+                  alpha: closing ? chromeFade : 1.0,
+                );
+          // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
+          final hideLayer = lyricCollapsing && closeT >= 0.99;
+          // 单一渲染结构：Positioned.fromRect(currentRect) + 中心锚定 +
+          // 按宽度比等比缩放。封面页与歌词页共用（仅 currentRect 目标不同），
+          // 避免 lyricCollapsing 翻转时子树销毁重建导致 PageView 回退。
+          final sheetContent = Opacity(
+            opacity: contentOpacity,
+            child: _buildPlayerBody(
+              context,
+              currentMusic,
+              playerService,
+              isPlaying,
+              playMode,
+              duration,
+              screenH,
+              screenW,
+              landscape,
+              dismissThreshold,
+              artworkReveal,
+              chromeFade,
+            ),
+          );
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (!hideLayer && (progress > 0 || closing))
+                Positioned.fromRect(
+                  rect: currentRect,
+                  // 收拢锁定后 sheet 缩在目标位置且不可见，必须放行点击，
+                  // 否则迷你栏要等路由移除后才能交互。
+                  child: IgnorePointer(
+                    ignoring: progress <= 0 && !animating,
+                    // 歌词页收拢时随进度浮现卡片阴影（与迷你栏同款）；
+                    // 封面页路径无阴影。
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(
+                          16 * (1 - progress),
+                        ),
+                        boxShadow: lyricCollapsing
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(
+                                    alpha:
+                                        (AppColors.isDark(context)
+                                            ? 0.40
+                                            : 0.10) *
+                                        closeT,
+                                  ),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 2),
                                 ),
-                                blurRadius: 12,
-                                offset: const Offset(0, 2),
-                              ),
-                            ]
-                          : const <BoxShadow>[],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(16 * (1 - progress)),
-                      child: OverflowBox(
-                        alignment: Alignment.center,
-                        minWidth: screenW,
-                        maxWidth: screenW,
-                        minHeight: screenH,
-                        maxHeight: screenH,
-                        child: Transform.scale(
-                          scale: currentRect.width / screenW,
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Opacity(
-                                opacity: chromeFade,
-                                child: ColoredBox(
-                                  color: sheetColor,
-                                  child: _PlayerCoverBackdrop(
-                                    artwork: currentMusic.artwork,
-                                    songId: currentMusic.id,
+                              ]
+                            : const <BoxShadow>[],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          16 * (1 - progress),
+                        ),
+                        child: OverflowBox(
+                          alignment: Alignment.center,
+                          minWidth: screenW,
+                          maxWidth: screenW,
+                          minHeight: screenH,
+                          maxHeight: screenH,
+                          child: Transform.scale(
+                            scale: currentRect.width / screenW,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                Opacity(
+                                  opacity: chromeFade,
+                                  child: ColoredBox(
+                                    color: sheetColor,
+                                    child: _PlayerCoverBackdrop(
+                                      artwork: currentMusic.artwork,
+                                      songId: currentMusic.id,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              sheetContent,
-                            ],
+                                sheetContent,
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            if (_currentPage == 0 || landscape)
-              _RouteArtworkMorphOverlay(
-                rect: artworkMorphRect,
-                progress: progress,
-                closing: closing,
-                artwork: currentMusic.artwork,
-                fallback: _defaultArtwork,
-              )
-            else if (!lyricCollapsing)
-              _RoutePlayButtonMorphOverlay(
-                rect: playButtonMorphRect,
-                progress: progress,
-                closing: closing,
-                isPlaying: isPlaying,
-              ),
-          ],
-        );
-      },
+              if (_currentPage == 0 || landscape)
+                _RouteArtworkMorphOverlay(
+                  rect: artworkMorphRect,
+                  progress: progress,
+                  closing: closing,
+                  artwork: currentMusic.artwork,
+                  fallback: _defaultArtwork,
+                )
+              else if (!lyricCollapsing)
+                _RoutePlayButtonMorphOverlay(
+                  rect: playButtonMorphRect,
+                  progress: progress,
+                  closing: closing,
+                  isPlaying: isPlaying,
+                ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -2376,9 +2390,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                     kPitchFactor432Hz)
                                 .abs() <
                             0.002,
-                        onTap: () => set(
-                          12 * (math.log(kPitchFactor432Hz) / math.ln2),
-                        ),
+                        onTap: () =>
+                            set(12 * (math.log(kPitchFactor432Hz) / math.ln2)),
                       ),
                       _PitchPresetChip(
                         label: '-1',

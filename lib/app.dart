@@ -7,6 +7,7 @@ import 'package:koyze/core/performance/low_memory.dart';
 import 'package:koyze/core/theme/app_theme.dart';
 import 'package:koyze/core/theme/cover_palette_provider.dart';
 import 'package:koyze/core/theme/glass_config.dart';
+import 'package:koyze/core/theme/system_bars.dart';
 
 import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/core/widgets/compact_high_resolution_scale.dart';
@@ -132,18 +133,25 @@ class LxMusicApp extends ConsumerWidget {
       themeAnimationCurve: Curves.easeOutCubic,
       routerConfig: appRouter,
       builder: (context, child) {
-        final framed = CompactHighResolutionFrame(
-          child: WindowsCaptionFrame(
-            child: IndependentSideRail(
-              child: WindowsCloseHandler(
-                navigatorKey: rootNavigatorKey,
-                child: CloudSyncHost(
-                  child: AppNotificationHost(
-                    child: PlayerMessageListener(
-                      child: AndroidFloatingPlayerHost(
-                        child: ForceLandscapeBinding(
-                          child: StartupCloudLoginPrompt(
-                            child: child ?? const SizedBox.shrink(),
+        // 系统栏图标配色必须包在**所有页面之外**：Flutter 每帧按状态栏
+        // 位置的图层内容决定图标颜色，根页面没有 AppBar 就一个
+        // AnnotatedRegion 都没有，引擎会停在默认的亮色图标上——浅色主题
+        // 白底白字就是这么来的。这里给整棵树一个兜底，页面自己的 AppBar
+        // region 在更上层，仍然优先。
+        final framed = KoyzeSystemBars(
+          child: CompactHighResolutionFrame(
+            child: WindowsCaptionFrame(
+              child: IndependentSideRail(
+                child: WindowsCloseHandler(
+                  navigatorKey: rootNavigatorKey,
+                  child: CloudSyncHost(
+                    child: AppNotificationHost(
+                      child: PlayerMessageListener(
+                        child: AndroidFloatingPlayerHost(
+                          child: ForceLandscapeBinding(
+                            child: StartupCloudLoginPrompt(
+                              child: child ?? const SizedBox.shrink(),
+                            ),
                           ),
                         ),
                       ),

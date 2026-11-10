@@ -8,8 +8,11 @@
         <item name="android:windowBackground">@drawable/launch_background</item>
         <item name="android:windowSplashScreenBackground">@android:color/white</item>
         <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <!-- 见 values/styles.xml：启动阶段状态栏图标走原生主题。 -->
+        <item name="android:windowLightStatusBar">true</item>
     </style>
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
