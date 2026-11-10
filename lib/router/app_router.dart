@@ -38,6 +38,7 @@ import '../features/nas/presentation/nas_collection_screen.dart';
 import '../features/subsonic/presentation/subsonic_library_screen.dart';
 import '../features/subsonic/presentation/subsonic_playlist_detail_screen.dart';
 import '../features/subsonic/presentation/subsonic_settings_screen.dart';
+import '../features/lyric/presentation/lyric_display_screen.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<SwipeBranchContainerState> _swipeBranchKey =
@@ -529,6 +530,16 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const TermsScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+      ),
+    ),
+    GoRoute(
+      path: '/lyric-display',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const LyricDisplayScreen(),
         expandRect: consumeCardExpandRect(),
         expandSnapshot: consumeCardExpandSnapshot(),
       ),

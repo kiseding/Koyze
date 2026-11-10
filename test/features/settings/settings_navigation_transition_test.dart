@@ -180,6 +180,7 @@ void main() {
       '/subsonic-settings',
       '/equalizer',
       '/sync',
+      '/lyric-display',
     ]) {
       expect(
         RegExp(
@@ -235,6 +236,26 @@ void main() {
     // 右上角的搜索入口。
     expect(source, contains('s.settingsSearch'));
     expect(source, contains('SettingsSearchLayer('));
+  });
+
+  test('lyric display opens through the shared expandable route', () {
+    final router = File('lib/router/app_router.dart').readAsStringSync();
+    final screen = File(
+      'lib/features/lyric/presentation/lyric_display_screen.dart',
+    ).readAsStringSync();
+
+    // 歌词设置页曾用 MaterialPageRoute 直接 push，转场是系统默认整页横推，
+    // 与其它子页的「卡片长成整页 + 右滑收拢」不是一套。现在统一挂到
+    // expandablePage 上，这里摁住它别再退回去。
+    expect(router, contains("path: '/lyric-display'"));
+    expect(
+      RegExp(
+        r"path: '/lyric-display',[\s\S]{0,400}?expandablePage\(",
+      ).hasMatch(router),
+      isTrue,
+      reason: '/lyric-display 必须和其它子页一样走 expandablePage',
+    );
+    expect(screen, isNot(contains('MaterialPageRoute(')));
   });
 
   test('default search picker includes self-hosted and nas sources', () {

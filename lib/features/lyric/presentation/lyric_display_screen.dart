@@ -15,17 +15,15 @@ import '../presentation/lyric_effects.dart';
 import '../presentation/lyric_font_provider.dart';
 import 'lyric_preview.dart';
 
-/// 打开歌词显示设置页。
+/// 歌词显示设置页。
 ///
 /// 从底部弹窗改成整页：这一页现在有模糊、字号、偏移、字体、附加行好几组，
 /// 弹窗里挤下来只会一直滚，而且弹窗的关闭手势和滑杆拖动会互相抢。
-Future<void> openLyricDisplaySettings(BuildContext context) {
-  return Navigator.of(
-    context,
-    rootNavigator: true,
-  ).push<void>(MaterialPageRoute(builder: (_) => const LyricDisplayScreen()));
-}
-
+///
+/// 路由挂在 `/lyric-display`，和其它子页共用 `expandablePage`：入口那行的
+/// 矩形会一起带过去，打开是从设置行长成整页、关闭是收拢回那一行，中途还能
+/// 右滑跟手返回。这里曾经用 `MaterialPageRoute`，转场是系统默认的整页横推，
+/// 和全应用其它子页不是一套。
 class LyricDisplayScreen extends ConsumerStatefulWidget {
   const LyricDisplayScreen({super.key});
 

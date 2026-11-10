@@ -24,7 +24,6 @@ import '../../playlist/presentation/playlist_provider.dart';
 import '../../player/platform/android_floating_player.dart';
 import '../../player/domain/player_backdrop.dart';
 import '../../player/presentation/player_backdrop_sheet.dart';
-import '../../lyric/presentation/lyric_display_screen.dart';
 import '../../updates/presentation/update_sheet.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
@@ -675,7 +674,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               '翻译',
               'translation',
             ],
-            onTap: () => openLyricDisplaySettings(context),
+            onTap: () => context.push('/lyric-display'),
+            captureExpandOrigin: true,
           ),
         ],
       ),
