@@ -272,7 +272,7 @@ void main() {
 
       final after = _surfaceAlpha(tester, GlassSurface);
       expect(after, lessThan(before));
-      expect(after, closeTo(before * 0.5, 0.02));
+      expect(after, closeTo(0.4, 0.02));
     });
 
     testWidgets('迷你播放条用的液态玻璃同样当场变透', (tester) async {
@@ -290,7 +290,8 @@ void main() {
       await tester.pump();
 
       final after = _surfaceAlpha(tester, LiquidGlassSurface);
-      expect(after, closeTo(before * 0.5, 0.02));
+      expect(after, lessThan(before));
+      expect(after, closeTo(0.4, 0.02));
     });
 
     testWidgets('顶栏染色跟着变，不会留一条旧浓度的标题栏', (tester) async {

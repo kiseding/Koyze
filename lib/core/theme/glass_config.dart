@@ -31,8 +31,10 @@ abstract final class GlassEffectConfig {
 
   /// 「界面不透明度」的默认档。
   ///
-  /// 只是出厂值，不参与任何换算——见 [surfaceAlpha]。
-  static const double defaultSurfaceOpacity = 0.8;
+  /// 只是出厂值，不参与任何换算——见 [surfaceAlpha]。0.95 是「几乎实色、
+  /// 但仍留一点透光」的档位：再往上玻璃就只剩材质感没有背景色了，而早先
+  /// 的 0.8 在深色主题下会让顶栏和卡片透出底下的滚动内容，看着发灰。
+  static const double defaultSurfaceOpacity = 0.95;
 
   static void applyPerformanceMode({required bool reduceEffects}) {
     _reduceEffects = reduceEffects;
@@ -50,7 +52,7 @@ abstract final class GlassEffectConfig {
   static ValueListenable<double> get surfaceOpacityListenable =>
       _surfaceOpacitySignal;
 
-  /// 全局材质不透明度（0.3~1）。0.8 是设计稿原样，1 是完全实色。
+  /// 全局材质不透明度（0.3~1）。0.95 是出厂默认，1 是完全实色。
   static void setSurfaceOpacity(double value) {
     final next = value.isFinite
         ? value.clamp(minSurfaceOpacity, 1.0).toDouble()

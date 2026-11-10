@@ -1065,8 +1065,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final chromeFade = dismissing
             ? ((progress - 0.95) / 0.05).clamp(0.0, 1.0)
             : 1.0;
-        // 关闭时控件/磨砂/背景走 chromeFade；打开保持不透明。
-        final contentOpacity = 1.0;
+        // 关闭时控件/磨砂/背景走 chromeFade；打开按进度淡入正文。
+        //
+        // 正文是按**宽度比**缩放的（见下方 Transform.scale），而迷你栏本来
+        // 就有约 95% 屏宽，所以第一帧正文就已经是最终尺寸的 94%，到六成
+        // 进度已是 98%。卡片只往上长高，正文于是变成「早就落位、只被一张
+        // 黑幕从下往上揭开」：最先露出来的是最底下的进度条和时间，还被卡片
+        // 下缘切掉半截，观感像界面没搭好。打开时改成随进度淡入，卡片先长成
+        // 形，内容再浮现；关闭保持不透明，否则收拢开头会先灰一层。
+        final contentOpacity = closing
+            ? 1.0
+            : Curves.easeOut.transform(
+                ((progress - 0.50) / 0.42).clamp(0.0, 1.0),
+              );
         // 动效全程隐藏正文封面，只留飞行快照封面；progress=1 再交棒，
         // 避免全屏/迷你栏真封面与快照叠在一起。
         final artworkReveal = progress >= 1.0 ? 1.0 : 0.0;

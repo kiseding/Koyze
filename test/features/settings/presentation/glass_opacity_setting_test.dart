@@ -94,7 +94,7 @@ void main() {
     expect(
       full.a,
       closeTo(GlassEffectConfig.defaultSurfaceOpacity, 0.001),
-      reason: '默认档就是 0.8，不是 0.82 或 0.66',
+      reason: '默认档就是 0.95，不是 0.82 或 0.66',
     );
     expect(half.a, closeTo(0.4, 0.001));
   });
