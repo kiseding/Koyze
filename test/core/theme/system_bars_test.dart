@@ -15,6 +15,10 @@ SystemUiOverlayStyle? _statusBarStyle(WidgetTester tester) {
     view.paintBounds.center.dx,
     view.paintBounds.top + tester.view.padding.top / 2,
   );
+  // `RenderObject.layer` 标了 @protected，业务代码本不该碰；这里是被测行为
+  // 的唯一可观测入口——只有拿到真实图层树，才能断言「状态栏位置上到底有
+  // 没有 overlay style」。widget 树里有没有那个 widget 完全说明不了问题。
+  // ignore: invalid_use_of_protected_member
   return view.layer!.find<SystemUiOverlayStyle>(top);
 }
 
