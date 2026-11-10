@@ -39,6 +39,7 @@ class _LyricViewState extends ConsumerState<LyricView> {
   bool _scrollListenerAttached = false;
   bool _programmaticScroll = false;
   Timer? _resumeFollowTimer;
+  String? _pixelPrefetchKey;
 
   double get _baseItemExtent => widget.isFullScreen ? 56.0 : 44.0;
   double get _verticalPadding => widget.isFullScreen ? 150.0 : 80.0;
@@ -54,11 +55,9 @@ class _LyricViewState extends ConsumerState<LyricView> {
           (line.translation != null && line.translation!.isNotEmpty) ||
           (line.roman != null && line.roman!.isNotEmpty),
     );
-    // 像素主题的行高由栅格图的放大倍数决定，和普通字体的行高不同；两者
-    // 混用会让滚动定位和实际行位对不上，所以这里必须跟着换。
-    final base = pixel
-        ? kPixelLyricGridSize * kPixelLyricScale * 1.5 + 12.0
-        : _baseItemExtent;
+    // 像素主题的行高由点阵的决定，和普通字体的行高不同；两者混用会让滚动
+    // 定位和实际行位对不上，所以这里必须跟着换。
+    final base = pixel ? pixelLyricLineHeight(1) : _baseItemExtent;
     return base * scale + (hasExtras ? 15.0 * scale : 0.0);
   }
 
@@ -87,6 +86,22 @@ class _LyricViewState extends ConsumerState<LyricView> {
           _scrollToCurrent(force: true);
         });
       }
+    });
+  }
+
+  /// 像素主题下把歌词提前栅格化。
+  ///
+  /// 二值化要读像素，只能异步；不预热的话，滚到新的一行时会先看到一帧普通
+  /// 文字再「啪」地变成点阵。这里只预热当前歌的前几十行，够覆盖可见范围。
+  void _prefetchPixelLyrics(Lyrics lyrics) {
+    final family = DefaultTextStyle.of(context).style.fontFamily;
+    final key = '${lyrics.raw.hashCode}|$family';
+    if (_pixelPrefetchKey == key) return;
+    _pixelPrefetchKey = key;
+    final texts = [for (final line in lyrics.lines.take(60)) line.text];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      PixelLyricPainter.prefetch(texts, family);
     });
   }
 
@@ -225,8 +240,8 @@ class _LyricViewState extends ConsumerState<LyricView> {
     if (layoutIndex > 0) {
       return CompactLyricView(
         layout: LyricLayout.values[layoutIndex.clamp(0, 2)],
-        animation: SingleLineAnimation.values[
-            ref.watch(singleLineAnimationProvider).clamp(0, 3)],
+        animation: SingleLineAnimation
+            .values[ref.watch(singleLineAnimationProvider).clamp(0, 3)],
         align: widget.isFullScreen ? Alignment.centerLeft : Alignment.center,
       );
     }
@@ -235,6 +250,7 @@ class _LyricViewState extends ConsumerState<LyricView> {
     final showTranslation = ref.watch(lyricTranslationProvider);
     final showRoman = ref.watch(lyricRomanProvider);
     final pixelTheme = ref.watch(lyricThemeProvider) == 1;
+    if (pixelTheme) _prefetchPixelLyrics(lyrics);
     final itemExtent = _itemExtent(lyrics, scale, pixel: pixelTheme);
 
     // 上下渐隐以前用 ShaderMask 包住整个列表：那是一层视口大小的离屏缓冲，
@@ -262,9 +278,7 @@ class _LyricViewState extends ConsumerState<LyricView> {
             : (widget.isFullScreen ? primary.withValues(alpha: 0.35) : muted);
         final lineColor = fadeByDistance(rawLineColor, index);
         final dimColor = isCurrent
-            ? (line.hasWordTiming
-                  ? primary
-                  : lineColor.withValues(alpha: 0.35))
+            ? (line.hasWordTiming ? primary : lineColor.withValues(alpha: 0.35))
             : lineColor;
         final transColor = fadeByDistance(
           isCurrent ? secondary : muted.withValues(alpha: 0.55),
@@ -277,64 +291,71 @@ class _LyricViewState extends ConsumerState<LyricView> {
         final fontSize = baseFontSize * scale;
         final weight = isCurrent ? FontWeight.bold : FontWeight.normal;
 
+        // AnimatedDefaultTextStyle 的样式是整体替换而非合并：直接给一个裸
+        // TextStyle 会把主题字体（以及中文回退）一起丢掉，点阵歌词按继承样式
+        // 取 fontFamily 时就会栅格化成方块。
+        final baseStyle = DefaultTextStyle.of(context).style;
+
         final lineContent = Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (isCurrent && line.hasWordTiming && !pixelTheme)
-                _PositionedKtvLyricLine(
-                  line: line,
-                  lineIndex: index,
-                  lyrics: lyrics,
-                  // 逐字高亮始终使用主题绿色，浅色主题下也不能退化为黑色。
-                  activeColor: accent,
-                  dimColor: dimColor,
+              // 整行套一层动画样式，而不是给 Text 单独套：当前行放大时，逐字
+              // 歌词也要跟着同一个插值变大。分开套的话，切到 KTV 的那一帧
+              // 字号会直接跳到终值，看起来就是"闪一下"。
+              AnimatedDefaultTextStyle(
+                duration: MotionDuration.normal,
+                curve: MotionCurve.easeOut,
+                style: baseStyle.copyWith(
+                  color: lineColor,
                   fontSize: fontSize,
                   fontWeight: weight,
-                )
-              else if (isCurrent && line.hasWordTiming)
-                _PixelKtvLyricLine(
-                  line: line,
-                  lineIndex: index,
-                  lyrics: lyrics,
-                  activeColor: accent,
-                  dimColor: dimColor,
-                  scale: scale,
-                  fontWeight: weight,
-                )
-              else if (pixelTheme)
-                PixelLyricText(
-                  text: line.text,
-                  color: lineColor,
-                  fontWeight: weight,
-                  scale: scale,
-                )
-              else
-                AnimatedDefaultTextStyle(
-                  duration: MotionDuration.normal,
-                  curve: MotionCurve.easeOut,
-                  style: TextStyle(
-                    color: lineColor,
-                    fontSize: fontSize,
-                    fontWeight: weight,
-                  ),
-                  child: Text(
-                    line.text,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  height: 1.15,
                 ),
+                child: isCurrent && line.hasWordTiming && !pixelTheme
+                    ? _PositionedKtvLyricLine(
+                        line: line,
+                        lineIndex: index,
+                        lyrics: lyrics,
+                        // 逐字高亮始终使用主题绿色，浅色主题下也不能退化为黑色。
+                        activeColor: accent,
+                        dimColor: dimColor,
+                      )
+                    : isCurrent && line.hasWordTiming
+                    ? _PixelKtvLyricLine(
+                        line: line,
+                        lineIndex: index,
+                        lyrics: lyrics,
+                        activeColor: accent,
+                        dimColor: dimColor,
+                        scale: scale,
+                        fontWeight: weight,
+                      )
+                    : pixelTheme
+                    ? PixelLyricText(
+                        text: line.text,
+                        color: lineColor,
+                        fontWeight: weight,
+                        scale: scale,
+                      )
+                    : Text(
+                        line.text,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+              ),
               if (showRoman && line.roman != null && line.roman!.isNotEmpty)
                 AnimatedDefaultTextStyle(
                   duration: MotionDuration.normal,
                   curve: MotionCurve.easeOut,
-                  style: TextStyle(
-                    color: transColor.withValues(
-                      alpha: transColor.a * 0.85,
-                    ),
+                  style: baseStyle.copyWith(
+                    color: transColor.withValues(alpha: transColor.a * 0.85),
                     fontSize: (isCurrent ? 11.5 : 10.0) * scale,
+                    // 这两行以前靠合并父样式拿到 1.15，现在显式写出来，
+                    // 免得从 bodyMedium 继承到 1.43 把行撑高。
+                    height: 1.15,
                   ),
                   child: Text(
                     line.roman!,
@@ -349,9 +370,10 @@ class _LyricViewState extends ConsumerState<LyricView> {
                 AnimatedDefaultTextStyle(
                   duration: MotionDuration.normal,
                   curve: MotionCurve.easeOut,
-                  style: TextStyle(
+                  style: baseStyle.copyWith(
                     color: transColor,
                     fontSize: (isCurrent ? 13.0 : 11.0) * scale,
+                    height: 1.15,
                   ),
                   child: Text(
                     line.translation!,
@@ -391,49 +413,52 @@ class _LyricViewState extends ConsumerState<LyricView> {
         : (currentLineIndex + 1).clamp(0, lyrics.lines.length - 1);
 
     final interlude = _resolveInterlude(lyrics, currentLineIndex);
-    final body = interlude == null
-        ? lyricList
-        : Stack(
-            children: [
-              Positioned.fill(child: lyricList),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: AnimatedBuilder(
-                    animation: _scrollController,
-                    builder: (context, _) {
-                      if (!_scrollController.hasClients) {
-                        return const SizedBox.shrink();
-                      }
-                      // 下一行的槽位（列表按固定行高排布，可以算术定位）。
-                      final top =
-                          _verticalPadding +
-                          interlude.nextLineIndex * itemExtent -
-                          _scrollController.offset;
-                      return Stack(
-                        children: [
-                          Positioned(
-                            top: top,
-                            left: 0,
-                            right: 0,
-                            child: Center(
-                              child: InterludeDots(
-                                start: interlude.start,
-                                end: interlude.end,
-                                position: () =>
-                                    ref.read(lyricPositionProvider),
-                                color: accent.withValues(alpha: 0.85),
-                                dotSize: widget.isFullScreen ? 4.5 : 3.5,
-                              ),
-                            ),
+    // 列表永远待在同一个 Stack 里，间奏点只是浮在上面的一层。
+    //
+    // 之前是「有间奏才包一层 Stack」：进到长间奏那一行时树结构从 ListView
+    // 变成 Stack(ListView)，ListView 会被整个摘下来重建，滚动位置有一帧是
+    // 0，看起来就是歌词闪一下再滚回去——而且刚好发生在换行的瞬间。
+    final body = Stack(
+      children: [
+        Positioned.fill(child: lyricList),
+        if (interlude != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _scrollController,
+                builder: (context, _) {
+                  if (!_scrollController.hasClients) {
+                    return const SizedBox.shrink();
+                  }
+                  // 下一行的槽位（列表按固定行高排布，可以算术定位）。
+                  final top =
+                      _verticalPadding +
+                      interlude.nextLineIndex * itemExtent -
+                      _scrollController.offset;
+                  return Stack(
+                    children: [
+                      Positioned(
+                        top: top,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: InterludeDots(
+                            start: interlude.start,
+                            end: interlude.end,
+                            position: () => ref.read(lyricPositionProvider),
+                            color: accent.withValues(alpha: 0.85),
+                            dotSize: widget.isFullScreen ? 4.5 : 3.5,
                           ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-            ],
-          );
+            ),
+          ),
+      ],
+    );
 
     return Semantics(
       label: S.of(context).lyrics,
@@ -477,7 +502,8 @@ class _LyricViewState extends ConsumerState<LyricView> {
       lineEnd = last.time + (last.duration ?? Duration.zero);
     } else {
       final guess = gap * 0.45;
-      lineEnd = current.time +
+      lineEnd =
+          current.time +
           (guess > const Duration(milliseconds: 2500)
               ? const Duration(milliseconds: 2500)
               : guess);
@@ -593,8 +619,7 @@ class _PixelKtvLyricLine extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_PixelKtvLyricLine> createState() =>
-      _PixelKtvLyricLineState();
+  ConsumerState<_PixelKtvLyricLine> createState() => _PixelKtvLyricLineState();
 }
 
 class _PixelKtvLyricLineState extends ConsumerState<_PixelKtvLyricLine>
@@ -704,8 +729,6 @@ class _PositionedKtvLyricLine extends ConsumerWidget {
   final Lyrics lyrics;
   final Color activeColor;
   final Color dimColor;
-  final double fontSize;
-  final FontWeight fontWeight;
 
   const _PositionedKtvLyricLine({
     required this.line,
@@ -713,8 +736,6 @@ class _PositionedKtvLyricLine extends ConsumerWidget {
     required this.lyrics,
     required this.activeColor,
     required this.dimColor,
-    required this.fontSize,
-    required this.fontWeight,
   });
 
   @override
@@ -731,8 +752,6 @@ class _PositionedKtvLyricLine extends ConsumerWidget {
         position: position,
         activeColor: activeColor,
         dimColor: dimColor,
-        fontSize: fontSize,
-        fontWeight: fontWeight,
         playing: playing,
       ),
     );
@@ -753,8 +772,6 @@ class _KtvLyricLine extends StatefulWidget {
   final Duration position;
   final Color activeColor;
   final Color dimColor;
-  final double fontSize;
-  final FontWeight fontWeight;
 
   /// 正在播放时才逐帧推进动画；暂停时停表，避免歌词自己往前跑。
   final bool playing;
@@ -766,8 +783,6 @@ class _KtvLyricLine extends StatefulWidget {
     required this.position,
     required this.activeColor,
     required this.dimColor,
-    required this.fontSize,
-    required this.fontWeight,
     required this.playing,
   });
 
@@ -798,8 +813,6 @@ class _KtvLyricLineState extends State<_KtvLyricLine>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.line != widget.line ||
         oldWidget.lyrics != widget.lyrics ||
-        oldWidget.fontSize != widget.fontSize ||
-        oldWidget.fontWeight != widget.fontWeight ||
         oldWidget.activeColor != widget.activeColor ||
         oldWidget.dimColor != widget.dimColor) {
       _local = widget.position;
@@ -861,11 +874,20 @@ class _KtvLyricLineState extends State<_KtvLyricLine>
     // 只有这一行真的在唱的时候才逐帧推进：整页歌词里同时只有一行会是
     // active 行，成本可控；行外空转等于让引擎永远不休眠。
     _ensureTicking(
-      playing && positionMs >= lineStartMs - 250 && positionMs <= lineEndMs + 250,
+      playing &&
+          positionMs >= lineStartMs - 250 &&
+          positionMs <= lineEndMs + 250,
     );
 
     final active = widget.lyrics.getCurrentWordIndex(_local, widget.lineIndex);
     final relativeMs = (positionMs - lineStartMs).toDouble();
+
+    // 字号和字重来自外层 AnimatedDefaultTextStyle：当前行变大的那 280ms 里，
+    // 逐字歌词必须跟着同一条曲线一起插值，自己取终值就会在切换的那一帧跳一下。
+    final inherited = DefaultTextStyle.of(context).style;
+    final fontSize = inherited.fontSize ?? 16.0;
+    final fontWeight = inherited.fontWeight ?? FontWeight.bold;
+    final fontFamily = inherited.fontFamily;
 
     final children = <Widget>[
       for (var i = 0; i < words.length; i++)
@@ -875,6 +897,9 @@ class _KtvLyricLineState extends State<_KtvLyricLine>
           active: active,
           relativeMs: relativeMs,
           lineStartMs: lineStartMs,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          fontFamily: fontFamily,
         ),
     ];
 
@@ -892,6 +917,9 @@ class _KtvLyricLineState extends State<_KtvLyricLine>
     required int active,
     required double relativeMs,
     required int lineStartMs,
+    required double fontSize,
+    required FontWeight fontWeight,
+    required String? fontFamily,
   }) {
     final word = words[index];
     final startMs = word.time.inMilliseconds - lineStartMs;
@@ -921,15 +949,16 @@ class _KtvLyricLineState extends State<_KtvLyricLine>
       dimColor: widget.dimColor,
       glowAlpha: motion.glowAlpha,
       style: TextStyle(
-        fontSize: widget.fontSize,
-        fontWeight: widget.fontWeight,
+        fontFamily: fontFamily,
+        fontSize: fontSize,
+        fontWeight: fontWeight,
         height: 1.15,
       ),
     );
 
     if (motion == WordMotion.idle) return child;
     return Transform.translate(
-      offset: Offset(0, motion.offsetEm * widget.fontSize),
+      offset: Offset(0, motion.offsetEm * fontSize),
       child: motion.scale == 1
           ? child
           : Transform.scale(scale: motion.scale, child: child),
@@ -975,9 +1004,10 @@ class _PartialKtvWord extends StatelessWidget {
       return Text(text, style: style.copyWith(color: dimColor));
     }
     if (fill >= 1) {
-      return Text(text, style: _glow(style, activeColor).copyWith(
-        color: activeColor,
-      ));
+      return Text(
+        text,
+        style: _glow(style, activeColor).copyWith(color: activeColor),
+      );
     }
     return Stack(
       children: [
