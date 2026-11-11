@@ -549,8 +549,7 @@ void main() {
     expect(handler.playbackState.value.playing, isTrue);
   });
 
-  test('next keeps native audio session playing while resolving new source',
-      () async {
+  test('next silences the previous track immediately while resolving', () async {
     final player = _PlaybackStateAudioPlayer()
       ..sourceInstallProcessingState = ProcessingState.ready;
     final handler = LxAudioHandler(player: player);
@@ -575,8 +574,10 @@ void main() {
 
     expect(player.sourceLoadCalls, 2);
     expect(player.loadedSource, isA<SilenceAudioSource>());
-    expect(player.pauseCalls, pausesBeforeSkip);
-    expect(player.playing, isTrue);
+    // 点了「下一首」就当场停：不等新 URL 解析完。原生暂停，但对外发布态
+    // 仍保持 playing=true，否则 iOS 会结束后台音频会话、锁屏按钮变回播放。
+    expect(player.pauseCalls, pausesBeforeSkip + 1);
+    expect(player.playing, isFalse);
     expect(handler.mediaItem.value?.id, 'B');
     expect(handler.playbackState.value.processingState,
         AudioProcessingState.buffering);
@@ -616,7 +617,8 @@ void main() {
     await resolverStarted.future;
 
     expect(player.loadedSource, isNot(isA<SilenceAudioSource>()));
-    expect(player.playing, isTrue);
+    // 没有静音保活也照样先停：静音是切歌的第一步，与平台无关。
+    expect(player.playing, isFalse);
     expect(handler.mediaItem.value?.id, 'B');
 
     releaseResolver.complete();
@@ -679,7 +681,7 @@ void main() {
     final navigation = handler.skipToPrevious();
     await resolverStarted.future;
     expect(player.loadedSource, isA<SilenceAudioSource>());
-    expect(player.playing, isTrue);
+    expect(player.playing, isFalse);
 
     releaseResolver.complete();
     await navigation;
@@ -714,7 +716,7 @@ void main() {
     final navigation = handler.skipToPrevious();
     await resolverStarted.future;
     expect(player.loadedSource, isNot(isA<SilenceAudioSource>()));
-    expect(player.playing, isTrue);
+    expect(player.playing, isFalse);
 
     releaseResolver.complete();
     await navigation;
@@ -747,7 +749,10 @@ void main() {
     final navigation = handler.skipToNext();
     await resolverStarted.future;
     expect(player.loadedSource, isA<SilenceAudioSource>());
-    expect(player.playing, isTrue);
+    // 解析期间原生播放器已停（不再让上一首继续唱），但对外仍是 playing，
+    // 锁屏 / 控制中心的按钮不会因此翻回播放态。
+    expect(player.playing, isFalse);
+    expect(handler.playbackState.value.playing, isTrue);
 
     releaseResolver.complete();
     await Future<void>.delayed(Duration.zero);

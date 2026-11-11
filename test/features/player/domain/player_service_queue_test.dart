@@ -452,7 +452,7 @@ void main() {
   });
 
   test(
-    'next keeps a tagged native source playing while URL resolution waits',
+    'next silences the native source immediately while URL resolution waits',
     () async {
       final resolverStarted = Completer<void>();
       final releaseResolver = Completer<void>();
@@ -475,7 +475,8 @@ void main() {
       final skip = handler.skipToNext();
       await resolverStarted.future;
 
-      expect(player.playing, isTrue);
+      // 点击「下一首」立即停掉上一首，不等 URL 解析完成。
+      expect(player.playing, isFalse);
       final temporary = player.loadedSource;
       expect(temporary, isA<SilenceAudioSource>());
       expect((temporary as SilenceAudioSource).tag, isA<MediaItem>());

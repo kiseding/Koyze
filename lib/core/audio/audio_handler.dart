@@ -2458,10 +2458,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   @override
-  Future<void> skipToNext({bool seamless = false}) => _runPublicOperation<void>(
-    () => _skipToNext(seamless: seamless),
-    disposedValue: null,
-  );
+  Future<void> skipToNext({bool seamless = false}) {
+    return _runPublicOperation<void>(
+      () => _skipToNext(seamless: seamless),
+      disposedValue: null,
+    );
+  }
 
   Future<void> _skipToNext({bool seamless = false}) async {
     if (_disposed) return;
@@ -2483,6 +2485,37 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
   }
 
+  /// 纯本地算目标索引，不联网、不动引擎。
+  ///
+  /// 切歌要「点了立刻静音」，但静音之前必须先确认真的有歌可切——否则队尾
+  /// 按「下一首」会变成「暂停」。所以把索引计算从 [_resolveSkipTarget] 里
+  /// 抽出来，让调用方先探一次，再决定要不要停当前这首。
+  int _computeSkipTarget({required bool forward, bool loopAtEnd = false}) {
+    final playback = playbackState.value;
+    final shuffle = _shuffleActive;
+    if (forward) {
+      return nextQueueIndex(
+        currentIndex: _currentIndex,
+        queueLength: _queue.length,
+        shuffle: shuffle,
+        loop: _forwardLoop(
+          playback.repeatMode,
+          shuffle: shuffle,
+          loopAtEnd: loopAtEnd,
+        ),
+      );
+    }
+    return previousQueueIndex(
+      currentIndex: _currentIndex,
+      queueLength: _queue.length,
+      shuffle: shuffle,
+      loop:
+          shuffle ||
+          playback.repeatMode == AudioServiceRepeatMode.all ||
+          playback.repeatMode == AudioServiceRepeatMode.one,
+    );
+  }
+
   /// Resolves the next/previous queue index, retrying once with an eager lazy
   /// refill when the current window cannot produce a target. Without the retry
   /// a shuffle→sequential rebuild that returns an empty tail (or an exhausted
@@ -2491,39 +2524,13 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     required bool forward,
     bool loopAtEnd = false,
   }) async {
-    final playback = playbackState.value;
-    final shuffle = _shuffleActive;
-    int compute() {
-      if (forward) {
-        return nextQueueIndex(
-          currentIndex: _currentIndex,
-          queueLength: _queue.length,
-          shuffle: shuffle,
-          loop: _forwardLoop(
-            playback.repeatMode,
-            shuffle: shuffle,
-            loopAtEnd: loopAtEnd,
-          ),
-        );
-      }
-      return previousQueueIndex(
-        currentIndex: _currentIndex,
-        queueLength: _queue.length,
-        shuffle: shuffle,
-        loop:
-            shuffle ||
-            playback.repeatMode == AudioServiceRepeatMode.all ||
-            playback.repeatMode == AudioServiceRepeatMode.one,
-      );
-    }
-
-    var target = compute();
+    var target = _computeSkipTarget(forward: forward, loopAtEnd: loopAtEnd);
     if (target >= 0 || !_usesLazyQueue) return target;
     // The lazy window has no adjacent item yet (or returned nothing after a
     // mode rebuild). Force one more eager pull beyond the normal lookahead and
     // recompute before giving up.
     await _ensureLazyQueueAhead(1);
-    target = compute();
+    target = _computeSkipTarget(forward: forward, loopAtEnd: loopAtEnd);
     return target;
   }
 
@@ -2534,19 +2541,43 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     bool loopAtEnd = false,
   }) async {
     if (_queue.isEmpty) return;
+    // 手动切歌的第一个动作就是静音，不能排在补齐窗口/解析 URL 后面：
+    // 弱网或慢音源下解析要好几秒，旧实现里上一首会一直唱，用户听到的就是
+    // 「点了没反应，歌还在唱」。静音之前先纯本地算一次目标，确认真有下一首
+    // 才停——否则队尾按「下一首」会变成「暂停」。
+    // seamless 是播完自动切歌，那一刻本来就没声音，不动引擎（iOS 后台暂停
+    // 会结束音频会话）。
+    final resolvedTarget = targetIndex;
+    final canSkipWithoutRefill =
+        resolvedTarget != null ||
+        _computeSkipTarget(forward: true, loopAtEnd: loopAtEnd) >= 0;
+    final halt = (!seamless && canSkipWithoutRefill)
+        ? await _haltCurrentPlayback()
+        : null;
+    if (_disposed) {
+      if (halt != null) await _commands.releasePreservingIntent(halt.owner);
+      return;
+    }
+
     // 队列内已有相邻曲目时立即切换（跟手）；仅当窗口见底才等待
     // eager refill——此前每次手动切歌都要先 await 一次 refill（含
     // 逐首 dislike 查询），切完播放顺序后按切歌会明显发卡。
-    if (_currentIndex + 1 >= _queue.length) {
+    if (resolvedTarget == null && _currentIndex + 1 >= _queue.length) {
       await _ensureLazyQueueAhead(1);
     }
-    if (_queue.isEmpty) return;
+    if (_queue.isEmpty) {
+      if (halt != null) await _abortSkipRestoringPlayback(halt);
+      return;
+    }
 
     final nextIndex =
-        targetIndex ??
+        resolvedTarget ??
         await _resolveSkipTarget(forward: true, loopAtEnd: loopAtEnd);
-    if (nextIndex < 0) return;
-    if (nextIndex >= _queue.length) return;
+    if (nextIndex < 0 || nextIndex >= _queue.length) {
+      // 没有下一首可切（队尾 + 不循环）：撤回刚才的静音，当前这首接着放。
+      if (halt != null) await _abortSkipRestoringPlayback(halt);
+      return;
+    }
     final nextOccurrence = _occurrenceIdAt(nextIndex);
     final nextItem = _queue[nextIndex];
     _bumpGeneration();
@@ -2560,6 +2591,16 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       playingOverride: true,
       positionOverride: Duration.zero,
     );
+    // 补齐窗口时可能已经把目标算出来了，静音也可能已经发生；这里补一次
+    // 兜底，保证「有目标就一定已静音」（例如 lazy refill 之后才出现目标）。
+    final activeHalt =
+        halt ?? (!seamless ? await _haltCurrentPlayback() : null);
+    if (_disposed) {
+      if (activeHalt != null) {
+        await _commands.releasePreservingIntent(activeHalt.owner);
+      }
+      return;
+    }
     final sourceCommandToken = _commands.requestSource(
       occurrenceId: nextOccurrence,
       position: Duration.zero,
@@ -2576,6 +2617,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (_nativeTransitionSourceToken == sourceCommandToken) {
         _nativeTransitionSourceToken = null;
       }
+      if (activeHalt != null) {
+        await _commands.releasePreservingIntent(activeHalt.owner);
+      }
       return;
     }
     if (seamless) _userWantsPlay = true;
@@ -2588,6 +2632,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (_nativeTransitionSourceToken == sourceCommandToken) {
         _nativeTransitionSourceToken = null;
       }
+      if (activeHalt != null) {
+        await _commands.releasePreservingIntent(activeHalt.owner);
+      }
       return;
     }
     await _loadQueueItem(
@@ -2596,13 +2643,15 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       preserveUserIntent: true,
       provenance: provenance,
       sourceCommandToken: sourceCommandToken,
+      preservingPauseOwner: activeHalt?.owner,
       keepNativePlayingDuringTransition: true,
     );
   }
 
   @override
-  Future<void> skipToPrevious() =>
-      _runPublicOperation<void>(_skipToPrevious, disposedValue: null);
+  Future<void> skipToPrevious() {
+    return _runPublicOperation<void>(_skipToPrevious, disposedValue: null);
+  }
 
   Future<void> _skipToPrevious() async {
     if (_disposed) return;
@@ -2624,8 +2673,21 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }) async {
     if (_queue.isEmpty) return;
 
+    // 手动切歌先静音，理由同 [_skipToNextInternal]；同样先纯本地确认有上一首，
+    // 避免队首按「上一首」变成暂停。
+    final canSkipWithoutRefill =
+        _computeSkipTarget(forward: false) >= 0;
+    final halt = canSkipWithoutRefill ? await _haltCurrentPlayback() : null;
+    if (_disposed) {
+      if (halt != null) await _commands.releasePreservingIntent(halt.owner);
+      return;
+    }
+
     final prevIndex = await _resolveSkipTarget(forward: false);
-    if (prevIndex < 0) return;
+    if (prevIndex < 0) {
+      if (halt != null) await _abortSkipRestoringPlayback(halt);
+      return;
+    }
     final previousOccurrence = _occurrenceIdAt(prevIndex);
     final previousItem = _queue[prevIndex];
     _bumpGeneration();
@@ -2639,6 +2701,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       playingOverride: true,
       positionOverride: Duration.zero,
     );
+    // 懒加载窗口补齐后才出现目标时，静音还没发生，这里补上。
+    final activeHalt = halt ?? await _haltCurrentPlayback();
+    if (_disposed) {
+      await _commands.releasePreservingIntent(activeHalt.owner);
+      return;
+    }
     final sourceCommandToken = _commands.requestSource(
       occurrenceId: previousOccurrence,
       position: Duration.zero,
@@ -2655,6 +2723,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (_nativeTransitionSourceToken == sourceCommandToken) {
         _nativeTransitionSourceToken = null;
       }
+      await _commands.releasePreservingIntent(activeHalt.owner);
       return;
     }
     final liveIndex = _indexOfOccurrence(previousOccurrence);
@@ -2666,6 +2735,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (_nativeTransitionSourceToken == sourceCommandToken) {
         _nativeTransitionSourceToken = null;
       }
+      await _commands.releasePreservingIntent(activeHalt.owner);
       return;
     }
     await _loadQueueItem(
@@ -2673,8 +2743,26 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       preserveUserIntent: true,
       provenance: provenance,
       sourceCommandToken: sourceCommandToken,
+      preservingPauseOwner: activeHalt.owner,
       keepNativePlayingDuringTransition: true,
     );
+  }
+
+  /// 手动切歌的静音没能换成新曲（没有下一首/没有上一首）时，把播放还回去。
+  ///
+  /// 为了跟手，切歌会先 [pausePreservingIntentImmediately]，再去找目标。
+  /// 找不到目标就直接 return 的话，用户点了「下一首」会变成「暂停」——
+  /// 队尾且不循环、懒加载窗口取不到新条目、乱序下只有一首，都会走到这里。
+  Future<void> _abortSkipRestoringPlayback(_PlaybackHalt halt) async {
+    if (_disposed) return;
+    await _commands.releasePreservingIntent(halt.owner);
+    if (_disposed || !_userWantsPlay) return;
+    _publishPlaybackState(positionOverride: _player.position);
+    try {
+      await _player.play();
+    } catch (error) {
+      debugPrint('[AudioHandler] resume after aborted skip failed: $error');
+    }
   }
 
   /// 立刻停止当前输出；进度归零。
