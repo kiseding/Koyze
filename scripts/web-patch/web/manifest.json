@@ -1,0 +1,35 @@
+{
+  "name": "Koyze",
+  "short_name": "Koyze",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#111318",
+  "theme_color": "#0EA55C",
+  "description": "跨平台音乐查找、播放与本地曲库管理。",
+  "orientation": "any",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

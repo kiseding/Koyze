@@ -71,3 +71,8 @@ tool/run_macos_preview.command
 
 # Local soft-render screenshot harness (needs Windows fonts).
 test/ui_screenshot_test.dart
+
+# Web 构建产物：`scripts/build-web.sh` 生成的 Flutter Web 包，约 50 MB，
+# 由 CI / 本地构建重建，不入库。
+webapp/public/
+webapp/public_release/

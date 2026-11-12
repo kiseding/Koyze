@@ -160,24 +160,28 @@ List<int> _keySchedule(List<int> key, {required bool decrypt}) {
     c = _rotateLeft28Bit(c, shift);
     d = _rotateLeft28Bit(d, shift);
     final toGen = decrypt ? 15 - i : i;
-    var subkey48 = 0;
+    // The 48-bit subkey is built as two 24-bit halves on purpose. `1 << 47`
+    // does not survive dart2js: on the web `<<` / `>>` are 32-bit, so a single
+    // 48-bit accumulator silently loses the top 24 bits and every QRC lyric
+    // decrypts to garbage (the failure is invisible on native, where int is
+    // 64-bit, which is exactly why it must be written this way).
+    var subkeyHigh24 = 0;
+    var subkeyLow24 = 0;
     for (var k = 0; k < _keyCompression.length; k++) {
       final pos = _keyCompression[k];
       final bit = pos < 28
           ? (c >> (31 - pos)) & 1
           : (d >> (31 - (pos - 27))) & 1;
-      if (bit == 1) subkey48 |= 1 << (47 - k);
+      if (bit == 1) {
+        if (k < 24) {
+          subkeyHigh24 |= 1 << (23 - k);
+        } else {
+          subkeyLow24 |= 1 << (47 - k);
+        }
+      }
     }
-    final b5 = (subkey48 >> 40) & 0xFF;
-    final b4 = (subkey48 >> 32) & 0xFF;
-    final b3 = (subkey48 >> 24) & 0xFF;
-    final high24 = (b5 << 16) | (b4 << 8) | b3;
-    final b2 = (subkey48 >> 16) & 0xFF;
-    final b1 = (subkey48 >> 8) & 0xFF;
-    final b0 = subkey48 & 0xFF;
-    final low24 = (b2 << 16) | (b1 << 8) | b0;
-    schedule[toGen * 2] = high24;
-    schedule[toGen * 2 + 1] = low24;
+    schedule[toGen * 2] = subkeyHigh24;
+    schedule[toGen * 2 + 1] = subkeyLow24;
   }
   return schedule;
 }

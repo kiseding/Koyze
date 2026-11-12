@@ -1,0 +1,26 @@
+services:
+  koyze-web:
+    build:
+      # Dockerfile 需要仓库根目录（lib/、scripts/、pubspec.yaml）来编译 Web 界面
+      context: ..
+      dockerfile: webapp/Dockerfile
+    image: koyze-web:local
+    container_name: koyze-web
+    ports:
+      - "${KOYZE_PORT:-8080}:8080"
+    volumes:
+      # 覆盖内置音源脚本：把你的 LX 音源 .js 放进 ./sources 即可
+      - ./sources:/app/sources:ro
+      # 界面里导入的音源脚本存在这里，容器重建后仍在
+      - koyze-web-data:/app/data
+    environment:
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      # 内网也建议设一个口令，避免局域网其他设备直接使用代理
+      KOYZE_TOKEN: "${KOYZE_TOKEN:-}"
+      # 默认禁止音源脚本访问私网地址；确实需要访问家里 NAS 时改成 1
+      KOYZE_ALLOW_PRIVATE: "${KOYZE_ALLOW_PRIVATE:-0}"
+    restart: unless-stopped
+
+volumes:
+  koyze-web-data:

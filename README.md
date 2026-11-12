@@ -146,8 +146,12 @@ Koyze 使用 Flutter 构建，把 QQ 音乐、酷我音乐、网易云音乐、�
 | macOS | macOS 12.0 | 桌面窗口与本地曲库；发布包未签名，需手动放行 |
 | Linux | 带 GTK 3 的 x86_64 发行版 | 便携 tar.gz；运行依赖 GTK 3、libsecret、libjsoncpp 等系统库 |
 | HarmonyOS | HarmonyOS 7.0（API 26） | arm64 真机与 x86_64 模拟器双架构 HAP；后台播放与 AVSession 媒体控制，详见 [鸿蒙构建说明](docs/harmonyos.md) |
+| Web | 现代浏览器（Chrome / Edge / Safari / Firefox） | 由 `webapp/` 的 Node 服务托管，同一个端口提供界面与 API。**主仓库 `lib/` 不为 Web 改动任何一行**，差异全部在 `scripts/web-patch/`，详见 [Web 部署说明](webapp/README.md)。浏览器里没有本地曲库扫描、下载落盘、锁屏媒体会话、均衡器与悬浮窗 |
 
-当前仓库不包含 Web 目标。
+Web 版不是独立分支：`scripts/build-web.sh` 把源码复制到 `build/web-workspace/`
+临时副本，在副本里施加 Web 补丁后再编译，因此上面六个原生平台的源码、CI
+与产物完全不受影响。不想要 Web 支持时删掉 `scripts/web-patch/` 和 `webapp/`
+即可。
 
 ## 快速开始
 
@@ -160,6 +164,7 @@ Koyze 使用 Flutter 构建，把 QQ 音乐、酷我音乐、网易云音乐、�
 - iOS/macOS：macOS、Xcode 与 CocoaPods。
 - Linux：`clang`、`cmake`、`ninja-build`、`pkg-config`、`libgtk-3-dev`、`libsecret-1-dev`、`libjsoncpp-dev`。
 - HarmonyOS：DevEco Studio 26.0.0（API 26）与鸿蒙 Flutter fork，版本必须整套自洽，详见 [docs/harmonyos.md](docs/harmonyos.md)。
+- Web：Node.js 20 或更高版本（托管产物与音源运行时），构建时另需 Python 3 与 Pillow（生成 PWA 图标）。
 
 ### 运行应用
 
@@ -264,6 +269,28 @@ flutter build hap --release --target-platform ohos-x64
 `ohos-arm64` 用于 ARM64 真机，`ohos-x64` 用于 x86_64 模拟器，单次构建只产出一个架构。默认产物未签名，安装到真机前需要用 `scripts/ohos/sign-hap.sh` 配合发布证书与 profile 签名；CI 产出的 HAP 已完成签名，可直接 `hdc install`。
 
 工具链版本锁定、引擎与 AOT 生成器一致性门禁、签名所需 Secrets 等细节见 [docs/harmonyos.md](docs/harmonyos.md)。
+
+### Web
+
+Web 产物由 `webapp/` 的 Node 服务托管，同一个端口提供界面与 API：
+
+```bash
+./scripts/build-web.sh                 # 产物写入 webapp/public/
+cd webapp && node server/index.js      # 打开 http://127.0.0.1:8080
+```
+
+需要 Flutter 3.44.9（与 CI 一致），可用 `FLUTTER_BIN=/path/to/flutter` 指定路径。
+也可以直接 `cd webapp && docker compose up --build` 打进镜像。
+
+构建脚本会先把源码同步到 `build/web-workspace/` 副本，再依次做三件事：
+把 48 处 `import 'dart:io'` 改写成 Web 安全的 `io_shim`、覆盖 Web 专用实现、
+用锚点替换改动少数必须动的主源码文件。**主仓库 `lib/` 一行不改**，锚点没命中
+会直接构建失败而不是静默跑旧逻辑。
+
+> [!NOTE]
+> 浏览器里不能设置 `Referer` / `User-Agent` 这类禁止头，也不能直连第三方域名。
+> 因此内置音源的请求统一改写到同源的 `/api/proxy`，封面字节走 `/api/stream`，
+> 由服务端代发并注入防盗链头。
 
 ## 自定义音源
 
@@ -401,8 +428,11 @@ Koyze/
 ├─ windows/                 # Windows Runner、系统托盘与便携模式
 ├─ ohos/                    # HarmonyOS 工程（ArkTS 入口与签名配置）
 ├─ workers/                 # Cloudflare Workers 同步后端、迁移与测试
+├─ webapp/                  # Web 部署：Node 服务（静态产物 + 音源运行时 + 代理）
 ├─ docs/                    # 鸿蒙构建说明、API 参考、ADR 与截图
 ├─ scripts/ohos/            # HAP 签名脚本
+├─ scripts/build-web.sh     # Web 构建入口（在临时副本里施加补丁）
+├─ scripts/web-patch/       # 全部 Web 差异：补丁源码、锚点替换、图标生成
 ├─ third_party/             # 仓库内使用的第三方源码
 └─ .github/workflows/       # 各平台构建、发布与后端部署
 ```
@@ -486,6 +516,10 @@ npm run validate
 **Windows 压缩包为什么没有把数据放在应用目录？** 免安装与便携数据模式是两回事。请在 `Koyze.exe` 同级创建 `portable.flag` 后再启动应用。
 
 **鸿蒙应该装哪个 HAP？** 真机（ARM64）用 `ohos-arm64`，x86_64 模拟器用 `ohos-x64`。装错架构会在启动时因引擎与快照不匹配而崩溃，卸载后重装正确架构即可。
+
+**Web 版和原生版是两套代码吗？** 不是。`lib/` 只有一份，Web 差异全在 `scripts/web-patch/`，构建时在临时副本里施加。所以原生平台的功能与 Web 完全同步，不存在两套并行维护的 UI。
+
+**Web 版为什么没有均衡器和本地曲库？** 这些能力依赖平台实现（音频特效通道、文件系统扫描），浏览器里没有对应接口，界面会明确提示不支持，而不是静默失败。
 
 ## 许可证
 
