@@ -68,7 +68,7 @@ class SourceRuntime {
     const lx = {
       EVENT_NAMES,
       env: 'node',
-      version: '5.0.3',
+      version: '5.0.4',
       currentScriptInfo: { name: file, rawScript: code },
       on(event, handler) {
         if (event === EVENT_NAMES.request && typeof handler === 'function') {
