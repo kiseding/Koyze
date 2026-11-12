@@ -1088,27 +1088,6 @@ class LyricTranslationNotifier extends _PersistedSettingNotifier<bool> {
   }
 }
 
-class LyricRomanNotifier extends _PersistedSettingNotifier<bool> {
-  LyricRomanNotifier({StorageLoader? storage}) : super(true, storage: storage) {
-    startLoad();
-  }
-
-  static const String storageKey = 'lyric_show_roman';
-
-  @override
-  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
-
-  void setEnabled(bool enabled) {
-    setting.applyCommitted(enabled);
-    try {
-      if (state != setting.value) state = setting.value;
-    } catch (_) {}
-    unawaited(
-      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
-    );
-  }
-}
-
 /// 主题色是否跟随当前封面。
 ///
 /// 关掉时用用户手选的颜色；打开时每首歌换一套配色，手选值保留下来——
@@ -1149,9 +1128,10 @@ class LyricBlurNotifier extends _PersistedSettingNotifier<double> {
   static const double minBlur = 0;
   static const double maxBlur = 1;
 
-  /// 出厂值。0.4 时相邻行只有很轻的虚化，远一点的行明显退到背景里；
-  /// 再往上（0.7+）近距离的行也开始糊，适合想要强烈景深的用户。
-  static const double defaultBlur = 0.4;
+  /// 出厂值 15%。只让紧邻的两行带一点虚化、更远的行自然退到背景里，
+  /// 当前行和上下各一行都还能看清——默认值不该先把歌词读糊。
+  /// 想要更强景深自己往上拖，滑杆每档 5%。
+  static const double defaultBlur = 0.15;
 
   static double clampBlur(double value) => value.clamp(minBlur, maxBlur);
 

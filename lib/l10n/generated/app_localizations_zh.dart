@@ -2893,9 +2893,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lyricTranslation => '翻译行';
 
   @override
-  String get lyricRoman => '音译行';
-
-  @override
   String get lyricOffsetReset => '清零偏移';
 
   @override

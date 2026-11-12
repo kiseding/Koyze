@@ -107,7 +107,6 @@ class S {
   String get lyricFontScale => _l10n.lyricFontScale;
   String get lyricAlign => _l10n.lyricAlign;
   String get lyricTranslation => _l10n.lyricTranslation;
-  String get lyricRoman => _l10n.lyricRoman;
   String get lyricOffsetReset => _l10n.lyricOffsetReset;
   String get accentFollowsCover => _l10n.accentFollowsCover;
   String get accentFollowsCoverSubtitle => _l10n.accentFollowsCoverSubtitle;

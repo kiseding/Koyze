@@ -5378,12 +5378,6 @@ abstract class AppLocalizations {
   /// **'Translation row'**
   String get lyricTranslation;
 
-  /// No description provided for @lyricRoman.
-  ///
-  /// In en, this message translates to:
-  /// **'Romanization row'**
-  String get lyricRoman;
-
   /// No description provided for @lyricOffsetReset.
   ///
   /// In en, this message translates to:

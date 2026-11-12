@@ -44,18 +44,26 @@ Widget lyricBlurred(Widget child, double sigma) {
 
 /// 一块内容「进场」时按用户选的样式出现。
 ///
-/// [playKey] 变了才重放。用 `identical` 比较：调用方传的是歌曲标识这类稳定
-/// 对象，传新建的 record / list 会每帧都判定为「变了」，动画永远播不完。
+/// 触发有两条路径，缺一不可：
+///
+/// 1. [playKey] 变了——同一棵树内换了内容（歌词有缓存、不经过加载态）。
+/// 2. [playOnMount] 为真时，挂载即播放——换歌一定会先经过「正在加载歌词」，
+///    那段时间本组件被整个摘出树，等歌词回来是**新 State**，`value` 初始为 1，
+///    `didUpdateWidget` 根本不会触发。只靠第 1 条的话，用户永远看不到动画。
+///    调用方用「已经进过一次场」来区分首屏（有页面转场，不必再淡入一遍）
+///    与后续换歌（值得播）。
 class LyricEntrance extends StatefulWidget {
   const LyricEntrance({
     super.key,
     required this.style,
     required this.playKey,
+    this.playOnMount = false,
     required this.child,
   });
 
   final LyricEntranceStyle style;
   final Object playKey;
+  final bool playOnMount;
   final Widget child;
 
   @override
@@ -67,15 +75,24 @@ class _LyricEntranceState extends State<LyricEntrance>
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: MotionDuration.container,
-    // 首帧就是终态：进播放页本身已经有一次页面转场，歌词再淡入一遍会像
-    // 内容加载了两次。只有「换歌」这种同页内的替换才值得播。
-    value: 1,
+    // 默认首帧即终态。挂载就要播时在 initState 里压回 0。
+    value: widget.playOnMount ? 0 : 1,
   );
+
+  /// 挂载时该播、但要等 `didChangeDependencies` 拿到 reduceMotion 才能定。
+  late bool _pendingMountPlay = widget.playOnMount;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _controller.duration = motionDuration(context, MotionDuration.container);
+    if (!_pendingMountPlay) return;
+    _pendingMountPlay = false;
+    if (_controller.duration == Duration.zero) {
+      _controller.value = 1;
+      return;
+    }
+    _controller.forward(from: 0);
   }
 
   @override

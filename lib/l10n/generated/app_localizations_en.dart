@@ -2965,9 +2965,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lyricTranslation => 'Translation row';
 
   @override
-  String get lyricRoman => 'Romanization row';
-
-  @override
   String get lyricOffsetReset => 'Reset offset';
 
   @override

@@ -191,11 +191,6 @@ final lyricTranslationProvider =
       LyricTranslationNotifier.new,
     );
 
-/// 是否显示音译（罗马音）行。
-final lyricRomanProvider = NotifierProvider<LyricRomanNotifier, bool>(
-  LyricRomanNotifier.new,
-);
-
 /// 主题色是否跟随当前封面（每首歌一套配色）。
 final coverThemedAccentProvider =
     NotifierProvider<CoverThemedAccentNotifier, bool>(

@@ -123,9 +123,9 @@ class LyricService {
     _cache.clear();
   }
 
-  /// 把一次请求的结果（主歌词 + 可选的翻译 / 音译）解析成 [Lyrics]。
+  /// 把一次请求的结果（主歌词 + 可选的翻译）解析成 [Lyrics]。
   ///
-  /// 翻译与音译是各自独立的 LRC 片段，交给解析器按时间戳挂到对应行上；
+  /// 翻译是独立的 LRC 片段，交给解析器按时间戳挂到对应行上；
   /// 对不上的行宁可留空，也不要错行显示。
   Lyrics _parsePayload(LyricPayload payload) {
     final lyrics = _parseLyricString(payload.main);
@@ -133,7 +133,6 @@ class LyricService {
     return LyricParser.attachParallelText(
       lyrics,
       translation: payload.translation,
-      roman: payload.roman,
     );
   }
 

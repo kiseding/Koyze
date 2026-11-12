@@ -38,6 +38,11 @@ class _LyricViewState extends ConsumerState<LyricView> {
   bool _isUserScrolling = false;
   bool _scrollListenerAttached = false;
   bool _programmaticScroll = false;
+
+  /// 是否已经完整显示过一次歌词。首屏那次不播入场动画（页面转场已经够了），
+  /// 之后每次从加载态回到歌词都算换歌，值得播。
+  bool _entrancePlayedOnce = false;
+
   Timer? _resumeFollowTimer;
 
   double get _baseItemExtent => widget.isFullScreen ? 56.0 : 44.0;
@@ -49,12 +54,10 @@ class _LyricViewState extends ConsumerState<LyricView> {
   /// 算出来（未构建的行拿不到 `RenderObject`）。代价是每行高度必须一致：多出
   /// 音译/翻译一行就要把整个行高一起抬高，否则最后一行会被裁掉。
   double _itemExtent(Lyrics lyrics, double scale) {
-    final hasExtras = lyrics.lines.any(
-      (line) =>
-          (line.translation != null && line.translation!.isNotEmpty) ||
-          (line.roman != null && line.roman!.isNotEmpty),
+    final hasTranslation = lyrics.lines.any(
+      (line) => line.translation != null && line.translation!.isNotEmpty,
     );
-    return _baseItemExtent * scale + (hasExtras ? 15.0 * scale : 0.0);
+    return _baseItemExtent * scale + (hasTranslation ? 15.0 * scale : 0.0);
   }
 
   @override
@@ -216,8 +219,11 @@ class _LyricViewState extends ConsumerState<LyricView> {
 
     final scale = ref.watch(lyricScaleProvider);
     final showTranslation = ref.watch(lyricTranslationProvider);
-    final showRoman = ref.watch(lyricRomanProvider);
     final blurAmount = ref.watch(lyricBlurProvider);
+    // 进到这一段说明歌词已经拿到并要画出来了。置位放在 build 里而不是动画
+    // 结束回调里：动画中途被打断（用户马上又切歌）也不该让下一首歌少播一次。
+    final playEntranceOnMount = _entrancePlayedOnce;
+    _entrancePlayedOnce = true;
     final entrance =
         LyricEntranceStyle.values[ref.watch(lyricEntranceProvider).clamp(0, 3)];
     // 自定义字体的字体族是异步注册的：没注册好之前 family 为 null，退回主题
@@ -304,28 +310,6 @@ class _LyricViewState extends ConsumerState<LyricView> {
                 ),
                 blur,
               ),
-              if (showRoman && line.roman != null && line.roman!.isNotEmpty)
-                lyricBlurred(
-                  AnimatedDefaultTextStyle(
-                    duration: MotionDuration.normal,
-                    curve: MotionCurve.easeOut,
-                    style: baseStyle.copyWith(
-                      color: transColor.withValues(alpha: transColor.a * 0.85),
-                      fontFamily: lyricFamily,
-                      fontSize: (isCurrent ? 11.5 : 10.0) * scale,
-                      // 这两行以前靠合并父样式拿到 1.15，现在显式写出来，
-                      // 免得从 bodyMedium 继承到 1.43 把行撑高。
-                      height: 1.15,
-                    ),
-                    child: Text(
-                      line.roman!,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  blur,
-                ),
               if (showTranslation &&
                   line.translation != null &&
                   line.translation!.isNotEmpty)
@@ -388,6 +372,10 @@ class _LyricViewState extends ConsumerState<LyricView> {
       style: entrance,
       // 换歌才重放：同一个播放位置的重建不该让整片歌词再进场一次。
       playKey: currentMusic?.id ?? '',
+      // 换歌一定会先过「正在加载歌词」，那段时间本组件被摘出树，回来时是新
+      // State，playKey 那条路径永远走不到。首屏有页面转场，不再叠一次动画；
+      // 之后每次重新挂载都意味着换了歌，交给动画。
+      playOnMount: playEntranceOnMount,
       child: Stack(
         children: [
           Positioned.fill(child: lyricList),

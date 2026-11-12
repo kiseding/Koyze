@@ -69,21 +69,16 @@ class LyricParser {
     while (i < adjusted.length) {
       final current = adjusted[i];
       String? translation;
-      String? roman;
 
-      // 同一时间戳连写的多行是「原文 / 翻译 / 音译」。日语歌词尤其常见：
-      // 三行的行首时间戳完全一样，逐行读会变成三句同时高亮的重复歌词。
-      // 第三行只有确实是拉丁转写（原文里有假名或谚文）才归为音译，
-      // 否则保持原样另起一行，免得把第二种翻译错标成罗马音。
+      // 同一时间戳连写的多行是「原文 / 翻译」。日语歌词尤其常见：
+      // 两行的行首时间戳完全一样，逐行读会变成两句同时高亮的重复歌词。
+      // 只取紧随其后的第一行作为翻译，再多出来的保持原样另起一行。
       var cursor = i + 1;
       while (cursor < adjusted.length &&
           adjusted[cursor].time == current.time &&
           adjusted[cursor].text != current.text) {
         if (translation == null) {
           translation = adjusted[cursor].text;
-        } else if (roman == null &&
-            _looksLikeRomanization(adjusted[cursor].text, current.text)) {
-          roman = adjusted[cursor].text;
         } else {
           break;
         }
@@ -96,45 +91,12 @@ class LyricParser {
           time: current.time,
           text: current.text,
           translation: translation,
-          roman: roman,
           words: current.words,
         ),
       );
     }
 
     return Lyrics(raw: lrc, lines: lines);
-  }
-
-  /// 判断一行是不是原文的拉丁转写。
-  ///
-  /// 只看两点：原文里得有假名或谚文（中文歌的「罗马音」通常是英文翻译，
-  /// 标错了反而会在音译开关打开时多出一行噪音），候选行得是纯 ASCII 字母。
-  static bool _looksLikeRomanization(String candidate, String source) {
-    if (!_hasKanaOrHangul(source)) return false;
-    if (_hasKanaOrHangul(candidate)) return false;
-    var letters = 0;
-    for (final rune in candidate.runes) {
-      final isAsciiLetter =
-          (rune >= 0x41 && rune <= 0x5A) || (rune >= 0x61 && rune <= 0x7A);
-      if (isAsciiLetter) {
-        letters++;
-        continue;
-      }
-      // 空格、撇号、连字符是转写里常见的分隔符。
-      if (rune == 0x20 || rune == 0x27 || rune == 0x2D) continue;
-      return false;
-    }
-    return letters >= 2;
-  }
-
-  static bool _hasKanaOrHangul(String text) {
-    for (final rune in text.runes) {
-      final isKana = rune >= 0x3040 && rune <= 0x30FF;
-      final isHangul = rune >= 0xAC00 && rune <= 0xD7AF;
-      final isHangulJamo = rune >= 0x1100 && rune <= 0x11FF;
-      if (isKana || isHangul || isHangulJamo) return true;
-    }
-    return false;
   }
 
   static void _clampKuwoWordsToNextLine(List<_ParsedLine> lines) {
@@ -412,27 +374,21 @@ class LyricParser {
     );
   }
 
-  /// 把并列的翻译 / 音译歌词挂到主歌词行上。
+  /// 把并列的翻译歌词挂到主歌词行上。
   ///
-  /// 网易把三者放在同一次响应的三个字段里（`lrc` / `tlyric` / `romalrc`），
-  /// 时间戳各自独立、不保证逐字对齐。这里按时间戳匹配：先精确命中，再退到
-  /// 最近的一行（容差 80ms）——两者对不上的时候宁可少显示一行，也不要把
-  /// 上一句的翻译挂到这一句上。
-  static Lyrics attachParallelText(
-    Lyrics lyrics, {
-    String? translation,
-    String? roman,
-  }) {
+  /// 网易把两者放在同一次响应的两个字段里（`lrc` / `tlyric`），时间戳各自
+  /// 独立、不保证逐字对齐。这里按时间戳匹配：先精确命中，再退到最近的一行
+  /// （容差 80ms）——两者对不上的时候宁可少显示一行，也不要把上一句的翻译
+  /// 挂到这一句上。
+  static Lyrics attachParallelText(Lyrics lyrics, {String? translation}) {
     final translationMap = _timeMap(translation);
-    final romanMap = _timeMap(roman);
-    if (translationMap.isEmpty && romanMap.isEmpty) return lyrics;
+    if (translationMap.isEmpty) return lyrics;
 
     final lines = [
       for (final line in lyrics.lines)
         line.copyWith(
           translation:
               _lookupNearest(translationMap, line.time) ?? line.translation,
-          roman: _lookupNearest(romanMap, line.time),
         ),
     ];
     return Lyrics(raw: lyrics.raw, lines: lines);

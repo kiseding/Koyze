@@ -287,18 +287,10 @@ class WySource extends MusicPlatform {
       final yrc = body['yrc'] as Map?;
       final yrcLyric = yrc?['lyric'] as String?;
       final translation = _nestedLyric(body, 'tlyric');
-      // 新版接口把音译拆成 romalrc（原文罗马音）与 yromalrc（逐字罗马音），
-      // 两者都可能缺席；优先用逐字的 yromalrc，回退普通 romalrc。
-      final roman =
-          _nestedLyric(body, 'yromalrc') ?? _nestedLyric(body, 'romalrc');
       if (yrcLyric != null && yrcLyric.isNotEmpty) {
         final converted = wyYrcToLrc(yrcLyric);
         if (converted != null && converted.isNotEmpty) {
-          return LyricPayload(
-            main: converted,
-            translation: translation,
-            roman: roman,
-          );
+          return LyricPayload(main: converted, translation: translation);
         }
       }
 
@@ -308,11 +300,7 @@ class WySource extends MusicPlatform {
       final lyric = lrc['lyric'] as String?;
       if (lyric == null || lyric.isEmpty) return null;
 
-      return LyricPayload(
-        main: lyric,
-        translation: translation,
-        roman: roman,
-      );
+      return LyricPayload(main: lyric, translation: translation);
     } catch (e) {
       noteFailure('lyric', e);
       return null;

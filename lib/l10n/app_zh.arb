@@ -908,7 +908,6 @@
   "lyricFontScale": "字号",
   "lyricAlign": "当前行位置",
   "lyricTranslation": "翻译行",
-  "lyricRoman": "音译行",
   "lyricOffsetReset": "清零偏移",
   "accentFollowsCover": "主题色跟随封面",
   "accentFollowsCoverSubtitle": "每首歌从封面提取一套配色",

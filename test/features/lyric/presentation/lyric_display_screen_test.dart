@@ -131,17 +131,17 @@ void main() {
     expect(find.text(s.lyricFontPick), findsOneWidget);
   });
 
-  testWidgets('翻译、音译开关能改到预览', (tester) async {
+  testWidgets('翻译开关能改到预览', (tester) async {
     await _pump(tester);
 
     final s = _strings(tester);
 
-    // 默认都开：预览里的日文行会带罗马音与译文。
-    expect(find.text('shizumu you ni'), findsOneWidget);
+    // 默认开：预览里的日文行会带译文。
+    expect(find.text('像要沉下去一般'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(SwitchListTile, s.lyricRoman));
+    await tester.tap(find.widgetWithText(SwitchListTile, s.lyricTranslation));
     await tester.pumpAndSettle();
-    expect(find.text('shizumu you ni'), findsNothing);
+    expect(find.text('像要沉下去一般'), findsNothing);
   });
 
   testWidgets('重置把所有滑杆拉回默认', (tester) async {

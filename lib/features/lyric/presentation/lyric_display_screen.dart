@@ -41,7 +41,6 @@ class _LyricDisplayScreenState extends ConsumerState<LyricDisplayScreen> {
     final scale = ref.watch(lyricScaleProvider);
     final align = ref.watch(lyricAlignProvider);
     final translation = ref.watch(lyricTranslationProvider);
-    final roman = ref.watch(lyricRomanProvider);
     final blur = ref.watch(lyricBlurProvider);
     final entrance =
         LyricEntranceStyle.values[ref.watch(lyricEntranceProvider).clamp(0, 3)];
@@ -77,7 +76,6 @@ class _LyricDisplayScreenState extends ConsumerState<LyricDisplayScreen> {
           LyricPreview(
             scale: scale,
             blur: blur,
-            showRoman: roman,
             showTranslation: translation,
             entrance: entrance,
             fontFamily: font.family,
@@ -145,12 +143,6 @@ class _LyricDisplayScreenState extends ConsumerState<LyricDisplayScreen> {
             value: translation,
             onChanged: (value) =>
                 ref.read(lyricTranslationProvider.notifier).setEnabled(value),
-          ),
-          _LyricSwitch(
-            label: s.lyricRoman,
-            value: roman,
-            onChanged: (value) =>
-                ref.read(lyricRomanProvider.notifier).setEnabled(value),
           ),
           _LyricChoiceRow(
             label: s.lyricEntrance,

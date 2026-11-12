@@ -118,6 +118,54 @@ void main() {
       // 起点在下方，正在往上走。
       expect(transform.transform.getTranslation().y, greaterThan(0));
     });
+
+    testWidgets('playOnMount 挂载即播——换歌经过加载态后动画不会丢', (tester) async {
+      // 换歌一定会先显示「正在加载歌词」，那段时间 LyricEntrance 被整个摘出
+      // 树，回来时是新 State，playKey 那条路径永远走不到。这条用例锁住它。
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: LyricEntrance(
+            style: LyricEntranceStyle.fade,
+            playKey: 'song-1',
+            playOnMount: true,
+            child: Text('词'),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        tester.widget<Opacity>(find.byType(Opacity)).opacity,
+        lessThan(0.5),
+        reason: '挂载后应从头开始，而不是直接终态',
+      );
+
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<Opacity>(find.byType(Opacity)).opacity,
+        closeTo(1, 1e-6),
+      );
+    });
+
+    testWidgets('playOnMount 时减少动效直接给终态', (tester) async {
+      await tester.pumpWidget(
+        const MediaQuery(
+          data: MediaQueryData(disableAnimations: true),
+          child: MaterialApp(
+            home: LyricEntrance(
+              style: LyricEntranceStyle.fade,
+              playKey: 'song-1',
+              playOnMount: true,
+              child: Text('词'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        tester.widget<Opacity>(find.byType(Opacity)).opacity,
+        closeTo(1, 1e-6),
+      );
+    });
   });
 }
 

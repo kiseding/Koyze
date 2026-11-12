@@ -14,7 +14,6 @@ class LyricPreview extends StatefulWidget {
     super.key,
     required this.scale,
     required this.blur,
-    required this.showRoman,
     required this.showTranslation,
     this.entrance = LyricEntranceStyle.fade,
     this.fontFamily,
@@ -24,7 +23,6 @@ class LyricPreview extends StatefulWidget {
 
   /// 0~1 的模糊档位，和设置里那根滑杆是同一个值。
   final double blur;
-  final bool showRoman;
   final bool showTranslation;
   final LyricEntranceStyle entrance;
   final String? fontFamily;
@@ -37,16 +35,22 @@ class _LyricPreviewState extends State<LyricPreview> {
   /// 预览里「当前行」固定在第 2 行（0 基），上下各有两行。
   static const int _currentIndex = 2;
 
-  static const List<(String, String?, String?)> _lines = [
-    ('夜に駆ける', null, null),
-    ('沈むように溶けてゆくように', 'shizumu you ni', '像要沉下去一般'),
-    ('揺れた恋と愛の渦の中', 'yureta koi to ai no uzu', '在摇晃的恋与爱的漩涡中'),
-    ('思い出だけが邪魔をする', 'omoide dake ga jama o suru', '只有回忆在碍事'),
-    ('このまま忘れてしまえたら', null, '若能就这样忘掉'),
+  /// 预览里的示例歌词。日文原曲配中文翻译，正好能同时看出主行与译文行的
+  /// 层级差别；译文行只有一段，不再需要第三行音译。
+  static const List<(String, String?)> _lines = [
+    ('夜に駆ける', null),
+    ('沈むように溶けてゆくように', '像要沉下去一般'),
+    ('揺れた恋と愛の渦の中', '在摇晃的恋与爱的漩涡中'),
+    ('思い出だけが邪魔をする', '只有回忆在碍事'),
+    ('このまま忘れてしまえたら', '若能就这样忘掉'),
   ];
 
   /// 换歌 / 换字体时让预览整体重放一次入场，用户能立刻看到那个动画。
   Object _playKey = 0;
+
+  /// 首次挂载不播：设置页本身有页面转场，预览再淡入一遍会像卡了一下。
+  /// 之后每次改选项都是同一个 State，走 `playKey` 那条路径。
+  bool _playedOnce = false;
 
   @override
   void didUpdateWidget(covariant LyricPreview oldWidget) {
@@ -61,6 +65,8 @@ class _LyricPreviewState extends State<LyricPreview> {
   Widget build(BuildContext context) {
     // 只带字体族：字号、颜色每行都不一样，在行内 copyWith 出来。
     final baseStyle = TextStyle(fontFamily: widget.fontFamily);
+    final playOnMount = _playedOnce;
+    _playedOnce = true;
 
     return Container(
       // 高度跟着内容走：5 行 × 每种字号的组合在不同 scale 下差很多，写死一个
@@ -80,18 +86,17 @@ class _LyricPreviewState extends State<LyricPreview> {
             child: LyricEntrance(
               style: widget.entrance,
               playKey: _playKey,
+              playOnMount: playOnMount,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (var i = 0; i < _lines.length; i++)
                     _PreviewLine(
                       text: _lines[i].$1,
-                      roman: _lines[i].$2,
-                      translation: _lines[i].$3,
+                      translation: _lines[i].$2,
                       distance: (i - _currentIndex).abs(),
                       scale: widget.scale,
                       blur: widget.blur,
-                      showRoman: widget.showRoman,
                       showTranslation: widget.showTranslation,
                       baseStyle: baseStyle,
                     ),
@@ -108,23 +113,19 @@ class _LyricPreviewState extends State<LyricPreview> {
 class _PreviewLine extends StatelessWidget {
   const _PreviewLine({
     required this.text,
-    required this.roman,
     required this.translation,
     required this.distance,
     required this.scale,
     required this.blur,
-    required this.showRoman,
     required this.showTranslation,
     required this.baseStyle,
   });
 
   final String text;
-  final String? roman;
   final String? translation;
   final int distance;
   final double scale;
   final double blur;
-  final bool showRoman;
   final bool showTranslation;
   final TextStyle baseStyle;
 
@@ -160,23 +161,6 @@ class _PreviewLine extends StatelessWidget {
                 height: 1.15,
               ),
             ),
-            if (showRoman && roman != null)
-              Text(
-                roman!,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: baseStyle.copyWith(
-                  color:
-                      (isCurrent
-                              ? secondary
-                              : secondary.withValues(alpha: 0.55))
-                          .withValues(alpha: fade * 0.85),
-                  fontSize: (isCurrent ? 11.5 : 10.0) * scale,
-                  fontWeight: FontWeight.normal,
-                  height: 1.15,
-                ),
-              ),
             if (showTranslation && translation != null)
               Text(
                 translation!,

@@ -1673,7 +1673,6 @@
   "lyricFontScale": "Text size",
   "lyricAlign": "Active line position",
   "lyricTranslation": "Translation row",
-  "lyricRoman": "Romanization row",
   "lyricOffsetReset": "Reset offset",
   "accentFollowsCover": "Match colours to artwork",
   "accentFollowsCoverSubtitle": "Recolour the app from the current cover",

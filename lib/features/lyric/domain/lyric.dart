@@ -2,16 +2,12 @@ class LyricLine {
   final Duration time;
   final String text;
   final String? translation;
-
-  /// 音译（罗马音）行。日语歌靠它才读得出读音，网易由 `romalrc` 提供。
-  final String? roman;
   final List<LyricWord>? words;
 
   const LyricLine({
     required this.time,
     required this.text,
     this.translation,
-    this.roman,
     this.words,
   });
 
@@ -21,14 +17,12 @@ class LyricLine {
     Duration? time,
     String? text,
     String? translation,
-    String? roman,
     List<LyricWord>? words,
   }) {
     return LyricLine(
       time: time ?? this.time,
       text: text ?? this.text,
       translation: translation ?? this.translation,
-      roman: roman ?? this.roman,
       words: words ?? this.words,
     );
   }
@@ -36,12 +30,12 @@ class LyricLine {
 
 /// 一次歌词请求的完整结果。
 ///
-/// 主歌词、翻译、音译在平台接口里是**三个并列字段**（网易的 `lrc` /
-/// `tlyric` / `romalrc`），而不是一段能靠时间戳拼回去的文本。以前只有
-/// `String?` 一个返回值，翻译和音译在出口处就被丢掉了，播放页自然只剩原文。
-/// 保留成一个对象，才能让下层决定「取哪些、怎么合并」而不必改平台接口。
+/// 主歌词与翻译在平台接口里是**两个并列字段**（网易的 `lrc` / `tlyric`），
+/// 而不是一段能靠时间戳拼回去的文本。以前只有 `String?` 一个返回值，翻译在
+/// 出口处就被丢掉了，播放页自然只剩原文。保留成一个对象，才能让下层决定
+/// 「取哪些、怎么合并」而不必改平台接口。
 class LyricPayload {
-  const LyricPayload({required this.main, this.translation, this.roman});
+  const LyricPayload({required this.main, this.translation});
 
   /// 主歌词原文（可能含逐字标签）。
   final String main;
@@ -49,12 +43,7 @@ class LyricPayload {
   /// 翻译歌词，LRC 文本。
   final String? translation;
 
-  /// 音译（罗马音）歌词，LRC 文本。
-  final String? roman;
-
-  bool get hasExtras =>
-      (translation != null && translation!.trim().isNotEmpty) ||
-      (roman != null && roman!.trim().isNotEmpty);
+  bool get hasExtras => translation != null && translation!.trim().isNotEmpty;
 }
 
 class LyricWord {
