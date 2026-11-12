@@ -4,6 +4,12 @@ services:
       # Dockerfile 需要仓库根目录（lib/、scripts/、pubspec.yaml）来编译 Web 界面
       context: ..
       dockerfile: webapp/Dockerfile
+      args:
+        # 国内网络下把这两个换成镜像源，构建会快很多：
+        #   KOYZE_FLUTTER_MIRROR=https://storage.flutter-io.cn \
+        #   KOYZE_PUB_MIRROR=https://pub.flutter-io.cn docker compose build
+        FLUTTER_STORAGE_BASE_URL: ${KOYZE_FLUTTER_MIRROR:-https://storage.googleapis.com}
+        PUB_HOSTED_URL: ${KOYZE_PUB_MIRROR:-https://pub.dev}
     image: koyze-web:local
     container_name: koyze-web
     ports:

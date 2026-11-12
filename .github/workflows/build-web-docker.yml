@@ -1,0 +1,197 @@
+name: Build Web image
+
+# 每次 push 都构建一次 Web Docker 镜像，构建完再把容器跑起来做冒烟测试。
+#
+# 为什么不塞进 build-linux.yml：镜像里要现场编译 Flutter Web，依赖链和
+# Linux 桌面端完全不同，混在一起两边互相拖慢缓存。这里只验证「镜像能构建」
+# 和「构建出来的容器能跑」，不推送到 registry——要拉镜像再说。
+
+on:
+  # 任何分支、任何 tag 的 push 都构建，不设 paths 过滤：
+  # 漏掉一次，问题就要等部署时才发现。
+  push:
+  # PR 只在与镜像相关的东西变动时才跑——一个只改 README 的 PR 不值得
+  # 烧 20 分钟 CI（构建里要下 1 GB Flutter SDK 再编译 Web）。
+  pull_request:
+    paths:
+      - 'webapp/**'
+      - 'scripts/**'
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'l10n.yaml'
+      - 'analysis_options.yaml'
+      - '.dockerignore'
+      - '.github/workflows/build-web-docker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-web-docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker:
+    name: Docker build & smoke test
+    runs-on: ubuntu-latest
+    # 冷缓存要下 ~1 GB Flutter SDK 再编译 Web，实测 10~20 分钟。
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Verify release tag matches pubspec version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          ref_version="${GITHUB_REF_NAME#v}"
+          pubspec_version="$(awk '/^version:/{print $2; exit}' pubspec.yaml)"
+          if [ -z "$pubspec_version" ]; then
+            echo "::error::pubspec.yaml does not declare a version"
+            exit 1
+          fi
+          IFS=. read -r ref_major ref_minor _ <<< "$ref_version"
+          IFS=. read -r pubspec_major pubspec_minor _ <<< "${pubspec_version%%+*}"
+          if [ "$ref_major.$ref_minor" != "$pubspec_major.$pubspec_minor" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pubspec version $pubspec_version; bump pubspec.yaml before tagging"
+            exit 1
+          fi
+
+      # 镜像里的 Flutter 由 Dockerfile 的 ARG 决定，必须和各平台 workflow
+      # 的 flutter-version 一致，否则 Web 与原生端的产物行为会分叉。
+      - name: Verify Dockerfile pins the same Flutter version
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker_version="$(grep -oP 'ARG FLUTTER_VERSION=\K[0-9.]+' webapp/Dockerfile)"
+          pinned="$(grep -rhoP "flutter-version:\s*'\K[0-9.]+" .github/workflows/*.yml | sort -u)"
+          echo "Dockerfile : $docker_version"
+          echo "workflows  : $pinned"
+          if [ "$docker_version" != "$pinned" ]; then
+            echo "::error::webapp/Dockerfile 的 FLUTTER_VERSION ($docker_version) 与 workflow 锁定的版本 ($pinned) 不一致"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Flutter SDK 解压那一层有 1 GB 多，缓存命中能省掉绝大部分时间。
+      # 用 GitHub Actions 缓存后端，不需要 registry 凭据。
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          # context 必须是仓库根目录：Dockerfile 要编译 lib/、跑 scripts/
+          context: .
+          file: webapp/Dockerfile
+          # 只 build 不 push，load 进本地 docker 供后面的冒烟测试用。
+          push: false
+          load: true
+          tags: koyze-web:ci
+          build-args: |
+            FLUTTER_STORAGE_BASE_URL=https://storage.googleapis.com
+            PUB_HOSTED_URL=https://pub.dev
+          cache-from: type=gha,scope=koyze-web
+          cache-to: type=gha,mode=max,scope=koyze-web
+
+      - name: Verify image contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          size="$(docker image inspect koyze-web:ci --format '{{.Size}}')"
+          echo "image size = $((size / 1024 / 1024)) MB"
+          # 正常在 120~200 MB。超 500 MB 说明第一阶段的东西漏进来了，
+          # 比如 COPY --from 拷了整个 /src 而不是只有 web 产物。
+          if [ "$size" -gt $((500 * 1024 * 1024)) ]; then
+            echo "::error::镜像 $((size / 1024 / 1024)) MB 超过 500 MB 上限，检查是否误拷了构建中间产物"
+            exit 1
+          fi
+          # 静态产物必须真的在里面，否则运行时只有 API 没有界面。
+          docker run --rm --entrypoint sh koyze-web:ci -c '
+            set -e
+            for f in index.html main.dart.js flutter_bootstrap.js \
+                     favicon.png icons/Icon-512.png icons/Icon-maskable-512.png; do
+              test -f "/app/public/$f" || { echo "missing /app/public/$f"; exit 1; }
+            done
+            echo "public assets present"
+          '
+
+      - name: Smoke test the container
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="ci-smoke-token"
+          # 用 18080 而不是 8080：runner 上 8080 偶尔会被别的服务占着，
+          # 端口冲突会让 docker run 直接失败，看起来像镜像有问题。
+          HOST_PORT=18080
+          docker run -d --name koyze-web-ci -p "$HOST_PORT:8080" -e KOYZE_TOKEN="$TOKEN" koyze-web:ci
+          BASE="http://127.0.0.1:$HOST_PORT"
+
+          cleanup() {
+            echo "--- container logs ---"
+            docker logs koyze-web-ci 2>&1 || true
+            docker rm -f koyze-web-ci > /dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          # 容器起 Node 很快，但首次加载音源脚本（vm 编译）要一点时间。
+          for i in $(seq 1 40); do
+            if curl -fsS --max-time 2 "$BASE/api/health" -o /tmp/health.json 2>/dev/null; then
+              break
+            fi
+            if [ "$i" -eq 40 ]; then
+              echo "::error::容器 40 秒内没有通过 /api/health"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "--- health ---"
+          cat /tmp/health.json
+          echo
+          python3 - <<'PY'
+          import json
+          d = json.load(open('/tmp/health.json'))
+          assert d.get('ok') is True, d
+          assert d.get('tokenRequired') is True, 'KOYZE_TOKEN 没有生效'
+          assert d.get('scripts'), '没有加载到任何音源脚本'
+          # 四个内置音源全都要在，少一个说明脚本在容器里跑挂了。
+          for s in ('tx', 'wy', 'kw', 'kg'):
+              assert s in d.get('sources', []), '音源 %s 缺失: %s' % (s, d.get('sources'))
+          print('health OK, sources =', d['sources'])
+          PY
+
+          # 界面本身不鉴权（口令只挡 /api/*），首页必须能拿到。
+          curl -fsS --max-time 10 "$BASE/" -o /tmp/index.html
+          grep -q 'flutter' /tmp/index.html
+          curl -fsS --max-time 60 "$BASE/main.dart.js" -o /tmp/main.dart.js
+          bytes="$(stat -c%s /tmp/main.dart.js)"
+          echo "main.dart.js = $bytes bytes"
+          # 空文件或占位页都不到 1 MB，真正的 bundle 是 10 MB 量级。
+          if [ "$bytes" -lt 1000000 ]; then
+            echo "::error::main.dart.js 只有 $bytes 字节，Web 产物像是空的"
+            exit 1
+          fi
+
+          # 口令模式：不带凭据要拒，带 x-koyze-token 要放行。
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/api/sources")"
+          if [ "$code" != "401" ]; then
+            echo "::error::未带口令访问 /api/sources 返回 $code，期望 401"
+            exit 1
+          fi
+          curl -fsS --max-time 10 -H "x-koyze-token: $TOKEN" "$BASE/api/sources" -o /tmp/sources.json
+          python3 - <<'PY'
+          import json
+          d = json.load(open('/tmp/sources.json'))
+          assert d.get('sources'), d
+          print('authed /api/sources OK, %d source(s)' % len(d['sources']))
+          PY
+
+          # 镜像里那条 HEALTHCHECK 也要真的能过，否则部署后容器会一直 unhealthy。
+          echo "--- image healthcheck ---"
+          docker exec koyze-web-ci node -e \
+            "const p=process.env.PORT||8080;fetch('http://127.0.0.1:'+p+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+          echo "smoke test passed"

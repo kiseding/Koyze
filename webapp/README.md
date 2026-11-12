@@ -23,9 +23,60 @@ cookie（30 天），之后正常访问即可 —— App 内的「登录」页�
 | `KOYZE_PORT` | `8080` | 宿主机端口 |
 | `KOYZE_TOKEN` | 空 | 访问口令 |
 | `KOYZE_ALLOW_PRIVATE` | `0` | 是否允许音源脚本访问私网地址（如家里 NAS）；默认禁止 |
+| `KOYZE_FLUTTER_MIRROR` | 官方 | 构建期 Flutter SDK 下载源，见下 |
+| `KOYZE_PUB_MIRROR` | 官方 | 构建期 pub 包下载源，见下 |
+
+### 构建慢？换镜像源
+
+镜像分两阶段：第一阶段装 Flutter SDK 并**现场编译 Web 界面**，第二阶段只
+打包 Node 服务。第一阶段要下 ~1GB 的 SDK，国内直连 `storage.googleapis.com`
+和 `pub.dev` 经常慢到超时，构建时换镜像即可：
+
+```bash
+KOYZE_FLUTTER_MIRROR=https://storage.flutter-io.cn \
+KOYZE_PUB_MIRROR=https://pub.flutter-io.cn \
+docker compose up --build
+```
+
+两个变量只影响构建阶段，不会写进运行镜像。也可以设成系统环境变量长期生效。
+
+构建要点：
+
+- **context 是仓库根目录**（`context: ..`），因为要编译 `lib/`、跑
+  `scripts/build-web.sh`。`.dockerignore` 已排除 `android/`、`ios/`、
+  `windows/` 等无关平台目录和宿主机的 `build/`、`.dart_tool/`，
+  实际送进 daemon 的 context 约 6 MB。
+- 镜像里会 `rm -rf build .dart_tool` 再编译，避免复用宿主机（可能是
+  Windows/macOS）的缓存导致路径解析错误。
+- **构建时会先把 `scripts/` 下 `.sh` / `.py` 的 CRLF 洗成 LF。**
+  `.gitattributes` 只保证仓库里存的是 LF，但 build context 取的是工作区，
+  Windows 检出后就是 CRLF；Linux 内核会把 `#!/usr/bin/env bash\r` 原样交给
+  `env`，它会去找一个名叫 `bash\r` 的程序并报 `No such file or directory`。
+  Git Bash 自带 CRLF 兼容，所以这个坑在本地看不出来。
+- 镜像里装了 `python3-pil`：`make_web_icons.py` 用它重绘 PWA 图标，
+  缺了会直接中断构建。
+- `webapp/public/` 不入库、也不进 context，产物只在镜像内生成。
+- Flutter 版本由 `ARG FLUTTER_VERSION` 固定（默认 3.44.9，与 CI 六个平台一致）。
+
+### CI 每次 push 都会构建
+
+`.github/workflows/build-web-docker.yml` 在**任何分支的 push**、相关路径的 PR、
+以及手动触发时都会构建一次镜像，然后：
+
+1. 校验 `webapp/Dockerfile` 的 `FLUTTER_VERSION` 和各平台 workflow 的
+   `flutter-version` 一致（不一致直接失败，避免 Web 与原生端分叉）；
+2. 校验镜像体积 < 500 MB、`/app/public` 下的界面产物与图标齐全；
+3. 起容器做冒烟测试：`/api/health` 返回四个音源、首页与 `main.dart.js` 可访问
+   且体积正常、口令模式下 `/api/sources` 未带凭据返回 401 带凭据返回 200、
+   镜像里的 `HEALTHCHECK` 命令能通过。
+
+镜像**不推送到任何 registry**，这个 workflow 的职责只是「能不能构建、能不能跑」。
+想拉镜像的话，自己在 `build-push-action` 那步加 `push: true` 和 `tags`。
+
+构建阶段用 GitHub Actions 缓存（`type=gha`）缓存 Flutter SDK 那一层，
+缓存命中时通常 3~5 分钟，冷缓存 10~20 分钟。
 
 换音源脚本有两种方式：
-
 - **界面里导入**（推荐）：设置 → 音源 → 导入，选文件 / 粘贴 / 填链接都行。
   浏览器没有 QuickJS，脚本会推给服务端编译执行，落盘在 `data/user-sources/`
   （compose 里是 `koyze-web-data` 卷），容器重建后仍在。

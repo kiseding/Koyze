@@ -1,3 +1,6 @@
+# Docker build context 是仓库根目录（见 webapp/docker-compose.yml）。
+# 这里排除的每一项都能明显减小 context 体积或避免把宿主平台的缓存带进镜像。
+
 .git
 .gitignore
 build
@@ -5,12 +8,19 @@ build
 .idea
 .vscode
 *.log
+
+# Web 产物：镜像里由 build-web.sh 现场编译，不沿用宿主机的。
 webapp/public
+webapp/public_release
 webapp/node_modules
+webapp/data
+
 .toolchain
 README.md
 CHANGELOG.md
 docs
+
+# 只有 Web 目标需要编译，其它平台的工程目录纯属负担。
 android
 ios
 linux

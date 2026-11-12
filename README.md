@@ -281,7 +281,22 @@ cd webapp && node server/index.js      # 打开 http://127.0.0.1:8080
 ```
 
 需要 Flutter 3.44.9（与 CI 一致），可用 `FLUTTER_BIN=/path/to/flutter` 指定路径。
-也可以直接 `cd webapp && docker compose up --build` 打进镜像。
+
+也可以用 Docker 一把构建 + 运行，镜像里自带 Flutter SDK，不需要本机装环境：
+
+```bash
+cd webapp && docker compose up --build
+# 国内网络下换镜像源，构建会快很多：
+# KOYZE_FLUTTER_MIRROR=https://storage.flutter-io.cn \
+# KOYZE_PUB_MIRROR=https://pub.flutter-io.cn docker compose up --build
+```
+
+Docker 构建的 context 是仓库根目录（要编译 `lib/`），分两阶段：先用 Flutter
+SDK 编出 Web 产物，再把产物与 Node 服务打进 `node:22-alpine`。运行镜像约
+几十 MB，暴露 8080 端口并带 `HEALTHCHECK`。细节见 [webapp/README.md](webapp/README.md)。
+
+CI 里 `build-web-docker.yml` 会在**每次 push** 时构建这个镜像并起容器冒烟测试
+（健康检查、界面产物、口令拦截），所以镜像坏掉不会等到部署才发现。
 
 构建脚本会先把源码同步到 `build/web-workspace/` 副本，再依次做三件事：
 把 48 处 `import 'dart:io'` 改写成 Web 安全的 `io_shim`、覆盖 Web 专用实现、
