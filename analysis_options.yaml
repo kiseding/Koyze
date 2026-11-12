@@ -28,6 +28,11 @@ analyzer:
     - third_party/connectivity_plus_platform_interface/**
     - third_party/flutter_js/**
     - third_party/just_audio/**
+    # Web 补丁源码是**片段**，不是能独立编译的库：它们在 `scripts/build-web.sh`
+    # 的临时副本里覆盖 `lib/` 下的同名文件后才成立，相对导入（如
+    # `../logging/app_log.dart`）和 `package:koyze/...` 在仓库根目录下解析不到。
+    # 让分析器扫它们只会得到一堆假 error，CI 的 `flutter analyze` 会直接失败。
+    - scripts/web-patch/**
 include: package:flutter_lints/flutter.yaml
 
 linter:
