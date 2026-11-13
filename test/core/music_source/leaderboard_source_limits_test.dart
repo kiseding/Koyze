@@ -1,5 +1,3 @@
-@Tags(['live'])
-library;
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,9 +5,14 @@ import 'package:koyze/core/music_source/platform/kw_source.dart';
 import 'package:koyze/core/music_source/platform/wy_source.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 
-class _ConcurrencyKwSource extends KwSource {
-  int active = 0;
-  int maximumActive = 0;
+/// 记录 `getLeaderboardSongs` 被调了几次。
+///
+/// 分类接口曾经在返回前为每个榜拉一首歌取封面，41 个榜 × 6 路并发 = 至少
+/// 7 轮请求，而榜单页给整个平台的超时只有 12 秒，几乎必然超时被当成空列表
+/// ——酷我整段榜单因此消失。现在封面改由消费方按需取，这里就断言「一次都
+/// 不调」，防止预取被重新加回来。
+class _CountingKwSource extends KwSource {
+  int songRequests = 0;
 
   @override
   Future<List<MusicItem>> getLeaderboardSongs(
@@ -17,10 +20,7 @@ class _ConcurrencyKwSource extends KwSource {
     int page = 1,
     int limit = 100,
   }) async {
-    active++;
-    maximumActive = active > maximumActive ? active : maximumActive;
-    await Future<void>.delayed(const Duration(milliseconds: 2));
-    active--;
+    songRequests++;
     return [
       MusicItem(
         id: leaderboardId,
@@ -47,14 +47,23 @@ class _InspectableWySource extends WySource {
 }
 
 void main() {
-  test('Kuwo leaderboard artwork requests use at most six workers', () async {
-    final source = _ConcurrencyKwSource();
+  test('Kuwo 榜单分类只返回静态表，不逐榜预取封面', () async {
+    final source = _CountingKwSource();
     addTearDown(source.dispose);
 
     final categories = await source.getLeaderboardCategories();
 
     expect(categories, hasLength(41));
-    expect(source.maximumActive, 6);
+    // 每个榜都要能唯一定位到一个榜单，id 重复会让榜单页拿到重复条目。
+    expect(categories.map((c) => c.id).toSet(), hasLength(41));
+    expect(categories.every((c) => c.id.startsWith('kw:')), isTrue);
+
+    // 关键契约：分类接口是纯本地的，一个网络请求都不发。
+    expect(
+      source.songRequests,
+      0,
+      reason: '分类不该为封面 fan-out 请求歌曲接口，否则会撑爆调用方的 12 秒超时',
+    );
   });
 
   test('NetEase leaderboard request respects page and limit', () async {
