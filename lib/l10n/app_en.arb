@@ -128,7 +128,7 @@
   "otherPlatform": "Other",
   "featured": "Picks",
   "noChartData": "No chart data",
-  "chartsHidden": "Every chart is hidden\\nTurn them back on from the top right",
+  "chartsHidden": "Every chart is hidden\nTurn them back on from the top right",
   "chartSettings": "Chart settings",
   "chartVisibilityRatio": "{visible} of {total} shown",
   "@chartVisibilityRatio": {"placeholders": {"visible": {"type": "int"}, "total": {"type": "int"}}},
@@ -313,7 +313,7 @@
   "bandsPending": "Player not connected. Showing a typical 5-band layout until playback starts.",
   "localMusicSettings": "Local music",
   "rescan": "Scan again",
-  "noLocalSongs": "No local songs yet\\nAdd a folder, or wait for downloads to be scanned",
+  "noLocalSongs": "No local songs yet\nAdd a folder, or wait for downloads to be scanned",
   "localLibraryTitle": "On this device",
   "folderPickerHint": "Add opens the system folder picker",
   "androidMediaStore": "Android MediaStore · scanned first",
@@ -813,7 +813,7 @@
       }
     }
   },
-  "startupFailedHint": "Open Koyze again. If this keeps happening, check Diagnostics in Settings.\\n{error}",
+  "startupFailedHint": "Open Koyze again. If this keeps happening, check Diagnostics in Settings.\n{error}",
   "@startupFailedHint": {
     "placeholders": {
       "error": {
@@ -832,7 +832,7 @@
       }
     }
   },
-  "localSongCount": "{count} local songs\\nPlay them from Playlists > Local music",
+  "localSongCount": "{count} local songs\nPlay them from Playlists > Local music",
   "@localSongCount": {
     "placeholders": {
       "count": {
@@ -848,7 +848,7 @@
       }
     }
   },
-  "downloadFolder": "Downloads · added automatically\\n{path}",
+  "downloadFolder": "Downloads · added automatically\n{path}",
   "@downloadFolder": {
     "placeholders": {
       "path": {

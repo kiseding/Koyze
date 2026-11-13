@@ -289,22 +289,33 @@ class _AppNotificationBanner extends StatelessWidget {
                         ),
                       ),
                     ),
-                    IconButton(
-                      tooltip: S.of(context).dismissNotification,
-                      onPressed: onDismiss,
-                      constraints: const BoxConstraints(
-                        minWidth: 48,
-                        minHeight: 48,
-                      ),
-                      style: IconButton.styleFrom(
-                        hoverColor: Colors.transparent,
-                        focusColor: Colors.transparent,
-                        highlightColor: Colors.transparent,
-                      ).copyWith(splashFactory: NoSplash.splashFactory),
-                      icon: Icon(
-                        Icons.close,
-                        size: 20,
-                        color: AppColors.mutedText(context),
+                    // 不能用 IconButton 的 tooltip：这个横幅挂在
+                    // AppNotificationHost 里，而它在 MaterialApp.builder 中
+                    // 是 Navigator 的**父节点**，整棵子树没有 Overlay 祖先。
+                    // RawTooltip 找不到 Overlay 会直接抛异常，debug 下把整个
+                    // 页面替换成红屏——也就是说任何一条通知都会炸界面。
+                    // 无障碍标签改用 Semantics 给，不依赖 Overlay。
+                    Semantics(
+                      label: S.of(context).dismissNotification,
+                      button: true,
+                      child: ExcludeSemantics(
+                        child: IconButton(
+                          onPressed: onDismiss,
+                          constraints: const BoxConstraints(
+                            minWidth: 48,
+                            minHeight: 48,
+                          ),
+                          style: IconButton.styleFrom(
+                            hoverColor: Colors.transparent,
+                            focusColor: Colors.transparent,
+                            highlightColor: Colors.transparent,
+                          ).copyWith(splashFactory: NoSplash.splashFactory),
+                          icon: Icon(
+                            Icons.close,
+                            size: 20,
+                            color: AppColors.mutedText(context),
+                          ),
+                        ),
                       ),
                     ),
                   ],

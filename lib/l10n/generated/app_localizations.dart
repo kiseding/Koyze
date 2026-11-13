@@ -869,7 +869,7 @@ abstract class AppLocalizations {
   /// No description provided for @chartsHidden.
   ///
   /// In en, this message translates to:
-  /// **'Every chart is hidden\\nTurn them back on from the top right'**
+  /// **'Every chart is hidden\nTurn them back on from the top right'**
   String get chartsHidden;
 
   /// No description provided for @chartSettings.
@@ -1973,7 +1973,7 @@ abstract class AppLocalizations {
   /// No description provided for @noLocalSongs.
   ///
   /// In en, this message translates to:
-  /// **'No local songs yet\\nAdd a folder, or wait for downloads to be scanned'**
+  /// **'No local songs yet\nAdd a folder, or wait for downloads to be scanned'**
   String get noLocalSongs;
 
   /// No description provided for @localLibraryTitle.
@@ -3293,7 +3293,7 @@ abstract class AppLocalizations {
   /// No description provided for @startupFailedHint.
   ///
   /// In en, this message translates to:
-  /// **'Open Koyze again. If this keeps happening, check Diagnostics in Settings.\\n{error}'**
+  /// **'Open Koyze again. If this keeps happening, check Diagnostics in Settings.\n{error}'**
   String startupFailedHint(String error);
 
   /// No description provided for @bandsReady.
@@ -3305,7 +3305,7 @@ abstract class AppLocalizations {
   /// No description provided for @localSongCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} local songs\\nPlay them from Playlists > Local music'**
+  /// **'{count} local songs\nPlay them from Playlists > Local music'**
   String localSongCount(int count);
 
   /// No description provided for @mediaStoreHint.
@@ -3317,7 +3317,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadFolder.
   ///
   /// In en, this message translates to:
-  /// **'Downloads · added automatically\\n{path}'**
+  /// **'Downloads · added automatically\n{path}'**
   String downloadFolder(String path);
 
   /// No description provided for @importingCount.

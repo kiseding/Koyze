@@ -410,7 +410,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chartsHidden =>
-      'Every chart is hidden\\nTurn them back on from the top right';
+      'Every chart is hidden\nTurn them back on from the top right';
 
   @override
   String get chartSettings => 'Chart settings';
@@ -982,7 +982,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noLocalSongs =>
-      'No local songs yet\\nAdd a folder, or wait for downloads to be scanned';
+      'No local songs yet\nAdd a folder, or wait for downloads to be scanned';
 
   @override
   String get localLibraryTitle => 'On this device';
@@ -1737,7 +1737,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String startupFailedHint(String error) {
-    return 'Open Koyze again. If this keeps happening, check Diagnostics in Settings.\\n$error';
+    return 'Open Koyze again. If this keeps happening, check Diagnostics in Settings.\n$error';
   }
 
   @override
@@ -1747,7 +1747,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String localSongCount(int count) {
-    return '$count local songs\\nPlay them from Playlists > Local music';
+    return '$count local songs\nPlay them from Playlists > Local music';
   }
 
   @override
@@ -1757,7 +1757,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String downloadFolder(String path) {
-    return 'Downloads · added automatically\\n$path';
+    return 'Downloads · added automatically\n$path';
   }
 
   @override

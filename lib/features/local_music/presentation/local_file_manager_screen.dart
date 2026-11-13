@@ -170,29 +170,15 @@ class _LocalFileManagerScreenState
   }
 
   Future<void> _rename(LocalFileEntry entry) async {
-    final controller = TextEditingController(text: entry.name);
+    // controller 的生命周期必须交给对话框自己：`showDialog` 的 future 在
+    // pop 的那一刻就完成了，但退场动画还要几十毫秒，期间 TextField 仍会
+    // 读 controller。在这里直接 dispose 会抛
+    // "A TextEditingController was used after being disposed"，
+    // debug 下整页变红屏、release 下页面变成灰块。
     final name = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(S.of(ctx).fileManagerRename),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(labelText: S.of(ctx).fileManagerFileName),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(S.of(ctx).cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: Text(S.of(ctx).save),
-          ),
-        ],
-      ),
+      builder: (ctx) => _RenameDialog(initialName: entry.name),
     );
-    controller.dispose();
     if (name == null || name.isEmpty || name == entry.name || !mounted) return;
 
     final manager = ref.read(localFileManagerProvider);
@@ -638,6 +624,56 @@ class _LocalFileManagerScreenState
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
     return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+}
+
+/// 重命名输入框。
+///
+/// 单独做成 StatefulWidget 只为一件事：让 `TextEditingController` 跟着对话框
+/// 的 element 一起结束。退场动画跑完之前 TextField 还在树里，controller 必须
+/// 还活着。
+class _RenameDialog extends StatefulWidget {
+  const _RenameDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_RenameDialog> createState() => _RenameDialogState();
+}
+
+class _RenameDialogState extends State<_RenameDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialName,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(S.of(context).fileManagerRename),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: InputDecoration(
+          labelText: S.of(context).fileManagerFileName,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(S.of(context).cancel),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: Text(S.of(context).save),
+        ),
+      ],
+    );
   }
 }
 

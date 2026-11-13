@@ -168,6 +168,31 @@ void main() {
     expect(find.text('Select all'), findsOneWidget);
   });
 
+  testWidgets('重命名对话框退场时不会用到已释放的 controller', (tester) async {
+    await pumpScreen(tester);
+
+    await tester.tap(find.byIcon(Icons.more_vert).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'renamed.mp3');
+    await tester.tap(find.text('Save'));
+
+    // 关键窗口：pop 之后对话框还在播退场动画，TextField 仍在树里。
+    // 修复前 controller 在这时已经被外层 dispose，重建就抛
+    // "A TextEditingController was used after being disposed"，debug 下整页红屏。
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    // 对话框确实关掉了（这里不查通知：通知由 AppNotificationHost 渲染，
+    // 本用例的树里没挂它）。
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
   testWidgets('选中后再点一次取消，目录行只有文件夹图标', (tester) async {
     await pumpScreen(tester);
 

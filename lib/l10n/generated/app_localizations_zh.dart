@@ -393,7 +393,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noChartData => '暂无排行榜数据';
 
   @override
-  String get chartsHidden => '已隐藏全部榜单\\n点击右上角设置恢复';
+  String get chartsHidden => '已隐藏全部榜单\n点击右上角设置恢复';
 
   @override
   String get chartSettings => '榜单设置';
@@ -955,7 +955,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get rescan => '重新扫描';
 
   @override
-  String get noLocalSongs => '还没有本地歌曲\\n添加文件夹或等待下载完成后自动扫描';
+  String get noLocalSongs => '还没有本地歌曲\n添加文件夹或等待下载完成后自动扫描';
 
   @override
   String get localLibraryTitle => '本地音乐库';
@@ -1692,7 +1692,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String startupFailedHint(String error) {
-    return '请重新打开应用；如果问题持续，请查看设置中的诊断日志。\\n$error';
+    return '请重新打开应用；如果问题持续，请查看设置中的诊断日志。\n$error';
   }
 
   @override
@@ -1702,7 +1702,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String localSongCount(int count) {
-    return '已收录 $count 首本地歌曲\\n前往「我的歌单 > 本地音乐」播放';
+    return '已收录 $count 首本地歌曲\n前往「我的歌单 > 本地音乐」播放';
   }
 
   @override
@@ -1712,7 +1712,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String downloadFolder(String path) {
-    return '下载目录 · 自动收录\\n$path';
+    return '下载目录 · 自动收录\n$path';
   }
 
   @override
