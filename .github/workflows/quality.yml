@@ -2,7 +2,15 @@ name: Quality gate
 
 # 现有的平台构建 workflow 只在 push 到 main 或打 tag 时触发，
 # 意味着 PR 在合并前没有任何自动检查——review 只能靠人眼。
-# 这个 workflow 补上合并前的门禁：分析 + 全量确定性测试 + Workers 校验。
+# 这个 workflow 补上合并前的门禁：分析 + 分片测试 + Workers 校验。
+#
+# 为什么测试要留在 CI（本机 `flutter test` 明明也能跑）：
+#   - 本机是 Flutter 3.47.5，CI 锁的是 3.44.9。5.0.5 发版时就踩过：同一份代码
+#     在本机能跑、用仓库锁文件在新 SDK 上构建出来的包却启动即崩。本机绿灯证明
+#     不了**要发出去的那套工具链**是绿的。
+#   - 直接 push 到 main 是常态（没有 PR），本机忘了跑 / 只跑了单文件的情况拦不住。
+#   - 但 2309 条全塞进一个 job 要 233 秒（2 核 runner），所以拆两件事：
+#     analyze 单独一个 job 先出结果，测试按分片并行。
 
 on:
   pull_request:
@@ -19,10 +27,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  flutter:
-    name: Flutter analyze & test
+  analyze:
+    name: Flutter analyze
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -55,8 +63,39 @@ jobs:
       - name: Analyze
         run: flutter analyze --no-fatal-infos
 
+  test:
+    name: Flutter test (${{ matrix.shard }}/${{ matrix.total }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # 分片是按测试文件轮转切的，单核 runner 上整包要 233 秒；四片并行后每片
+    # 只剩一分钟量级，整条 workflow 的墙钟时间从 ~5 分钟降到 ~2 分钟。
+    # 公开仓库的 runner 不额外计费，加片数不花钱。
+    strategy:
+      fail-fast: false
+      matrix:
+        total: [4]
+        # --shard-index 从 0 开始，这里用 0..3 直接透传。
+        shard: [0, 1, 2, 3]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
       - name: Run tests
-        run: flutter test --exclude-tags live
+        run: >-
+          flutter test
+          --exclude-tags live
+          --total-shards ${{ matrix.total }}
+          --shard-index ${{ matrix.shard }}
 
   workers:
     name: Workers typecheck & test
