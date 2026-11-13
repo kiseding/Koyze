@@ -169,7 +169,18 @@ internal class SafFileAccess(
 
     fun exists(path: String): Boolean {
         val tree = treeUri() ?: return false
-        return resolveDocumentId(tree, path) != null
+        val document = resolveDocumentId(tree, path) ?: return false
+        // resolveDocumentId 只是把路径拼成 URI，不校验文档还在不在。
+        // 必须真查一次，否则已经删掉的文件也会回「存在」。
+        return runCatching {
+            resolver.query(
+                document,
+                arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID),
+                null,
+                null,
+                null,
+            )?.use { it.moveToFirst() } ?: false
+        }.getOrDefault(false)
     }
 
     /**
