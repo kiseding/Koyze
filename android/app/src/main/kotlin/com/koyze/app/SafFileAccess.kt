@@ -42,9 +42,10 @@ internal class SafFileAccess(
 
     fun listDirectory(path: String): List<Map<String, Any?>> {
         val tree = treeUri() ?: return emptyList()
-        val documentId = resolveDocumentId(tree, path) ?: return emptyList()
+        val document = resolveDocumentId(tree, path) ?: return emptyList()
+        // buildChildDocumentsUriUsingTree 要的是 documentId 字符串，不是 document URI。
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(
-            tree, documentId,
+            tree, DocumentsContract.getDocumentId(document),
         )
         val projection = arrayOf(
             DocumentsContract.Document.COLUMN_DOCUMENT_ID,

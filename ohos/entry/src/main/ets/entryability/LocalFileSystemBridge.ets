@@ -178,9 +178,13 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
         try {
           await fs.unlink(target);
         } catch (cleanupError) {
-          hilog.warn(DOMAIN, TAG, 'rollback failed, code=%{public}d', cleanupError.code);
+          const cleanup = cleanupError as BusinessError;
+          hilog.warn(DOMAIN, TAG, 'rollback failed, code=%{public}d', cleanup.code);
         }
-        throw unlinkError;
+        // arkts-limited-throw 只允许 throw Error 及其子类，而 catch 变量的
+        // 静态类型是任意类型，直接 rethrow 编译不过。包一层并把原始业务码
+        // 带过去——否则「没权限」会退化成未知错误，用户看到的提示就没用了。
+        throw wrapError(unlinkError);
       }
     }
     return target;
@@ -270,11 +274,8 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
     if (tagged.koyzeCode !== undefined) return tagged.koyzeCode;
     const failure = error as BusinessError;
     const code: number = failure.code;
-    // 13900012 = Permission denied，13900020 = Operation not permitted，
-    // 13900002 = No such file or directory。
-    if (code === 13900012 || code === 13900020) return 'access_denied';
-    if (code === 13900002) return 'not_found';
-    return 'file_operation_failed';
+    if (code === undefined || code === null) return 'file_operation_failed';
+    return codeFromNumber(code);
   }
 }
 
@@ -317,6 +318,28 @@ function makeConflict(path: string): FileConflictError {
 
 function makeInvalidName(name: string): InvalidNameError {
   return new InvalidNameError(name);
+}
+
+/// 系统错误码 → 通道错误码。
+///
+/// 13900012 = Permission denied，13900020 = Operation not permitted，
+/// 13900002 = No such file or directory。
+function codeFromNumber(code: number): string {
+  if (code === 13900012 || code === 13900020) return 'access_denied';
+  if (code === 13900002) return 'not_found';
+  return 'file_operation_failed';
+}
+
+/// 把 `catch` 到的任意值包成可以 throw 的 `Error`。
+///
+/// `arkts-limited-throw` 只允许 throw `Error` 及其子类，而 catch 变量的静态
+/// 类型是任意类型，直接 rethrow 编译不过。包一层的同时把原始业务码转成
+/// [TaggedError]，这样权限错误不会退化成「未知错误」。
+function wrapError(value: Object): Error {
+  const message: string = (value as Error).message ?? '文件操作失败';
+  const code: number = (value as BusinessError).code;
+  if (code === undefined || code === null) return new Error(message);
+  return new TaggedError(codeFromNumber(code), message);
 }
 
 /// 拼路径。鸿蒙原生用 `/`，`file://docs/...` URI 也是 `/`，统一即可。
