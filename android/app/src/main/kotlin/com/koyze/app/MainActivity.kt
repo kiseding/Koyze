@@ -102,6 +102,84 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             }
+        // 文件管理走独立通道：这套方法在 SAF 树里做增删改，与上面那批
+        // 「扫描/读取」的语义不同，分开后 Dart 侧也能单独替换实现。
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "koyze/local_file_system",
+        ).setMethodCallHandler { call, result ->
+            val saf = SafFileAccess(this) {
+                getSharedPreferences(prefsName, MODE_PRIVATE)
+                    .getString(treeUriKey, null)?.let(Uri::parse)
+            }
+            val source = call.argument<String>("source")
+            val target = call.argument<String>("target")
+            val path = call.argument<String>("path")
+            when (call.method) {
+                "listDirectory" -> {
+                    if (path == null) {
+                        result.error("invalid_args", "Missing path", null)
+                    } else {
+                        respondAsync(result) { saf.listDirectory(path) }
+                    }
+                }
+                "copyInto" -> {
+                    if (source == null || target == null) {
+                        result.error("invalid_args", "Missing source or target", null)
+                    } else {
+                        respondAsync(result) { saf.copyInto(source, target) }
+                    }
+                }
+                "moveInto" -> {
+                    if (source == null || target == null) {
+                        result.error("invalid_args", "Missing source or target", null)
+                    } else {
+                        respondAsync(result) { saf.moveInto(source, target) }
+                    }
+                }
+                "rename" -> {
+                    // Dart 侧传 source=旧路径，target=新文件名。
+                    if (source == null || target == null) {
+                        result.error("invalid_args", "Missing source or target", null)
+                    } else {
+                        respondAsync(result) { saf.rename(source, target) }
+                    }
+                }
+                "deleteFile" -> {
+                    if (path == null) {
+                        result.error("invalid_args", "Missing path", null)
+                    } else {
+                        respondAsync(result) { saf.deleteFile(path) }
+                    }
+                }
+                "createDirectory" -> {
+                    if (source == null || target == null) {
+                        result.error("invalid_args", "Missing source or target", null)
+                    } else {
+                        respondAsync(result) { saf.createDirectory(source, target) }
+                    }
+                }
+                "exists" -> {
+                    if (path == null) {
+                        result.error("invalid_args", "Missing path", null)
+                    } else {
+                        respondAsync(result) { saf.exists(path) }
+                    }
+                }
+                // 私有目录 ↔ SAF 树的搬运。Dart 的 File 打不开 content://，
+                // 私有目录又不在 SAF 树里，只能由原生做流式中转。
+                "copyAcross", "moveAcross" -> {
+                    if (source == null || target == null) {
+                        result.error("invalid_args", "Missing source or target", null)
+                    } else {
+                        respondAsync(result) {
+                            saf.transferAcross(source, target, call.method == "moveAcross")
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
 
     private fun <T> respondAsync(result: MethodChannel.Result, block: () -> T) {
@@ -112,13 +190,27 @@ class MainActivity : AudioServiceActivity() {
             } catch (error: Throwable) {
                 runOnUiThread {
                     result.error(
-                        "android_file_access_failed",
+                        errorCodeOf(error),
                         error.message ?: error.javaClass.simpleName,
                         null,
                     )
                 }
             }
         }.start()
+    }
+
+    /**
+     * 异常 → 通道错误码。
+     *
+     * Dart 侧靠 `conflict` / `access_denied` 分辨「重名可改名重试」和
+     * 「没权限得去设置里授权」，其余统一归到 `android_file_access_failed`
+     * 当未知错误处理。
+     */
+    private fun errorCodeOf(error: Throwable): String = when (error) {
+        is SafFileConflictException -> "conflict"
+        is SafAccessDeniedException -> "access_denied"
+        is SecurityException -> "access_denied"
+        else -> "android_file_access_failed"
     }
 
     override fun onNewIntent(intent: Intent) {

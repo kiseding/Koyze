@@ -28,6 +28,7 @@ import '../features/stats/presentation/stats_screen.dart';
 import '../features/playlist/presentation/duplicate_screen.dart';
 import '../features/recommend/presentation/recommendation_screen.dart';
 import '../features/local_music/presentation/local_music_screen.dart';
+import '../features/local_music/presentation/local_file_manager_screen.dart';
 import '../features/nas/domain/nas_kind.dart';
 import '../features/nas/domain/self_hosted_kind.dart';
 import '../features/nas/presentation/nas_library_screen.dart';
@@ -301,6 +302,16 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const LocalMusicScreen(),
+        expandRect: consumeCardExpandRect(),
+        expandSnapshot: consumeCardExpandSnapshot(),
+      ),
+    ),
+    GoRoute(
+      path: '/local-file-manager',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        const LocalFileManagerScreen(),
         expandRect: consumeCardExpandRect(),
         expandSnapshot: consumeCardExpandSnapshot(),
       ),

@@ -102,6 +102,68 @@ import UniformTypeIdentifiers
       }
     }
 
+    // 文件管理：只在用户已授权的 security-scoped 目录内生效。
+    let fileChannel = FlutterMethodChannel(
+      name: "koyze/local_file_system",
+      binaryMessenger: registrar.messenger()
+    )
+    fileChannel.setMethodCallHandler { [weak self] call, result in
+      guard let self else { return }
+      let args = call.arguments as? [String: Any] ?? [:]
+      let source = args["source"] as? String
+      let target = args["target"] as? String
+      let path = args["path"] as? String
+      let access = SecurityScopedFileAccess { [weak self] in
+        self?.directoryAccess.activeDirectoryURLs ?? []
+      }
+      switch call.method {
+      case "listDirectory":
+        guard let path else {
+          result(FlutterError(code: "invalid_args", message: "Missing path", details: nil))
+          return
+        }
+        access.listDirectory(path: path, result: result)
+      case "copyInto":
+        guard let source, let target else {
+          result(FlutterError(code: "invalid_args", message: "Missing source or target", details: nil))
+          return
+        }
+        access.copyInto(sourcePath: source, targetDirectory: target, result: result)
+      case "moveInto":
+        guard let source, let target else {
+          result(FlutterError(code: "invalid_args", message: "Missing source or target", details: nil))
+          return
+        }
+        access.moveInto(sourcePath: source, targetDirectory: target, result: result)
+      case "rename":
+        guard let source, let target else {
+          result(FlutterError(code: "invalid_args", message: "Missing source or target", details: nil))
+          return
+        }
+        access.rename(sourcePath: source, newName: target, result: result)
+      case "deleteFile":
+        guard let path else {
+          result(FlutterError(code: "invalid_args", message: "Missing path", details: nil))
+          return
+        }
+        access.deleteFile(path: path, result: result)
+      case "createDirectory":
+        guard let source, let target else {
+          result(FlutterError(code: "invalid_args", message: "Missing source or target", details: nil))
+          return
+        }
+        access.createDirectory(parentPath: source, name: target, result: result)
+      case "exists":
+        guard let path else {
+          result(FlutterError(code: "invalid_args", message: "Missing path", details: nil))
+          return
+        }
+        access.exists(path: path, result: result)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
     let sourceChannel = FlutterMethodChannel(
       name: "koyze/source_transport",
       binaryMessenger: registrar.messenger()
@@ -230,6 +292,9 @@ import UniformTypeIdentifiers
 private final class SecurityScopedDirectoryAccess: NSObject, UIDocumentPickerDelegate {
   private let bookmarkKey = "koyze.security_scoped_directory_bookmarks"
   private var activeURLs: [String: URL] = [:]
+
+  /// 供文件操作复用：只有这些目录内的路径才允许写。
+  var activeDirectoryURLs: [URL] { Array(activeURLs.values) }
   private var pendingResult: FlutterResult?
 
   func select(presenter: UIViewController?, result: @escaping FlutterResult) {

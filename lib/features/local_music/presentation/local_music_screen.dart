@@ -4,8 +4,10 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:koyze/core/theme/app_colors.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
@@ -341,7 +343,83 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                 ),
               ),
             ),
+          _buildFileManagerEntry(context),
         ],
+      ),
+    );
+  }
+
+  /// 「文件管理」入口。
+  ///
+  /// 单独拎出来放在页面末尾，因为它的目的和上面几块不一样：上面是「让曲库
+  /// 看见文件」，它是「把文件搬到曲库看不见的地方」。移动端应用私有目录在系统
+  /// 文件管理器里摸不到，用户要拿歌出来只能靠这里。
+  ///
+  /// 浏览器里没有可写的文件系统，所以 Web 上整块不出现——摆一个点了就说
+  /// 「不支持」的入口比没有更糟。
+  Widget _buildFileManagerEntry(BuildContext context) {
+    if (kIsWeb) return const SizedBox.shrink();
+    final accent = AppColors.accentOf(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: GlassSurface(
+        style: AppGlassStyle.regular,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.fromBorderSide(
+          AppGlass.hairline(context, emphasized: false),
+        ),
+        padding: EdgeInsets.zero,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => context.push('/local-file-manager'),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(Icons.folder_copy_rounded, color: accent),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          S.of(context).fileManagerEntry,
+                          style: TextStyle(
+                            color: AppColors.onScaffold(context),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          S.of(context).fileManagerEntrySubtitle,
+                          style: TextStyle(
+                            color: AppColors.mutedText(context),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.mutedText(context),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

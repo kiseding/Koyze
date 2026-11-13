@@ -3194,4 +3194,89 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get flowingBackdropSubtitle => 'Slowly pan the blurred artwork';
+
+  @override
+  String get fileManagerTitle => 'File manager';
+
+  @override
+  String get fileManagerEntry => 'File manager';
+
+  @override
+  String get fileManagerEntrySubtitle =>
+      'Move music out of the app into a public folder';
+
+  @override
+  String get fileManagerPickFolder => 'Switch folder';
+
+  @override
+  String get fileManagerPickTarget => 'Move to which folder';
+
+  @override
+  String get fileManagerPickFailed => 'Could not pick a folder';
+
+  @override
+  String get fileManagerListFailed => 'Could not read the folder';
+
+  @override
+  String get fileManagerEmpty => 'Nothing to show in this folder';
+
+  @override
+  String get fileManagerUnsupported =>
+      'File management is not available on this platform. Browsers have no writable file system; use the desktop or mobile app.';
+
+  @override
+  String fileManagerSelectedCount(Object count) {
+    return '$count selected';
+  }
+
+  @override
+  String get fileManagerCopy => 'Copy to';
+
+  @override
+  String get fileManagerMove => 'Move to';
+
+  @override
+  String get fileManagerCopied => 'Copied';
+
+  @override
+  String get fileManagerMoved => 'Moved';
+
+  @override
+  String get fileManagerDeleted => 'Deleted';
+
+  @override
+  String get fileManagerRenamed => 'Renamed';
+
+  @override
+  String get fileManagerRenameFailed => 'Rename failed';
+
+  @override
+  String get fileManagerRename => 'Rename';
+
+  @override
+  String get fileManagerFileName => 'File name';
+
+  @override
+  String get fileManagerDeleteTitle => 'Delete files';
+
+  @override
+  String fileManagerDeleteConfirm(Object count) {
+    return 'Delete the $count selected files? This cannot be undone.';
+  }
+
+  @override
+  String fileManagerPartialResult(Object failed, Object ok) {
+    return '$ok succeeded, $failed failed';
+  }
+
+  @override
+  String get fileManagerMoveHint =>
+      'After moving, the files are no longer in a scanned folder and will drop out of your library on the next rescan.';
+
+  @override
+  String get fileManagerConflict =>
+      'A file with the same name already exists in the target folder';
+
+  @override
+  String get fileManagerAccessDenied => 'No permission to access this location';
 }

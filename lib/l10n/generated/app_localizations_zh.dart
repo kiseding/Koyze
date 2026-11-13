@@ -3114,4 +3114,86 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get flowingBackdropSubtitle => '让模糊封面缓慢漂移';
+
+  @override
+  String get fileManagerTitle => '文件管理';
+
+  @override
+  String get fileManagerEntry => '文件管理';
+
+  @override
+  String get fileManagerEntrySubtitle => '把应用内的音乐搬到公共文件夹';
+
+  @override
+  String get fileManagerPickFolder => '切换文件夹';
+
+  @override
+  String get fileManagerPickTarget => '搬到哪个文件夹';
+
+  @override
+  String get fileManagerPickFailed => '选择文件夹失败';
+
+  @override
+  String get fileManagerListFailed => '读取文件夹失败';
+
+  @override
+  String get fileManagerEmpty => '这个文件夹里没有可显示的文件';
+
+  @override
+  String get fileManagerUnsupported =>
+      '当前平台不支持文件管理。浏览器里没有可写入的文件系统，请使用桌面端或移动端应用。';
+
+  @override
+  String fileManagerSelectedCount(Object count) {
+    return '已选 $count';
+  }
+
+  @override
+  String get fileManagerCopy => '复制到';
+
+  @override
+  String get fileManagerMove => '移动到';
+
+  @override
+  String get fileManagerCopied => '已复制';
+
+  @override
+  String get fileManagerMoved => '已移动';
+
+  @override
+  String get fileManagerDeleted => '已删除';
+
+  @override
+  String get fileManagerRenamed => '已重命名';
+
+  @override
+  String get fileManagerRenameFailed => '重命名失败';
+
+  @override
+  String get fileManagerRename => '重命名';
+
+  @override
+  String get fileManagerFileName => '文件名';
+
+  @override
+  String get fileManagerDeleteTitle => '删除文件';
+
+  @override
+  String fileManagerDeleteConfirm(Object count) {
+    return '确定删除选中的 $count 个文件？此操作不可撤销。';
+  }
+
+  @override
+  String fileManagerPartialResult(Object failed, Object ok) {
+    return '成功 $ok 个，失败 $failed 个';
+  }
+
+  @override
+  String get fileManagerMoveHint => '移动后文件就不在原来的扫描目录里了，下次重扫会从本地音乐中移除。';
+
+  @override
+  String get fileManagerConflict => '目标文件夹里已经有同名文件';
+
+  @override
+  String get fileManagerAccessDenied => '没有权限访问这个位置';
 }

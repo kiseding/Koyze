@@ -5785,6 +5785,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Slowly pan the blurred artwork'**
   String get flowingBackdropSubtitle;
+
+  /// No description provided for @fileManagerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'File manager'**
+  String get fileManagerTitle;
+
+  /// No description provided for @fileManagerEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'File manager'**
+  String get fileManagerEntry;
+
+  /// No description provided for @fileManagerEntrySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move music out of the app into a public folder'**
+  String get fileManagerEntrySubtitle;
+
+  /// No description provided for @fileManagerPickFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch folder'**
+  String get fileManagerPickFolder;
+
+  /// No description provided for @fileManagerPickTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to which folder'**
+  String get fileManagerPickTarget;
+
+  /// No description provided for @fileManagerPickFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not pick a folder'**
+  String get fileManagerPickFailed;
+
+  /// No description provided for @fileManagerListFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the folder'**
+  String get fileManagerListFailed;
+
+  /// No description provided for @fileManagerEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing to show in this folder'**
+  String get fileManagerEmpty;
+
+  /// No description provided for @fileManagerUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'File management is not available on this platform. Browsers have no writable file system; use the desktop or mobile app.'**
+  String get fileManagerUnsupported;
+
+  /// No description provided for @fileManagerSelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String fileManagerSelectedCount(Object count);
+
+  /// No description provided for @fileManagerCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy to'**
+  String get fileManagerCopy;
+
+  /// No description provided for @fileManagerMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to'**
+  String get fileManagerMove;
+
+  /// No description provided for @fileManagerCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get fileManagerCopied;
+
+  /// No description provided for @fileManagerMoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved'**
+  String get fileManagerMoved;
+
+  /// No description provided for @fileManagerDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get fileManagerDeleted;
+
+  /// No description provided for @fileManagerRenamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Renamed'**
+  String get fileManagerRenamed;
+
+  /// No description provided for @fileManagerRenameFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename failed'**
+  String get fileManagerRenameFailed;
+
+  /// No description provided for @fileManagerRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get fileManagerRename;
+
+  /// No description provided for @fileManagerFileName.
+  ///
+  /// In en, this message translates to:
+  /// **'File name'**
+  String get fileManagerFileName;
+
+  /// No description provided for @fileManagerDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete files'**
+  String get fileManagerDeleteTitle;
+
+  /// No description provided for @fileManagerDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the {count} selected files? This cannot be undone.'**
+  String fileManagerDeleteConfirm(Object count);
+
+  /// No description provided for @fileManagerPartialResult.
+  ///
+  /// In en, this message translates to:
+  /// **'{ok} succeeded, {failed} failed'**
+  String fileManagerPartialResult(Object failed, Object ok);
+
+  /// No description provided for @fileManagerMoveHint.
+  ///
+  /// In en, this message translates to:
+  /// **'After moving, the files are no longer in a scanned folder and will drop out of your library on the next rescan.'**
+  String get fileManagerMoveHint;
+
+  /// No description provided for @fileManagerConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'A file with the same name already exists in the target folder'**
+  String get fileManagerConflict;
+
+  /// No description provided for @fileManagerAccessDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'No permission to access this location'**
+  String get fileManagerAccessDenied;
 }
 
 class _AppLocalizationsDelegate

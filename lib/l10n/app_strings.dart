@@ -159,6 +159,34 @@ class S {
   String get updateNoAsset => _l10n.updateNoAsset;
   String get flowingBackdrop => _l10n.flowingBackdrop;
   String get flowingBackdropSubtitle => _l10n.flowingBackdropSubtitle;
+  String get fileManagerTitle => _l10n.fileManagerTitle;
+  String get fileManagerEntry => _l10n.fileManagerEntry;
+  String get fileManagerEntrySubtitle => _l10n.fileManagerEntrySubtitle;
+  String get fileManagerPickFolder => _l10n.fileManagerPickFolder;
+  String get fileManagerPickTarget => _l10n.fileManagerPickTarget;
+  String get fileManagerPickFailed => _l10n.fileManagerPickFailed;
+  String get fileManagerListFailed => _l10n.fileManagerListFailed;
+  String get fileManagerEmpty => _l10n.fileManagerEmpty;
+  String get fileManagerUnsupported => _l10n.fileManagerUnsupported;
+  String fileManagerSelectedCount(int count) =>
+      _l10n.fileManagerSelectedCount(count);
+  String get fileManagerCopy => _l10n.fileManagerCopy;
+  String get fileManagerMove => _l10n.fileManagerMove;
+  String get fileManagerCopied => _l10n.fileManagerCopied;
+  String get fileManagerMoved => _l10n.fileManagerMoved;
+  String get fileManagerDeleted => _l10n.fileManagerDeleted;
+  String get fileManagerRenamed => _l10n.fileManagerRenamed;
+  String get fileManagerRenameFailed => _l10n.fileManagerRenameFailed;
+  String get fileManagerRename => _l10n.fileManagerRename;
+  String get fileManagerFileName => _l10n.fileManagerFileName;
+  String get fileManagerDeleteTitle => _l10n.fileManagerDeleteTitle;
+  String fileManagerDeleteConfirm(int count) =>
+      _l10n.fileManagerDeleteConfirm(count);
+  String fileManagerPartialResult(int ok, int failed) =>
+      _l10n.fileManagerPartialResult(ok, failed);
+  String get fileManagerMoveHint => _l10n.fileManagerMoveHint;
+  String get fileManagerConflict => _l10n.fileManagerConflict;
+  String get fileManagerAccessDenied => _l10n.fileManagerAccessDenied;
 
   /// 条款正文分节。ARB 表达不了列表结构，逐节拼在门面层。
   List<TermsSection> get termsSections => [
