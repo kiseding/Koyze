@@ -67,9 +67,11 @@ jobs:
     name: Flutter test (${{ matrix.shard }}/${{ matrix.total }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # 分片是按测试文件轮转切的，单核 runner 上整包要 233 秒；四片并行后每片
-    # 只剩一分钟量级，整条 workflow 的墙钟时间从 ~5 分钟降到 ~2 分钟。
-    # 公开仓库的 runner 不额外计费，加片数不花钱。
+    # 实测（2309 条、公开仓库 4 vCPU runner）：
+    #   单片跑全量 = 233s；切 4 片后每片 147~168s，workflow 墙钟 285s → 202s。
+    # 剩下的时间不是"跑测试"，而是每次 `flutter test` 都要重做的编译
+    # （测试入口 + 框架 kernel，约 100s）——这是**每次调用**的固定成本，
+    # 再往上加片只会让每片都空等这段编译，所以停在 4 片。
     strategy:
       fail-fast: false
       matrix:
@@ -91,8 +93,10 @@ jobs:
         run: flutter pub get
 
       - name: Run tests
+        # `flutter test` 默认会自己再 pub get 一次，上一步已经做过，跳过。
         run: >-
           flutter test
+          --no-pub
           --exclude-tags live
           --total-shards ${{ matrix.total }}
           --shard-index ${{ matrix.shard }}
