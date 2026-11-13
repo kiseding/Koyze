@@ -217,8 +217,6 @@ final appRouter = GoRouter(
                       playlistId: state.pathParameters['playlistId']!,
                       focusSongId: state.uri.queryParameters['focusSongId'],
                     ),
-                    expandRect: consumeCardExpandRect(),
-                    expandSnapshot: consumeCardExpandSnapshot(),
                   ),
                 ),
               ],
@@ -244,8 +242,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const SearchScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -254,8 +250,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const LeaderboardScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -264,8 +258,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const PlaylistScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -274,8 +266,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         SettingsScreen(initialAction: state.uri.queryParameters['action']),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -302,8 +292,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const LocalMusicScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -312,8 +300,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const LocalFileManagerScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -322,8 +308,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const DownloadScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -332,8 +316,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const CustomSourceScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -342,8 +324,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const AiAssistantScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
         fullWidthSwipe: true,
       ),
     ),
@@ -353,8 +333,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const AiSchedulesScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
         fullWidthSwipe: true,
       ),
     ),
@@ -364,8 +342,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const AiSettingsScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
         fullWidthSwipe: true,
       ),
     ),
@@ -375,8 +351,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const EqualizerScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -389,8 +363,6 @@ final appRouter = GoRouter(
               ? state.extra as SelfHostedKind
               : null,
         ),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
         fullWidthSwipe: true,
       ),
     ),
@@ -400,8 +372,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const SubsonicLibraryScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -421,8 +391,6 @@ final appRouter = GoRouter(
                     songs: [],
                   ),
           ),
-          expandRect: consumeCardExpandRect(),
-          expandSnapshot: consumeCardExpandSnapshot(),
         );
       },
     ),
@@ -435,8 +403,6 @@ final appRouter = GoRouter(
           playlistId: Uri.decodeComponent(state.pathParameters['id'] ?? ''),
           playlistName: state.extra is String ? state.extra as String : null,
         ),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     ...[
@@ -447,8 +413,6 @@ final appRouter = GoRouter(
           pageBuilder: (context, state) => expandablePage(
             state.pageKey,
             NasSettingsScreen(kind: kind),
-            expandRect: consumeCardExpandRect(),
-            expandSnapshot: consumeCardExpandSnapshot(),
             fullWidthSwipe: true,
           ),
         ),
@@ -458,8 +422,6 @@ final appRouter = GoRouter(
           pageBuilder: (context, state) => expandablePage(
             state.pageKey,
             NasLibraryScreen(kind: kind),
-            expandRect: consumeCardExpandRect(),
-            expandSnapshot: consumeCardExpandSnapshot(),
           ),
         ),
         GoRoute(
@@ -474,8 +436,6 @@ final appRouter = GoRouter(
                   ? state.extra as String
                   : null,
             ),
-            expandRect: consumeCardExpandRect(),
-            expandSnapshot: consumeCardExpandSnapshot(),
           ),
         ),
       ],
@@ -486,8 +446,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const LeaderboardSettingsScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
         // 页面内容为纯纵向列表，支持整页任意位置右滑返回。
         fullWidthSwipe: true,
       ),
@@ -501,8 +459,6 @@ final appRouter = GoRouter(
           id: state.uri.queryParameters['id'] ?? '',
           name: state.uri.queryParameters['name'] ?? '',
         ),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -511,8 +467,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const SyncScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -521,8 +475,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const SmartPlaylistsScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -531,8 +483,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const StatsScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -541,8 +491,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const TermsScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -551,8 +499,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const LyricDisplayScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -561,8 +507,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const DuplicateScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
     GoRoute(
@@ -571,8 +515,6 @@ final appRouter = GoRouter(
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
         const RecommendationScreen(),
-        expandRect: consumeCardExpandRect(),
-        expandSnapshot: consumeCardExpandSnapshot(),
       ),
     ),
   ],

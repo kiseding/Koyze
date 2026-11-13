@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:koyze/core/card_expand.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/widgets/gradient_bar_backgrounds.dart';
@@ -9,6 +11,17 @@ import 'package:koyze/features/local_music/presentation/local_music_provider.dar
 import 'package:koyze/features/local_music/presentation/local_music_screen.dart';
 import 'package:koyze/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// 记录被 push 的路由，用来判断转场走的是哪一条分支。
+class _RouteRecorder extends NavigatorObserver {
+  final List<Route<dynamic>> pushed = <Route<dynamic>>[];
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    pushed.add(route);
+    super.didPush(route, previousRoute);
+  }
+}
 
 void main() {
   const downloads = '/data/downloads';
@@ -82,6 +95,68 @@ void main() {
     expect(
       find.descendant(of: libraryCard, matching: find.byIcon(Icons.close)),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('文件管理入口沿用设置页的卡片展开转场', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // 这个页面自己的展开原点也是全局记录，测试之间必须清掉。
+    debugResetCardExpandOrigins();
+    addTearDown(debugResetCardExpandOrigins);
+
+    SharedPreferences.setMockInitialValues({
+      'local_music_download_dir_v1': downloads,
+      'local_music_dirs_v1': <String>[downloads, musicDir],
+    });
+    final storage = StorageService.forTesting(
+      await SharedPreferences.getInstance(),
+    );
+    final library = LocalMusicLibrary(storage: storage);
+    await library.init();
+
+    final recorder = _RouteRecorder();
+    final router = GoRouter(
+      observers: [recorder],
+      routes: [
+        GoRoute(path: '/', builder: (context, state) => const LocalMusicScreen()),
+        GoRoute(
+          path: '/local-file-manager',
+          pageBuilder: (context, state) => expandablePage(
+            state.pageKey,
+            const Scaffold(body: Text('file-manager')),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localMusicLibraryProvider.overrideWith((ref) async => library),
+        ],
+        child: MaterialApp.router(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('File manager').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('file-manager'), findsOneWidget);
+    // expandablePage 只有拿到源矩形才把路由设成透明（卡片矩形 morph）；
+    // 拿不到就退化成不透明页 + 上滑淡入，也就是"和设置页手感不一样"。
+    expect(
+      (recorder.pushed.last as ModalRoute<dynamic>).opaque,
+      isFalse,
+      reason: '入口必须先 captureCardExpandOrigin，否则转场退回上滑淡入',
     );
   });
 }

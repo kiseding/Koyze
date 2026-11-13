@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:koyze/core/card_expand.dart';
 import 'package:koyze/core/theme/app_colors.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/widgets/artwork_disk_cache.dart';
@@ -40,6 +41,9 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
   int _scanned = 0;
   int _total = 0;
   String _status = '';
+
+  /// 文件管理入口卡片的锚点，用来记录转场起点（见 `_buildFileManagerEntry`）。
+  final GlobalKey _fileManagerAnchorKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
@@ -374,60 +378,72 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     final accent = AppColors.accentOf(context);
     return Padding(
       padding: const EdgeInsets.only(top: 10),
-      child: GlassSurface(
-        style: AppGlassStyle.regular,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.fromBorderSide(
-          AppGlass.hairline(context, emphasized: false),
-        ),
-        padding: EdgeInsets.zero,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: () => context.push('/local-file-manager'),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(14),
+      // 和其它设置页同一套转场：先记住这张卡片在屏幕上的矩形，路由据此
+      // 做「卡片长成整页 / 收回卡片」的 morph。少了这一步，expandablePage
+      // 拿不到源矩形，就退化成上滑淡入——这就是这一页打开/关闭和设置页
+      // 手感不一致的原因。
+      child: RepaintBoundary(
+        key: _fileManagerAnchorKey,
+        child: GlassSurface(
+          style: AppGlassStyle.regular,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.fromBorderSide(
+            AppGlass.hairline(context, emphasized: false),
+          ),
+          padding: EdgeInsets.zero,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () async {
+                final anchor = _fileManagerAnchorKey.currentContext;
+                if (anchor != null) await captureCardExpandOrigin(anchor);
+                if (!context.mounted) return;
+                unawaited(context.push('/local-file-manager'));
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(Icons.folder_copy_rounded, color: accent),
                     ),
-                    child: Icon(Icons.folder_copy_rounded, color: accent),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          S.of(context).fileManagerEntry,
-                          style: TextStyle(
-                            color: AppColors.onScaffold(context),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            S.of(context).fileManagerEntry,
+                            style: TextStyle(
+                              color: AppColors.onScaffold(context),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          S.of(context).fileManagerEntrySubtitle,
-                          style: TextStyle(
-                            color: AppColors.mutedText(context),
-                            fontSize: 12,
+                          const SizedBox(height: 4),
+                          Text(
+                            S.of(context).fileManagerEntrySubtitle,
+                            style: TextStyle(
+                              color: AppColors.mutedText(context),
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: AppColors.mutedText(context),
-                  ),
-                ],
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.mutedText(context),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

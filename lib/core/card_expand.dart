@@ -23,27 +23,34 @@ ui.Image? _cardExpandSnapshot;
 final Map<LocalKey, Rect> _expandRectByPage = <LocalKey, Rect>{};
 final Map<LocalKey, ui.Image> _expandSnapshotByPage = <LocalKey, ui.Image>{};
 
-Rect? _rememberExpandRect(LocalKey pageKey, Rect? consumed) {
-  if (consumed != null) {
-    _expandRectByPage[pageKey] = consumed;
-    return consumed;
-  }
-  return _expandRectByPage[pageKey];
+/// 已经建过一次的页面。改栈时整栈的 pageBuilder 都会重跑，祖先页重跑时
+/// 不能把这次 push 新记录的原点抢走——否则真正被 push 的那一页永远拿不到
+/// 源矩形，只能退化成上滑淡入。层级越深越明显：设置 → 本地音乐 → 文件管理
+/// 的第三层就是这样。所以只有 [Page.key] 第一次出现才有资格消费。
+final Set<LocalKey> _expandPageSeen = <LocalKey>{};
+
+Rect? _adoptExpandRect(ValueKey<String> pageKey, Rect? explicit) {
+  final rect = explicit ?? _cardExpandRect;
+  _cardExpandRect = null;
+  if (rect == null) return _expandRectByPage[pageKey];
+  _expandRectByPage[pageKey] = rect;
+  return rect;
 }
 
-ui.Image? _rememberExpandSnapshot(LocalKey pageKey, ui.Image? consumed) {
-  if (consumed != null) {
-    final previous = _expandSnapshotByPage[pageKey];
-    if (previous != null && !identical(previous, consumed)) {
-      previous.dispose();
-    }
-    _expandSnapshotByPage[pageKey] = consumed;
-    return consumed;
+ui.Image? _adoptExpandSnapshot(ValueKey<String> pageKey, ui.Image? explicit) {
+  final snapshot = explicit ?? _cardExpandSnapshot;
+  _cardExpandSnapshot = null;
+  if (snapshot == null) return _expandSnapshotByPage[pageKey];
+  final previous = _expandSnapshotByPage[pageKey];
+  if (previous != null && !identical(previous, snapshot)) {
+    previous.dispose();
   }
-  return _expandSnapshotByPage[pageKey];
+  _expandSnapshotByPage[pageKey] = snapshot;
+  return snapshot;
 }
 
 void _forgetExpandOrigin(LocalKey pageKey) {
+  _expandPageSeen.remove(pageKey);
   _expandRectByPage.remove(pageKey);
   _expandSnapshotByPage.remove(pageKey)?.dispose();
 }
@@ -51,6 +58,7 @@ void _forgetExpandOrigin(LocalKey pageKey) {
 /// 测试之间清掉按路由记住的展开原点，避免 key 撞车串数据。
 @visibleForTesting
 void debugResetCardExpandOrigins() {
+  _expandPageSeen.clear();
   _expandRectByPage.clear();
   for (final image in _expandSnapshotByPage.values) {
     image.dispose();
@@ -163,8 +171,15 @@ CustomTransitionPage<Object?> expandablePage(
   ui.Image? expandSnapshot,
   bool fullWidthSwipe = false,
 }) {
-  expandRect = _rememberExpandRect(pageKey, expandRect);
-  expandSnapshot = _rememberExpandSnapshot(pageKey, expandSnapshot);
+  // 只有第一次出现的页面（这次真正被 push 的那一页）才消费原点；
+  // 祖先页在改栈时也会重跑 pageBuilder，它们只认自己记住的那一份。
+  final firstBuild = _expandPageSeen.add(pageKey);
+  expandRect = firstBuild
+      ? _adoptExpandRect(pageKey, expandRect)
+      : _expandRectByPage[pageKey];
+  expandSnapshot = firstBuild
+      ? _adoptExpandSnapshot(pageKey, expandSnapshot)
+      : _expandSnapshotByPage[pageKey];
   final sourceRect = expandRect;
   final sourceSnapshot = expandSnapshot;
   final expanding = sourceRect != null;
