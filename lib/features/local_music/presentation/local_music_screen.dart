@@ -121,169 +121,117 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
     bool mediaStoreEnabled,
   ) {
     final accent = AppColors.accentOf(context);
+    final hasSources =
+        mediaStoreEnabled || directories.isNotEmpty || downloadDirectory != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 目录就是「本地音乐库」的内容，必须长在卡片肚子里。之前它们是卡片
+          // 外面平级的几行 + 独立小卡，读起来像「库」和「目录」两个互不相干
+          // 的设置项，用户得自己猜两者的关系。
           GlassSurface(
             style: AppGlassStyle.regular,
             borderRadius: BorderRadius.circular(18),
             border: Border.fromBorderSide(
               AppGlass.hairline(context, emphasized: false),
             ),
-            padding: const EdgeInsets.all(16),
-            child: Row(
+            // 分隔线要通栏，内边距交给每一段自己给。
+            padding: EdgeInsets.zero,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(Icons.library_music_rounded, color: accent),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+                  child: Row(
                     children: [
-                      Text(
-                        S.of(context).localLibraryTitle,
-                        style: TextStyle(
-                          color: AppColors.onScaffold(context),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          Icons.library_music_rounded,
+                          color: accent,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        mediaStoreEnabled ||
-                                directories.isNotEmpty ||
-                                downloadDirectory != null
-                            ? S.of(context).mediaStoreHint(directories.length)
-                            : S.of(context).folderPickerHint,
-                        style: TextStyle(
-                          color: AppColors.mutedText(context),
-                          fontSize: 12,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              S.of(context).localLibraryTitle,
+                              style: TextStyle(
+                                color: AppColors.onScaffold(context),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              hasSources
+                                  ? S.of(
+                                      context,
+                                    ).mediaStoreHint(directories.length)
+                                  : S.of(context).folderPickerHint,
+                              style: TextStyle(
+                                color: AppColors.mutedText(context),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _scanning || _scraping || _tagWriting
+                            ? null
+                            : () => _pickDirectory(),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: accent,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          minimumSize: const Size(0, 40),
+                        ),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: Text(S.of(context).add),
                       ),
                     ],
                   ),
                 ),
-                FilledButton.icon(
-                  onPressed: _scanning || _scraping || _tagWriting
-                      ? null
-                      : () => _pickDirectory(),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: accent,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    minimumSize: const Size(0, 40),
-                  ),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: Text(S.of(context).add),
-                ),
+                if (hasSources) ...[
+                  Container(height: 1, color: AppColors.cardBorder(context)),
+                  if (mediaStoreEnabled)
+                    _buildSourceRow(
+                      context,
+                      icon: Icons.album_rounded,
+                      title: S.of(context).androidMediaStore,
+                    ),
+                  if (downloadDirectory != null)
+                    _buildSourceRow(
+                      context,
+                      icon: Icons.download_rounded,
+                      title: S.of(context).downloadFolder,
+                      subtitle: downloadDirectory,
+                    ),
+                  // 下载目录已经单独成行，这里跳过它，否则同一个路径出现两次。
+                  for (final dir in directories.where(
+                    (dir) => dir != downloadDirectory,
+                  ))
+                    _buildSourceRow(
+                      context,
+                      icon: Icons.folder_rounded,
+                      title: dir,
+                      onRemove: () => _removeDirectory(dir),
+                    ),
+                  const SizedBox(height: 8),
+                ],
               ],
             ),
           ),
-          if (mediaStoreEnabled)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Row(
-                children: [
-                  Icon(Icons.album_rounded, size: 16, color: accent),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      S.of(context).androidMediaStore,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.mutedText(context),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (downloadDirectory != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Row(
-                children: [
-                  Icon(Icons.download_done, size: 16, color: accent),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      S.of(context).downloadFolder(downloadDirectory),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.mutedText(context),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (directories.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Column(
-                children: [
-                  for (final dir in directories)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: GlassSurface(
-                        style: AppGlassStyle.chrome,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.fromBorderSide(
-                          AppGlass.hairline(context, emphasized: false),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.folder_rounded, size: 18, color: accent),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                dir,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: AppColors.mutedText(context),
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                            if (dir != downloadDirectory)
-                              FxIconButton(
-                                tooltip: S.of(context).remove,
-                                icon: Icon(
-                                  Icons.close,
-                                  size: 16,
-                                  color: AppColors.mutedText(context),
-                                ),
-                                onPressed: _scanning || _scraping || _tagWriting
-                                    ? null
-                                    : () => _removeDirectory(dir),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          if (mediaStoreEnabled ||
-              directories.isNotEmpty ||
-              downloadDirectory != null)
+          if (hasSources)
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: GlassSurface(
@@ -344,6 +292,70 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
               ),
             ),
           _buildFileManagerEntry(context),
+        ],
+      ),
+    );
+  }
+
+  /// 「本地音乐库」卡片里的一行来源。
+  ///
+  /// 一律排在同一张卡内、用通栏分隔线隔开：它们描述的是「这个库由哪些目录
+  /// 组成」，不是一个平级的独立设置项。
+  Widget _buildSourceRow(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    VoidCallback? onRemove,
+  }) {
+    final accent = AppColors.accentOf(context);
+    return Padding(
+      // 右侧留白跟着有没有移除按钮走，否则路径文字会和卡片边缘贴太紧。
+      padding: EdgeInsets.fromLTRB(16, 8, onRemove == null ? 16 : 4, 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.onScaffold(context),
+                    fontSize: 13,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.mutedText(context),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (onRemove != null)
+            FxIconButton(
+              tooltip: S.of(context).remove,
+              icon: Icon(
+                Icons.close,
+                size: 16,
+                color: AppColors.mutedText(context),
+              ),
+              onPressed: _scanning || _scraping || _tagWriting
+                  ? null
+                  : onRemove,
+            ),
         ],
       ),
     );

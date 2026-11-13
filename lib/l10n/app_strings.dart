@@ -724,7 +724,7 @@ class S {
   String bandsReady(int count, String range) => _l10n.bandsReady(count, range);
   String localSongCount(int count) => _l10n.localSongCount(count);
   String mediaStoreHint(int count) => _l10n.mediaStoreHint(count);
-  String downloadFolder(String path) => _l10n.downloadFolder(path);
+  String get downloadFolder => _l10n.downloadFolder;
   String importingCount(int done, int total) =>
       _l10n.importingCount(done, total);
   String mediaStoreImporting(int done, int total) =>

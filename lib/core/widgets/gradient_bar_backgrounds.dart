@@ -3,14 +3,30 @@ import 'package:flutter/material.dart';
 import '../theme/app_tokens.dart';
 import 'origo_chrome.dart';
 
-/// 顶栏（状态栏 + toolbar）占的高度。
+/// 顶栏（状态栏 + toolbar）占的高度，即「内容起点应该从屏幕往下让多少」。
 ///
 /// 页面的 `extendBodyBehindAppBar` 一打开，body 就从屏幕最顶开始画；滚动内容
 /// 必须自己让出这一段，否则第一个卡片会钻进标题底下。统一走这个函数，避免
-/// 各页各写一份 `kToolbarHeight + padding.top`（漏掉 padding 的那几页在刘海屏
-/// 上卡片是压着状态栏的）。
-double koyzeAppBarExtent(BuildContext context) =>
-    MediaQuery.paddingOf(context).top + kToolbarHeight;
+/// 各页各写一份。
+///
+/// **不能在 `padding.top` 之外再加 `kToolbarHeight`**：`extendBodyBehindAppBar`
+/// 为 true 时 Scaffold 已经把整个 AppBar 的高度并进了 body 的
+/// `MediaQuery.padding.top`（见 `material/scaffold.dart` 的 `_BodyBuilder`：
+/// `top = max(padding.top, appBarHeight)`，而 `appBarHeight` 本身含状态栏）。
+/// 再加一次工具栏高度，每个页面顶部都会凭空多空 56——2026-11 的「本地音乐设置
+/// 上部留空太多」就是这个原因，9 个用 [KoyzeAppBarBody] 的页面一起中招。
+///
+/// 另外两种情形也要分开算：body 没开 `extendBodyBehindAppBar` 时它本来就排在
+/// 栏下方，不能再让位；页面干脆没有 AppBar（全屏浮层）时，让出状态栏即可。
+double koyzeAppBarExtent(BuildContext context) {
+  final statusBar = MediaQuery.paddingOf(context).top;
+  final scaffold = Scaffold.maybeOf(context);
+  // 没有 Scaffold 祖先（全屏浮层、独立 Overlay）：自己补一个工具栏高度。
+  if (scaffold == null) return statusBar + kToolbarHeight;
+  if (scaffold.widget.appBar == null) return statusBar;
+  if (!scaffold.widget.extendBodyBehindAppBar) return 0;
+  return statusBar;
+}
 
 /// 顶栏下方内容的默认上内边距。
 ///

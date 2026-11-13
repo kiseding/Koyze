@@ -537,7 +537,7 @@
   "bandsReady": "已读取设备频段：{count} 段（{range}）",
   "localSongCount": "已收录 {count} 首本地歌曲\n前往「我的歌单 > 本地音乐」播放",
   "mediaStoreHint": "MediaStore 可重扫，已配置 {count} 个目录",
-  "downloadFolder": "下载目录 · 自动收录\n{path}",
+  "downloadFolder": "下载目录 · 自动收录",
   "importingCount": "SAF 正在导入 {done} / {total}",
   "mediaStoreImporting": "MediaStore 正在导入 {done} / {total}",
   "allFilesScanning": "全部文件访问正在扫描 {done} / {total}",

@@ -1756,9 +1756,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String downloadFolder(String path) {
-    return 'Downloads · added automatically\n$path';
-  }
+  String get downloadFolder => 'Downloads · added automatically';
 
   @override
   String importingCount(int done, int total) {

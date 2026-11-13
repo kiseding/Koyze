@@ -3317,8 +3317,8 @@ abstract class AppLocalizations {
   /// No description provided for @downloadFolder.
   ///
   /// In en, this message translates to:
-  /// **'Downloads · added automatically\n{path}'**
-  String downloadFolder(String path);
+  /// **'Downloads · added automatically'**
+  String get downloadFolder;
 
   /// No description provided for @importingCount.
   ///

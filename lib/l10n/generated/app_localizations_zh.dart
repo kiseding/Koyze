@@ -1711,9 +1711,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String downloadFolder(String path) {
-    return '下载目录 · 自动收录\n$path';
-  }
+  String get downloadFolder => '下载目录 · 自动收录';
 
   @override
   String importingCount(int done, int total) {

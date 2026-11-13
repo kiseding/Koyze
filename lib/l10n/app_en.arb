@@ -848,14 +848,7 @@
       }
     }
   },
-  "downloadFolder": "Downloads · added automatically\n{path}",
-  "@downloadFolder": {
-    "placeholders": {
-      "path": {
-        "type": "String"
-      }
-    }
-  },
+  "downloadFolder": "Downloads · added automatically",
   "importingCount": "Importing {done} / {total}",
   "@importingCount": {
     "placeholders": {
