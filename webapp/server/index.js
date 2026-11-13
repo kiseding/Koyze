@@ -117,7 +117,7 @@ async function handleApi(req, res, url) {
   if (route === '/api/health') {
     return sendJson(res, 200, {
       ok: true,
-      version: '5.0.4',
+      version: '5.0.5',
       tokenRequired: Boolean(TOKEN),
       scripts: runtime.scripts.map((item) => item.file),
       sources: Object.keys(runtime.registry),
