@@ -986,6 +986,8 @@
   "fileManagerEmpty": "这个文件夹里没有可显示的文件",
   "fileManagerUnsupported": "当前平台不支持文件管理。浏览器里没有可写入的文件系统，请使用桌面端或移动端应用。",
   "fileManagerSelectedCount": "已选 {count}",
+  "fileManagerSelectAll": "全选",
+  "fileManagerSelectNone": "取消全选",
   "fileManagerCopy": "复制到",
   "fileManagerMove": "移动到",
   "fileManagerCopied": "已复制",

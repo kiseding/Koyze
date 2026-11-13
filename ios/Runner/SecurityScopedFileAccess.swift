@@ -132,7 +132,19 @@ final class SecurityScopedFileAccess {
     }
     do {
       if move {
-        try FileManager.default.moveItem(at: source, to: target)
+        // 不能直接 moveItem：源几乎总在 app 容器（Documents/downloads）里，
+        // 目标却是用户在「文件」App 里选的目录——那是另一个 volume，跨卷
+        // rename 必然失败（EXDEV）。表现就是「复制能成、移动不行」。
+        // 改成复制 + 删源，「移动」在跨卷下本来也只能这么实现。
+        try FileManager.default.copyItem(at: source, to: target)
+        do {
+          try FileManager.default.removeItem(at: source)
+        } catch {
+          // 副本已经写进去了但源没删掉：不回滚的话用户会看到两份文件，
+          // 还以为搬成功了。清掉副本，让这一次操作整体失败。
+          try? FileManager.default.removeItem(at: target)
+          throw error
+        }
       } else {
         try FileManager.default.copyItem(at: source, to: target)
       }

@@ -1751,6 +1751,8 @@
   "fileManagerEmpty": "Nothing to show in this folder",
   "fileManagerUnsupported": "File management is not available on this platform. Browsers have no writable file system; use the desktop or mobile app.",
   "fileManagerSelectedCount": "{count} selected",
+  "fileManagerSelectAll": "Select all",
+  "fileManagerSelectNone": "Deselect all",
   "fileManagerCopy": "Copy to",
   "fileManagerMove": "Move to",
   "fileManagerCopied": "Copied",

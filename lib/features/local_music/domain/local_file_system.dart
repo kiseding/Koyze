@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
+import 'security_scoped_directory.dart';
+
 /// 本地音乐文件系统操作的跨平台抽象。
 ///
 /// 各平台的「文件」不是同一个东西：
@@ -589,11 +591,24 @@ class AndroidSafFileSystem extends ChannelFileSystem {
 }
 
 /// iOS：目录是 security-scoped URL，必须经原生侧 startAccessing。
+///
+/// 目录选择也必须走原生通道。`SecurityScopedDirectory.select()` 会
+/// `startAccessingSecurityScopedResource()` 并把安全书签存进 UserDefaults；
+/// `file_picker` 只交回一条路径，不留下任何授权。原生侧的写入检查按
+/// 「是否落在已激活目录内」判断，所以用 file_picker 选的目录会被拒成
+/// `access_denied`——复制和移动都写不进去。书签还让授权能跨启动恢复
+/// （曲库初始化时 `SecurityScopedDirectory.restore()` 会重新激活）。
 class AppleFileSystem extends ChannelFileSystem {
   const AppleFileSystem({required super.channel});
 
   @override
   String get platformName => 'iOS';
+
+  @override
+  bool get needsNativeDirectoryPicker => true;
+
+  @override
+  Future<String?> pickDirectory() => SecurityScopedDirectory.select();
 }
 
 /// HarmonyOS：原生侧用 `@ohos.file.fs`，路径是普通路径或 `file://docs/...`。

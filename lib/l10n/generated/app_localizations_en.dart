@@ -3230,6 +3230,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get fileManagerSelectAll => 'Select all';
+
+  @override
+  String get fileManagerSelectNone => 'Deselect all';
+
+  @override
   String get fileManagerCopy => 'Copy to';
 
   @override

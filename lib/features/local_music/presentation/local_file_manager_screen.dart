@@ -268,6 +268,38 @@ class _LocalFileManagerScreenState
     return error.toString();
   }
 
+  /// 当前目录里能选中的条目。
+  ///
+  /// 文件夹不参与批量搬运：点它是「进去」而不是「选中」。混在一起的话，
+  /// 「全选」会把目录也选上，用户的意图就被猜错了。
+  List<LocalFileEntry> get _selectableEntries =>
+      _entries.where((entry) => !entry.isDirectory).toList(growable: false);
+
+  bool get _allSelected {
+    final selectable = _selectableEntries;
+    return selectable.isNotEmpty &&
+        selectable.every((entry) => _selected.contains(entry.path));
+  }
+
+  void _toggleAll() {
+    final selectable = _selectableEntries;
+    setState(() {
+      if (_allSelected) {
+        for (final entry in selectable) {
+          _selected.remove(entry.path);
+        }
+      } else {
+        _selected.addAll(selectable.map((entry) => entry.path));
+      }
+    });
+  }
+
+  void _toggle(LocalFileEntry entry) {
+    setState(() {
+      if (!_selected.remove(entry.path)) _selected.add(entry.path);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final supported = ref.watch(localFileManagerProvider).isSupported;
@@ -306,15 +338,20 @@ class _LocalFileManagerScreenState
           ],
         ),
         extendBodyBehindAppBar: true,
-        body: !supported
-            ? _buildUnsupported(context)
-            : Column(
-                children: [
-                  if (_directory != null) _buildPathBar(context),
-                  Expanded(child: _buildList(context)),
-                  if (_selected.isNotEmpty) _buildActionBar(context),
-                ],
-              ),
+        // 开了 extendBodyBehindAppBar，body 就从屏幕最顶开始画——那是为了让
+        // 列表能从磨砂栏底下穿过去。代价是内容起点必须自己下移一个栏高
+        // （状态栏 + toolbar），否则路径条和第一行会直接压在标题底下。
+        body: KoyzeAppBarBody(
+          child: !supported
+              ? _buildUnsupported(context)
+              : Column(
+                  children: [
+                    if (_directory != null) _buildPathBar(context),
+                    Expanded(child: _buildList(context)),
+                    if (_selected.isNotEmpty) _buildActionBar(context),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -360,15 +397,36 @@ class _LocalFileManagerScreenState
               ),
             ),
           ),
-          if (_selected.isNotEmpty)
-            Text(
-              S.of(context).fileManagerSelectedCount(_selected.length),
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.accentOf(context),
-              ),
-            ),
+          if (_selectableEntries.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            _buildSelectAll(context),
+          ],
         ],
+      ),
+    );
+  }
+
+  /// 全选 / 取消全选。
+  ///
+  /// 放在路径条右侧而不是动作栏里：动作栏只在有选中项时才出现，把「全选」
+  /// 藏在里面就变成「先选一个才能全选」——多选看起来像没做。
+  Widget _buildSelectAll(BuildContext context) {
+    return InkWell(
+      onTap: _busy ? null : _toggleAll,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: Text(
+          _allSelected
+              ? S.of(context).fileManagerSelectNone
+              : S.of(context).fileManagerSelectAll,
+          style: TextStyle(
+            fontSize: 12,
+            color: _busy
+                ? AppColors.mutedText(context)
+                : AppColors.accentOf(context),
+          ),
+        ),
       ),
     );
   }
@@ -393,14 +451,21 @@ class _LocalFileManagerScreenState
         final selected = _selected.contains(entry.path);
         return ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-          leading: Icon(
-            entry.isDirectory
-                ? Icons.folder_rounded
-                : Icons.audio_file_rounded,
-            color: entry.isDirectory
-                ? AppColors.accentOf(context)
-                : AppColors.mutedText(context),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
           ),
+          tileColor: selected
+              ? AppColors.accentOf(context).withValues(alpha: 0.10)
+              : null,
+          // 文件行左边换成勾选圈：`ListTile.selected` 只改一点底色，在这个
+          // 主题里几乎看不出来，用户会以为点了没反应、多选没做。目录行保留
+          // 文件夹图标——点它是「进去」，没有选中这回事。
+          leading: entry.isDirectory
+              ? Icon(
+                  Icons.folder_rounded,
+                  color: AppColors.accentOf(context),
+                )
+              : _SelectionMark(selected: selected),
           title: Text(
             entry.name,
             maxLines: 1,
@@ -423,19 +488,19 @@ class _LocalFileManagerScreenState
               ? const Icon(Icons.chevron_right, size: 18)
               : IconButton(
                   icon: const Icon(Icons.more_vert, size: 18),
-                  onPressed: () => _showEntryMenu(entry),
+                  onPressed: _busy ? null : () => _showEntryMenu(entry),
                 ),
           selected: selected,
-          onTap: entry.isDirectory
-              ? () => _open(entry.path)
-              : () => setState(() {
-                  if (selected) {
-                    _selected.remove(entry.path);
-                  } else {
-                    _selected.add(entry.path);
-                  }
-                }),
-          onLongPress: entry.isDirectory ? null : () => _showEntryMenu(entry),
+          onTap: _busy
+              ? null
+              : (entry.isDirectory
+                    ? () => _open(entry.path)
+                    : () => _toggle(entry)),
+          // 长按仍然给单项菜单（改名 / 删除）。批量操作走「选中 → 动作栏」，
+          // 两条路不抢同一个手势。
+          onLongPress: (_busy || entry.isDirectory)
+              ? null
+              : () => _showEntryMenu(entry),
         );
       },
     );
@@ -495,6 +560,19 @@ class _LocalFileManagerScreenState
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // 选中数量单独一行、用强调色：动作栏出现本身就是「选中生效」的
+          // 反馈，但用户更需要知道到底选了几个——搬完才发现漏了一首很恼人。
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              S.of(context).fileManagerSelectedCount(_selected.length),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.accentOf(context),
+              ),
+            ),
+          ),
           // 只在选中文件时出现，也就是「正要搬」的那一刻。放个对话框拦一道
           // 太重——目录是用户刚在系统选择器里挑的，已经是有意为之；但这句
           // 话得说到，否则搬完回曲库还看得见、点了播不了，会以为文件丢了。
@@ -560,6 +638,25 @@ class _LocalFileManagerScreenState
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
     return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+}
+
+class _SelectionMark extends StatelessWidget {
+  const _SelectionMark({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Icon(
+      selected
+          ? Icons.check_circle_rounded
+          : Icons.radio_button_unchecked_rounded,
+      size: 22,
+      color: selected
+          ? AppColors.accentOf(context)
+          : AppColors.mutedText(context).withValues(alpha: 0.6),
+    );
   }
 }
 

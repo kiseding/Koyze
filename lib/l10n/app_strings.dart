@@ -170,6 +170,8 @@ class S {
   String get fileManagerUnsupported => _l10n.fileManagerUnsupported;
   String fileManagerSelectedCount(int count) =>
       _l10n.fileManagerSelectedCount(count);
+  String get fileManagerSelectAll => _l10n.fileManagerSelectAll;
+  String get fileManagerSelectNone => _l10n.fileManagerSelectNone;
   String get fileManagerCopy => _l10n.fileManagerCopy;
   String get fileManagerMove => _l10n.fileManagerMove;
   String get fileManagerCopied => _l10n.fileManagerCopied;

@@ -5846,6 +5846,18 @@ abstract class AppLocalizations {
   /// **'{count} selected'**
   String fileManagerSelectedCount(Object count);
 
+  /// No description provided for @fileManagerSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get fileManagerSelectAll;
+
+  /// No description provided for @fileManagerSelectNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Deselect all'**
+  String get fileManagerSelectNone;
+
   /// No description provided for @fileManagerCopy.
   ///
   /// In en, this message translates to:

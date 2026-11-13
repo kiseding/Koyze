@@ -354,12 +354,22 @@ void main() {
         const AndroidSafFileSystem(channel: channel).needsNativeDirectoryPicker,
         isFalse,
       );
-      expect(const AppleFileSystem(channel: channel).needsNativeDirectoryPicker,
-          isFalse);
       expect(
         const UnsupportedFileSystem().needsNativeDirectoryPicker,
         isFalse,
       );
+    });
+
+    test('iOS 必须用原生选择器，file_picker 留不下 security scope', () async {
+      // 这条不是风格问题：原生侧写入前会检查路径是否落在「已激活的
+      // security-scoped 目录」内，而只有 SecurityScopedDirectory.select()
+      // 会把目录注册进去并存书签。走 file_picker 选的目录进来必被拒。
+      const fs = AppleFileSystem(channel: channel);
+      expect(fs.needsNativeDirectoryPicker, isTrue);
+
+      // SecurityScopedDirectory.select() 在非 iOS 平台直接返回 null，
+      // 测试进程是桌面 VM，正好验证它不会抛。
+      expect(await fs.pickDirectory(), isNull);
     });
 
     test('默认 pickDirectory 返回 null，UI 会退回 file_picker', () async {

@@ -3149,6 +3149,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get fileManagerSelectAll => '全选';
+
+  @override
+  String get fileManagerSelectNone => '取消全选';
+
+  @override
   String get fileManagerCopy => '复制到';
 
   @override
