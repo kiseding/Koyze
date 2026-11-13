@@ -76,3 +76,6 @@ test/ui_screenshot_test.dart
 # 由 CI / 本地构建重建，不入库。
 webapp/public/
 webapp/public_release/
+
+# Kotlin 增量编译缓存（AGP 8.x 在 android/ 下生成）
+android/.kotlin/
