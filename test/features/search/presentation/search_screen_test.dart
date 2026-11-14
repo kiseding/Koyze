@@ -155,7 +155,7 @@ void main() {
     expect(toggled, 1);
   });
 
-  testWidgets('独立搜索页等入场动效播完再建结果区', (tester) async {
+  testWidgets('独立搜索页在入场动效期间照常构建结果区', (tester) async {
     final navigator = GlobalKey<NavigatorState>();
     await tester.pumpWidget(
       ProviderScope(
@@ -196,11 +196,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 60));
 
-    expect(
-      find.text('Trending'),
-      findsNothing,
-      reason: '卡片展开动效还在播，结果区不能进动效窗口',
-    );
+    expect(find.text('Trending'), findsOneWidget, reason: '只押后封面，结果区本身不等动效');
 
     await tester.pumpAndSettle();
     expect(find.text('Trending'), findsOneWidget);

@@ -408,6 +408,8 @@ class _FullPlayerArtworkSwitcherState extends State<_FullPlayerArtworkSwitcher>
       // 与飞行封面同一解码宽度，交接时不会换一张更糊或更锐的图。
       cacheWidth: kPlayerArtworkDecodeWidth,
       fit: BoxFit.cover,
+      // 这张封面就是展开动效的主角，而且已经预热过：押后只会让转场空一块。
+      deferDuringEntrance: false,
       errorBuilder: (_, __, ___) => widget.fallback(),
     );
   }
@@ -630,6 +632,8 @@ class _RouteArtworkMorphOverlay extends StatelessWidget {
             // 矩形每帧都在变。若按当前宽度重新解码，封面会一帧一张图，看起来一直在闪。
             cacheWidth: kPlayerArtworkDecodeWidth,
             fit: BoxFit.cover,
+            // 飞行封面跟着手指/动效走，必须立刻有图。
+            deferDuringEntrance: false,
             errorBuilder: (_, __, ___) => fallback(),
           )
         : fallback();

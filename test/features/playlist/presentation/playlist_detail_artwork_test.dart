@@ -7,10 +7,10 @@ import 'package:koyze/features/playlist/presentation/playlist_detail_screen.dart
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 
-/// 歌单详情页的重内容（首屏列表）必须等展开动效播完再挂载。
+/// 打开歌单时：行、标题、时长照常立刻显示，只有封面等到动效播完再加载。
 ///
-/// 反例代价很大：列表首帧一旦进了动效窗口，长歌单会在展开时明显顿住
-/// —— 首屏十几行 + 十几张封面全在那一帧里建。
+/// 全量押后（列表都不建）会让内容晚一拍整体弹出来，观感更差；这里只押后封面，
+/// 占位是中性底色 + 音符。
 void main() {
   Playlist playlistWith(int count) {
     final now = DateTime.utc(2026);
@@ -26,16 +26,13 @@ void main() {
           name: 'Song $i',
           singer: 'Artist $i',
           source: 'kw',
+          artwork: 'https://y.gtimg.cn/music/photo_new/T002R300x300M000$i.jpg',
         ),
       ),
     );
   }
 
-  Future<ProviderContainer> pumpApp(
-    WidgetTester tester,
-    Playlist playlist, {
-    String? focusSongId,
-  }) async {
+  Future<void> pumpApp(WidgetTester tester, Playlist playlist) async {
     final container = ProviderContainer(
       overrides: [
         playlistRepositoryProvider.overrideWithValue(
@@ -58,10 +55,8 @@ void main() {
                 child: TextButton(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => PlaylistDetailScreen(
-                        playlistId: playlist.id,
-                        focusSongId: focusSongId,
-                      ),
+                      builder: (_) =>
+                          PlaylistDetailScreen(playlistId: playlist.id),
                     ),
                   ),
                   child: const Text('open'),
@@ -72,42 +67,23 @@ void main() {
         ),
       ),
     );
-    return container;
   }
 
-  testWidgets('展开动效期间不建首屏列表，动效结束后才出现', (tester) async {
+  testWidgets('动效期间行照常显示，封面先用占位', (tester) async {
     await pumpApp(tester, playlistWith(30));
 
     await tester.tap(find.text('open'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 80));
 
-    expect(
-      find.byType(ListTile),
-      findsNothing,
-      reason: '动效还在播，列表首帧不能进动效窗口',
-    );
-
-    await tester.pumpAndSettle();
-
-    expect(find.byType(ListTile), findsWidgets);
+    expect(find.byType(ListTile), findsWidgets, reason: '列表内容不等动效');
     expect(find.text('Song 0'), findsOneWidget);
-  });
+    expect(find.byType(Image), findsNothing, reason: '封面押后到动效之后');
+    expect(find.byIcon(Icons.music_note_rounded), findsWidgets);
 
-  testWidgets('推迟挂载后仍能定位到指定歌曲', (tester) async {
-    await pumpApp(tester, playlistWith(60), focusSongId: 'song-40');
-
-    await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    final scrollable = tester.widget<Scrollable>(
-      find.byType(Scrollable).first,
-    );
-    expect(
-      scrollable.controller?.offset ?? 0,
-      greaterThan(0),
-      reason: '列表挂载晚了，帧末补做的那次定位必须补上',
-    );
+    expect(find.byType(Image), findsWidgets, reason: '动效结束后开始加载封面');
   });
 }
 

@@ -13,7 +13,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/auto_text_input.dart';
-import '../../../core/widgets/deferred_until_route_settled.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/page_navigation_bar.dart';
@@ -702,16 +701,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     return Stack(
       children: [
         Positioned.fill(
-          // 卡片展开动效期间只画页面骨架：首屏十几行 + 十几张封面如果
-          // 在动效第一帧就建出来，长歌单会直接把动效卡住（见组件注释）。
-          child: DeferredUntilRouteSettled(
-            onSettled: () {
-              // 列表挂载后补做一次「定位到指定歌曲」：动效期间没有列表，
-              // 那次 post-frame 拿不到 scroll position。没有待定位的歌曲时
-              // 不必为了这一次补做把整页重建。
-              if (mounted && _pendingCenteredSongIndex != null) setState(() {});
-            },
-            child: RepaintBoundary(
+          child: RepaintBoundary(
               child: AdaptiveSongList.builder(
                 key: PageStorageKey(
                   'playlist-${playlist.id}-${range.pageIndex}',
@@ -891,7 +881,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   );
                 },
               ),
-            ),
           ),
         ),
         // 底栏悬浮在列表之上（栏高度不变），列表可滚动到栏内部。

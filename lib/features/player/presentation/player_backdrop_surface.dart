@@ -110,6 +110,8 @@ class _PlayerBackdropArtworkState extends State<PlayerBackdropArtwork>
                 url,
                 cacheWidth: 360,
                 fit: BoxFit.cover,
+                // 播放页的背景色从这张图长出来，占位会露出灰块。
+                deferDuringEntrance: false,
                 errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
             ),
@@ -168,11 +170,7 @@ class PlayerBackdropSurface extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         ColoredBox(color: Theme.of(context).scaffoldBackgroundColor),
-        PlayerBackdropArtwork(
-          artwork: artwork,
-          blur: blur,
-          flowing: flowing,
-        ),
+        PlayerBackdropArtwork(artwork: artwork, blur: blur, flowing: flowing),
         ColoredBox(
           color: GlassEffectConfig.playerBackdropScrimFor(
             Theme.of(context).brightness,

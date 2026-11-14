@@ -10,6 +10,7 @@ import '../network/artwork_auth_registry.dart';
 import '../network/artwork_load_gate.dart';
 import '../network/outbound_url.dart';
 import 'artwork_disk_cache.dart';
+import 'route_entrance_gate.dart';
 
 /// Headers / client identity required by some music CDNs (especially NetEase).
 ///
@@ -283,6 +284,19 @@ class ArtworkImage extends StatelessWidget {
   final Widget Function(BuildContext, Object, StackTrace?)? errorBuilder;
   final Widget Function(BuildContext, Widget, int?, bool)? frameBuilder;
 
+  /// 入场动效期间先显示占位封面，动效播完再开始下载 / 解码。
+  ///
+  /// 打开一页歌单时首屏十几行会同时开图：十几条连接、十几次解码全压进
+  /// 动效那几帧，动效就顿在开头。文字、行高亮照常立刻显示，只把封面押后，
+  /// 代价是封面晚一拍出现。
+  ///
+  /// 播放器封面要关掉：它本身就是展开动效的主角，而且是预热过的，
+  /// 押后只会让转场中间空一块。
+  final bool deferDuringEntrance;
+
+  /// 占位封面；不给就画一块中性底色 + 音符。
+  final Widget? placeholder;
+
   const ArtworkImage(
     this.url, {
     super.key,
@@ -292,6 +306,8 @@ class ArtworkImage extends StatelessWidget {
     this.cacheWidth,
     this.errorBuilder,
     this.frameBuilder,
+    this.deferDuringEntrance = true,
+    this.placeholder,
   });
 
   @override
@@ -302,19 +318,76 @@ class ArtworkImage extends StatelessWidget {
           cacheWidth: cacheWidth,
           width: width,
           maxConstraintWidth: constraints.maxWidth,
-          devicePixelRatio:
-              MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1,
+          devicePixelRatio: MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1,
         );
-        final provider = ArtworkNetworkImage(url);
-        return Image(
-          image: ResizeImage.resizeIfNeeded(pixels, null, provider),
+        final provider = ResizeImage.resizeIfNeeded(
+          pixels,
+          null,
+          ArtworkNetworkImage(url),
+        );
+        final image = Image(
+          image: provider,
           fit: fit,
           width: width,
           height: height,
           errorBuilder: errorBuilder,
           frameBuilder: frameBuilder,
         );
+        if (!deferDuringEntrance) return image;
+        return RouteEntranceGate(
+          builder: (context, settled) {
+            // 已经解过的（同一首重新打开、播放器预热过的大图）照常立刻画，
+            // 只有真的要去下载的才押后。
+            if (settled || artworkIsCached(provider)) return image;
+            return SizedBox(
+              width: width,
+              height: height,
+              child:
+                  placeholder ??
+                  _ArtworkPlaceholder(extent: constraints.maxWidth),
+            );
+          },
+        );
       },
+    );
+  }
+}
+
+/// 这张封面是否已经在 [ImageCache] 里（含正在解码的上一帧）。
+///
+/// 只用来决定「入场期间要不要等一等」，判断不出来就按没缓存处理——
+/// 多等一帧不会出错，少等会白跑一次下载。
+bool artworkIsCached(ImageProvider provider) {
+  Object? key;
+  // 我们的 provider 和外面包的 ResizeImage 都用 SynchronousFuture，
+  // 下面的 then 会同步回调；万一真返回了异步 Future，key 仍是 null，
+  // 按未缓存处理。
+  unawaited(
+    provider.obtainKey(ImageConfiguration.empty).then((value) => key = value),
+  );
+  return key != null && PaintingBinding.instance.imageCache.containsKey(key!);
+}
+
+class _ArtworkPlaceholder extends StatelessWidget {
+  const _ArtworkPlaceholder({required this.extent});
+
+  final double extent;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = Theme.of(context).colorScheme.onSurface;
+    final side = extent.isFinite && extent > 0
+        ? (extent * 0.42).clamp(12.0, 40.0)
+        : 18.0;
+    return ColoredBox(
+      color: tint.withValues(alpha: 0.06),
+      child: Center(
+        child: Icon(
+          Icons.music_note_rounded,
+          size: side,
+          color: tint.withValues(alpha: 0.3),
+        ),
+      ),
     );
   }
 }
@@ -403,9 +476,7 @@ class ArtworkNetworkImage extends ImageProvider<ArtworkNetworkImage> {
               ),
             );
             if (_isUsableArtwork(bytes)) {
-              unawaited(
-                ArtworkDiskCache.instance.put(key.resolvedUrl, bytes),
-              );
+              unawaited(ArtworkDiskCache.instance.put(key.resolvedUrl, bytes));
               lastError = null;
               break;
             }
@@ -439,7 +510,7 @@ class ArtworkNetworkImage extends ImageProvider<ArtworkNetworkImage> {
   static bool _isUsableArtwork(Uint8List bytes) {
     if (bytes.isEmpty) return false;
     // NetEase sometimes returns tiny HTML error pages with 200; reject them.
-    if (bytes.lengthInBytes < 200 && bytes[0] == 0x3C /* < */) return false;
+    if (bytes.lengthInBytes < 200 && bytes[0] == 0x3C /* < */ ) return false;
     return true;
   }
 
