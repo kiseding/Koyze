@@ -68,6 +68,20 @@ void main() {
     expect(gap, lessThan(30));
   });
 
+  testWidgets('the last row is never clipped in half', (tester) async {
+    await _openPicker(tester, pageCount: 23);
+
+    final lastBlock = find
+        .ancestor(of: find.text('23'), matching: find.byType(Material))
+        .first;
+    // 网格高度按整行算：最后一个页码块要完整落在可视区域内。
+    final grid = tester.getRect(find.byType(GridView));
+    expect(
+      tester.getRect(lastBlock).bottom,
+      lessThanOrEqualTo(grid.bottom + 0.5),
+    );
+  });
+
   testWidgets('tapping a page reports the zero-based index', (tester) async {
     var picked = -1;
     tester.view.physicalSize = const Size(390, 844);

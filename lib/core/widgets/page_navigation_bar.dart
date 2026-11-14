@@ -127,48 +127,65 @@ class PageNavigationBar extends StatelessWidget {
         final scheme = Theme.of(context).colorScheme;
         return KoyzeDialog(
           title: Text(S.of(context).choosePage),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 336, minWidth: 300),
-            child: GridView.builder(
-              shrinkWrap: true,
-              // 滚动组件不给 padding 时默认会吃掉 MediaQuery.padding 的上下
-              // 安全区（刘海屏是 47 + 34），弹窗里就变成标题下面空一大块、
-              // 最后一个页码块下面再空一块。这里必须显式清零。
-              padding: EdgeInsets.zero,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.25,
-              ),
-              itemCount: pageCount,
-              itemBuilder: (context, index) {
-                final page = index + 1;
-                final isCurrent = index == pageIndex;
-                return Material(
-                  color: isCurrent
-                      ? scheme.primary.withValues(alpha: 0.16)
-                      : scheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => Navigator.pop(context, page),
-                    child: Center(
-                      child: Text(
-                        '$page',
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: isCurrent ? scheme.primary : scheme.onSurface,
-                          fontWeight: isCurrent
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+          content: LayoutBuilder(
+            builder: (context, constraints) {
+              const columns = 4;
+              const gap = 10.0;
+              const ratio = 1.25;
+              // 网格高度按「整行」算，最后一行不会露半截；上限同时受屏幕高度
+              // 约束，横屏这种矮视口也不会把弹窗顶出屏幕。
+              final cellWidth =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
+              final rowStep = cellWidth / ratio + gap;
+              final screenLimit = MediaQuery.sizeOf(context).height * 0.6;
+              final limit = screenLimit < 420.0 ? screenLimit : 420.0;
+              final rows = (pageCount / columns).ceil();
+              final fitRows = ((limit + gap) / rowStep).floor().clamp(1, rows);
+              return SizedBox(
+                height: fitRows * rowStep - gap,
+                child: GridView.builder(
+                  // 滚动组件不给 padding 时默认会吃掉 MediaQuery.padding 的
+                  // 上下安全区（刘海屏是 47 + 34），弹窗里就变成标题下面空
+                  // 一大块、最后一个页码块下面再空一块。这里必须显式清零。
+                  padding: EdgeInsets.zero,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisSpacing: gap,
+                    crossAxisSpacing: gap,
+                    childAspectRatio: ratio,
+                  ),
+                  itemCount: pageCount,
+                  itemBuilder: (context, index) {
+                    final page = index + 1;
+                    final isCurrent = index == pageIndex;
+                    return Material(
+                      color: isCurrent
+                          ? scheme.primary.withValues(alpha: 0.16)
+                          : scheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.pop(context, page),
+                        child: Center(
+                          child: Text(
+                            '$page',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: isCurrent
+                                  ? scheme.primary
+                                  : scheme.onSurface,
+                              fontWeight: isCurrent
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                );
-              },
-            ),
+                    );
+                  },
+                ),
+              );
+            },
           ),
           actions: [
             TextButton(
