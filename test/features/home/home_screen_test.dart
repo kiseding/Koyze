@@ -105,9 +105,10 @@ void main() {
       expect(sheet, isNot(contains('showModalBottomSheet')));
       expect(search, contains('autofocusDelay'));
       expect(search, contains('Timer(delay'));
-      // 面板靠下滑关闭，输入行左侧不再挂返回箭头；清空交给右侧胶囊。
+      // 面板靠下滑关闭，输入行左侧不再挂返回箭头；提交交给右侧的「搜索」胶囊。
       expect(controls, isNot(contains('Icons.arrow_back_rounded')));
-      expect(search, contains('onCancel: clear'));
+      expect(search, contains('onCancel: trailing'));
+      expect(search, contains('_submitCurrentQuery'));
       expect(sheet, contains('liveSearch: true'));
       expect(search, contains('Timer(const Duration(milliseconds: 250)'));
       // 控件整体做轻微上浮淡入，不再左右对冲。

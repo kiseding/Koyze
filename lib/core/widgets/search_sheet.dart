@@ -125,12 +125,10 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
     with SingleTickerProviderStateMixin {
   static const double _sideGap = 16;
 
-  /// 面板直接贴到屏幕底边。
-  ///
-  /// 之前留了 12dp 缝，结果底部 dock 的黑胶唱片正好从缝里探出半颗黑弧，
-  /// 像面板破了个洞。贴底后面板自己把底部 chrome 盖住，手势条照常压在
-  /// 面板上，观感和系统 sheet 一致。
-  static const double _bottomGap = 0;
+  /// 面板底部留一条缝，和 [showKoyzeSheet] 同一套「浮层」语言：四角都看得见
+  /// 圆角，也不贴着屏幕下沿。遮罩会把缝下面的页面压暗，所以这条缝读起来
+  /// 是面板浮起来的高度，而不是面板破了个洞。
+  static const double _bottomGap = 10;
   static const double _handleHeight = 14;
 
   /// 0 = 完全展开，1 = 完全拖出屏幕。拖动、回弹和关闭动画都只改这一个值。
@@ -165,15 +163,20 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
 
   /// 竖屏弹键盘时面板要整体上移并收短；横屏高度本来就紧，
   /// 仍由列表自己补底部留白。
-  double get _panelHeight {
-    final keyboard = _portrait ? MediaQuery.viewInsetsOf(context).bottom : 0.0;
-    return max(160.0, widget.height - keyboard);
-  }
+  double get _keyboardInset =>
+      _portrait ? MediaQuery.viewInsetsOf(context).bottom : 0.0;
+
+  double get _panelHeight => max(160.0, widget.height - _keyboardInset);
 
   double get _bottomInset => _bottomGap;
 
-  /// 面板完全离开屏幕所需的位移，用于把像素增量折算成进度。
-  double get _travel => _panelHeight + _bottomInset;
+  /// 面板完全离开屏幕所需的位移：面板自身高度 + 键盘让出的那段 + 底部缝隙。
+  ///
+  /// 之前只算了面板高度。键盘弹着（搜索面板默认自动聚焦）时，拖到底也只能
+  /// 下移一个面板高度，面板还有大半留在屏幕上；松手后面板就「停」在手指
+  /// 抬起的那个位置，看着像卡住。把键盘那段也算进去，位移到尽头才是真正
+  /// 滑出屏幕。
+  double get _travel => _panelHeight + _keyboardInset + _bottomInset;
 
   void _beginDrag() {
     if (_dismissing) return;
@@ -205,10 +208,12 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
     _draggingFromScroll = false;
     final travel = _travel;
     if (travel <= 0) return;
-    // 用 160ms 的速度投影判断去向：轻甩也能直接关掉，
-    // 慢速拖到一半以上同样关闭，剩下的都弹回原位。
-    final projected = _extent + velocity / travel * 0.16;
-    if (velocity > 850 || projected >= 0.42) {
+    // 用 160ms 的速度投影判断去向：轻甩也能直接关掉，慢速拖过面板高度的
+    // 四成同样关闭，剩下的都弹回原位。阈值按面板可见高度算，键盘弹着时
+    // 不会因为位移上限变长而变得「怎么拖都不关」。
+    final moved = _extent * travel;
+    final projected = moved + velocity.abs() * 0.16;
+    if (velocity.abs() > 850 || projected >= _panelHeight * 0.42) {
       unawaited(_dismiss());
       return;
     }
@@ -292,10 +297,10 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
 
   @override
   Widget build(BuildContext context) {
-    final keyboard = _portrait ? MediaQuery.viewInsetsOf(context).bottom : 0.0;
+    final keyboard = _keyboardInset;
     final panelHeight = _panelHeight;
     final bottomInset = _bottomInset;
-    final travel = panelHeight + bottomInset;
+    final travel = _travel;
     return AnimatedBuilder(
       animation: Listenable.merge([widget.animation, _settle]),
       builder: (context, _) {
@@ -373,26 +378,37 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
         boxShadow: const <BoxShadow>[],
         child: ClipRRect(
           borderRadius: BorderRadius.circular(radius),
-          child: Stack(
-            children: [
-              NotificationListener<ScrollNotification>(
-                onNotification: _onScrollNotification,
-                child: SearchScreen(
-                  embedded: true,
-                  liveSearch: true,
-                  reserveKeyboardInset: false,
-                  autofocusDelay: _focusDelay(),
-                  canAutofocus: () => !_dismissing,
+          // 除了顶部那条把手，按住面板的任意位置都能下滑关闭：输入行、
+          // 分组标题、空白处都算。列表本身的竖滑仍由滚动组件接管，
+          // 滚到顶再往下拉才带着面板走。
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragStart: (_) => _beginDrag(),
+            onVerticalDragUpdate: (details) => _dragBy(details.delta.dy),
+            onVerticalDragEnd: (details) =>
+                _endDrag(details.primaryVelocity ?? 0),
+            onVerticalDragCancel: () => _endDrag(0),
+            child: Stack(
+              children: [
+                NotificationListener<ScrollNotification>(
+                  onNotification: _onScrollNotification,
+                  child: SearchScreen(
+                    embedded: true,
+                    liveSearch: true,
+                    reserveKeyboardInset: false,
+                    autofocusDelay: _focusDelay(),
+                    canAutofocus: () => !_dismissing,
+                  ),
                 ),
-              ),
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: _handleHeight,
-                child: _dragHandle(context),
-              ),
-            ],
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: _handleHeight,
+                  child: _dragHandle(context),
+                ),
+              ],
+            ),
           ),
         ),
       ),

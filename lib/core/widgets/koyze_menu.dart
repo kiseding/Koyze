@@ -277,10 +277,7 @@ class _KoyzeMenuRoute<T> extends PopupRoute<T> {
                                   ignoring:
                                       animation.status !=
                                       AnimationStatus.completed,
-                                  child: Opacity(
-                                    opacity: reveal,
-                                    child: child,
-                                  ),
+                                  child: Opacity(opacity: reveal, child: child),
                                 ),
                                 if (anchorIcon != null && progress < 1)
                                   Positioned.fill(

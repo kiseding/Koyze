@@ -159,13 +159,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
   }
 
-  /// 清空关键词和结果，回到历史与热搜；顺手收起键盘，面板也跟着收短。
-  void _clearResults() {
+  /// 用输入框里的关键词立刻搜一次，并收起键盘让面板跟着回落。
+  ///
+  /// 面板的右侧胶囊走这里；行内不再有提交键，所以这是唯一的「搜索」入口。
+  void _submitCurrentQuery() {
     _searchDebounce?.cancel();
-    _searchController.clear();
-    ref.read(searchQueryProvider.notifier).state = '';
-    ref.read(searchStateProvider.notifier).reset();
+    final query = _searchController.text;
     _searchFocus.unfocus();
+    _onSearch(query);
   }
 
   @override
@@ -222,12 +223,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         : () {
             Navigator.maybePop(context);
           };
-    // 有结果时，输入行右侧给一颗"清空"：一键把关键词和列表一起收掉。
-    final canClear =
-        searchState.query.isNotEmpty || searchState.items.isNotEmpty;
-    final clear = widget.embedded
-        ? (canClear ? _clearResults : null)
-        : exit;
+    // 面板右侧固定一颗「搜索」：提交动作只留这一处，行内只剩清除键。
+    // 独立搜索页没有搜索面板的实时搜索，胶囊仍用来退出。
+    final trailing = widget.embedded ? _submitCurrentQuery : exit;
 
     final field = SearchFieldBar(
       controller: _searchController,
@@ -236,10 +234,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       autofocus: widget.autofocusDelay == null,
       clearTooltip: S.of(context).clearSearch,
       submitTooltip: S.of(context).searchAction,
-      cancelLabel: widget.embedded ? S.of(context).clearResults : S.of(context).cancel,
+      cancelLabel: widget.embedded
+          ? S.of(context).searchAction
+          : S.of(context).cancel,
+      inlineSubmit: !widget.embedded,
       // 横屏时取消按钮搬到行尾，让输入框和平台胶囊紧挨着。
       onChanged: widget.liveSearch ? _onQueryChanged : null,
-      onCancel: clear,
+      onCancel: trailing,
       onClear: () {
         _searchController.clear();
         _onSearch('');
@@ -305,13 +306,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     Expanded(flex: 5, child: field),
                     const SizedBox(width: 12),
                     Expanded(flex: 7, child: chips),
-                    if (clear != null) ...[
+                    if (trailing != null) ...[
                       const SizedBox(width: 10),
                       SearchCancelButton(
-                        label: widget.embedded
-                            ? S.of(context).clearResults
-                            : S.of(context).cancel,
-                        onTap: clear,
+                        label: S.of(context).cancel,
+                        onTap: trailing,
                       ),
                     ],
                   ],

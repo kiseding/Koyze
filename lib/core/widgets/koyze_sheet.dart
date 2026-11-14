@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -40,7 +41,9 @@ Future<T?> showKoyzeSheet<T>({
     // iOS 的 sheet 只压住背景，不把页面压成一整块黑/灰。
     barrierColor: Colors.black.withValues(alpha: isDark ? 0.26 : 0.12),
     isScrollControlled: true,
-    enableDrag: enableDrag,
+    // 拖拽由面板里的 [KoyzeDragToDismiss] 接管：系统弹层的拖拽会被面板里的
+    // 滚动组件抢走，按在列表或选项上只能滚内容，面板不动。
+    enableDrag: false,
     requestFocus: false,
     useSafeArea: true,
     constraints: BoxConstraints(maxWidth: 640, maxHeight: maxHeight),
@@ -117,7 +120,14 @@ Future<T?> showKoyzeSheet<T>({
         // 弹窗路由给的是松散约束（Align + ConstrainedBox），面板必须自己撑满
         // 可用宽度。否则内容本身不拉伸的弹层（只有一行文字的菜单）会缩成
         // 贴着屏幕中间的一条窄带。
-        child: SizedBox(width: double.infinity, child: panel),
+        child: SizedBox(
+          width: double.infinity,
+          child: KoyzeDragToDismiss(
+            enabled: enableDrag,
+            bottomGap: _bottomGap,
+            child: panel,
+          ),
+        ),
       );
     },
   );
@@ -500,5 +510,162 @@ class _CompactSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(child: child);
+  }
+}
+
+/// 让弹层「按住任意位置下滑关闭」。
+///
+/// 系统弹层自带的拖拽只在没被滚动组件盖住的地方生效：面板里放了列表、
+/// 或者 [_CompactSheet] 那层 SingleChildScrollView 之后，手指落在内容上
+/// 只会滚动内容，面板纹丝不动，看起来就是「只有顶部把手能拖」。
+///
+/// 这里接管两种来源，合起来就是任意位置：
+///   - 手指落在非滚动区域：GestureDetector 直接跟手；
+///   - 手指落在滚动区域：滚到顶部后继续下拉（overscroll）才带着面板一起
+///     走，和 iOS 的弹层手感一致，正常列表滚动不受影响。
+///
+/// 松手时超过面板高度三成、或带着明显速度，就继续滑出并关闭；否则回弹。
+class KoyzeDragToDismiss extends StatefulWidget {
+  const KoyzeDragToDismiss({
+    super.key,
+    required this.child,
+    this.enabled = true,
+    this.bottomGap = 0,
+  });
+
+  final Widget child;
+  final bool enabled;
+
+  /// 面板与屏幕下沿之间的缝隙，滑出时要多走这一段才算真的离开屏幕。
+  final double bottomGap;
+
+  @override
+  State<KoyzeDragToDismiss> createState() => _KoyzeDragToDismissState();
+}
+
+class _KoyzeDragToDismissState extends State<KoyzeDragToDismiss>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _settle = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+  );
+
+  /// 手指松开后的位移；[_settle] 在跑时以插值结果为准。
+  double _dy = 0;
+  double _from = 0;
+  double _to = 0;
+  double _panelHeight = 0;
+  bool _fromScroll = false;
+  bool _dismissing = false;
+
+  double get _display {
+    if (!_settle.isAnimating) return _dy;
+    final t = MotionCurve.iosSpring.transform(_settle.value.clamp(0.0, 1.0));
+    return _from + (_to - _from) * t;
+  }
+
+  double get _travel => _panelHeight + widget.bottomGap;
+
+  @override
+  void dispose() {
+    _settle.dispose();
+    super.dispose();
+  }
+
+  void _beginDrag() {
+    if (!widget.enabled || _dismissing) return;
+    if (_settle.isAnimating) {
+      _dy = _display;
+      _settle.stop();
+    }
+    final box = context.findRenderObject();
+    if (box is RenderBox && box.hasSize) _panelHeight = box.size.height;
+  }
+
+  void _dragBy(double delta) {
+    if (!widget.enabled || _dismissing || delta == 0) return;
+    if (_settle.isAnimating) {
+      _dy = _display;
+      _settle.stop();
+    }
+    final next = (_dy + delta).clamp(0.0, double.infinity);
+    if (next == _dy) return;
+    setState(() => _dy = next);
+  }
+
+  void _endDrag(double velocity) {
+    if (!widget.enabled || _dismissing) return;
+    _fromScroll = false;
+    final display = _display;
+    // 只有向下拖才会产生位移，所以速度取绝对值就够判断「甩」。
+    final flick = velocity.abs() > 700;
+    if (display > 0 && (flick || display > _panelHeight * 0.32)) {
+      _dismissing = true;
+      unawaited(_animateTo(_travel));
+      return;
+    }
+    if (display > 0) unawaited(_animateTo(0, pop: false));
+  }
+
+  Future<void> _animateTo(double target, {bool pop = true}) async {
+    _from = _display;
+    _to = target;
+    _settle.duration = motionDuration(context, MotionDuration.normal);
+    await _settle.forward(from: 0);
+    if (!mounted) return;
+    setState(() {
+      _dy = target;
+      _settle.reset();
+    });
+    if (pop) Navigator.of(context).pop();
+  }
+
+  bool _onScroll(ScrollNotification notification) {
+    if (!widget.enabled || _dismissing) return false;
+    if (notification.metrics.axis != Axis.vertical) return false;
+    if (notification is OverscrollNotification) {
+      final dy = notification.dragDetails?.delta.dy;
+      if (dy != null && dy > 0) {
+        _fromScroll = true;
+        _dragBy(dy);
+        return true;
+      }
+    } else if (notification is ScrollUpdateNotification) {
+      // iOS 的 Bouncing 物理不发 Overscroll，到顶后继续下拉走 ScrollUpdate。
+      final dy = notification.dragDetails?.delta.dy;
+      if (dy == null) return false;
+      final metrics = notification.metrics;
+      final atTop = metrics.pixels <= metrics.minScrollExtent + 0.5;
+      if (atTop && (dy > 0 || _dy > 0)) {
+        _fromScroll = true;
+        _dragBy(dy);
+        return true;
+      }
+    } else if (notification is ScrollEndNotification && _fromScroll) {
+      // 滚动触发的拖拽从 ScrollEndNotification 里拿速度，方向和手指相反，
+      // 所以 [_endDrag] 里只看绝对值。
+      _fromScroll = false;
+      _endDrag(notification.dragDetails?.primaryVelocity ?? 0);
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final child = !widget.enabled
+        ? widget.child
+        : GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onVerticalDragStart: (_) => _beginDrag(),
+            onVerticalDragUpdate: (details) => _dragBy(details.delta.dy),
+            onVerticalDragEnd: (details) =>
+                _endDrag(details.primaryVelocity ?? 0),
+            onVerticalDragCancel: () => _endDrag(0),
+            child: widget.child,
+          );
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: Transform.translate(offset: Offset(0, _display), child: child),
+    );
   }
 }

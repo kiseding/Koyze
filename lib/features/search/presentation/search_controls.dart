@@ -28,6 +28,7 @@ class SearchFieldBar extends StatefulWidget {
     this.clearTooltip,
     this.submitTooltip,
     this.autofocus = false,
+    this.inlineSubmit = true,
   });
 
   final TextEditingController controller;
@@ -36,11 +37,20 @@ class SearchFieldBar extends StatefulWidget {
   final ValueChanged<String> onSubmit;
   final VoidCallback onClear;
   final ValueChanged<String>? onChanged;
+
+  /// 输入行右侧的玻璃胶囊动作。搜索面板里是「搜索」，独立页 / 设置搜索
+  /// 里是「取消」——调用方决定语义，这里只负责画。
   final VoidCallback? onCancel;
   final String? cancelLabel;
   final String? clearTooltip;
   final String? submitTooltip;
   final bool autofocus;
+
+  /// 输入行内部是否画那颗圆形提交键（带箭头的实心圆）。
+  ///
+  /// 搜索面板把提交搬到右侧的「搜索」胶囊里，行内只留清除键，避免同一
+  /// 个动作在一条输入行上出现两次。
+  final bool inlineSubmit;
 
   static const double height = 48;
 
@@ -195,21 +205,23 @@ class _SearchFieldBarState extends State<SearchFieldBar> {
                                   ),
                                   onTap: widget.onClear,
                                 ),
-                                const SizedBox(width: 6),
-                                _CircleAction(
-                                  tooltip: widget.submitTooltip ?? '',
-                                  size: 28,
-                                  background: accent,
-                                  icon: Icon(
-                                    Icons.arrow_forward_rounded,
-                                    size: 16,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onPrimary,
+                                if (widget.inlineSubmit) ...[
+                                  const SizedBox(width: 6),
+                                  _CircleAction(
+                                    tooltip: widget.submitTooltip ?? '',
+                                    size: 28,
+                                    background: accent,
+                                    icon: Icon(
+                                      Icons.arrow_forward_rounded,
+                                      size: 16,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimary,
+                                    ),
+                                    onTap: () =>
+                                        widget.onSubmit(widget.controller.text),
                                   ),
-                                  onTap: () =>
-                                      widget.onSubmit(widget.controller.text),
-                                ),
+                                ],
                               ],
                             ),
                     ),

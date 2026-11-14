@@ -195,8 +195,7 @@ void main() {
     expect(size.width - rect.right, 12);
   });
 
-  testWidgets('dialog panel never spans the viewport', (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
+  testWidgets('dialog panel never spans the viewport', (tester) async {    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -232,5 +231,97 @@ void main() {
     final rect = tester.getRect(find.byType(GlassSurface).first);
     expect(rect.left, greaterThanOrEqualTo(28));
     expect(390 - rect.right, greaterThanOrEqualTo(28));
+  });
+
+  Future<void> openDragSheet(
+    WidgetTester tester,
+    Widget body, {
+    bool isScrollControlled = false,
+  }) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showKoyzeSheet<void>(
+              context: context,
+              isScrollControlled: isScrollControlled,
+              builder: (_) => body,
+            ),
+            child: const Text('open-sheet'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open-sheet'));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> dragDown(WidgetTester tester, Finder start) async {
+    final gesture = await tester.startGesture(tester.getCenter(start));
+    for (var step = 0; step < 10; step++) {
+      await gesture.moveBy(const Offset(0, 40));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('dragging a plain area pulls the sheet down and closes it', (
+    tester,
+  ) async {
+    await openDragSheet(
+      tester,
+      const SizedBox(key: ValueKey('sheet-body'), height: 200),
+    );
+
+    await dragDown(tester, find.byKey(const ValueKey('sheet-body')));
+
+    expect(find.byKey(const ValueKey('sheet-body')), findsNothing);
+  });
+
+  testWidgets('scrolling a list scrolls the list, not the sheet', (
+    tester,
+  ) async {
+    await openDragSheet(
+      tester,
+      ListView(
+        children: [
+          for (var i = 0; i < 40; i++)
+            SizedBox(height: 44, child: Center(child: Text('row-$i'))),
+        ],
+      ),
+      isScrollControlled: true,
+    );
+
+    await tester.drag(find.text('row-6'), const Offset(0, -200));
+    await tester.pumpAndSettle();
+
+    expect(find.text('row-0'), findsNothing);
+    expect(find.text('row-6'), findsOneWidget);
+  });
+
+  testWidgets('dragging a list at its top also closes the sheet', (
+    tester,
+  ) async {
+    // 系统弹层自带的拖拽会被列表抢走，按在行上只能滚列表，面板不动。
+    await openDragSheet(
+      tester,
+      ListView(
+        children: [
+          for (var i = 0; i < 40; i++)
+            SizedBox(height: 44, child: Center(child: Text('row-$i'))),
+        ],
+      ),
+      isScrollControlled: true,
+    );
+
+    await dragDown(tester, find.text('row-1'));
+
+    expect(find.text('row-1'), findsNothing);
   });
 }

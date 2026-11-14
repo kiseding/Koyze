@@ -36,10 +36,12 @@ void main() {
 
     expect(source, contains('this.liveSearch = false'));
     expect(source, contains('Timer(const Duration(milliseconds: 250)'));
-    // 面板里没有退出箭头，改用输入行右侧的「清空」胶囊收掉结果。
-    expect(source, contains('onCancel: clear'));
-    expect(source, contains('_clearResults'));
+    // 面板里没有退出箭头，右侧胶囊是「搜索」；提交动作不再塞在输入行里。
+    expect(source, contains('_submitCurrentQuery'));
+    expect(source, contains('inlineSubmit: !widget.embedded'));
+    expect(source, contains('S.of(context).searchAction'));
     expect(controls, isNot(contains('Icons.arrow_back_rounded')));
+    expect(controls, contains('if (widget.inlineSubmit)'));
     expect(controls, contains('onChanged: widget.onChanged'));
   });
 

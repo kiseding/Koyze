@@ -72,10 +72,7 @@ void main() {
     await tester.pumpWidget(
       _host(
         onSelected: (_) {},
-        labels: const [
-          '删除已下载的全部歌曲并清理缓存文件并同时重置播放队列让它彻底回到初始状态',
-          '短',
-        ],
+        labels: const ['删除已下载的全部歌曲并清理缓存文件并同时重置播放队列让它彻底回到初始状态', '短'],
       ),
     );
     await _openMenu(tester);
