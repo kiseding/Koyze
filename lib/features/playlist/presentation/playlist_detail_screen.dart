@@ -13,6 +13,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/auto_text_input.dart';
+import '../../../core/widgets/deferred_until_route_settled.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/page_navigation_bar.dart';
@@ -462,7 +463,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                             _syncReorderedSongs(latest, force: true);
                           }
                         });
-                      case 'sort_duration':                        await ref
+                      case 'sort_duration':
+                        await ref
                             .read(playlistServiceProvider)
                             .sortSongsByDuration(playlist.id);
                         if (!mounted) return;
@@ -700,36 +702,48 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     return Stack(
       children: [
         Positioned.fill(
-          child: RepaintBoundary(
-            child: AdaptiveSongList.builder(
-              key: PageStorageKey('playlist-${playlist.id}-${range.pageIndex}'),
-              controller: _scrollController,
-              itemExtent: 72,
-              landscapeItemExtent: 80,
-              itemCount: songs.length,
-              padding: EdgeInsets.only(
-                top: topInset,
-                // 页码栏是悬浮控件，列表继续延伸到屏幕底部。
-                bottom:
-                    bottomInset +
-                    (range.pageCount > 1
-                        ? PageNavigationBar.listBottomPadding
-                        : 0),
-              ),
-              itemBuilder: (context, index) {
-                final song = songs[index];
-                final songIndex = range.start + index;
-                final focused = focusId != null && song.id == focusId;
-                final selected = _selectedFavoriteIds.contains(
-                  song.identityKey,
-                );
-                return Container(
-                  color: selected
-                      ? AppColors.accentOf(context).withAlpha(34)
-                      : focused
-                      ? AppColors.accentOf(context).withAlpha(28)
-                      : null,
-                  child: ListTile(
+          // 卡片展开动效期间只画页面骨架：首屏十几行 + 十几张封面如果
+          // 在动效第一帧就建出来，长歌单会直接把动效卡住（见组件注释）。
+          child: DeferredUntilRouteSettled(
+            onSettled: () {
+              // 列表挂载后补做一次「定位到指定歌曲」：动效期间没有列表，
+              // 那次 post-frame 拿不到 scroll position。没有待定位的歌曲时
+              // 不必为了这一次补做把整页重建。
+              if (mounted && _pendingCenteredSongIndex != null) setState(() {});
+            },
+            child: RepaintBoundary(
+              child: AdaptiveSongList.builder(
+                key: PageStorageKey(
+                  'playlist-${playlist.id}-${range.pageIndex}',
+                ),
+                controller: _scrollController,
+                itemExtent: 72,
+                landscapeItemExtent: 80,
+                itemCount: songs.length,
+                padding: EdgeInsets.only(
+                  top: topInset,
+                  // 页码栏是悬浮控件，列表继续延伸到屏幕底部。
+                  bottom:
+                      bottomInset +
+                      (range.pageCount > 1
+                          ? PageNavigationBar.listBottomPadding
+                          : 0),
+                ),
+                itemBuilder: (context, index) {
+                  final song = songs[index];
+                  final songIndex = range.start + index;
+                  final focused = focusId != null && song.id == focusId;
+                  final selected = _selectedFavoriteIds.contains(
+                    song.identityKey,
+                  );
+                  return ListTile(
+                    // 底色交给 ListTile 自己画：外面再套一层 ColoredBox，
+                    // 它的底色会把水波纹（画在最近的 Material 上）压住，
+                    // debug 里还会触发 "ink splashes may be invisible" 断言。
+                    // tileColor 只在未选中时生效，选中时走 selectedTileColor。
+                    tileColor: focused
+                        ? AppColors.accentOf(context).withAlpha(28)
+                        : null,
                     selected: selected,
                     selectedTileColor: AppColors.accentOf(
                       context,
@@ -874,9 +888,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                               ),
                             ],
                           ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -1236,9 +1250,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
 
   /// 去掉文件名里不能出现的字符。歌单名常带 `/` 和 `:`（「周杰伦: 精选」）。
   static String _safeFileName(String name) {
-    final cleaned = name
-        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
-        .trim();
+    final cleaned = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
     return cleaned.isEmpty ? 'playlist' : cleaned;
   }
 
