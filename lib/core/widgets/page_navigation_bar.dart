@@ -129,9 +129,11 @@ class PageNavigationBar extends StatelessWidget {
           title: Text(S.of(context).choosePage),
           content: LayoutBuilder(
             builder: (context, constraints) {
-              const columns = 4;
-              const gap = 10.0;
-              const ratio = 1.25;
+              const columns = 5;
+              const gap = 9.0;
+              // 390 宽的屏幕上每块约 51×44：比原来 4 列时的 65×52 收一圈，
+              // 又不像最早的 5 列 1.5 那样只有 34 高、数字快贴边。
+              const ratio = 1.15;
               // 网格高度按「整行」算，最后一行不会露半截；上限同时受屏幕高度
               // 约束，横屏这种矮视口也不会把弹窗顶出屏幕。
               final cellWidth =
@@ -162,9 +164,9 @@ class PageNavigationBar extends StatelessWidget {
                       color: isCurrent
                           ? scheme.primary.withValues(alpha: 0.16)
                           : scheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(11),
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(11),
                         onTap: () => Navigator.pop(context, page),
                         child: Center(
                           child: Text(

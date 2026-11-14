@@ -40,15 +40,17 @@ Future<void> _openPicker(WidgetTester tester, {int pageCount = 20}) async {
 }
 
 void main() {
-  testWidgets('page blocks are comfortable tap targets', (tester) async {
+  testWidgets('page blocks stay compact on a phone width', (tester) async {
     await _openPicker(tester);
 
     final block = find
         .ancestor(of: find.text('1'), matching: find.byType(Material))
         .first;
     final size = tester.getSize(block);
-    expect(size.width, greaterThanOrEqualTo(60));
-    expect(size.height, greaterThanOrEqualTo(48));
+    // 390 宽的屏幕上下限：块要能舒服点中，但也别撑成大方块
+    // （4 列时是 65×52，明显偏大）。
+    expect(size.width, inInclusiveRange(44, 58));
+    expect(size.height, inInclusiveRange(38, 50));
   });
 
   testWidgets('the grid does not inherit the vertical safe area', (
