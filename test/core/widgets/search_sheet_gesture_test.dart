@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/widgets/search_sheet.dart';
+import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/search/presentation/search_provider.dart';
 import 'package:koyze/features/search/presentation/search_screen.dart';
 
@@ -23,7 +24,11 @@ void main() {
     expect(source, contains('MotionCurve.easeOutQuart.transform'));
   });
 
-  Future<void> openSheet(WidgetTester tester, {List<String>? queries}) async {
+  Future<void> openSheet(
+    WidgetTester tester, {
+    List<String>? queries,
+    List<MusicItem>? results,
+  }) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -35,7 +40,7 @@ void main() {
           searchStateProvider.overrideWith(
             () => SearchNotifier((query, sourceId, page) async {
               queries?.add(query);
-              return const [];
+              return results ?? const <MusicItem>[];
             }, () => 'tx'),
           ),
           hotSearchProvider.overrideWith((ref) async => const ['热歌1']),
@@ -66,6 +71,53 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
   }
+
+  testWidgets('reopening the panel keeps the last results', (tester) async {
+    final queries = <String>[];
+    final song = MusicItem(
+      id: 's1',
+      name: '稻香',
+      singer: '周杰伦',
+      album: '魔杰座',
+      duration: const Duration(seconds: 240),
+      source: 'tx',
+      platform: 'tx',
+    );
+    await openSheet(tester, queries: queries, results: [song]);
+
+    await tester.enterText(find.byType(TextField), '稻香');
+    await tester.pump();
+    await tester.tap(find.text('Search'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(queries, ['稻香']);
+    expect(find.text('稻香'), findsNWidgets(2));
+
+    // 下滑关掉面板。
+    final handle = find.byKey(const ValueKey('search-sheet-drag-handle'));
+    final gesture = await tester.startGesture(tester.getCenter(handle));
+    for (var step = 0; step < 8; step++) {
+      await gesture.moveBy(const Offset(0, 45));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(SearchScreen), findsNothing);
+
+    // 再打开：关键词和结果都还在，也没有重新发一次请求。
+    await tester.tap(find.text('open'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(find.byType(SearchScreen), findsOneWidget);
+    expect(find.text('稻香'), findsNWidgets(2));
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller?.text,
+      '稻香',
+    );
+    expect(queries, ['稻香']);
+  });
 
   testWidgets('dragging past the threshold dismisses the panel', (
     tester,

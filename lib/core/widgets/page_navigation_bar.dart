@@ -58,14 +58,14 @@ class PageNavigationBar extends StatelessWidget {
             child: SizedBox(
               height: 50,
               child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildArrowButton(context, isPrevious: true),
-                const SizedBox(width: 2),
-                _buildPageTextButton(context),
-                const SizedBox(width: 2),
-                _buildArrowButton(context, isPrevious: false),
-              ],
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildArrowButton(context, isPrevious: true),
+                  const SizedBox(width: 2),
+                  _buildPageTextButton(context),
+                  const SizedBox(width: 2),
+                  _buildArrowButton(context, isPrevious: false),
+                ],
               ),
             ),
           ),
@@ -103,7 +103,9 @@ class PageNavigationBar extends StatelessWidget {
     return SizedBox.square(
       dimension: 48,
       child: FxIconButton(
-        tooltip: isPrevious ? S.of(context).previousPage : S.of(context).nextPage,
+        tooltip: isPrevious
+            ? S.of(context).previousPage
+            : S.of(context).nextPage,
         onPressed: arrowEnabled
             ? () => onPageChanged(pageIndex + (isPrevious ? -1 : 1))
             : null,
@@ -126,14 +128,18 @@ class PageNavigationBar extends StatelessWidget {
         return KoyzeDialog(
           title: Text(S.of(context).choosePage),
           content: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 320, minWidth: 300),
+            constraints: const BoxConstraints(maxHeight: 336, minWidth: 300),
             child: GridView.builder(
               shrinkWrap: true,
+              // 滚动组件不给 padding 时默认会吃掉 MediaQuery.padding 的上下
+              // 安全区（刘海屏是 47 + 34），弹窗里就变成标题下面空一大块、
+              // 最后一个页码块下面再空一块。这里必须显式清零。
+              padding: EdgeInsets.zero,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 5,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 1.5,
+                crossAxisCount: 4,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 1.25,
               ),
               itemCount: pageCount,
               itemBuilder: (context, index) {
@@ -141,20 +147,21 @@ class PageNavigationBar extends StatelessWidget {
                 final isCurrent = index == pageIndex;
                 return Material(
                   color: isCurrent
-                      ? scheme.primaryContainer
+                      ? scheme.primary.withValues(alpha: 0.16)
                       : scheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                     onTap: () => Navigator.pop(context, page),
                     child: Center(
                       child: Text(
                         '$page',
                         style: TextStyle(
-                          color: isCurrent
-                              ? scheme.onPrimaryContainer
-                              : scheme.onSurface,
-                          fontWeight: isCurrent ? FontWeight.w600 : null,
+                          fontSize: 15,
+                          color: isCurrent ? scheme.primary : scheme.onSurface,
+                          fontWeight: isCurrent
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                         ),
                       ),
                     ),

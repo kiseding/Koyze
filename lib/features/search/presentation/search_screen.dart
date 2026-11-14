@@ -70,22 +70,28 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // 进入页面后聚焦输入框并弹出输入法（配合展开动效）。
     // 首页弹窗按 autofocusDelay 延迟到滑入 2/3 时聚焦。
     final delay = widget.autofocusDelay;
-    if (delay == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _canAutofocus) _searchFocus.requestFocus();
-      });
-    } else {
-      _autofocusTimer = Timer(delay, () {
-        if (!mounted || !_canAutofocus) return;
-        _searchFocus.requestFocus();
-        // 部分平台在 ModalBottomSheet 完成转场的同一帧会清掉焦点，
-        // 再确认一次，避免键盘弹出后立即消失。
-        Future<void>.delayed(const Duration(milliseconds: 180), () {
-          if (mounted && _canAutofocus && !_searchFocus.hasFocus) {
-            _searchFocus.requestFocus();
-          }
+    // 面板里还留着上一次的结果时不自动弹键盘：这时用户是回来看列表的，
+    // 键盘一冒出来就挡住半屏结果。
+    final keepResults =
+        widget.embedded && ref.read(searchStateProvider).query.isNotEmpty;
+    if (!keepResults) {
+      if (delay == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _canAutofocus) _searchFocus.requestFocus();
         });
-      });
+      } else {
+        _autofocusTimer = Timer(delay, () {
+          if (!mounted || !_canAutofocus) return;
+          _searchFocus.requestFocus();
+          // 部分平台在 ModalBottomSheet 完成转场的同一帧会清掉焦点，
+          // 再确认一次，避免键盘弹出后立即消失。
+          Future<void>.delayed(const Duration(milliseconds: 180), () {
+            if (mounted && _canAutofocus && !_searchFocus.hasFocus) {
+              _searchFocus.requestFocus();
+            }
+          });
+        });
+      }
     }
     // 只在「是否有文字」变化时 setState（清除按钮显隐）。
     // 禁止在 selection/composing 变化时重建：首次聚焦会改 selection，
@@ -98,14 +104,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         setState(() {});
       }
     });
-    // 每次都从「历史 + 热搜」开始。搜索状态存在 provider 里，关掉面板再打开
-    // 时输入框是空的、列表却还是上一次的结果，看着像点击没生效。
+    // 面板关掉再打开时保留上一次的结果：用户经常是「先看一眼、关掉，过会儿
+    // 再打开接着点」。之前这里会把关键词和列表一起清掉，等于逼人重搜一遍。
+    // 现在反过来——列表留着，输入框跟着 provider 里的关键词回填，避免出现
+    // 「有结果但输入框是空的」这种对不上的状态。
     if (widget.embedded) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || _searchController.text.isNotEmpty) return;
-        if (ref.read(searchStateProvider).query.isEmpty) return;
-        ref.read(searchQueryProvider.notifier).state = '';
-        ref.read(searchStateProvider.notifier).reset();
+        if (!mounted) return;
+        final query = ref.read(searchStateProvider).query;
+        if (_searchController.text == query) return;
+        _searchController.value = TextEditingValue(
+          text: query,
+          selection: TextSelection.collapsed(offset: query.length),
+        );
       });
     }
   }
