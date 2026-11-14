@@ -24,7 +24,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sync => '同步';
 
   @override
-  String get cloudAccount => '云端账号 / 歌单';
+  String get cloudAccount => '云端账号';
 
   @override
   String get cloudAccountSubtitle => '同步收藏、歌单、设置与自定义音源';
@@ -36,13 +36,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get localLibrary => '本地音乐目录';
 
   @override
-  String get localLibrarySubtitle => '设置扫描目录、刷新本地歌曲与在线刮削';
+  String get localLibrarySubtitle => '扫描目录、刷新歌曲与刮削信息';
 
   @override
   String get customSources => '自定义源';
 
   @override
-  String get customSourcesSubtitle => '管理自定义音乐源';
+  String get customSourcesSubtitle => '';
+
+  @override
+  String get customSourcesEmpty => '尚未添加音源';
+
+  @override
+  String customSourcesCount(Object count) {
+    return '已接入 $count 个音源';
+  }
 
   @override
   String get nasServer => 'NAS 音乐服务器';
@@ -54,7 +62,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playback => '播放';
 
   @override
-  String get audioQuality => '音质选择';
+  String get audioQuality => '播放音质';
 
   @override
   String get chooseQuality => '选择音质';
@@ -81,7 +89,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get floatingPlayer => '悬浮窗';
 
   @override
-  String get floatingPlayerSubtitle => '离开应用后显示封面、歌词、进度和播放控制';
+  String get floatingPlayerSubtitle => '离开应用后仍显示播放控制';
 
   @override
   String get floatingPlayerPermission => '请允许显示在其他应用上层，然后返回 Koyze';
@@ -90,13 +98,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get forceLandscape => '强制横屏';
 
   @override
-  String get forceLandscapeSubtitle => '使用横屏布局。手机还会锁定为横屏方向';
+  String get forceLandscapeSubtitle => '始终横屏，竖屏设备会锁定方向';
 
   @override
   String get simplifyEffects => '关闭特效';
 
   @override
-  String get simplifyEffectsSubtitle => '关闭磨砂玻璃、透明和动效。内存不超过 4GB 时默认开启';
+  String get simplifyEffectsSubtitle => '模糊、透明与动效一并停用（低内存默认开启）';
 
   @override
   String get defaultSearchPlatform => '默认搜索平台';
@@ -114,10 +122,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get language => '语言';
 
   @override
-  String get darkMode => '深色模式';
+  String get darkMode => '深色';
 
   @override
   String get darkModeSubtitle => '使用深色主题';
+
+  @override
+  String get themeModeRow => '主题';
+
+  @override
+  String get lightMode => '浅色';
+
+  @override
+  String get lightModeSubtitle => '始终使用浅色主题';
 
   @override
   String get followSystem => '跟随系统';
@@ -129,10 +146,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get followSystemLanguageSubtitle => '设备为中文或英文时自动跟随';
 
   @override
-  String get themeColor => '主题色';
+  String get themeColor => '强调色';
 
   @override
-  String get themeColorSubtitle => '由一个强调色生成整套浅色/深色色板';
+  String get themeColorSubtitle => '整套界面配色都由它生成';
 
   @override
   String get playerBackdrop => '全屏播放器背景';
@@ -145,6 +162,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get playerBackdropScrim => '遮罩透明度';
+
+  @override
+  String get backdropBlurShort => '虚化';
+
+  @override
+  String get backdropScrimShort => '压暗';
 
   @override
   String get glassOpacity => '界面不透明度';
@@ -171,10 +194,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadManagerSubtitle => '查看和管理下载任务';
 
   @override
-  String get wifiOnly => '仅 WiFi 下载';
+  String get wifiOnly => '仅 Wi-Fi 下载';
 
   @override
-  String get wifiOnlySubtitle => '仅在 WiFi 环境下下载歌曲';
+  String get wifiOnlySubtitle => '只在 Wi-Fi 下下载歌曲';
 
   @override
   String get downloadQuality => '下载音质';
@@ -198,13 +221,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get restore => '恢复数据';
 
   @override
-  String get restoreSubtitle => '从备份文件恢复数据';
+  String get restoreSubtitle => '选择备份文件，覆盖对应的歌单与设置';
 
   @override
   String get clearCache => '清除缓存';
 
   @override
-  String get clearCacheSubtitle => '清除歌曲播放缓存、封面缓存和临时文件';
+  String get clearCacheSubtitle => '清除播放缓存、封面与临时文件';
 
   @override
   String get about => '关于';
@@ -225,7 +248,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get diagnostics => '实时诊断日志';
 
   @override
-  String get diagnosticsSubtitle => '点开开始记录，最小化后继续记录（不保存）';
+  String get diagnosticsSubtitle => '开启后记录播放诊断，退出即清除';
 
   @override
   String get volume => '音量';
@@ -2301,7 +2324,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiAssistantTitle => 'AI 助手';
 
   @override
-  String get aiAssistantSubtitle => '一句话让它播歌、排队、建歌单、改设置';
+  String get aiAssistantSubtitle => '用一句话播歌、排队、改设置';
 
   @override
   String get aiAssistantPlaceholder => '说你想听的、想做的…';
@@ -2669,7 +2692,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get replayGain => '响度均衡';
 
   @override
-  String get replayGainSubtitle => '按 ReplayGain 标签拉平不同专辑的音量';
+  String get replayGainSubtitle => '按 ReplayGain 标签拉平专辑间音量';
 
   @override
   String get lockScreenLyric => '锁屏歌词';
@@ -2710,7 +2733,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get smartPlaylists => '智能歌单';
 
   @override
-  String get smartPlaylistsSubtitle => '按规则自动整理，不需要手动维护';
+  String get smartPlaylistsSubtitle => '按规则自动整理，无需维护';
 
   @override
   String get smartRecentlyAdded => '最近添加';
@@ -2745,7 +2768,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get precacheRecent => '常听预缓存';
 
   @override
-  String get precacheRecentSubtitle => '在 Wi-Fi 下提前取回常听歌曲，点开即播';
+  String get precacheRecentSubtitle => '在 Wi-Fi 下提前缓存常听歌曲';
 
   @override
   String get precacheCount => '预缓存数量';
@@ -2771,13 +2794,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get skipSilence => '跳过静音';
 
   @override
-  String get skipSilenceSubtitle => '自动略过歌曲开头与中间的空白段（仅 Android 生效）';
+  String get skipSilenceSubtitle => '跳过首尾与中间的空白（仅 Android）';
 
   @override
   String get playbackFade => '播放淡入淡出';
 
   @override
-  String get playbackFadeSubtitle => '开始与暂停时短暂渐变，避免耳机里的爆音';
+  String get playbackFadeSubtitle => '播放与暂停时短暂渐变，避免爆音';
 
   @override
   String get exportM3u => '导出为 M3U';
@@ -2894,7 +2917,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lyricOffsetReset => '清零偏移';
 
   @override
-  String get accentFollowsCover => '主题色跟随封面';
+  String get accentFollowsCover => '跟随封面取色';
 
   @override
   String get accentFollowsCoverSubtitle => '每首歌从封面提取一套配色';
@@ -3003,7 +3026,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get termsTitle => '用户条款与免责声明';
 
   @override
-  String get termsEntrySubtitle => '本应用的性质、内容来源与责任范围';
+  String get termsEntrySubtitle => '';
 
   @override
   String get termsUpdated => '最后更新：2026 年 11 月';

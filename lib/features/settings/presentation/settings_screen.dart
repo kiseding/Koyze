@@ -37,6 +37,8 @@ import '../../sync/data/sync_identity_store.dart';
 import '../../nas/domain/nas_url.dart';
 import '../../car_mode/presentation/car_mode_provider.dart';
 import '../../car_mode/presentation/car_mode_sheet.dart';
+import '../../custom_source/presentation/custom_source_provider.dart';
+import '../../lyric/presentation/lyric_font_provider.dart';
 import '../../local_music/presentation/scan_rules_sheet.dart';
 import '../../local_music/presentation/local_music_provider.dart';
 import '../domain/settings_reset.dart';
@@ -68,6 +70,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// pushes — or the sheet it opens — is not fighting the layer for the
   /// keyboard and the back gesture.
   void _activateFromSearch(SettingsEntry entry) {
+    // 开关行没有 onTap：以前这里直接 return，搜索里点一下完全没反应。
+    // 就地翻转即可，搜索层留着，方便连着改几项。
+    if (entry.isToggle) {
+      entry.onToggle!(!(entry.toggleValue ?? false));
+      return;
+    }
     final action = entry.onTap;
     if (action == null) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -201,10 +209,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final language = ref.watch(appLanguageProvider);
     final backdropBlur = ref.watch(playerBackdropBlurProvider);
     final backdropScrim = ref.watch(playerBackdropScrimProvider);
-    final isDark =
-        themeMode == ThemeMode.dark ||
-        (themeMode == ThemeMode.system &&
-            MediaQuery.platformBrightnessOf(context) == Brightness.dark);
 
     // 分组的依据是「用户想改什么」，不是「代码在哪个目录」：
     // - 音源与本地库：内容从哪来（默认搜索平台原先混在「播放」里，
@@ -339,7 +343,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           SettingsEntry(
             title: s.customSources,
-            subtitle: s.customSourcesSubtitle,
+            // 副标题给的是「已经接了几个」，而不是把标题再说一遍。
+            subtitle: switch (ref.watch(customSourcesProvider).length) {
+              0 => s.customSourcesEmpty,
+              final count => s.customSourcesCount(count),
+            },
             keywords: const ['音源', 'source', '自定义', 'custom', '插件', 'plugin'],
             onTap: () => context.push('/custom-source'),
             captureExpandOrigin: true,
@@ -584,34 +592,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ref.read(coverThemedAccentProvider.notifier).setEnabled(value),
           ),
           SettingsEntry(
-            title: s.darkMode,
-            subtitle: s.darkModeSubtitle,
-            keywords: const ['深色', 'dark', '夜间', 'night', '黑色', '模式'],
-            toggleValue: isDark && themeMode != ThemeMode.system,
-            onToggle: (value) {
-              ref
-                  .read(themeModeProvider.notifier)
-                  .setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
+            title: s.themeModeRow,
+            subtitle: switch (themeMode) {
+              ThemeMode.light => s.lightMode,
+              ThemeMode.dark => s.darkMode,
+              ThemeMode.system => s.followSystem,
             },
-          ),
-          SettingsEntry(
-            title: s.followSystem,
-            subtitle: s.followSystemThemeSubtitle,
-            keywords: const ['跟随', 'follow', 'system', '系统', '主题', '自动'],
-            toggleValue: themeMode == ThemeMode.system,
-            onToggle: (value) {
-              if (value) {
-                ref
-                    .read(themeModeProvider.notifier)
-                    .setThemeMode(ThemeMode.system);
-              } else {
-                final darkNow =
-                    MediaQuery.platformBrightnessOf(context) == Brightness.dark;
-                ref
-                    .read(themeModeProvider.notifier)
-                    .setThemeMode(darkNow ? ThemeMode.dark : ThemeMode.light);
-              }
-            },
+            keywords: const [
+              '深色',
+              'dark',
+              '夜间',
+              'night',
+              '浅色',
+              'light',
+              '主题',
+              'theme',
+              '跟随',
+              'system',
+              '自动',
+            ],
+            onTap: () => showKoyzeSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              builder: (_) => const _ThemeModePickerDialog(),
+            ),
           ),
           SettingsEntry(
             title: s.playerBackdrop,
@@ -635,14 +639,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '${PlayerBackdrop.blurLabel(backdropBlur)} · '
-                  '${PlayerBackdrop.scrimLabel(backdropScrim)}',
+                  // 光写「60 · 80%」看不出哪个是哪个，按行的副标题顺序标出来。
+                  '${s.backdropBlurShort} ${PlayerBackdrop.blurLabel(backdropBlur)}'
+                  ' · '
+                  '${s.backdropScrimShort} ${PlayerBackdrop.scrimLabel(backdropScrim)}',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.mutedText(context),
                   ),
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: 6),
                 Icon(Icons.chevron_right, color: AppColors.mutedText(context)),
               ],
             ),
@@ -817,7 +823,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (Platform.isAndroid)
             SettingsEntry(
               title: s.checkUpdates,
-              subtitle: s.checkUpdatesSubtitle(kAppVersion),
+              // 版本号已经由上面那张「版本」行给出，这里再写一遍只是重复。
+              subtitle: '',
               keywords: const [
                 '更新',
                 'update',
@@ -913,6 +920,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  /// 带开关的一行。
+  ///
+  /// 整行都能点：以前只有右边那颗开关能吃点击，用户按习惯点标题（尤其是
+  /// 手指落在副标题上）完全没反应，看起来就像「这个设置不起作用」。
+  /// 现在和系统 `SwitchListTile` 一样，点行任意位置都翻转。
+  ///
+  /// 开关本身套 `IgnorePointer`：它的手势交给外层这一层统一处理，否则按在
+  /// 开关上会连着触发两次（先开关、再整行），切回去等于没变。
   Widget _buildSwitchTile(
     BuildContext context,
     String title,
@@ -920,35 +935,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     bool value,
     ValueChanged<bool> onChanged,
   ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.onScaffold(context),
-                  ),
+    void toggle() => onChanged(!value);
+    return MergeSemantics(
+      child: InkWell(
+        onTap: toggle,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.onScaffold(context),
+                      ),
+                    ),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.3,
+                          color: AppColors.secondaryText(context),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: AppColors.secondaryText(context),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              IgnorePointer(
+                child: FxSwitch(value: value, onChanged: onChanged),
+              ),
+            ],
           ),
-          FxSwitch(value: value, onChanged: onChanged),
-        ],
+        ),
       ),
     );
   }
@@ -1069,6 +1099,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         glassOpacityProvider,
         equalizerProvider,
         localMusicLibraryProvider,
+        // 歌词与外观：这些键现在也会被清掉，不重新读一遍会留着内存里的旧值，
+        // 界面上看起来就是「点了恢复默认，但有的项没变」。
+        lyricOffsetProvider,
+        lyricScaleProvider,
+        lyricAlignProvider,
+        lyricTranslationProvider,
+        lyricBlurProvider,
+        lyricEntranceProvider,
+        coverThemedAccentProvider,
+        flowingBackdropProvider,
+        carModePreferenceProvider,
+        lyricFontProvider,
       ]) {
         ref.invalidate(provider);
       }
@@ -1425,6 +1467,8 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
                 children: [
                   Text(
                     widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 14.5,
                       fontWeight: FontWeight.w500,
@@ -1432,11 +1476,14 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
                     ),
                   ),
                   if (widget.subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       widget.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11.5,
+                        height: 1.3,
                         color: AppColors.secondaryText(context),
                       ),
                     ),
@@ -1487,12 +1534,14 @@ class _GlassOpacitySlider extends ConsumerWidget {
                         color: AppColors.onScaffold(context),
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       s.glassOpacitySubtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12.5,
-                        height: 1.35,
+                        fontSize: 11.5,
+                        height: 1.3,
                         color: AppColors.secondaryText(context),
                       ),
                     ),
@@ -2029,6 +2078,58 @@ String qualityName(AudioQualityOption quality, {Locale? locale}) {
       return en ? 'Master (FLAC 24-bit)' : '臻品母带 (FLAC 24bit)';
     case AudioQualityOption.hires:
       return 'Hi-Res';
+  }
+}
+
+/// 主题：浅色 / 深色 / 跟随系统，三选一。
+///
+/// 以前是两个并列开关（「深色模式」「跟随系统」）驱动同一个三态值：拨「跟随
+/// 系统」会让「深色模式」自己弹回去，拨「深色模式」又会把「跟随系统」关掉。
+/// 用户看到的是两个开关互相打架，反馈成「设置不起作用」。三态本来就是单选。
+class _ThemeModePickerDialog extends ConsumerWidget {
+  const _ThemeModePickerDialog();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(themeModeProvider);
+    final s = S.of(context);
+    final accent = AppColors.accentOf(context);
+    final options = <(ThemeMode, IconData, String, String)>[
+      (
+        ThemeMode.light,
+        Icons.light_mode_rounded,
+        s.lightMode,
+        s.lightModeSubtitle,
+      ),
+      (ThemeMode.dark, Icons.dark_mode_rounded, s.darkMode, s.darkModeSubtitle),
+      (
+        ThemeMode.system,
+        Icons.brightness_auto_rounded,
+        s.followSystem,
+        s.followSystemThemeSubtitle,
+      ),
+    ];
+    return _SettingsOptionPanel(
+      title: s.themeModeRow,
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.only(bottom: 8),
+        children: [
+          for (final option in options)
+            _SettingsOptionTile(
+              icon: option.$2,
+              name: option.$3,
+              description: option.$4,
+              selected: current == option.$1,
+              accent: accent,
+              onTap: () {
+                ref.read(themeModeProvider.notifier).setThemeMode(option.$1);
+                Navigator.pop(context);
+              },
+            ),
+        ],
+      ),
+    );
   }
 }
 

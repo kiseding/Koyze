@@ -198,10 +198,6 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           padding: const EdgeInsets.only(top: 2),
           child: FxSwitch(
             value: value,
-            activeColor: AppColors.accentOf(context),
-            inactiveTrackColor: AppColors.isDark(context)
-                ? AppColors.surfaceVariant
-                : AppColors.lightSurfaceVariant,
             onChanged: active ? onChanged : null,
           ),
         ),

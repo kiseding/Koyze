@@ -1,130 +1,46 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../motion/motion_tokens.dart';
+import '../theme/app_colors.dart';
 
-/// 开关组件：静态外观与系统 Switch 一致，
-/// 切换时轨道颜色与 thumb 滑动 180ms easeOutCubic 过渡。
-class FxSwitch extends StatefulWidget {
+/// 开关。
+///
+/// 外观与「翻译行」（`SwitchListTile.adaptive`）里那颗完全一致：iOS / macOS
+/// 走 Cupertino 样式，其余平台走 Material，尺寸、thumb 与轨道的配色、按压
+/// 与拖拽手感、无障碍语义全部交给平台控件。
+///
+/// 以前这里是自己画的 44×26 胶囊：和系统开关并排时大小、thumb 颜色、按压
+/// 反馈都不一样，同一个设置页里看着像两套设计。自绘还额外背了一套键盘焦点
+/// 和语义实现，收益却只有「能自定义轨道颜色」这一条。
+///
+/// [accent] 是打开时的强调色，默认取主题 primary——和「翻译行」那颗一致。
+/// 少数按平台品牌色区分的开关（榜单里的各平台可见性）才显式传。
+class FxSwitch extends StatelessWidget {
   const FxSwitch({
     super.key,
     required this.value,
     required this.onChanged,
-    this.activeColor,
-    this.activeThumbColor,
-    this.inactiveTrackColor,
+    this.accent,
   });
 
   final bool value;
   final ValueChanged<bool>? onChanged;
-  final Color? activeColor;
-  final Color? activeThumbColor;
-  final Color? inactiveTrackColor;
 
-  @override
-  State<FxSwitch> createState() => _FxSwitchState();
-}
-
-class _FxSwitchState extends State<FxSwitch> {
-  final FocusNode _focusNode = FocusNode();
-
-  @override
-  void dispose() {
-    _focusNode.dispose();
-    super.dispose();
-  }
+  /// 打开时的强调色；null = 主题 primary。
+  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.onChanged != null;
-    final accent = widget.activeColor ?? Theme.of(context).colorScheme.primary;
-    final trackOn = accent.withValues(alpha: 0.9);
-    final defaultTrackOff = Theme.of(
-      context,
-    ).colorScheme.surfaceContainerHighest;
-    final trackOff =
-        widget.inactiveTrackColor ??
-        (enabled ? defaultTrackOff : defaultTrackOff.withValues(alpha: 0.6));
-    final thumbOn =
-        widget.activeThumbColor ?? Theme.of(context).colorScheme.onPrimary;
-    final thumbOff = enabled
-        ? Theme.of(context).colorScheme.onSurfaceVariant
-        : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.6);
-
-    final activate = enabled ? () => widget.onChanged!(!widget.value) : null;
-    final duration = motionDuration(context, const Duration(milliseconds: 180));
-
-    return Semantics(
-      toggled: widget.value,
-      enabled: enabled,
-      onTap: activate,
-      child: FocusableActionDetector(
-        focusNode: _focusNode,
-        enabled: enabled,
-        mouseCursor: enabled
-            ? SystemMouseCursors.click
-            : SystemMouseCursors.basic,
-        shortcuts: const <ShortcutActivator, Intent>{
-          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
-        },
-        actions: <Type, Action<Intent>>{
-          ActivateIntent: CallbackAction<ActivateIntent>(
-            onInvoke: (_) {
-              activate?.call();
-              return null;
-            },
-          ),
-        },
-        child: ExcludeSemantics(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: activate == null
-                ? null
-                : () {
-                    _focusNode.requestFocus();
-                    activate();
-                  },
-            child: SizedBox(
-              width: 48,
-              height: 48,
-              child: Center(
-                child: AnimatedContainer(
-                  duration: duration,
-                  curve: Curves.easeOutCubic,
-                  width: 44,
-                  height: 26,
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: widget.value ? trackOn : trackOff,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: AnimatedAlign(
-                    duration: duration,
-                    curve: Curves.easeOutCubic,
-                    alignment: widget.value
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: widget.value ? thumbOn : thumbOff,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.18),
-                            blurRadius: 3,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+    return SizedBox(
+      // 行高按 48 留：开关本体只有 32 高，直接放进 Row 会把整行高度带下来。
+      height: 48,
+      child: Center(
+        child: Switch.adaptive(
+          value: value,
+          onChanged: onChanged,
+          // 和 SwitchListTile.adaptive 一样：不等比放大 tap 目标，
+          // 免得这一行比别的行高出一截。
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          activeThumbColor: accent ?? AppColors.accentOf(context),
         ),
       ),
     );

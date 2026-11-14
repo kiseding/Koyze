@@ -186,6 +186,8 @@ class _SearchResultTile extends StatelessWidget {
                 children: [
                   Text(
                     entry.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 14.5,
                       fontWeight: FontWeight.w500,
@@ -193,11 +195,14 @@ class _SearchResultTile extends StatelessWidget {
                     ),
                   ),
                   if (entry.subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       entry.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11.5,
+                        height: 1.3,
                         color: AppColors.secondaryText(context),
                       ),
                     ),
@@ -206,12 +211,22 @@ class _SearchResultTile extends StatelessWidget {
               ),
             ),
             if (entry.isToggle)
-              FxSwitch(value: entry.toggleValue!, onChanged: entry.onToggle)
+              // 整行由外层 InkWell 负责翻转，开关只当指示器，否则按在开关
+              // 上会连续触发两次。
+              IgnorePointer(
+                child: FxSwitch(
+                  value: entry.toggleValue!,
+                  onChanged: entry.onToggle,
+                ),
+              )
             else
               // 和列表里那一行保持一致：主题色还是那颗色点，睡眠定时还带
               // 「取消」，没自定义的直接给箭头。
               entry.trailing ??
-                  Icon(Icons.chevron_right, color: AppColors.mutedText(context)),
+                  Icon(
+                    Icons.chevron_right,
+                    color: AppColors.mutedText(context),
+                  ),
           ],
         ),
       ),

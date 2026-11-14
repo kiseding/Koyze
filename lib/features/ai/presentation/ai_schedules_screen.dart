@@ -288,10 +288,7 @@ class _ScheduleCardState extends ConsumerState<_ScheduleCard> {
                     padding: const EdgeInsets.only(top: 2),
                     child: FxSwitch(
                       value: task.enabled,
-                      activeColor: accent,
-                      inactiveTrackColor: AppColors.isDark(context)
-                          ? AppColors.surfaceVariant
-                          : AppColors.lightSurfaceVariant,
+                      accent: accent,
                       onChanged: (value) => ref
                           .read(aiSchedulesProvider.notifier)
                           .setEnabled(task.id, value),

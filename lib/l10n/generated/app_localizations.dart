@@ -155,7 +155,7 @@ abstract class AppLocalizations {
   /// No description provided for @localLibrarySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Choose folders, rescan, and match songs online'**
+  /// **'Scan folders, rescan, and match songs'**
   String get localLibrarySubtitle;
 
   /// No description provided for @customSources.
@@ -167,8 +167,20 @@ abstract class AppLocalizations {
   /// No description provided for @customSourcesSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Manage custom music sources'**
+  /// **''**
   String get customSourcesSubtitle;
+
+  /// No description provided for @customSourcesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No sources added yet'**
+  String get customSourcesEmpty;
+
+  /// No description provided for @customSourcesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} sources connected'**
+  String customSourcesCount(Object count);
 
   /// No description provided for @nasServer.
   ///
@@ -245,7 +257,7 @@ abstract class AppLocalizations {
   /// No description provided for @floatingPlayerSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Show cover, lyrics, progress, and playback controls over other apps'**
+  /// **'Keep playback controls visible over other apps'**
   String get floatingPlayerSubtitle;
 
   /// No description provided for @floatingPlayerPermission.
@@ -263,7 +275,7 @@ abstract class AppLocalizations {
   /// No description provided for @forceLandscapeSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Use the landscape layout. Phones also stay in landscape'**
+  /// **'Always landscape, even on upright phones'**
   String get forceLandscapeSubtitle;
 
   /// No description provided for @simplifyEffects.
@@ -275,7 +287,7 @@ abstract class AppLocalizations {
   /// No description provided for @simplifyEffectsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Turn off frosted glass, transparency, and motion. On by default at 4GB or less'**
+  /// **'Disable blur, transparency, and motion (on by default on low RAM)'**
   String get simplifyEffectsSubtitle;
 
   /// No description provided for @defaultSearchPlatform.
@@ -320,6 +332,24 @@ abstract class AppLocalizations {
   /// **'Use the dark theme'**
   String get darkModeSubtitle;
 
+  /// No description provided for @themeModeRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get themeModeRow;
+
+  /// No description provided for @lightMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get lightMode;
+
+  /// No description provided for @lightModeSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Always use the light theme'**
+  String get lightModeSubtitle;
+
   /// No description provided for @followSystem.
   ///
   /// In en, this message translates to:
@@ -341,13 +371,13 @@ abstract class AppLocalizations {
   /// No description provided for @themeColor.
   ///
   /// In en, this message translates to:
-  /// **'Theme colour'**
+  /// **'Accent colour'**
   String get themeColor;
 
   /// No description provided for @themeColorSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'One accent builds the whole Material 3 palette'**
+  /// **'One accent builds the full palette'**
   String get themeColorSubtitle;
 
   /// No description provided for @playerBackdrop.
@@ -373,6 +403,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Scrim opacity'**
   String get playerBackdropScrim;
+
+  /// No description provided for @backdropBlurShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Blur'**
+  String get backdropBlurShort;
+
+  /// No description provided for @backdropScrimShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Dim'**
+  String get backdropScrimShort;
 
   /// No description provided for @glassOpacity.
   ///
@@ -479,7 +521,7 @@ abstract class AppLocalizations {
   /// No description provided for @restoreSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Restore from a backup file'**
+  /// **'Pick a backup file and overwrite the matching playlists and settings'**
   String get restoreSubtitle;
 
   /// No description provided for @clearCache.
@@ -491,7 +533,7 @@ abstract class AppLocalizations {
   /// No description provided for @clearCacheSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Clear playback cache, artwork, and temporary files'**
+  /// **'Clear playback cache, artwork, and temp files'**
   String get clearCacheSubtitle;
 
   /// No description provided for @about.
@@ -533,7 +575,7 @@ abstract class AppLocalizations {
   /// No description provided for @diagnosticsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Start recording when opened. Keeps recording while minimized.'**
+  /// **'Record playback diagnostics; cleared when you exit'**
   String get diagnosticsSubtitle;
 
   /// No description provided for @volume.
@@ -4289,7 +4331,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiAssistantSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'One sentence to play, queue, build playlists or change settings'**
+  /// **'Play, queue, and change settings in one sentence'**
   String get aiAssistantSubtitle;
 
   /// No description provided for @aiAssistantPlaceholder.
@@ -4973,7 +5015,7 @@ abstract class AppLocalizations {
   /// No description provided for @replayGainSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Levels album volume using ReplayGain tags'**
+  /// **'Level volume across albums with ReplayGain tags'**
   String get replayGainSubtitle;
 
   /// No description provided for @lockScreenLyric.
@@ -5051,7 +5093,7 @@ abstract class AppLocalizations {
   /// No description provided for @smartPlaylistsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Built from rules, nothing to maintain by hand'**
+  /// **'Built from rules, nothing to maintain'**
   String get smartPlaylistsSubtitle;
 
   /// No description provided for @smartRecentlyAdded.
@@ -5117,7 +5159,7 @@ abstract class AppLocalizations {
   /// No description provided for @precacheRecentSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Fetches your most played tracks on Wi-Fi so they start instantly'**
+  /// **'Cache your most played tracks on Wi-Fi'**
   String get precacheRecentSubtitle;
 
   /// No description provided for @precacheCount.
@@ -5165,7 +5207,7 @@ abstract class AppLocalizations {
   /// No description provided for @skipSilenceSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Skips silent intros and gaps automatically (Android only)'**
+  /// **'Skip silence at the start and middle (Android only)'**
   String get skipSilenceSubtitle;
 
   /// No description provided for @playbackFade.
@@ -5177,7 +5219,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackFadeSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Soft ramps when starting or pausing, so headphones don\'t pop'**
+  /// **'Soft ramps on play and pause so headphones don\'t pop'**
   String get playbackFadeSubtitle;
 
   /// No description provided for @exportM3u.
@@ -5597,7 +5639,7 @@ abstract class AppLocalizations {
   /// No description provided for @termsEntrySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'What the app is, where content comes from, and the limits of liability'**
+  /// **''**
   String get termsEntrySubtitle;
 
   /// No description provided for @termsUpdated.

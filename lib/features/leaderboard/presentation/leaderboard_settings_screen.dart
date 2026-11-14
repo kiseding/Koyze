@@ -238,7 +238,7 @@ class _LeaderboardSettingsViewState
               ),
               FxSwitch(
                 value: !platformHidden,
-                activeColor: color,
+                accent: color,
                 onChanged: (enabled) =>
                     notifier.setPlatformVisible(platform, enabled),
               ),

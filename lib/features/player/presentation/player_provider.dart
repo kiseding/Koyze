@@ -123,6 +123,11 @@ final replayGainBindingProvider = Provider<void>((ref) {
   ref.listen<MusicItem?>(currentMusicProvider, (_, next) {
     unawaited(apply(next));
   }, fireImmediately: true);
+  // 开关本身也要立刻重算：否则拨动之后要等到下一首才听得出差别，
+  // 用户会认为这个设置没生效。
+  ref.listen<bool>(replayGainEnabledProvider, (_, _) {
+    unawaited(apply(ref.read(currentMusicProvider)));
+  });
 });
 
 final playerServiceProvider = Provider<PlayerService>((ref) {

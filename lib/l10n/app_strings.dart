@@ -62,6 +62,8 @@ class S {
   String get localLibrarySubtitle => _l10n.localLibrarySubtitle;
   String get customSources => _l10n.customSources;
   String get customSourcesSubtitle => _l10n.customSourcesSubtitle;
+  String get customSourcesEmpty => _l10n.customSourcesEmpty;
+  String customSourcesCount(int count) => _l10n.customSourcesCount(count);
   String get nasServer => _l10n.nasServer;
   String get sourcesAndLibrary => _l10n.sourcesAndLibrary;
   String get playback => _l10n.playback;
@@ -87,6 +89,9 @@ class S {
   String get language => _l10n.language;
   String get darkMode => _l10n.darkMode;
   String get darkModeSubtitle => _l10n.darkModeSubtitle;
+  String get themeModeRow => _l10n.themeModeRow;
+  String get lightMode => _l10n.lightMode;
+  String get lightModeSubtitle => _l10n.lightModeSubtitle;
   String get followSystem => _l10n.followSystem;
   String get followSystemThemeSubtitle => _l10n.followSystemThemeSubtitle;
   String get followSystemLanguageSubtitle => _l10n.followSystemLanguageSubtitle;
@@ -96,6 +101,8 @@ class S {
   String get playerBackdropSubtitle => _l10n.playerBackdropSubtitle;
   String get playerBackdropBlur => _l10n.playerBackdropBlur;
   String get playerBackdropScrim => _l10n.playerBackdropScrim;
+  String get backdropBlurShort => _l10n.backdropBlurShort;
+  String get backdropScrimShort => _l10n.backdropScrimShort;
   String get playerBackdropPreviewEmpty => _l10n.playerBackdropPreviewEmpty;
   String get glassOpacity => _l10n.glassOpacity;
   String get glassOpacitySubtitle => _l10n.glassOpacitySubtitle;

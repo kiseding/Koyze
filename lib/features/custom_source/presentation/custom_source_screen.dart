@@ -186,10 +186,6 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 else
                   FxSwitch(
                     value: source.isEnabled,
-                    activeColor: AppColors.accentOf(context),
-                    inactiveTrackColor: AppColors.isDark(context)
-                        ? AppColors.surfaceVariant
-                        : AppColors.lightSurfaceVariant,
                     onChanged: (value) async {
                       setState(() => _initializingSources.add(source.id));
                       bool ok = true;

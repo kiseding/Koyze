@@ -9,11 +9,15 @@ const List<String> kResettablePreferenceKeys = <String>[
   // 外观
   'theme_mode',
   'app_accent_color',
+  'accent_follows_cover',
+  'glass_surface_opacity',
   'player_backdrop_blur',
   'player_backdrop_scrim',
+  'player_flowing_backdrop',
   // 通用
   'force_landscape',
   'simplify_effects',
+  'car_mode_preference',
   // 播放
   'audio_quality',
   'playback_volume',
@@ -35,6 +39,18 @@ const List<String> kResettablePreferenceKeys = <String>[
   // 下载
   'download_quality',
   'wifi_only_download',
+  // 歌词
+  'lyric_offset_ms',
+  'lyric_scale',
+  'lyric_align',
+  'lyric_show_translation',
+  'lyric_blur',
+  'lyric_single_line_animation',
+  'lyric_font_family',
+  'lyric_font_name',
+  'lyric_font_path',
+  'desktop_lyric_x',
+  'desktop_lyric_y',
   // 内容与布局
   'local_scan_rules_v1',
   'leaderboard_layout_v1',
@@ -45,13 +61,24 @@ const List<String> kResettablePreferenceKeys = <String>[
 ///
 /// 语言也在保留之列：把界面切回默认语言会让看不懂中文的用户彻底迷路，
 /// 而它并不属于「听歌偏好」。
+///
+/// 账号与内容数据同样保留：AI 的接口地址/密钥、定时任务、听歌历史、可播
+/// 索引、推荐权重、源体检报告都是用户攒下来的东西，「恢复默认设置」不该
+/// 顺手把它们抹掉。
 const List<String> kPreservedPreferenceKeys = <String>[
   'app_language',
   'custom_sources',
+  'custom_sources_quarantine',
   'local_music_dirs_v1',
   'local_music_download_dir_v1',
   'local_music_index_v1',
   'search_history',
+  'ai_config',
+  'ai_schedules_v1',
+  'play_history_v1',
+  'playable_songs_v1',
+  'recommendation_tuning_v1',
+  'source_check_report',
 ];
 
 /// 清除所有可重置的偏好项。返回实际删除的键数量。

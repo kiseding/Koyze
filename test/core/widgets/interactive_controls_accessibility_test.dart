@@ -70,11 +70,17 @@ void main() {
       ),
     );
 
-    var semantics = tester.getSemantics(find.byType(FxSwitch));
+    var semantics = tester.getSemantics(find.byType(Switch));
     expect(semantics.flagsCollection.isEnabled, Tristate.isTrue);
     expect(semantics.flagsCollection.isToggled, Tristate.isFalse);
 
+    // 点一下就能切：现在用的是平台开关本身，手势由它负责。
     await tester.tap(find.byType(FxSwitch));
+    await tester.pumpAndSettle();
+    expect(value, isTrue);
+
+    // 键盘用户 Tab 进来，Space / Enter 都能切。
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pump();
@@ -83,7 +89,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
     expect(value, isTrue);
-    semantics = tester.getSemantics(find.byType(FxSwitch));
+    semantics = tester.getSemantics(find.byType(Switch));
     expect(semantics.flagsCollection.isToggled, Tristate.isTrue);
   });
 }

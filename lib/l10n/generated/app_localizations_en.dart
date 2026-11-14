@@ -37,14 +37,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get localLibrary => 'Local music folders';
 
   @override
-  String get localLibrarySubtitle =>
-      'Choose folders, rescan, and match songs online';
+  String get localLibrarySubtitle => 'Scan folders, rescan, and match songs';
 
   @override
   String get customSources => 'Custom sources';
 
   @override
-  String get customSourcesSubtitle => 'Manage custom music sources';
+  String get customSourcesSubtitle => '';
+
+  @override
+  String get customSourcesEmpty => 'No sources added yet';
+
+  @override
+  String customSourcesCount(Object count) {
+    return '$count sources connected';
+  }
 
   @override
   String get nasServer => 'NAS music server';
@@ -84,7 +91,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get floatingPlayerSubtitle =>
-      'Show cover, lyrics, progress, and playback controls over other apps';
+      'Keep playback controls visible over other apps';
 
   @override
   String get floatingPlayerPermission =>
@@ -95,14 +102,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get forceLandscapeSubtitle =>
-      'Use the landscape layout. Phones also stay in landscape';
+      'Always landscape, even on upright phones';
 
   @override
   String get simplifyEffects => 'Reduce effects';
 
   @override
   String get simplifyEffectsSubtitle =>
-      'Turn off frosted glass, transparency, and motion. On by default at 4GB or less';
+      'Disable blur, transparency, and motion (on by default on low RAM)';
 
   @override
   String get defaultSearchPlatform => 'Default search source';
@@ -126,6 +133,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get darkModeSubtitle => 'Use the dark theme';
 
   @override
+  String get themeModeRow => 'Theme';
+
+  @override
+  String get lightMode => 'Light';
+
+  @override
+  String get lightModeSubtitle => 'Always use the light theme';
+
+  @override
   String get followSystem => 'Follow system';
 
   @override
@@ -137,11 +153,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Use the device language when it is Chinese or English';
 
   @override
-  String get themeColor => 'Theme colour';
+  String get themeColor => 'Accent colour';
 
   @override
-  String get themeColorSubtitle =>
-      'One accent builds the whole Material 3 palette';
+  String get themeColorSubtitle => 'One accent builds the full palette';
 
   @override
   String get playerBackdrop => 'Player background';
@@ -154,6 +169,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playerBackdropScrim => 'Scrim opacity';
+
+  @override
+  String get backdropBlurShort => 'Blur';
+
+  @override
+  String get backdropScrimShort => 'Dim';
 
   @override
   String get glassOpacity => 'Interface opacity';
@@ -207,14 +228,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get restore => 'Restore';
 
   @override
-  String get restoreSubtitle => 'Restore from a backup file';
+  String get restoreSubtitle =>
+      'Pick a backup file and overwrite the matching playlists and settings';
 
   @override
   String get clearCache => 'Clear cache';
 
   @override
   String get clearCacheSubtitle =>
-      'Clear playback cache, artwork, and temporary files';
+      'Clear playback cache, artwork, and temp files';
 
   @override
   String get about => 'About';
@@ -236,7 +258,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get diagnosticsSubtitle =>
-      'Start recording when opened. Keeps recording while minimized.';
+      'Record playback diagnostics; cleared when you exit';
 
   @override
   String get volume => 'Volume';
@@ -2353,7 +2375,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aiAssistantSubtitle =>
-      'One sentence to play, queue, build playlists or change settings';
+      'Play, queue, and change settings in one sentence';
 
   @override
   String get aiAssistantPlaceholder => 'What do you want to hear or do?';
@@ -2730,7 +2752,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get replayGain => 'Loudness normalisation';
 
   @override
-  String get replayGainSubtitle => 'Levels album volume using ReplayGain tags';
+  String get replayGainSubtitle =>
+      'Level volume across albums with ReplayGain tags';
 
   @override
   String get lockScreenLyric => 'Lock screen lyrics';
@@ -2774,8 +2797,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get smartPlaylists => 'Smart playlists';
 
   @override
-  String get smartPlaylistsSubtitle =>
-      'Built from rules, nothing to maintain by hand';
+  String get smartPlaylistsSubtitle => 'Built from rules, nothing to maintain';
 
   @override
   String get smartRecentlyAdded => 'Recently added';
@@ -2810,8 +2832,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get precacheRecent => 'Pre-cache frequent tracks';
 
   @override
-  String get precacheRecentSubtitle =>
-      'Fetches your most played tracks on Wi-Fi so they start instantly';
+  String get precacheRecentSubtitle => 'Cache your most played tracks on Wi-Fi';
 
   @override
   String get precacheCount => 'How many to pre-cache';
@@ -2839,14 +2860,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get skipSilenceSubtitle =>
-      'Skips silent intros and gaps automatically (Android only)';
+      'Skip silence at the start and middle (Android only)';
 
   @override
   String get playbackFade => 'Play/pause fade';
 
   @override
   String get playbackFadeSubtitle =>
-      'Soft ramps when starting or pausing, so headphones don\'t pop';
+      'Soft ramps on play and pause so headphones don\'t pop';
 
   @override
   String get exportM3u => 'Export as M3U';
@@ -3079,8 +3100,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get termsTitle => 'Terms of Use and Disclaimer';
 
   @override
-  String get termsEntrySubtitle =>
-      'What the app is, where content comes from, and the limits of liability';
+  String get termsEntrySubtitle => '';
 
   @override
   String get termsUpdated => 'Last updated: November 2026';
