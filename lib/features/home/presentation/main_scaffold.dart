@@ -608,24 +608,41 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     final current = base % count;
     final neighbor = (base + 1) % count;
 
-    final stack = ClipRect(
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // 每页在树上占一个**固定位置**，起手/落手只改 offstage 和位移。
-          // 之前是「静止时挂 N 个 Offstage，滑动时换成另外两个 Transform」，
-          // 子树结构一变，全部页面的 element 就被销毁重建一次——一次滑动
-          // 起手和落手各卡一帧，这才是"慢半拍"的主因。
-          for (var i = 0; i < count; i++)
-            _buildLayer(
-              i,
-              current: current,
-              neighbor: neighbor,
-              fraction: fraction,
-              width: width,
-              moving: moving,
-            ),
-        ],
+    // 页内纵向列表的 touchSlop 单独抬到 30（Android 上报 8、iOS/鸿蒙回退 18）。
+    //
+    // 为什么必须抬：Flutter 的 arena 是「谁先越过自己的 slop 谁赢」，同一个
+    // 事件里两边都越界时按命中顺序派发——内层列表先拿到，于是判给列表。安卓
+    // 上列表只要 8px 就赢，横滑却要 16；鸿蒙采样粗，一次事件就跳 20~40px，
+    // 横纵必然同帧双双越界，横滑直接变成「谁都没动」（列表只认纵向位移）。
+    // 抬到 30 等于给两边留出余量：常见的 10~26px 单帧位移下，列表还没到线，
+    // 我们先认领。
+    //
+    // 代价是列表自己要 30px 才起滚——但纵向手势会被识别器在 12px 时主动
+    // 认输（见 _AxisLockedSwipeGestureRecognizer），列表随即直接赢下 arena，
+    // 所以这 30 实际只在「识别器没参赛」的场景（输入框聚焦、气泡页）生效。
+    final stack = MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        gestureSettings: const DeviceGestureSettings(touchSlop: 30),
+      ),
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 每页在树上占一个**固定位置**，起手/落手只改 offstage 和位移。
+            // 之前是「静止时挂 N 个 Offstage，滑动时换成另外两个 Transform」，
+            // 子树结构一变，全部页面的 element 就被销毁重建一次——一次滑动
+            // 起手和落手各卡一帧，这才是"慢半拍"的主因。
+            for (var i = 0; i < count; i++)
+              _buildLayer(
+                i,
+                current: current,
+                neighbor: neighbor,
+                fraction: fraction,
+                width: width,
+                moving: moving,
+              ),
+          ],
+        ),
       ),
     );
 
@@ -633,11 +650,11 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     // 不进 arena。禁止在聚焦时拆掉 GestureDetector（子树结构突变也会关盘）。
     return RawGestureDetector(
       gestures: <Type, GestureRecognizerFactory>{
-        _EditableAwareHorizontalDragGestureRecognizer:
+        _AxisLockedSwipeGestureRecognizer:
             GestureRecognizerFactoryWithHandlers<
-              _EditableAwareHorizontalDragGestureRecognizer
+              _AxisLockedSwipeGestureRecognizer
             >(
-              () => _EditableAwareHorizontalDragGestureRecognizer(
+              () => _AxisLockedSwipeGestureRecognizer(
                 debugOwner: this,
                 shouldParticipate: _shouldParticipateInSwipe,
                 supportedDevices: {
@@ -645,12 +662,11 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
                   PointerDeviceKind.trackpad,
                 },
               ),
-              (_EditableAwareHorizontalDragGestureRecognizer instance) {
+              (_AxisLockedSwipeGestureRecognizer instance) {
                 // ignore: invalid_use_of_protected_member
                 instance.gestureSettings = const DeviceGestureSettings(
-                  // 28 的 slop 让「已经开始滑了」和「页面开始动」之间隔着
-                  // 近一指宽，手感就是迟滞。收到 16：仍能和纵向列表区分，
-                  // 跟手却明显更快。
+                  // 只用来算甩动的最小距离（considerFling）。方向判定在
+                  // 识别器内部按累积位移做，见 _AxisLockedSwipeGestureRecognizer。
                   touchSlop: 16,
                 );
                 instance
@@ -746,10 +762,28 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
   }
 }
 
-/// 落在 TextField 时不进入 gesture arena，从根上避免与首焦抢手势。
-class _EditableAwareHorizontalDragGestureRecognizer
-    extends HorizontalDragGestureRecognizer {
-  _EditableAwareHorizontalDragGestureRecognizer({
+/// 只在「方向确实是横的」时才认领手势的横滑识别器。
+///
+/// 旧实现直接继承 `HorizontalDragGestureRecognizer`，胜负交给「谁先越过自己的
+/// slop」：横滑写死 16，内层列表取 `MediaQuery.gestureSettings.touchSlop`——
+/// **Android 会上报 8dp**（`FlutterView` 里 `physicalTouchSlop =
+/// ViewConfiguration.getScaledTouchSlop()`），iOS / 鸿蒙不上报，回退 18。
+/// 也就是说安卓上列表动 8px 就赢、横滑要 16，纯横滑也可能输给列表。
+///
+/// 另一边是「同帧双越界」：两边都在一次事件里过关时，arena 按命中顺序派发，
+/// 内层列表先拿到就判纵向。iOS 采样细（ProMotion 8ms 一个点），横滑能在
+/// 纵向前过关；鸿蒙一次回调可能就是一个 20~40px 的大跳，两边同时过关的概率
+/// 高得多，结果就是「页面不动、列表也不动」（列表只认纵向位移），观感像点了
+/// 没反应。
+///
+/// 现在改成方向先判：拿**累积位移**算「水平分量是否超过垂直分量的两倍」
+/// （以上下各 26.6° 的锥形为界），是才认领；一旦看出是纵向就立刻
+/// `resolve(rejected)` 退出竞技场，让列表马上接管。这个 2:1 的偏置抄的是
+/// AndroidX 官方给 ViewPager2 写的 `NestedScrollableHost`：它对水平 pager
+/// 取 `scaledDx = |dx| * 0.5`、`scaledDy = |dy|`，再比大小决定谁接管；
+/// Flutter 没有 `requestDisallowInterceptTouchEvent`，等价物就是主动 reject。
+class _AxisLockedSwipeGestureRecognizer extends HorizontalDragGestureRecognizer {
+  _AxisLockedSwipeGestureRecognizer({
     required this.shouldParticipate,
     super.debugOwner,
     super.supportedDevices,
@@ -757,12 +791,77 @@ class _EditableAwareHorizontalDragGestureRecognizer
 
   final bool Function(Offset globalPosition) shouldParticipate;
 
+  /// 判方向所需的最小位移（任一轴到 12 就下结论）。
+  ///
+  /// 比页内列表的 30 小得多（见 [SwipeBranchContainerState.build] 里抬
+  /// touchSlop 的原因）：真横滑更早跟手；判成纵向时我们主动认输，列表
+  /// 反而比原来（等满 18/30）更早开始滚。
+  static const double _decideDistance = 12;
+
+  /// 纵向加权。2.0 = 水平分量必须超过垂直分量的两倍，等价于「偏离水平线
+  /// 不超过 26.6° 才算横滑」。
+  static const double _verticalBias = 2;
+
+  int? _primaryPointer;
+  double _dx = 0;
+  double _dy = 0;
+
+  /// 0 = 还没判出方向，1 = 横滑，2 = 纵向。
+  int _axis = 0;
+
   @override
   void addAllowedPointer(PointerDownEvent event) {
     if (!shouldParticipate(event.position)) {
       return;
     }
+    _primaryPointer ??= event.pointer;
+    if (event.pointer == _primaryPointer) {
+      _dx = 0;
+      _dy = 0;
+      _axis = 0;
+    }
     super.addAllowedPointer(event);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerMoveEvent &&
+        event.pointer == _primaryPointer &&
+        _axis == 0) {
+      _dx += event.delta.dx;
+      _dy += event.delta.dy;
+      if (_dx.abs() >= _decideDistance || _dy.abs() >= _decideDistance) {
+        // 只看累积位移的**方向**，不看「走了多远」。基类原来比的是路程
+        // 长度，一次事件跳 30px 时横纵两个识别器会在同一帧双双越界，
+        // arena 按命中顺序判给内层列表——采样越粗越容易翻车。
+        _axis = _dx.abs() > _dy.abs() * _verticalBias ? 1 : 2;
+        if (_axis == 2) {
+          // 主动认输：列表立刻赢下 arena，不必等它自己越过 slop。
+          resolve(GestureDisposition.rejected);
+          return;
+        }
+      }
+    }
+    super.handleEvent(event);
+  }
+
+  /// 基类靠这个方法决定是否 `resolve(accepted)`。这里只认方向判定结果，
+  /// 不再用「累计路程超过 slop」——那正是把斜滑判成横滑的根源。
+  @override
+  bool hasSufficientGlobalDistanceToAccept(
+    PointerDeviceKind pointerDeviceKind,
+    double? deviceTouchSlop,
+  ) {
+    return _axis == 1;
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {
+    _primaryPointer = null;
+    _axis = 0;
+    _dx = 0;
+    _dy = 0;
+    super.didStopTrackingLastPointer(pointer);
   }
 }
 
