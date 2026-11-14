@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../network/artwork_auth_registry.dart';
+import '../network/artwork_load_gate.dart';
 import '../network/outbound_url.dart';
 import 'artwork_disk_cache.dart';
 
@@ -384,17 +385,22 @@ class ArtworkNetworkImage extends ImageProvider<ArtworkNetworkImage> {
         for (final candidate in candidates) {
           try {
             final candidateUri = Uri.parse(candidate);
-            bytes = await key._loader.load(
-              candidateUri,
-              artworkRequestHeaders(candidate),
-              (cumulative, total) {
-                chunkEvents.add(
-                  ImageChunkEvent(
-                    cumulativeBytesLoaded: cumulative,
-                    expectedTotalBytes: total,
-                  ),
-                );
-              },
+            // 首屏十几行同时开图时排个队，别让十几条连接一起压在同一帧上。
+            // 显式给类型参数：否则 T 会从 `bytes`（可空）反推成可空，
+            // 下面的空判断之后就拿不回非空了。
+            bytes = await artworkLoadGate.run<Uint8List>(
+              () => key._loader.load(
+                candidateUri,
+                artworkRequestHeaders(candidate),
+                (cumulative, total) {
+                  chunkEvents.add(
+                    ImageChunkEvent(
+                      cumulativeBytesLoaded: cumulative,
+                      expectedTotalBytes: total,
+                    ),
+                  );
+                },
+              ),
             );
             if (_isUsableArtwork(bytes)) {
               unawaited(

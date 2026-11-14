@@ -6,6 +6,7 @@ import '../../../l10n/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
+import '../../../core/widgets/deferred_until_route_settled.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
@@ -198,7 +199,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               AppColors.accentOf(context),
             ),
           ),
-        Expanded(child: _buildMainContent(searchState, searchHistory)),
+        // 结果列表是这一页最重的一帧：首屏十几行都带封面。独立搜索页是从
+        // 卡片展开进来的，等入场动效播完再建，否则动效会在开头顿住。
+        // 面板（embedded）走的是上滑弹层，没有缩放窗口，照常立刻建出来。
+        Expanded(
+          child: widget.embedded
+              ? _buildMainContent(searchState, searchHistory)
+              : DeferredUntilRouteSettled(
+                  child: _buildMainContent(searchState, searchHistory),
+                ),
+        ),
       ],
     );
     // Embedded mode is already inside the rounded sheet. A second Scaffold and

@@ -154,4 +154,56 @@ void main() {
     await tester.pumpAndSettle();
     expect(toggled, 1);
   });
+
+  testWidgets('独立搜索页等入场动效播完再建结果区', (tester) async {
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          searchStateProvider.overrideWith(
+            () => SearchNotifier(
+              (query, sourceId, page) async => const [],
+              () => 'tx',
+            ),
+          ),
+          hotSearchProvider.overrideWith((ref) async => const ['热歌1']),
+          searchHistoryProvider.overrideWith(SearchHistoryNotifier.new),
+          allSearchSourcesProvider.overrideWith(
+            (ref) => [SearchSourceItem(id: 'tx', name: 'QQ')],
+          ),
+        ],
+        child: MaterialApp(
+          navigatorKey: navigator,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const Scaffold(body: SearchScreen()),
+                    ),
+                  ),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+
+    expect(
+      find.text('Trending'),
+      findsNothing,
+      reason: '卡片展开动效还在播，结果区不能进动效窗口',
+    );
+
+    await tester.pumpAndSettle();
+    expect(find.text('Trending'), findsOneWidget);
+    expect(find.text('热歌1'), findsOneWidget);
+  });
 }

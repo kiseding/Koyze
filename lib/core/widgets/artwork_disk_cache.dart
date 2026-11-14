@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../network/artwork_load_gate.dart';
 import '../network/outbound_url.dart';
 import '../storage/ttl_cache.dart';
 import 'artwork_image.dart';
@@ -159,7 +160,10 @@ class ArtworkDiskCache {
         final resolved = normalizeOutboundUrl(candidate);
         final uri = Uri.parse(resolved);
         final headers = artworkRequestHeaders(resolved);
-        final bytes = await _loader.load(uri, headers, (_, __) {});
+        // 与列表里的封面共用一份并发名额，别在预热时把带宽全占掉。
+        final bytes = await artworkLoadGate.run(
+          () => _loader.load(uri, headers, (_, __) {}),
+        );
         if (bytes.isEmpty) continue;
         // Cache under the originally requested URL so a 404ing 1000px
         // scrape result still hits on the next lookup.
