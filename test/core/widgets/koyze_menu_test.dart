@@ -6,6 +6,7 @@ import 'package:koyze/core/widgets/koyze_menu.dart';
 Widget _host({
   required ValueChanged<String> onSelected,
   bool disableAnimations = false,
+  List<String> labels = const ['First action', 'Second action'],
 }) {
   return MediaQuery(
     data: MediaQueryData(
@@ -20,14 +21,11 @@ Widget _host({
               key: const ValueKey('menu-trigger'),
               onSelected: onSelected,
               itemBuilder: (context) => [
-                const PopupMenuItem<String>(
-                  value: 'one',
-                  child: Text('First action'),
-                ),
-                const PopupMenuItem<String>(
-                  value: 'two',
-                  child: Text('Second action'),
-                ),
+                for (var i = 0; i < labels.length; i++)
+                  PopupMenuItem<String>(
+                    value: 'item$i',
+                    child: Text(labels[i]),
+                  ),
               ],
             ),
           ],
@@ -51,7 +49,7 @@ Future<void> _openMenu(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('anchored menu keeps a floating width and screen margin', (
+  testWidgets('menu hugs its widest label instead of the anchor width', (
     tester,
   ) async {
     _setViewport(tester);
@@ -61,10 +59,33 @@ void main() {
     final surface = tester.getRect(
       find.byKey(const ValueKey('koyze-menu-morph-surface')),
     );
-    expect(surface.width, 272);
+    // 触发按钮只有 44dp 宽，菜单曾经固定 272dp 宽，短标签右边空一大片。
+    expect(surface.width, lessThan(272));
+    expect(surface.width, greaterThanOrEqualTo(168));
     expect(surface.left, greaterThanOrEqualTo(12));
     expect(surface.right, lessThanOrEqualTo(390 - 12));
     expect(find.text('First action'), findsOneWidget);
+  });
+
+  testWidgets('long labels stop growing at the menu cap', (tester) async {
+    _setViewport(tester);
+    await tester.pumpWidget(
+      _host(
+        onSelected: (_) {},
+        labels: const [
+          '删除已下载的全部歌曲并清理缓存文件并同时重置播放队列让它彻底回到初始状态',
+          '短',
+        ],
+      ),
+    );
+    await _openMenu(tester);
+
+    final surface = tester.getRect(
+      find.byKey(const ValueKey('koyze-menu-morph-surface')),
+    );
+    expect(surface.width, 336);
+    expect(surface.right, lessThanOrEqualTo(390 - 12));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('anchored menu returns the selected PopupMenuItem value', (
@@ -78,7 +99,7 @@ void main() {
     await tester.tap(find.text('Second action'));
     await tester.pumpAndSettle();
 
-    expect(selected, 'two');
+    expect(selected, 'item1');
     expect(find.text('Second action'), findsNothing);
   });
 

@@ -222,15 +222,20 @@ class _KoyzeMenuRoute<T> extends PopupRoute<T> {
                     math.max(media.padding.bottom, media.viewInsets.bottom) -
                     12,
               );
-              final width = math.min<double>(
-                safe.width,
-                math
-                    .max(272.0, math.min(anchor.width, 360.0))
-                    .clamp(
-                      constraints?.minWidth ?? 0,
-                      constraints?.maxWidth ?? double.infinity,
-                    ),
-              );
+              // 宽度跟着最长的菜单项走。触发按钮一般只有 44dp，按它定宽
+              // 会让「重命名 / 删除」这类短标签右边空出一大片。
+              final maxWidth = math.min(safe.width, 336.0);
+              final minWidth = math.min(168.0, maxWidth);
+              final measured = _measureContentWidth(context);
+              final desired =
+                  measured ?? math.min(math.max(anchor.width, 200.0), maxWidth);
+              var width = desired.clamp(minWidth, maxWidth).toDouble();
+              if (constraints != null) {
+                final upper = math.min(constraints!.maxWidth, maxWidth);
+                width = width
+                    .clamp(math.min(constraints!.minWidth, upper), upper)
+                    .toDouble();
+              }
               final geometry = _KoyzeMenuGeometry(anchor, safe, anchorRadius);
               return CustomSingleChildLayout(
                 delegate: _KoyzeMenuLayout(geometry, width),
@@ -313,6 +318,40 @@ class _KoyzeMenuRoute<T> extends PopupRoute<T> {
     );
   }
 
+  /// 估算菜单需要多宽：取最长一行文字的实际排版宽度，加上行内边距、
+  /// 浮层内边距和选中勾。
+  ///
+  /// 内容不是纯 [Text]（例如自定义 Row、ListTile）时返回 null，由调用处
+  /// 退回按锚点宽度估算，避免把复杂布局挤成一条。
+  double? _measureContentWidth(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.maybeOf(context) ?? TextDirection.ltr;
+    var widest = 0.0;
+    var hasSelection = false;
+    for (final item in items) {
+      if (item is PopupMenuDivider) continue;
+      if (item is! PopupMenuItem<T>) return null;
+      final child = item.child;
+      if (child is! Text) return null;
+      final text = child.data ?? child.textSpan?.toPlainText();
+      if (text == null || text.isEmpty) return null;
+      final painter = TextPainter(
+        text: TextSpan(text: text, style: _menuLabelStyle.merge(child.style)),
+        textDirection: child.textDirection ?? direction,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      widest = math.max(widest, painter.width);
+      final selected = item is CheckedPopupMenuItem<T>
+          ? item.checked
+          : initialValue != null && item.value == initialValue;
+      hasSelection = hasSelection || selected;
+    }
+    if (widest <= 0) return null;
+    // 12+12 行内边距、8+8 浮层内边距、8+19 选中勾。
+    return widest.ceilToDouble() + 40 + (hasSelection ? 27 : 0);
+  }
+
   List<Widget> _tiles(BuildContext context) {
     var focusAssigned = false;
     return [
@@ -337,6 +376,9 @@ class _KoyzeMenuRoute<T> extends PopupRoute<T> {
     ];
   }
 }
+
+/// 菜单项文字的基准样式：渲染和测宽共用同一份，避免两边算出来不一样宽。
+const _menuLabelStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.w500);
 
 BoxDecoration _menuDecoration(BuildContext context, Color? color) {
   final base = color ?? AppColors.card(context);
@@ -401,9 +443,8 @@ class _KoyzeMenuTile<T> extends StatelessWidget {
             child: IconTheme.merge(
               data: IconThemeData(color: scheme.onSurfaceVariant, size: 21),
               child: DefaultTextStyle.merge(
-                style: TextStyle(
+                style: _menuLabelStyle.copyWith(
                   color: scheme.onSurface,
-                  fontSize: 14,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 ),
                 child: Row(
@@ -422,7 +463,14 @@ class _KoyzeMenuTile<T> extends StatelessWidget {
                     ],
                     Expanded(
                       child: tile == null
-                          ? content ?? const SizedBox.shrink()
+                          // 菜单宽度是按这一行量出来的，这里再兜一层单行省略：
+                          // 万一字体量宽差一点，也是截断而不是折成两行。
+                          ? DefaultTextStyle.merge(
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              child: content ?? const SizedBox.shrink(),
+                            )
                           : Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisSize: MainAxisSize.min,
