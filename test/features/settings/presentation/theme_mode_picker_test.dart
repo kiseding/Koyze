@@ -17,7 +17,10 @@ import 'package:koyze/l10n/generated/app_localizations.dart';
 /// 用户按下其中一颗、另一颗自己弹回来，看起来就是「设置没生效」。
 void main() {
   testWidgets('主题是一个三选一，选完立刻落到 themeMode', (tester) async {
-    tester.view.physicalSize = const Size(390, 844);
+    // 视口开得足够高，让整页排开。「主题」在设置页靠后的位置，用普通的
+    // 390x844 时那一行要么还没被懒构建、要么落在屏幕外（CI 上 tap 打在
+    // y=1130 直接落空）；本条用例只验三选一行为，不需要真机上那种滚动。
+    tester.view.physicalSize = const Size(390, 6000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -51,10 +54,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.text('主题'),
-      400,
-      scrollable: find.byType(Scrollable).first,
+    // 行必须真的在视口里，否则 tap 会静默落空——把这条守住，
+    // 免得视口一改用例就变成「什么都没点到却还绿着」。
+    expect(
+      tester.getCenter(find.text('主题')).dy,
+      lessThan(tester.view.physicalSize.height),
+      reason: '主题行必须落在视口内，tap 才有意义',
     );
     await tester.tap(find.text('主题'));
     await tester.pumpAndSettle();
