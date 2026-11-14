@@ -195,7 +195,8 @@ void main() {
     expect(size.width - rect.right, 12);
   });
 
-  testWidgets('dialog panel never spans the viewport', (tester) async {    tester.view.physicalSize = const Size(390, 844);
+  testWidgets('dialog panel never spans the viewport', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -237,6 +238,7 @@ void main() {
     WidgetTester tester,
     Widget body, {
     bool isScrollControlled = false,
+    TargetPlatform platform = TargetPlatform.android,
   }) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -245,6 +247,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData(platform: platform),
         home: Builder(
           builder: (context) => TextButton(
             onPressed: () => showKoyzeSheet<void>(
@@ -323,5 +326,89 @@ void main() {
     await dragDown(tester, find.text('row-1'));
 
     expect(find.text('row-1'), findsNothing);
+  });
+
+  Widget tallList({int rows = 8}) => ListView(
+    children: [
+      for (var i = 0; i < rows; i++)
+        SizedBox(height: 44, child: Center(child: Text('row-$i'))),
+    ],
+  );
+
+  testWidgets('iOS drag moves the panel, not just the list contents', (
+    tester,
+  ) async {
+    // iOS 的 BouncingScrollPhysics 会让列表自己先拉长一段，面板再跟着走：
+    // 同一段手指位移被消费两次，松手时列表还要用弹簧缩回去，那就是"弹簧"。
+    await openDragSheet(
+      tester,
+      tallList(),
+      isScrollControlled: true,
+      platform: TargetPlatform.iOS,
+    );
+
+    double panelTop() => tester.getTopLeft(find.byType(GlassSurface).first).dy;
+    double rowTop() => tester.getTopLeft(find.text('row-1')).dy;
+
+    final startPanel = panelTop();
+    final startRow = rowTop();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('row-1')),
+    );
+    for (var i = 0; i < 4; i++) {
+      await gesture.moveBy(const Offset(0, 20));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    final panelMoved = panelTop() - startPanel;
+    final rowMoved = rowTop() - startRow;
+    expect(panelMoved, greaterThan(50));
+    // 内容相对面板不能再自己跑一段（留半像素给取整误差）。
+    expect((rowMoved - panelMoved).abs(), lessThan(1.0));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('releasing a short drag settles back without a spring', (
+    tester,
+  ) async {
+    await openDragSheet(
+      tester,
+      tallList(),
+      isScrollControlled: true,
+      platform: TargetPlatform.iOS,
+    );
+
+    double panelTop() => tester.getTopLeft(find.byType(GlassSurface).first).dy;
+    final home = panelTop();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('row-1')),
+    );
+    for (var i = 0; i < 4; i++) {
+      await gesture.moveBy(const Offset(0, 20));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final released = panelTop();
+    await gesture.up();
+
+    // 松手后前两帧就得走出去：之前控制器没有监听者，面板会原地停满整个
+    // 时长再一帧跳到终点，看着就是"卡在松手处"。
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(panelTop(), lessThan(released - 8));
+
+    // 归位过程中不能越过原位（过冲之后再弹回来就是肉眼可见的弹簧）。
+    var minTop = panelTop();
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      if (panelTop() < minTop) minTop = panelTop();
+    }
+    expect(minTop, greaterThanOrEqualTo(home - 0.5));
+
+    await tester.pumpAndSettle();
+    expect(panelTop(), closeTo(home, 0.5));
   });
 }

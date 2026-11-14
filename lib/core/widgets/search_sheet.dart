@@ -8,6 +8,7 @@ import 'package:koyze/features/search/presentation/search_screen.dart';
 import '../motion/motion_tokens.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
+import 'sheet_scroll_behavior.dart';
 
 /// 弹出 Origo 风格搜索浮层。
 ///
@@ -401,12 +402,17 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
               children: [
                 NotificationListener<ScrollNotification>(
                   onNotification: _onScrollNotification,
-                  child: SearchScreen(
-                    embedded: true,
-                    liveSearch: true,
-                    reserveKeyboardInset: false,
-                    autofocusDelay: _focusDelay(),
-                    canAutofocus: () => !_dismissing,
+                  // 和底部弹层同一套：面板已经跟着手指走，列表再弹一下就是
+                  // 双重位移，松手时那股「弹簧」就是它。
+                  child: ScrollConfiguration(
+                    behavior: const SheetScrollBehavior(),
+                    child: SearchScreen(
+                      embedded: true,
+                      liveSearch: true,
+                      reserveKeyboardInset: false,
+                      autofocusDelay: _focusDelay(),
+                      canAutofocus: () => !_dismissing,
+                    ),
                   ),
                 ),
                 Positioned(

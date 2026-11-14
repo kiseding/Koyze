@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../motion/motion_tokens.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
+import 'sheet_scroll_behavior.dart';
 
 /// 统一的底部弹窗：从底部进入 + 轻微淡入/上浮 + scrim 平滑出现。
 /// 所有 showModalBottomSheet 调用点统一替换，保证 Modal Motion 一致。
@@ -97,7 +98,19 @@ Future<T?> showKoyzeSheet<T>({
         ),
         child: compactMenu ? _CompactSheet(child: built) : built,
       );
-      final themed = Theme(data: rowsTheme, child: content);
+      final themed = Theme(
+        data: rowsTheme,
+        // 弹层里的滚动区一律关掉 iOS 的橡皮筋。
+        //
+        // 面板本身已经跟着手指走了，如果列表再弹一下，内容相对面板还会多
+        // 跑一段（实测 100px 的手指位移：面板 80、内容 118），松手时列表要
+        // 用弹簧模拟慢慢缩回——两段运动叠在一起就是那股"弹簧味"。
+        // 换成 Clamping 后内容不再拉伸，下滑的位移全部交给面板。
+        child: ScrollConfiguration(
+          behavior: const SheetScrollBehavior(),
+          child: content,
+        ),
+      );
       final panel = useGlass
           ? GlassSurface(
               // Sheet uses a transparent iOS material: the backdrop is the
@@ -566,7 +579,11 @@ class _KoyzeDragToDismissState extends State<KoyzeDragToDismiss>
     return _from + (_to - _from) * t;
   }
 
-  double get _travel => _panelHeight + widget.bottomGap;
+  /// 面板完全滑出屏幕所需的位移。高度没量到时按整屏算，宁可多滑一点，
+  /// 也不要只挪一小段就交给路由，那样看起来像回到原位又突然消失。
+  double get _travel =>
+      (_panelHeight > 0 ? _panelHeight : MediaQuery.sizeOf(context).height) +
+      widget.bottomGap;
 
   @override
   void dispose() {
@@ -580,8 +597,20 @@ class _KoyzeDragToDismissState extends State<KoyzeDragToDismiss>
       _dy = _display;
       _settle.stop();
     }
+    _measurePanel();
+  }
+
+  /// 量面板高度，用于换算「拖了百分之多少」和滑出屏幕所需的位移。
+  ///
+  /// 不能只在手势起点量：手指落在列表上时竖滑会被内部 Scrollable 抢走，
+  /// `onVerticalDragStart` 根本不会触发，[_panelHeight] 会一直是 0。
+  /// 那样 [_travel] 只剩底缝那 10pt，松手时面板先往上挪一小段、再被路由
+  /// 抽走，看着就是「回弹一下才离开」。所以每次用到之前都补量一次。
+  void _measurePanel() {
     final box = context.findRenderObject();
-    if (box is RenderBox && box.hasSize) _panelHeight = box.size.height;
+    if (box is RenderBox && box.hasSize && box.size.height > 0) {
+      _panelHeight = box.size.height;
+    }
   }
 
   void _dragBy(double delta) {
@@ -590,6 +619,7 @@ class _KoyzeDragToDismissState extends State<KoyzeDragToDismiss>
       _dy = _display;
       _settle.stop();
     }
+    if (_panelHeight <= 0) _measurePanel();
     final next = (_dy + delta).clamp(0.0, double.infinity);
     if (next == _dy) return;
     setState(() => _dy = next);
@@ -598,10 +628,15 @@ class _KoyzeDragToDismissState extends State<KoyzeDragToDismiss>
   void _endDrag(double velocity) {
     if (!widget.enabled || _dismissing) return;
     _fromScroll = false;
+    _measurePanel();
     final display = _display;
+    // 量不到高度时按整屏算阈值，避免 0 让「拖一点就关」。
+    final base = _panelHeight > 0
+        ? _panelHeight
+        : MediaQuery.sizeOf(context).height;
     // 只有向下拖才会产生位移，所以速度取绝对值就够判断「甩」。
     final flick = velocity.abs() > 700;
-    if (display > 0 && (flick || display > _panelHeight * 0.32)) {
+    if (display > 0 && (flick || display > base * 0.32)) {
       _dismissing = true;
       unawaited(_animateTo(_travel));
       return;
@@ -612,7 +647,13 @@ class _KoyzeDragToDismissState extends State<KoyzeDragToDismiss>
   Future<void> _animateTo(double target, {bool pop = true}) async {
     _from = _display;
     _to = target;
-    _settle.duration = motionDuration(context, MotionDuration.normal);
+    // 收尾时长跟着拖拽幅度走：只挪几像素时立刻归位，甩出去时才走满。
+    final span = (_to - _from).abs();
+    final ratio = _travel <= 0 ? 1.0 : (span / _travel).clamp(0.0, 1.0);
+    _settle.duration = motionDuration(
+      context,
+      Duration(milliseconds: (110 + ratio * 130).round()),
+    );
     await _settle.forward(from: 0);
     if (!mounted) return;
     setState(() {
@@ -667,7 +708,14 @@ class _KoyzeDragToDismissState extends State<KoyzeDragToDismiss>
           );
     return NotificationListener<ScrollNotification>(
       onNotification: _onScroll,
-      child: Transform.translate(offset: Offset(0, _display), child: child),
+      // 必须由 [_settle] 驱动重建：位置是在 build 里读的，没有 listener 的话
+      // 收尾动画整段都不会画出来，面板会原地停满时长再一帧跳到终点。
+      child: AnimatedBuilder(
+        animation: _settle,
+        builder: (context, child) =>
+            Transform.translate(offset: Offset(0, _display), child: child),
+        child: child,
+      ),
     );
   }
 }
