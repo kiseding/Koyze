@@ -19,9 +19,11 @@ const TAG: string = 'KoyzeFileSystem';
 /// 这样 `LocalFileSystem` 的三个平台实现只需要一个 Dart 类去解析。
 ///
 /// HarmonyOS 和 Android 有个关键差别：这里**不需要** SAF 那套 `content://`
-/// 文档树。鸿蒙的 `@ohos.file.fs` 直接接受普通路径，也接受 DocumentViewPicker
-/// 返回的 `file://docs/...` URI，两者用法一样。所以实现是纯路径式的，
-/// 比 Android 简单一档。
+/// 文档树。鸿蒙的 `@ohos.file.fs` 直接接受普通沙盒路径；DocumentViewPicker
+/// 返回的 `file://docs/...` 则是另一种东西——**URI**，只有 `open` / `stat`
+/// 这类接口认，`moveFile` / `copyFile` / `access` / `listFile` 都只收沙盒
+/// 路径。两者不能混用（混用的后果是 13900002，看着像「文件不存在」）。
+/// 所以写公共目录时统一走 [copyFileToUri]：open 出 fd 再拷贝。
 ///
 /// 目录选择也在这里做：`file_picker` 的 ohos 移植把 `dir` 当成选文件处理，
 /// 返回的是缓存目录里的副本路径，没法当目录用。所以鸿蒙自己实现
@@ -153,6 +155,10 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
     if (this.exists(target)) {
       throw makeConflict(target);
     }
+    if (isUri(targetDirectory)) {
+      await this.copyFileToUri(sourcePath, target);
+      return target;
+    }
     await fs.copyFile(sourcePath, target);
     return target;
   }
@@ -163,6 +169,22 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
     const target: string = joinPath(targetDirectory, name);
     if (this.exists(target)) {
       throw makeConflict(target);
+    }
+    if (isUri(targetDirectory)) {
+      // 目标目录来自 DocumentViewPicker，是 `file://docs/...` URI。
+      // `fs.moveFile` / `fs.copyFile` 只认沙盒路径（见 SDK 的 @param 说明），
+      // 早先直接把 URI 递进去，系统把它当相对路径解析 → 13900002，
+      // Dart 侧看到的就是 not_found / No such file or directory。
+      // 写 URI 的唯一正路是 open 拿 fd（open 支持 URI）再按 fd 拷。
+      await this.copyFileToUri(sourcePath, target);
+      try {
+        await fs.unlink(sourcePath);
+      } catch (error) {
+        // 副本已经写进公共目录，但源文件删不掉：不能当成功，否则用户
+        // 会同时看到两份而不知道哪份是真的。把原始错误带回去。
+        throw wrapError(error);
+      }
+      return target;
     }
     try {
       // 同一分区内 moveFile 是原子的。
@@ -188,6 +210,41 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
       }
     }
     return target;
+  }
+
+  /// 往 picker 授权的 URI 里写文件。
+  ///
+  /// 为什么必须过 fd：`fs.moveFile` 只收沙盒路径，`fs.copyFile` 的 dest
+  /// 虽然能收路径，但那条路径同样必须是沙盒路径；只有 `fs.open` 明确
+  /// 支持 URI。所以先 open 出目标文件，再用它的 fd 当 copyFile 的 dest。
+  ///
+  /// 不带 `TRUNC`：open 只负责「不存在就建」，覆盖行为交给 copyFile
+  /// （它会截断多余部分）。调用方已经用 [exists] 挡过重名。
+  private async copyFileToUri(sourcePath: string, targetUri: string): Promise<void> {
+    const dest: fs.File = await this.openUri(targetUri);
+    try {
+      await fs.copyFile(sourcePath, dest.fd);
+    } finally {
+      fs.closeSync(dest);
+    }
+  }
+
+  /// 打开（不存在就创建）一个可写 URI。
+  ///
+  /// 文件名里的中文、括号在 URI 里严格来说要百分号编码，个别系统版本
+  /// 只认编码后的形式。先按原样试，失败再试编码形式；URI 本身已经带了
+  /// `%` 就说明是编过码的，不再二次编码（否则 `%20` 会变成 `%2520`）。
+  private async openUri(uri: string): Promise<fs.File> {
+    const forms: Array<string> = uriForms(uri);
+    let failure: Object = new Error(`无法打开目标: ${uri}`);
+    for (let i: number = 0; i < forms.length; i++) {
+      try {
+        return await fs.open(forms[i], fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
+      } catch (error) {
+        failure = error;
+      }
+    }
+    throw wrapError(failure);
   }
 
   private async rename(sourcePath: string, newName: string): Promise<string> {
@@ -223,6 +280,21 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
   }
 
   private exists(path: string): boolean {
+    if (isUri(path)) {
+      // `fs.access` 不认 URI。只读 open 一次即可：能打开就是存在，
+      // 而且 READ_ONLY 不会像 CREATE 那样把文件建出来。
+      const forms: Array<string> = uriForms(path);
+      for (let i: number = 0; i < forms.length; i++) {
+        try {
+          const file: fs.File = fs.openSync(forms[i], fs.OpenMode.READ_ONLY);
+          fs.closeSync(file);
+          return true;
+        } catch (error) {
+          continue;
+        }
+      }
+      return false;
+    }
     try {
       return fs.accessSync(path);
     } catch (error) {
@@ -230,15 +302,16 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
     }
   }
 
-  /// 选一个目录，返回可被 `fs` 直接使用的路径。
+  /// 选一个目录，返回可被 `fs` 直接使用的 URI。
   ///
   /// 为什么不用 `file_picker`：它的 ohos 移植把 `dir` 当「选文件」处理，
   /// 选完会把目录内容当文件读出来、再返回缓存目录里的副本路径，根本不是
   /// 目录。所以这里直接用 `DocumentViewPicker` + 文件夹模式。
   ///
   /// 返回的是 picker 给的 `file://docs/...` URI 原样，**不**转成普通路径：
-  /// 访问授权是绑在这个 URI 上的，换成路径就走不到授权了。`@ohos.file.fs`
-  /// 的接口两种形式都收，所以后续操作不用特殊处理。
+  /// 访问授权是绑在这个 URI 上的，换成路径就走不到授权了。但要注意它
+  /// 是 URI 而不是沙盒路径——只有 `open` / `stat` 认，写文件得走
+  /// [copyFileToUri]（open 出 fd 再拷），不能直接喂给 `moveFile`。
   private async pickDirectory(): Promise<string> {
     // selectMode: 1 = 文件夹（0 是文件）。用字面量而不是 DocumentSelectMode
     // 枚举，因为不同 SDK 版本里这个枚举名不一致，字面量在各版本都成立
@@ -349,6 +422,28 @@ function joinPath(directory: string, name: string): string {
     ? directory.substring(0, directory.length - 1)
     : directory;
   return `${trimmed}/${name}`;
+}
+
+/// 是不是 URI（`file://docs/...`）而不是沙盒路径。
+///
+/// 这个区分在鸿蒙上是**硬**的：`fs.moveFile` 只收沙盒路径，`fs.access`
+/// 也只收沙盒路径；只有 `fs.open` / `fs.stat` 这一类明确写了支持 URI。
+/// 把 picker 返回的 URI 当路径用，得到的是 13900002（不是没权限，是
+/// 「找不到」——系统按相对路径去解析了）。
+function isUri(path: string): boolean {
+  return path.indexOf('://') > 0;
+}
+
+/// 一个 URI 的候选写法。
+///
+/// 绝大多数文件名原样就能 open；带中文/空格时个别系统版本要求百分号编码，
+/// 所以给一个「原样 + 编码」的候选列表逐个试。已经含 `%` 的 URI 视为
+/// 编过码，不再二次编码。
+function uriForms(uri: string): Array<string> {
+  if (uri.indexOf('%') >= 0) return [uri];
+  const encoded: string = encodeURI(uri);
+  if (encoded === uri) return [uri];
+  return [uri, encoded];
 }
 
 function baseName(path: string): string {
