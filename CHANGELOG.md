@@ -35,6 +35,9 @@
   `RawTooltip` 直接抛 `No Overlay widget found`。改用 `Semantics` 提供无障碍标签。
 - **重命名完成后页面报错**：`showDialog` 返回后立刻 `dispose` 了 controller，而对话框还在
   播退场动画，`TextField` 会再读一次已释放的 controller。controller 改由对话框自己持有。
+- **「猜你喜欢」上面也多空一个工具栏**：同一个栏高被让了两次——外层 `KoyzeAppBarBody`
+  让出栏高后，列表自己的 padding 又叠了一次 `koyzeAppBarExtent`，于是第一首歌离标题
+  隔着一个工具栏的距离。顶部只留 8，顺带下拉刷新的指示器正好落在栏下。
 - **5 条文案把换行写成了字面 `
 `**：界面上真的显示「自动收录
 /path」这种反斜杠加 n。

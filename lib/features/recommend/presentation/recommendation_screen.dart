@@ -253,14 +253,10 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
   /// 压住；同时滚到底时它还能正常露出来，不会被安全区「截断」。
   EdgeInsets _listPadding(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
-    // 顶栏是半透明的，列表要从栏下穿过才看得出「界面不透明度」的效果，
-    // 所以上内边距得让出整个栏高。
-    return EdgeInsets.fromLTRB(
-      16,
-      koyzeAppBarExtent(context) + 8,
-      16,
-      24 + bottom,
-    );
+    // 顶部**只能**留 8：栏高已经由外面的 KoyzeAppBarBody 让过一次了，
+    // 这里再叠一次 koyzeAppBarExtent 就会在「猜你喜欢」上面多空一个工具栏
+    // （下拉刷新的指示器也因此正好落在栏下，不会被顶栏挡住）。
+    return EdgeInsets.fromLTRB(16, 8, 16, 24 + bottom);
   }
 
   /// 空态也要能下拉：没有候选往往正是最想重试的时候。

@@ -68,6 +68,20 @@ Future<void> _pumpScreen(WidgetTester tester, {int count = 12}) async {
 }
 
 void main() {
+  testWidgets('第一行紧贴栏下 8pt，不再多空一个栏高', (tester) async {
+    await _pumpScreen(tester);
+
+    final appBarBottom = tester.getRect(find.byType(AppBar)).bottom;
+    final first = tester.getRect(find.byType(ListTile).first);
+    expect(
+      first.top - appBarBottom,
+      moreOrLessEquals(8, epsilon: 0.5),
+      reason:
+          'KoyzeAppBarBody 已经让出栏高，列表 padding 又让了一次，'
+          '「猜你喜欢」顶部会凭空多空一个工具栏',
+    );
+  });
+
   testWidgets('滚动区域铺到屏幕最底边，不在安全区上方提前收口', (tester) async {
     await _pumpScreen(tester);
 
