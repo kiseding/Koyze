@@ -1,6 +1,6 @@
 {
   "name": "koyze-web",
-  "version": "5.0.5",
+  "version": "5.0.6",
   "private": true,
   "description": "Koyze 的 Web 托管服务：静态产物 + 音源运行时 + 同源代理",
   "type": "commonjs",
