@@ -10,13 +10,17 @@ import 'package:koyze/features/search/presentation/search_screen.dart';
 
 void main() {
   test('search sheet owns its drag gesture instead of the stock sheet', () {
-    final source = File('lib/core/widgets/search_sheet.dart').readAsStringSync();
+    final source = File(
+      'lib/core/widgets/search_sheet.dart',
+    ).readAsStringSync();
 
     expect(source, contains('class _SearchSheetRoute extends PopupRoute'));
     expect(source, isNot(contains('showModalBottomSheet')));
     expect(source, contains('onVerticalDragUpdate'));
     expect(source, contains('onVerticalDragEnd'));
     expect(source, contains('Curves.easeInOutCubicEmphasized'));
+    // 松手收尾用普通缓出，不再用起点速度为 0 的弹簧曲线。
+    expect(source, contains('MotionCurve.easeOutQuart.transform'));
   });
 
   Future<void> openSheet(WidgetTester tester, {List<String>? queries}) async {
@@ -48,9 +52,8 @@ void main() {
             builder: (context) => Scaffold(
               body: Center(
                 child: TextButton(
-                  onPressed: () => unawaited(
-                    showSearchSheet(context, topInset: 96),
-                  ),
+                  onPressed: () =>
+                      unawaited(showSearchSheet(context, topInset: 96)),
                   child: const Text('open'),
                 ),
               ),
@@ -86,21 +89,39 @@ void main() {
     expect(find.byType(SearchScreen), findsNothing);
   });
 
-  testWidgets('a short pull springs back to the open position', (tester) async {
-    await openSheet(tester);
+  testWidgets(
+    'a short pull returns home without stalling at the release point',
+    (tester) async {
+      await openSheet(tester);
+      final home = tester.getTopLeft(find.byType(SearchScreen)).dy;
 
-    final handle = find.byKey(const ValueKey('search-sheet-drag-handle'));
-    final gesture = await tester.startGesture(tester.getCenter(handle));
-    await gesture.moveBy(const Offset(0, 24));
-    await tester.pump(const Duration(milliseconds: 40));
-    await gesture.moveBy(const Offset(0, 24));
-    await tester.pump(const Duration(milliseconds: 40));
-    await gesture.up();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+      final handle = find.byKey(const ValueKey('search-sheet-drag-handle'));
+      final gesture = await tester.startGesture(tester.getCenter(handle));
+      for (var step = 0; step < 3; step++) {
+        await gesture.moveBy(const Offset(0, 20));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      final released = tester.getTopLeft(find.byType(SearchScreen)).dy;
+      expect(released, greaterThan(home + 40));
 
-    expect(find.byType(SearchScreen), findsOneWidget);
-  });
+      await gesture.up();
+      await tester.pump();
+      // 松手后的最初 24ms 必须已经明显往回走。收尾曲线曾经是 iosSpring
+      // （起点速度为 0），这段时间只挪了不到一成的回程，看着就是悬在松手处。
+      await tester.pump(const Duration(milliseconds: 24));
+      final early = tester.getTopLeft(find.byType(SearchScreen)).dy;
+      final covered = (released - early) / (released - home);
+      expect(covered, greaterThan(0.25));
+
+      // 收尾不带回弹：停在原位，不会越过原位再弹回来。
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(
+        tester.getTopLeft(find.byType(SearchScreen)).dy,
+        closeTo(home, 0.5),
+      );
+      expect(find.byType(SearchScreen), findsOneWidget);
+    },
+  );
 
   testWidgets('panel keeps a gap above the bottom edge', (tester) async {
     await openSheet(tester);
@@ -139,35 +160,36 @@ void main() {
     await tester.pump(const Duration(milliseconds: 700));
   });
 
-  testWidgets('dragging with the keyboard up still slides the panel off screen', (
-    tester,
-  ) async {
-    await openSheet(tester);
-    // 搜索面板默认自动聚焦，键盘弹起时面板只占屏幕上半部分。
-    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
-    addTearDown(tester.view.resetViewInsets);
-    await tester.pump();
+  testWidgets(
+    'dragging with the keyboard up still slides the panel off screen',
+    (tester) async {
+      await openSheet(tester);
+      // 搜索面板默认自动聚焦，键盘弹起时面板只占屏幕上半部分。
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pump();
 
-    final handle = find.byKey(const ValueKey('search-sheet-drag-handle'));
-    final gesture = await tester.startGesture(tester.getCenter(handle));
-    for (var step = 0; step < 6; step++) {
-      await gesture.moveBy(const Offset(0, 40));
-      await tester.pump(const Duration(milliseconds: 60));
-    }
-    final releasedTop = tester.getTopLeft(find.byType(SearchScreen)).dy;
-    await gesture.up();
-    await tester.pump();
-    // 滑出的动画走完，但路由的反向动画还没结束时取位置：面板必须已经离开
-    // 屏幕，而不是停在松手处。
-    await tester.pump(const Duration(milliseconds: 240));
-    final gone = find.byType(SearchScreen).evaluate().isEmpty;
-    final settledTop = gone
-        ? double.infinity
-        : tester.getTopLeft(find.byType(SearchScreen)).dy;
-    expect(settledTop, greaterThan(releasedTop));
-    expect(settledTop, greaterThanOrEqualTo(844));
+      final handle = find.byKey(const ValueKey('search-sheet-drag-handle'));
+      final gesture = await tester.startGesture(tester.getCenter(handle));
+      for (var step = 0; step < 6; step++) {
+        await gesture.moveBy(const Offset(0, 40));
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      final releasedTop = tester.getTopLeft(find.byType(SearchScreen)).dy;
+      await gesture.up();
+      await tester.pump();
+      // 滑出的动画走完，但路由的反向动画还没结束时取位置：面板必须已经离开
+      // 屏幕，而不是停在松手处。
+      await tester.pump(const Duration(milliseconds: 240));
+      final gone = find.byType(SearchScreen).evaluate().isEmpty;
+      final settledTop = gone
+          ? double.infinity
+          : tester.getTopLeft(find.byType(SearchScreen)).dy;
+      expect(settledTop, greaterThan(releasedTop));
+      expect(settledTop, greaterThanOrEqualTo(844));
 
-    await tester.pump(const Duration(milliseconds: 600));
-    expect(find.byType(SearchScreen), findsNothing);
-  });
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byType(SearchScreen), findsNothing);
+    },
+  );
 }

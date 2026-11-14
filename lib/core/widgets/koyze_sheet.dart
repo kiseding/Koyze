@@ -560,7 +560,9 @@ class _KoyzeDragToDismissState extends State<KoyzeDragToDismiss>
 
   double get _display {
     if (!_settle.isAnimating) return _dy;
-    final t = MotionCurve.iosSpring.transform(_settle.value.clamp(0.0, 1.0));
+    // 和搜索面板同一套收尾：不带弹性的缓出，起步就带着手指的速度。
+    // 之前的 [MotionCurve.iosSpring] 起点速度为 0，松手后要先顿一下才动。
+    final t = MotionCurve.easeOutQuart.transform(_settle.value.clamp(0.0, 1.0));
     return _from + (_to - _from) * t;
   }
 

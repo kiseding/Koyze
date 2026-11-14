@@ -149,10 +149,15 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
     super.dispose();
   }
 
-  /// 当前展示的进度：跟随手指，或正在按 Origο 的减速曲线回弹。
+  /// 当前展示的进度：跟随手指，或正在按减速曲线回到 0 / 1。
+  ///
+  /// 收尾不用 [MotionCurve.iosSpring]：那条曲线的第一个控制点在 y=0 上，
+  /// 起点速度是 0，松手瞬间面板会先「停」在原地再重新加速，看起来就像
+  /// 悬在手指抬起的位置。缓出曲线起步就带着手指的速度，收尾干脆停住，
+  /// 也没有回弹。
   double get _drag {
     if (!_settle.isAnimating) return _extent;
-    final t = MotionCurve.iosSpring.transform(_settle.value.clamp(0.0, 1.0));
+    final t = MotionCurve.easeOutQuart.transform(_settle.value.clamp(0.0, 1.0));
     return _settleFrom + (_settleTo - _settleFrom) * t;
   }
 
@@ -227,7 +232,11 @@ class _SearchSheetPanelState extends State<_SearchSheetPanel>
   Future<void> _settleBack() async {
     _settleFrom = _drag;
     _settleTo = 0;
-    _settle.duration = motionDuration(context, MotionDuration.normal);
+    // 偏得越少收得越快：只滑了几像素时 110ms 就归位，别让人盯着面板慢慢爬。
+    _settle.duration = motionDuration(
+      context,
+      Duration(milliseconds: (110 + 130 * _settleFrom).round()),
+    );
     await _settle.forward(from: 0);
     if (!mounted) return;
     setState(() {
