@@ -1,8 +1,10 @@
 // 文件说明：根导航的图标条。未选中的栏目只留一个图标，选中的那一项向右
 // 生长成胶囊，把名字显出来。
 // 技术要点：
-// - 四个格子共用同一个 AnimationController。展开和收缩是同一条时间线的两端，
-//   所以看上去像一块橡皮被推向另一边，而不是两个格子各播各的动画。
+// - 点击切换：四颗格子共用同一个 AnimationController，从每一颗此刻的真实
+//   展开度插值过去——被打断后接着走，不会先补满再收缩。
+// - 手势滑动：直接跟页面的绝对坐标（[rootBranchDragPosition]），滑过几页
+//   就跟几页，不在「一页」处截断。
 // - 图标钉在胶囊左侧固定位置（左内边距 14 + 22 的一半 = 25，恰好是收起态
 //   50 宽的中心），宽度只往右长。图标不动、文字被「挤」出来，重心才是稳的。
 // - 展开用 easeOutBack（末尾过冲约 10% 再落回），收缩用 easeOutCubic（不弹），
@@ -17,19 +19,17 @@ import '../theme/glass_config.dart';
 import '../../l10n/app_strings.dart';
 import 'pressable.dart';
 
-/// 手势 / 点击切换 tab 的实时进度：-1..1。
+/// 手势 / 补间进行中的**页面绝对坐标**；null = 静止（胶囊跟选中态走）。
 ///
-/// 0 = 静止在选中页；正值表示正在滑向下一个 tab（页面向左），负值表示
-/// 滑向上一个。定义在 tab 条这一侧（而不是壳层）避免 core→features 的
-/// 反向依赖：壳层与手势容器本来就 import 本文件。
-final rootBranchDrag = ValueNotifier<double>(0);
-
-/// 滑动 / 点击动画的实际目标 tab。
+/// 用绝对坐标而不是「朝相邻页的进度 0..1」，是因为连续快甩时手指会在上一次
+/// 补间没跑完时又起手：`_position` 可能已经越过整页（例如 1.2），而路由还停
+/// 在 0。进度式把值钳在 1，胶囊就冻在「下一个 tab 已张开」那一帧不再跟随，
+/// 直到落定才跳过去——看起来就是切换动效被省略了。绝对坐标没有这个上限，
+/// tab 条自己按 `floor/frac` 映射到相邻两颗，滑几页就跟几页。
 ///
-/// 手势拖动时为 null（方向由进度符号决定，目标是相邻项）；点击远处的
-/// tab 时是那个 tab 的下标——跳两页的动画同样只滑一屏，胶囊必须直接
-/// 在「起点 → 目标」之间过渡，而不是先冒出中间那颗再跳过去。
-final rootBranchDragTarget = ValueNotifier<int?>(null);
+/// 定义在 tab 条这一侧（而不是壳层）避免 core→features 的反向依赖：壳层与
+/// 手势容器本来就 import 本文件。
+final rootBranchDragPosition = ValueNotifier<double?>(null);
 
 /// 一次切换「落定」时的目标 tab。
 ///
@@ -125,8 +125,12 @@ class _RootTabBarState extends State<RootTabBar>
     duration: MotionDuration.normal,
   );
 
-  /// 动画的起点与终点。第三方栏目（既不是 from 也不是 to）保持 0。
-  int _from = 0;
+  /// 动画起点：每一颗在起播那一帧的**实际展开度**。
+  ///
+  /// 不用「上一个 tab 下标」是因为连续快速切换时动画会被打断：只记下标的话，
+  /// 新动画默认上一颗已经张满，会先把它瞬间补到 1 再收缩——中间那颗看起来
+  /// 就是跳了一下。记每颗的真实展开度，新动画从眼前的中间态接着走。
+  List<double> _startSpread = const [1, 0, 0, 0];
   int _to = 0;
   bool _ready = false;
 
@@ -156,13 +160,17 @@ class _RootTabBarState extends State<RootTabBar>
     );
     if (!_ready) {
       _ready = true;
-      _from = _to = next;
+      _to = next;
+      _startSpread = _restingSpread(_to);
       _controller.value = 1;
       return;
     }
     if (next == _to) return;
 
-    _from = _to;
+    // 先把眼前这一帧的真实展开度存下来，再从它起播。
+    _startSpread = [
+      for (var i = 0; i < _labels.length; i++) _spreadFor(i),
+    ];
     _to = next;
     final duration = motionDuration(context, MotionDuration.normal);
     _controller.duration = duration;
@@ -192,11 +200,16 @@ class _RootTabBarState extends State<RootTabBar>
     final target = next.clamp(0, _labels.length - 1);
     if (target == _to && _controller.value == 1) return;
     setState(() {
-      _from = target;
       _to = target;
+      _startSpread = _restingSpread(target);
     });
     _controller.value = 1;
   }
+
+  /// 静止态：只有 [index] 张满，其余收起。
+  List<double> _restingSpread(int index) => [
+    for (var i = 0; i < _labels.length; i++) i == index ? 1.0 : 0.0,
+  ];
 
   double _measure(BuildContext context, String text, TextStyle style) {
     final painter = TextPainter(
@@ -211,58 +224,58 @@ class _RootTabBarState extends State<RootTabBar>
   }
 
   /// 展开度。展开项带过冲，收缩项不带——两头一起弹会显得毛躁。
-  double _spread(int index) {
-    if (_from == _to) return index == _to ? 1 : 0;
-    final t = _controller.value;
-    if (index == _to) return MotionCurve.emphasize.transform(t);
-    if (index == _from) return 1 - Curves.easeOutCubic.transform(t);
-    return 0;
-  }
-
-  double _textOpacity(int index) {
-    if (_from == _to) return index == _to ? 1 : 0;
-    final t = _controller.value;
-    if (index == _to) return _kTextFade.transform(t);
-    if (index == _from) return 1 - Curves.easeIn.transform(t);
-    return 0;
-  }
-
-  /// 滑动进行中的插值：胶囊从当前选中项连续让位给相邻项。
   ///
-  /// 手势进度 rootBranchDrag 决定「另一颗」是谁、吃多少展开度；点击
-  /// 触发的补齐动画照旧走 [AnimationController]，两者不同时发生——
-  /// 点击动画由 [_animating]/goBranch 驱动，drag 在那之前已归零。
-  ({int other, double t})? get _dragSplit {
-    final p = rootBranchDrag.value;
-    if (p.abs() < 0.005) return null;
-    final count = _labels.length;
-    final current = _to.clamp(0, count - 1);
-    // 优先用动画的真实目标（点击跳两页时直接过渡到目标页）；纯手势
-    // 拖动没有预定目标，按方向取相邻项。
-    final other =
-        rootBranchDragTarget.value ??
-        (p > 0 ? (current + 1) % count : (current + count - 1) % count);
-    return (other: other, t: p.abs().clamp(0.0, 1.0));
+  /// 从 [_startSpread] 里那一颗的真实展开度插值，所以动画被打断后再起播是
+  /// 连续的：不会先把上一颗补满再收。
+  double _spread(int index) {
+    final t = _controller.value;
+    if (t >= 1) return index == _to ? 1.0 : 0.0;
+    final from = index < _startSpread.length ? _startSpread[index] : 0.0;
+    final to = index == _to ? 1.0 : 0.0;
+    if (to > from) {
+      return from + (to - from) * MotionCurve.emphasize.transform(t);
+    }
+    if (to < from) {
+      return from + (to - from) * Curves.easeOutCubic.transform(t);
+    }
+    return to;
   }
 
+  /// 手势进行中的坐标：页面停在 [head] 与下一颗之间，[frac] 是后者吃到的
+  /// 比例。绝对坐标可能为负或超过一圈，取模后仍然是正确的一对。
+  ({int head, double frac})? get _dragCursor {
+    final p = rootBranchDragPosition.value;
+    if (p == null) return null;
+    final count = _labels.length;
+    if (count == 0) return null;
+    final base = p.floor();
+    final head = base % count;
+    return (head: head, frac: (p - base).clamp(0.0, 1.0));
+  }
+
+  /// 滑动进行中的插值：胶囊从当前页连续让位给下一页。
+  ///
+  /// 直接跟页面坐标走，所以一次手势滑过几页就跟几页；点击触发的补齐动画
+  /// 照旧走 [AnimationController]，两者不同时发生——点击动画由 goBranch
+  /// 驱动，坐标在那之前已经清空。
   double _spreadFor(int index) {
-    final split = _dragSplit;
-    if (split != null) {
-      if (index == _to) return 1 - split.t;
-      if (index == split.other) return split.t;
+    final cursor = _dragCursor;
+    if (cursor != null) {
+      final count = _labels.length;
+      if (index == cursor.head) return 1 - cursor.frac;
+      if (index == (cursor.head + 1) % count) return cursor.frac;
       return 0;
     }
     return _spread(index);
   }
 
+  /// 文字透明度跟着展开度走，而不是自成一条时间线。
+  ///
+  /// 手势和点击两条路径共用这一条规则：胶囊张到 [_kTextFade] 的起点之后文字
+  /// 才开始出现，收缩时同理退场。这样无论动画怎么被打断，文字都不会先于
+  /// 宽度出现或消失。
   double _textOpacityFor(int index) {
-    final split = _dragSplit;
-    if (split != null) {
-      if (index == _to) return 1 - split.t;
-      if (index == split.other) return split.t;
-      return 0;
-    }
-    return _textOpacity(index);
+    return _kTextFade.transform(_spreadFor(index).clamp(0.0, 1.0));
   }
 
   @override
@@ -297,7 +310,10 @@ class _RootTabBarState extends State<RootTabBar>
         builder: (context, _, _) => ListenableBuilder(
           // 胶囊的两条时间线：点击切换的 [AnimationController]，和手势滑动
           // 的实时进度。任何一个变动都要重算展开度。
-          listenable: Listenable.merge([_controller, rootBranchDrag]),
+          listenable: Listenable.merge([
+            _controller,
+            rootBranchDragPosition,
+          ]),
           builder: (context, _) {
             final pillFill = GlassEffectConfig.withSurfaceOpacity(
               isDark ? const Color(0x28FFFFFF) : Colors.white,

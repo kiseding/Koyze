@@ -19,13 +19,11 @@ void main() {
     int selected = 0,
     bool settle = true,
   }) async {
-    // 三个通知器是全局的，用例之间必须归零，否则上一条的残留会污染下一条。
-    rootBranchDrag.value = 0;
-    rootBranchDragTarget.value = null;
+    // 两个通知器是全局的，用例之间必须归零，否则上一条的残留会污染下一条。
+    rootBranchDragPosition.value = null;
     rootBranchSettle.value = null;
     addTearDown(() {
-      rootBranchDrag.value = 0;
-      rootBranchDragTarget.value = null;
+      rootBranchDragPosition.value = null;
       rootBranchSettle.value = null;
     });
     tester.view.physicalSize = screen;
@@ -135,21 +133,45 @@ void main() {
     expect(textOpacity(tester, labelsOf(tester)[0]), 0);
   });
 
+  testWidgets('连续快速点选：新动画从眼前的中间态接着走，不先补满再收', (tester) async {
+    await pumpBar(tester, onTap: (_) {});
+    final openWidth = tabSize(tester, 0).width;
+    final idleWidth = tabSize(tester, 1).width;
+
+    // 切到 1，动画只跑了 40ms。
+    await pumpBar(tester, onTap: (_) {}, selected: 1, settle: false);
+    await tester.pump(const Duration(milliseconds: 40));
+    final mid = tabSize(tester, 1).width;
+    expect(mid, greaterThan(idleWidth + 4), reason: '1 号正在张开');
+    expect(mid, lessThan(openWidth - 4), reason: '还没张满');
+
+    // 动画没跑完就再切到 2。旧实现会把 1 号当成「已经张满」的起点，
+    // 于是它先瞬间补到全宽再收缩——连点两下就看见中间那颗跳一下。
+    await pumpBar(tester, onTap: (_) {}, selected: 2, settle: false);
+    expect(
+      tabSize(tester, 1).width,
+      closeTo(mid, 1.5),
+      reason: '起播那一帧必须等于眼前的中间态，不能瞬跳到全宽',
+    );
+
+    await tester.pumpAndSettle();
+    expect(tabSize(tester, 1).width, closeTo(idleWidth, 0.5));
+    expect(tabSize(tester, 2).width, greaterThan(idleWidth + 20));
+  });
+
   testWidgets('落定之后不再补播一遍展开动画', (tester) async {
     await pumpBar(tester, onTap: (_) {});
     final openWidth = tabSize(tester, 0).width;
     final idleWidth = tabSize(tester, 1).width;
 
     // 模拟位移动画已经把胶囊送到 1 号。
-    rootBranchDragTarget.value = 1;
-    rootBranchDrag.value = 1;
+    rootBranchDragPosition.value = 1;
     await tester.pump();
     expect(tabSize(tester, 1).width, greaterThan(idleWidth + 20));
 
-    // 位移动画结束：壳层先落定、再撤进度。
+    // 位移动画结束：壳层先落定、再撤掉坐标。
     rootBranchSettle.value = 1;
-    rootBranchDrag.value = 0;
-    rootBranchDragTarget.value = null;
+    rootBranchDragPosition.value = null;
     await tester.pump();
 
     // 同一帧就该是终态——没有弹回旧 tab，也没有 300ms 的重播。

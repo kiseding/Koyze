@@ -421,21 +421,22 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _animating = false;
       _dragging = false;
       _position = widget.currentIndex.toDouble();
-      rootBranchDrag.value = 0;
-      rootBranchDragTarget.value = null;
+      rootBranchDragPosition.value = null;
       rootBranchSliding.value = false;
       rootHeaderBranchIndex.value = widget.currentIndex;
     }
   }
 
-  /// 把坐标折算成 tab 条用的进度（向下一页为正）。
+  /// 把页面坐标原样交给 tab 条。
+  ///
+  /// 不再折算成「朝相邻页的进度」（那样要钳在 ±1）：连续快甩时手指会在上一次
+  /// 补间没跑完时又起手，`_position` 可能已经越过整页（比如 1.2），而路由还停在
+  /// 0——钳位会让胶囊冻在「下一页已张开」那一帧，直到落定才跳过去，看着就是
+  /// 切换动效被省略。绝对坐标交给 tab 条自己按 floor/frac 取相邻两颗，滑几页
+  /// 就跟几页。
   void _syncDragProgress() {
     if (_count == 0) return;
-    var p = _position - widget.currentIndex;
-    p = p % _count;
-    if (p > _count / 2) p -= _count;
-    if (p < -_count / 2) p += _count;
-    rootBranchDrag.value = p.clamp(-1.0, 1.0);
+    rootBranchDragPosition.value = _position;
   }
 
   /// 用弹簧把坐标收向 [end]，[velocity] 是换算成「页/秒」的松手速度。
@@ -497,12 +498,10 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
         _dragging = false;
         _position = index.toDouble();
       });
-      rootBranchDrag.value = 0;
-      rootBranchDragTarget.value = null;
+      rootBranchDragPosition.value = null;
       return;
     }
 
-    rootBranchDragTarget.value = index;
     // 手指抬起的这一帧就把顶栏换成目标页的：此时页面正顺着惯性滑进来，
     // 右上角的动作按钮和它同时到位，落地的瞬间就能点。
     rootHeaderBranchIndex.value = index;
@@ -514,11 +513,10 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       // 归一化：坐标停在 0..count-1，循环切换才不会一路滚下去。
       _position = index.toDouble();
     });
-    // 先把 tab 条钉到目标，再撤掉进度：两步在同一帧里完成，胶囊不会先弹
+    // 先把 tab 条钉到目标，再撤掉坐标：两步在同一帧里完成，胶囊不会先弹
     // 回旧 tab、再从 0 重播一遍展开动画（那正是"切完又跳一下"的来源）。
     rootBranchSettle.value = index;
-    rootBranchDrag.value = 0;
-    rootBranchDragTarget.value = null;
+    rootBranchDragPosition.value = null;
     rootBranchSliding.value = false;
     widget.onSelect(index);
   }
@@ -547,14 +545,12 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
         _dragging = false;
         _position = current.toDouble();
       });
-      rootBranchDrag.value = 0;
-      rootBranchDragTarget.value = null;
+      rootBranchDragPosition.value = null;
       rootBranchSliding.value = false;
       widget.onSelect(current);
       return;
     }
 
-    rootBranchDragTarget.value = target;
     // 点击也是「页面开始滑 = 顶栏开始换」：动作按钮随页面一起进场，
     // 而不是等补间跑完、路由切过去之后才补上。
     rootHeaderBranchIndex.value = target;
@@ -565,11 +561,10 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _dragging = false;
       _position = target.toDouble();
     });
-    // 先把 tab 条钉到目标，再撤掉进度：两步在同一帧里完成，胶囊不会先弹
+    // 先把 tab 条钉到目标，再撤掉坐标：两步在同一帧里完成，胶囊不会先弹
     // 回旧 tab、再从 0 重播一遍展开动画（那正是"切完又跳一下"的来源）。
     rootBranchSettle.value = target;
-    rootBranchDrag.value = 0;
-    rootBranchDragTarget.value = null;
+    rootBranchDragPosition.value = null;
     rootBranchSliding.value = false;
     widget.onSelect(target);
   }
@@ -680,7 +675,6 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
                       _epoch++;
                       _anim.stop();
                       _animating = false;
-                      rootBranchDragTarget.value = null;
                       // 顶栏退回屏幕上这一页：刚才决定要走了，现在又被
                       // 按住，最后可能滑回原页，动作按钮不能先跳过去。
                       rootHeaderBranchIndex.value = _restingIndex;
