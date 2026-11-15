@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -209,26 +207,43 @@ void main() {
     expect(tapped, 3);
   });
 
-  testWidgets('导航不沾强调色，选中只靠明度和字重', (tester) async {
+  testWidgets('当前页那颗的图标和文字用主题色，其余仍是次要色', (tester) async {
     await pumpBar(tester, onTap: (_) {});
 
     final context = tester.element(find.byType(RootTabBar));
-    final onSurface = AppColors.onScaffold(context);
+    final accent = AppColors.accentOf(context);
     final idle = AppColors.secondaryText(context);
 
+    // 选中的 0 号：图标与名字都蘸主题色。
     expect(
       tester.widget<Icon>(find.byIcon(Icons.home_rounded)).color,
-      onSurface,
+      accent,
+      reason: '当前 tab 页的图标应该是主题色',
     );
+    final labels = labelsOf(tester);
+    expect(
+      tester.widget<Text>(find.text(labels[0])).style?.color,
+      accent,
+      reason: '当前 tab 页的名字应该是主题色',
+    );
+
+    // 其余仍是次要色，不能跟着一起染色。
     expect(
       tester.widget<Icon>(find.byIcon(Icons.leaderboard_outlined)).color,
       idle,
     );
-    // 换主题色时这条栏不该跟着变，所以源码里不该出现 accentOf。
     expect(
-      File('lib/core/widgets/root_tab_bar.dart').readAsStringSync(),
-      isNot(contains('accentOf')),
+      tester.widget<Icon>(find.byIcon(Icons.settings_outlined)).color,
+      idle,
     );
+
+    // 换到别的 tab，颜色跟着走。
+    await pumpBar(tester, onTap: (_) {}, selected: 1);
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.leaderboard_rounded)).color,
+      accent,
+    );
+    expect(tester.widget<Icon>(find.byIcon(Icons.home_outlined)).color, idle);
   });
 
   testWidgets('导航不再铺玻璃，也不再是分段轨道', (tester) async {

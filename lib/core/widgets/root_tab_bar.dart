@@ -282,12 +282,13 @@ class _RootTabBarState extends State<RootTabBar>
   Widget build(BuildContext context) {
     final scope = RootTabScope.maybeOf(context);
     final isDark = AppColors.isDark(context);
-    final onSurface = AppColors.onScaffold(context);
+    final accent = AppColors.accentOf(context);
     final idle = AppColors.secondaryText(context);
     const style = _kTextStyle;
 
-    // 药丸沿用原来的中性面：浅色纯白，深色一层薄白。导航是结构，不蘸
-    // 强调色——换主题时这条栏不该跟着变。
+    // 药丸底色保持中性：浅色纯白，深色一层薄白。选中的「内部元素」（图标 +
+    // 文字）蘸主题色，这样一眼能看出当前在哪一页；底色不蘸是为了换主题时
+    // 这条栏的轮廓不跟着跳，只有文字和图标变色。
     //
     // 但「结构」不等于「实心」：设置里的界面不透明度拖到 60%，这一栏也得
     // 跟着透（见下面的 ValueListenableBuilder）。这里只负责与不透明度无关
@@ -332,7 +333,7 @@ class _RootTabBarState extends State<RootTabBar>
                     label: _labels[i],
                     textWidth: _textWidths[i],
                     selected: _to == i,
-                    onSurface: onSurface,
+                    accent: accent,
                     idle: idle,
                     pillFill: pillFill,
                     pillEdge: pillEdge,
@@ -355,7 +356,7 @@ class _RootTabBarState extends State<RootTabBar>
     required String label,
     required double textWidth,
     required bool selected,
-    required Color onSurface,
+    required Color accent,
     required Color idle,
     required Color pillFill,
     required Color pillEdge,
@@ -426,7 +427,8 @@ class _RootTabBarState extends State<RootTabBar>
                         filled ? _iconsSelected[index] : _icons[index],
                         key: ValueKey<bool>(filled),
                         size: _kIconSize,
-                        color: Color.lerp(idle, onSurface, fill),
+                        // 当前页那颗从次要色过渡到主题色，收起项保持次要色。
+                        color: Color.lerp(idle, accent, fill),
                       ),
                     ),
                   ),
@@ -449,7 +451,7 @@ class _RootTabBarState extends State<RootTabBar>
                         maxLines: 1,
                         softWrap: false,
                         overflow: TextOverflow.clip,
-                        style: style.copyWith(color: onSurface),
+                        style: style.copyWith(color: accent),
                       ),
                     ),
                   ),
