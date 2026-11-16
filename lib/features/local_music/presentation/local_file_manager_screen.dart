@@ -210,8 +210,14 @@ class _LocalFileManagerScreenState
       final result = await action(manager);
       if (!mounted) return;
       if (result.allSucceeded) {
+        // 鸿蒙上 picker 选中的目录不一定可写，原生侧会退到 Download/<包名>。
+        // 只报「已移动」而用户在自己选的目录里找不到文件，等于没说清楚，
+        // 所以把真实落点一并显示出来。
+        final where = _destinationLabel(result.results);
         showAppNotification(
-          '$successMessage（${result.succeeded}）',
+          where == null
+              ? '$successMessage（${result.succeeded}）'
+              : '$successMessage（${result.succeeded}）· $where',
           type: AppNotificationType.success,
         );
       } else {
@@ -234,6 +240,35 @@ class _LocalFileManagerScreenState
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// 把落点显示成人看得懂的两级路径：`Download/com.koyze.app`、`Documents`。
+  ///
+  /// 只在整批落在同一个目录时才显示，否则返回 null——「分别落到 3 个目录」
+  /// 这种提示比不提示更让人困惑。
+  String? _destinationLabel(List<LocalFileResult> results) {
+    final dirs = <String>{};
+    for (final result in results) {
+      final path = result.targetPath;
+      if (path == null) continue;
+      final cut = path.lastIndexOf('/');
+      if (cut > 0) dirs.add(path.substring(0, cut));
+    }
+    if (dirs.length != 1) return null;
+    var dir = dirs.first;
+    // URI 里中文/空格是百分号编码的，先还原成可读文本；格式损坏就按原样显示。
+    try {
+      dir = Uri.decodeFull(dir);
+    } catch (_) {
+      // 保持原样
+    }
+    // `file://docs/storage/Users/currentUser/Download/x` 只留 `Download/x`，
+    // 前缀对用户没有信息量。
+    const currentUser = '/currentUser/';
+    final index = dir.indexOf(currentUser);
+    if (index >= 0) dir = dir.substring(index + currentUser.length);
+    if (dir.startsWith('file://')) dir = dir.substring('file://'.length);
+    return dir;
   }
 
   /// 把异常翻成一句人话。

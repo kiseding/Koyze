@@ -24,10 +24,15 @@ const TAG: string = 'KoyzeFileSystem';
 /// 这类接口认，`moveFile` / `copyFile` / `access` / `listFile` 都只收沙盒
 /// 路径。两者不能混用（混用的后果是 13900002，看着像「文件不存在」）。
 ///
-/// 写公共目录统一走 [writeIntoUriDirectory]。这里还有一条**比路径类型更
-/// 容易踩**的坑：URI 只接受 ASCII，文件名必须先经过 [childUri] 做百分号
-/// 编码；漏了这一步，系统抛的是「uriString_ is not ascii string」，但
-/// 透到上层只剩 13900002，看起来像「文件不存在」或「没权限」，极难定位。
+/// 写公共目录统一走 [writeIntoChosenDirectory]。这里还有两条**比路径类型
+/// 更容易踩**的坑：
+/// 1. URI 只接受 ASCII，文件名必须先经 [childUri] 做百分号编码，否则系统
+///    抛的是「uriString_ is not ascii string」，但透到上层只剩 13900002；
+/// 2. picker 返回的**目录** URI 只授权它自己，官方文档明确写了「URI 路径
+///    不推荐拼接，拼接后的 URI 默认未授权」——往它后面接文件名一律被拒。
+///    所以真正能落盘的公共入口是 `pickerMode = DOWNLOAD` 返回的
+///    `Download/<包名>/`，[writeIntoChosenDirectory] 在目录写不进去时会
+///    自动退到那里，并把真实落点返回给 Dart 侧显示。
 ///
 /// 目录选择也在这里做：`file_picker` 的 ohos 移植把 `dir` 当成选文件处理，
 /// 返回的是缓存目录里的副本路径，没法当目录用。所以鸿蒙自己实现
@@ -163,8 +168,7 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
       throw makeConflict(target);
     }
     if (isUri(targetDirectory)) {
-      await this.writeIntoUriDirectory(sourcePath, targetDirectory);
-      return target;
+      return await this.writeIntoChosenDirectory(sourcePath, targetDirectory, target, false);
     }
     await fs.copyFile(sourcePath, target);
     return target;
@@ -180,18 +184,8 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
     if (isUri(targetDirectory)) {
       // 目标目录来自 DocumentViewPicker，是 `file://docs/...` URI。
       // `fs.moveFile` / `fs.copyFile` 只认沙盒路径（见 SDK 的 @param 说明），
-      // 早先直接把 URI 递进去，系统把它当相对路径解析 → 13900002，
-      // Dart 侧看到的就是 not_found / No such file or directory。
-      // 写 URI 走 writeIntoUriDirectory：文件名编码 + 多条写入策略。
-      await this.writeIntoUriDirectory(sourcePath, targetDirectory);
-      try {
-        await fs.unlink(sourcePath);
-      } catch (error) {
-        // 副本已经写进公共目录，但源文件删不掉：不能当成功，否则用户
-        // 会同时看到两份而不知道哪份是真的。把原始错误带回去。
-        throw wrapError(error);
-      }
-      return target;
+      // 写 URI 走 writeIntoChosenDirectory：文件名编码 + 多条写入策略。
+      return await this.writeIntoChosenDirectory(sourcePath, targetDirectory, target, true);
     }
     try {
       // 同一分区内 moveFile 是原子的。
@@ -217,6 +211,120 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
       }
     }
     return target;
+  }
+
+  /// 把文件写进用户在 picker 里选中的目录；选中目录不可写时退到下载目录。
+  ///
+  /// 为什么需要兜底：鸿蒙对「picker 返回的目录 URI」只给**该 URI 本身**的
+  /// 临时授权，官方错误码文档写得很直白——「URI 路径不推荐进行拼接，
+  /// 拼接后的 URI 默认未授权」。所以在目录 URI 后面接一个文件名去
+  /// open/copy，会被当成未授权路径，表现为 13900002（ENOENT）或 401
+  /// （参数无效），跟「文件名对不对」无关。
+  ///
+  /// 唯一被官方承诺「可以在其下创建文件」的入口是
+  /// `DocumentSaveOptions.pickerMode = DOWNLOAD` 返回的 `Download/<包名>`
+  /// 目录 URI（且不需要用户再点一次对话框）。所以策略是：
+  /// 先按用户选的位置写，写不进去就静默落到下载目录，并把**真实落点**
+  /// 返回给 Dart 侧，让 UI 能明确告诉用户文件去了哪。
+  ///
+  /// [removeSource] 为 true 时按「移动」语义删掉源文件；只有确认副本
+  /// 已落盘（[wrote] 校验通过）才会删，绝不先删后写。
+  private async writeIntoChosenDirectory(
+    sourcePath: string,
+    targetDirectory: string,
+    displayTarget: string,
+    removeSource: boolean,
+  ): Promise<string> {
+    let actual: string = displayTarget;
+    try {
+      await this.writeIntoUriDirectory(sourcePath, targetDirectory);
+    } catch (pickedError) {
+      hilog.warn(DOMAIN, TAG, 'picked dir not writable, fallback to Download: %{public}s',
+        (pickedError as Error).message ?? 'unknown');
+      actual = await this.writeIntoDownloadDirectory(sourcePath);
+    }
+    if (!removeSource) return actual;
+    try {
+      await fs.unlink(sourcePath);
+    } catch (error) {
+      // 副本已经写进公共目录，但源文件删不掉：不能当成功，否则用户
+      // 会同时看到两份而不知道哪份是真的。把原始错误带回去。
+      throw wrapError(error);
+    }
+    return actual;
+  }
+
+  /// 写进 `Download/<包名>/`：官方唯一承诺「可在其下创建文件」的公共目录。
+  ///
+  /// `save({pickerMode: DOWNLOAD})` 不弹选择框，直接返回该目录 URI（首次
+  /// 调用会由系统创建目录）。之后 `open(子路径, CREATE)` 才是被授权的操作；
+  /// 这跟「picker 选中的目录」完全不同——后者拼子路径一律未授权。
+  private async writeIntoDownloadDirectory(sourcePath: string): Promise<string> {
+    const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
+    // DOWNLOAD 模式跳过选择框，直接落到 Download/<包名>/，且返回的 URI
+    // 允许在其下创建文件。用枚举而不是字面量，让编译器帮忙校验。
+    options.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
+    const documentPicker = new picker.DocumentViewPicker(this.context);
+    const selected: Array<string> = await documentPicker.save(options);
+    if (selected === undefined || selected === null || selected.length === 0) {
+      throw new TaggedError('access_denied', '系统未返回可用的下载目录');
+    }
+    const baseUri: string = selected[0];
+    const expected: number = this.fileSize(sourcePath);
+    const attempts: Array<string> = [];
+
+    // 1) 当成目录 URI：在其下新建文件（同名自动加序号，不覆盖已有文件）。
+    try {
+      const candidate: string = this.freeCandidate(baseUri, baseName(sourcePath));
+      const dest: fs.File = await fs.open(
+        candidate,
+        fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC,
+      );
+      try {
+        await fs.copyFile(sourcePath, dest.fd);
+      } finally {
+        fs.closeSync(dest);
+      }
+      if (this.wrote(candidate, expected)) return candidate;
+      attempts.push(`download+dir=写入不完整(${this.fileSize(candidate)}/${expected})`);
+    } catch (error) {
+      attempts.push(describeFailure('download+dir', error));
+    }
+
+    // 2) 个别版本会直接返回一个预创建好的文件 URI，那就写它本身。
+    try {
+      const dest: fs.File = await fs.open(baseUri, fs.OpenMode.READ_WRITE | fs.OpenMode.TRUNC);
+      try {
+        await fs.copyFile(sourcePath, dest.fd);
+      } finally {
+        fs.closeSync(dest);
+      }
+      if (this.wrote(baseUri, expected)) return baseUri;
+      attempts.push(`download+file=写入不完整(${this.fileSize(baseUri)}/${expected})`);
+    } catch (error) {
+      attempts.push(describeFailure('download+file', error));
+    }
+
+    throw new TaggedError(
+      'file_operation_failed',
+      `保存到下载目录失败: ${attempts.join(' | ')}`,
+    );
+  }
+
+  /// 在目录 URI 下找一个不冲突的文件名：`歌.m4a` → `歌 (1).m4a`。
+  ///
+  /// 下载目录是跨应用共享的，同名文件可能来自上一次导出。这里只保证
+  /// 不覆盖别人，不去猜用户想不想覆盖——覆盖是不可逆的，宁可变多个副本。
+  private freeCandidate(directoryUri: string, name: string): string {
+    const dot: number = name.lastIndexOf('.');
+    const stem: string = dot > 0 ? name.substring(0, dot) : name;
+    const ext: string = dot > 0 ? name.substring(dot) : '';
+    for (let i: number = 0; i < 50; i++) {
+      const candidateName: string = i === 0 ? name : `${stem} (${i})${ext}`;
+      const candidate: string = childUri(directoryUri, candidateName);
+      if (!this.exists(candidate)) return candidate;
+    }
+    return childUri(directoryUri, `${stem}-${Date.now()}${ext}`);
   }
 
   /// 往 picker 授权的**目录 URI** 里写一个文件。
