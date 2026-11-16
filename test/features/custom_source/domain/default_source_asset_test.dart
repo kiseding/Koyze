@@ -214,10 +214,11 @@ void main() {
     'engine rejects unsafe script before creating a JavaScript runtime',
     () async {
       final now = DateTime.now();
-      const dangerous =
-          "new RegExp('x'); function f(){return 'x'}; f['toString'](); "
-          "for(let i=0,n=this['items']['length'];i<n;i++){"
-          "this['items']['push'](1);n=this['items']['length'];}";
+      // 样本必须是**没有出口**的恒真循环。增长型循环已经降级成诊断
+      // （见 source_script_safety.dart），宿主带 JS 运行时时它会被真的执行，
+      // 拿它当「预检拦截」的样本会在 macOS CI 上失败——Windows / Linux 主机
+      // 没有 QuickJS/JSC，任何脚本 loadSource 都返回 false，骗得过本地。
+      const dangerous = 'while (true) { spin(); }';
       final engine = CustomSourceEngine();
       final source = CustomSource(
         id: 'unsafe',
@@ -230,6 +231,8 @@ void main() {
         updatedAt: now,
       );
 
+      // 断言预检本身拦截，这样在没有 JS 运行时的宿主上用例也不是空转。
+      expect(hasUnsafeSynchronousLoop(dangerous), isTrue);
       expect(await engine.loadSource(source), isFalse);
       engine.dispose();
     },
