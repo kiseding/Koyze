@@ -27,6 +27,11 @@ jobs:
     # 排队 15 分钟就被系统判失败。产物是 universal 包（Release 未开
     # ONLY_ACTIVE_ARCH，ARCHS_STANDARD 含 x86_64 与 arm64），换机队不影响
     # 二进制内容；arm64 池恢复后可把默认值改回 macos-15。
+    #
+    # **不要写成 `runs-on: [macos-15-intel, macos-15]` 想让 GitHub 二选一**：
+    # 数组是 **AND** 语义，job 会去找同时带这两个标签的机器，而 GitHub 托管
+    # 的每个 runner 只有一个镜像标签——那样写会让 job 永远排队到超时。
+    # 真要回退只能在 workflow 外面重跑（见 README 的 CI 说明）。
     runs-on: ${{ inputs.runner || 'macos-15-intel' }}
     timeout-minutes: 60
 

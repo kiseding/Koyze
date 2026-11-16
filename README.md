@@ -510,6 +510,17 @@ npm run validate
 
 正式 Android 产物需要在仓库 Secrets 中提供签名材料；HarmonyOS 产物需要发布证书与 profile，缺少任意一项都会构建失败，不会上传无法安装的 unsigned HAP。
 
+文档里的本地 Markdown 链接由 `.github/scripts/check_md_links.sh` 校验，本地可直接运行：
+
+```bash
+bash .github/scripts/check_md_links.sh
+```
+
+它只检查**真正的**链接，围栏代码块与行内代码里的括号不会被当成链接（这个区别来自一次真实的误报，已由 `test/docs/markdown_links_test.dart` 钉住）。
+
+> [!NOTE]
+> `build-macos.yml` 与 `build-ios.yml` 跑在 `macos-15-intel` 池。GitHub 免费额度下的 macOS runner 容量紧张，**排队满 15 分钟会被系统取消**，此时 job 的 `runner_name` 为空、一个 step 都没执行——看起来是红色但和代码无关。从 job 详情里确认这两个特征后直接点重新运行即可。不要试图用 `runs-on: [macos-15-intel, macos-15]` 让 GitHub 二选一：数组是 AND 语义，那样写会让 job 永远排不上。
+
 ## 数据与隐私说明
 
 - 本地歌单、搜索历史、播放记录、下载记录、曲库索引、NAS 凭据与多数设置默认保存在设备上。
