@@ -4,7 +4,7 @@
 # 用法：write_platform_checksums.sh <产物目录> <平台标识>
 # 例：  write_platform_checksums.sh build/macos macos
 #
-# 输出（追加写，调用方负责先清空）：<产物目录>/SHA256SUMS.<平台>.txt
+# 输出（覆盖写）：<产物目录>/SHA256SUMS.<平台>.txt
 #
 # ## 为什么每个平台各写一份，而不是各自发一份 SHA256SUMS.txt
 #
@@ -68,6 +68,12 @@ trap 'rm -f "$tmp" 2>/dev/null || true' EXIT
 
 # 遍历顺序固定（sort），同一组产物每次生成的哈希行顺序一致，
 # 汇总出来的 SHA256SUMS.txt 才可能逐字节稳定。
+#
+# 这里**不能**换成 `find -print0 | sort -z` 来免疫「文件名含换行」：
+# macOS runner 上是 BSD sort，不保证支持 -z（也没装 coreutils），
+# 换上就等于把 macOS 发版做挂了。收益（产物名带换行）在现实中不存在，
+# 而代价是整个平台的发版失败，不划算。真要带换行，脚本会红并报出
+# 「No such file or directory」——是失败而不是错数据，可以接受。
 found=0
 while IFS= read -r f; do
   [ -n "$f" ] || continue

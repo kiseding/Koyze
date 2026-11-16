@@ -84,6 +84,7 @@ jobs:
           set -euo pipefail
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             tag="$DISPATCH_TAG"
+            echo "手动触发：$tag（跳过等待分片，直接按 Release 现状重算）"
           else
             tag="$RUN_BRANCH"
             # 只有 tag 触发的构建才有 Release；分支推送没有，直接跳过。
@@ -98,7 +99,15 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
-          echo "目标 tag: $tag"
+
+          # 手动触发是**修复工具**（例如给 5.1.1 补一份正确的校验和），
+          # 那些历史版本根本不会有平台分片，若还去等分片必然空转 25 分钟
+          # 后超时——工具在最需要它的时候不可用。所以手动路径不等。
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "wait=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "wait=true" >> "$GITHUB_OUTPUT"
+          fi
 
       # 7 个 workflow 谁最后完成都能触发这里，但那一刻未必所有平台都已经
       # 上传完（workflow_run 的 completed 只代表触发的那个跑完了）。所以
@@ -109,7 +118,7 @@ jobs:
       # 真的传上去了才会出现，比查 workflow 状态更直接，也不依赖 workflow
       # 名字（改名不会让这里静默失效）。
       - name: Wait for all platform checksum shards
-        if: steps.resolve.outputs.skip != 'true'
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.wait == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -152,7 +161,8 @@ jobs:
           mkdir -p dist
           cd dist
           gh release download "$TAG" --pattern 'Koyze-*' --dir . --clobber
-          gh release download "$TAG" --pattern 'SHA256SUMS.*.txt' --dir . --clobber
+          # 历史版本可能没有任何分片（5.1.1 就是这样），先把有的一起拉下来
+          gh release download "$TAG" --pattern 'SHA256SUMS.*.txt' --dir . --clobber || true
 
           echo "=== 已下载 ==="
           ls -l
@@ -166,30 +176,47 @@ jobs:
             cat "$shard" >> merged.txt
           done
 
-          # 空合并文件必须当成失败。sha256sum -c 对空输入返回 0，不拦的话
-          # 会往 Release 传一份空的 SHA256SUMS.txt —— 又变回「有校验文件但
-          # 校验不了」的老问题。
-          if [ ! -s merged.txt ]; then
-            echo "::error::没有读到任何平台分片，合并结果为空"
-            exit 1
+          if [ -s merged.txt ]; then
+            echo "=== 校验：Release 上的文件 vs 平台分片 ==="
+            # 故意**不加** --ignore-missing：分片合并后应当覆盖全部产物，
+            # 任何一个文件缺失都是真问题（可能是某个平台上传失败），必须红。
+            if ! sha256sum -c merged.txt 2>&1 | tee check.log; then
+              echo "::error::实际文件与平台分片不一致，具体见上面的 FAILED 行"
+              exit 1
+            fi
+            # sha256sum 的退出码在管道里会被 tee 吃掉，所以自己查一遍输出，
+            # 确保 NOT FOUND / FAILED 都能让 job 失败。
+            if grep -qE 'FAILED|No such file|cannot open' check.log; then
+              echo "::error::存在缺失或损坏的产物"
+              exit 1
+            fi
+            # 分片与实际内容一致，就把分片合并结果作为最终文件
+            sort -k2 merged.txt > SHA256SUMS.txt
+          else
+            # 没有任何分片（手动给历史版本补校验和时会走到这里）。
+            # 这时直接对 Release 上的实际文件现算哈希 —— 虽然少了「与构建机
+            # 声明值交叉验证」这一层，但至少产出的是一份能真正校验通过的文件，
+            # 总比让用户面对一份对不上的旧文件好。
+            echo "::warning::该 Release 没有平台分片，直接按实际文件现算哈希"
+            : > SHA256SUMS.txt
+            for f in Koyze-*; do
+              [ -f "$f" ] || continue
+              if command -v sha256sum >/dev/null 2>&1; then
+                hash="$(sha256sum "$f" | awk '{print $1}')"
+              else
+                hash="$(shasum -a 256 "$f" | awk '{print $1}')"
+              fi
+              echo "$hash *$f" >> SHA256SUMS.txt
+            done
+            if [ ! -s SHA256SUMS.txt ]; then
+              echo "::error::$TAG 里没有找到任何 Koyze-* 产物"
+              exit 1
+            fi
+            # 现算的东西自己校验一遍，避免拼错格式导致用户 -c 失败
+            sha256sum -c SHA256SUMS.txt
+            sort -k2 SHA256SUMS.txt -o SHA256SUMS.txt
           fi
 
-          echo "=== 校验：Release 上的文件 vs 平台分片 ==="
-          # 故意**不加** --ignore-missing：分片合并后应当覆盖全部产物，
-          # 任何一个文件缺失都是真问题（可能是某个平台上传失败），必须红。
-          if ! sha256sum -c merged.txt 2>&1 | tee check.log; then
-            echo "::error::实际文件与平台分片不一致，具体见上面的 FAILED 行"
-            exit 1
-          fi
-          # sha256sum 的退出码在管道里会被 tee 吃掉，所以自己查一遍输出，
-          # 确保 NOT FOUND / FAILED 都能让 job 失败。
-          if grep -qE 'FAILED|No such file|cannot open' check.log; then
-            echo "::error::存在缺失或损坏的产物"
-            exit 1
-          fi
-
-          # 汇总文件按资产名排序，保证多次生成结果稳定（逐字节一致）。
-          sort -k2 merged.txt > SHA256SUMS.txt
           echo "=== 最终 SHA256SUMS.txt ==="
           cat SHA256SUMS.txt
           echo "行数: $(wc -l < SHA256SUMS.txt)"

@@ -22,10 +22,13 @@ import 'package:flutter_test/flutter_test.dart';
 ///   - 汇总   → `release-checksums.yml` 取齐所有分片，拼成唯一的
 ///     `SHA256SUMS.txt`
 ///
-/// 这组测试钉住三件事：
+/// 这组测试钉住这几件事：
 /// 1. 分片内容只写 basename，且 `sha256sum -c` 能直接校验通过
 /// 2. 分片会排除文本文件（否则 SHA256SUMS.txt 会把自己的哈希也算进去）
 /// 3. 每个会上传产物的 workflow 都调用了分片脚本（少一个就会有产物漏掉）
+/// 4. 分片确实出现在 action-gh-release 的 files: 列表里（生成了≠传上去了）
+/// 5. 汇总 workflow 等待的平台名与各平台传入的标识一致（否则永远等不齐）
+/// 6. 汇总 workflow 的 workflow_run 列表覆盖所有上传产物的 workflow
 void main() {
   final script = File(
     '.github/scripts/write_platform_checksums.sh',
@@ -133,6 +136,28 @@ void main() {
         final gen = Process.runSync('bash', [script, dist.path, bad]);
         expect(gen.exitCode, isNot(0), reason: '应拒绝平台标识 "$bad"');
       }
+    }, skip: !toolAvailable);
+
+    // 这个脚本要在 ubuntu / macOS / Windows(Git Bash) 三种 runner 上跑。
+    // macOS 上是 BSD 版 sort/find，且没装 coreutils，所以 GNU 专属的
+    // `sort -z` / `find -print0 | sort -z` 一类写法会直接让 macOS 发版挂掉。
+    // 我曾为了「免疫文件名带换行」加上 -z，发现这个问题后又撤回——换成
+    // 一条静态检查把它钉死，免得以后又有人图省事加回来。
+    test('脚本不用 GNU 专属的 sort/find 选项（macOS 会挂）', () {
+      final src = File('.github/scripts/write_platform_checksums.sh')
+          .readAsStringSync();
+      final code = src
+          .split('\n')
+          .where((l) => !l.trimLeft().startsWith('#'))
+          .join('\n');
+
+      // sort -z / --zero-terminated、find -print0 都不在 BSD sort 的保证范围
+      expect(
+        RegExp(r'sort\s+(-[a-zA-Z]*z|--zero-terminated)').hasMatch(code),
+        isFalse,
+        reason: 'sort -z 在 macOS runner 的 BSD sort 上不可靠，'
+            '用它会直接让 macOS 发版失败',
+      );
     }, skip: !toolAvailable);
   });
 
