@@ -23,7 +23,11 @@ const TAG: string = 'KoyzeFileSystem';
 /// 返回的 `file://docs/...` 则是另一种东西——**URI**，只有 `open` / `stat`
 /// 这类接口认，`moveFile` / `copyFile` / `access` / `listFile` 都只收沙盒
 /// 路径。两者不能混用（混用的后果是 13900002，看着像「文件不存在」）。
-/// 所以写公共目录时统一走 [writeIntoUriDirectory]：用 `fs.copy` 按 URI 写。
+///
+/// 写公共目录统一走 [writeIntoUriDirectory]。这里还有一条**比路径类型更
+/// 容易踩**的坑：URI 只接受 ASCII，文件名必须先经过 [childUri] 做百分号
+/// 编码；漏了这一步，系统抛的是「uriString_ is not ascii string」，但
+/// 透到上层只剩 13900002，看起来像「文件不存在」或「没权限」，极难定位。
 ///
 /// 目录选择也在这里做：`file_picker` 的 ohos 移植把 `dir` 当成选文件处理，
 /// 返回的是缓存目录里的副本路径，没法当目录用。所以鸿蒙自己实现
@@ -149,10 +153,13 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
   private async copyInto(sourcePath: string, targetDirectory: string): Promise<string> {
     const name: string = baseName(sourcePath);
     if (name.length === 0) throw makeInvalidName(sourcePath);
+    // 展示用的路径保持原始文件名；真正递给系统的那个 URI 必须编码过，
+    // 两者分开算——否则 UI 上会看到一串 %E5%8F%91。
     const target: string = joinPath(targetDirectory, name);
     // 目标已存在就报冲突，绝不静默覆盖——用户搬文件时最怕的就是
-    // 同名文件被悄悄换掉。
-    if (this.exists(target)) {
+    // 同名文件被悄悄换掉。URI 目标要用编码后的写法去探测，否则一律
+    // 探测不到，等于把覆盖保护关掉了。
+    if (this.exists(isUri(targetDirectory) ? childUri(targetDirectory, name) : target)) {
       throw makeConflict(target);
     }
     if (isUri(targetDirectory)) {
@@ -167,7 +174,7 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
     const name: string = baseName(sourcePath);
     if (name.length === 0) throw makeInvalidName(sourcePath);
     const target: string = joinPath(targetDirectory, name);
-    if (this.exists(target)) {
+    if (this.exists(isUri(targetDirectory) ? childUri(targetDirectory, name) : target)) {
       throw makeConflict(target);
     }
     if (isUri(targetDirectory)) {
@@ -175,7 +182,7 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
       // `fs.moveFile` / `fs.copyFile` 只认沙盒路径（见 SDK 的 @param 说明），
       // 早先直接把 URI 递进去，系统把它当相对路径解析 → 13900002，
       // Dart 侧看到的就是 not_found / No such file or directory。
-      // 写 URI 的唯一正路是 open 拿 fd（open 支持 URI）再按 fd 拷。
+      // 写 URI 走 writeIntoUriDirectory：文件名编码 + 多条写入策略。
       await this.writeIntoUriDirectory(sourcePath, targetDirectory);
       try {
         await fs.unlink(sourcePath);
@@ -214,88 +221,80 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
 
   /// 往 picker 授权的**目录 URI** 里写一个文件。
   ///
-  /// 之前用 `fs.open(目录URI + 文件名, READ_WRITE | CREATE)`，真机上稳定报
-  /// 13900002（No such file or directory）：`fs.open` 的注释写着支持 URI，
-  /// 但 URI 解析要求**节点已经存在**，`CREATE` 在 URI 上不生效——子路径
-  /// 解析不到就直接 ENOENT，跟「有没有权限」无关。所以那条路根本走不通。
+  /// 关键前提：文件名必须先做百分号编码。鸿蒙的 URI 解析器只接受 ASCII，
+  /// 把「发如雪.m4a」这种原始中文名拼进 `file://…` 会直接在
+  /// `URI: uriString_ is not ascii string` 处失败，连权限校验都到不了——
+  /// 外面看到的 13900002 并不是「文件不存在」，也不是「没权限」。
   ///
-  /// `fs.copy` 从 API 11 起两个参数都接受 URI，且是「覆盖式写入」，
-  /// 这才是往 picker 目录里落文件的正确入口。
+  /// 三条路依次试，顺序按「是否符合文档承诺」排：
+  /// 1. `fs.open(…, CREATE)` 拿 fd 再 `copyFile` 到 fd——SDK 明确写了
+  ///    open 支持 URI 且支持 CREATE，这是最标准的一条；
+  /// 2. `fs.copy(src, 目标文件URI)`——API 11 起两个参数都收 URI，覆盖式写入；
+  /// 3. `fs.copy(src, 目录URI)`——让系统自己拼名字，绕开一切路径拼接问题。
   ///
-  /// 三条路依次试，全部失败时把每条的原始错误码一起带出去：鸿蒙各版本对
-  /// URI 的支持差异很大，只说「失败了」没法判断下一步该怎么改。
+  /// 每条都要**验证写完之后目标真的落盘**：`fs.copy` 在某些版本上对不存在
+  /// 的子路径是「静默成功」，不校验就会把「什么都没写」当成成功，然后
+  /// 删掉源文件——那是数据丢失，比报错严重得多。校验优先比对字节数，
+  /// stat 不可用时才退回「能不能打开」。
+  ///
+  /// 全部失败时把每条的原始错误码一起带出去：只说「失败了」没法判断是
+  /// 编码问题、权限问题还是 URI 解析问题。
   private async writeIntoUriDirectory(
     sourcePath: string,
     targetDirectory: string,
   ): Promise<void> {
     const name: string = baseName(sourcePath);
-    const targetUri: string = joinPath(targetDirectory, name);
-    const failures: Array<string> = [];
-    let lastCode: number = 0;
+    const targetUri: string = childUri(targetDirectory, name);
+    const attempts: Array<string> = [];
+    const expected: number = this.fileSize(sourcePath);
 
-    // 1) 拷到目标文件 URI。
+    // 1) open(CREATE) 拿 fd → 按 fd 拷。
     try {
-      await fs.copy(sourcePath, targetUri);
-      if (this.exists(targetUri)) return;
-      failures.push('copy->file=写入后目标不存在');
-    } catch (error) {
-      lastCode = failureCode(error);
-      failures.push(describeFailure('copy->file', error));
-    }
-
-    // 2) 拷进目录 URI，让系统自己拼名字，绕开子路径解析。
-    try {
-      await fs.copy(sourcePath, targetDirectory);
-      if (this.exists(targetUri)) return;
-      failures.push('copy->dir=写入后目标不存在');
-    } catch (error) {
-      lastCode = failureCode(error);
-      failures.push(describeFailure('copy->dir', error));
-    }
-
-    // 3) open 出 fd 再按 fd 写：个别版本 URI 只对已存在的文件生效。
-    try {
-      const dest: fs.File = await this.openUri(targetUri);
+      const dest: fs.File = await fs.open(
+        targetUri,
+        fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC,
+      );
       try {
         await fs.copyFile(sourcePath, dest.fd);
       } finally {
         fs.closeSync(dest);
       }
-      return;
+      if (this.wrote(targetUri, expected)) return;
+      attempts.push(`open+fd=写入不完整(${this.fileSize(targetUri)}/${expected})`);
     } catch (error) {
-      lastCode = failureCode(error);
-      failures.push(describeFailure('open+fd', error));
+      attempts.push(describeFailure('open+fd', error));
+    }
+
+    // 2) 直接拷到目标文件 URI。
+    try {
+      await fs.copy(sourcePath, targetUri);
+      if (this.wrote(targetUri, expected)) return;
+      attempts.push(`copy->file=写入不完整(${this.fileSize(targetUri)}/${expected})`);
+    } catch (error) {
+      attempts.push(describeFailure('copy->file', error));
+    }
+
+    // 3) 拷进目录 URI，由系统决定落盘名字。
+    try {
+      await fs.copy(sourcePath, targetDirectory);
+      if (this.wrote(targetUri, expected)) return;
+      attempts.push(`copy->dir=写入不完整(${this.fileSize(targetUri)}/${expected})`);
+    } catch (error) {
+      attempts.push(describeFailure('copy->dir', error));
     }
 
     throw new TaggedError(
-      codeFromNumber(lastCode),
-      `写入受限目录失败（${targetUri}）: ${failures.join(' | ')}`,
+      'file_operation_failed',
+      `写入公共目录失败（${targetUri}）: ${attempts.join(' | ')}`,
     );
-  }
-
-  /// 打开（不存在就创建）一个可写 URI。
-  ///
-  /// 文件名里的中文、括号在 URI 里严格来说要百分号编码，个别系统版本
-  /// 只认编码后的形式。先按原样试，失败再试编码形式；URI 本身已经带了
-  /// `%` 就说明是编过码的，不再二次编码（否则 `%20` 会变成 `%2520`）。
-  private async openUri(uri: string): Promise<fs.File> {
-    const forms: Array<string> = uriForms(uri);
-    let failure: Object = new Error(`无法打开目标: ${uri}`);
-    for (let i: number = 0; i < forms.length; i++) {
-      try {
-        return await fs.open(forms[i], fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
-      } catch (error) {
-        failure = error;
-      }
-    }
-    throw wrapError(failure);
   }
 
   private async rename(sourcePath: string, newName: string): Promise<string> {
     if (!isValidFileName(newName)) {
       throw makeInvalidName(newName);
     }
-    const target: string = joinPath(parentOf(sourcePath), newName);
+    const parent: string = parentOf(sourcePath);
+    const target: string = isUri(parent) ? childUri(parent, newName) : joinPath(parent, newName);
     if (target === sourcePath) return sourcePath;
     if (this.exists(target)) {
       throw makeConflict(target);
@@ -315,7 +314,7 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
     if (!isValidFileName(name)) {
       throw makeInvalidName(name);
     }
-    const target: string = joinPath(parentPath, name);
+    const target: string = isUri(parentPath) ? childUri(parentPath, name) : joinPath(parentPath, name);
     if (this.exists(target)) {
       throw makeConflict(target);
     }
@@ -346,6 +345,33 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
     }
   }
 
+  /// 取文件字节数；拿不到（不存在/无权限/该版本不支持对 URI stat）返回 -1。
+  ///
+  /// 用 `stat` 而不是「打开再 lseek 到末尾」：公共目录里动辄几十 MB，
+  /// 探测一次不该产生真实 IO。stat 对 URI 的支持从 API 22 起才有，
+  /// 更老的系统上会抛，由 [wrote] 退回存在性判断。
+  private fileSize(path: string): number {
+    try {
+      const stat: fs.Stat = fs.statSync(path);
+      if (stat.isDirectory()) return -1;
+      return stat.size;
+    } catch (error) {
+      return -1;
+    }
+  }
+
+  /// 写完之后的落地校验：字节数一致才算成功。
+  ///
+  /// 只判「文件存在」是不够的：目标位置可能本来就有一份同名文件（用户
+  /// 手动放进去的），存在性检查会把它当成这次写入的成果，然后源文件被
+  /// 删掉——用户就同时失去了原文件和这次的新内容。
+  private wrote(targetUri: string, expected: number): boolean {
+    if (expected < 0) return this.exists(targetUri);
+    const actual: number = this.fileSize(targetUri);
+    if (actual < 0) return this.exists(targetUri);
+    return actual === expected;
+  }
+
   /// 选一个目录，返回可被 `fs` 直接使用的 URI。
   ///
   /// 为什么不用 `file_picker`：它的 ohos 移植把 `dir` 当「选文件」处理，
@@ -355,7 +381,7 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
   /// 返回的是 picker 给的 `file://docs/...` URI 原样，**不**转成普通路径：
   /// 访问授权是绑在这个 URI 上的，换成路径就走不到授权了。但要注意它
   /// 是 URI 而不是沙盒路径——`moveFile` / `copyFile` / `access` 都不认，
-  /// 写文件得走 [writeIntoUriDirectory]（`fs.copy` 支持 URI）。
+  /// 写文件得走 [writeIntoUriDirectory]（含文件名编码与多条兜底策略）。
   private async pickDirectory(): Promise<string> {
     // selectMode: 1 = 文件夹（0 是文件）。用字面量而不是 DocumentSelectMode
     // 枚举，因为不同 SDK 版本里这个枚举名不一致，字面量在各版本都成立
@@ -460,12 +486,37 @@ function wrapError(value: Object): Error {
 }
 
 /// 拼路径。鸿蒙原生用 `/`，`file://docs/...` URI 也是 `/`，统一即可。
+/// 注意这里**不做编码**：给沙盒路径和展示文案用。要递给系统写盘的
+/// 子路径一律用 [childUri]。
 function joinPath(directory: string, name: string): string {
   if (directory.length === 0) return name;
   const trimmed: string = directory.endsWith('/')
     ? directory.substring(0, directory.length - 1)
     : directory;
   return `${trimmed}/${name}`;
+}
+
+/// 拼一个可写子路径：目标父目录是 URI 时，文件名必须百分号编码。
+///
+/// 这是整个鸿蒙文件导出最容易踩的一颗雷：`file://docs/.../Documents`
+/// 看起来就是个普通字符串，直接 `+ '/' + 文件名` 拼上去毫无编译期问题，
+/// 但鸿蒙的 URI 解析器**只接受 ASCII**，遇到原始中文会直接抛
+/// 「uriString_ is not ascii string」，外层拿到的却是 13900002
+/// （No such file or directory），看着像文件不存在或没权限，误导性极强。
+function childUri(directory: string, name: string): string {
+  const trimmed: string = directory.endsWith('/')
+    ? directory.substring(0, directory.length - 1)
+    : directory;
+  return `${trimmed}/${encodeFileName(name)}`;
+}
+
+/// 原始文件名 → URI 路径段。
+///
+/// 用 `encodeURIComponent` 而不是 `encodeURI`：前者会把 `%` 和 `/` 也编掉，
+/// 正好符合「传进来的名字一定未编码」这个前提（来源是沙盒路径或用户输入）。
+/// 用 `encodeURI` 会因为整串里带 `%` 就整体跳过编码，中文原样漏给系统。
+function encodeFileName(name: string): string {
+  return encodeURIComponent(name);
 }
 
 /// 是不是 URI（`file://docs/...`）而不是沙盒路径。
@@ -478,11 +529,10 @@ function isUri(path: string): boolean {
   return path.indexOf('://') > 0;
 }
 
-/// 一个 URI 的候选写法。
+/// 一个 URI 的候选写法，仅用于「探测存在性」这种容错场景。
 ///
-/// 绝大多数文件名原样就能 open；带中文/空格时个别系统版本要求百分号编码，
-/// 所以给一个「原样 + 编码」的候选列表逐个试。已经含 `%` 的 URI 视为
-/// 编过码，不再二次编码。
+/// 写盘路径不走这里：[childUri] 已经保证编码正确，二次猜测只会掩盖问题。
+/// 探测存在性时数据库里可能存着历史版本的未编码 URI，所以仍然两种都试。
 function uriForms(uri: string): Array<string> {
   if (uri.indexOf('%') >= 0) return [uri];
   const encoded: string = encodeURI(uri);
