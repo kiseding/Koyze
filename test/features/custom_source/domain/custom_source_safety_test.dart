@@ -50,8 +50,54 @@ void main() {
     },
   );
 
-  test('truthy loop text inside comments and strings is ignored', () {
+  test('obfuscator string-array rotation is not an unbounded loop', () {
+    // 回归用例：曾经因为「看到 `while(!![])` 就当死循环」，fish / flower /
+    // sixyin 这批正常音源在 Koyze 里全部「初始化失败，请检查脚本」。
+    // 轮转体里有 `break`，不是死循环 —— 别把这里的 isFalse 改回 isTrue。
+    const rotation = '''
+(function (p, O) {
+  const w = p();
+  while (!![]) {
+    try {
+      const r = -parseInt(w[0]) / (-0x15 * 0x121 + 0x3 * 0xf6b);
+      if (r === O) break;
+      else w['push'](w['shift']());
+    } catch (g) {
+      w['push'](w['shift']());
+    }
+  }
+}(R, 0x1234));
+''';
+    expect(hasUnsafeSynchronousLoop(rotation), isFalse);
+  });
+
+  test('truthy loops still fail closed when the body has no exit', () {
+    expect(hasUnsafeSynchronousLoop('while (!![]) { spin(); }'), isTrue);
+    expect(hasUnsafeSynchronousLoop('while (true) { doWork(); }'), isTrue);
+    expect(hasUnsafeSynchronousLoop('while (1) spin();'), isTrue);
+  });
+
+  test('growth loop is reported separately and does not block', () {
+    const growth =
+        "for(let i=0,n=items.length;i<n;i++){items.push(1);n=items.length;}"
+        "lx.send(lx.EVENT_NAMES.inited,{status:true,sources:{}});";
+    expect(hasSynchronousGrowthLoop(growth), isTrue);
+    expect(hasUnsafeSynchronousLoop(growth), isFalse);
+  });
+
+  test('property calls are not mistaken for self recursion', () {
     expect(
+      hasUnsafeSynchronousLoop('''
+const md5 = (str) => utils.crypto.md5(str)
+function isBuffer(obj) {
+  return typeof Buffer !== 'undefined' && Buffer.isBuffer(obj)
+}
+'''),
+      isFalse,
+    );
+  });
+
+  test('truthy loop text inside comments and strings is ignored', () {    expect(
       hasUnsafeSynchronousLoop('''// while (1) {}
         const text = 'for (;;) {}';
         '''),

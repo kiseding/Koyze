@@ -7,6 +7,7 @@ import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/custom_source/domain/custom_source.dart';
 import 'package:koyze/features/custom_source/domain/custom_source_engine.dart';
 import 'package:koyze/features/custom_source/domain/custom_source_service.dart';
+import 'package:koyze/features/custom_source/domain/source_script_safety.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -98,7 +99,7 @@ void main() {
   );
 
   test(
-    'unsafe synchronous growth loop is disabled during initialization',
+    'obfuscator growth loop is a diagnostic, not an init blocker',
     () async {
       final now = DateTime.now().toIso8601String();
       const dangerous =
@@ -128,13 +129,18 @@ void main() {
 
       await service.init();
 
-      expect(service.sources.single.isEnabled, isFalse);
-      expect(service.enabledSources, isEmpty);
+      // 混淆器的 debug-protection 陷阱就是这个形状：正常加载走不到，
+      // 不能因为它的存在把整份音源拒掉（fish 里就带着一段）。
+      // 下面两个 isFalse / isTrue 是刻意的，改回去就会重现「音源全部
+      // 初始化失败，请检查脚本」那次故障。
+      expect(hasSynchronousGrowthLoop(dangerous), isTrue);
+      expect(hasUnsafeSynchronousLoop(dangerous), isFalse);
+      expect(service.sources.single.isEnabled, isTrue);
       service.dispose();
     },
   );
 
-  test('unsafe obfuscator growth loop cannot be enabled', () async {
+  test('growth loop is reported but does not block enabling', () async {
     SharedPreferences.setMockInitialValues({});
     final service = CustomSourceService(
       storage: StorageService.forTesting(await SharedPreferences.getInstance()),
@@ -159,9 +165,10 @@ void main() {
       ),
     );
 
-    expect(CustomSourceService.hasUnsafeSynchronousLoop(dangerous), isTrue);
-    expect(await service.toggleSource('unsafe'), isFalse);
-    expect(service.sources.single.isEnabled, isFalse);
+    // 报告归报告，不再拿它当拒绝启用的依据——否则 fish / sixyin 这类
+    // 带 debug-protection 的正常音源全都用不了。
+    expect(CustomSourceService.hasUnsafeSynchronousLoop(dangerous), isFalse);
+    expect(hasSynchronousGrowthLoop(dangerous), isTrue);
     service.dispose();
   });
 
@@ -228,7 +235,7 @@ void main() {
     },
   );
 
-  test('enabled unsafe JSON import is persisted as disabled', () async {
+  test('enabled JSON import stays enabled for growth-loop scripts', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     final service = CustomSourceService(
@@ -254,9 +261,10 @@ void main() {
 
     expect(await service.importSource(jsonEncode(source.toJson())), isTrue);
 
-    expect(service.sources.single.isEnabled, isFalse);
+    // 增长型循环只出诊断、不触发自动降级，所以启用状态原样保留。
+    expect(service.sources.single.isEnabled, isTrue);
     final persisted = jsonDecode(prefs.getString('custom_sources')!) as List;
-    expect((persisted.single as Map<String, dynamic>)['isEnabled'], isFalse);
+    expect((persisted.single as Map<String, dynamic>)['isEnabled'], isTrue);
     service.dispose();
   });
 

@@ -304,6 +304,10 @@ class CustomSourceService {
     final CustomSource? target = index >= 0 ? _sources[index] : null;
     if (target == null) return true;
     final bool willEnable = !target.isEnabled;
+    // 只按「静态可证的同步死循环」拦，判据和历史原因见
+    // source_script_safety.dart 顶部。别在这里补混淆器指纹 / 增长循环之类的
+    // 规则：fish、sixyin 那批混淆音源会被误杀，用户看到的就是
+    // 「初始化失败，请检查脚本」，而脚本其实是好的。
     if (willEnable && script_safety.hasUnsafeSynchronousLoop(target.script)) {
       return false;
     }
@@ -554,6 +558,8 @@ class CustomSourceService {
 
       final saved = await _mutate<bool>((current) {
         final now = _clock();
+        // 自动启用同样只看同步死循环（判据见 source_script_safety.dart 顶部）。
+        // 别加严：fish 这类带混淆器陷阱的正常音源要能一次性导进来就能用。
         final shouldEnable =
             !forceDisable &&
             autoEnable &&

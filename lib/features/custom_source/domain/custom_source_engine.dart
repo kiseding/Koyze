@@ -1162,6 +1162,12 @@ class CustomSourceEngine {
       _emitError(customSourceExecutionUnavailableReason);
       return false;
     }
+    // 增长型循环只报诊断、不拒绝执行：混淆音源的 debug-protection 陷阱就是
+    // 这个形状（fish 的 `prototype.aScjtT`），正常加载走不到。别看它像死循环
+    // 就顺手改成 return false —— 那会把 fish / sixyin 这类音源全部挡回去。
+    if (script_safety.hasSynchronousGrowthLoop(source.script)) {
+      _emitDiagnostic('synchronous_growth_loop', {'sourceId': source.id});
+    }
 
     // 串行化并发 load，避免 A dispose 时 B 仍在 evaluate
     while (_loadInFlight != null) {
