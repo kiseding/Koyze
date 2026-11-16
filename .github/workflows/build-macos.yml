@@ -113,4 +113,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: build/macos/Koyze-macOS.zip
+          files: |
+            build/macos/Koyze-macOS.zip
+            build/macos/SHA256SUMS.macos.txt

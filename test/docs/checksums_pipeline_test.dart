@@ -184,8 +184,102 @@ void main() {
       );
     });
 
-    test('汇总 workflow 覆盖了所有会上传产物的 workflow 名称', () {
+    // 第二条静态检查，钉住「分片真的会被传上去」这件事。
+    //
+    // 上面那条只检查「workflow 会不会生成分片」，但生成了不等于传上去了。
+    // 4 个桌面/移动平台的 action-gh-release 原本写的是单个文件：
+    //
+    //   files: build/ios/Koyze-Apple-ID-Sideload.ipa
+    //
+    // 分片虽然被生成在 build/ios/ 下，却不在上传列表里，于是 Release 上
+    // 永远没有 SHA256SUMS.ios.txt。汇总 workflow 的等待循环会一直空转到
+    // 25 分钟超时，报「缺少平台分片」——看上去像 GitHub 慢，实际是配置
+    // 少了一行。Android 和鸿蒙用目录通配（dir/*）碰巧带上了分片，掩盖了
+    // 这个问题，所以更要单独钉一条。
+    test('往 Release 传产物的 workflow 把分片也一起上传', () {
+      final offenders = <String>[];
+
+      for (final f in Directory('.github/workflows').listSync().whereType<File>()) {
+        if (!f.path.endsWith('.yml') && !f.path.endsWith('.yaml')) continue;
+        final src = f.readAsStringSync();
+        if (!src.contains('softprops/action-gh-release')) continue;
+
+        // 取出 action-gh-release 那一步的 files: 区块
+        final idx = src.indexOf('softprops/action-gh-release');
+        var body = src.substring(idx);
+        final filesIdx = body.indexOf('files:');
+        if (filesIdx < 0) {
+          offenders.add('${f.uri.pathSegments.last}（没有 files:）');
+          continue;
+        }
+        body = body.substring(filesIdx);
+        // files: 的值到下一个同级 key 或文件结尾为止
+        final endIdx = body.indexOf(RegExp(r'\n\s{0,8}[a-z_]+:', multiLine: true));
+        final filesBlock = endIdx > 0 ? body.substring(0, endIdx) : body;
+
+        // 目录通配（path/* 或 path/**）会自动带上分片，视为通过。
+        //
+        // 不能只匹配 `files:` 后面第一个非空白串：鸿蒙写的是
+        // `build/harmonyos-${{ env.HAP_BUILD_MODE }}/*`，中间有空格，
+        // 用 \S* 会在空格处截断、把带通配的那行漏掉。
+        final usesGlob = filesBlock.split('\n').any((l) => l.contains('*'));
+        final listsShard = filesBlock.contains('SHA256SUMS.');
+        if (!usesGlob && !listsShard) {
+          offenders.add(f.uri.pathSegments.last);
+        }
+      }
+
+      expect(
+        offenders,
+        isEmpty,
+        reason: '这些 workflow 生成了分片却没上传到 Release，汇总 workflow '
+            '会一直等不到它们、25 分钟后超时失败：${offenders.join(", ")}',
+      );
+    });
+
+    // 第三条静态检查：两边对「平台」的命名必须完全一致。
+    //
+    // 各平台调脚本时传的平台标识（android / harmonyos / ...）决定分片文件名；
+    // 汇总 workflow 的 expected 列表决定它在等哪些文件。任何一边改了名字而
+    // 另一边没跟上，等待循环就会空转到超时。这种错配完全不会在本地暴露，
+    // 只有发版时才炸，因此值得钉死。
+    test('等待的平台名与各 workflow 实际生成的分片名一致', () {
       final checksums =
+          File('.github/workflows/release-checksums.yml').readAsStringSync();
+
+      final expectedLine = RegExp(r'expected="([^"]+)"').firstMatch(checksums);
+      expect(expectedLine, isNotNull, reason: '汇总 workflow 里找不到 expected= 列表');
+      final expected = expectedLine!.group(1)!.split(RegExp(r'\s+')).toSet();
+
+      // 从各 workflow 抓 `write_platform_checksums.sh <path> <platform>` 的
+      // 最后一个参数。跳过 YAML 注释行，避免注释里举例的平台名混进来。
+      const tagPattern = r'write_platform_checksums\.sh\s+(\S+|\$out)\s+([a-z][a-z-]*)';
+      final actual = <String>{};
+      for (final f in Directory('.github/workflows').listSync().whereType<File>()) {
+        if (!f.path.endsWith('.yml') && !f.path.endsWith('.yaml')) continue;
+        for (final line in f.readAsLinesSync()) {
+          if (line.trimLeft().startsWith('#')) continue;
+          final m = RegExp(tagPattern).firstMatch(line);
+          if (m != null) actual.add(m.group(2)!);
+        }
+      }
+
+      expect(actual, isNotEmpty, reason: '没有从任何 workflow 抓到平台标识');
+      expect(
+        actual.difference(expected),
+        isEmpty,
+        reason: '这些分片会被生成，但汇总 workflow 不在等它们（永远等不齐）：'
+            '${actual.difference(expected).join(", ")}',
+      );
+      expect(
+        expected.difference(actual),
+        isEmpty,
+        reason: '汇总 workflow 在等这些分片，但没有任何 workflow 会生成它们'
+            '（必然超时）：${expected.difference(actual).join(", ")}',
+      );
+    });
+
+    test('汇总 workflow 覆盖了所有会上传产物的 workflow 名称', () {      final checksums =
           File('.github/workflows/release-checksums.yml').readAsStringSync();
 
       // 提取 workflow_run.workflows 里列出的名字

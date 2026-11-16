@@ -157,23 +157,32 @@ jobs:
           echo "=== 已下载 ==="
           ls -l
 
-          # 先把各平台分片合并，同时检查有没有分片覆盖了不存在的文件
+          # 先把各平台分片合并
           : > merged.txt
           for shard in SHA256SUMS.*.txt; do
+            # glob 没匹配到时会留下字面量，必须跳过，否则 cat 会报错
             [ -f "$shard" ] || continue
             echo "--- $shard"
             cat "$shard" >> merged.txt
           done
 
+          # 空合并文件必须当成失败。sha256sum -c 对空输入返回 0，不拦的话
+          # 会往 Release 传一份空的 SHA256SUMS.txt —— 又变回「有校验文件但
+          # 校验不了」的老问题。
+          if [ ! -s merged.txt ]; then
+            echo "::error::没有读到任何平台分片，合并结果为空"
+            exit 1
+          fi
+
           echo "=== 校验：Release 上的文件 vs 平台分片 ==="
-          # --ignore-missing：分片是按平台写的，单个分片里不会有别的平台产物；
-          # 合并后理论上全覆盖，这里容错以防某个分片漏写了某文件。
+          # 故意**不加** --ignore-missing：分片合并后应当覆盖全部产物，
+          # 任何一个文件缺失都是真问题（可能是某个平台上传失败），必须红。
           if ! sha256sum -c merged.txt 2>&1 | tee check.log; then
             echo "::error::实际文件与平台分片不一致，具体见上面的 FAILED 行"
             exit 1
           fi
-          # 有任何一个 NOT FOUND / FAILED 都算失败（sha256sum 的退出码在
-          # --ignore-missing 下不会反映 NOT FOUND，所以要自己查输出）
+          # sha256sum 的退出码在管道里会被 tee 吃掉，所以自己查一遍输出，
+          # 确保 NOT FOUND / FAILED 都能让 job 失败。
           if grep -qE 'FAILED|No such file|cannot open' check.log; then
             echo "::error::存在缺失或损坏的产物"
             exit 1

@@ -103,4 +103,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: build/linux/Koyze-Linux-x64.tar.gz
+          files: |
+            build/linux/Koyze-Linux-x64.tar.gz
+            build/linux/SHA256SUMS.linux.txt

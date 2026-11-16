@@ -108,9 +108,13 @@ jobs:
         shell: bash
         run: bash .github/scripts/write_platform_checksums.sh build/ios ios
 
+      # 分片必须和产物一起上传。这里不能只写 .ipa —— 漏掉分片，汇总
+      # workflow 会一直等不到 SHA256SUMS.ios.txt，白等 25 分钟才超时失败。
       - name: Upload iOS IPA to Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: build/ios/Koyze-Apple-ID-Sideload.ipa
+          files: |
+            build/ios/Koyze-Apple-ID-Sideload.ipa
+            build/ios/SHA256SUMS.ios.txt
