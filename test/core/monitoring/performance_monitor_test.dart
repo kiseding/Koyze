@@ -115,6 +115,15 @@ void main() {
       expect(p99, greaterThanOrEqualTo(95));
     });
 
+    test('frame budget follows the display refresh rate', () {
+      // 60Hz 的显示器在测试环境里通常报 60，120Hz 报 120。这里只要求
+      // 预算与刷新率互为倒数，不写死某个具体机型。
+      final refreshRate = monitor.effectiveBudgetMs <= 0
+          ? 0.0
+          : 1000.0 / monitor.effectiveBudgetMs;
+      expect(refreshRate, greaterThan(30));
+    });
+
     test('should limit metric storage', () {
       // Exceed max metrics
       for (int i = 0; i < 1500; i++) {

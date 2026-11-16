@@ -141,39 +141,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         body: Stack(
           children: [
             ShellContentFrame(
-              child: RepaintBoundary(
-                child: ListView(
-                  // 每一行自己一层，而不是「一张分区卡片一层」。
-                  //
-                  // 一张卡片有 700~900pt 高、整屏宽，落到真实像素是近千万像素
-                  // 的一块；引擎的栅格缓存是有预算的，几块这么大的图层同时在
-                  // 滚动里移动，一挤就全被挤出去，于是每帧都要把整张卡重画一遍
-                  // ——这一页滑动掉帧就是这么来的。切到「每行一层」以后，单层
-                  // 只有一行大小，整屏都装得下，滚动退化成纯合成。
-                  //
-                  // 卡片底色和分隔线仍然由分区自己画（见 _buildEntry），所以
-                  // 视觉上还是原来那张整卡，没有拼接缝。
-                  addRepaintBoundaries: false,
-                  padding: EdgeInsets.only(
-                    top: isLandscapeShell
-                        ? 0
-                        : FrostedTabHeader.extent(context),
-                    bottom: RootShellLayout.obscuredBottomOf(context),
-                  ),
-                  children: [
-                    for (final section in sections)
-                      SettingsSectionCard(
+              // 这里**不要**再给整个 ListView 套 RepaintBoundary：那是把整页
+              // 内容包成一个整屏高的超大图层，滚动时必然撑爆栅格缓存，等于
+              // 每帧全页重画。分层交给下面的卡片（一卡一层）。
+              child: ListView(
+                // 每张分区卡片一层，而不是「每一行一层」。别改回行级边界。
+                //
+                // 这里踩过一次坑：曾经为了避开「整张卡太大、栅格缓存装不下」
+                // 而把边界下沉到每一行（配合 `addRepaintBoundaries: false`
+                // 手工包），结果正好相反——一屏十几行就是十几层，每层都要
+                // 各自分配、缓存、上传一层纹理，合成开销压过了省下的重绘。
+                //
+                // 注意：当初支撑这个判断的「掉帧 47~56%」是**旧指标算错的**
+                // （当时用 build+raster 之和判超预算，而这两条是并行的流水线，
+                // 相加会系统性虚报，见 performance_monitor 里的说明）。排除
+                // 那批数据之后，行级与卡级边界的差异并没有那么悬殊。
+                //
+                // 保留卡级分层是因为它同时满足三件事：图层数量少、单层面积
+                // 有界、卡片底色/圆角/边线/分隔线画在同一层里不会出现拼缝；
+                // 这不是「靠数字证明的最优解」，而是权衡后的稳定选择。
+                addRepaintBoundaries: false,
+                padding: EdgeInsets.only(
+                  top: isLandscapeShell ? 0 : FrostedTabHeader.extent(context),
+                  bottom: RootShellLayout.obscuredBottomOf(context),
+                ),
+                children: [
+                  for (final section in sections)
+                    // 一张卡一层：卡片底色、圆角、边线、分隔线和里面的
+                    // 所有行一起进这一个图层。不要下沉到行级（原因见上）。
+                    RepaintBoundary(
+                      child: SettingsSectionCard(
                         title: section.title,
                         children: [
-                          for (final leadIn in section.leadIn)
-                            RepaintBoundary(child: leadIn),
+                          for (final leadIn in section.leadIn) leadIn,
                           for (final entry in section.entries)
-                            RepaintBoundary(child: _buildEntry(context, entry)),
+                            _buildEntry(context, entry),
                         ],
                       ),
-                    const SizedBox(height: 40),
-                  ],
-                ),
+                    ),
+                  const SizedBox(height: 40),
+                ],
               ),
             ),
             if (_searching)

@@ -155,9 +155,14 @@ class PerformanceMonitor {
   /// 明显感到不跟手了。
   static const double _stutterDroppedRatio = 0.25;
 
-  /// 最差单帧超过这个毫秒数也算明显卡顿——哪怕整体掉帧率不高，一次 80ms
-  /// 的停顿（一次同步 IO、一次大图解码）主观上就是一个「卡住」。
-  static const double _stutterWorstMs = 48;
+  /// 最差单帧超过「几倍预算」就算明显卡顿。
+  ///
+  /// 用**倍数**而不是绝对毫秒数，是因为预算本身随刷新率变：60Hz 是 16.7ms，
+  /// 120Hz（iPhone ProMotion，本项目 plist 已开满帧）只有 8.3ms。写死 48ms
+  /// 在 60Hz 上相当于 3 帧、在 120Hz 上相当于 6 帧——同一个阈值在两台机器上
+  /// 敏感度差一倍，长帧在 120Hz 上会被系统性地漏报。3 倍是「用户一定能看到
+  /// 一次停顿」的量级。
+  static const double _stutterWorstBudgetFactor = 3;
 
   /// 同一个窗口连续上报的最小间隔，避免一段长卡顿每 2 秒刷一条。
   static const Duration _stutterLogInterval = Duration(seconds: 6);
@@ -242,14 +247,34 @@ class PerformanceMonitor {
       _clearFrameWindow();
       return;
     }
+    // 判「掉帧」只看 build 与 raster **各自**有没有超预算，不看两者之和。
+    //
+    // 这里踩过一个很误导人的坑：早先是用 `build + raster > 16.7ms` 计的，
+    // 于是「raster 15.6ms + build 0.6ms = 16.2ms」这种其实稳稳跑满 60fps 的
+    // 帧，会在抖动几毫秒后被算成掉帧，日志里报出 37%~56% 的掉帧率——而同一
+    // 窗口里 worst 只有 18.8ms，根本没有任何用户能感知的停顿。
+    //
+    // 原因在引擎的流水线：build 跑 UI 线程、raster 跑光栅线程，两者**跨帧**
+    // 重叠——光栅第 N 帧时 UI 线程已经在建第 N+1 帧。所以一帧的吞吐成本是
+    // max(build, raster)，不是和。Flutter 自己的 DevTools 也是分开看这两条
+    // 时间线，任一条超预算才标红。相加只会把「本来就该占满一帧的 raster」
+    // 冤成掉帧。
+    // 预算按屏幕实际刷新率算：60Hz=16.7ms，120Hz=8.3ms。
+    final budget = _effectiveBudgetMs;
     var dropped = 0;
     var worst = 0.0;
-    for (final total in _windowTotal) {
-      if (total > _budgetMs) dropped++;
-      if (total > worst) worst = total;
+    for (var i = 0; i < _windowBuild.length; i++) {
+      final build = _windowBuild[i];
+      final raster = _windowRaster[i];
+      // 一帧的实际成本：两条流水线里更忙的那条。
+      final cost = build > raster ? build : raster;
+      if (build > budget || raster > budget) dropped++;
+      if (cost > worst) worst = cost;
     }
-    final ratio = dropped / _windowTotal.length;
-    final stutters = ratio >= _stutterDroppedRatio || worst >= _stutterWorstMs;
+    final ratio = dropped / _windowBuild.length;
+    final stutters =
+        ratio >= _stutterDroppedRatio ||
+        worst >= budget * _stutterWorstBudgetFactor;
     if (!stutters) {
       // 这一段是流畅的：清掉连击，下次卡顿重新计数。
       _stutterStreak = 0;
@@ -265,7 +290,8 @@ class PerformanceMonitor {
     if (!throttled) {
       _lastStutterLoggedAt = now;
       final summary =
-          'frames=${_windowTotal.length} '
+          'frames=${_windowBuild.length} '
+          'budget=${budget.toStringAsFixed(1)}ms '
           'dropped=$dropped (${(ratio * 100).round()}%) '
           'worst=${worst.toStringAsFixed(1)}ms '
           'build_p50=${_percentile(_windowBuild, 0.5)} '
@@ -276,9 +302,10 @@ class PerformanceMonitor {
       AppLog.instance.record(
         'perf',
         'jank $summary',
-        // 单帧 80ms 以上、或已经连续卡了三窗，多半是用户能明确抱怨的程度，
-        // 标成 warning 让诊断面板的黄色过滤能直接筛出来。
-        level: (worst >= 80 || _stutterStreak >= 3)
+        // 单帧超过 5 倍预算（60Hz 下约 84ms、120Hz 下约 42ms）、或已经连续
+        // 卡了三窗，多半是用户能明确抱怨的程度，标成 warning 让诊断面板的
+        // 黄色过滤能直接筛出来。
+        level: (worst >= budget * 5 || _stutterStreak >= 3)
             ? AppLogLevel.warning
             : AppLogLevel.info,
       );
@@ -294,6 +321,33 @@ class PerformanceMonitor {
   }
 
   static const double _budgetMs = 16.7;
+
+  /// 当前生效的帧预算（毫秒），随屏幕刷新率变化。
+  ///
+  /// 60Hz → 16.7ms；120Hz（iPhone ProMotion，本项目 plist 开了满帧）→ 8.3ms。
+  /// 暴露出来是为了让测试能锁住这条换算，也方便诊断面板显示"这一刻的预算
+  /// 到底是多少"——否则在 120Hz 机器上看到 15ms 的 raster 无法判断超没超。
+  @visibleForTesting
+  double get effectiveBudgetMs => _effectiveBudgetMs;
+
+  /// 当前窗口实际要满足的帧预算。
+  ///
+  /// 60Hz 是 16.7ms，但 iPhone 开了 `CADisableMinimumFrameDurationOnPhone`
+  /// （本项目 ios/Runner/Info.plist 就是开的）之后，ProMotion 屏会跑 120Hz，
+  /// 预算变成 8.3ms。同一份 raster 15ms 的脚本，在 60Hz 上刚好及格、在 120Hz
+  /// 上就是每帧都超——用户看到的"滑动卡顿"很可能就是这个差值造成的。
+  ///
+  /// 日志里必须把预算一起写出来，否则在 120Hz 机器上读到的 15ms 无法判断
+  /// 到底超没超。
+  double get _effectiveBudgetMs {
+    final scheduler = _schedulerBindingOrNull();
+    if (scheduler == null) return _budgetMs;
+    final views = scheduler.platformDispatcher.views;
+    if (views.isEmpty) return _budgetMs;
+    final refreshRate = views.first.display.refreshRate;
+    if (refreshRate <= 0) return _budgetMs;
+    return 1000.0 / refreshRate;
+  }
 
   static String _percentile(List<double> samples, double quantile) {
     if (samples.isEmpty) return '0.0';
@@ -360,13 +414,18 @@ class PerformanceMonitor {
     for (final timing in timings) {
       final buildDuration = timing.buildDuration.inMicroseconds / 1000.0;
       final rasterDuration = timing.rasterDuration.inMicroseconds / 1000.0;
-      final totalDuration = buildDuration + rasterDuration;
+      // 单帧成本取两条流水线里更忙的那条，**不是**两者之和。
+      // build 在 UI 线程、raster 在光栅线程，跨帧并行；相加会把「该占满一帧
+      // 的 raster」累加成假掉帧（详见 _flushFrameWindow 里的说明）。
+      final frameCost = buildDuration > rasterDuration
+          ? buildDuration
+          : rasterDuration;
 
-      _frameTimes.add(totalDuration);
+      _frameTimes.add(frameCost);
 
       _windowBuild.add(buildDuration);
       _windowRaster.add(rasterDuration);
-      _windowTotal.add(totalDuration);
+      _windowTotal.add(frameCost);
 
       // Limit samples
       if (_frameTimes.length > _maxFrameSamples) {
@@ -380,7 +439,8 @@ class PerformanceMonitor {
     if (_frameTimes.isEmpty) return null;
 
     final sortedTimes = List<double>.from(_frameTimes)..sort();
-    final targetFrameTime = 16.67; // 60 FPS target
+    // 与 _flushFrameWindow 用同一个预算：扣着实际刷新率走，别写死 60Hz。
+    final targetFrameTime = _effectiveBudgetMs;
 
     final droppedFrames = _frameTimes.where((t) => t > targetFrameTime).length;
     final average = _frameTimes.reduce((a, b) => a + b) / _frameTimes.length;
