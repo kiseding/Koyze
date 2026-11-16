@@ -14,10 +14,16 @@ import 'package:flutter_test/flutter_test.dart';
 /// 把代码片段里的 `](` 当成了链接，于是 CI 报「引用的文件不存在：
 /// `['toString'](`」——一个根本不存在的路径。文档本身没有任何问题。
 ///
-/// 所以这里钉住三件事：
+/// 5.1.1 发版时又踩了第二次，形状不同：改成 awk 剥离代码块之后仍然留着
+/// `grep -oP`，于是 ubuntu 的 Quality gate 绿、macos runner 的 IPA 构建
+/// 红（BSD grep 不认识 `-P`）。所以除了行为用例，最后一条用静态检查
+/// 直接禁止 GNU 专有选项。
+///
+/// 所以这里钉住四件事：
 /// 1. 真实死链必须报出来（检查器不能变成永远绿的空转）
 /// 2. 代码块 / 行内代码里的 `](` 不能被当成链接（那次误报的形状）
 /// 3. 仓库里现存的文档必须全部通过（现状守卫）
+/// 4. 脚本不得使用只有 GNU 才有的命令行选项（跨平台一致性）
 ///
 /// 这些用例会真的调用 bash 脚本，所以带 `skip` 兜底：Windows 以外的精简 CI
 /// 环境如果没有 bash/awk，跳过而不是失败——检查本身在 Linux runner 上跑得到。
@@ -131,5 +137,36 @@ void main() {
             '本地可直接跑 `bash $script` 复现。',
       );
     }, skip: !bashAvailable);
+
+    // 这条用**读源码**的方式检查，不依赖运行环境。
+    //
+    // 为什么要单独钉一遍：脚本会在两种 grep 实现上跑——Quality gate 是
+    // ubuntu（GNU grep），而 iOS / macOS 构建的 "Run deterministic Flutter
+    // tests" 跑在 macos runner（BSD grep）。`grep -P` 是 GNU 专有选项，
+    // BSD grep 直接报 `grep: invalid option -- P` 并失败。
+    //
+    // 2026-11-17 的 v5.1.1 IPA 构建（43918730505）就是这么挂的：同一份
+    // 代码在 ubuntu 上绿、在 macos 上红，是最难查的一类分裂。本机是
+    // Git Bash（GNU），跑测试时发现不了，所以这里改成静态检查。
+    test('脚本不使用 grep -P 等 GNU 专有选项', () {
+      final source = File(script).readAsStringSync();
+      // 注释里会提到 grep -P（就是为了解释为什么不能用），只检查代码行。
+      final codeLines = source
+          .split('\n')
+          .where((line) => !line.trimLeft().startsWith('#'))
+          .join('\n');
+
+      expect(
+        RegExp(r'\bgrep\b[^\n|]*\s-\w*P').hasMatch(codeLines),
+        isFalse,
+        reason: 'grep -P 是 GNU 专有选项，macOS 的 BSD grep 不支持，'
+            '会让 iOS/macOS 构建在测试步骤失败。用 POSIX awk 代替。',
+      );
+      expect(
+        RegExp(r'\bsed\s+-i\b').hasMatch(codeLines),
+        isFalse,
+        reason: 'sed -i 在各平台参数不兼容（BSD 需要 -i ""），改用临时文件。',
+      );
+    });
   });
 }
