@@ -133,41 +133,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      # 逻辑在 .github/scripts/check_md_links.sh 里，本步只负责调用。
+      # 抽出去的原因：这段规则（相对所在目录、跳过 third_party、剥掉代码块）
+      # 光靠"改完等 CI 跑 5 分钟"验证太慢，抽出来之后本地一条命令就能跑，
+      # 也才能被 test/docs/markdown_links_test.dart 拿去做回归。
       - name: Verify referenced docs exist
         shell: bash
-        run: |
-          set -euo pipefail
-          # CONTRIBUTING 曾经指向一个不存在的 CODE_OF_CONDUCT.md，
-          # 这类死链对贡献者很不友好。这里拦住所有本地 Markdown 相对链接。
-          #
-          # 两个必须注意的点：
-          # 1. 链接是相对于**所在文件**的目录，不是仓库根目录——
-          #    docs/adr/0001 里的 ../../workers/... 从根目录看就是错的。
-          # 2. third_party/ 是 vendored 上游代码，它的 README 引用自己的
-          #    截图，和本仓库无关，不该拦。
-          fail=0
-          while IFS= read -r file; do
-            case "$file" in
-              third_party/*) continue ;;
-            esac
-            dir="$(dirname "$file")"
-            # 提取 markdown 链接里的相对路径（跳过 http/https/mailto/锚点）
-            while IFS= read -r target; do
-              case "$target" in
-                http*|https*|mailto:*|\#*|'') continue ;;
-              esac
-              # 去掉锚点与查询串
-              clean="${target%%#*}"
-              clean="${clean%%\?*}"
-              [ -z "$clean" ] && continue
-              # 绝对路径是站内链接，与仓库文件无关
-              case "$clean" in
-                /*) continue ;;
-              esac
-              if [ ! -e "$dir/$clean" ]; then
-                echo "::error file=$file::引用的文件不存在: $target"
-                fail=1
-              fi
-            done < <(grep -oP '\]\(\K[^)]+' "$file" 2>/dev/null || true)
-          done < <(git ls-files '*.md')
-          exit "$fail"
+        run: bash .github/scripts/check_md_links.sh
