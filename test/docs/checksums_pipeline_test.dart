@@ -304,7 +304,35 @@ void main() {
       );
     });
 
-    test('汇总 workflow 覆盖了所有会上传产物的 workflow 名称', () {      final checksums =
+    // 覆盖完整性检查：`sha256sum -c` 只校验分片里**列了**的文件，没列的
+    // 一概不管。假如鸿蒙先完成就触发了汇总，此时 Release 上只有 HAP，两个
+    // HAP 的哈希与分片完全一致，"校验通过"了，但据此发布的 SHA256SUMS.txt
+    // 只有 2 行——5.1.1 那个 bug 换个方式重演。所以汇总里有一道
+    // "分片列出的文件集合 == Release 上实际的文件集合" 的比对。
+    test('汇总时会检查分片是否覆盖 Release 上的全部产物', () {
+      final src = File('.github/workflows/release-checksums.yml').readAsStringSync();
+      expect(
+        src.contains(r'[ "$listed" != "$present" ]'),
+        isTrue,
+        reason: '缺少「分片 vs 实际产物」的集合比对，'
+            '部分平台先完成时可能发布一份只覆盖部分产物的校验文件',
+      );
+      // 文件名可能含空格，不能用 awk '{print $2}' 取第二列当文件名。
+      // 注意 `awk '{print $1}'` 是**正确**的（sha256sum 输出第一列就是哈希），
+      // 所以只禁 $2 这一种写法，并且跳过注释行——注释里正是在解释为什么不用它。
+      final code = src
+          .split('\n')
+          .where((l) => !l.trimLeft().startsWith('#'))
+          .join('\n');
+      expect(
+        code.contains(r"awk '{print $2}'"),
+        isFalse,
+        reason: '取文件名不能用 awk 按空白切分，含空格的名字会被截断',
+      );
+    });
+
+    test('汇总 workflow 覆盖了所有会上传产物的 workflow 名称', () {
+      final checksums =
           File('.github/workflows/release-checksums.yml').readAsStringSync();
 
       // 提取 workflow_run.workflows 里列出的名字

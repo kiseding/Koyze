@@ -190,6 +190,33 @@ jobs:
               echo "::error::存在缺失或损坏的产物"
               exit 1
             fi
+
+            # 反向覆盖检查：Release 上的每个产物都必须出现在分片里。
+            #
+            # 为什么非有这一步：sha256sum -c 只校验「分片里列了的文件」，
+            # 分片没列的它一概不管。设想鸿蒙 job 先完成、触发了汇总，此时
+            # Release 上只有 HAP —— 两个 HAP 的哈希和分片完全一致，上面两步
+            # 全绿，于是汇总就把一份**只有 2 行**的 SHA256SUMS.txt 发布出去，
+            # 正是 5.1.1 那个 bug 以另一种方式重演。等待步骤本该拦住这种
+            # 情况，但它只等到「六个分片文件都在」为止；而分片是随产物一起
+            # 传的，理论上不会只到一半——所以这里做一次实际比对更可靠。
+            # 取名用 ${line#* } 而不是 awk '{print $2}'：产物名若含空格，
+            # awk 按空白切分会把它截断成第一段，后面的比较就全错了。
+            # 分片格式固定为 "<hex> *<name>"，去掉第一个空格前的内容正好剩下 *<name>。
+            listed="$(while IFS= read -r line; do
+                        [ -n "$line" ] || continue
+                        rest="${line#* }"; printf '%s\n' "${rest#\*}"
+                      done < merged.txt | sort)"
+            present="$(ls Koyze-* 2>/dev/null | sort)"
+            if [ "$listed" != "$present" ]; then
+              echo "::error::分片未覆盖 Release 上的全部产物"
+              echo "--- 分片里有、Release 上没有（可能上传失败）:"
+              comm -23 <(printf '%s\n' "$listed") <(printf '%s\n' "$present") || true
+              echo "--- Release 上有、分片里没列（该平台分片还没到）:"
+              comm -13 <(printf '%s\n' "$listed") <(printf '%s\n' "$present") || true
+              exit 1
+            fi
+
             # 分片与实际内容一致，就把分片合并结果作为最终文件
             sort -k2 merged.txt > SHA256SUMS.txt
           else
