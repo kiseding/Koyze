@@ -141,6 +141,22 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # 每个平台各出一个 SHA256SUMS.<平台>.txt，由 release-checksums.yml
+      # 在所有平台跑完后汇总成唯一的 SHA256SUMS.txt。
+      #
+      # 为什么要拆开而不是各自发一份完整的 SHA256SUMS.txt：7 个 workflow 是
+      # 并行跑的，谁先上传谁就赢，后到的会覆盖前者。5.1.1 发版时实际就是这样
+      # 翻车的——只有鸿蒙 job 会生成这个文件，于是 Release 里的 SHA256SUMS.txt
+      # 只有两个 .hap 的哈希，其余 7 个产物一个都没覆盖到，而它还写着构建机
+      # 上的相对路径（build/harmonyos-release/...），用户下载后根本对不上。
+      #
+      # 生成逻辑抽在 .github/scripts/write_platform_checksums.sh，
+      # 因为 7 个 workflow 都要用同一份规则（文件名排序、只写 basename、
+      # 排除文本文件），复制 7 遍迟早会漂移。
+      - name: Generate per-platform checksums
+        shell: bash
+        run: bash .github/scripts/write_platform_checksums.sh build/android-release android
+
       - name: Upload Android assets to Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2

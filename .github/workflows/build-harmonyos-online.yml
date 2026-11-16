@@ -402,11 +402,16 @@ jobs:
                               f'{hap.name} {label} ELF machine {actual}, expected {machine}'
                           )
           PY
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum "$out"/*.hap > "$out/SHA256SUMS.txt"
-          else
-            shasum -a 256 "$out"/*.hap > "$out/SHA256SUMS.txt"
-          fi
+          # 不再在这里直接生成 SHA256SUMS.txt。
+          #
+          # 原来这一行是 `sha256sum "$out"/*.hap > "$out/SHA256SUMS.txt"`，
+          # 结果就是 5.1.1 Release 里那份只有两个 .hap、且写着构建机相对路径
+          # （build/harmonyos-release/...）的校验文件——另外 7 个产物完全没被
+          # 覆盖。用户按它校验必然失败，比不提供校验文件更糟。
+          #
+          # 现在只生成平台分片 SHA256SUMS.harmonyos.txt，由
+          # release-checksums.yml 在所有平台跑完后汇总。
+          bash .github/scripts/write_platform_checksums.sh "$out" harmonyos
           ls -lh "$out"/*
 
       - uses: actions/upload-artifact@v4

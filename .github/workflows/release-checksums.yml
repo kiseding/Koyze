@@ -1,0 +1,201 @@
+name: Assemble release checksums
+
+# 把各平台产出的 SHA256SUMS.<平台>.txt 汇总成 Release 里唯一的
+# SHA256SUMS.txt。
+#
+# ## 为什么需要一个独立的汇总 workflow
+#
+# 7 个平台是并行构建、各自往同一个 Release 上传资产的。校验和必须在**所有
+# 产物都上传完**之后才能算全，所以它不可能由任何一个平台 job 顺手做掉。
+#
+# 5.1.1 发版时犯的就是这个错：只有鸿蒙 job 生成 SHA256SUMS.txt，于是那份
+# 文件只有两个 .hap 的哈希，Android/桌面/iOS 的 7 个产物一个没覆盖，而且
+# 里面写的是构建机上的相对路径（build/harmonyos-release/...）。用户下载后
+# `sha256sum -c SHA256SUMS.txt` 必然失败——提供了校验文件却对不上，比不提供
+# 更容易误导人。
+#
+# ## 为什么用 workflow_run 而不是在某个平台 job 里等
+#
+# 让某一个 job 去 `gh run watch` 其他 workflow 会拖长它的运行时间、还要额外
+# 授权，且任意一个平台的排队延迟都会连带它超时。用 workflow_run 在全部结束
+# 后单独起一个几十秒的 job 更干净。
+#
+# ## 关键约束：必须从 Release 下载，而不是从 artifacts 下载
+#
+# 校验和要覆盖的是**用户实际下载到的那个文件**。Release 资产上传后 GitHub
+# 不会改写内容，但从 artifacts 取再算一遍无法证明两者一致（例如上传阶段被
+# 截断）。所以这里逐个从 Release 下载、现算哈希，算完再和平台分片里声明的
+# 值比对——两边都一致才算通过，这样同时验证了「文件完整性」和「上传没走样」。
+
+on:
+  workflow_run:
+    # 必须列出所有会上传**二进制产物**的 workflow。少写一个，那条产物的
+    # 哈希就会缺席，汇总结果又退化成 5.1.1 那种「只覆盖一部分」的状态。
+    #
+    # 注意 Build Web image 不在列表里：它产出的是 Docker 镜像，不往 Release
+    # 上传任何文件，把它列进来会让下面的等待逻辑永远等不到它的分片。
+    workflows:
+      - Build Android release
+      - Build HarmonyOS HAP (hosted runner)
+      - Build Linux portable
+      - Build macOS app
+      - Build unsigned IPA
+      - Build Windows portable
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要重算校验和的 tag（例如 v5.1.1）'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  # 同一个 tag 只允许一个汇总任务在跑；后触发的取消前面的，避免两个任务
+  # 同时删/传同一个 SHA256SUMS.txt 导致资产 id 打架。
+  group: release-checksums-${{ github.event.workflow_run.head_branch || inputs.tag }}
+  cancel-in-progress: true
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # workflow_run 触发时默认 checkout 的是默认分支，这里必须显式取
+          # 触发它的那个 commit，否则汇总脚本的版本可能和产物不匹配。
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Resolve target tag
+        id: resolve
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="$DISPATCH_TAG"
+          else
+            tag="$RUN_BRANCH"
+            # 只有 tag 触发的构建才有 Release；分支推送没有，直接跳过。
+            case "$tag" in
+              v*) ;;
+              *)
+                echo "::notice::$RUN_SHA 不是 tag 构建（ref=$tag），跳过校验和汇总"
+                echo "skip=true" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+            esac
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "目标 tag: $tag"
+
+      # 7 个 workflow 谁最后完成都能触发这里，但那一刻未必所有平台都已经
+      # 上传完（workflow_run 的 completed 只代表触发的那个跑完了）。所以
+      # 这里用轮询等待：盯着 Release 的资产列表，直到每个平台的
+      # SHA256SUMS.<平台>.txt 都出现，或者超时。
+      #
+      # 为什么用「等分片齐了」而不是「等固定的 workflow 列表」：分片是产物
+      # 真的传上去了才会出现，比查 workflow 状态更直接，也不依赖 workflow
+      # 名字（改名不会让这里静默失效）。
+      - name: Wait for all platform checksum shards
+        if: steps.resolve.outputs.skip != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          expected="android harmonyos ios linux macos windows"
+          deadline=$(( $(date +%s) + 1500 ))   # 最多等 25 分钟
+          while :; do
+            assets="$(gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null || true)"
+            missing=""
+            for p in $expected; do
+              printf '%s\n' "$assets" | grep -qx "SHA256SUMS.$p.txt" || missing="$missing $p"
+            done
+            if [ -z "$missing" ]; then
+              echo "全部平台分片已就位"
+              break
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::等待超时，缺少这些平台的分片:$missing"
+              exit 1
+            fi
+            echo "仍缺少:$missing（30s 后重试）"
+            sleep 30
+          done
+
+      # 从 Release 重新下载每个资产并现算哈希，再与平台分片比对。
+      #
+      # 这一步是整个设计的核心：平台分片是在构建机上算的，理论上可信；
+      # 但用户拿到的是 Release 上的文件，如果上传过程中被截断/替换，
+      # 分片就与实际内容不符。两边都算一遍并比对，才算真的验证过。
+      - name: Download assets and verify against shards
+        if: steps.resolve.outputs.skip != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cd dist
+          gh release download "$TAG" --pattern 'Koyze-*' --dir . --clobber
+          gh release download "$TAG" --pattern 'SHA256SUMS.*.txt' --dir . --clobber
+
+          echo "=== 已下载 ==="
+          ls -l
+
+          # 先把各平台分片合并，同时检查有没有分片覆盖了不存在的文件
+          : > merged.txt
+          for shard in SHA256SUMS.*.txt; do
+            [ -f "$shard" ] || continue
+            echo "--- $shard"
+            cat "$shard" >> merged.txt
+          done
+
+          echo "=== 校验：Release 上的文件 vs 平台分片 ==="
+          # --ignore-missing：分片是按平台写的，单个分片里不会有别的平台产物；
+          # 合并后理论上全覆盖，这里容错以防某个分片漏写了某文件。
+          if ! sha256sum -c merged.txt 2>&1 | tee check.log; then
+            echo "::error::实际文件与平台分片不一致，具体见上面的 FAILED 行"
+            exit 1
+          fi
+          # 有任何一个 NOT FOUND / FAILED 都算失败（sha256sum 的退出码在
+          # --ignore-missing 下不会反映 NOT FOUND，所以要自己查输出）
+          if grep -qE 'FAILED|No such file|cannot open' check.log; then
+            echo "::error::存在缺失或损坏的产物"
+            exit 1
+          fi
+
+          # 汇总文件按资产名排序，保证多次生成结果稳定（逐字节一致）。
+          sort -k2 merged.txt > SHA256SUMS.txt
+          echo "=== 最终 SHA256SUMS.txt ==="
+          cat SHA256SUMS.txt
+          echo "行数: $(wc -l < SHA256SUMS.txt)"
+
+      - name: Publish assembled SHA256SUMS.txt
+        if: steps.resolve.outputs.skip != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cd dist
+          # 先删旧的再传：gh release upload 遇到同名资产会报错，
+          # 而 --clobber 在某些 gh 版本上对「已存在的同名资产」行为不一致。
+          gh release delete-asset "$TAG" SHA256SUMS.txt --yes 2>/dev/null || true
+          gh release upload "$TAG" SHA256SUMS.txt
+          echo "已发布 $TAG/SHA256SUMS.txt"

@@ -91,6 +91,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # 各平台只出自己那份 SHA256SUMS.<平台>.txt，由 release-checksums.yml
+      # 汇总成唯一的 SHA256SUMS.txt。原因见该文件与
+      # .github/scripts/write_platform_checksums.sh 的说明。
+      - name: Generate per-platform checksums
+        shell: bash
+        run: bash .github/scripts/write_platform_checksums.sh build/linux linux
+
       - name: Upload Linux archive to Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2

@@ -55,7 +55,9 @@ Koyze 使用 Flutter 构建，把 QQ 音乐、酷我音乐、网易云音乐、�
 | 校验 | `SHA256SUMS.txt` | 全部产物的 SHA-256 |
 
 > [!TIP]
-> 鸿蒙 HAP 的架构必须与设备匹配：`ohos-arm64` 用于 ARM64 真机，`ohos-x64` 用于 x86_64 模拟器。装错架构会在启动时崩溃。校验示例：`sha256sum -c SHA256SUMS.txt`。
+> 鸿蒙 HAP 的架构必须与设备匹配：`ohos-arm64` 用于 ARM64 真机，`ohos-x64` 用于 x86_64 模拟器。装错架构会在启动时崩溃。
+>
+> 校验产物完整性：把要校验的文件和 `SHA256SUMS.txt` 放在**同一个目录**，再执行 `sha256sum -c SHA256SUMS.txt`（macOS 用 `shasum -a 256 -c SHA256SUMS.txt`）。该文件只记录文件名、不记录构建机路径，因此必须同目录才能校验。
 
 ## 功能
 

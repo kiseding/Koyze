@@ -79,6 +79,19 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # 各平台只出自己那份 SHA256SUMS.<平台>.txt，由 release-checksums.yml
+      # 汇总成唯一的 SHA256SUMS.txt。原因见该文件与
+      # .github/scripts/write_platform_checksums.sh 的说明。
+      #
+      # windows runner 上必须走 Git Bash 并关掉路径转换：MSYS 会把传给
+      # sha256sum 的 /d/a/... 改写成 Windows 盘符路径，导致哈希对不上。
+      # 这里传的是相对路径，理论上不受影响，但显式关掉更稳妥。
+      - name: Generate per-platform checksums
+        shell: bash
+        env:
+          MSYS_NO_PATHCONV: '1'
+        run: bash .github/scripts/write_platform_checksums.sh build/windows windows
+
       - name: Upload Windows ZIP to Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
