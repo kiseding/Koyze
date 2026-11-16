@@ -21,6 +21,22 @@ void main() {
   test('卡片仍是同一块玻璃材质，圆角与边线都从 AppGlass 取', () {
     expect(source, contains('style: AppGlassStyle.regular'));
     expect(source, contains('AppGlass.hairline('));
-    expect(source, contains('BorderRadius.circular(18)'));
+    // 圆角必须走共享常量：卡片不裁剪内容，行内水波纹要按同一半径自己收边
+    // （见 settings_screen 里的 customBorder），两处不能各写一个数字。
+    expect(source, contains('borderRadius: kSettingsCardRadius'));
+    expect(
+      source,
+      contains(
+        'const BorderRadius kSettingsCardRadius = '
+        'BorderRadius.all(Radius.circular(18))',
+      ),
+    );
+  });
+
+  test('卡片不裁剪内容：整卡抗锯齿裁剪是滑动掉帧的主因', () {
+    // ClipRRect 走抗锯齿裁剪时，渲染器要为整块面积生成覆盖率遮罩，且这块
+    // 工作落在每帧重画的那一边（滚动缓存覆盖不到）。设置页一屏三四张
+    // 700pt 高的卡片，逐帧重做遮罩就是肉眼可见的掉帧。
+    expect(source, contains('clipContent: false'));
   });
 }

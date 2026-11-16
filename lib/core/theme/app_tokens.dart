@@ -203,6 +203,7 @@ class GlassSurface extends StatelessWidget {
     this.alphaScale = 1,
     this.backdrop = true,
     this.blurBehind = false,
+    this.clipContent = true,
   });
 
   final Widget child;
@@ -240,6 +241,18 @@ class GlassSurface extends StatelessWidget {
   /// 是否允许真的采样背后做模糊；只有全屏播放器该打开。
   final bool blurBehind;
 
+  /// 是否把内容裁到圆角里。
+  ///
+  /// 圆角裁剪不是免费的：`ClipRRect` 走抗锯齿裁剪时，渲染器要为**整块面积**
+  /// 生成一张覆盖率遮罩，而且这层工作落在「每帧重画」的那一边——滚动时它不会
+  /// 被缓存复用。设置页那种「一屏三四张 700pt 高的大卡片」因此会一直按整卡
+  /// 面积重做遮罩，中端机上就是持续掉帧。
+  ///
+  /// 卡片里的内容（文字、图标、开关）本来就不会画到圆角外面，唯一需要裁的是
+  /// 水波纹——那一条交给 `InkWell.customBorder` 自己收边即可，不必为了一闪
+  /// 而过的涟漪每帧裁整张卡。
+  final bool clipContent;
+
   @override
   Widget build(BuildContext context) {
     // 设置里的「界面不透明度」是全局静态档位，改它不会让外层重建；这里直接
@@ -266,6 +279,14 @@ class GlassSurface extends StatelessWidget {
     // 不给它一层透明 Material，Flutter 会直接断言"ink 可能不可见"，而且点击
     // 反馈会被这层底色盖住。
     final material = Material(type: MaterialType.transparency, child: content);
+    // 圆角裁剪只在需要时加，见 [clipContent]。
+    Widget clipped(Widget inner) => clipContent
+        ? ClipRRect(
+            borderRadius: radius,
+            clipBehavior: Clip.antiAlias,
+            child: inner,
+          )
+        : inner;
     // 简化特效、增强对比度、系统关掉动画：这三种情况都不该再为「看见背后」
     // 付出每帧一次全宽采样，直接按底色混出一块实色。
     if (prefersFlatSurfaces(context) || sigma <= 0) {
@@ -280,11 +301,7 @@ class GlassSurface extends StatelessWidget {
           border: side,
           boxShadow: boxShadow ?? const <BoxShadow>[],
         ),
-        child: ClipRRect(
-          borderRadius: radius,
-          clipBehavior: Clip.antiAlias,
-          child: material,
-        ),
+        child: clipped(material),
       );
     }
     if (!backdrop) {
@@ -298,11 +315,7 @@ class GlassSurface extends StatelessWidget {
           border: side,
           boxShadow: boxShadow ?? const <BoxShadow>[],
         ),
-        child: ClipRRect(
-          borderRadius: radius,
-          clipBehavior: Clip.antiAlias,
-          child: material,
-        ),
+        child: clipped(material),
       );
     }
     final glass = ClipRRect(

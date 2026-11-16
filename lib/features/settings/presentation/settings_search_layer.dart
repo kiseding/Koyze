@@ -175,6 +175,10 @@ class _SearchResultTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final entry = item.entry;
     return InkWell(
+      // 卡片不再裁剪内容（见 SettingsSectionCard），水波纹自己按卡片圆角收边。
+      customBorder: const RoundedRectangleBorder(
+        borderRadius: kSettingsCardRadius,
+      ),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

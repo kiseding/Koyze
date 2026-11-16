@@ -143,6 +143,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ShellContentFrame(
               child: RepaintBoundary(
                 child: ListView(
+                  // 每一行自己一层，而不是「一张分区卡片一层」。
+                  //
+                  // 一张卡片有 700~900pt 高、整屏宽，落到真实像素是近千万像素
+                  // 的一块；引擎的栅格缓存是有预算的，几块这么大的图层同时在
+                  // 滚动里移动，一挤就全被挤出去，于是每帧都要把整张卡重画一遍
+                  // ——这一页滑动掉帧就是这么来的。切到「每行一层」以后，单层
+                  // 只有一行大小，整屏都装得下，滚动退化成纯合成。
+                  //
+                  // 卡片底色和分隔线仍然由分区自己画（见 _buildEntry），所以
+                  // 视觉上还是原来那张整卡，没有拼接缝。
+                  addRepaintBoundaries: false,
                   padding: EdgeInsets.only(
                     top: isLandscapeShell
                         ? 0
@@ -154,9 +165,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       SettingsSectionCard(
                         title: section.title,
                         children: [
-                          ...section.leadIn,
+                          for (final leadIn in section.leadIn)
+                            RepaintBoundary(child: leadIn),
                           for (final entry in section.entries)
-                            _buildEntry(context, entry),
+                            RepaintBoundary(child: _buildEntry(context, entry)),
                         ],
                       ),
                     const SizedBox(height: 40),
@@ -873,6 +885,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ];
   }
 
+  /// 一行的渲染入口。列表在调用处给每一行套一层 [RepaintBoundary]（见
+  /// build 里 `addRepaintBoundaries: false` 的注释），这里只管内容。
   Widget _buildEntry(BuildContext context, SettingsEntry entry) {
     if (entry.isToggle) {
       return _buildSwitchTile(
@@ -939,6 +953,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return MergeSemantics(
       child: InkWell(
         onTap: toggle,
+        // 卡片不再裁剪内容，水波纹自己按卡片圆角收边（见 kSettingsCardRadius）。
+        customBorder: const RoundedRectangleBorder(
+          borderRadius: kSettingsCardRadius,
+        ),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -1450,6 +1468,10 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
   @override
   Widget build(BuildContext context) {
     final tile = InkWell(
+      // 同 _buildSwitchTile：水波纹按卡片圆角自己收边。
+      customBorder: const RoundedRectangleBorder(
+        borderRadius: kSettingsCardRadius,
+      ),
       onTap: widget.captureExpandOrigin
           ? () async {
               final anchor = _anchorKey.currentContext;
@@ -1626,6 +1648,9 @@ class _DeviceIdRow extends StatelessWidget {
         ? '${raw.substring(0, 8)}…${raw.substring(raw.length - 4)}'
         : (raw.isEmpty ? S.of(context).loading : raw);
     return InkWell(
+      customBorder: const RoundedRectangleBorder(
+        borderRadius: kSettingsCardRadius,
+      ),
       onTap: full == null
           ? null
           : () async {

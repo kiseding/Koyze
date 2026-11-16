@@ -3,6 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
 
+/// 分区卡片的圆角。
+///
+/// 卡片本身不再裁剪内容（见下面 `clipContent: false`），所以行内水波纹要按
+/// 同一半径自己收边——两处必须一致，否则按下时涟漪会从卡片圆角外面探出来。
+const BorderRadius kSettingsCardRadius = BorderRadius.all(Radius.circular(18));
+
 /// A titled glass block of settings rows.
 ///
 /// Shared by the settings page and the settings search results so a result
@@ -28,10 +34,15 @@ class SettingsSectionCard extends StatelessWidget {
           // 设置页一屏能同时出现四五张这种整宽卡片，背后又是纯色页面底。
           // 每张都挂一层 BackdropFilter 等于每次滚动都重算四五次全宽模糊，
           // 中端机上就是偶尔掉帧；关掉采样、直接混出实色，画面一模一样。
+          //
+          // 同理也不做圆角裁剪（clipContent: false）：卡片里的文字和开关都
+          // 画不到圆角外面，唯一会溢出的水波纹由行自己的 customBorder 收边。
+          // 为它每帧给整张卡生成一张覆盖率遮罩，正是这一页滑动掉帧的主因。
           child: GlassSurface(
             style: AppGlassStyle.regular,
             backdrop: false,
-            borderRadius: BorderRadius.circular(18),
+            clipContent: false,
+            borderRadius: kSettingsCardRadius,
             border: Border.fromBorderSide(
               AppGlass.hairline(context, emphasized: false),
             ),
