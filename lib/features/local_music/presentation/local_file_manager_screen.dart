@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:koyze/core/theme/app_colors.dart';
@@ -250,6 +251,13 @@ class _LocalFileManagerScreenState
     }
     if (error is LocalFileUnsupportedException) {
       return s.fileManagerUnsupported;
+    }
+    // 原生侧把「写不进这个目录」翻译成 access_denied / not_found 两种码
+    // （鸿蒙对受限目录有时报 ENOENT 而不是 EACCES）。细节已经进诊断日志，
+    // 这里只给一句可操作的话，不要把 PlatformException 整串甩给用户。
+    if (error is PlatformException &&
+        (error.code == 'access_denied' || error.code == 'not_found')) {
+      return s.fileManagerAccessDenied;
     }
     return error.toString();
   }

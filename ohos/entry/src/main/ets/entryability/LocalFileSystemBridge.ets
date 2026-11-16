@@ -23,7 +23,7 @@ const TAG: string = 'KoyzeFileSystem';
 /// 返回的 `file://docs/...` 则是另一种东西——**URI**，只有 `open` / `stat`
 /// 这类接口认，`moveFile` / `copyFile` / `access` / `listFile` 都只收沙盒
 /// 路径。两者不能混用（混用的后果是 13900002，看着像「文件不存在」）。
-/// 所以写公共目录时统一走 [copyFileToUri]：open 出 fd 再拷贝。
+/// 所以写公共目录时统一走 [writeIntoUriDirectory]：用 `fs.copy` 按 URI 写。
 ///
 /// 目录选择也在这里做：`file_picker` 的 ohos 移植把 `dir` 当成选文件处理，
 /// 返回的是缓存目录里的副本路径，没法当目录用。所以鸿蒙自己实现
@@ -156,7 +156,7 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
       throw makeConflict(target);
     }
     if (isUri(targetDirectory)) {
-      await this.copyFileToUri(sourcePath, target);
+      await this.writeIntoUriDirectory(sourcePath, targetDirectory);
       return target;
     }
     await fs.copyFile(sourcePath, target);
@@ -176,7 +176,7 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
       // 早先直接把 URI 递进去，系统把它当相对路径解析 → 13900002，
       // Dart 侧看到的就是 not_found / No such file or directory。
       // 写 URI 的唯一正路是 open 拿 fd（open 支持 URI）再按 fd 拷。
-      await this.copyFileToUri(sourcePath, target);
+      await this.writeIntoUriDirectory(sourcePath, targetDirectory);
       try {
         await fs.unlink(sourcePath);
       } catch (error) {
@@ -212,21 +212,65 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
     return target;
   }
 
-  /// 往 picker 授权的 URI 里写文件。
+  /// 往 picker 授权的**目录 URI** 里写一个文件。
   ///
-  /// 为什么必须过 fd：`fs.moveFile` 只收沙盒路径，`fs.copyFile` 的 dest
-  /// 虽然能收路径，但那条路径同样必须是沙盒路径；只有 `fs.open` 明确
-  /// 支持 URI。所以先 open 出目标文件，再用它的 fd 当 copyFile 的 dest。
+  /// 之前用 `fs.open(目录URI + 文件名, READ_WRITE | CREATE)`，真机上稳定报
+  /// 13900002（No such file or directory）：`fs.open` 的注释写着支持 URI，
+  /// 但 URI 解析要求**节点已经存在**，`CREATE` 在 URI 上不生效——子路径
+  /// 解析不到就直接 ENOENT，跟「有没有权限」无关。所以那条路根本走不通。
   ///
-  /// 不带 `TRUNC`：open 只负责「不存在就建」，覆盖行为交给 copyFile
-  /// （它会截断多余部分）。调用方已经用 [exists] 挡过重名。
-  private async copyFileToUri(sourcePath: string, targetUri: string): Promise<void> {
-    const dest: fs.File = await this.openUri(targetUri);
+  /// `fs.copy` 从 API 11 起两个参数都接受 URI，且是「覆盖式写入」，
+  /// 这才是往 picker 目录里落文件的正确入口。
+  ///
+  /// 三条路依次试，全部失败时把每条的原始错误码一起带出去：鸿蒙各版本对
+  /// URI 的支持差异很大，只说「失败了」没法判断下一步该怎么改。
+  private async writeIntoUriDirectory(
+    sourcePath: string,
+    targetDirectory: string,
+  ): Promise<void> {
+    const name: string = baseName(sourcePath);
+    const targetUri: string = joinPath(targetDirectory, name);
+    const failures: Array<string> = [];
+    let lastCode: number = 0;
+
+    // 1) 拷到目标文件 URI。
     try {
-      await fs.copyFile(sourcePath, dest.fd);
-    } finally {
-      fs.closeSync(dest);
+      await fs.copy(sourcePath, targetUri);
+      if (this.exists(targetUri)) return;
+      failures.push('copy->file=写入后目标不存在');
+    } catch (error) {
+      lastCode = failureCode(error);
+      failures.push(describeFailure('copy->file', error));
     }
+
+    // 2) 拷进目录 URI，让系统自己拼名字，绕开子路径解析。
+    try {
+      await fs.copy(sourcePath, targetDirectory);
+      if (this.exists(targetUri)) return;
+      failures.push('copy->dir=写入后目标不存在');
+    } catch (error) {
+      lastCode = failureCode(error);
+      failures.push(describeFailure('copy->dir', error));
+    }
+
+    // 3) open 出 fd 再按 fd 写：个别版本 URI 只对已存在的文件生效。
+    try {
+      const dest: fs.File = await this.openUri(targetUri);
+      try {
+        await fs.copyFile(sourcePath, dest.fd);
+      } finally {
+        fs.closeSync(dest);
+      }
+      return;
+    } catch (error) {
+      lastCode = failureCode(error);
+      failures.push(describeFailure('open+fd', error));
+    }
+
+    throw new TaggedError(
+      codeFromNumber(lastCode),
+      `写入受限目录失败（${targetUri}）: ${failures.join(' | ')}`,
+    );
   }
 
   /// 打开（不存在就创建）一个可写 URI。
@@ -310,8 +354,8 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
   ///
   /// 返回的是 picker 给的 `file://docs/...` URI 原样，**不**转成普通路径：
   /// 访问授权是绑在这个 URI 上的，换成路径就走不到授权了。但要注意它
-  /// 是 URI 而不是沙盒路径——只有 `open` / `stat` 认，写文件得走
-  /// [copyFileToUri]（open 出 fd 再拷），不能直接喂给 `moveFile`。
+  /// 是 URI 而不是沙盒路径——`moveFile` / `copyFile` / `access` 都不认，
+  /// 写文件得走 [writeIntoUriDirectory]（`fs.copy` 支持 URI）。
   private async pickDirectory(): Promise<string> {
     // selectMode: 1 = 文件夹（0 是文件）。用字面量而不是 DocumentSelectMode
     // 枚举，因为不同 SDK 版本里这个枚举名不一致，字面量在各版本都成立
@@ -444,6 +488,19 @@ function uriForms(uri: string): Array<string> {
   const encoded: string = encodeURI(uri);
   if (encoded === uri) return [uri];
   return [uri, encoded];
+}
+
+/// 取业务错误码；不是 BusinessError 时返回 0。
+function failureCode(value: Object): number {
+  const code: number = (value as BusinessError).code;
+  return code === undefined || code === null ? 0 : code;
+}
+
+/// 把一次失败的尝试描述成 `label=code message`，供最终错误信息汇总。
+function describeFailure(label: string, value: Object): string {
+  const code: number = failureCode(value);
+  const message: string = (value as Error).message ?? '';
+  return message.length > 0 ? `${label}=${code} ${message}` : `${label}=${code}`;
 }
 
 function baseName(path: string): string {
