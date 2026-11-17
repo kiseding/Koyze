@@ -6,7 +6,6 @@ import 'package:koyze/core/audio/equalizer_bridge.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/equalizer/presentation/equalizer_provider.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
-import 'package:koyze/features/settings/presentation/settings_provider.dart';
 import 'package:koyze/features/settings/presentation/settings_screen.dart';
 import 'package:koyze/l10n/generated/app_localizations.dart';
 
