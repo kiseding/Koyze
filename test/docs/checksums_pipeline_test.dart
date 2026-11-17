@@ -86,7 +86,7 @@ void main() {
 
     test('不把自己和文本文件算进哈希', () {
       final dist = makeDist({
-        'a.apk': 'x',
+        'Koyze-1.0-arm64.apk': 'x',
         'notes.txt': 'hello',
         'SHA256SUMS.android.txt': 'stale',
       });
@@ -97,10 +97,47 @@ void main() {
 
       final text = File('${dist.path}/SHA256SUMS.android.txt').readAsStringSync();
       expect(text.trim().split('\n').length, 1,
-          reason: '只应有一行（a.apk），实际：\n$text');
-      expect(text, contains('*a.apk'));
+          reason: '只应有一行（Koyze-1.0-arm64.apk），实际：\n$text');
+      expect(text, contains('*Koyze-1.0-arm64.apk'));
       expect(text, isNot(contains('notes.txt')));
       expect(text, isNot(contains('SHA256SUMS')));
+    }, skip: !toolAvailable);
+
+    // 5.2.0 第二次汇总失败的原因：分片里混进了构建残留。
+    //
+    // `flutter build macos/ios/windows` 会在产物目录的同一层留下
+    // `pod_inputs.fingerprint`、`framework_public_headers.fingerprint`、
+    // `info.plist`、`app.so`。它们被算进分片后，汇总阶段拿分片去
+    // `sha256sum -c`（分片里的每个名字都必须在 Release 上真实存在）就报
+    // `No such file or directory`，整份 SHA256SUMS.txt 发不出去。
+    //
+    // 修法是正向白名单：只给 `Koyze-*` 算哈希。这条测试同时钉住改名/新增
+    // 产物时的行为——不叫 Koyze- 的东西一律不进分片。
+    test('产物目录里的构建残留不进分片', () {
+      final dist = makeDist({
+        'Koyze-1.0-arm64.apk': 'x',
+        'pod_inputs.fingerprint': 'junk',
+        'framework_public_headers.fingerprint': 'junk',
+        'info.plist': 'junk',
+        'app.so': 'junk',
+      });
+      addTearDown(() => dist.deleteSync(recursive: true));
+
+      final gen = Process.runSync('bash', [script, dist.path, 'android']);
+      expect(gen.exitCode, 0, reason: '${gen.stderr}');
+
+      final text = File('${dist.path}/SHA256SUMS.android.txt').readAsStringSync();
+      expect(text.trim().split('\n').length, 1,
+          reason: '只应有一行，构建残留必须被排除，实际：\n$text');
+      for (final junk in [
+        'pod_inputs.fingerprint',
+        'framework_public_headers.fingerprint',
+        'info.plist',
+        'app.so',
+      ]) {
+        expect(text, isNot(contains(junk)),
+            reason: '$junk 不是产物，进分片会让汇总阶段报 No such file');
+      }
     }, skip: !toolAvailable);
 
     test('产物目录为空时失败，而不是产出空分片', () {
@@ -128,7 +165,9 @@ void main() {
     }, skip: !toolAvailable);
 
     test('平台标识不合法时拒绝执行', () {
-      final dist = makeDist({'a.apk': 'x'});
+      // 用真实的产物名：目录里只有构建残留时脚本会以「没有产物」退出，
+      // 那是另一种失败，会让这条断言变成假阳性
+      final dist = makeDist({'Koyze-1.0-arm64.apk': 'x'});
       addTearDown(() => dist.deleteSync(recursive: true));
 
       // 大写、下划线、空格都可能拼出奇怪文件名，一律拒绝；

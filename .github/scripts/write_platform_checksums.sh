@@ -86,11 +86,26 @@ trap 'rm -f "$tmp" 2>/dev/null || true' EXIT
 # 换上就等于把 macOS 发版做挂了。收益（产物名带换行）在现实中不存在，
 # 而代价是整个平台的发版失败，不划算。真要带换行，脚本会红并报出
 # 「No such file or directory」——是失败而不是错数据，可以接受。
+#
+# ## 为什么只算 `Koyze-*`
+#
+# 分片是给用户校验**下载到手的产物**用的，里面每一条都必须对应 Release 上
+# 一个真实存在的文件。而产物目录往往不是干净的：`flutter build` 会在同层
+# 留下 `pod_inputs.fingerprint`、`framework_public_headers.fingerprint`、
+# `info.plist`、`app.so` 这类中间文件。5.2.0 的第一次汇总就是这么红的——
+# macOS / iOS / Windows 的分片里各混进几条，汇总拿分片去 `sha256sum -c`，
+# 那些名字在 Release 上当然不存在，于是整份校验和发布不出去。
+#
+# 所有平台的产物都以 `Koyze-` 开头，所以这里用正向白名单，而不是「排除掉
+# 已知的几种垃圾」——后者永远追不上构建工具下次写出来的新文件名。
+# 漏算的后果也不是静默的：汇总 workflow 有反向覆盖检查（Release 上的每个
+# 产物都必须在分片里出现），漏了会直接红。
+pattern="${ARTIFACT_PATTERN:-Koyze-*}"
 found=0
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   name="$(basename "$f")"
-  # 跳过自己以及可能残留的旧汇总文件
+  # 跳过自己以及可能残留的旧汇总文件（有白名单后已不可能命中，留作双保险）
   case "$name" in
     SHA256SUMS*|*.sha256) continue ;;
   esac
@@ -110,7 +125,7 @@ while IFS= read -r f; do
     exit 1
   fi
   echo "$hash *$name" >> "$tmp"
-done < <(find "$dir" -maxdepth 1 -type f | sort)
+done < <(find "$dir" -maxdepth 1 -type f -name "$pattern" | sort)
 
 if [ "$found" -eq 0 ]; then
   # 这里不能只依赖 rm：某些环境（如本机的 safe-delete 钩子）会拒绝删除
