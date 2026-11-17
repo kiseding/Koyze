@@ -10,6 +10,7 @@ import 'package:koyze/features/player/domain/music_item.dart';
 class _MemoryStorage implements DownloadTaskStorage {
   List<Map<String, dynamic>> saved = [];
   List<Map<String, dynamic>> quarantine = [];
+  List<String> roots = [];
   int writes = 0;
 
   @override
@@ -27,6 +28,14 @@ class _MemoryStorage implements DownloadTaskStorage {
   @override
   Future<void> saveQuarantine(List<Map<String, dynamic>> records) async {
     quarantine = records;
+  }
+
+  @override
+  List<String> loadRoots() => roots;
+
+  @override
+  Future<void> saveRoots(List<String> value) async {
+    roots = value;
   }
 }
 

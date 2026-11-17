@@ -136,6 +136,11 @@ Future<void> _bootstrapUnsafe(
   container
       .read(wifiOnlyDownloadProvider.notifier)
       .applyCommitted(preferences.getBool('wifi_only_download') ?? true);
+  // 下载服务创建时只读一次下载目录（运行期再改走 switchDownloadDirectory），
+  // 所以必须在建服务之前把持久化的值灌进去，否则自定义目录要等下次启动才生效。
+  container
+      .read(downloadDirectoryProvider.notifier)
+      .applyCommitted(preferences.getString('download_directory'));
 
   await lifecycle
       .run(() async {

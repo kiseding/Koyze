@@ -258,6 +258,40 @@ class WifiOnlyDownloadNotifier extends _PersistedSettingNotifier<bool> {
   }
 }
 
+/// 下载目录。`null` 表示跟随平台默认（应用文档目录下的 `downloads`，
+/// 便携模式是 exe 同级的 `portable_data/downloads`）。
+///
+/// 只存用户显式选过的路径：没存过就是默认，所以「恢复默认」= 删掉这条键，
+/// 而不是写一个可能随平台/安装位置变化的绝对路径进设置。
+class DownloadDirectoryNotifier extends _PersistedSettingNotifier<String?> {
+  DownloadDirectoryNotifier({StorageLoader? storage})
+    : super(null, storage: storage) {
+    startLoad();
+  }
+
+  static const String _storageKey = 'download_directory';
+
+  @override
+  String? readFrom(StorageService storage) {
+    final value = storage.getString(_storageKey)?.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  Future<void> setDirectory(String? value) async {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      await persist(null, (storage) => storage.remove(_storageKey));
+      return;
+    }
+    await persist(trimmed, (storage) => storage.setString(_storageKey, trimmed));
+  }
+
+  void applyCommitted(String? value) {
+    final trimmed = value?.trim();
+    applyCommittedValue(trimmed == null || trimmed.isEmpty ? null : trimmed);
+  }
+}
+
 class AutoResumePlaybackNotifier extends _PersistedSettingNotifier<bool> {
   AutoResumePlaybackNotifier({StorageLoader? storage})
     : super(false, storage: storage) {

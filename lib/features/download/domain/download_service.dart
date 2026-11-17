@@ -14,6 +14,7 @@ import '../../../core/network/music_source_service.dart';
 import '../../../core/network/outbound_url.dart';
 import '../../../core/network/play_url_result.dart';
 import '../../../core/network/source_media_transport.dart';
+import '../../../core/storage/portable_mode.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../player/domain/music_item.dart';
 import 'download_task.dart';
@@ -21,11 +22,36 @@ import '../../../core/logging/app_log.dart';
 
 enum DownloadNetwork { wifi, mobile, none }
 
+/// 下载目录不可用：没法创建、写不进去，或者根本不是文件系统路径。
+///
+/// 调用方（设置页）据此提示用户换一个目录，而不是把设置默默改成一条
+/// 永远失败的值——下载目录写不进去的话，之后每首歌都会下载失败。
+class DownloadDirectoryException implements Exception {
+  const DownloadDirectoryException(this.reason, {this.path});
+
+  /// 机器可读的原因：`unsupported_scheme` / `not_writable`。
+  final String reason;
+  final String? path;
+
+  @override
+  String toString() =>
+      'DownloadDirectoryException($reason${path == null ? '' : ', path=$path'})';
+}
+
 abstract interface class DownloadTaskStorage {
   List<dynamic> load();
   Future<void> save(List<Map<String, dynamic>> tasks);
   List<Map<String, dynamic>> loadQuarantine();
   Future<void> saveQuarantine(List<Map<String, dynamic>> records);
+
+  /// 本服务用过的下载根目录（已解析符号链接）。
+  ///
+  /// 用户在设置里换过下载目录之后，旧目录里已经下好的文件仍然属于本服务：
+  /// 任务记录里的 savePath 要能通过 `isOwnedDownloadPath`，否则重启时会被
+  /// 当成「越权路径」隔离掉，下载列表里的历史记录就凭空消失了。
+  List<String> loadRoots();
+
+  Future<void> saveRoots(List<String> roots);
 }
 
 final class StorageDownloadTaskStorage implements DownloadTaskStorage {
@@ -34,6 +60,7 @@ final class StorageDownloadTaskStorage implements DownloadTaskStorage {
 
   static const _tasksKey = 'download_tasks';
   static const _quarantineKey = 'download_tasks_quarantine';
+  static const _rootsKey = 'download_roots';
 
   @override
   List<dynamic> load() {
@@ -64,6 +91,20 @@ final class StorageDownloadTaskStorage implements DownloadTaskStorage {
   @override
   Future<void> saveQuarantine(List<Map<String, dynamic>> records) async {
     await storage.setJsonList(_quarantineKey, records);
+  }
+
+  @override
+  List<String> loadRoots() {
+    try {
+      return storage.getStringList(_rootsKey);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> saveRoots(List<String> roots) async {
+    await storage.setStringList(_rootsKey, roots);
   }
 }
 
@@ -204,6 +245,15 @@ class DownloadService {
   String? _downloadDir;
   String? _resolvedDownloadRoot;
   final Future<Directory> Function()? _downloadDirectory;
+
+  /// 用户在设置里选的目录。null 表示跟随平台默认目录。
+  String? _customDir;
+
+  /// 本服务用过的下载根目录（已解析符号链接，包含当前这个）。
+  ///
+  /// 换目录之后旧文件仍要能删、能统计、能通过启动时的归属校验，所以这里
+  /// 是一个集合而不是单个值，并且会被持久化（见 [DownloadTaskStorage]）。
+  final Set<String> _ownedRoots = <String>{};
   MusicSourceService? _musicSourceService;
   DownloadTaskStorage? _storage;
   bool _initialized = false;
@@ -219,6 +269,10 @@ class DownloadService {
 
   /// 下载目录（初始化后可用；未初始化时为 null）。
   String? get downloadDirectory => _downloadDir;
+
+  /// 用户自定义的下载目录；null 表示用的是平台默认目录。
+  String? get customDownloadDirectory => _customDir;
+
   int get maxCacheSizeMB => 2048;
   Set<String> get activeTaskIds => Set.unmodifiable(_activeTaskIds);
 
@@ -253,6 +307,7 @@ class DownloadService {
     DownloadExecutor? downloader,
     DownloadTaskStorage? storage,
     Future<Directory> Function()? downloadDirectory,
+    String? customDownloadDirectory,
     Duration progressPersistenceInterval = const Duration(seconds: 2),
     DateTime Function()? clock,
     SourceMediaTransport? sourceMediaTransport,
@@ -264,6 +319,10 @@ class DownloadService {
        _downloader = downloader,
        _storage = storage,
        _downloadDirectory = downloadDirectory,
+       _customDir = switch (customDownloadDirectory?.trim()) {
+         final value? when value.isNotEmpty => value,
+         _ => null,
+       },
        _taskIdFactory = taskIdFactory ?? const Uuid().v4,
        _currentNetwork = currentNetwork ?? _platformNetwork,
        _clock = clock ?? DateTime.now,
@@ -296,6 +355,11 @@ class DownloadService {
   Future<void> init() async {
     if (_initialized) return;
     _storage ??= StorageDownloadTaskStorage(await StorageService.instance);
+    // 必须早于任务加载：历史任务里的 savePath 可能落在换目录之前的旧根
+    // 目录里，归属校验没有这些根就会把它们全判成越权并隔离掉。
+    _ownedRoots.addAll(
+      _storage!.loadRoots().map((root) => root.trim()).where((r) => r.isNotEmpty),
+    );
     await _initDownloadDir();
     await _loadFromStorageIndependently();
     await _reconcileDownloadDirectory();
@@ -519,26 +583,116 @@ class DownloadService {
   }
 
   Future<void> _initDownloadDir() async {
-    final directoryFactory = _downloadDirectory;
-    if (directoryFactory != null) {
-      final dir = await directoryFactory();
-      await dir.create(recursive: true);
-      _downloadDir = dir.path;
-    } else {
-      final appDir = await getApplicationDocumentsDirectory();
-      _downloadDir = '${appDir.path}/downloads';
-      await Directory(_downloadDir!).create(recursive: true);
+    final dir = await _targetDirectory();
+    await dir.create(recursive: true);
+    _downloadDir = dir.path;
+    _resolvedDownloadRoot = await dir.resolveSymbolicLinks();
+    _ownedRoots.add(_resolvedDownloadRoot!);
+  }
+
+  /// 平台默认下载目录。
+  ///
+  /// 便携模式（Windows 下 exe 旁的 `portable.flag`）落在可执行文件同级的
+  /// `portable_data/downloads`，这样整个应用连同数据可以一起搬走；其余平台
+  /// 落在应用文档目录下的 `downloads`。设置页展示「默认位置」时也用它。
+  static Future<Directory> defaultDownloadDirectory() async {
+    final portableRoot = PortableMode.root;
+    if (portableRoot != null) {
+      return Directory('$portableRoot${Platform.pathSeparator}downloads');
     }
-    _resolvedDownloadRoot = await Directory(
-      _downloadDir!,
-    ).resolveSymbolicLinks();
+    final appDir = await getApplicationDocumentsDirectory();
+    return Directory('${appDir.path}${Platform.pathSeparator}downloads');
+  }
+
+  /// 默认目录：构造函数可以注入一个（测试、便携模式），否则走平台默认。
+  Future<Directory> _defaultDirectory() async {
+    final factory = _downloadDirectory;
+    return factory != null ? factory() : defaultDownloadDirectory();
+  }
+
+  Future<Directory> _targetDirectory() async {
+    final custom = _customDir?.trim();
+    if (custom == null || custom.isEmpty) return _defaultDirectory();
+    return Directory(custom);
+  }
+
+  /// 切换下载目录，立刻生效。
+  ///
+  /// [path] 为 null / 空串表示恢复默认目录。切换前会建目录并写入一个探针
+  /// 文件：用户选的可能是只读位置、系统不存在的卷，或者（Android / iOS）
+  /// 只有 SAF 授权的 `content://` 树——直接 Dart IO 写不进去。校验失败会抛
+  /// [DownloadDirectoryException]，当前目录保持不变，调用方据此提示。
+  ///
+  /// 已下载的文件不会被搬走（跨卷复制可能几个 G，失败还会丢数据）。旧目录
+  /// 会进入归属集合并且持久化，因此历史任务仍然可播放、可删除、可统计。
+  Future<String> switchDownloadDirectory(String? path) async {
+    final trimmed = path?.trim();
+    final reset = trimmed == null || trimmed.isEmpty;
+    if (!reset && _looksLikeNonFileSystemPath(trimmed)) {
+      throw DownloadDirectoryException('unsupported_scheme', path: trimmed);
+    }
+
+    final target = reset ? await _defaultDirectory() : Directory(trimmed);
+    try {
+      await target.create(recursive: true);
+      final probe = File(
+        '${target.path}${Platform.pathSeparator}.koyze-write-probe',
+      );
+      await probe.writeAsString('koyze', flush: true);
+      await probe.delete();
+    } on Object catch (_) {
+      throw DownloadDirectoryException('not_writable', path: target.path);
+    }
+
+    final resolved = await target.resolveSymbolicLinks();
+    final previous = _resolvedDownloadRoot;
+    if (previous != null && previous != resolved) {
+      _ownedRoots.add(previous);
+      await _persistOwnedRoots();
+    }
+    _customDir = reset ? null : target.path;
+    _downloadDir = target.path;
+    _resolvedDownloadRoot = resolved;
+    _ownedRoots.add(resolved);
+    return _downloadDir!;
+  }
+
+  /// `content://`、`file://docs/...` 这类地址不是文件系统路径，`dart:io`
+  /// 打不开。抛出去让用户换一个位置，比把它存进设置、之后每首歌都失败好。
+  static bool _looksLikeNonFileSystemPath(String path) {
+    if (!path.contains('://')) return false;
+    final uri = Uri.tryParse(path);
+    return uri == null || uri.scheme != 'file' || uri.host.isNotEmpty;
+  }
+
+  Future<void> _persistOwnedRoots() async {
+    final storage = _storage;
+    if (storage == null) return;
+    final roots = _ownedRoots.toList()..sort();
+    try {
+      await storage.saveRoots(roots);
+    } catch (error) {
+      AppLog.instance.record(
+        'download.directory',
+        'persisting owned roots failed: $error',
+        level: AppLogLevel.warning,
+      );
+    }
   }
 
   bool isOwnedDownloadPath(String path) {
-    final root = _resolvedDownloadRoot;
-    if (root == null) return false;
     final candidate = _resolveOwnershipCandidate(path);
     if (candidate == null) return false;
+    final current = _resolvedDownloadRoot;
+    if (current != null && _isInsideRoot(candidate, current)) return true;
+    for (final root in _ownedRoots) {
+      if (_isInsideRoot(candidate, root)) return true;
+    }
+    return false;
+  }
+
+  static bool _isInsideRoot(String candidate, String root) {
+    if (root.isEmpty) return false;
     return candidate == root ||
         candidate.startsWith('$root${Platform.pathSeparator}');
   }

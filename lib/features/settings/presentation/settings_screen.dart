@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import '../../../core/app_version.dart';
 import '../../../core/card_expand.dart';
 import '../../../core/io/bounded_input.dart';
+import '../../../core/logging/app_log.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_themes.dart';
@@ -27,7 +28,9 @@ import '../../player/presentation/player_backdrop_sheet.dart';
 import '../../updates/presentation/update_sheet.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
+import '../../download/domain/download_service.dart';
 import '../../download/presentation/download_provider.dart';
+import '../../local_music/presentation/local_file_manager_provider.dart';
 import '../domain/playlist_backup.dart';
 import 'app_log_screen.dart';
 import '../../../core/widgets/fx_switch.dart';
@@ -769,6 +772,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             captureExpandOrigin: true,
           ),
           SettingsEntry(
+            title: s.downloadDirectory,
+            subtitle:
+                ref.watch(downloadDirectoryInfoProvider).valueOrNull?.current ??
+                s.downloadDirectoryDefaultLocation,
+            keywords: const [
+              '下载',
+              'download',
+              '目录',
+              '文件夹',
+              'folder',
+              'directory',
+              '路径',
+              'path',
+              '保存位置',
+              '存储',
+              'storage',
+            ],
+            onTap: () => _showDownloadDirectoryDialog(context),
+          ),
+          SettingsEntry(
             title: s.wifiOnly,
             subtitle: s.wifiOnlySubtitle,
             keywords: const ['wifi', '无线', '流量', 'data', '网络', 'network', '下载'],
@@ -1058,6 +1081,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _showQualityDialog(context, ref, S.of(context).chooseDownloadQuality, true);
   }
 
+  /// 下载目录：中心弹窗（不是底部抽屉）。
+  ///
+  /// 它在别处换的是「之后所有下载落到哪里」，比音质这类单选项更重，所以用
+  /// 中心弹窗把当前目录、默认目录和影响范围一次讲清，而不是塞进列表。
+  void _showDownloadDirectoryDialog(BuildContext context) {
+    showKoyzeDialog<void>(
+      context: context,
+      builder: (_) => const _DownloadDirectoryDialog(),
+    );
+  }
+
   void _showQualityDialog(
     BuildContext context,
     WidgetRef ref,
@@ -1094,7 +1128,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (confirmed != true) return;
     try {
       final storage = await StorageService.instance;
+      final hadCustomDownloadDirectory =
+          ref.read(downloadDirectoryProvider) != null;
       final removed = await resetPreferences(storage);
+      // 下载目录是「运行中的服务 + 持久化设置」两份状态，只删存储的话，
+      // 本次进程还会继续往旧的目录里写，界面上也还显示旧路径。这里补一次
+      // 真正的切换（失败就保持现状，不影响其它项已恢复的默认值）。
+      if (hadCustomDownloadDirectory) {
+        try {
+          await ref.read(switchDownloadDirectoryProvider)(null);
+        } catch (error) {
+          AppLog.instance.record(
+            'settings.reset',
+            'restoring the default download directory failed: $error',
+            level: AppLogLevel.warning,
+          );
+        }
+      }
       // 通知每个设置项重新读取：它们各自持有内存值，只删存储不会刷新界面。
       for (final provider in <ProviderOrFamily>[
         themeModeProvider,
@@ -1705,6 +1755,270 @@ class _DeviceIdRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 下载目录的中心弹窗。
+///
+/// 「选择文件夹」和「恢复默认」都是立即生效并关闭：这两个动作本身就够明确，
+/// 再加一层「保存」只会让「选完目录要不要再点一下」变成新的不确定。选择失败
+/// 时不关闭，把原因写在目录框下方——关掉再弹一条通知的话，用户还得重新打开
+/// 才能再选一次。
+class _DownloadDirectoryDialog extends ConsumerStatefulWidget {
+  const _DownloadDirectoryDialog();
+
+  @override
+  ConsumerState<_DownloadDirectoryDialog> createState() =>
+      _DownloadDirectoryDialogState();
+}
+
+class _DownloadDirectoryDialogState
+    extends ConsumerState<_DownloadDirectoryDialog> {
+  bool _applying = false;
+  bool _picking = false;
+  String? _error;
+
+  bool get _busy => _applying || _picking;
+
+  Future<void> _apply(String? path, {required bool restoreDefault}) async {
+    if (_busy) return;
+    final s = S.of(context);
+    setState(() {
+      _applying = true;
+      _error = null;
+    });
+    try {
+      await ref.read(switchDownloadDirectoryProvider)(
+        restoreDefault ? null : path,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      showAppNotification(
+        restoreDefault
+            ? s.downloadDirectoryRestored
+            : s.downloadDirectoryChanged,
+        type: AppNotificationType.success,
+      );
+    } on DownloadDirectoryException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _applying = false;
+        _error = error.reason == 'unsupported_scheme'
+            ? s.downloadDirectoryUnsupported
+            : s.downloadDirectoryNotWritable;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _applying = false;
+        _error = s.downloadDirectoryNotWritable;
+      });
+    }
+  }
+
+  Future<void> _pick() async {
+    if (_busy) return;
+    final s = S.of(context);
+    setState(() {
+      _picking = true;
+      _error = null;
+    });
+    String? path;
+    try {
+      // 各平台的选择器不一样：iOS / 鸿蒙要走原生通道（file_picker 在那边
+      // 给不出能写进去的目录），其余平台用系统目录选择器。
+      final fs = ref.read(localFileSystemProvider);
+      path = fs.needsNativeDirectoryPicker
+          ? await fs.pickDirectory()
+          : await FilePicker.getDirectoryPath(
+              dialogTitle: s.downloadDirectoryPickerTitle,
+            );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _picking = false;
+        _error = s.downloadDirectoryNotWritable;
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _picking = false);
+    // null / 空串 = 用户取消，保持原样，不当成错误。
+    if (path == null || path.trim().isEmpty) return;
+    await _apply(path, restoreDefault: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final info = ref.watch(downloadDirectoryInfoProvider).valueOrNull;
+    final custom = info?.custom;
+
+    return KoyzeDialog(
+      backgroundColor: AppColors.dialogBg(context),
+      icon: const Icon(Icons.folder_outlined),
+      title: Text(
+        s.downloadDirectory,
+        style: TextStyle(color: AppColors.onScaffold(context)),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(s.downloadDirectorySubtitle),
+          const SizedBox(height: 14),
+          _DownloadPathBox(
+            label: s.downloadDirectoryCurrent,
+            path: info?.current,
+          ),
+          // 自定义目录时才列默认位置：两个路径一模一样还再写一遍，只会让人
+          // 以为「恢复默认」会换到别的地方去。
+          if (info != null && !info.isDefault) ...[
+            const SizedBox(height: 10),
+            _DownloadPathBox(
+              label: s.downloadDirectoryDefaultLocation,
+              path: info.defaultPath,
+              subtle: true,
+            ),
+          ],
+          const SizedBox(height: 12),
+          _DownloadDirectoryHint(
+            icon: Icons.info_outline,
+            text: s.downloadDirectoryNote,
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            _DownloadDirectoryHint(
+              icon: Icons.error_outline,
+              text: _error!,
+              error: true,
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: custom == null || _busy
+              ? null
+              : () => _apply(null, restoreDefault: true),
+          child: Text(
+            s.resetToDefault,
+            style: TextStyle(
+              color: custom == null || _busy
+                  ? AppColors.mutedText(context).withValues(alpha: 0.55)
+                  : AppColors.accentOf(context),
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: Text(
+            s.cancel,
+            style: TextStyle(color: AppColors.mutedText(context)),
+          ),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _pick,
+          child: _busy
+              ? const SizedBox(
+                  width: 15,
+                  height: 15,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(s.downloadDirectoryChoose),
+        ),
+      ],
+    );
+  }
+}
+
+/// 弹窗里的一块路径展示：标签 + 可换行的路径。
+class _DownloadPathBox extends StatelessWidget {
+  const _DownloadPathBox({
+    required this.label,
+    required this.path,
+    this.subtle = false,
+  });
+
+  final String label;
+  final String? path;
+
+  /// 次要路径（默认位置）用更轻的字色，避免和当前目录抢注意力。
+  final bool subtle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 9, 12, 10),
+      decoration: BoxDecoration(
+        color: AppColors.isDark(context)
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.black.withValues(alpha: 0.028),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder(context), width: 0.7),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 0.2,
+              color: AppColors.mutedText(context),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            path ?? '…',
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.35,
+              color: subtle
+                  ? AppColors.secondaryText(context)
+                  : AppColors.onScaffold(context),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 图标 + 一段说明。用于「影响范围」提示与错误提示。
+class _DownloadDirectoryHint extends StatelessWidget {
+  const _DownloadDirectoryHint({
+    required this.icon,
+    required this.text,
+    this.error = false,
+  });
+
+  final IconData icon;
+  final String text;
+  final bool error;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = error ? AppColors.error : AppColors.mutedText(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(icon, size: 14, color: color),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 12, height: 1.4, color: color),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -213,6 +213,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chooseDownloadQuality => 'Choose download quality';
 
   @override
+  String get downloadDirectory => 'Download folder';
+
+  @override
+  String get downloadDirectorySubtitle =>
+      'Choose where downloaded songs are saved';
+
+  @override
+  String get downloadDirectoryCurrent => 'Current folder';
+
+  @override
+  String get downloadDirectoryDefaultLocation => 'Default location';
+
+  @override
+  String get downloadDirectoryNote =>
+      'Only new downloads use the new folder; files already downloaded stay where they are.';
+
+  @override
+  String get downloadDirectoryChoose => 'Choose folder';
+
+  @override
+  String get downloadDirectoryPickerTitle => 'Choose download folder';
+
+  @override
+  String get downloadDirectoryChanged => 'Download folder updated';
+
+  @override
+  String get downloadDirectoryRestored =>
+      'Restored the default download folder';
+
+  @override
+  String get downloadDirectoryNotWritable =>
+      'That location isn\'t writable. Choose another folder.';
+
+  @override
+  String get downloadDirectoryUnsupported =>
+      'That location can\'t hold downloads. Choose a regular folder.';
+
+  @override
   String get data => 'Data';
 
   @override

@@ -488,6 +488,72 @@ abstract class AppLocalizations {
   /// **'Choose download quality'**
   String get chooseDownloadQuality;
 
+  /// No description provided for @downloadDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Download folder'**
+  String get downloadDirectory;
+
+  /// No description provided for @downloadDirectorySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose where downloaded songs are saved'**
+  String get downloadDirectorySubtitle;
+
+  /// No description provided for @downloadDirectoryCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current folder'**
+  String get downloadDirectoryCurrent;
+
+  /// No description provided for @downloadDirectoryDefaultLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Default location'**
+  String get downloadDirectoryDefaultLocation;
+
+  /// No description provided for @downloadDirectoryNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Only new downloads use the new folder; files already downloaded stay where they are.'**
+  String get downloadDirectoryNote;
+
+  /// No description provided for @downloadDirectoryChoose.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose folder'**
+  String get downloadDirectoryChoose;
+
+  /// No description provided for @downloadDirectoryPickerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose download folder'**
+  String get downloadDirectoryPickerTitle;
+
+  /// No description provided for @downloadDirectoryChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Download folder updated'**
+  String get downloadDirectoryChanged;
+
+  /// No description provided for @downloadDirectoryRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored the default download folder'**
+  String get downloadDirectoryRestored;
+
+  /// No description provided for @downloadDirectoryNotWritable.
+  ///
+  /// In en, this message translates to:
+  /// **'That location isn\'t writable. Choose another folder.'**
+  String get downloadDirectoryNotWritable;
+
+  /// No description provided for @downloadDirectoryUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'That location can\'t hold downloads. Choose a regular folder.'**
+  String get downloadDirectoryUnsupported;
+
   /// No description provided for @data.
   ///
   /// In en, this message translates to:

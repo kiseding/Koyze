@@ -1,28 +1,26 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/download_service.dart';
 import '../domain/download_task.dart';
 import '../../player/domain/music_item.dart';
+import '../../local_music/presentation/local_music_provider.dart';
 import '../../search/presentation/search_provider.dart';
 import '../../settings/presentation/settings_provider.dart';
 import '../../../startup_lifecycle.dart';
-import '../../../core/storage/portable_mode.dart';
 import '../../../core/logging/app_log.dart';
 
 final downloadServiceProvider = Provider<DownloadService>((ref) {
-  // Startup hydrates this notifier before constructing the service. Do not
-  // watch it here: rebuilding the provider would cancel active downloads.
+  // Startup hydrates these notifiers before constructing the service. Do not
+  // watch them here: rebuilding the provider would cancel active downloads.
   final wifiOnly = ref.read(wifiOnlyDownloadProvider);
+  // 目录只在创建时读一次；之后改设置走 switchDownloadDirectoryProvider，
+  // 那条路径会同时更新运行中的服务，不需要重建 provider（重建会中断下载）。
+  final customDirectory = ref.read(downloadDirectoryProvider);
   final connectivity = Connectivity();
   final service = DownloadService(
-    downloadDirectory: PortableMode.root == null
-        ? null
-        : () async => Directory(
-            '${PortableMode.root!}${Platform.pathSeparator}downloads',
-          ),
+    customDownloadDirectory: customDirectory,
     wifiOnly: wifiOnly,
     connectivity: connectivity.onConnectivityChanged.map((results) {
       if (results.contains(ConnectivityResult.wifi) ||
@@ -147,3 +145,76 @@ final clearDownloadCacheProvider = Provider<Future<void> Function()>((ref) {
     ref.read(downloadVersionProvider.notifier).state++;
   };
 });
+
+/// 下载目录的展示信息：当前生效的目录与平台默认目录。
+///
+/// 两个都展示出来，是因为设置页要说清「恢复默认」到底会回到哪里——只写
+/// 「默认」的话，用户没法判断默认在哪个盘、还剩多少空间。
+class DownloadDirectoryInfo {
+  const DownloadDirectoryInfo({
+    required this.current,
+    required this.defaultPath,
+    required this.custom,
+  });
+
+  /// 当前生效的目录（可能就是 [defaultPath]）。
+  final String current;
+
+  /// 平台默认目录。
+  final String defaultPath;
+
+  /// 用户显式选过的目录；null 表示当前用的是默认目录。
+  final String? custom;
+
+  bool get isDefault => custom == null;
+}
+
+final downloadDirectoryInfoProvider = FutureProvider<DownloadDirectoryInfo>((
+  ref,
+) async {
+  // 依赖设置值：切换后 invalidate 一次就够，不必轮询服务。
+  ref.watch(downloadDirectoryProvider);
+  final service = ref.watch(downloadServiceProvider);
+  final fallback = await DownloadService.defaultDownloadDirectory();
+  return DownloadDirectoryInfo(
+    current: service.downloadDirectory ?? fallback.path,
+    defaultPath: fallback.path,
+    custom: service.customDownloadDirectory,
+  );
+});
+
+/// 切换下载目录：先让服务校验并生效，再持久化设置、同步本地音乐库。
+///
+/// 顺序不能反：先写设置的话，用户选了一个写不进去的目录，设置就已经变了，
+/// 之后每首歌都会下载失败；而先让服务建目录 + 写探针文件，失败时抛
+/// [DownloadDirectoryException]，设置和当前目录都保持原样。
+final switchDownloadDirectoryProvider =
+    Provider<Future<String> Function(String?)>((ref) {
+      return (String? path) async {
+        final service = ref.read(downloadServiceProvider);
+        final applied = await service.switchDownloadDirectory(path);
+        await ref
+            .read(downloadDirectoryProvider.notifier)
+            .setDirectory(path == null || path.trim().isEmpty ? null : applied);
+        ref.invalidate(downloadDirectoryInfoProvider);
+        unawaited(_syncLibraryDownloadDirectory(ref, applied));
+        return applied;
+      };
+    });
+
+/// 让本地音乐库跟着换到新目录（它是「自动扫描目录，不可手动移除」的那个）。
+///
+/// 扫描可能要遍历几千个文件，所以不 await：目录切换本身已经完成，这里失败
+/// 只影响「新下载的歌什么时候出现在本地音乐里」，不该让设置页卡住或报错。
+Future<void> _syncLibraryDownloadDirectory(Ref ref, String path) async {
+  try {
+    final library = await ref.read(localMusicLibraryProvider.future);
+    await library.setDownloadDirectory(path);
+  } catch (error) {
+    AppLog.instance.record(
+      'download.directory',
+      'syncing local library download directory failed: $error',
+      level: AppLogLevel.warning,
+    );
+  }
+}

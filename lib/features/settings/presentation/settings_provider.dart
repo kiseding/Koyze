@@ -50,6 +50,12 @@ final wifiOnlyDownloadProvider =
       WifiOnlyDownloadNotifier.new,
     );
 
+/// 下载目录。null 表示跟随平台默认目录。
+final downloadDirectoryProvider =
+    NotifierProvider<DownloadDirectoryNotifier, String?>(
+      DownloadDirectoryNotifier.new,
+    );
+
 final autoResumePlaybackProvider =
     NotifierProvider<AutoResumePlaybackNotifier, bool>(
       AutoResumePlaybackNotifier.new,

@@ -39,6 +39,7 @@ const List<String> kResettablePreferenceKeys = <String>[
   // 下载
   'download_quality',
   'wifi_only_download',
+  'download_directory',
   // 歌词
   'lyric_offset_ms',
   'lyric_scale',
@@ -71,6 +72,10 @@ const List<String> kPreservedPreferenceKeys = <String>[
   'custom_sources_quarantine',
   'local_music_dirs_v1',
   'local_music_download_dir_v1',
+  // 下载目录的归属历史：记录本应用用过哪些下载根目录，换过目录之后旧文件
+  // 仍要能删、能统计。它是安全边界，不是用户偏好，清掉会让历史下载在下次
+  // 启动时被当成越权路径隔离。
+  'download_roots',
   'local_music_index_v1',
   'search_history',
   'ai_config',

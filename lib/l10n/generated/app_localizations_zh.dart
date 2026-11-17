@@ -206,6 +206,39 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chooseDownloadQuality => '选择下载音质';
 
   @override
+  String get downloadDirectory => '下载目录';
+
+  @override
+  String get downloadDirectorySubtitle => '选择下载的歌曲保存到哪个文件夹';
+
+  @override
+  String get downloadDirectoryCurrent => '当前目录';
+
+  @override
+  String get downloadDirectoryDefaultLocation => '默认位置';
+
+  @override
+  String get downloadDirectoryNote => '更改后只影响之后新增的下载，已下载的文件仍留在原目录。';
+
+  @override
+  String get downloadDirectoryChoose => '选择文件夹';
+
+  @override
+  String get downloadDirectoryPickerTitle => '选择下载目录';
+
+  @override
+  String get downloadDirectoryChanged => '下载目录已更新';
+
+  @override
+  String get downloadDirectoryRestored => '已恢复默认下载目录';
+
+  @override
+  String get downloadDirectoryNotWritable => '这个位置无法写入，请换一个文件夹';
+
+  @override
+  String get downloadDirectoryUnsupported => '这个位置不能用作下载目录，请选择本机文件夹';
+
+  @override
   String get data => '数据';
 
   @override

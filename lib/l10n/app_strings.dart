@@ -216,6 +216,20 @@ class S {
   String get wifiOnlySubtitle => _l10n.wifiOnlySubtitle;
   String get downloadQuality => _l10n.downloadQuality;
   String get chooseDownloadQuality => _l10n.chooseDownloadQuality;
+  String get downloadDirectory => _l10n.downloadDirectory;
+  String get downloadDirectorySubtitle => _l10n.downloadDirectorySubtitle;
+  String get downloadDirectoryCurrent => _l10n.downloadDirectoryCurrent;
+  String get downloadDirectoryDefaultLocation =>
+      _l10n.downloadDirectoryDefaultLocation;
+  String get downloadDirectoryNote => _l10n.downloadDirectoryNote;
+  String get downloadDirectoryChoose => _l10n.downloadDirectoryChoose;
+  String get downloadDirectoryPickerTitle => _l10n.downloadDirectoryPickerTitle;
+  String get downloadDirectoryChanged => _l10n.downloadDirectoryChanged;
+  String get downloadDirectoryRestored => _l10n.downloadDirectoryRestored;
+  String get downloadDirectoryNotWritable =>
+      _l10n.downloadDirectoryNotWritable;
+  String get downloadDirectoryUnsupported =>
+      _l10n.downloadDirectoryUnsupported;
   String get data => _l10n.data;
   String get dataAndSync => _l10n.dataAndSync;
   String get backup => _l10n.backup;
