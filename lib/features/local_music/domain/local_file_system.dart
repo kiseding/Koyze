@@ -76,6 +76,25 @@ abstract class LocalFileSystem {
   /// 一个点进去必然失败的入口，比没有这个入口更糟。
   bool get supportsDartIoDirectory => true;
 
+  /// 能否把沙箱里的文件「导出」到系统公共下载目录。
+  ///
+  /// 和 [pickDirectory] 是两件事：那个是「换一个目录当下载根」，要求路径
+  /// 能交给 `dart:io` 长期读写；这个是「把这个文件复制一份到用户能在系统
+  /// 文件管理器里看到的地方」，只要求平台能按 URI 写一次。
+  ///
+  /// 只有鸿蒙需要它。桌面平台下载目录本来就在用户home 下，Android 和 iOS
+  /// 各有自己的分享 / 另存通道，都不必在这里建模。
+  bool get supportsPublicDownloadsExport => false;
+
+  /// 把 [sourcePath] 复制一份到系统公共下载目录，返回落到位置的展示字符串。
+  ///
+  /// 源文件不动，公共目录里是多出来的副本——语义是「导出」，不是「搬家」。
+  /// 用户取消时返回 null。平台不支持时由实现类抛
+  /// [LocalFileUnsupportedException]；基类默认实现也抛它，避免调用方在
+  /// 不支持的平台拿到一个「成功但没有路径」的假结果。
+  Future<String?> exportToPublicDownloads(String sourcePath) async =>
+      throw const LocalFileUnsupportedException('导出到下载目录', '当前平台');
+
   /// 按平台选择实现。
   ///
   /// [channel] 由调用方注入，方便测试替身；生产环境用默认的
@@ -311,6 +330,15 @@ class IoFileSystem implements LocalFileSystem {
   @override
   Future<String?> pickDirectory() async => null;
 
+  /// 桌面平台不需要「导出到下载目录」：下载目录本来就在用户 home 下，
+  /// 文件管理器直接就能看到。
+  @override
+  bool get supportsPublicDownloadsExport => false;
+
+  @override
+  Future<String?> exportToPublicDownloads(String sourcePath) async =>
+      throw const LocalFileUnsupportedException('导出到下载目录', '桌面平台');
+
   Future<void> _guard(String path, Future<void> Function() action) async {
     try {
       await action();
@@ -352,6 +380,27 @@ abstract class ChannelFileSystem implements LocalFileSystem {
 
   @override
   bool get supportsDartIoDirectory => true;
+
+  /// 通道侧默认没有导出能力。
+  ///
+  /// 子类要显式打开并覆写 [exportToPublicDownloads]：这个方法在鸿蒙上走
+  /// 通道，在 Android / iOS 上不该被调到——打开标志等于承诺「调了能成」。
+  @override
+  bool get supportsPublicDownloadsExport => false;
+
+  @override
+  Future<String?> exportToPublicDownloads(String sourcePath) async {
+    final result = await _guard(
+      sourcePath,
+      () => channel.invokeMethod<String>('exportToPublicDownloads', {
+        'source': sourcePath,
+      }),
+    );
+    // 空串和 null 都当「用户取消」：原生侧用空串表示取消，与
+    // `pickDirectory` 的约定保持一致。
+    if (result == null || result.isEmpty) return null;
+    return result;
+  }
 
   @override
   Future<String?> pickDirectory() async => null;
@@ -516,6 +565,16 @@ class AndroidFileSystem implements LocalFileSystem {
   @override
   Future<String?> pickDirectory() async => null;
 
+  /// Android 不需要这条通道：用户本来就能用 SAF 把下载根指到公共目录
+  /// （`supportsDartIoDirectory` 为真，入口是「下载目录」那一行），
+  /// 再叠一个「导出到下载目录」只会让设置页出现两个语义相近的项。
+  @override
+  bool get supportsPublicDownloadsExport => false;
+
+  @override
+  Future<String?> exportToPublicDownloads(String sourcePath) async =>
+      throw const LocalFileUnsupportedException('导出到下载目录', 'Android');
+
   @override
   Future<List<LocalFileEntry>> listDirectory(String directoryPath) {
     if (_isDocumentPath(directoryPath)) {
@@ -651,6 +710,12 @@ class OhosFileSystem extends ChannelFileSystem {
   @override
   bool get supportsDartIoDirectory => false;
 
+  /// 但「导出到公共下载目录」可以：它只要按 URI 写一次，不要求把 URI 交给
+  /// `dart:io` 长期使用。原生侧用 `DocumentPickerMode.DOWNLOAD` 一次授权
+  /// 拿到 `Download/<包名>/`，之后 `fs.copy` 按 URI 落地。
+  @override
+  bool get supportsPublicDownloadsExport => true;
+
   @override
   Future<String?> pickDirectory() async {
     final path = await channel.invokeMethod<String>('pickDirectory');
@@ -674,8 +739,16 @@ class UnsupportedFileSystem implements LocalFileSystem {
   @override
   bool get supportsDartIoDirectory => false;
 
+  /// 浏览器没有「公共下载目录」这种东西，下载走的是浏览器的下载管理器。
+  @override
+  bool get supportsPublicDownloadsExport => false;
+
   @override
   Future<String?> pickDirectory() async => null;
+
+  @override
+  Future<String?> exportToPublicDownloads(String sourcePath) async =>
+      _reject('导出到下载目录');
 
   Never _reject(String operation) => throw LocalFileUnsupportedException(
     operation,

@@ -258,6 +258,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadDirectoryUnavailable => 'The chosen folder is unavailable';
 
   @override
+  String get downloadLocation => 'Download location';
+
+  @override
+  String get downloadLocationSubtitle =>
+      'Export downloaded songs to the system Downloads folder';
+
+  @override
+  String get downloadLocationPrivate => 'App private folder';
+
+  @override
+  String get downloadLocationBody =>
+      'HarmonyOS doesn\'t let apps write to public folders directly, so songs live in the app\'s own folder and file managers can\'t see them. Exporting puts a copy in the system Downloads folder; the originals stay put.';
+
+  @override
+  String get downloadLocationExport => 'Export downloaded songs';
+
+  @override
+  String get downloadLocationExporting => 'Exporting…';
+
+  @override
+  String get downloadLocationEmpty => 'No finished downloads yet';
+
+  @override
+  String downloadLocationExported(int count) {
+    return 'Exported $count songs to Downloads';
+  }
+
+  @override
+  String downloadLocationPartial(int done, int failed) {
+    return 'Export finished: $done succeeded, $failed failed';
+  }
+
+  @override
+  String get downloadLocationCancelled => 'Export cancelled';
+
+  @override
+  String get downloadLocationFailed => 'Export failed. Try again later.';
+
+  @override
   String get data => 'Data';
 
   @override

@@ -54,6 +54,13 @@ class _FakeFileSystem implements LocalFileSystem {
   bool get supportsDartIoDirectory => true;
 
   @override
+  bool get supportsPublicDownloadsExport => false;
+
+  @override
+  Future<String?> exportToPublicDownloads(String sourcePath) async =>
+      throw const LocalFileUnsupportedException('导出到下载目录', '测试替身');
+
+  @override
   Future<String?> pickDirectory() async => null;
 }
 

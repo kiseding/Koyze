@@ -234,6 +234,19 @@ class S {
       _l10n.downloadDirectoryFallbackActive;
   String get downloadDirectoryUnavailable =>
       _l10n.downloadDirectoryUnavailable;
+  String get downloadLocation => _l10n.downloadLocation;
+  String get downloadLocationSubtitle => _l10n.downloadLocationSubtitle;
+  String get downloadLocationPrivate => _l10n.downloadLocationPrivate;
+  String get downloadLocationBody => _l10n.downloadLocationBody;
+  String get downloadLocationExport => _l10n.downloadLocationExport;
+  String get downloadLocationExporting => _l10n.downloadLocationExporting;
+  String get downloadLocationEmpty => _l10n.downloadLocationEmpty;
+  String get downloadLocationCancelled => _l10n.downloadLocationCancelled;
+  String get downloadLocationFailed => _l10n.downloadLocationFailed;
+  String downloadLocationExported(int count) =>
+      _l10n.downloadLocationExported(count);
+  String downloadLocationPartial(int done, int failed) =>
+      _l10n.downloadLocationPartial(done, failed);
   String get data => _l10n.data;
   String get dataAndSync => _l10n.dataAndSync;
   String get backup => _l10n.backup;

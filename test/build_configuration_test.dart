@@ -816,6 +816,31 @@ void main() {
     expect(audioPlayer, contains('prepareResult = null'));
   });
 
+  test('鸿蒙导出下载目录走 DOWNLOAD 模式，而不是自己拼公共路径', () {
+    // 手机端第三方应用没有公共目录的写权限
+    // （`READ_WRITE_DOWNLOAD_DIRECTORY` 只支持 PC / 2in1 / 平板），所以
+    // `Download/<包名>` 只能由系统 picker 授权一次，之后按 URI 写。这里钉住
+    // 三件事：走 DOWNLOAD 模式、缓存授权（否则每首歌弹一次窗）、方法名与
+    // Dart 侧对得上。
+    final bridge = File(
+      'ohos/entry/src/main/ets/entryability/LocalFileSystemBridge.ets',
+    ).readAsStringSync();
+
+    expect(bridge, contains("case 'exportToPublicDownloads'"));
+    expect(bridge, contains('picker.DocumentPickerMode.DOWNLOAD'));
+    // 缓存：首次 save() 拿到 URI 存进 Preferences，之后复用。
+    expect(bridge, contains('preferences.getPreferences'));
+    expect(bridge, contains('DOWNLOAD_URI_KEY'));
+    // 授权失效（用户删目录 / 撤销授权）时要能重新申请。
+    expect(bridge, contains('clearCachedDownloadUri'));
+    // 别退回到「自己拼公共目录路径」——那条路在手机上没有权限。
+    expect(
+      bridge,
+      isNot(contains('getUserDownloadDir')),
+      reason: '手机端没有公共下载目录的路径级权限，只能走 picker 授权',
+    );
+  });
+
   test('runner CMake source lists reference files that exist', () {
     // 原生构建要等 Flutter 打包完成后才进 CMake。清单里写错文件名（例如把
     // .cc 写成 .cpp）时，CI 要跑十几分钟才失败，而且报错落在 CMake 的

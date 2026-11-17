@@ -9,9 +9,18 @@ import { fileIo as fs, picker } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { preferences } from '@kit.ArkData';
 
 const DOMAIN: number = 0x0000;
 const TAG: string = 'KoyzeFileSystem';
+
+/// 缓存「导出到下载目录」授权 URI 的偏好存储名与键名。
+///
+/// 单独一个 store：Flutter 侧的设置项走 SharedPreferences（另一个文件），
+/// 混在一起容易被 `resetPreferences` 之类的全量清理顺手删掉——那样用户
+/// 每次导出都要重新授权一次。
+const DOWNLOAD_URI_PREF: string = 'koyze_export';
+const DOWNLOAD_URI_KEY: string = 'download_dir_uri';
 
 /// Dart 侧的 `MethodChannel('koyze/local_file_system')`。
 ///
@@ -95,6 +104,11 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
         case 'pickDirectory': {
           // 返回 '' 表示用户取消，Dart 侧翻成 null。
           result.success(await this.pickDirectory());
+          break;
+        }
+        case 'exportToPublicDownloads': {
+          const source: string = this.strArg(call, 'source');
+          result.success(await this.exportToPublicDownloads(source));
           break;
         }
         default:
@@ -370,6 +384,179 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
       return '';
     }
     return selected[0];
+  }
+
+  /// 把沙箱里的文件导出到系统公共下载目录。
+  ///
+  /// 和 [pickDirectory] 是两件事：那个要求路径能交给 `dart:io` 长期读写
+  /// （鸿蒙的 `file://docs/...` 做不到，所以下载根不能换）；这个只要求
+  /// 「按 URI 写一次」，`fs.copy` 从 API 11 起支持，完全可做。
+  ///
+  /// 为什么用 `DocumentPickerMode.DOWNLOAD`：
+  /// - 跳过文件选择界面，直接落 `Download/<包名>/`，用户点一次同意就行；
+  /// - 返回的 URI **已具备持久化权限**，存下来下次直接用，不必每首歌都弹窗；
+  /// - 免权限，不用申请 `READ_WRITE_DOWNLOAD_DIRECTORY`（那个还只支持
+  ///   PC / 2in1 / 平板，手机根本没有）。
+  ///
+  /// 这里刻意**不**返回 URI 给用户看，返回的是展示用路径（去掉
+  /// `file://docs/storage/Users/currentUser/` 前缀），设置页里显示成
+  /// 「下载/Koyze」这种人类能读的形式。
+  private async exportToPublicDownloads(sourcePath: string): Promise<string> {
+    if (sourcePath.length === 0 || !this.exists(sourcePath)) {
+      throw new TaggedError('not_found', `源文件不存在: ${sourcePath}`);
+    }
+    const name: string = baseName(sourcePath);
+    if (name.length === 0) throw makeInvalidName(sourcePath);
+
+    // 先用缓存的授权。**不对目录 URI 做探活**：`fs.open` 对目录本来就可能
+    // 报 EISDIR，而带 CREATE 的 open 更糟——真在某些版本上把「目录」当文件
+    // 建出来。用「写一次试试」当探针，失败就重新申请，语义正好。
+    const cached: string = await this.readCachedDownloadUri();
+    if (cached.length > 0) {
+      try {
+        await this.copyToUri(sourcePath, joinPath(cached, name));
+        return this.prettyPath(cached, name);
+      } catch (error) {
+        // 授权失效的典型原因：用户在文件管理器里删了 `Download/<包名>`，
+        // 或者系统撤销了持久授权。清掉缓存重申请一次。
+        hilog.warn(DOMAIN, TAG, 'cached download uri unusable, re-requesting: %{public}s',
+          describeFailure('export', error));
+        await this.clearCachedDownloadUri();
+      }
+    }
+
+    const fresh: string = await this.requestDownloadDirectoryUri();
+    if (fresh.length === 0) {
+      // 用户取消。空串在 Dart 侧翻成 null，与 pickDirectory 一致。
+      return '';
+    }
+    await this.copyToUri(sourcePath, joinPath(fresh, name));
+    return this.prettyPath(fresh, name);
+  }
+
+  /// 拉起 DOWNLOAD 模式的保存对话框，拿到 `Download/<包名>/` 并记下来。
+  ///
+  /// 存的是 URI 而不是路径：持久授权绑在 URI 上，转成路径就失效了。
+  private async requestDownloadDirectoryUri(): Promise<string> {
+    const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
+    // DOWNLOAD 模式（枚举值 1）：跳过文件选择界面，直接落 `Download/<包名>/`，
+    // 返回的 URI 已带持久化授权。配了它之后 newFileNames / defaultFilePathUri
+    // / fileSuffixChoices 一律不生效，所以这里不设那些字段。
+    //
+    // 写枚举而非字面量 1：`pickerMode` 的类型是 `DocumentPickerMode`，
+    // ArkTS 对枚举字段的赋值比 TS 严格，给数字可能编译不过。这个枚举
+    // 从 API 12 起就存在，SDK 26 一定有。
+    options.pickerMode = picker.DocumentPickerMode.DOWNLOAD;
+    const documentPicker = new picker.DocumentViewPicker(this.context);
+    const saved: Array<string> = await documentPicker.save(options);
+    if (saved === undefined || saved === null || saved.length === 0) {
+      return '';
+    }
+    const uri: string = saved[0];
+    if (uri === undefined || uri === null || uri.length === 0) return '';
+    await this.writeCachedDownloadUri(uri);
+    return uri;
+  }
+
+  /// 按 URI 写一个文件，覆盖式。
+  ///
+  /// 只保留两条路，不像 [writeIntoUriDirectory] 那样试「copy 进目录」——
+  /// 那条会由系统自己拼文件名，遇到同名文件的行为不确定（可能生成
+  /// 副本），而这里明确要求覆盖。
+  private async copyToUri(sourcePath: string, targetUri: string): Promise<void> {
+    const failures: Array<string> = [];
+    let lastCode: number = 0;
+    try {
+      await fs.copy(sourcePath, targetUri);
+      if (this.exists(targetUri)) return;
+      failures.push('copy=写入后目标不存在');
+    } catch (error) {
+      lastCode = failureCode(error);
+      failures.push(describeFailure('copy', error));
+    }
+    try {
+      const dest: fs.File = await this.openUri(targetUri);
+      try {
+        await fs.copyFile(sourcePath, dest.fd);
+      } finally {
+        fs.closeSync(dest);
+      }
+      return;
+    } catch (error) {
+      lastCode = failureCode(error);
+      failures.push(describeFailure('open+fd', error));
+    }
+    throw new TaggedError(
+      codeFromNumber(lastCode),
+      `导出到下载目录失败（${targetUri}）: ${failures.join(' | ')}`,
+    );
+  }
+
+  /// 把 `file://docs/storage/Users/currentUser/Download/xxx` 变成
+  /// `下载/xxx` 这种能显示在设置页里的形式。
+  ///
+  /// 各版本的前缀不完全一样（有 `Download`、`Downloads`、带 `localUser`
+  /// 的），所以只按「Download 之后的部分」切，切不出来就原样返回。
+  private prettyPath(directoryUri: string, name: string): string {
+    const marker: string = '/Download/';
+    const index: number = directoryUri.lastIndexOf(marker);
+    const tail: string = index >= 0
+      ? directoryUri.substring(index + marker.length)
+      : '';
+    // 解码失败不能把整个导出流程带崩：path 里出现夹生的 `%` 是完全可能的
+    // （包名里带了业务不该出现但确实存在的字符），那就原样显示。
+    let folder: string = '下载';
+    if (tail.length > 0) {
+      try {
+        folder = `下载/${decodeURIComponent(tail)}`;
+      } catch (error) {
+        folder = `下载/${tail}`;
+      }
+    }
+    return `${folder}/${name}`;
+  }
+
+  private async readCachedDownloadUri(): Promise<string> {
+    try {
+      const store: preferences.Preferences = await preferences.getPreferences(
+        this.context, DOWNLOAD_URI_PREF);
+      const value: preferences.ValueType = await store.get(DOWNLOAD_URI_KEY, '');
+      // 存的就是 string，但 ValueType 是个联合类型，这里显式收窄；
+      // 取不到（首次运行）时 as string 是 undefined，一并当空串。
+      const text: string = value as string;
+      if (text === undefined || text === null) return '';
+      return text;
+    } catch (error) {
+      // 偏好存储读不出来不该阻断导出：退化成「每次都问一次授权」。
+      hilog.warn(DOMAIN, TAG, 'read cached download uri failed: %{public}s',
+        describeFailure('preferences', error));
+      return '';
+    }
+  }
+
+  private async writeCachedDownloadUri(uri: string): Promise<void> {
+    try {
+      const store: preferences.Preferences = await preferences.getPreferences(
+        this.context, DOWNLOAD_URI_PREF);
+      await store.put(DOWNLOAD_URI_KEY, uri);
+      await store.flush();
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, 'write cached download uri failed: %{public}s',
+        describeFailure('preferences', error));
+    }
+  }
+
+  /// 丢掉已失效的授权，下次导出会重新申请。
+  private async clearCachedDownloadUri(): Promise<void> {
+    try {
+      const store: preferences.Preferences = await preferences.getPreferences(
+        this.context, DOWNLOAD_URI_PREF);
+      await store.delete(DOWNLOAD_URI_KEY);
+      await store.flush();
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, 'clear cached download uri failed: %{public}s',
+        describeFailure('preferences', error));
+    }
   }
 
   private strArg(call: MethodCall, key: string): string {

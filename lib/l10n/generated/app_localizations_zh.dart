@@ -246,6 +246,44 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadDirectoryUnavailable => '所选目录不可用';
 
   @override
+  String get downloadLocation => '下载位置';
+
+  @override
+  String get downloadLocationSubtitle => '把下载的歌导出到系统的「下载」文件夹';
+
+  @override
+  String get downloadLocationPrivate => '应用私有目录';
+
+  @override
+  String get downloadLocationBody =>
+      '鸿蒙不允许应用直接写公共文件夹，所以歌默认存在应用自己的目录里，文件管理器看不到。导出会在系统的「下载」文件夹里放一份副本，原文件不动。';
+
+  @override
+  String get downloadLocationExport => '导出已下载的歌';
+
+  @override
+  String get downloadLocationExporting => '正在导出…';
+
+  @override
+  String get downloadLocationEmpty => '还没有下载完成的歌';
+
+  @override
+  String downloadLocationExported(int count) {
+    return '已导出 $count 首到「下载」';
+  }
+
+  @override
+  String downloadLocationPartial(int done, int failed) {
+    return '导出完成：成功 $done 首，失败 $failed 首';
+  }
+
+  @override
+  String get downloadLocationCancelled => '已取消导出';
+
+  @override
+  String get downloadLocationFailed => '导出失败，请稍后重试';
+
+  @override
   String get data => '数据';
 
   @override

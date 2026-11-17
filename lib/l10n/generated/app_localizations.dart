@@ -566,6 +566,72 @@ abstract class AppLocalizations {
   /// **'The chosen folder is unavailable'**
   String get downloadDirectoryUnavailable;
 
+  /// No description provided for @downloadLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Download location'**
+  String get downloadLocation;
+
+  /// No description provided for @downloadLocationSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export downloaded songs to the system Downloads folder'**
+  String get downloadLocationSubtitle;
+
+  /// No description provided for @downloadLocationPrivate.
+  ///
+  /// In en, this message translates to:
+  /// **'App private folder'**
+  String get downloadLocationPrivate;
+
+  /// No description provided for @downloadLocationBody.
+  ///
+  /// In en, this message translates to:
+  /// **'HarmonyOS doesn\'t let apps write to public folders directly, so songs live in the app\'s own folder and file managers can\'t see them. Exporting puts a copy in the system Downloads folder; the originals stay put.'**
+  String get downloadLocationBody;
+
+  /// No description provided for @downloadLocationExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export downloaded songs'**
+  String get downloadLocationExport;
+
+  /// No description provided for @downloadLocationExporting.
+  ///
+  /// In en, this message translates to:
+  /// **'Exporting…'**
+  String get downloadLocationExporting;
+
+  /// No description provided for @downloadLocationEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No finished downloads yet'**
+  String get downloadLocationEmpty;
+
+  /// No description provided for @downloadLocationExported.
+  ///
+  /// In en, this message translates to:
+  /// **'Exported {count} songs to Downloads'**
+  String downloadLocationExported(int count);
+
+  /// No description provided for @downloadLocationPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Export finished: {done} succeeded, {failed} failed'**
+  String downloadLocationPartial(int done, int failed);
+
+  /// No description provided for @downloadLocationCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Export cancelled'**
+  String get downloadLocationCancelled;
+
+  /// No description provided for @downloadLocationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Export failed. Try again later.'**
+  String get downloadLocationFailed;
+
   /// No description provided for @data.
   ///
   /// In en, this message translates to:

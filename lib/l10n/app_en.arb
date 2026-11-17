@@ -78,6 +78,34 @@
   "downloadDirectoryUnsupported": "That location can't hold downloads. Choose a regular folder.",
   "downloadDirectoryFallbackActive": "The folder you chose couldn't be opened, so downloads are temporarily using the default location. Pick the folder again to restore it.",
   "downloadDirectoryUnavailable": "The chosen folder is unavailable",
+  "downloadLocation": "Download location",
+  "downloadLocationSubtitle": "Export downloaded songs to the system Downloads folder",
+  "downloadLocationPrivate": "App private folder",
+  "downloadLocationBody": "HarmonyOS doesn't let apps write to public folders directly, so songs live in the app's own folder and file managers can't see them. Exporting puts a copy in the system Downloads folder; the originals stay put.",
+  "downloadLocationExport": "Export downloaded songs",
+  "downloadLocationExporting": "Exporting…",
+  "downloadLocationEmpty": "No finished downloads yet",
+  "downloadLocationExported": "Exported {count} songs to Downloads",
+  "@downloadLocationExported": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "downloadLocationPartial": "Export finished: {done} succeeded, {failed} failed",
+  "@downloadLocationPartial": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "downloadLocationCancelled": "Export cancelled",
+  "downloadLocationFailed": "Export failed. Try again later.",
   "data": "Data",
   "dataAndSync": "Data & sync",
   "backup": "Back up",

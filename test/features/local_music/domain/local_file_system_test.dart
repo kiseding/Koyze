@@ -376,4 +376,80 @@ void main() {
       expect(await const IoFileSystem().pickDirectory(), isNull);
     });
   });
+
+  group('导出到公共下载目录', () {
+    const channel = MethodChannel('koyze/export_downloads_test');
+
+    test('只有鸿蒙开放导出：它的下载根换不了，但能按 URI 写一份副本', () {
+      // 这是「选得到」和「用得成」分开建模的地方：鸿蒙的目录 URI 交给
+      // dart:io 会报 13900002，所以 supportsDartIoDirectory 是 false；
+      // 但 fs.copy 支持 URI，导出这条路走得通，两个标志因此不一致。
+      const ohos = OhosFileSystem(channel: channel);
+      expect(ohos.supportsDartIoDirectory, isFalse);
+      expect(ohos.supportsPublicDownloadsExport, isTrue);
+
+      // 其它平台不需要它：桌面下载目录本来就在 home 下，Android 能用 SAF
+      // 换下载根，iOS 有分享通道，浏览器有自带下载管理器。
+      expect(const IoFileSystem().supportsPublicDownloadsExport, isFalse);
+      expect(
+        AndroidFileSystem(channel: channel).supportsPublicDownloadsExport,
+        isFalse,
+      );
+      expect(
+        const AndroidSafFileSystem(channel: channel).supportsPublicDownloadsExport,
+        isFalse,
+      );
+      expect(
+        const UnsupportedFileSystem().supportsPublicDownloadsExport,
+        isFalse,
+      );
+    });
+
+    test('原生返回落点路径时透传', () async {
+      final harness = _ChannelHarness(channel)..install();
+      addTearDown(harness.remove);
+      const fs = OhosFileSystem(channel: channel);
+
+      harness.responder = (call) {
+        expect(call.method, 'exportToPublicDownloads');
+        expect(call.arguments, {'source': '/data/sandbox/downloads/a.mp3'});
+        return '下载/com.koyze.app/a.mp3';
+      };
+
+      expect(
+        await fs.exportToPublicDownloads('/data/sandbox/downloads/a.mp3'),
+        '下载/com.koyze.app/a.mp3',
+      );
+    });
+
+    test('原生用空串表示用户取消，这里翻成 null', () async {
+      final harness = _ChannelHarness(channel)..install();
+      addTearDown(harness.remove);
+      const fs = OhosFileSystem(channel: channel);
+
+      harness.responder = (_) => '';
+      expect(
+        await fs.exportToPublicDownloads('/data/sandbox/downloads/a.mp3'),
+        isNull,
+      );
+    });
+
+    test('没注册通道的实现抛「不支持」，不返回假的成功', () async {
+      // 基类和具体实现都要挡：给调用方一个 null 会被当成「用户取消」，
+      // 静默失败比报错更难查。
+      await expectLater(
+        const IoFileSystem().exportToPublicDownloads('/tmp/a.mp3'),
+        throwsA(isA<LocalFileUnsupportedException>()),
+      );
+      await expectLater(
+        const UnsupportedFileSystem().exportToPublicDownloads('/tmp/a.mp3'),
+        throwsA(isA<LocalFileUnsupportedException>()),
+      );
+      await expectLater(
+        AndroidFileSystem(channel: channel)
+            .exportToPublicDownloads('/data/a.mp3'),
+        throwsA(isA<LocalFileUnsupportedException>()),
+      );
+    });
+  });
 }
