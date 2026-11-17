@@ -131,11 +131,43 @@ void main() {
       final dist = makeDist({'a.apk': 'x'});
       addTearDown(() => dist.deleteSync(recursive: true));
 
-      // 大写、下划线、空格都可能拼出奇怪文件名，一律拒绝
-      for (final bad in ['Android', 'and_roid', 'android ios']) {
+      // 大写、下划线、空格都可能拼出奇怪文件名，一律拒绝；
+      // 空串也要拒绝，否则会产出 `SHA256SUMS..txt` 这种没人认得出的分片名
+      for (final bad in ['Android', 'and_roid', 'android ios', '']) {
         final gen = Process.runSync('bash', [script, dist.path, bad]);
         expect(gen.exitCode, isNot(0), reason: '应拒绝平台标识 "$bad"');
       }
+    }, skip: !toolAvailable);
+
+    // 这条是 5.2.0 发版时踩出来的：iOS job 在 macOS 上跑这套测试，
+    // `case "$platform" in *[!a-z-]*)` 在那里**放过了 "Android"**（期望非 0，
+    // 实际 0），于是整个 iOS 构建卡在测试步骤，IPA 没能发出去。
+    //
+    // 原因是 bash 3.2（macOS 自带 /bin/bash）解析括号表达式时把结尾的 `-`
+    // 当成区间起点，`-`(0x2D) 到 `]`(0x5D) 之间整段 ASCII 都成了「合法字符」，
+    // 大写字母正好在里面。开发机上是 bash 4/5，会正确拒绝，所以功能测试在
+    // 本地永远绿——只能再加一条静态检查，把「别用 case 字符区间校验平台名」
+    // 钉在源码上，免得以后又写回去。
+    test('平台标识校验不依赖 case 的字符区间（bash 3.2 会放行大写）', () {
+      final src = File('.github/scripts/write_platform_checksums.sh')
+          .readAsStringSync();
+      final code = src
+          .split('\n')
+          .where((l) => !l.trimLeft().startsWith('#'))
+          .join('\n');
+
+      expect(
+        RegExp(r'case\s+"?\$(platform|2)"?\s+in').hasMatch(code),
+        isFalse,
+        reason: 'bash 3.2 解析 `[!a-z-]` 会把结尾的 - 当成区间起点，'
+            '大写字母也能通过。用 LC_ALL=C + 显式白名单的正则代替。',
+      );
+      expect(
+        code,
+        contains('LC_ALL=C'),
+        reason: '平台名校验要固定在 C locale 下，'
+            '否则 [a-z] 的语义随 runner 的 locale 漂移',
+      );
     }, skip: !toolAvailable);
 
     // 这个脚本要在 ubuntu / macOS / Windows(Git Bash) 三种 runner 上跑。

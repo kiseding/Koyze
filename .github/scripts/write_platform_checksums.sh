@@ -43,10 +43,22 @@ if [ ! -d "$dir" ]; then
   exit 1
 fi
 
-# 平台标识只允许小写字母和连字符，避免拼出奇怪的文件名
-case "$platform" in
-  *[!a-z-]*) echo "invalid platform tag: $platform" >&2; exit 2 ;;
-esac
+# 平台标识只允许小写字母、数字和连字符，避免拼出奇怪的文件名。
+#
+# 这里刻意**不用** `case` 的字符区间（原来写的是 `*[!a-z-]*`）：bash 3.2
+# 解析括号表达式时，会把结尾的 `-` 当成区间起点，于是 `-`(0x2D) 到
+# `]`(0x5D) 之间整段 ASCII 都被算作「合法字符」，大写字母正好落在里面。
+# macOS runner 用的就是 3.2（/bin/bash），这条校验在那里退化成「什么都
+# 接受」——5.2.0 的 iOS 发版就是被它卡住的：`平台标识不合法时拒绝执行`
+# 期望非 0、实际拿到 0。而开发机上的 bash 4/5 会正确拒绝，本地永远复现
+# 不出来。
+#
+# 改成 LC_ALL=C + 显式白名单的正则：既不吃 bash 括号解析的亏，也不受
+# 排序规则影响（C locale 下 `[a-z]` 就是 0x61-0x7A 这 26 个字节）。
+if ! LC_ALL=C grep -Eq '^[a-z0-9]+(-[a-z0-9]+)*$' <<< "$platform"; then
+  echo "invalid platform tag: $platform" >&2
+  exit 2
+fi
 
 # 先写到临时文件，全部成功后再改名成正式的分片。
 #
