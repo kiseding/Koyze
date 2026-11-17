@@ -380,21 +380,29 @@ void main() {
   group('导出到公共下载目录', () {
     const channel = MethodChannel('koyze/export_downloads_test');
 
-    test('只有鸿蒙开放导出：它的下载根换不了，但能按 URI 写一份副本', () {
-      // 这是「选得到」和「用得成」分开建模的地方：鸿蒙的目录 URI 交给
-      // dart:io 会报 13900002，所以 supportsDartIoDirectory 是 false；
-      // 但 fs.copy 支持 URI，导出这条路走得通，两个标志因此不一致。
+    test('鸿蒙、Android、iOS 开放导出：它们的下载根换不了或换不好，但能写副本', () {
+      // 「选得到」和「用得成」是两件独立的事：鸿蒙的目录 URI 交给 dart:io
+      // 会报 13900002，所以 supportsDartIoDirectory 是 false；但 fs.copy
+      // 支持 URI，导出这条路走得通，两个标志因此不一致。
       const ohos = OhosFileSystem(channel: channel);
       expect(ohos.supportsDartIoDirectory, isFalse);
       expect(ohos.supportsPublicDownloadsExport, isTrue);
 
-      // 其它平台不需要它：桌面下载目录本来就在 home 下，Android 能用 SAF
-      // 换下载根，iOS 有分享通道，浏览器有自带下载管理器。
+      // Android / iOS 两个标志都是 true：既能换下载根（SAF 树 /
+      // security-scoped 目录），也能导出副本。用户想要的是「在文件管理器
+      // 里找得到我的歌」，换根和导出都能满足，但换根会失效（SAF 重启丢授权、
+      // 卸载重装清空），导出落在公共目录里更稳，所以两条都给。
+      const apple = AppleFileSystem(channel: channel);
+      expect(apple.supportsDartIoDirectory, isTrue);
+      expect(apple.supportsPublicDownloadsExport, isTrue);
+
+      final android = AndroidFileSystem(channel: channel);
+      expect(android.supportsDartIoDirectory, isTrue);
+      expect(android.supportsPublicDownloadsExport, isTrue);
+
+      // 桌面的下载根本来就直指系统「下载/Koyze」，不需要再复制一份副本；
+      // 浏览器有自带的下载管理器。
       expect(const IoFileSystem().supportsPublicDownloadsExport, isFalse);
-      expect(
-        AndroidFileSystem(channel: channel).supportsPublicDownloadsExport,
-        isFalse,
-      );
       expect(
         const AndroidSafFileSystem(channel: channel).supportsPublicDownloadsExport,
         isFalse,
@@ -402,6 +410,41 @@ void main() {
       expect(
         const UnsupportedFileSystem().supportsPublicDownloadsExport,
         isFalse,
+      );
+    });
+
+    test('Android 导出走同一条通道，错误码按权限语义翻译', () async {
+      final harness = _ChannelHarness(channel)..install();
+      addTearDown(harness.remove);
+      final fs = AndroidFileSystem(channel: channel);
+
+      harness.responder = (call) {
+        expect(call.method, 'exportToPublicDownloads');
+        expect(call.arguments, {'source': '/data/user/0/app/files/a.mp3'});
+        return '/storage/emulated/0/Download/Koyze/a.mp3';
+      };
+      expect(
+        await fs.exportToPublicDownloads('/data/user/0/app/files/a.mp3'),
+        '/storage/emulated/0/Download/Koyze/a.mp3',
+      );
+
+      // MediaStore 在旧系统上要存储权限；被拒时必须是「没权限」而不是
+      // 一个语焉不详的失败，否则设置页只会说「导出失败」。
+      harness.responder = (_) =>
+          throw PlatformException(code: 'access_denied', message: 'no perm');
+      await expectLater(
+        fs.exportToPublicDownloads('/data/user/0/app/files/a.mp3'),
+        throwsA(isA<LocalFileAccessDeniedException>()),
+      );
+
+      // 空间不足之类的失败原样抛出，UI 会把 message 显示出来。
+      harness.responder = (_) => throw PlatformException(
+        code: 'IOException',
+        message: 'No space left on device',
+      );
+      await expectLater(
+        fs.exportToPublicDownloads('/data/user/0/app/files/a.mp3'),
+        throwsA(isA<PlatformException>()),
       );
     });
 
@@ -445,9 +488,18 @@ void main() {
         const UnsupportedFileSystem().exportToPublicDownloads('/tmp/a.mp3'),
         throwsA(isA<LocalFileUnsupportedException>()),
       );
-      await expectLater(
-        AndroidFileSystem(channel: channel)
-            .exportToPublicDownloads('/data/a.mp3'),
+    });
+
+    test('Android / iOS 关掉能力标志时仍然拒，不会悄悄调通道', () {
+      // 这两个平台现在是开的，所以上面的用例改成验证能力标志本身。
+      // 这条专门盯住「标志关了但代码还调通道」这种半改状态：
+      // 子类没覆写 exportToPublicDownloads 时基类必须直接报不支持。
+      const raw = AndroidSafFileSystem(
+        channel: MethodChannel('koyze/local_file_system_test'),
+      );
+      expect(raw.supportsPublicDownloadsExport, isFalse);
+      expect(
+        () => raw.exportToPublicDownloads('/tmp/a.mp3'),
         throwsA(isA<LocalFileUnsupportedException>()),
       );
     });

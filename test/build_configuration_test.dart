@@ -850,6 +850,121 @@ void main() {
     );
   });
 
+  test('iOS 导出走文档选择器 + 书签，不打开 UIFileSharingEnabled', () {
+    // iOS 没有公共「下载」文件夹，唯一出口是让用户在「文件」App 里挑一个
+    // 目录。这里钉住四件事：
+    //
+    // 1. 方法名与 Dart 侧对得上，且参数名是 `source`；
+    // 2. 走 `UIDocumentPickerViewController` 的**文件夹**模式；
+    // 3. 记住用户选的目录（security-scoped bookmark），否则导 N 首歌会
+    //    弹 N 次窗，用户会直接放弃；
+    // 4. **不**打开 `UIFileSharingEnabled` / `LSSupportsOpeningDocumentsInPlace`
+    //    ——那两个键会把整个 Documents 摊在「文件」App 里，而
+    //    `playlists.v1.json` 和 `local_artwork/` 就在那，用户删一个文件
+    //    就是全部歌单丢失。
+    final delegate = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+
+    expect(delegate, contains('case "exportToPublicDownloads"'));
+    expect(
+      delegate,
+      contains('UIDocumentPickerViewController'),
+      reason: 'iOS 只能由用户挑目录，不能自己拼公共路径',
+    );
+    expect(delegate, contains('forOpeningContentTypes: [.folder]'));
+    expect(
+      delegate,
+      contains('bookmarkData'),
+      reason: '选一次就要记住，否则每首歌弹一次窗',
+    );
+    expect(delegate, contains('documentPickerWasCancelled'));
+    expect(
+      delegate,
+      contains('startAccessingSecurityScopedResource'),
+      reason: '用户选的目录必须 startAccessing 才写得进去',
+    );
+
+    final plist = File('ios/Runner/Info.plist').readAsStringSync();
+    expect(
+      plist,
+      isNot(contains('UIFileSharingEnabled')),
+      reason: '打开它会把 playlists.v1.json 暴露给用户在「文件」App 里误删',
+    );
+    expect(
+      plist,
+      isNot(contains('LSSupportsOpeningDocumentsInPlace')),
+      reason: '同上：Documents 目录不该整体摊开',
+    );
+  });
+
+  test('Android 导出走 MediaStore，而不是靠 MANAGE_EXTERNAL_STORAGE', () {
+    // Android 10+ 的 MediaStore 免权限写「下载」；MANAGE_EXTERNAL_STORAGE
+    // 只在扫描本地音乐时兜底，普通用户不会主动去授权，拿它当导出的前提
+    // 等于导出功能默认不可用。
+    final exporter = File(
+      'android/app/src/main/kotlin/com/koyze/app/DownloadsExporter.kt',
+    );
+    expect(exporter.existsSync(), isTrue);
+    final source = exporter.readAsStringSync();
+
+    expect(source, contains('MediaStore.Downloads'));
+    expect(source, contains('RELATIVE_PATH'));
+    expect(source, contains('IS_PENDING'));
+    expect(
+      source,
+      contains('Build.VERSION_CODES.Q'),
+      reason: 'API 28 及以下没有 MediaStore.Downloads，必须有分支',
+    );
+    // 目录名必须和桌面端一致，否则「统一到 下载/Koyze」这句话就不成立。
+    expect(source, contains('FOLDER_NAME = "Koyze"'));
+    // 覆盖式：重复导出同一首歌不该堆出「xxx (1).m4a」。
+    expect(source, contains('deleteExisting'));
+    // 导出不能以 MANAGE_EXTERNAL_STORAGE 为前提（注释里解释这件事不算，
+    // 这里只看有没有真的去读权限状态：`Environment.isExternalStorageManager`
+    // 才是拿到那个权限的判据）。
+    expect(
+      source,
+      isNot(contains('isExternalStorageManager')),
+      reason: '导出要在普通授权下就能用，不能依赖「所有文件访问」权限',
+    );
+
+    final activity = File(
+      'android/app/src/main/kotlin/com/koyze/app/MainActivity.kt',
+    ).readAsStringSync();
+    expect(activity, contains('"exportToPublicDownloads"'));
+    expect(activity, contains('DownloadsExporter'));
+  });
+
+  test('桌面默认下载目录是系统「下载/Koyze」，并兼容旧目录', () {
+    // 以前默认落在 getApplicationDocumentsDirectory()/downloads，Windows 上
+    // 就是「文档\downloads」——用户下完歌去「下载」文件夹找不到东西。
+    final service = File(
+      'lib/features/download/domain/download_service.dart',
+    ).readAsStringSync();
+
+    expect(service, contains('getDownloadsDirectory()'));
+    expect(service, contains("publicDownloadsFolderName = 'Koyze'"));
+    // 换掉默认落点后，老用户下载记录里的旧路径必须仍被认作归属根，
+    // 否则升级重启时会被当成越权路径整个隔离掉（下载列表凭空清空）。
+    expect(
+      service,
+      contains('_adoptLegacyDefaultDirectory'),
+      reason: '不登记旧默认目录的话，升级后老用户的下载记录会被隔离',
+    );
+
+    // macOS 沙盒写 ~/Downloads 必须有这个 entitlement，缺了就是创建目录
+    // 直接失败、整个下载功能不可用。
+    for (final entitlements in [
+      'macos/Runner/DebugProfile.entitlements',
+      'macos/Runner/Release.entitlements',
+    ]) {
+      expect(
+        File(entitlements).readAsStringSync(),
+        contains('com.apple.security.files.downloads.read-write'),
+        reason: '$entitlements 缺 Downloads 写权限，macOS 上会下载全失败',
+      );
+    }
+  });
+
   test('runner CMake source lists reference files that exist', () {
     // 原生构建要等 Flutter 打包完成后才进 CMake。清单里写错文件名（例如把
     // .cc 写成 .cpp）时，CI 要跑十几分钟才失败，而且报错落在 CMake 的

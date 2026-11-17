@@ -87,12 +87,12 @@ void main() {
     // 所以必须传原始 finder（`.first` 在空集合上直接抛 Bad state）；
     // scrollable 也要显式指定，否则撞上嵌套滚动视图取不到唯一元素。
     await tester.scrollUntilVisible(
-      find.text('下载目录'),
+      find.text('下载位置'),
       240,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('下载目录').first);
+    await tester.tap(find.text('下载位置').first);
     await tester.pumpAndSettle();
 
     expect(find.byType(KoyzeDialog), findsOneWidget);
