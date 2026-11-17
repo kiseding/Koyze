@@ -256,7 +256,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get downloadLocationBody =>
-      '鸿蒙不允许应用直接写公共文件夹，所以歌默认存在应用自己的目录里，文件管理器看不到。导出会在系统的「下载」文件夹里放一份副本，原文件不动。';
+      '受系统限制，下载的歌先存在应用自己的目录里，文件管理器看不到。导出会在系统的「下载」文件夹里放一份副本，原文件不动。';
+
+  @override
+  String get downloadLocationBodyAndroid =>
+      'Android 不允许应用随意写公共文件夹，所以歌先存在应用自己的目录里。导出会在「下载/Koyze」放一份副本，原文件不动，卸载应用也不会删掉。';
+
+  @override
+  String get downloadLocationBodyIos =>
+      'iOS 的应用之间互相隔离，歌先存在应用自己的目录里。导出时你可以在「文件」App 里挑一个文件夹存放副本，之后会沿用这次的选择。';
+
+  @override
+  String downloadLocationExportCount(int count) {
+    return '$count 首可导出';
+  }
 
   @override
   String get downloadLocationExport => '导出已下载的歌';

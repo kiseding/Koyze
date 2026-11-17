@@ -587,8 +587,26 @@ abstract class AppLocalizations {
   /// No description provided for @downloadLocationBody.
   ///
   /// In en, this message translates to:
-  /// **'HarmonyOS doesn\'t let apps write to public folders directly, so songs live in the app\'s own folder and file managers can\'t see them. Exporting puts a copy in the system Downloads folder; the originals stay put.'**
+  /// **'The system keeps apps out of public folders, so songs live in the app\'s own folder and file managers can\'t see them. Exporting puts a copy in the system Downloads folder; the originals stay put.'**
   String get downloadLocationBody;
+
+  /// No description provided for @downloadLocationBodyAndroid.
+  ///
+  /// In en, this message translates to:
+  /// **'Android doesn\'t let apps write freely to public folders, so songs live in the app\'s own folder. Exporting puts a copy in Downloads/Koyze; the originals stay put, and the copies survive uninstalling the app.'**
+  String get downloadLocationBodyAndroid;
+
+  /// No description provided for @downloadLocationBodyIos.
+  ///
+  /// In en, this message translates to:
+  /// **'iOS keeps apps isolated, so songs live in the app\'s own folder. When exporting you pick a folder in the Files app for the copies, and that choice is remembered.'**
+  String get downloadLocationBodyIos;
+
+  /// No description provided for @downloadLocationExportCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} ready to export'**
+  String downloadLocationExportCount(int count);
 
   /// No description provided for @downloadLocationExport.
   ///

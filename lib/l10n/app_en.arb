@@ -81,7 +81,17 @@
   "downloadLocation": "Download location",
   "downloadLocationSubtitle": "Export downloaded songs to the system Downloads folder",
   "downloadLocationPrivate": "App private folder",
-  "downloadLocationBody": "HarmonyOS doesn't let apps write to public folders directly, so songs live in the app's own folder and file managers can't see them. Exporting puts a copy in the system Downloads folder; the originals stay put.",
+  "downloadLocationBody": "The system keeps apps out of public folders, so songs live in the app's own folder and file managers can't see them. Exporting puts a copy in the system Downloads folder; the originals stay put.",
+  "downloadLocationBodyAndroid": "Android doesn't let apps write freely to public folders, so songs live in the app's own folder. Exporting puts a copy in Downloads/Koyze; the originals stay put, and the copies survive uninstalling the app.",
+  "downloadLocationBodyIos": "iOS keeps apps isolated, so songs live in the app's own folder. When exporting you pick a folder in the Files app for the copies, and that choice is remembered.",
+  "downloadLocationExportCount": "{count} ready to export",
+  "@downloadLocationExportCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "downloadLocationExport": "Export downloaded songs",
   "downloadLocationExporting": "Exporting…",
   "downloadLocationEmpty": "No finished downloads yet",

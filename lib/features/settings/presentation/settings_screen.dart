@@ -32,6 +32,7 @@ import '../../download/domain/download_service.dart';
 import '../../download/domain/download_task.dart';
 import '../../download/presentation/download_provider.dart';
 import '../../local_music/presentation/local_file_manager_provider.dart';
+import '../../local_music/domain/local_file_system.dart';
 import '../domain/playlist_backup.dart';
 import 'app_log_screen.dart';
 import '../../../core/widgets/fx_switch.dart';
@@ -772,62 +773,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => context.push('/download'),
             captureExpandOrigin: true,
           ),
-          // 鸿蒙上「下载目录」没法做：它的目录选择器交回 `file://docs/...`
-          // URI，而下载落盘走 `File(...).open()`（dart:io），两者对不上
-          // ——选了也用不了（见 LocalFileSystem.supportsDartIoDirectory）。
+          // 「下载位置」在四个平台上只有一行、一个弹窗、一套文案。
           //
-          // 改成一个能做到的事：把已下载的歌「导出」到系统下载目录。
-          // 这条路只要求按 URI 写一次，`fs.copy` 支持，不需要 dart:io。
-          if (ref.read(localFileSystemProvider).supportsDartIoDirectory)
-            SettingsEntry(
-              title: s.downloadDirectory,
-              // 降级生效时副标题要说清「你现在实际用的是默认目录」，否则用户
-              // 看到自己选的路径还在设置里、下载却跑到别处，只会觉得设置坏了。
-              subtitle: switch (ref
-                  .watch(downloadDirectoryInfoProvider)
-                  .valueOrNull) {
-                final info? when info.isFallbackActive =>
-                  '${info.current} · ${s.downloadDirectoryFallbackActive}',
-                final info? => info.current,
-                null => s.downloadDirectoryDefaultLocation,
-              },
-              keywords: const [
-                '下载',
-                'download',
-                '目录',
-                '文件夹',
-                'folder',
-                'directory',
-                '路径',
-                'path',
-                '保存位置',
-                '存储',
-                'storage',
-              ],
-              onTap: () => _showDownloadDirectoryDialog(context),
-            )
-          else if (ref
-              .read(localFileSystemProvider)
-              .supportsPublicDownloadsExport)
-            SettingsEntry(
-              title: s.downloadLocation,
-              subtitle: s.downloadLocationSubtitle,
-              keywords: const [
-                '下载',
-                'download',
-                '导出',
-                'export',
-                '保存',
-                'save',
-                '文件夹',
-                'folder',
-                '位置',
-                'location',
-                '存储',
-                'storage',
-              ],
-              onTap: () => _showDownloadLocationDialog(context),
-            ),
+          // 但底层手段确实不一样，而且没法统一：桌面能把文件直接写进系统
+          // 「下载/Koyze」，移动端写不进去（iOS 沙盒、鸿蒙手机、Android 的
+          // 分区存储各有一道墙），只能先落私有目录再导出副本。所以弹窗里
+          // 按能力渲染：有 [supportsDartIoDirectory] 给「更改文件夹」，
+          // 有 [supportsPublicDownloadsExport] 给「导出已下载的歌」，
+          // Android / iOS 两个都有。
+          SettingsEntry(
+            title: s.downloadLocation,
+            // 降级生效时副标题要说清「你现在实际用的是默认目录」，否则用户
+            // 看到自己选的路径还在设置里、下载却跑到别处，只会觉得设置坏了。
+            subtitle: _downloadLocationSubtitle(context, ref, s),
+            keywords: const [
+              '下载',
+              'download',
+              '目录',
+              '文件夹',
+              'folder',
+              'directory',
+              '路径',
+              'path',
+              '保存位置',
+              '存储',
+              'storage',
+              '导出',
+              'export',
+            ],
+            onTap: () => _showDownloadLocationDialog(context),
+          ),
           SettingsEntry(
             title: s.wifiOnly,
             subtitle: s.wifiOnlySubtitle,
@@ -1118,28 +1093,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _showQualityDialog(context, ref, S.of(context).chooseDownloadQuality, true);
   }
 
-  /// 下载目录：中心弹窗（不是底部抽屉）。
+  /// 下载位置：四个平台共用的中心弹窗。
   ///
-  /// 它在别处换的是「之后所有下载落到哪里」，比音质这类单选项更重，所以用
-  /// 中心弹窗把当前目录、默认目录和影响范围一次讲清，而不是塞进列表。
-  void _showDownloadDirectoryDialog(BuildContext context) {
-    showKoyzeDialog<void>(
-      context: context,
-      builder: (_) => const _DownloadDirectoryDialog(),
-    );
-  }
-
-  /// 下载位置（鸿蒙）：把已下载的歌导出到系统「下载」文件夹。
-  ///
-  /// 和 [SettingsScreen] 的下载目录是两条不同的路：那边换的是「之后往哪写」，
-  /// 这边是「把已经写好的复制出去一份」。鸿蒙的手机端没有公共目录的写权限
-  /// （`READ_WRITE_DOWNLOAD_DIRECTORY` 只给 2in1 / 平板），只能走
-  /// `DocumentPickerMode.DOWNLOAD` 拿一次持久授权，然后按 URI 复制。
+  /// 弹窗内部按能力渲染。桌面能直接把文件写进系统「下载/Koyze」，所以只有
+  /// 「更改文件夹」；移动端写不进去，只能落私有目录再导出副本，所以有
+  /// 「导出已下载的歌」；Android / iOS 两条都有。
   void _showDownloadLocationDialog(BuildContext context) {
     showKoyzeDialog<void>(
       context: context,
       builder: (_) => const _DownloadLocationDialog(),
     );
+  }
+
+  /// 设置项副标题。
+  ///
+  /// 桌面显示真实落地路径——用户就是靠这行确认「歌到底存哪了」。移动端
+  /// 显示的是「能否导出」，因为那边路径本身没有参考价值（沙盒路径没法在
+  /// 文件管理器里打开），有意义的信息是「我能不能找到我的歌」。
+  String _downloadLocationSubtitle(BuildContext context, WidgetRef ref, S s) {
+    final fs = ref.read(localFileSystemProvider);
+    final info = ref.watch(downloadDirectoryInfoProvider).valueOrNull;
+    if (fs.supportsDartIoDirectory) {
+      return switch (info) {
+        final info? when info.isFallbackActive =>
+          '${info.current} · ${s.downloadDirectoryFallbackActive}',
+        final info? => info.current,
+        null => s.downloadDirectoryDefaultLocation,
+      };
+    }
+    return fs.supportsPublicDownloadsExport
+        ? s.downloadLocationSubtitle
+        : s.downloadDirectoryDefaultLocation;
   }
 
   void _showQualityDialog(
@@ -1809,27 +1793,54 @@ class _DeviceIdRow extends StatelessWidget {
   }
 }
 
-/// 下载目录的中心弹窗。
+/// 下载位置的中心弹窗，四个平台共用。
+///
+/// 一处入口、一套文案，但按钮按平台能力出现：
+///
+/// - **桌面**（Windows / macOS / Linux）：下载直接落在系统「下载/Koyze」，
+///   所以只有「选择文件夹」和「恢复默认」。这跟改其他应用的下载目录是同一
+///   件事，不需要「导出」这个概念。
+/// - **Android / iOS**：两个能力都有。既能换下载根（Android 的 SAF 树、
+///   iOS 的 security-scoped 目录），也能把已下载的歌导出到公共「下载」。
+/// - **鸿蒙**：手机端写不进公共目录，只能导出。见 `OhosFileSystem`。
 ///
 /// 「选择文件夹」和「恢复默认」都是立即生效并关闭：这两个动作本身就够明确，
 /// 再加一层「保存」只会让「选完目录要不要再点一下」变成新的不确定。选择失败
 /// 时不关闭，把原因写在目录框下方——关掉再弹一条通知的话，用户还得重新打开
 /// 才能再选一次。
-class _DownloadDirectoryDialog extends ConsumerStatefulWidget {
-  const _DownloadDirectoryDialog();
+class _DownloadLocationDialog extends ConsumerStatefulWidget {
+  const _DownloadLocationDialog();
 
   @override
-  ConsumerState<_DownloadDirectoryDialog> createState() =>
-      _DownloadDirectoryDialogState();
+  ConsumerState<_DownloadLocationDialog> createState() =>
+      _DownloadLocationDialogState();
 }
 
-class _DownloadDirectoryDialogState
-    extends ConsumerState<_DownloadDirectoryDialog> {
+class _DownloadLocationDialogState
+    extends ConsumerState<_DownloadLocationDialog> {
+  /// 切换目录进行中（建目录 + 写探针 + 持久化）。
   bool _applying = false;
+
+  /// 目录选择器开着。
   bool _picking = false;
+
+  /// 导出进行中。
+  bool _exporting = false;
+
   String? _error;
 
-  bool get _busy => _applying || _picking;
+  bool get _busy => _applying || _picking || _exporting;
+
+  LocalFileSystem get _fs => ref.read(localFileSystemProvider);
+
+  /// 已下载完成、且有落盘路径的任务。
+  List<DownloadTask> get _exportable => ref
+      .read(downloadServiceProvider)
+      .tasks
+      .where((task) =>
+          task.status == DownloadStatus.completed &&
+          (task.savePath?.isNotEmpty ?? false))
+      .toList(growable: false);
 
   Future<void> _apply(String? path, {required bool restoreDefault}) async {
     if (_busy) return;
@@ -1878,9 +1889,8 @@ class _DownloadDirectoryDialogState
     try {
       // 各平台的选择器不一样：iOS / 鸿蒙要走原生通道（file_picker 在那边
       // 给不出能写进去的目录），其余平台用系统目录选择器。
-      final fs = ref.read(localFileSystemProvider);
-      path = fs.needsNativeDirectoryPicker
-          ? await fs.pickDirectory()
+      path = _fs.needsNativeDirectoryPicker
+          ? await _fs.pickDirectory()
           : await FilePicker.getDirectoryPath(
               dialogTitle: s.downloadDirectoryPickerTitle,
             );
@@ -1899,32 +1909,90 @@ class _DownloadDirectoryDialogState
     await _apply(path, restoreDefault: false);
   }
 
+  Future<void> _export() async {
+    if (_busy) return;
+    final s = S.of(context);
+    final tasks = _exportable;
+    if (tasks.isEmpty) {
+      setState(() => _error = s.downloadLocationEmpty);
+      return;
+    }
+    setState(() {
+      _exporting = true;
+      _error = null;
+    });
+    var done = 0;
+    var failed = 0;
+    var cancelled = false;
+    for (final task in tasks) {
+      if (!mounted) return;
+      try {
+        final landed = await _fs.exportToPublicDownloads(task.savePath!);
+        // null = 用户在系统对话框里点了取消。这时候继续问下一首只会更烦，
+        // 直接停下来，已经导出去的照常算数。
+        if (landed == null) {
+          cancelled = true;
+          break;
+        }
+        done++;
+      } catch (error) {
+        failed++;
+        AppLog.instance.record(
+          'download.export',
+          'export ${task.name} failed: $error',
+          level: AppLogLevel.warning,
+        );
+      }
+    }
+    if (!mounted) return;
+    setState(() => _exporting = false);
+    if (cancelled && done == 0) {
+      setState(() => _error = s.downloadLocationCancelled);
+      return;
+    }
+    if (failed > 0) {
+      setState(() => _error = s.downloadLocationPartial(done, failed));
+      return;
+    }
+    Navigator.pop(context);
+    showAppNotification(
+      s.downloadLocationExported(done),
+      type: AppNotificationType.success,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
+    final canSwitchDirectory = _fs.supportsDartIoDirectory;
+    final canExport = _fs.supportsPublicDownloadsExport;
     final info = ref.watch(downloadDirectoryInfoProvider).valueOrNull;
     final custom = info?.custom;
+    final current = info?.current ??
+        ref.watch(downloadServiceProvider).downloadDirectory;
 
     return KoyzeDialog(
       backgroundColor: AppColors.dialogBg(context),
-      icon: const Icon(Icons.folder_outlined),
+      icon: Icon(
+        canSwitchDirectory ? Icons.folder_outlined : Icons.download_outlined,
+      ),
       title: Text(
-        s.downloadDirectory,
+        s.downloadLocation,
         style: TextStyle(color: AppColors.onScaffold(context)),
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(s.downloadDirectorySubtitle),
-          const SizedBox(height: 14),
           _DownloadPathBox(
-            label: s.downloadDirectoryCurrent,
-            path: info?.current,
+            label: canSwitchDirectory
+                ? s.downloadDirectoryCurrent
+                : s.downloadLocationPrivate,
+            path: current,
           ),
           // 自定义目录时才列默认位置：两个路径一模一样还再写一遍，只会让人
           // 以为「恢复默认」会换到别的地方去。
-          if (info != null && !info.isDefault) ...[
+          if (canSwitchDirectory && info != null && !info.isDefault) ...[
             const SizedBox(height: 10),
             _DownloadPathBox(
               label: s.downloadDirectoryDefaultLocation,
@@ -1951,8 +2019,27 @@ class _DownloadDirectoryDialogState
           ],
           _DownloadDirectoryHint(
             icon: Icons.info_outline,
-            text: s.downloadDirectoryNote,
+            text: canSwitchDirectory
+                ? s.downloadDirectoryNote
+                : _exportExplanation(s),
           ),
+          if (canExport) ...[
+            // 能换目录的平台（Android / iOS）还要额外说清「导出」是什么：
+            // 上面那句讲的是「改了目录之后新下载去哪」，跟导出无关。
+            if (canSwitchDirectory) ...[
+              const SizedBox(height: 10),
+              _DownloadDirectoryHint(
+                icon: Icons.save_alt_rounded,
+                text: _exportExplanation(s),
+              ),
+            ],
+            const SizedBox(height: 12),
+            _DownloadExportRow(
+              count: _exportable.length,
+              busy: _exporting,
+              onTap: _busy ? null : _export,
+            ),
+          ],
           if (_error != null) ...[
             const SizedBox(height: 10),
             _DownloadDirectoryHint(
@@ -1964,19 +2051,21 @@ class _DownloadDirectoryDialogState
         ],
       ),
       actions: [
-        TextButton(
-          onPressed: custom == null || _busy
-              ? null
-              : () => _apply(null, restoreDefault: true),
-          child: Text(
-            s.resetToDefault,
-            style: TextStyle(
-              color: custom == null || _busy
-                  ? AppColors.mutedText(context).withValues(alpha: 0.55)
-                  : AppColors.accentOf(context),
+        // 「恢复默认」只在能换目录、且当前确实是自定义目录时才有意义。
+        if (canSwitchDirectory)
+          TextButton(
+            onPressed: custom == null || _busy
+                ? null
+                : () => _apply(null, restoreDefault: true),
+            child: Text(
+              s.resetToDefault,
+              style: TextStyle(
+                color: custom == null || _busy
+                    ? AppColors.mutedText(context).withValues(alpha: 0.55)
+                    : AppColors.accentOf(context),
+              ),
             ),
           ),
-        ),
         TextButton(
           onPressed: _busy ? null : () => Navigator.pop(context),
           child: Text(
@@ -1984,166 +2073,137 @@ class _DownloadDirectoryDialogState
             style: TextStyle(color: AppColors.mutedText(context)),
           ),
         ),
-        FilledButton(
-          onPressed: _busy ? null : _pick,
-          child: _busy
-              ? const SizedBox(
-                  width: 15,
-                  height: 15,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(s.downloadDirectoryChoose),
-        ),
+        if (canSwitchDirectory)
+          FilledButton(
+            onPressed: _busy ? null : _pick,
+            child: _picking
+                ? const SizedBox(
+                    width: 15,
+                    height: 15,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(s.downloadDirectoryChoose),
+          )
+        else if (canExport)
+          FilledButton(
+            onPressed: _busy ? null : _export,
+            child: _exporting
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 15,
+                        height: 15,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(s.downloadLocationExporting),
+                    ],
+                  )
+                : Text(s.downloadLocationExport),
+          ),
       ],
     );
   }
-}
 
-/// 下载位置（鸿蒙）：把已下载的歌复制一份到系统「下载」文件夹。
-///
-/// 这个弹窗存在的理由很具体：鸿蒙手机上第三方应用**没有**公共目录的写权限
-/// （`READ_WRITE_DOWNLOAD_DIRECTORY` 只支持 PC / 2in1 / 平板），所以下载只能
-/// 落在应用私有目录里，用户在「文件管理」里看不到。系统给的官方通道是
-/// `DocumentPickerMode.DOWNLOAD`：一次授权，之后往 `Download/<包名>/` 按 URI
-/// 复制，免权限、跨启动有效。
-///
-/// 导出的是副本，源文件不动——播放、缓存统计、删除都还指着原路径。
-class _DownloadLocationDialog extends ConsumerStatefulWidget {
-  const _DownloadLocationDialog();
-
-  @override
-  ConsumerState<_DownloadLocationDialog> createState() =>
-      _DownloadLocationDialogState();
-}
-
-class _DownloadLocationDialogState
-    extends ConsumerState<_DownloadLocationDialog> {
-  bool _busy = false;
-  String? _error;
-
-  /// 已下载完成、且有落盘路径的任务。
-  List<DownloadTask> get _exportable => ref
-      .read(downloadServiceProvider)
-      .tasks
-      .where((task) =>
-          task.status == DownloadStatus.completed &&
-          (task.savePath?.isNotEmpty ?? false))
-      .toList(growable: false);
-
-  Future<void> _export() async {
-    if (_busy) return;
-    final s = S.of(context);
-    final tasks = _exportable;
-    if (tasks.isEmpty) {
-      setState(() => _error = s.downloadLocationEmpty);
-      return;
-    }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final fs = ref.read(localFileSystemProvider);
-    var done = 0;
-    var failed = 0;
-    var cancelled = false;
-    for (final task in tasks) {
-      if (!mounted) return;
-      try {
-        final landed = await fs.exportToPublicDownloads(task.savePath!);
-        // null = 用户在系统对话框里点了取消。这时候继续问下一首只会更烦，
-        // 直接停下来，已经导出去的照常算数。
-        if (landed == null) {
-          cancelled = true;
-          break;
-        }
-        done++;
-      } catch (error) {
-        failed++;
-        AppLog.instance.record(
-          'download.export',
-          'export ${task.name} failed: $error',
-          level: AppLogLevel.warning,
-        );
-      }
-    }
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (cancelled && done == 0) {
-      setState(() => _error = s.downloadLocationCancelled);
-      return;
-    }
-    if (failed > 0) {
-      setState(() => _error = s.downloadLocationPartial(done, failed));
-      return;
-    }
-    Navigator.pop(context);
-    showAppNotification(
-      s.downloadLocationExported(done),
-      type: AppNotificationType.success,
-    );
+  /// 移动端为什么要先落私有目录。各平台的墙不一样，说对了才有用。
+  String _exportExplanation(S s) {
+    if (Platform.isAndroid) return s.downloadLocationBodyAndroid;
+    if (Platform.isIOS) return s.downloadLocationBodyIos;
+    return s.downloadLocationBody;
   }
+}
+
+/// 弹窗里的一行「导出已下载的歌」：左边一句话，右边数量和箭头。
+///
+/// 做成行而不是底部按钮：Android / iOS 的弹窗底部已经有「选择文件夹」这个
+/// 主动作，两个同等重要的按钮并排会让用户不知道点哪个。导出作为一次性的
+/// 附加操作，放在内容区更合适。
+class _DownloadExportRow extends StatelessWidget {
+  const _DownloadExportRow({
+    required this.count,
+    required this.busy,
+    required this.onTap,
+  });
+
+  final int count;
+  final bool busy;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
-    return KoyzeDialog(
-      backgroundColor: AppColors.dialogBg(context),
-      icon: const Icon(Icons.download_outlined),
-      title: Text(
-        s.downloadLocation,
-        style: TextStyle(color: AppColors.onScaffold(context)),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _DownloadPathBox(
-            label: s.downloadLocationPrivate,
-            path: ref
-                .watch(downloadServiceProvider)
-                .downloadDirectory,
-          ),
-          const SizedBox(height: 12),
-          _DownloadDirectoryHint(
-            icon: Icons.info_outline,
-            text: s.downloadLocationBody,
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            _DownloadDirectoryHint(
-              icon: Icons.error_outline,
-              text: _error!,
-              error: true,
+    final enabled = onTap != null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
+          decoration: BoxDecoration(
+            color: AppColors.isDark(context)
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.black.withValues(alpha: 0.028),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppColors.cardBorder(context),
+              width: 0.7,
             ),
-          ],
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.pop(context),
-          child: Text(
-            s.cancel,
-            style: TextStyle(color: AppColors.mutedText(context)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.save_alt_rounded,
+                size: 17,
+                color: enabled
+                    ? AppColors.accentOf(context)
+                    : AppColors.mutedText(context).withValues(alpha: 0.55),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s.downloadLocationExport,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: enabled
+                            ? AppColors.onScaffold(context)
+                            : AppColors.mutedText(context)
+                                .withValues(alpha: 0.55),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      count == 0
+                          ? s.downloadLocationEmpty
+                          : s.downloadLocationExportCount(count),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.mutedText(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (busy)
+                const SizedBox(
+                  width: 15,
+                  height: 15,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 19,
+                  color: AppColors.mutedText(context),
+                ),
+            ],
           ),
         ),
-        FilledButton(
-          onPressed: _busy ? null : _export,
-          child: _busy
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(
-                      width: 15,
-                      height: 15,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(s.downloadLocationExporting),
-                  ],
-                )
-              : Text(s.downloadLocationExport),
-        ),
-      ],
+      ),
     );
   }
 }

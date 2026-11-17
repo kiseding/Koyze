@@ -269,7 +269,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadLocationBody =>
-      'HarmonyOS doesn\'t let apps write to public folders directly, so songs live in the app\'s own folder and file managers can\'t see them. Exporting puts a copy in the system Downloads folder; the originals stay put.';
+      'The system keeps apps out of public folders, so songs live in the app\'s own folder and file managers can\'t see them. Exporting puts a copy in the system Downloads folder; the originals stay put.';
+
+  @override
+  String get downloadLocationBodyAndroid =>
+      'Android doesn\'t let apps write freely to public folders, so songs live in the app\'s own folder. Exporting puts a copy in Downloads/Koyze; the originals stay put, and the copies survive uninstalling the app.';
+
+  @override
+  String get downloadLocationBodyIos =>
+      'iOS keeps apps isolated, so songs live in the app\'s own folder. When exporting you pick a folder in the Files app for the copies, and that choice is remembered.';
+
+  @override
+  String downloadLocationExportCount(int count) {
+    return '$count ready to export';
+  }
 
   @override
   String get downloadLocationExport => 'Export downloaded songs';

@@ -238,6 +238,10 @@ class S {
   String get downloadLocationSubtitle => _l10n.downloadLocationSubtitle;
   String get downloadLocationPrivate => _l10n.downloadLocationPrivate;
   String get downloadLocationBody => _l10n.downloadLocationBody;
+  String get downloadLocationBodyAndroid => _l10n.downloadLocationBodyAndroid;
+  String get downloadLocationBodyIos => _l10n.downloadLocationBodyIos;
+  String downloadLocationExportCount(int count) =>
+      _l10n.downloadLocationExportCount(count);
   String get downloadLocationExport => _l10n.downloadLocationExport;
   String get downloadLocationExporting => _l10n.downloadLocationExporting;
   String get downloadLocationEmpty => _l10n.downloadLocationEmpty;
