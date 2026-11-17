@@ -2,6 +2,52 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [5.2.4] - 2026-11-18
+
+5.2.2 起鸿蒙能把下载的歌导出到「下载」，但桌面端的下载落在「文档\downloads」里，
+iOS 和 Android 干脆没有出口。这版把四个平台的终点统一成系统「下载/Koyze」。
+
+### 新增 ✨
+
+- **iOS 和 Android 可以把下载的歌导出到「下载/Koyze」。** 设置 →「下载位置」里
+  多了一行「导出已下载的歌」，导的是副本，原文件不动——播放、缓存统计、删除都
+  还指着应用私有目录里那份。
+
+  iOS 没有公共「下载」文件夹，唯一出口是让用户在「文件」App 里挑一个目录。所以
+  第一次点导出会弹一次系统目录选择器，选完记住它（security-scoped bookmark），
+  后面整批导出都写进去，不会一首歌弹一次窗。中途点取消就停下，已经导出去的照常
+  算数。
+
+  Android 10 及以上直接写 `MediaStore.Downloads`（`RELATIVE_PATH` 为
+  `Download/Koyze/`），不需要任何存储权限；Android 9 及以下没有 MediaStore 的
+  下载集合，退回 `getExternalStoragePublicDirectory`。两条路都是覆盖式：重复导出
+  同一首歌只是覆盖，不会堆出「歌名 (1).m4a」。
+
+- **设置里的「下载目录」和「下载位置」合并成一项「下载位置」。** 之前鸿蒙只有
+  「下载位置」、其它平台只有「下载目录」，同一个东西在两个平台叫两个名字。现在
+  只有一个入口：桌面显示当前路径，带「选择文件夹」和「恢复默认」；移动端在上面
+  的基础上多一行导出。
+
+### 修复 🐛
+
+- **桌面的下载落到了「文档」里，去「下载」文件夹找不到文件。** Windows / macOS /
+  Linux 的默认下载目录改成系统「下载/Koyze」。macOS 沙盒要写 `~/Downloads`，补了
+  `com.apple.security.files.downloads.read-write` entitlement，缺了它建目录会直接
+  失败、整个下载功能不可用。
+
+  便携模式（Windows 的 `portable.flag`）不受影响，仍然落在程序目录下的
+  `portable_data/downloads`。Linux 上如果 `xdg-user-dirs` 没配、拿不到「下载」
+  目录，退回原来的文档目录。
+
+### 说明 📌
+
+- 换默认落点会让老用户的下载记录指向一个不再是默认位置的旧路径。启动时会把这个
+  旧目录登记进可写根，历史记录不会被当成越权路径隔离掉，也不需要重新下载。
+- iOS 侧仍然**不**打开 `UIFileSharingEnabled` / `LSSupportsOpeningDocumentsInPlace`。
+  那两个键会把整个 Documents 目录摊在「文件」App 里，而 `playlists.v1.json` 和
+  `local_artwork/` 就在那，用户删一个文件就是全部歌单丢失。导出走文档选择器，
+  权限只到用户亲手挑的那个目录。
+
 ## [5.2.3] - 2026-11-17
 
 5.2.2 的鸿蒙导出在模拟器上实际试了一次，导出直接失败。这版修掉。
