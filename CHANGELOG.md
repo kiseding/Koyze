@@ -2,6 +2,37 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [5.2.3] - 2026-11-17
+
+5.2.2 的鸿蒙导出在模拟器上实际试了一次，导出直接失败。这版修掉。
+
+### 修复 🐛
+
+- **鸿蒙导出到「下载」文件夹失败。** 弹窗里的导出按钮点了之后报「导出失败」，
+  日志是：
+  `copy=401 The input parameter is invalid` 与
+  `open+fd=0 No such file or directory`。
+
+  根因是把 picker 返回的 `file://docs/...` URI 直接当路径用了。那个 URI 只是
+  「系统给这个目录发了授权」的凭据，`uri + '/歌名.m4a'` 这个子路径在文件系统
+  里并不存在，所以 `fs.open(..., CREATE)` 报 ENOENT、`fs.copy` 报 401（参数
+  非法）。官方示例的写法是先映射成真实路径再操作：
+
+  ```ts
+  const p = new fileUri.FileUri(uri + '/test.txt').path;
+  fs.openSync(p, fs.OpenMode.CREATE | fs.OpenMode.READ_WRITE);
+  ```
+
+  现在按「FileUri 转路径 → open+fd 拷贝 → 按路径 copy → 按 URI 兜底」的顺序
+  依次尝试。另外补了转义处理：`FileUri` 对中文名的处置各版本不一致，可能
+  保留也可能转成 `%E4%BD%A0`，转义后的路径会建出名字里带百分号的文件，所以
+  两种写法都试。
+
+### 说明 📌
+
+- 5.2.2 的导出按钮在中文歌名下必然失败、英文名也可能失败，升级到 5.2.3 后
+  重新点一次即可，不需要卸载重装。
+
 ## [5.2.2] - 2026-11-17
 
 5.2.1 里鸿蒙的「下载目录」整行藏掉了，这等于承认「做不到」却没给替代方案。

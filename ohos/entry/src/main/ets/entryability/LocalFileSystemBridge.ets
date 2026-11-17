@@ -5,7 +5,7 @@
 
 import MethodCall from '@ohos/flutter_ohos/src/main/ets/plugin/common/MethodCall';
 import { MethodCallHandler, MethodResult } from '@ohos/flutter_ohos/src/main/ets/plugin/common/MethodChannel';
-import { fileIo as fs, picker } from '@kit.CoreFileKit';
+import { fileIo as fs, picker, fileUri } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -458,34 +458,65 @@ export default class LocalFileSystemBridge implements MethodCallHandler {
     return uri;
   }
 
-  /// 按 URI 写一个文件，覆盖式。
+  /// 把沙箱里的一份文件写到 picker 给的目录下，同名覆盖。
   ///
-  /// 只保留两条路，不像 [writeIntoUriDirectory] 那样试「copy 进目录」——
-  /// 那条会由系统自己拼文件名，遇到同名文件的行为不确定（可能生成
-  /// 副本），而这里明确要求覆盖。
+  /// 关键点：**不能直接把 `file://docs/...` URI 递给 fs 当路径用**。
+  /// URI 只是「系统给这个目录发了授权」的凭据，不代表 `uri + '/名字'`
+  /// 这个子路径已经存在。实测（模拟器 API 26）：
+  /// - `fs.open(uri + '/名字', CREATE | READ_WRITE)` → ENOENT（No such file）
+  /// - `fs.copy(源, uri + '/名字')` → 401（input parameter is invalid）
+  ///
+  /// 官方示例的做法是先转成路径再操作：
+  ///   `const p = new fileUri.FileUri(uri + '/test.txt').path;`
+  ///   `fs.openSync(p, CREATE | READ_WRITE)`
+  /// 也就是 FileUri 负责把 docs URI 映射回 `/storage/Users/...` 这样的
+  /// 真实路径，授权仍然有效。按这个顺序试，最后才退回按 URI 直写
+  /// （个别版本对 URI 的支持更好，留着兜底不亏）。
   private async copyToUri(sourcePath: string, targetUri: string): Promise<void> {
     const failures: Array<string> = [];
     let lastCode: number = 0;
+    // 候选路径：FileUri 可能把中文名百分号转义，也可能原样保留，两种都要试。
+    // 少试一种就会出现「英文名能导出、中文名导出失败」这种半好用的状态。
+    const paths: Array<string> = pathForms(targetUri);
+
+    // 1) 转成路径后 open（不存在就建）+ 按 fd 拷。官方示例走的就是这条。
+    for (const targetPath of paths) {
+      try {
+        const dest: fs.File = await fs.open(
+          targetPath, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE);
+        try {
+          await fs.copyFile(sourcePath, dest.fd);
+        } finally {
+          fs.closeSync(dest);
+        }
+        return;
+      } catch (error) {
+        lastCode = failureCode(error);
+        failures.push(describeFailure('open(path)+fd', error));
+      }
+    }
+
+    // 2) 转成路径后直接 copy（目标已存在时这条最省事）。
+    for (const targetPath of paths) {
+      try {
+        await fs.copy(sourcePath, targetPath);
+        return;
+      } catch (error) {
+        lastCode = failureCode(error);
+        failures.push(describeFailure('copy(path)', error));
+      }
+    }
+
+    // 3) 兜底：仍按 URI 试一次，兼容对 URI 支持更完整的版本。
     try {
       await fs.copy(sourcePath, targetUri);
       if (this.exists(targetUri)) return;
-      failures.push('copy=写入后目标不存在');
+      failures.push('copy(uri)=写入后目标不存在');
     } catch (error) {
       lastCode = failureCode(error);
-      failures.push(describeFailure('copy', error));
+      failures.push(describeFailure('copy(uri)', error));
     }
-    try {
-      const dest: fs.File = await this.openUri(targetUri);
-      try {
-        await fs.copyFile(sourcePath, dest.fd);
-      } finally {
-        fs.closeSync(dest);
-      }
-      return;
-    } catch (error) {
-      lastCode = failureCode(error);
-      failures.push(describeFailure('open+fd', error));
-    }
+
     throw new TaggedError(
       codeFromNumber(lastCode),
       `导出到下载目录失败（${targetUri}）: ${failures.join(' | ')}`,
@@ -663,6 +694,53 @@ function joinPath(directory: string, name: string): string {
 /// 「找不到」——系统按相对路径去解析了）。
 function isUri(path: string): boolean {
   return path.indexOf('://') > 0;
+}
+
+/// 一个文件 URI 的候选路径写法（去重）。
+///
+/// `FileUri` 对中文、括号这类字符的处置在不同版本上不一致：有的原样保留，
+/// 有的转成 `%E4%BD%A0`。转义过的路径拿去 open 会建出一个名字里带百分号的
+/// 文件，看着能用其实是垃圾。两种写法都给出，让上层按顺序试。
+function pathForms(uri: string): Array<string> {
+  const primary: string = uriToPath(uri);
+  const forms: Array<string> = [primary];
+  if (primary.indexOf('%') >= 0) {
+    try {
+      const decoded: string = decodeURIComponent(primary);
+      if (decoded !== primary) forms.push(decoded);
+    } catch (error) {
+      // 夹生的 `%`（不是合法转义）解不开，就用原样那条。
+      hilog.warn(DOMAIN, TAG, 'decode target path failed: %{public}s',
+        describeFailure('decode', error));
+    }
+  }
+  return forms;
+}
+
+/// 把 `file://docs/...` URI 换成可以交给 fs.open / fs.copy 的路径。
+///
+/// 为什么必须转：URI 只是「这个目录已授权给本应用」的凭据，`uri + '/名字'`
+/// 这个子路径在文件系统里还没被创建过，直接 open 必然 ENOENT；fs.copy 更
+/// 直接，回 401（参数非法）。官方示例用 `new fileUri.FileUri(uri).path`
+/// 完成这层映射。
+///
+/// 兜底是手动剥 scheme：`file://docs` 之后的部分就是路径。FileUri 在个别
+/// 版本上对带中文的 URI 会抛，这条能保证导出不至于因为一个工具函数失败。
+function uriToPath(uri: string): string {
+  try {
+    const parsed: string = new fileUri.FileUri(uri).path;
+    if (parsed !== undefined && parsed !== null && parsed.length > 0) {
+      return parsed;
+    }
+  } catch (error) {
+    hilog.warn(DOMAIN, TAG, 'FileUri parse failed, stripping scheme manually: %{public}s',
+      describeFailure('fileUri', error));
+  }
+  const scheme: string = 'file://docs';
+  if (uri.startsWith(scheme)) return uri.substring(scheme.length);
+  const slash: number = uri.indexOf('/storage/');
+  if (slash >= 0) return uri.substring(slash);
+  return uri;
 }
 
 /// 一个 URI 的候选写法。

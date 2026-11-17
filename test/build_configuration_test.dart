@@ -833,6 +833,15 @@ void main() {
     expect(bridge, contains('DOWNLOAD_URI_KEY'));
     // 授权失效（用户删目录 / 撤销授权）时要能重新申请。
     expect(bridge, contains('clearCachedDownloadUri'));
+    // 关键：picker 返回的 `file://docs/...` 只是授权凭据，不能直接当路径
+    // 递给 fs.open / fs.copy —— 实测模拟器上分别报 ENOENT 和 401。必须先用
+    // fileUri.FileUri(...).path 映射成真实路径，官方示例也是这么写的。
+    expect(
+      bridge,
+      contains('new fileUri.FileUri('),
+      reason: 'docs URI 要经 FileUri 转成路径才能 open',
+    );
+    expect(bridge, contains('pathForms'));
     // 别退回到「自己拼公共目录路径」——那条路在手机上没有权限。
     expect(
       bridge,
