@@ -566,14 +566,33 @@ class AndroidFileSystem implements LocalFileSystem {
   Future<String?> pickDirectory() async => null;
 
   /// Android 不需要这条通道：用户本来就能用 SAF 把下载根指到公共目录
-  /// （`supportsDartIoDirectory` 为真，入口是「下载目录」那一行），
-  /// 再叠一个「导出到下载目录」只会让设置页出现两个语义相近的项。
+  /// （`supportsDartIoDirectory` 为真，入口是「下载目录」那一行）。但 SAF
+  /// 授权树会在重启后失效、卸载重装后清空，而且多数用户根本不知道怎么用
+  /// 它挑目录。所以额外提供「导出到下载」：Android 10+ 走 MediaStore，
+  /// 免权限、卸载不丢，是更稳的出口。
   @override
-  bool get supportsPublicDownloadsExport => false;
+  bool get supportsPublicDownloadsExport => true;
 
   @override
-  Future<String?> exportToPublicDownloads(String sourcePath) async =>
-      throw const LocalFileUnsupportedException('导出到下载目录', 'Android');
+  Future<String?> exportToPublicDownloads(String sourcePath) async {
+    try {
+      final result = await channel.invokeMethod<String>(
+        'exportToPublicDownloads',
+        {'source': sourcePath},
+      );
+      if (result == null || result.isEmpty) return null;
+      return result;
+    } on PlatformException catch (error) {
+      if (error.code == 'access_denied' ||
+          error.code == 'permission_denied' ||
+          error.code == 'SecurityException') {
+        throw LocalFileAccessDeniedException(sourcePath, error.message);
+      }
+      // 其余失败（空间不足、MediaStore 拒绝）保留原始错误：设置页会把
+      // message 原样展示，比统一翻成一个笼统的「导出失败」更好排查。
+      rethrow;
+    }
+  }
 
   @override
   Future<List<LocalFileEntry>> listDirectory(String directoryPath) {
@@ -692,6 +711,11 @@ class AppleFileSystem extends ChannelFileSystem {
 
   @override
   Future<String?> pickDirectory() => SecurityScopedDirectory.select();
+
+  /// iOS 没有公共「下载」目录，但可以把文件导出到用户在「文件」App 里选的
+  /// 任意文件夹。原生侧第一次弹选择器、之后靠 security-scoped 书签沿用。
+  @override
+  bool get supportsPublicDownloadsExport => true;
 }
 
 /// HarmonyOS：原生侧用 `@ohos.file.fs`，路径是普通路径或 `file://docs/...`。

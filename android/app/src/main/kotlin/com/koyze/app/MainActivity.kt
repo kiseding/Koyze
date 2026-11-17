@@ -177,6 +177,15 @@ class MainActivity : AudioServiceActivity() {
                         }
                     }
                 }
+                // 导出副本到公共「下载/Koyze」。Android 10+ 走 MediaStore，
+                // 免权限；用户卸载应用后文件仍在。
+                "exportToPublicDownloads" -> {
+                    if (source == null) {
+                        result.error("invalid_args", "Missing source", null)
+                    } else {
+                        respondAsync(result) { DownloadsExporter(this).export(source) }
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

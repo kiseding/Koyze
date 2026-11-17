@@ -4,11 +4,19 @@ import Darwin
 import UniformTypeIdentifiers
 
 @main
-@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate,
+  UIDocumentPickerDelegate {
   private var sourceTasks: [String: URLSessionDataTask] = [:]
   private var cancelledSourceTaskIDs = Set<String>()
   private let sourceTaskLock = NSLock()
   private lazy var directoryAccess = SecurityScopedDirectoryAccess()
+
+  /// 正在进行中的导出：`Result` 要等用户在文档选择器里点完才有值。
+  private var pendingExportResult: FlutterResult?
+  private var pendingExportSource: URL?
+  /// 系统「下载」之外，用户上一次选的导出目标（security-scoped URL）。
+  private var activeExportDirectory: URL?
+  private static let exportDirectoryBookmarkKey = "koyze.exportDirectoryBookmark"
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -159,6 +167,12 @@ import UniformTypeIdentifiers
           return
         }
         access.exists(path: path, result: result)
+      case "exportToPublicDownloads":
+        guard let source else {
+          result(FlutterError(code: "invalid_args", message: "Missing source", details: nil))
+          return
+        }
+        self.exportToDownloads(sourcePath: source, result: result)
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -273,6 +287,180 @@ import UniformTypeIdentifiers
       sourceTaskLock.unlock()
       task.resume()
     }
+  }
+
+  // MARK: - 导出到「文件」App
+
+  /// 把私有目录里的一首歌复制到用户看得见的地方。
+  ///
+  /// iOS 没有公共「下载」文件夹——沙盒应用能写的位置只有自己的容器。所以
+  /// 这里跟鸿蒙走同一套语义：**弹一次目录选择器，把用户选的目录记住**，
+  /// 之后每首歌都直接复制进去，不再打扰用户。第一次选完，导出 N 首也只是
+  /// 一次授权。
+  ///
+  /// 为什么不打开 `UIFileSharingEnabled`：那个键会把整个 Documents 目录摊
+  /// 在「文件」App 里，而 `playlists.v1.json` 与 `local_artwork/` 就在那，
+  /// 用户删掉一个歌单文件就是全部歌单丢失。用选择器当出口没有这个风险。
+  private func exportToDownloads(sourcePath: String, result: @escaping FlutterResult) {
+    let source = URL(fileURLWithPath: sourcePath)
+    guard FileManager.default.fileExists(atPath: source.path) else {
+      result(FlutterError(
+        code: "not_found",
+        message: "要导出的文件不存在",
+        details: sourcePath
+      ))
+      return
+    }
+    if pendingExportResult != nil {
+      result(FlutterError(
+        code: "busy",
+        message: "上一次导出还没结束",
+        details: sourcePath
+      ))
+      return
+    }
+    // 用户之前选过目录、书签还能解开：直接写，不弹选择器。
+    if let directory = resolvedExportDirectory() {
+      copyForExport(source: source, into: directory, result: result)
+      return
+    }
+    pendingExportSource = source
+    pendingExportResult = result
+    presentExportPicker()
+  }
+
+  /// 用户上一次选的导出目标目录（仍在授权期内时）。
+  ///
+  /// 解析成功就 `startAccessingSecurityScopedResource()` 并常驻——导出是一次
+  /// 一首循环调用的，每次进出都 start/stop 既容易漏配平，也没必要。真正失效
+  /// 的判据是「书签解不开」或「目录不存在」，那两种情况会把书签清掉，让下次
+  /// 导出重新弹选择器。
+  private func resolvedExportDirectory() -> URL? {
+    if let active = activeExportDirectory,
+       FileManager.default.fileExists(atPath: active.path) {
+      return active
+    }
+    activeExportDirectory = nil
+    guard let data = UserDefaults.standard.data(
+      forKey: Self.exportDirectoryBookmarkKey
+    ) else { return nil }
+    var stale = false
+    guard let url = try? URL(
+      resolvingBookmarkData: data,
+      options: [],
+      relativeTo: nil,
+      bookmarkDataIsStale: &stale
+    ) else {
+      UserDefaults.standard.removeObject(forKey: Self.exportDirectoryBookmarkKey)
+      return nil
+    }
+    guard url.startAccessingSecurityScopedResource() else {
+      // 书签还在但授权已撤销（用户在「文件」App 里挪走/删掉了这个目录）。
+      UserDefaults.standard.removeObject(forKey: Self.exportDirectoryBookmarkKey)
+      return nil
+    }
+    // 书签过期不等于目录消失（换机恢复、系统升级都会让它 stale），重新
+    // 生成一份再继续用；只有真正打不开时才要求重选。
+    if stale, let refreshed = try? url.bookmarkData(
+      options: [],
+      includingResourceValuesForKeys: nil,
+      relativeTo: nil
+    ) {
+      UserDefaults.standard.set(refreshed, forKey: Self.exportDirectoryBookmarkKey)
+    }
+    activeExportDirectory = url
+    return url
+  }
+
+  /// 弹出目录选择器（`folder` 模式），让用户挑导出目标。
+  private func presentExportPicker() {
+    let picker = UIDocumentPickerViewController(
+      forOpeningContentTypes: [.folder],
+      asCopy: false
+    )
+    picker.delegate = self
+    picker.allowsMultipleSelection = false
+    guard let presenter = topViewController() else {
+      finishExport(
+        FlutterError(code: "no_presenter", message: "界面未就绪", details: nil)
+      )
+      return
+    }
+    presenter.present(picker, animated: true)
+  }
+
+  /// 把文件复制进已授权的目录。
+  ///
+  /// 不再自己 `startAccessingSecurityScopedResource`：调用方保证 [directory]
+  /// 已经激活（书签解析处常驻、picker 回调里 start 过）。多 start 一次的计数
+  /// 一旦漏配平，授权会一直挂着，用户撤销权限后仍能写——那是更糟的状态。
+  private func copyForExport(
+    source: URL,
+    into directory: URL,
+    result: @escaping FlutterResult
+  ) {
+    let target = directory.appendingPathComponent(source.lastPathComponent)
+    do {
+      // 覆盖式：同一首歌重复导出不该报错，用户要的就是「现在这里是最新的」。
+      if FileManager.default.fileExists(atPath: target.path) {
+        try FileManager.default.removeItem(at: target)
+      }
+      try FileManager.default.copyItem(at: source, to: target)
+      result(target.path)
+    } catch {
+      result(FlutterError(
+        code: "export_failed",
+        message: error.localizedDescription,
+        details: source.path
+      ))
+    }
+  }
+
+  private func finishExport(_ value: Any?) {
+    let pending = pendingExportResult
+    pendingExportResult = nil
+    pendingExportSource = nil
+    pending?(value)
+  }
+
+  func documentPicker(
+    _ controller: UIDocumentPickerViewController,
+    didPickDocumentsAt urls: [URL]
+  ) {
+    guard let source = pendingExportSource, let directory = urls.first else {
+      finishExport(nil)
+      return
+    }
+    guard directory.startAccessingSecurityScopedResource() else {
+      finishExport(FlutterError(
+        code: "access_denied",
+        message: "无法访问所选文件夹",
+        details: directory.path
+      ))
+      return
+    }
+    // 授权保持常驻：导出是一首一首循环调用的，复制完就 stop 的话，第二首歌
+    // 拿到的 activeExportDirectory 已经没有写权限了。
+    activeExportDirectory = directory
+    if let bookmark = try? directory.bookmarkData(
+      options: [],
+      includingResourceValuesForKeys: nil,
+      relativeTo: nil
+    ) {
+      UserDefaults.standard.set(bookmark, forKey: Self.exportDirectoryBookmarkKey)
+    }
+    let pending = pendingExportResult
+    // 先取出 result 再调用 copyForExport：它会通过 finishExport 清空。
+    pendingExportResult = nil
+    pendingExportSource = nil
+    copyForExport(source: source, into: directory, result: { value in
+      pending?(value)
+    })
+  }
+
+  func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+    // 空串表示「用户取消」，与 `pickDirectory` 的约定一致。
+    finishExport("")
   }
 
   private func topViewController() -> UIViewController? {
