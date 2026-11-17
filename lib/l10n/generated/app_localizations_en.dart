@@ -57,7 +57,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nasServer => 'NAS music server';
 
   @override
-  String get sourcesAndLibrary => 'Sources & library';
+  String get sources => 'Music sources';
+
+  @override
+  String get musicLibrary => 'Music library';
 
   @override
   String get playback => 'Playback';
@@ -258,7 +261,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadDirectoryUnavailable => 'The chosen folder is unavailable';
 
   @override
-  String get downloadLocation => 'Download location';
+  String get downloadLocation => 'Download folder';
 
   @override
   String get downloadLocationSubtitle =>

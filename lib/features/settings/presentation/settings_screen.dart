@@ -234,13 +234,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final backdropBlur = ref.watch(playerBackdropBlurProvider);
     final backdropScrim = ref.watch(playerBackdropScrimProvider);
 
-    // 分组的依据是「用户想改什么」，不是「代码在哪个目录」：
-    // - 音源与本地库：内容从哪来（默认搜索平台原先混在「播放」里，
-    //   但它是选内容源，不是调播放行为）；
-    // - 播放：怎么听；
-    // - 外观：只有纯视觉；
-    // - 通用：语言、屏幕方向、性能开关这类与「听歌」无关的全局项；
-    // - 数据与同步：账号、统计、备份、缓存，都是「数据进出一个地方」。
+    // 分组的依据是「用户对一首歌做了什么」，不是代码在哪个目录，也不是
+    // 哪个功能顺手写在了这里。十个小节按一首歌的一生排下来：
+    //
+    //   音源（从哪来）→ 音乐库（存哪）→ 下载（怎么拿到本机）→ 播放（怎么听）
+    //   → 歌词（听的时候看什么）→ 外观（长什么样）→ 数据（带走什么）
+    //   → 通用（系统级开关与复位）→ 关于
+    //
+    // 三条硬规则，新增设置项时照这个走：
+    //
+    // 1. 区内先「内容」再「行为」再「场景」。播放区里音质、均衡器在前，
+    //    淡入淡出这类行为开关居中，睡眠定时、车载、悬浮这类「什么时候、
+    //    在哪听」压尾。
+    // 2. 平台专属项一律放区内末尾。锁屏歌词全平台都有、桌面歌词只有
+    //    Win/Linux 有，把锁屏歌词放前面，移动端和桌面端看到的前几项就一致。
+    // 3. 越往下越重。语言 → 方向 → 动效 → 重置设置，破坏性最大的排最后，
+    //    正好贴着「关于」，滑到底才会碰到。
+    //
+    // 歌词单独成区，是因为它同时被「播放」（开关）和「外观」（样式）牵扯，
+    // 两边各放一半时用户只能靠猜。
     return [
       SettingsSectionSpec(
         title: s.aiSectionTitle,
@@ -299,7 +311,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsSectionSpec(
-        title: s.sourcesAndLibrary,
+        title: s.sources,
+        // 「从哪找歌」和「我的歌怎么组织」是两件事，以前挤在一格里，
+        // 结果「默认搜索平台」跟「本地音乐目录」并排。拆开后这一格只剩
+        // 内容来源：默认的、自己加的、自己建的。
         entries: [
           SettingsEntry(
             title: s.defaultSearchPlatform,
@@ -315,55 +330,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               'source',
             ],
             onTap: () => _showDefaultPlatformDialog(context, ref),
-          ),
-          SettingsEntry(
-            title: s.localLibrary,
-            subtitle: s.localLibrarySubtitle,
-            keywords: const [
-              '本地',
-              'local',
-              '扫描',
-              'scan',
-              '文件夹',
-              'folder',
-              '音乐库',
-              'library',
-            ],
-            onTap: () => context.push('/local-music'),
-            captureExpandOrigin: true,
-          ),
-          SettingsEntry(
-            title: s.smartPlaylists,
-            subtitle: s.smartPlaylistsSubtitle,
-            keywords: const [
-              '智能',
-              'smart',
-              '歌单',
-              'playlist',
-              '规则',
-              'rule',
-              '最近添加',
-              '最常播放',
-            ],
-            onTap: () => context.push('/smart-playlists'),
-            captureExpandOrigin: true,
-          ),
-          SettingsEntry(
-            title: s.scanRules,
-            subtitle: s.scanRulesSubtitle,
-            keywords: const [
-              '扫描',
-              'scan',
-              '过滤',
-              'filter',
-              '重复',
-              'duplicate',
-              '时长',
-              'duration',
-              '排除',
-              'exclude',
-            ],
-            onTap: () => showScanRulesSheet(context, ref),
           ),
           SettingsEntry(
             title: s.customSources,
@@ -389,6 +355,131 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
       SettingsSectionSpec(
+        title: s.musicLibrary,
+        // 顺序就是「文件 → 规则 → 视图」：先定文件放哪（读的一端本地目录、
+        // 写的一端下载目录），再定扫什么，最后才是歌单这种派生出来的视图。
+        //
+        // 「下载目录」从「下载」挪到这里：它和本地音乐目录是同一件事的两端，
+        // 换下载目录会直接改音乐库的扫描来源，隔着三个分区说不通。
+        entries: [
+          SettingsEntry(
+            title: s.localLibrary,
+            subtitle: s.localLibrarySubtitle,
+            keywords: const [
+              '本地',
+              'local',
+              '扫描',
+              'scan',
+              '文件夹',
+              'folder',
+              '音乐库',
+              'library',
+            ],
+            onTap: () => context.push('/local-music'),
+            captureExpandOrigin: true,
+          ),
+          // 「下载目录」在四个平台上只有一行、一个弹窗、一套文案。
+          //
+          // 但底层手段确实不一样，而且没法统一：桌面能把文件直接写进系统
+          // 「下载/Koyze」，移动端写不进去（iOS 沙盒、鸿蒙手机、Android 的
+          // 分区存储各有一道墙），只能先落私有目录再导出副本。所以弹窗里
+          // 按能力渲染：有 [supportsDartIoDirectory] 给「更改文件夹」，
+          // 有 [supportsPublicDownloadsExport] 给「导出已下载的歌」，
+          // Android / iOS 两个都有。
+          SettingsEntry(
+            title: s.downloadLocation,
+            // 降级生效时副标题要说清「你现在实际用的是默认目录」，否则用户
+            // 看到自己选的路径还在设置里、下载却跑到别处，只会觉得设置坏了。
+            subtitle: _downloadLocationSubtitle(context, ref, s),
+            keywords: const [
+              '下载',
+              'download',
+              '目录',
+              '文件夹',
+              'folder',
+              'directory',
+              '路径',
+              'path',
+              '保存位置',
+              '存储',
+              'storage',
+              '导出',
+              'export',
+            ],
+            onTap: () => _showDownloadLocationDialog(context),
+          ),
+          SettingsEntry(
+            title: s.scanRules,
+            subtitle: s.scanRulesSubtitle,
+            keywords: const [
+              '扫描',
+              'scan',
+              '过滤',
+              'filter',
+              '重复',
+              'duplicate',
+              '时长',
+              'duration',
+              '排除',
+              'exclude',
+            ],
+            onTap: () => showScanRulesSheet(context, ref),
+          ),
+          SettingsEntry(
+            title: s.smartPlaylists,
+            subtitle: s.smartPlaylistsSubtitle,
+            keywords: const [
+              '智能',
+              'smart',
+              '歌单',
+              'playlist',
+              '规则',
+              'rule',
+              '最近添加',
+              '最常播放',
+            ],
+            onTap: () => context.push('/smart-playlists'),
+            captureExpandOrigin: true,
+          ),
+        ],
+      ),
+      SettingsSectionSpec(
+        title: s.downloads,
+        // 这里只管「怎么下」：看任务 → 定质量 → 限网络。位置已经归音乐库。
+        entries: [
+          SettingsEntry(
+            title: s.downloadManager,
+            subtitle: s.downloadManagerSubtitle,
+            keywords: const ['下载', 'download', '任务', '队列', 'queue'],
+            onTap: () => context.push('/download'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.downloadQuality,
+            subtitle: _getQualityName(ref.watch(downloadQualityProvider)),
+            keywords: const [
+              '下载音质',
+              'download',
+              'quality',
+              '码率',
+              'bitrate',
+              '无损',
+            ],
+            onTap: () => _showDownloadQualityDialog(context, ref),
+          ),
+          SettingsEntry(
+            title: s.wifiOnly,
+            subtitle: s.wifiOnlySubtitle,
+            keywords: const ['wifi', '无线', '流量', 'data', '网络', 'network', '下载'],
+            toggleValue: ref.watch(wifiOnlyDownloadProvider),
+            onToggle: (value) {
+              ref.read(wifiOnlyDownloadProvider.notifier).setWifiOnly(value);
+              ref.read(setWifiOnlyDownloadProvider)(value);
+            },
+          ),
+        ],
+      ),
+      SettingsSectionSpec(
         title: s.playback,
         entries: [
           SettingsEntry(
@@ -406,46 +497,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
             onTap: () => _showAudioQualityDialog(context, ref),
           ),
-          if (Platform.isWindows || Platform.isLinux) ...[
-            SettingsEntry(
-              title: s.desktopLyricWindow,
-              subtitle: s.desktopLyricWindowSubtitle,
-              keywords: const ['桌面歌词', 'desktop lyrics', '歌词窗', 'overlay'],
-              toggleValue: ref.watch(desktopLyricEnabledProvider),
-              onToggle: (value) => ref
-                  .read(desktopLyricEnabledProvider.notifier)
-                  .setEnabled(value),
-            ),
-            if (ref.watch(desktopLyricEnabledProvider))
-              SettingsEntry(
-                title: s.desktopLyricLock,
-                subtitle: s.desktopLyricLockSubtitle,
-                keywords: const ['锁定歌词窗', 'click through', '穿透'],
-                toggleValue: ref.watch(desktopLyricLockedProvider),
-                onToggle: (value) => ref
-                    .read(desktopLyricLockedProvider.notifier)
-                    .setLocked(value),
-              ),
-          ],
+          // 均衡器紧跟音质：这两项改的都是「声音本身」，剩下的是播放行为。
           SettingsEntry(
-            title: s.lockScreenLyric,
-            subtitle: s.lockScreenLyricSubtitle,
+            title: s.equalizer,
+            subtitle: equalizerSubtitle(
+              ref.watch(equalizerProvider),
+              locale: Localizations.localeOf(context),
+            ),
             keywords: const [
-              '歌词',
-              'lyric',
-              '桌面歌词',
-              'desktop lyrics',
-              '锁屏',
-              'lock',
-              '通知栏',
-              'notification',
+              '均衡器',
+              'equalizer',
+              'eq',
+              '音效',
+              '低音',
+              'bass',
+              '频段',
             ],
-            toggleValue: ref.watch(lockScreenLyricEnabledProvider),
-            onToggle: (value) {
-              ref
-                  .read(lockScreenLyricEnabledProvider.notifier)
-                  .setEnabled(value);
-            },
+            onTap: () => context.push('/equalizer'),
+            captureExpandOrigin: true,
           ),
           SettingsEntry(
             title: s.playbackFade,
@@ -483,6 +552,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
           SettingsEntry(
+            title: s.autoResume,
+            subtitle: s.autoResumeSubtitle,
+            keywords: const ['续播', 'resume', 'autoplay', '自动播放', '接着播'],
+            toggleValue: ref.watch(autoResumePlaybackProvider),
+            onToggle: (value) {
+              ref
+                  .read(autoResumePlaybackProvider.notifier)
+                  .setAutoResume(value);
+            },
+          ),
+          SettingsEntry(
             title: s.precacheRecent,
             subtitle: s.precacheRecentSubtitle,
             keywords: const [
@@ -507,24 +587,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: () => _showPrecacheCountDialog(context, ref),
             ),
           SettingsEntry(
-            title: s.equalizer,
-            subtitle: equalizerSubtitle(
-              ref.watch(equalizerProvider),
-              locale: Localizations.localeOf(context),
-            ),
-            keywords: const [
-              '均衡器',
-              'equalizer',
-              'eq',
-              '音效',
-              '低音',
-              'bass',
-              '频段',
-            ],
-            onTap: () => context.push('/equalizer'),
-            captureExpandOrigin: true,
-          ),
-          SettingsEntry(
             title: s.sleepTimer,
             subtitle: sleepTimerSubtitle(
               ref.watch(sleepTimerProvider),
@@ -533,17 +595,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             keywords: const ['睡眠', 'sleep', '定时', 'timer', '关闭播放', '睡前'],
             onTap: () => _showSleepTimerMenu(context, ref),
             trailing: _sleepTimerTrailing(context, ref, s),
-          ),
-          SettingsEntry(
-            title: s.autoResume,
-            subtitle: s.autoResumeSubtitle,
-            keywords: const ['续播', 'resume', 'autoplay', '自动播放', '接着播'],
-            toggleValue: ref.watch(autoResumePlaybackProvider),
-            onToggle: (value) {
-              ref
-                  .read(autoResumePlaybackProvider.notifier)
-                  .setAutoResume(value);
-            },
           ),
           SettingsEntry(
             title: s.carMode,
@@ -559,6 +610,82 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               toggleValue: ref.watch(androidFloatingPlayerProvider),
               onToggle: (value) => _setFloatingPlayer(context, ref, value),
             ),
+        ],
+      ),
+      SettingsSectionSpec(
+        title: s.lyrics,
+        // 以前这四项一半在「播放」（三个开关）、一半在「外观」（样式页），
+        // 找「歌词怎么调」得先猜它在哪一边。现在样式在前，开关在后，
+        // 平台专属的两个再往后。
+        entries: [
+          SettingsEntry(
+            title: s.lyricDisplay,
+            subtitle: s.lyricDisplaySubtitle,
+            keywords: const [
+              '歌词',
+              'lyric',
+              '偏移',
+              'offset',
+              '对不上',
+              '延迟',
+              'delay',
+              '字号',
+              'font',
+              '字体',
+              'typeface',
+              '大小',
+              'size',
+              '模糊',
+              'blur',
+              '景深',
+              '翻译',
+              'translation',
+            ],
+            onTap: () => context.push('/lyric-display'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.lockScreenLyric,
+            subtitle: s.lockScreenLyricSubtitle,
+            keywords: const [
+              '歌词',
+              'lyric',
+              '桌面歌词',
+              'desktop lyrics',
+              '锁屏',
+              'lock',
+              '通知栏',
+              'notification',
+            ],
+            toggleValue: ref.watch(lockScreenLyricEnabledProvider),
+            onToggle: (value) {
+              ref
+                  .read(lockScreenLyricEnabledProvider.notifier)
+                  .setEnabled(value);
+            },
+          ),
+          if (Platform.isWindows || Platform.isLinux) ...[
+            SettingsEntry(
+              title: s.desktopLyricWindow,
+              subtitle: s.desktopLyricWindowSubtitle,
+              keywords: const ['桌面歌词', 'desktop lyrics', '歌词窗', 'overlay'],
+              toggleValue: ref.watch(desktopLyricEnabledProvider),
+              onToggle: (value) => ref
+                  .read(desktopLyricEnabledProvider.notifier)
+                  .setEnabled(value),
+            ),
+            // 锁定只在窗口开着时有意义，紧跟父项，不单独成行。
+            if (ref.watch(desktopLyricEnabledProvider))
+              SettingsEntry(
+                title: s.desktopLyricLock,
+                subtitle: s.desktopLyricLockSubtitle,
+                keywords: const ['锁定歌词窗', 'click through', '穿透'],
+                toggleValue: ref.watch(desktopLyricLockedProvider),
+                onToggle: (value) => ref
+                    .read(desktopLyricLockedProvider.notifier)
+                    .setLocked(value),
+              ),
+          ],
         ],
       ),
       SettingsSectionSpec(
@@ -597,6 +724,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
           ),
+          // 紧跟主题色：它改的是同一个强调色，只是来源换成了封面。
           SettingsEntry(
             title: s.accentFollowsCover,
             subtitle: s.accentFollowsCoverSubtitle,
@@ -677,36 +805,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
           ),
+        ],
+      ),
+      SettingsSectionSpec(
+        title: s.dataAndSync,
+        // 云 → 统计 → 导出 → 导入 → 清缓存：都是「我的数据」，从云端看到
+        // 本机，从搬走看到清掉。
+        entries: [
           SettingsEntry(
-            title: s.lyricDisplay,
-            subtitle: s.lyricDisplaySubtitle,
-            keywords: const [
-              '歌词',
-              'lyric',
-              '偏移',
-              'offset',
-              '对不上',
-              '延迟',
-              'delay',
-              '字号',
-              'font',
-              '字体',
-              'typeface',
-              '大小',
-              'size',
-              '模糊',
-              'blur',
-              '景深',
-              '翻译',
-              'translation',
-            ],
-            onTap: () => context.push('/lyric-display'),
+            title: s.cloudAccount,
+            subtitle: s.cloudAccountSubtitle,
+            keywords: const ['同步', 'sync', '账号', 'account', '云端', 'cloud'],
+            onTap: () => context.push('/sync'),
             captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.listeningStats,
+            subtitle: s.listeningStatsSubtitle,
+            keywords: const ['统计', 'stats', '听歌', '报告', 'report', '数据'],
+            onTap: () => context.push('/stats'),
+            captureExpandOrigin: true,
+          ),
+          SettingsEntry(
+            title: s.backup,
+            subtitle: s.backupSubtitle,
+            keywords: const ['备份', 'backup', '导出', 'export', '数据', 'data'],
+            onTap: () => _backupData(context, ref),
+          ),
+          SettingsEntry(
+            title: s.restore,
+            subtitle: s.restoreSubtitle,
+            keywords: const ['恢复', 'restore', '导入', 'import', '数据', 'data'],
+            onTap: () => _restoreData(context, ref),
+          ),
+          SettingsEntry(
+            title: s.clearCache,
+            subtitle: s.clearCacheSubtitle,
+            keywords: const ['缓存', 'cache', '清理', 'clean', '空间', 'storage'],
+            onTap: () => _clearCache(context, ref),
           ),
         ],
       ),
       SettingsSectionSpec(
         title: s.general,
+        // 系统级、与听歌无关的开关，再往下就只剩「关于」。重置排最后：
+        // 它前面每一项都是可以撤销的，它自己不是。
         entries: [
           SettingsEntry(
             title: s.language,
@@ -760,108 +903,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               '设置',
             ],
             onTap: () => _resetPreferences(context, ref),
-          ),
-        ],
-      ),
-      SettingsSectionSpec(
-        title: s.downloads,
-        entries: [
-          SettingsEntry(
-            title: s.downloadManager,
-            subtitle: s.downloadManagerSubtitle,
-            keywords: const ['下载', 'download', '任务', '队列', 'queue'],
-            onTap: () => context.push('/download'),
-            captureExpandOrigin: true,
-          ),
-          // 「下载位置」在四个平台上只有一行、一个弹窗、一套文案。
-          //
-          // 但底层手段确实不一样，而且没法统一：桌面能把文件直接写进系统
-          // 「下载/Koyze」，移动端写不进去（iOS 沙盒、鸿蒙手机、Android 的
-          // 分区存储各有一道墙），只能先落私有目录再导出副本。所以弹窗里
-          // 按能力渲染：有 [supportsDartIoDirectory] 给「更改文件夹」，
-          // 有 [supportsPublicDownloadsExport] 给「导出已下载的歌」，
-          // Android / iOS 两个都有。
-          SettingsEntry(
-            title: s.downloadLocation,
-            // 降级生效时副标题要说清「你现在实际用的是默认目录」，否则用户
-            // 看到自己选的路径还在设置里、下载却跑到别处，只会觉得设置坏了。
-            subtitle: _downloadLocationSubtitle(context, ref, s),
-            keywords: const [
-              '下载',
-              'download',
-              '目录',
-              '文件夹',
-              'folder',
-              'directory',
-              '路径',
-              'path',
-              '保存位置',
-              '存储',
-              'storage',
-              '导出',
-              'export',
-            ],
-            onTap: () => _showDownloadLocationDialog(context),
-          ),
-          SettingsEntry(
-            title: s.wifiOnly,
-            subtitle: s.wifiOnlySubtitle,
-            keywords: const ['wifi', '无线', '流量', 'data', '网络', 'network', '下载'],
-            toggleValue: ref.watch(wifiOnlyDownloadProvider),
-            onToggle: (value) {
-              ref.read(wifiOnlyDownloadProvider.notifier).setWifiOnly(value);
-              ref.read(setWifiOnlyDownloadProvider)(value);
-            },
-          ),
-          SettingsEntry(
-            title: s.downloadQuality,
-            subtitle: _getQualityName(ref.watch(downloadQualityProvider)),
-            keywords: const [
-              '下载音质',
-              'download',
-              'quality',
-              '码率',
-              'bitrate',
-              '无损',
-            ],
-            onTap: () => _showDownloadQualityDialog(context, ref),
-          ),
-        ],
-      ),
-      SettingsSectionSpec(
-        title: s.dataAndSync,
-        entries: [
-          SettingsEntry(
-            title: s.cloudAccount,
-            subtitle: s.cloudAccountSubtitle,
-            keywords: const ['同步', 'sync', '账号', 'account', '云端', 'cloud'],
-            onTap: () => context.push('/sync'),
-            captureExpandOrigin: true,
-          ),
-          SettingsEntry(
-            title: s.listeningStats,
-            subtitle: s.listeningStatsSubtitle,
-            keywords: const ['统计', 'stats', '听歌', '报告', 'report', '数据'],
-            onTap: () => context.push('/stats'),
-            captureExpandOrigin: true,
-          ),
-          SettingsEntry(
-            title: s.backup,
-            subtitle: s.backupSubtitle,
-            keywords: const ['备份', 'backup', '导出', 'export', '数据', 'data'],
-            onTap: () => _backupData(context, ref),
-          ),
-          SettingsEntry(
-            title: s.restore,
-            subtitle: s.restoreSubtitle,
-            keywords: const ['恢复', 'restore', '导入', 'import', '数据', 'data'],
-            onTap: () => _restoreData(context, ref),
-          ),
-          SettingsEntry(
-            title: s.clearCache,
-            subtitle: s.clearCacheSubtitle,
-            keywords: const ['缓存', 'cache', '清理', 'clean', '空间', 'storage'],
-            onTap: () => _clearCache(context, ref),
           ),
         ],
       ),
@@ -1093,7 +1134,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _showQualityDialog(context, ref, S.of(context).chooseDownloadQuality, true);
   }
 
-  /// 下载位置：四个平台共用的中心弹窗。
+  /// 下载目录：四个平台共用的中心弹窗。
   ///
   /// 弹窗内部按能力渲染。桌面能直接把文件写进系统「下载/Koyze」，所以只有
   /// 「更改文件夹」；移动端写不进去，只能落私有目录再导出副本，所以有
@@ -1793,7 +1834,7 @@ class _DeviceIdRow extends StatelessWidget {
   }
 }
 
-/// 下载位置的中心弹窗，四个平台共用。
+/// 下载目录的中心弹窗，四个平台共用。
 ///
 /// 一处入口、一套文案，但按钮按平台能力出现：
 ///

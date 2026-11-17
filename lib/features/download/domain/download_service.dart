@@ -702,7 +702,7 @@ class DownloadService {
   /// `portable.flag`）例外，仍落在可执行文件同级的 `portable_data/downloads`，
   /// 这样整个应用连同数据可以一起搬走。
   ///
-  /// 移动端落在应用文档目录下的 `downloads`，设置页的「下载位置」里可以
+  /// 移动端落在应用文档目录下的 `downloads`，设置页的「下载目录」里可以
   /// 把它们导出到系统「下载/Koyze」。
   static Future<Directory> defaultDownloadDirectory() async {
     final portableRoot = PortableMode.root;

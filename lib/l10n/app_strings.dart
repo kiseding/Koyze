@@ -65,7 +65,8 @@ class S {
   String get customSourcesEmpty => _l10n.customSourcesEmpty;
   String customSourcesCount(int count) => _l10n.customSourcesCount(count);
   String get nasServer => _l10n.nasServer;
-  String get sourcesAndLibrary => _l10n.sourcesAndLibrary;
+  String get sources => _l10n.sources;
+  String get musicLibrary => _l10n.musicLibrary;
   String get playback => _l10n.playback;
   String get audioQuality => _l10n.audioQuality;
   String get chooseQuality => _l10n.chooseQuality;

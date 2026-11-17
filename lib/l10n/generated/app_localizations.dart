@@ -188,11 +188,17 @@ abstract class AppLocalizations {
   /// **'NAS music server'**
   String get nasServer;
 
-  /// No description provided for @sourcesAndLibrary.
+  /// No description provided for @sources.
   ///
   /// In en, this message translates to:
-  /// **'Sources & library'**
-  String get sourcesAndLibrary;
+  /// **'Music sources'**
+  String get sources;
+
+  /// No description provided for @musicLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Music library'**
+  String get musicLibrary;
 
   /// No description provided for @playback.
   ///
@@ -569,7 +575,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadLocation.
   ///
   /// In en, this message translates to:
-  /// **'Download location'**
+  /// **'Download folder'**
   String get downloadLocation;
 
   /// No description provided for @downloadLocationSubtitle.

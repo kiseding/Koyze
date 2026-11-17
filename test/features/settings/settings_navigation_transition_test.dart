@@ -57,6 +57,14 @@ void main() {
     Future<void> open(String label) async {
       // 设置页是懒加载列表，靠后的分组在首屏根本没被构建出来；
       // 先滚到目标行，再按行点击。
+      //
+      // 每次从顶部重新往下找：上一条可能已经把列表滚到很下面，而
+      // scrollUntilVisible 只朝一个方向拖，目标在上方时永远找不到。
+      final position = tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position;
+      position.jumpTo(0);
+      await tester.pumpAndSettle();
       if (find.text(label).evaluate().isEmpty) {
         await tester.scrollUntilVisible(find.text(label), 240);
         await tester.pumpAndSettle();

@@ -56,7 +56,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get nasServer => 'NAS 音乐服务器';
 
   @override
-  String get sourcesAndLibrary => '音源与本地库';
+  String get sources => '音源';
+
+  @override
+  String get musicLibrary => '音乐库';
 
   @override
   String get playback => '播放';
@@ -246,7 +249,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadDirectoryUnavailable => '所选目录不可用';
 
   @override
-  String get downloadLocation => '下载位置';
+  String get downloadLocation => '下载目录';
 
   @override
   String get downloadLocationSubtitle => '把下载的歌导出到系统的「下载」文件夹';
