@@ -230,6 +230,10 @@ class S {
       _l10n.downloadDirectoryNotWritable;
   String get downloadDirectoryUnsupported =>
       _l10n.downloadDirectoryUnsupported;
+  String get downloadDirectoryFallbackActive =>
+      _l10n.downloadDirectoryFallbackActive;
+  String get downloadDirectoryUnavailable =>
+      _l10n.downloadDirectoryUnavailable;
   String get data => _l10n.data;
   String get dataAndSync => _l10n.dataAndSync;
   String get backup => _l10n.backup;

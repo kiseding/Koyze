@@ -23,6 +23,7 @@ import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/custom_source/presentation/custom_source_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/local_music/domain/android_directory_access.dart';
+import 'package:koyze/features/local_music/domain/security_scoped_directory.dart';
 import 'package:koyze/features/search/presentation/search_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import 'package:koyze/features/download/domain/download_task.dart';
@@ -324,6 +325,23 @@ Future<void> _bootstrapUnsafe(
 
         // 3.5 初始化歌单持久化
         await container.read(playlistServiceProvider).init();
+
+        // 3.58 iOS：先把用户授权过的 security-scoped 目录重新激活，再让下载
+        // 服务去读自定义下载目录。
+        //
+        // 顺序是关键。用户可以在「设置 → 下载目录」里选 iOS「文件」App 里的
+        // 目录（路径形如 .../AppGroup/[uuid]/File Provider Storage/Music/）。
+        // 那种目录只有拿到 security-scoped 授权才可读写，而授权要在每次进程
+        // 启动时从 bookmark 恢复。恢复动作原来只藏在
+        // LocalMusicLibrary.init() 里（3.55），比下载服务（3.6）还晚——于是
+        // 下载服务一上来就 `create()` / `list()` 一个还没授权的目录，直接
+        // PathAccessException 把整个启动流程打断。
+        //
+        // 幂等：原生侧的 restore() 对已经激活的目录直接跳过，不会再
+        // startAccessing 一次（iOS 的访问计数成对，多 start 就多欠一次
+        // stop）。恢复失败也不抛，只返回能恢复的那些路径；真不可用的目录
+        // 由下载服务自己降级到默认目录。
+        await SecurityScopedDirectory.restore();
 
         // 3.6 初始化下载服务持久化（downloadDirectory 需在 init 后可用）
         await container.read(downloadServiceProvider).init();

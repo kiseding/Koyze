@@ -64,6 +64,18 @@ abstract class LocalFileSystem {
   /// 只有 [needsNativeDirectoryPicker] 为真的平台会调到这里。
   Future<String?> pickDirectory() async => null;
 
+  /// [pickDirectory] 返回的路径能否直接交给 `dart:io` 使用。
+  ///
+  /// 这是「选得到」和「用得成」的区别，鸿蒙上两者不重合：它的选择器交回
+  /// `file://docs/...` **URI**，只有 `@ohos.file.fs` 的 `open` / `stat`
+  /// 这类明确支持 URI 的接口认，`dart:io` 一个都不认（`Directory()` /
+  /// `File()` 会把它当相对路径解析，报 13900002「找不到」）。
+  ///
+  /// 当前所有需要「把目录当 dart:io 路径持续读写」的功能——下载目录是典型
+  /// ——在鸿蒙上都走不通，只能留白。这里显式建模，而不是让用户选完再报错：
+  /// 一个点进去必然失败的入口，比没有这个入口更糟。
+  bool get supportsDartIoDirectory => true;
+
   /// 按平台选择实现。
   ///
   /// [channel] 由调用方注入，方便测试替身；生产环境用默认的
@@ -184,6 +196,9 @@ class IoFileSystem implements LocalFileSystem {
 
   @override
   bool get isSupported => true;
+
+  @override
+  bool get supportsDartIoDirectory => true;
 
   @override
   Future<List<LocalFileEntry>> listDirectory(String directoryPath) async {
@@ -334,6 +349,9 @@ abstract class ChannelFileSystem implements LocalFileSystem {
   /// 桌面 / Android / iOS 都用 `file_picker` 的目录选择器。
   @override
   bool get needsNativeDirectoryPicker => false;
+
+  @override
+  bool get supportsDartIoDirectory => true;
 
   @override
   Future<String?> pickDirectory() async => null;
@@ -489,6 +507,12 @@ class AndroidFileSystem implements LocalFileSystem {
   @override
   bool get needsNativeDirectoryPicker => false;
 
+  /// 选择器可能交回 `content://` 树（dart:io 写不进去），但也可能交回普通
+  /// 路径（部分文件管理器如此）。保留入口，由下载服务的写探针在用户选定后
+  /// 当场判掉 `content://`——比整块隐藏更合适，因为真实路径确实可用。
+  @override
+  bool get supportsDartIoDirectory => true;
+
   @override
   Future<String?> pickDirectory() async => null;
 
@@ -621,6 +645,12 @@ class OhosFileSystem extends ChannelFileSystem {
   @override
   bool get needsNativeDirectoryPicker => true;
 
+  /// 选择器交回的是 `file://docs/...` URI，`dart:io` 不认（会被当相对路径
+  /// 解析，报 13900002「找不到」）。所以「拿路径直接读写」的功能——下载目录
+  /// 是典型——在鸿蒙上不开放，隐藏入口而不是让用户选完必然失败。
+  @override
+  bool get supportsDartIoDirectory => false;
+
   @override
   Future<String?> pickDirectory() async {
     final path = await channel.invokeMethod<String>('pickDirectory');
@@ -639,6 +669,10 @@ class UnsupportedFileSystem implements LocalFileSystem {
 
   @override
   bool get needsNativeDirectoryPicker => false;
+
+  /// 浏览器里没有可写的文件系统。
+  @override
+  bool get supportsDartIoDirectory => false;
 
   @override
   Future<String?> pickDirectory() async => null;

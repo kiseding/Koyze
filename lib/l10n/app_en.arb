@@ -76,6 +76,8 @@
   "downloadDirectoryRestored": "Restored the default download folder",
   "downloadDirectoryNotWritable": "That location isn't writable. Choose another folder.",
   "downloadDirectoryUnsupported": "That location can't hold downloads. Choose a regular folder.",
+  "downloadDirectoryFallbackActive": "The folder you chose couldn't be opened, so downloads are temporarily using the default location. Pick the folder again to restore it.",
+  "downloadDirectoryUnavailable": "The chosen folder is unavailable",
   "data": "Data",
   "dataAndSync": "Data & sync",
   "backup": "Back up",

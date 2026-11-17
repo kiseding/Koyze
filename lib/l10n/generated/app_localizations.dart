@@ -554,6 +554,18 @@ abstract class AppLocalizations {
   /// **'That location can\'t hold downloads. Choose a regular folder.'**
   String get downloadDirectoryUnsupported;
 
+  /// No description provided for @downloadDirectoryFallbackActive.
+  ///
+  /// In en, this message translates to:
+  /// **'The folder you chose couldn\'t be opened, so downloads are temporarily using the default location. Pick the folder again to restore it.'**
+  String get downloadDirectoryFallbackActive;
+
+  /// No description provided for @downloadDirectoryUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The chosen folder is unavailable'**
+  String get downloadDirectoryUnavailable;
+
   /// No description provided for @data.
   ///
   /// In en, this message translates to:

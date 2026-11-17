@@ -214,4 +214,65 @@ void main() {
     expect(service.downloadDirectory, fallback.path);
     expect(service.customDownloadDirectory, isNull);
   });
+
+  // 5.2.0 的真实崩溃：用户把下载目录指到 iOS「文件」App 里的 Music 文件夹，
+  // 重启时 security-scoped 授权没能恢复，`init()` 里的 `create()` / `list()`
+  // 抛 PathAccessException 打断整个启动流程，界面停在「Koyze could not
+  // start」。鸿蒙的目录选择器同样是授权受限路径，会以同样的方式炸。
+  //
+  // 这里用一个「父路径是普通文件」的目录来模拟不可访问：create() 必然失败，
+  // 且失败原因与本机权限无关，三个平台都能稳定复现。
+  group('自定义目录不可访问时降级，而不是让启动失败', () {
+    String brokenDirectory() {
+      final blocker = File('${sandbox.path}/blocker')
+        ..writeAsStringSync('not a directory');
+      return '${blocker.path}/downloads';
+    }
+
+    test('init() 不抛异常，落到默认目录，仍记得用户选的路径', () async {
+      final fallback = sub('fallback')..createSync(recursive: true);
+      final broken = brokenDirectory();
+      final service = buildService(
+        fallback: fallback,
+        customDirectory: broken,
+      );
+      addTearDown(service.dispose);
+
+      await service.init();
+
+      expect(service.downloadDirectory, fallback.path,
+          reason: '目录打不开时必须回落到默认目录，否则启动就崩了');
+      expect(service.customDownloadDirectory, broken,
+          reason: '设置值不能被悄悄改掉：授权恢复后下次启动还要用它');
+      expect(service.customDirectoryFallbackReason, isNotNull,
+          reason: '降级要能被设置页读出来，否则用户以为设置没生效');
+    });
+
+    test('降级后下载照样能落盘', () async {
+      final fallback = sub('fallback')..createSync(recursive: true);
+      final service = buildService(
+        fallback: fallback,
+        customDirectory: brokenDirectory(),
+      );
+      addTearDown(service.dispose);
+
+      await service.init();
+
+      expect(service.isOwnedDownloadPath('${fallback.path}/song.mp3'), isTrue);
+      expect(service.isOwnedDownloadPath('${sandbox.path}/blocker/x.mp3'),
+          isFalse);
+    });
+
+    test('目录正常时不标记降级', () async {
+      final fallback = sub('fallback')..createSync(recursive: true);
+      final target = '${sandbox.path}/picked';
+      final service = buildService(fallback: fallback, customDirectory: target);
+      addTearDown(service.dispose);
+
+      await service.init();
+
+      expect(service.downloadDirectory, target);
+      expect(service.customDirectoryFallbackReason, isNull);
+    });
+  });
 }

@@ -251,6 +251,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'That location can\'t hold downloads. Choose a regular folder.';
 
   @override
+  String get downloadDirectoryFallbackActive =>
+      'The folder you chose couldn\'t be opened, so downloads are temporarily using the default location. Pick the folder again to restore it.';
+
+  @override
+  String get downloadDirectoryUnavailable => 'The chosen folder is unavailable';
+
+  @override
   String get data => 'Data';
 
   @override

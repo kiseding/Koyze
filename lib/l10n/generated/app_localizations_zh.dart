@@ -239,6 +239,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadDirectoryUnsupported => '这个位置不能用作下载目录，请选择本机文件夹';
 
   @override
+  String get downloadDirectoryFallbackActive =>
+      '你选的目录这次没能打开，已临时改用默认目录。重新选择一次即可恢复。';
+
+  @override
+  String get downloadDirectoryUnavailable => '所选目录不可用';
+
+  @override
   String get data => '数据';
 
   @override

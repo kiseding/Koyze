@@ -155,6 +155,7 @@ class DownloadDirectoryInfo {
     required this.current,
     required this.defaultPath,
     required this.custom,
+    this.fallbackReason,
   });
 
   /// 当前生效的目录（可能就是 [defaultPath]）。
@@ -166,7 +167,18 @@ class DownloadDirectoryInfo {
   /// 用户显式选过的目录；null 表示当前用的是默认目录。
   final String? custom;
 
+  /// 用户选过的目录这次没能启用时的原因。
+  ///
+  /// 非 null 表示 [custom] 有值但本次运行实际用的是 [defaultPath]——典型
+  /// 场景是 iOS / 鸿蒙的授权在重启后没恢复、目录被删了、外接卷没挂上。
+  /// 设置页必须把这件事说出来：用户看到自己选的路径还在，实际下载却跑到了
+  /// 默认目录，不解释就是「设置不生效」。
+  final String? fallbackReason;
+
   bool get isDefault => custom == null;
+
+  /// 选了自定义目录、但本次运行降级到了默认目录。
+  bool get isFallbackActive => custom != null && fallbackReason != null;
 }
 
 final downloadDirectoryInfoProvider = FutureProvider<DownloadDirectoryInfo>((
@@ -180,6 +192,7 @@ final downloadDirectoryInfoProvider = FutureProvider<DownloadDirectoryInfo>((
     current: service.downloadDirectory ?? fallback.path,
     defaultPath: fallback.path,
     custom: service.customDownloadDirectory,
+    fallbackReason: service.customDirectoryFallbackReason,
   );
 });
 

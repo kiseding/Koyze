@@ -324,7 +324,7 @@ private final class SecurityScopedDirectoryAccess: NSObject, UIDocumentPickerDel
     activeURLs[url.path] = url
     do {
       var bookmarks = UserDefaults.standard.dictionary(forKey: bookmarkKey) as? [String: String] ?? [:]
-      bookmarks[url.path] = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil).base64EncodedString()
+      bookmarks[url.path] = try SecurityScopedDirectoryAccess.bookmark(for: url)
       UserDefaults.standard.set(bookmarks, forKey: bookmarkKey)
       pendingResult?(url.path)
     } catch {
@@ -332,6 +332,29 @@ private final class SecurityScopedDirectoryAccess: NSObject, UIDocumentPickerDel
       pendingResult?(FlutterError(code: "bookmark_failed", message: error.localizedDescription, details: nil))
     }
     pendingResult = nil
+  }
+
+  /// 创建能在下次启动时重新拿到 security scope 的 bookmark。
+  ///
+  /// **不能**用 `.minimalBookmark`。那个选项的语义是「只记足够定位的东西」，
+  /// 它不下发安全作用域信息；用它存下来的 bookmark 在重启后
+  /// `startAccessingSecurityScopedResource()` 一律返回 false——用户当场选
+  /// 完目录能用，杀掉进程再打开授权就没了。5.2.0 就是这样：设置里选了
+  /// iOS「文件」App 的 Music 文件夹，重启后目录读不了，界面停在
+  /// 「Koyze could not start / PathAccessException」。
+  ///
+  /// iOS 上的正确写法是**不给任何选项**：`URL.BookmarkCreationOptions` 里
+  /// 只有 `.minimalBookmark` / `.suitableForBookmarkFile` 对 iOS 开放，
+  /// `.withSecurityScope` 是 macOS 专有的（iOS 上不可用，写了编译不过）。
+  /// 空选项创建的 bookmark 会自动携带安全作用域，这正是文档选择器授权的
+  /// 标准持久化方式。
+  static func bookmark(for url: URL) throws -> String {
+    let data = try url.bookmarkData(
+      options: [],
+      includingResourceValuesForKeys: nil,
+      relativeTo: nil
+    )
+    return data.base64EncodedString()
   }
 
   func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
@@ -342,19 +365,62 @@ private final class SecurityScopedDirectoryAccess: NSObject, UIDocumentPickerDel
   func restore() -> [String] {
     let bookmarks = UserDefaults.standard.dictionary(forKey: bookmarkKey) as? [String: String] ?? [:]
     var paths: [String] = []
+    var updated = bookmarks
+    // 幂等：Dart 侧会在启动早期恢复一次（下载服务要用），曲库初始化时再
+    // 恢复一次。已经激活的 URL 不再重复 startAccessing——iOS 的访问计数是
+    // 成对的，多 start 一次就多欠一次 stop，stopAll 只会还一次。
+    for url in activeURLs.values {
+      paths.append(url.path)
+    }
     for (fallbackPath, encoded) in bookmarks {
+      if activeURLs[fallbackPath] != nil {
+        // 已经激活过，但 URL 可能和这次解析出来的不同（stale 刷新过），
+        // 以已激活的为准，不重复解析。
+        continue
+      }
       guard let data = Data(base64Encoded: encoded) else { continue }
       do {
         var stale = false
-        let url = try URL(resolvingBookmarkData: data, bookmarkDataIsStale: &stale)
-        guard url.startAccessingSecurityScopedResource() else { continue }
+        let url = try SecurityScopedDirectoryAccess.resolveBookmark(data, isStale: &stale)
+        guard url.startAccessingSecurityScopedResource() else {
+          // 授权拿不回来（目录被删、provider 卸载、用户改过位置）。这条
+          // bookmark 留着没意义，删掉它，下次启动不用再为注定失败的路径
+          // 白跑一遍。
+          //
+          // 注意**只删 bookmark，不删 Dart 侧的目录设置**：后者是用户可见
+          // 的选择，由设置页展示「所选目录不可用」并让用户重新选；在这里
+          // 悄悄抹掉，用户只会看到自己的设置凭空消失。
+          updated.removeValue(forKey: fallbackPath)
+          continue
+        }
         activeURLs[fallbackPath] = url
         paths.append(url.path)
+        if stale, let refreshed = try? SecurityScopedDirectoryAccess.bookmark(for: url) {
+          // stale 说明 provider 那边换了标识（例如用户在「文件」App 里
+          // 重命名了目录）。不刷新的话下次启动还会拿到旧数据。
+          updated[fallbackPath] = refreshed
+        }
       } catch {
+        updated.removeValue(forKey: fallbackPath)
         continue
       }
     }
+    if updated != bookmarks {
+      UserDefaults.standard.set(updated, forKey: bookmarkKey)
+    }
     return paths
+  }
+
+  /// 解析 bookmark。iOS 上没有 `.withSecurityScope` 这个解析选项（那是
+  /// macOS 的），传 `.withoutUI` 即可——安全作用域是 bookmark 自身带的，
+  /// 由创建时的选项决定，不在解析时指定。
+  static func resolveBookmark(_ data: Data, isStale: inout Bool) throws -> URL {
+    try URL(
+      resolvingBookmarkData: data,
+      options: [.withoutUI],
+      relativeTo: nil,
+      bookmarkDataIsStale: &isStale
+    )
   }
 
   func stopAll() {

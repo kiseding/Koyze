@@ -771,26 +771,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => context.push('/download'),
             captureExpandOrigin: true,
           ),
-          SettingsEntry(
-            title: s.downloadDirectory,
-            subtitle:
-                ref.watch(downloadDirectoryInfoProvider).valueOrNull?.current ??
-                s.downloadDirectoryDefaultLocation,
-            keywords: const [
-              '下载',
-              'download',
-              '目录',
-              '文件夹',
-              'folder',
-              'directory',
-              '路径',
-              'path',
-              '保存位置',
-              '存储',
-              'storage',
-            ],
-            onTap: () => _showDownloadDirectoryDialog(context),
-          ),
+          // 鸿蒙上不显示：它的目录选择器交回 `file://docs/...` URI，而下载
+          // 落盘走 `File(...).open()`（dart:io），两者对不上——选了也用不了。
+          // 与其给一个点进去必然报「这个位置不能用作下载目录」的入口，不如
+          // 不显示（见 LocalFileSystem.supportsDartIoDirectory）。
+          if (ref.read(localFileSystemProvider).supportsDartIoDirectory)
+            SettingsEntry(
+              title: s.downloadDirectory,
+              // 降级生效时副标题要说清「你现在实际用的是默认目录」，否则用户
+              // 看到自己选的路径还在设置里、下载却跑到别处，只会觉得设置坏了。
+              subtitle: switch (ref
+                  .watch(downloadDirectoryInfoProvider)
+                  .valueOrNull) {
+                final info? when info.isFallbackActive =>
+                  '${info.current} · ${s.downloadDirectoryFallbackActive}',
+                final info? => info.current,
+                null => s.downloadDirectoryDefaultLocation,
+              },
+              keywords: const [
+                '下载',
+                'download',
+                '目录',
+                '文件夹',
+                'folder',
+                'directory',
+                '路径',
+                'path',
+                '保存位置',
+                '存储',
+                'storage',
+              ],
+              onTap: () => _showDownloadDirectoryDialog(context),
+            ),
           SettingsEntry(
             title: s.wifiOnly,
             subtitle: s.wifiOnlySubtitle,
@@ -1883,6 +1895,22 @@ class _DownloadDirectoryDialogState
             ),
           ],
           const SizedBox(height: 12),
+          // 选了自定义目录、但本次运行降级到默认目录：必须显式说出来。
+          // 用户看到「当前目录」是默认位置，会以为自己的选择丢了。
+          if (info != null && info.isFallbackActive) ...[
+            _DownloadDirectoryHint(
+              icon: Icons.warning_amber_rounded,
+              text: s.downloadDirectoryFallbackActive,
+              error: true,
+            ),
+            const SizedBox(height: 8),
+            _DownloadPathBox(
+              label: s.downloadDirectoryUnavailable,
+              path: info.custom,
+              subtle: true,
+            ),
+            const SizedBox(height: 12),
+          ],
           _DownloadDirectoryHint(
             icon: Icons.info_outline,
             text: s.downloadDirectoryNote,

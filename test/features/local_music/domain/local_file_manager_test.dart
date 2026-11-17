@@ -87,6 +87,9 @@ class _FakeFileSystem implements LocalFileSystem {
   bool get needsNativeDirectoryPicker => false;
 
   @override
+  bool get supportsDartIoDirectory => true;
+
+  @override
   Future<String?> pickDirectory() async => null;
 }
 

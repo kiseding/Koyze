@@ -249,6 +249,12 @@ class DownloadService {
   /// 用户在设置里选的目录。null 表示跟随平台默认目录。
   String? _customDir;
 
+  /// 启动时自定义目录不可用的原因（授权失效等）。
+  ///
+  /// 非 null 说明 [customDownloadDirectory] 这次没生效、本次运行落回了默认
+  /// 目录。设置值本身不改，等授权恢复后下次启动会自动再用它。
+  String? _customDirUnavailableReason;
+
   /// 本服务用过的下载根目录（已解析符号链接，包含当前这个）。
   ///
   /// 换目录之后旧文件仍要能删、能统计、能通过启动时的归属校验，所以这里
@@ -272,6 +278,13 @@ class DownloadService {
 
   /// 用户自定义的下载目录；null 表示用的是平台默认目录。
   String? get customDownloadDirectory => _customDir;
+
+  /// 自定义目录本次没能启用时的原因（授权失效、目录被删、只读等）。
+  ///
+  /// 非 null 时 [downloadDirectory] 指向的是平台默认目录，而
+  /// [customDownloadDirectory] 仍是用户当初选的路径——设置页要把这两件事
+  /// 都说清楚，否则用户会以为自己的设置被改掉了。
+  String? get customDirectoryFallbackReason => _customDirUnavailableReason;
 
   int get maxCacheSizeMB => 2048;
   Set<String> get activeTaskIds => Set.unmodifiable(_activeTaskIds);
@@ -432,8 +445,23 @@ class DownloadService {
     if (!await dir.exists()) return;
 
     final files = <File>[];
-    await for (final entity in dir.list(followLinks: false)) {
-      if (entity is File) files.add(entity);
+    // 列举失败不能冒泡到 init()：启动时这个目录可能刚好不可访问（iOS /
+    // 鸿蒙的授权还没恢复、外接卷还没挂上）。对账只是「把磁盘上的实际文件和
+    // 任务列表对齐」这种尽力而为的维护动作，读不到就当这次没对账，绝不能
+    // 因此让应用起不来。
+    try {
+      await for (final entity in dir.list(followLinks: false)) {
+        if (entity is File) files.add(entity);
+      }
+    } catch (error, stackTrace) {
+      AppLog.instance.record(
+        'download.reconcile',
+        'listing download directory failed, skipping reconcile: '
+        '$dirPath ($error)',
+        level: AppLogLevel.warning,
+        stackTrace: stackTrace,
+      );
+      return;
     }
 
     final matchedFinals = <String, List<File>>{};
@@ -582,8 +610,45 @@ class DownloadService {
     return write;
   }
 
+  /// 建立下载目录。自定义目录不可访问时**降级到默认目录**，绝不抛异常。
+  ///
+  /// 这一层必须兜住，否则整个应用起不来。iOS / 鸿蒙的目录选择器给的是受
+  /// 授权保护的路径（iOS 是 security-scoped bookmark，鸿蒙是原生 URI）：授权
+  /// 在用户选定那一刻是活的，写探针也能过，但**重启后**要靠
+  /// `SecurityScopedDirectory.restore()` 重新激活。书签失效、被系统回收、
+  /// 用户在「文件」App 里把目录删了，恢复就会失败，于是这里的
+  /// `create()` / `list()` 抛 `PathAccessException`。
+  ///
+  /// 5.2.0 上线「下载目录设置」后真实踩到：用户把下载目录指到 iOS「文件」
+  /// App 的 Music 文件夹，重启后卡在启动页——
+  /// `PathAccessException: Directory listing failed, path =
+  /// '.../AppGroup/[uuid]/File Provider Storage/Music/'`。
+  ///
+  /// 降级策略：保留用户的设置值（不要偷偷改掉他的选择，下次授权恢复还能
+  /// 用），只让**本次运行**回落到默认目录，并把降级原因记进 AppLog 与
+  /// [downloadDirectoryFallbackReason]，设置页据此提示。
   Future<void> _initDownloadDir() async {
-    final dir = await _targetDirectory();
+    final custom = _customDir?.trim();
+    if (custom != null && custom.isNotEmpty) {
+      try {
+        final dir = Directory(custom);
+        await dir.create(recursive: true);
+        final resolved = await dir.resolveSymbolicLinks();
+        _downloadDir = dir.path;
+        _resolvedDownloadRoot = resolved;
+        _ownedRoots.add(resolved);
+        return;
+      } catch (error) {
+        _customDirUnavailableReason = error.toString();
+        AppLog.instance.record(
+          'download.directory',
+          'custom download directory unavailable, falling back to default: '
+          '$custom ($error)',
+          level: AppLogLevel.warning,
+        );
+      }
+    }
+    final dir = await _defaultDirectory();
     await dir.create(recursive: true);
     _downloadDir = dir.path;
     _resolvedDownloadRoot = await dir.resolveSymbolicLinks();
@@ -608,12 +673,6 @@ class DownloadService {
   Future<Directory> _defaultDirectory() async {
     final factory = _downloadDirectory;
     return factory != null ? factory() : defaultDownloadDirectory();
-  }
-
-  Future<Directory> _targetDirectory() async {
-    final custom = _customDir?.trim();
-    if (custom == null || custom.isEmpty) return _defaultDirectory();
-    return Directory(custom);
   }
 
   /// 切换下载目录，立刻生效。
@@ -1493,8 +1552,18 @@ class DownloadService {
     final path = _downloadDir;
     if (path == null) return 0;
     var total = 0;
-    await for (final entity in Directory(path).list(followLinks: false)) {
-      if (entity is File) total += await entity.length();
+    // 同 _reconcileDownloadDirectory：这里的失败只影响「缓存占用」这个展示
+    // 数字，不值得让调用方（设置页刷新、清理逻辑）整条链断掉。
+    try {
+      await for (final entity in Directory(path).list(followLinks: false)) {
+        if (entity is File) total += await entity.length();
+      }
+    } catch (error) {
+      AppLog.instance.record(
+        'download.directory',
+        'measuring download directory failed: $path ($error)',
+        level: AppLogLevel.warning,
+      );
     }
     return total;
   }
