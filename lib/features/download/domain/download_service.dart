@@ -653,17 +653,71 @@ class DownloadService {
     _downloadDir = dir.path;
     _resolvedDownloadRoot = await dir.resolveSymbolicLinks();
     _ownedRoots.add(_resolvedDownloadRoot!);
+    // 桌面端换过默认落点：旧目录里的文件仍属于本服务，别把它们隔离掉。
+    await _adoptLegacyDefaultDirectory();
   }
+
+  /// 把桌面旧默认目录登记为归属根。
+  ///
+  /// 只在没有自定义目录、且旧目录存在时才做。用户显式选了目录的话，旧默认
+  /// 目录里的文件本来就不该由这次运行接管（他可能已经把目录指到别处）。
+  Future<void> _adoptLegacyDefaultDirectory() async {
+    final custom = _customDir?.trim();
+    if (custom != null && custom.isNotEmpty) return;
+    try {
+      final legacy = await _legacyDefaultDirectory();
+      if (legacy == null) return;
+      final resolved = await legacy.resolveSymbolicLinks();
+      if (_resolvedDownloadRoot == resolved) return;
+      if (!_ownedRoots.add(resolved)) return;
+      await _persistOwnedRoots();
+    } catch (error) {
+      AppLog.instance.record(
+        'download.directory',
+        'adopting legacy default directory failed: $error',
+        level: AppLogLevel.warning,
+      );
+    }
+  }
+
+  /// 公共「下载」文件夹里属于本应用的子目录名。
+  ///
+  /// 四个平台的终点都是它：桌面直接落进去，移动端把副本导出进去。用户在
+  /// 文件管理器里打开「下载」就能看到一个 Koyze 文件夹，而不是一堆散落的
+  /// 音频和封面。
+  static const publicDownloadsFolderName = 'Koyze';
+
+  /// 能不能把公共「下载」目录当成长期写入的下载根。
+  ///
+  /// 只有桌面可以。移动端（Android / iOS / 鸿蒙）的公共下载目录要么写不
+  /// 进去（iOS 沙盒、鸿蒙手机），要么需要额外的存储权限模型（Android），
+  /// 所以那边的下载根仍是应用私有目录，「看得见」靠一次导出完成。
+  static bool get _supportsDirectPublicDownloads =>
+      !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
   /// 平台默认下载目录。
   ///
-  /// 便携模式（Windows 下 exe 旁的 `portable.flag`）落在可执行文件同级的
-  /// `portable_data/downloads`，这样整个应用连同数据可以一起搬走；其余平台
-  /// 落在应用文档目录下的 `downloads`。设置页展示「默认位置」时也用它。
+  /// 桌面落在系统「下载」文件夹下的 `Koyze` 子目录：用户在文件管理器里点
+  /// 「下载」就能看到，和其他应用一致。便携模式（Windows 下 exe 旁的
+  /// `portable.flag`）例外，仍落在可执行文件同级的 `portable_data/downloads`，
+  /// 这样整个应用连同数据可以一起搬走。
+  ///
+  /// 移动端落在应用文档目录下的 `downloads`，设置页的「下载位置」里可以
+  /// 把它们导出到系统「下载/Koyze」。
   static Future<Directory> defaultDownloadDirectory() async {
     final portableRoot = PortableMode.root;
     if (portableRoot != null) {
       return Directory('$portableRoot${Platform.pathSeparator}downloads');
+    }
+    if (_supportsDirectPublicDownloads) {
+      final downloads = await getDownloadsDirectory();
+      // Linux 上 `getDownloadsDirectory()` 依赖 xdg-user-dirs，没配的话
+      // 返回 null，退到应用文档目录而不是让下载直接失败。
+      if (downloads != null) {
+        return Directory(
+          '${downloads.path}${Platform.pathSeparator}$publicDownloadsFolderName',
+        );
+      }
     }
     final appDir = await getApplicationDocumentsDirectory();
     return Directory('${appDir.path}${Platform.pathSeparator}downloads');
@@ -673,6 +727,19 @@ class DownloadService {
   Future<Directory> _defaultDirectory() async {
     final factory = _downloadDirectory;
     return factory != null ? factory() : defaultDownloadDirectory();
+  }
+
+  /// 桌面端早期版本的默认下载目录（应用文档下的 `downloads`）。
+  ///
+  /// 5.2.4 把桌面的默认落点从那里挪到了公共「下载/Koyze」，老用户的下载
+  /// 记录里全是旧路径。不把旧目录认定为归属根的话，升级后第一次启动就会
+  /// 把它们全判成越权路径隔离掉——下载列表凭空清空是最容易被当成「丢数据」
+  /// 的一类 bug。只在桌面返回，且只在它确实存在时才加进归属集合。
+  Future<Directory?> _legacyDefaultDirectory() async {
+    if (kIsWeb || !_supportsDirectPublicDownloads) return null;
+    final appDir = await getApplicationDocumentsDirectory();
+    final dir = Directory('${appDir.path}${Platform.pathSeparator}downloads');
+    return await dir.exists() ? dir : null;
   }
 
   /// 切换下载目录，立刻生效。

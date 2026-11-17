@@ -6,6 +6,10 @@
 	<true/>
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
+	<!-- 默认下载目录是 ~/Downloads/Koyze。沙盒应用写「下载」文件夹必须显式
+	     声明这一项，否则创建目录就会失败，下载全部报错。 -->
+	<key>com.apple.security.files.downloads.read-write</key>
+	<true/>
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
 	<key>com.apple.security.network.client</key>
