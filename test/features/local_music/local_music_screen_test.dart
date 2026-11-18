@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -6,7 +7,11 @@ import 'package:koyze/core/card_expand.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/widgets/gradient_bar_backgrounds.dart';
+import 'package:koyze/features/download/domain/download_task.dart';
+import 'package:koyze/features/download/presentation/download_provider.dart';
+import 'package:koyze/features/local_music/domain/local_file_system.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
+import 'package:koyze/features/local_music/presentation/local_file_manager_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_screen.dart';
 import 'package:koyze/l10n/generated/app_localizations.dart';
@@ -212,5 +217,66 @@ void main() {
       isFalse,
       reason: '入口必须先 captureCardExpandOrigin，否则转场退回上滑淡入',
     );
+  });
+
+  testWidgets('「导出已下载的歌」在本地音乐设置页，数量只算下完的', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    SharedPreferences.setMockInitialValues({
+      'local_music_download_dir_v1': downloads,
+      'local_music_dirs_v1': <String>[downloads, musicDir],
+    });
+    final storage = StorageService.forTesting(
+      await SharedPreferences.getInstance(),
+    );
+    final library = LocalMusicLibrary(storage: storage);
+    await library.init();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localMusicLibraryProvider.overrideWith((ref) async => library),
+          // 桌面端没有「导出」这一步（下载直接落公共目录）。要验证这张卡，
+          // 得先站到一个本来会显示它的平台上。
+          localFileSystemProvider.overrideWithValue(
+            AndroidFileSystem(channel: const MethodChannel('test')),
+          ),
+          // 真身要构造 DownloadService（连 Connectivity 插件），测试里直接
+          // 给一份固定任务列表。
+          downloadTasksProvider.overrideWithValue([
+            DownloadTask(
+              id: 'done',
+              musicId: 'm1',
+              name: 'Downloaded',
+              singer: 'Someone',
+              savePath: '/x/downloaded.flac',
+              status: DownloadStatus.completed,
+              createdAt: DateTime(2026, 11, 18),
+            ),
+            // 没下完的不算：它还没有文件可导。
+            DownloadTask(
+              id: 'pending',
+              musicId: 'm2',
+              name: 'Still going',
+              singer: 'Someone',
+              status: DownloadStatus.downloading,
+              createdAt: DateTime(2026, 11, 18),
+            ),
+          ]),
+        ],
+        child: MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const LocalMusicScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Export downloaded songs'), findsOneWidget);
+    expect(find.text('1 ready to export'), findsOneWidget);
   });
 }

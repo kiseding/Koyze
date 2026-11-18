@@ -1,10 +1,7 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/logging/app_log.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
@@ -12,22 +9,21 @@ import '../../../l10n/app_strings.dart';
 import '../../local_music/domain/local_file_system.dart';
 import '../../local_music/presentation/local_file_manager_provider.dart';
 import '../domain/download_service.dart';
-import '../domain/download_task.dart';
 import 'download_provider.dart';
+import 'export_downloads_card.dart';
 
 /// 下载目录：一个整页，不是弹窗。
 ///
 /// 页面上要做的事不止「选一下」：看清当前落在哪、看清默认位置、能不能换、
-/// 换了影响哪些文件、已经下好的能不能导出。这些内容塞进中心弹窗里，桌面端
-/// 一屏放不下要滚动，移动端更挤；而且换目录是个会改变文件去向的操作，值得
-/// 占一页说明白。
+/// 换了影响哪些文件。这些内容塞进中心弹窗里，桌面端一屏放不下要滚动，移动端
+/// 更挤；而且换目录是个会改变文件去向的操作，值得占一页说明白。
 ///
-/// 四个平台共用同一个页面，按能力渲染：
-/// - [LocalFileSystem.supportsDartIoDirectory] → 能换目录（桌面、Android 部分情况）
-/// - [LocalFileSystem.supportsPublicDownloadsExport] → 能把已下好的导出到公共「下载」
+/// 四个平台共用同一个页面，按能力渲染：只有
+/// [LocalFileSystem.supportsDartIoDirectory] 为真的平台才有「选择文件夹」。
 ///
 /// 移动端写不进系统公共目录（iOS 沙盒、鸿蒙手机、Android 分区存储各有一道墙），
-/// 只能先落私有目录再导出副本，所以那边没有「选择文件夹」。
+/// 只能先落私有目录再导出副本。导出本身不在这页——它处理的是「已经下好的歌」，
+/// 那是本地音乐库的事，入口在「本地音乐设置」里（见 [ExportDownloadsCard]）。
 class DownloadFolderScreen extends ConsumerStatefulWidget {
   const DownloadFolderScreen({super.key});
 
@@ -43,25 +39,11 @@ class _DownloadFolderScreenState extends ConsumerState<DownloadFolderScreen> {
   /// 目录选择器开着。
   bool _picking = false;
 
-  /// 导出进行中。
-  bool _exporting = false;
-
   String? _error;
 
-  bool get _busy => _applying || _picking || _exporting;
+  bool get _busy => _applying || _picking;
 
   LocalFileSystem get _fs => ref.read(localFileSystemProvider);
-
-  /// 已下载完成、且有落盘路径的任务。
-  List<DownloadTask> get _exportable => ref
-      .read(downloadServiceProvider)
-      .tasks
-      .where(
-        (task) =>
-            task.status == DownloadStatus.completed &&
-            (task.savePath?.isNotEmpty ?? false),
-      )
-      .toList(growable: false);
 
   Future<void> _apply(String? path, {required bool restoreDefault}) async {
     if (_busy) return;
@@ -131,61 +113,11 @@ class _DownloadFolderScreenState extends ConsumerState<DownloadFolderScreen> {
     await _apply(path, restoreDefault: false);
   }
 
-  Future<void> _export() async {
-    if (_busy) return;
-    final s = S.of(context);
-    final tasks = _exportable;
-    if (tasks.isEmpty) {
-      setState(() => _error = s.downloadLocationEmpty);
-      return;
-    }
-    setState(() {
-      _exporting = true;
-      _error = null;
-    });
-    var done = 0;
-    var failed = 0;
-    var cancelled = false;
-    for (final task in tasks) {
-      if (!mounted) return;
-      try {
-        final landed = await _fs.exportToPublicDownloads(task.savePath!);
-        // null = 用户在系统对话框里点了取消。这时候继续问下一首只会更烦，
-        // 直接停下来，已经导出去的照常算数。
-        if (landed == null) {
-          cancelled = true;
-          break;
-        }
-        done++;
-      } catch (error) {
-        failed++;
-        AppLog.instance.record(
-          'download.export',
-          'export ${task.name} failed: $error',
-          level: AppLogLevel.warning,
-        );
-      }
-    }
-    if (!mounted) return;
-    setState(() => _exporting = false);
-    if (cancelled && done == 0) {
-      setState(() => _error = s.downloadLocationCancelled);
-      return;
-    }
-    if (failed > 0) {
-      setState(() => _error = s.downloadLocationPartial(done, failed));
-      return;
-    }
-    showAppNotification(
-      s.downloadLocationExported(done),
-      type: AppNotificationType.success,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
     final canSwitchDirectory = _fs.supportsDartIoDirectory;
+    // 用来决定要不要留「导出搬到哪了」那一句：Android 既能换目录也能导出。
     final canExport = _fs.supportsPublicDownloadsExport;
     final info = ref.watch(downloadDirectoryInfoProvider).valueOrNull;
     final custom = info?.custom;
@@ -254,29 +186,26 @@ class _DownloadFolderScreenState extends ConsumerState<DownloadFolderScreen> {
               ),
               const SizedBox(height: 14),
             ],
-            _DownloadDirectoryHint(
-              icon: Icons.info_outline,
-              text: canSwitchDirectory
-                  ? s.downloadDirectoryNote
-                  : _exportExplanation(s),
-            ),
+            if (canSwitchDirectory)
+              _DownloadDirectoryHint(
+                icon: Icons.info_outline,
+                text: s.downloadDirectoryNote,
+              )
+            else
+              // 走不到「选择文件夹」的都是移动端，也正是「导出」存在的场景：
+              // 先从系统层面解释为什么路径长这样。
+              _DownloadDirectoryHint(
+                icon: Icons.info_outline,
+                text: exportDownloadsExplanation(s),
+              ),
+            // 导出按钮不在这页了（它在「本地音乐设置」里），但那些本来有导出
+            // 的平台都得留一句指路——Android 既能换目录又能导出，不能只在
+            // 「不能换目录」那一支里说。
             if (canExport) ...[
-              // 能换目录的平台（Android / iOS）还要额外说清「导出」是什么：
-              // 上面那句讲的是「改了目录之后新下载去哪」，跟导出无关。
-              if (canSwitchDirectory) ...[
-                const SizedBox(height: 10),
-                _DownloadDirectoryHint(
-                  icon: Icons.save_alt_rounded,
-                  text: _exportExplanation(s),
-                ),
-              ],
-              const SizedBox(height: 14),
-              _DownloadExportRow(
-                count: _exportable.length,
-                busy: _exporting,
-                // 移动端没有「选择文件夹」这个主动作，导出就是页面上唯一的
-                // 操作，所以整行可点；有主动作时同理，点击即导出。
-                onTap: _busy ? null : _export,
+              const SizedBox(height: 10),
+              _DownloadDirectoryHint(
+                icon: Icons.save_alt_rounded,
+                text: s.downloadDirectoryExportMoved,
               ),
             ],
             if (_error != null) ...[
@@ -322,108 +251,6 @@ class _DownloadFolderScreenState extends ConsumerState<DownloadFolderScreen> {
               ],
             ],
           ],
-        ),
-      ),
-    );
-  }
-
-  /// 移动端为什么要先落私有目录。各平台的墙不一样，说对了才有用。
-  String _exportExplanation(S s) {
-    if (Platform.isAndroid) return s.downloadLocationBodyAndroid;
-    if (Platform.isIOS) return s.downloadLocationBodyIos;
-    return s.downloadLocationBody;
-  }
-}
-
-/// 页面上的一行「导出已下载的歌」：左边一句话，右边数量和箭头。
-///
-/// 做成行而不是实心按钮：Android / iOS 页面上另有「选择文件夹」这个主动作，
-/// 两个同等重要的按钮上下并排会让用户不知道点哪个。导出作为一次性的附加
-/// 操作，放在内容区更合适。
-class _DownloadExportRow extends StatelessWidget {
-  const _DownloadExportRow({
-    required this.count,
-    required this.busy,
-    required this.onTap,
-  });
-
-  final int count;
-  final bool busy;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = S.of(context);
-    final enabled = onTap != null;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
-          decoration: BoxDecoration(
-            color: AppColors.isDark(context)
-                ? Colors.white.withValues(alpha: 0.04)
-                : Colors.black.withValues(alpha: 0.028),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.cardBorder(context),
-              width: 0.7,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.save_alt_rounded,
-                size: 17,
-                color: enabled
-                    ? AppColors.accentOf(context)
-                    : AppColors.mutedText(context).withValues(alpha: 0.55),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      s.downloadLocationExport,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        color: enabled
-                            ? AppColors.onScaffold(context)
-                            : AppColors.mutedText(
-                                context,
-                              ).withValues(alpha: 0.55),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      count == 0
-                          ? s.downloadLocationEmpty
-                          : s.downloadLocationExportCount(count),
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: AppColors.mutedText(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (busy)
-                const SizedBox(
-                  width: 15,
-                  height: 15,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 19,
-                  color: AppColors.mutedText(context),
-                ),
-            ],
-          ),
         ),
       ),
     );

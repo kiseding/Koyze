@@ -229,6 +229,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadDirectoryDefaultLocation => 'Default location';
 
   @override
+  String get downloadDirectoryExportMoved =>
+      'To get them out, open Local music settings and use \'Export downloaded songs\'.';
+
+  @override
   String get downloadDirectoryNote =>
       'Only new downloads use the new folder; files already downloaded stay where they are.';
 

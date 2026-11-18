@@ -223,6 +223,8 @@ class S {
   String get downloadDirectoryDefaultLocation =>
       _l10n.downloadDirectoryDefaultLocation;
   String get downloadDirectoryNote => _l10n.downloadDirectoryNote;
+  String get downloadDirectoryExportMoved =>
+      _l10n.downloadDirectoryExportMoved;
   String get downloadDirectoryChoose => _l10n.downloadDirectoryChoose;
   String get downloadDirectoryPickerTitle => _l10n.downloadDirectoryPickerTitle;
   String get downloadDirectoryChanged => _l10n.downloadDirectoryChanged;

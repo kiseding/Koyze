@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -6,6 +7,8 @@ import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/core/widgets/koyze_modal.dart';
 import 'package:koyze/features/download/presentation/download_folder_screen.dart';
 import 'package:koyze/features/download/presentation/download_provider.dart';
+import 'package:koyze/features/local_music/domain/local_file_system.dart';
+import 'package:koyze/features/local_music/presentation/local_file_manager_provider.dart';
 import 'package:koyze/features/settings/presentation/settings_notifiers.dart';
 import 'package:koyze/features/settings/presentation/settings_provider.dart';
 import 'package:koyze/l10n/generated/app_localizations.dart';
@@ -96,5 +99,62 @@ void main() {
     expect(switched, <String?>[null]);
     expect(find.text('当前目录'), findsOneWidget);
     expect(find.byType(KoyzeDialog), findsNothing);
+  });
+
+  testWidgets('导出已不在这一页，只留指向本地音乐设置的说明', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final storage = StorageService.forTesting(
+      await SharedPreferences.getInstance(),
+    );
+
+    const customPath = r'D:\Music\Koyze';
+    const defaultPath = r'C:\Users\test\Documents\koyze\downloads';
+
+    final container = ProviderContainer(
+      overrides: [
+        downloadDirectoryProvider.overrideWith(
+          () => DownloadDirectoryNotifier(storage: () async => storage),
+        ),
+        downloadDirectoryInfoProvider.overrideWith(
+          (ref) => const DownloadDirectoryInfo(
+            current: customPath,
+            defaultPath: defaultPath,
+            custom: customPath,
+          ),
+        ),
+        switchDownloadDirectoryProvider.overrideWithValue(
+          (path) async => path ?? defaultPath,
+        ),
+        // 换成**本来会显示导出**的平台。桌面跑测试时导出天然不出现，不换
+        // 的话「这页没有导出」就什么都没证明。
+        localFileSystemProvider.overrideWithValue(
+          AndroidFileSystem(channel: const MethodChannel('test')),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const DownloadFolderScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 导出搬去「本地音乐设置」了，这页不该再有自己的导出入口。
+    expect(find.text('导出已下载的歌'), findsNothing);
+    // 但得指路：上面那句平台说明里提到「导出」，不交代去哪找就是个坑。
+    expect(find.textContaining('本地音乐设置'), findsOneWidget);
   });
 }

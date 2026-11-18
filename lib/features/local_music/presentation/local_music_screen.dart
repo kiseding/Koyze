@@ -14,6 +14,7 @@ import 'package:koyze/core/theme/app_colors.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/widgets/artwork_disk_cache.dart';
 import 'package:koyze/core/widgets/app_notification.dart';
+import 'package:koyze/features/download/presentation/export_downloads_card.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
 import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
 import 'package:koyze/features/local_music/domain/local_metadata_writer.dart';
@@ -21,6 +22,7 @@ import 'package:koyze/features/local_music/domain/local_music_scraper.dart';
 import 'package:koyze/features/local_music/domain/android_directory_access.dart';
 import 'package:koyze/features/local_music/domain/local_music_debug_log.dart';
 import 'package:koyze/features/local_music/domain/security_scoped_directory.dart';
+import 'package:koyze/features/local_music/presentation/local_file_manager_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import '../../../core/widgets/fx_icon_button.dart';
@@ -91,13 +93,17 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           ],
         ),
         extendBodyBehindAppBar: true,
+        // 卡片会越加越多（目录、导出、写标签、文件管理），固定 Column 在小屏
+        // 上必然溢出。整页可滚，歌数提示跟在卡片后面。
         body: KoyzeAppBarBody(
-          child: Column(
+          child: ListView(
+            padding: EdgeInsets.zero,
             children: [
               _buildHeader(context, dirs, downloadDir, mediaStoreEnabled),
               if (_scanning || _scraping || _tagWriting)
                 _buildProgress(context),
-              Expanded(
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 22, 16, 24),
                 child: Center(
                   child: Text(
                     songCount == 0
@@ -239,6 +245,11 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
               ],
             ),
           ),
+          // 导出处理的是「已经下好的歌」，跟本地音乐库是同一批文件的两端，
+          // 所以紧跟在库卡下面。桌面端不会走到这里——那边下载直接落公共目录，
+          // 没有「导出」这一步。
+          if (ref.watch(localFileSystemProvider).supportsPublicDownloadsExport)
+            const ExportDownloadsCard(),
           if (hasSources)
             Padding(
               padding: const EdgeInsets.only(top: 10),

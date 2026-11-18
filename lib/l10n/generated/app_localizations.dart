@@ -518,6 +518,12 @@ abstract class AppLocalizations {
   /// **'Default location'**
   String get downloadDirectoryDefaultLocation;
 
+  /// No description provided for @downloadDirectoryExportMoved.
+  ///
+  /// In en, this message translates to:
+  /// **'To get them out, open Local music settings and use \'Export downloaded songs\'.'**
+  String get downloadDirectoryExportMoved;
+
   /// No description provided for @downloadDirectoryNote.
   ///
   /// In en, this message translates to:

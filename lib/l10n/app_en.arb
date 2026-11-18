@@ -70,6 +70,7 @@
   "downloadDirectorySubtitle": "Choose where downloaded songs are saved",
   "downloadDirectoryCurrent": "Current folder",
   "downloadDirectoryDefaultLocation": "Default location",
+  "downloadDirectoryExportMoved": "To get them out, open Local music settings and use 'Export downloaded songs'.",
   "downloadDirectoryNote": "Only new downloads use the new folder; files already downloaded stay where they are.",
   "downloadDirectoryChoose": "Choose folder",
   "downloadDirectoryPickerTitle": "Choose download folder",

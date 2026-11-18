@@ -221,6 +221,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadDirectoryDefaultLocation => '默认位置';
 
   @override
+  String get downloadDirectoryExportMoved => '要往外拿，到「本地音乐设置」里的「导出已下载的歌」。';
+
+  @override
   String get downloadDirectoryNote => '更改后只影响之后新增的下载，已下载的文件仍留在原目录。';
 
   @override
