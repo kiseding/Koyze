@@ -1,4 +1,4 @@
-import { Env, jsonResponse, readJsonRequest } from '../../lib/response';
+import { Env, jsonResponse, MAX_SYNC_STATE_BODY_BYTES, readJsonRequest } from '../../lib/response';
 import { insertStageSongs } from '../../db/playlist-staging';
 import { getSyncRevision } from '../../db/sync-state';
 import { getUserId } from '../../utils/auth';
@@ -27,7 +27,8 @@ export async function handleSyncStateGet(request: Request, env: Env): Promise<Re
 export async function handleSyncStateSet(request: Request, env: Env): Promise<Response> {
   const userId = await getUserId(request, env);
   if (!userId) return jsonResponse({ error: '未登录' }, 401);
-  const parsed = await readJsonRequest(request);
+  // 全量音源快照同样携带脚本，且一次要装下所有音源，所以用更宽的上限。
+  const parsed = await readJsonRequest(request, MAX_SYNC_STATE_BODY_BYTES);
   if (parsed instanceof Response) return parsed;
 
   const baseRevision = Number(parsed.body.baseRevision);

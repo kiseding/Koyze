@@ -1,4 +1,4 @@
-import { Env, jsonResponse, readJsonRequest } from '../../lib/response';
+import { Env, jsonResponse, MAX_SYNC_BODY_BYTES, readJsonRequest } from '../../lib/response';
 import { appendSyncEvents, currentSyncCursor, pullSyncEvents, readEventArray, readEventState } from '../../db/sync-events';
 import { getUserId } from '../../utils/auth';
 
@@ -38,7 +38,9 @@ function validEventPayload(type: string, payload: Record<string, unknown>): bool
 export async function handleSyncPush(request: Request, env: Env): Promise<Response> {
   const userId = await getUserId(request, env);
   if (!userId) return jsonResponse({ error: '未登录' }, 401);
-  const parsed = await readJsonRequest(request);
+  // Custom-source events carry the whole script (client cap 1.5 MiB), so this
+  // route needs a wider body limit than the 256 KiB default.
+  const parsed = await readJsonRequest(request, MAX_SYNC_BODY_BYTES);
   if (parsed instanceof Response) return parsed;
   const body = parsed.body;
   const deviceId = body.deviceId;

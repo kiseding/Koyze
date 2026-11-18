@@ -71,16 +71,34 @@ export function requireJsonContentType(request: Request): Response | null {
 /** Parse a JSON request body into a non-null object, returning a 400 on invalid input. */
 const MAX_JSON_BODY_BYTES = 256 * 1024;
 
-export async function readJsonBody(request: Request): Promise<{ body: Record<string, unknown> } | Response> {
+/**
+ * Sync payloads carry custom-source scripts, which the client allows up to
+ * 2 MiB. Events also land in D1 (`sync_events.payload`), and D1 caps a single
+ * row at 2 MB, so this is the ceiling that actually holds end to end.
+ * Other endpoints keep the 256 KiB default.
+ */
+export const MAX_SYNC_BODY_BYTES = 2 * 1024 * 1024;
+
+/**
+ * The full-state endpoint uploads every custom source in one body, so it needs
+ * more room than a single event. It only writes to KV (25 MiB per value), never
+ * to a D1 row, so this ceiling is the relevant one there.
+ */
+export const MAX_SYNC_STATE_BODY_BYTES = 16 * 1024 * 1024;
+
+export async function readJsonBody(
+  request: Request,
+  maxBytes = MAX_JSON_BODY_BYTES,
+): Promise<{ body: Record<string, unknown> } | Response> {
   const contentLength = Number(request.headers.get('Content-Length'));
-  if (Number.isFinite(contentLength) && contentLength > MAX_JSON_BODY_BYTES) {
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
     return jsonResponse({ error: '请求体过大' }, 413);
   }
 
   let parsed: unknown;
   try {
     const bytes = await request.arrayBuffer();
-    if (bytes.byteLength > MAX_JSON_BODY_BYTES) {
+    if (bytes.byteLength > maxBytes) {
       return jsonResponse({ error: '请求体过大' }, 413);
     }
     parsed = JSON.parse(new TextDecoder().decode(bytes));
@@ -93,7 +111,10 @@ export async function readJsonBody(request: Request): Promise<{ body: Record<str
   return { body: parsed as Record<string, unknown> };
 }
 
-export async function readJsonRequest(request: Request): Promise<{ body: Record<string, unknown> } | Response> {
+export async function readJsonRequest(
+  request: Request,
+  maxBytes = MAX_JSON_BODY_BYTES,
+): Promise<{ body: Record<string, unknown> } | Response> {
   const contentError = requireJsonContentType(request);
-  return contentError ?? readJsonBody(request);
+  return contentError ?? readJsonBody(request, maxBytes);
 }
