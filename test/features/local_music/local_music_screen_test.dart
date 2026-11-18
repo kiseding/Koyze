@@ -98,6 +98,60 @@ void main() {
     );
   });
 
+  testWidgets('下载目录那一行可点，直接进下载目录页面', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    // 转场原点也是全局记录，测试之间必须清掉。
+    debugResetCardExpandOrigins();
+    addTearDown(debugResetCardExpandOrigins);
+
+    SharedPreferences.setMockInitialValues({
+      'local_music_download_dir_v1': downloads,
+      'local_music_dirs_v1': <String>[downloads, musicDir],
+    });
+    final storage = StorageService.forTesting(
+      await SharedPreferences.getInstance(),
+    );
+    final library = LocalMusicLibrary(storage: storage);
+    await library.init();
+
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (context, state) => const LocalMusicScreen()),
+        GoRoute(
+          path: '/download-folder',
+          pageBuilder: (context, state) => expandablePage(
+            state.pageKey,
+            const Scaffold(body: Text('download-folder')),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localMusicLibraryProvider.overrideWith((ref) async => library),
+        ],
+        child: MaterialApp.router(
+          // 下载目录这一行的标题带着「· 自动收录」，按英文断言更明确。
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Downloads · added automatically'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('download-folder'), findsOneWidget);
+  });
+
   testWidgets('文件管理入口沿用设置页的卡片展开转场', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;

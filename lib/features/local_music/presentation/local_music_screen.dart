@@ -219,6 +219,10 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                       icon: Icons.download_rounded,
                       title: S.of(context).downloadFolder,
                       subtitle: downloadDirectory,
+                      // 下载目录是唯一能点的来源行：它由下载功能托管，改它的
+                      // 地方在下载目录那一页（当前路径、默认位置、导出都摆
+                      // 在那儿）。这里直接跳过去，而不是再弹一个弹窗。
+                      onTap: () => context.push('/download-folder'),
                     ),
                   // 下载目录已经单独成行，这里跳过它，否则同一个路径出现两次。
                   for (final dir in directories.where(
@@ -305,17 +309,27 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
   ///
   /// 一律排在同一张卡内、用通栏分隔线隔开：它们描述的是「这个库由哪些目录
   /// 组成」，不是一个平级的独立设置项。
+  ///
+  /// [onTap] 只有下载目录那一行给：它由下载功能托管，能改它的地方在下载目录
+  /// 页面。给了 [onTap] 才会变成可点的行，并在右侧补一个箭头——没有箭头的
+  /// 可点区域用户是不会去点的。
   Widget _buildSourceRow(
     BuildContext context, {
     required IconData icon,
     required String title,
     String? subtitle,
     VoidCallback? onRemove,
+    VoidCallback? onTap,
   }) {
     final accent = AppColors.accentOf(context);
-    return Padding(
-      // 右侧留白跟着有没有移除按钮走，否则路径文字会和卡片边缘贴太紧。
-      padding: EdgeInsets.fromLTRB(16, 8, onRemove == null ? 16 : 4, 8),
+    final row = Padding(
+      // 右侧留白跟着有没有尾部控件走，否则路径文字会和卡片边缘贴太紧。
+      padding: EdgeInsets.fromLTRB(
+        16,
+        8,
+        onRemove == null && onTap == null ? 16 : 4,
+        8,
+      ),
       child: Row(
         children: [
           Icon(icon, size: 17, color: accent),
@@ -360,7 +374,31 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                   ? null
                   : onRemove,
             ),
+          if (onTap != null)
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: AppColors.mutedText(context),
+            ),
         ],
+      ),
+    );
+    if (onTap == null) return row;
+    // 用行自己的矩形做转场原点：路由那边是 expandablePage，拿不到源矩形就
+    // 退化成上滑淡入，和设置页打开子页面的手感不一致。
+    return Builder(
+      builder: (rowContext) => RepaintBoundary(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () async {
+              await captureCardExpandOrigin(rowContext);
+              if (!rowContext.mounted) return;
+              onTap();
+            },
+            child: row,
+          ),
+        ),
       ),
     );
   }

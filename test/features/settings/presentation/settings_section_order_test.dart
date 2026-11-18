@@ -15,7 +15,8 @@ import 'package:koyze/l10n/generated/app_localizations.dart';
 ///   → 歌词 → 外观 → 数据 → 通用 → 关于
 ///
 /// 这条线一断，用户就得重新猜「这个设置会在哪」。所以这里把它钉住：
-/// 分区顺序、以及三处最容易漂移的归属（歌词、下载目录、重置设置）。
+/// 分区顺序，以及最容易漂移的两处归属（歌词、重置设置）；另外钉住「下载目录
+/// 不在这一页」——它已经移进「本地音乐目录」页面。
 ///
 /// 用超高的视口一次把十张分区卡全部建出来，再按纵坐标比较先后——
 /// 懒加载列表在 844 高的手机视口里只会建出前三四个分区。
@@ -92,11 +93,14 @@ void main() {
     expect(lyricDisplay, lessThan(tops[6]), reason: '歌词区应在外观之前');
     expect(lockScreen, greaterThan(lyricDisplay), reason: '样式在开关之前');
 
-    // 下载目录和本地音乐目录是同一件事的两端（换目录会改音乐库的扫描
-    // 来源），必须待在同一个分区里，而不是隔着三个分区。
-    final downloadFolder = topOf('下载目录');
-    expect(downloadFolder, greaterThan(tops[2]), reason: '下载目录应在音乐库区内');
-    expect(downloadFolder, lessThan(tops[3]), reason: '下载目录不应落进下载区');
+    // 下载目录不再是设置页的一行：它已经收进「本地音乐目录」页面（那一页
+    // 列的就是"这个库由哪些目录组成"）。设置页再摆一行等于同一个目录两个
+    // 入口。这里钉住「不许加回来」。
+    expect(
+      find.text('下载目录'),
+      findsNothing,
+      reason: '下载目录的入口在本地音乐目录页面里，设置页不该再有第二处',
+    );
 
     // 重置设置是唯一不可撤销的入口，排在「关于」之前最后一个位置。
     final reset = topOf('恢复默认设置');
