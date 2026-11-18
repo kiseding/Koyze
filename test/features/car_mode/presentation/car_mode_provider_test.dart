@@ -76,10 +76,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('CarModePreference', () {
-    test('defaults to auto for missing or unknown values', () {
-      expect(CarModePreference.parse(null), CarModePreference.auto);
-      expect(CarModePreference.parse('nope'), CarModePreference.auto);
-      expect(CarModePreference.parse(''), CarModePreference.auto);
+    test('defaults to off for missing or unknown values', () {
+      expect(CarModePreference.parse(null), CarModePreference.off);
+      expect(CarModePreference.parse('nope'), CarModePreference.off);
+      expect(CarModePreference.parse(''), CarModePreference.off);
     });
 
     test('round-trips its own names', () {
@@ -103,7 +103,8 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final notifier = CarModePreferenceNotifier(storage: _freshStorage);
       await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(notifier.value, CarModePreference.auto);
+      // 默认关闭：没连车机的人不该先看到宽屏车机布局。
+      expect(notifier.value, CarModePreference.off);
     });
 
     test('set writes through', () async {

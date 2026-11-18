@@ -13,13 +13,17 @@ import '../domain/car_connection.dart';
 
 /// 车机模式的三种状态。
 enum CarModePreference {
-  /// 跟随 HiCar 连接状态自动切换（默认）。
+  /// 跟随 HiCar 连接状态自动切换。
   auto,
 
   /// 一直使用宽屏车机布局，方便在手机 / 平板上预览。
   always,
 
-  /// 从来不进车机模式。
+  /// 从来不进车机模式（默认）。
+  ///
+  /// 默认关闭：车机布局是给车载虚拟屏准备的，没连车机时它只会把手机上的
+  /// 界面换成一个更空、更宽的壳。让所有人默认先看到正常的手机布局，需要
+  /// 的人自己去开，比反过来（默认宽屏、没有车机的人来关）要少很多困惑。
   off;
 
   static const String storageKey = 'car_mode_preference';
@@ -28,7 +32,7 @@ enum CarModePreference {
     for (final value in CarModePreference.values) {
       if (value.name == raw) return value;
     }
-    return CarModePreference.auto;
+    return CarModePreference.off;
   }
 }
 
@@ -69,7 +73,7 @@ final carModePreferenceProvider =
 class CarModePreferenceNotifier extends Notifier<CarModePreference> {
   CarModePreferenceNotifier({StorageLoader? storage})
     : _setting = PersistedSetting<CarModePreference>(
-        initialValue: CarModePreference.auto,
+        initialValue: CarModePreference.off,
         storage: storage,
       ) {
     // 与设置页的 notifier 一致：直连构造也能读到已存的值，不必先挂到 container。
