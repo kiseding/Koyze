@@ -9,6 +9,25 @@ import '../../../core/theme/app_tokens.dart';
 /// 同一半径自己收边——两处必须一致，否则按下时涟漪会从卡片圆角外面探出来。
 const BorderRadius kSettingsCardRadius = BorderRadius.all(Radius.circular(18));
 
+/// 设置行标题的样式。
+///
+/// 抽出来是为了让「文本预热」用和真实行**完全一样**的样式：字号、字重、行高
+/// 只要差一档，预热的就是另一段 Paragraph，等于白做。改这里就等于同时改了
+/// 行和预热两处，不会再出现两边漂移。
+TextStyle settingsRowTitleStyle(Color color) => TextStyle(
+  fontSize: 14.5,
+  fontWeight: FontWeight.w500,
+  color: color,
+);
+
+/// 设置行副标题的样式。约束同 [_buildSwitchTile] / `_SettingsNavTile`：
+/// 最多两行，超出省略，行高 1.3。
+TextStyle settingsRowSubtitleStyle(Color color) => TextStyle(
+  fontSize: 11.5,
+  height: 1.3,
+  color: color,
+);
+
 /// A titled glass block of settings rows.
 ///
 /// Shared by the settings page and the settings search results so a result

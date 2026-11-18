@@ -5,12 +5,12 @@ import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/motion/motion_tokens.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/effect_policy.dart';
 import '../../car_mode/presentation/car_mode_provider.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
@@ -53,65 +53,13 @@ final rootBranchIndex = ValueNotifier<int>(0);
 /// 或点击动画起跑）就把它切过去；被重新按住 / 取消时退回当前页。
 final rootHeaderBranchIndex = ValueNotifier<int>(0);
 
-/// 根壳层此刻是否正在横滑切页。
-///
-/// 横滑不产生 [ScrollNotification]，所以只看滚动的话，滑动过程中迷你条会一直
-/// 停在实时玻璃档：它底下的两页正在整屏位移，[BackdropFilter] 每一帧都要把
-/// 整屏背景重采一遍。实测这一项就是横滑掉帧的主因（1800×2400 模拟器上
-/// GPU 段 8–16ms，静止时不到 2ms）。
-final rootBranchSliding = ValueNotifier<bool>(false);
-
 class _MainScaffoldState extends ConsumerState<MainScaffold> {
   // 上一帧 progress：判定方向——下滑/关闭（progress 下降）时 chrome
   // 全程立即显示，迷你栏绝不"消失一下"；打开（上升）保留退场窗口。
   double _prevProgress = 0;
 
-  // 滚动期间固定迷你栏下方的内容不断变化，实时玻璃会随每一帧重采样；
-  // 只在滚动开始/结束时切换到 Minimal 档，保留静态玻璃观感。
-  // 横滑同理——两者任一在进行，就降档。
-  final ValueNotifier<GlassQuality> _miniPlayerGlassQuality = ValueNotifier(
-    GlassQuality.premium,
-  );
-
-  bool _scrolling = false;
-
   /// 页面玻璃共用的背景捕获 key，必须跨帧稳定。
   final BackdropKey _pageBackdropKey = BackdropKey();
-
-  @override
-  void initState() {
-    super.initState();
-    rootBranchSliding.addListener(_syncMiniPlayerGlass);
-  }
-
-  @override
-  void dispose() {
-    rootBranchSliding.removeListener(_syncMiniPlayerGlass);
-    _miniPlayerGlassQuality.dispose();
-    super.dispose();
-  }
-
-  /// 滚动或横滑任一在进行，就把迷你条降成不采样的静态玻璃。
-  void _syncMiniPlayerGlass() {
-    final busy = _scrolling || rootBranchSliding.value;
-    final next = busy ? GlassQuality.minimal : GlassQuality.premium;
-    if (_miniPlayerGlassQuality.value != next) {
-      _miniPlayerGlassQuality.value = next;
-    }
-  }
-
-  bool _handleScrollNotification(ScrollNotification notification) {
-    if (notification.depth != 0) return false;
-    if (notification is ScrollStartNotification) {
-      _scrolling = true;
-    } else if (notification is ScrollEndNotification) {
-      _scrolling = false;
-    } else {
-      return false;
-    }
-    _syncMiniPlayerGlass();
-    return false;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -262,51 +210,42 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
             ),
           );
 
-          final content = NotificationListener<ScrollNotification>(
-            onNotification: _handleScrollNotification,
-            child: Stack(
-              children: [
-                Positioned.fill(
+          final content = Stack(
+            children: [
+              Positioned.fill(
+                child: Opacity(
+                  opacity: chromeOpacity,
+                  child: Transform.translate(
+                    offset: Offset(0, -tabPush * eased),
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: contentRightInset,
+                        top: contentTopInset,
+                      ),
+                      child: chrome,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: usesSideNavigation ? miniInset : kMiniBarSideMargin,
+                right: usesSideNavigation
+                    ? contentRightInset + miniInset
+                    : kMiniBarSideMargin,
+                bottom: miniBottom,
+                child: Transform.scale(
+                  alignment: Alignment.bottomCenter,
+                  scale: 1 + 0.035 * eased,
                   child: Opacity(
                     opacity: chromeOpacity,
-                    child: Transform.translate(
-                      offset: Offset(0, -tabPush * eased),
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: contentRightInset,
-                          top: contentTopInset,
-                        ),
-                        child: chrome,
-                      ),
+                    child: MiniPlayer(
+                      floating: usesSideNavigation,
+                      alwaysShow: true,
                     ),
                   ),
                 ),
-                Positioned(
-                  left: usesSideNavigation ? miniInset : kMiniBarSideMargin,
-                  right: usesSideNavigation
-                      ? contentRightInset + miniInset
-                      : kMiniBarSideMargin,
-                  bottom: miniBottom,
-                  child: Transform.scale(
-                    alignment: Alignment.bottomCenter,
-                    scale: 1 + 0.035 * eased,
-                    child: Opacity(
-                      opacity: chromeOpacity,
-                      child: ValueListenableBuilder<GlassQuality>(
-                        valueListenable: _miniPlayerGlassQuality,
-                        builder: (context, glassQuality, _) {
-                          return MiniPlayer(
-                            floating: usesSideNavigation,
-                            alwaysShow: true,
-                            glassQuality: glassQuality,
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           );
 
           return RootTabScope(
@@ -422,7 +361,6 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _dragging = false;
       _position = widget.currentIndex.toDouble();
       rootBranchDragPosition.value = null;
-      rootBranchSliding.value = false;
       rootHeaderBranchIndex.value = widget.currentIndex;
     }
   }
@@ -517,7 +455,6 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     // 回旧 tab、再从 0 重播一遍展开动画（那正是"切完又跳一下"的来源）。
     rootBranchSettle.value = index;
     rootBranchDragPosition.value = null;
-    rootBranchSliding.value = false;
     widget.onSelect(index);
   }
 
@@ -529,7 +466,6 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
       _anim.stop();
       _animating = false;
     }
-    rootBranchSliding.value = true;
     final origin = _position.roundToDouble();
     final current = origin.round() % _count;
     // 最短方向：循环时末页到首页只隔一页，不该横穿整条栏。
@@ -546,7 +482,6 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
         _position = current.toDouble();
       });
       rootBranchDragPosition.value = null;
-      rootBranchSliding.value = false;
       widget.onSelect(current);
       return;
     }
@@ -565,7 +500,6 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     // 回旧 tab、再从 0 重播一遍展开动画（那正是"切完又跳一下"的来源）。
     rootBranchSettle.value = target;
     rootBranchDragPosition.value = null;
-    rootBranchSliding.value = false;
     widget.onSelect(target);
   }
 
@@ -616,9 +550,9 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
     // 认输（见 _AxisLockedSwipeGestureRecognizer），列表随即直接赢下 arena，
     // 所以这 30 实际只在「识别器没参赛」的场景（输入框聚焦、气泡页）生效。
     final stack = MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        gestureSettings: const DeviceGestureSettings(touchSlop: 30),
-      ),
+      data: MediaQuery.of(
+        context,
+      ).copyWith(gestureSettings: const DeviceGestureSettings(touchSlop: 30)),
       child: ClipRect(
         child: Stack(
           fit: StackFit.expand,
@@ -679,7 +613,6 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
                       // 按住，最后可能滑回原页，动作按钮不能先跳过去。
                       rootHeaderBranchIndex.value = _restingIndex;
                     }
-                    rootBranchSliding.value = true;
                     _dragOrigin = _position;
                     setState(() => _dragging = true);
                   }
@@ -776,7 +709,8 @@ class SwipeBranchContainerState extends State<SwipeBranchContainer>
 /// AndroidX 官方给 ViewPager2 写的 `NestedScrollableHost`：它对水平 pager
 /// 取 `scaledDx = |dx| * 0.5`、`scaledDy = |dy|`，再比大小决定谁接管；
 /// Flutter 没有 `requestDisallowInterceptTouchEvent`，等价物就是主动 reject。
-class _AxisLockedSwipeGestureRecognizer extends HorizontalDragGestureRecognizer {
+class _AxisLockedSwipeGestureRecognizer
+    extends HorizontalDragGestureRecognizer {
   _AxisLockedSwipeGestureRecognizer({
     required this.shouldParticipate,
     super.debugOwner,
