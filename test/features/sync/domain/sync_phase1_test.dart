@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:koyze/core/logging/app_log.dart';
 import 'package:koyze/features/cloud/domain/cloud_api_client.dart';
 import 'package:koyze/features/sync/data/sync_cursor_store.dart';
 import 'package:koyze/features/sync/data/sync_identity_store.dart';
@@ -168,6 +169,73 @@ void main() {
       expect(api.pushedEvents.single['entityId'], 'tx:tx:song_1');
       expect(await outbox.load(), isEmpty);
       expect(report?.counts, {'收藏': 1});
+    },
+  );
+
+  test(
+    'oversized event is quarantined instead of stalling the queue',
+    () async {
+      final api = _PushOnlyCloudApi();
+      final outbox = SyncOutboxRepository(
+        preferences: SharedPreferences.getInstance,
+      );
+      final service = SyncPhase1Service(api: api, outbox: outbox);
+      final log = AppLog.instance..start(installHooks: false);
+      addTearDown(() {
+        log.stop();
+        log.clear();
+      });
+
+      await service.enqueue(
+        eventType: 'favorite.add',
+        entityId: 'tx:tx:song_1',
+        payload: const {'playlistId': 'favorites'},
+      );
+      // 单条事件上限 1.5 MiB，而音源脚本的导入上限是 2 MiB，所以超限是
+      // 真实可达的状态。修复前这里会抛 StateError，排在它后面的收藏一条
+      // 都传不上去，而且每轮重试都卡在同一条。
+      await outbox.append(
+        SyncEvent(
+          eventId: 'evt_huge',
+          localUserId: 'local_1',
+          deviceId: 'device_1',
+          eventType: 'custom_source.upsert',
+          entityId: 'src_huge',
+          payload: {
+            'source': {
+              'id': 'src_huge',
+              'name': 'Huge',
+              'description': '',
+              'version': '1.0.0',
+              'author': 'local',
+              'script': 'a' * (1700 * 1024),
+              'createdAt': '2026-01-01T00:00:00.000Z',
+              'updatedAt': '2026-01-01T00:00:00.000Z',
+            },
+          },
+          createdAt: DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true),
+        ),
+      );
+      await service.enqueue(
+        eventType: 'favorite.add',
+        entityId: 'tx:tx:song_2',
+        payload: const {'playlistId': 'favorites'},
+      );
+
+      final report = await service.pushLocalEventsOnly();
+
+      // 超限事件前后的小事件都必须照常上传。
+      expect(api.pushedEvents.map((event) => event['entityId']), [
+        'tx:tx:song_1',
+        'tx:tx:song_2',
+      ]);
+      expect(report?.counts, {'收藏': 2});
+      // 超限事件被移出队列：留着只会在每次重试时重新失败，而它永远不会变小。
+      expect(await outbox.load(), isEmpty);
+      expect(
+        log.entries.value.map((entry) => entry.message).join('\n'),
+        contains('跳过 1 条超大事件'),
+      );
     },
   );
 

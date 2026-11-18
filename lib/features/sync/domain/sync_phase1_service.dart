@@ -2,6 +2,7 @@ import 'package:uuid/uuid.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
+import '../../../core/logging/app_log.dart';
 import '../../cloud/domain/cloud_api_client.dart';
 import '../data/sync_cursor_store.dart';
 import '../data/sync_identity_store.dart';
@@ -211,10 +212,26 @@ final class SyncPhase1Service {
         .toList(growable: false);
     if (eligible.isEmpty) return const [];
     final uploaded = <SyncEvent>[];
+    final oversized = <String>{};
     final batches = _byteBoundedEventBatches(
       deviceId: account.deviceId,
       events: eligible,
+      oversized: oversized,
     ).toList(growable: false);
+    final skipped = eligible
+        .where((event) => oversized.contains(event.eventId))
+        .toList(growable: false);
+    if (skipped.isNotEmpty) {
+      // 超过单条上限的事件会被永久隔离：留在 outbox 里只会在每轮同步重试时
+      // 反复失败，而它永远不会变小。移出队列并留下可诊断的记录。
+      await outbox.removeProcessed(oversized);
+      AppLog.instance.record(
+        'cloud.sync',
+        '跳过 ${skipped.length} 条超大事件（上限 1.5 MiB）：'
+        '${skipped.map((event) => event.eventType).toSet().join('、')}',
+        level: AppLogLevel.warning,
+      );
+    }
     var completedEvents = 0;
     for (var index = 0; index < batches.length; index++) {
       final batch = batches[index];
@@ -248,45 +265,47 @@ final class SyncPhase1Service {
   Iterable<List<SyncEvent>> _byteBoundedEventBatches({
     required String deviceId,
     required List<SyncEvent> events,
+    Set<String>? oversized,
   }) sync* {
-    // Workers rejects request bodies over 256 KiB. Keep enough headroom for
-    // JSON wrapper fields and encoding differences between platforms.
-    const maximumBytes = 220 * 1024;
+    // 单条事件会落进 D1 的 sync_events.payload，而 D1 单行上限是 2 MB，
+    // 所以单条预算不能超过它。这里取 1.5 MiB，留出 JSON wrapper 和编码差异
+    // 的余量；服务端对应放宽到 2 MiB。
+    //
+    // 音源脚本可以到 2 MiB（custom_source_service 的导入上限），远超原来的
+    // 220 KiB——那个数字是给收藏/歌单这类小事件定的，套到整份脚本上必然失败。
+    const maximumBytes = 1536 * 1024;
     const maximumEvents = 180;
     var batch = <SyncEvent>[];
     for (final event in events) {
       final candidate = [...batch, event];
-      final bytes = utf8
-          .encode(
-            jsonEncode({
-              'deviceId': deviceId,
-              'events': [for (final item in candidate) item.toJson()],
-            }),
-          )
-          .length;
+      final bytes = _encodedEventBytes(deviceId, candidate);
       if (bytes <= maximumBytes && candidate.length <= maximumEvents) {
         batch = candidate;
         continue;
       }
       if (batch.isEmpty) {
-        throw StateError('单条同步事件超过 220 KiB：${event.eventType}');
+        // 单条就超限：隔离它，别连累队列里的其它事件。
+        oversized?.add(event.eventId);
+        continue;
       }
       yield batch;
       batch = [event];
-      final singleBytes = utf8
-          .encode(
-            jsonEncode({
-              'deviceId': deviceId,
-              'events': [event.toJson()],
-            }),
-          )
-          .length;
-      if (singleBytes > maximumBytes) {
-        throw StateError('单条同步事件超过 220 KiB：${event.eventType}');
+      if (_encodedEventBytes(deviceId, batch) > maximumBytes) {
+        oversized?.add(event.eventId);
+        batch = [];
       }
     }
     if (batch.isNotEmpty) yield batch;
   }
+
+  int _encodedEventBytes(String deviceId, List<SyncEvent> events) => utf8
+      .encode(
+        jsonEncode({
+          'deviceId': deviceId,
+          'events': [for (final item in events) item.toJson()],
+        }),
+      )
+      .length;
 
   Future<SyncReport?> sync() async {
     if (!api.isLoggedIn) return null;
