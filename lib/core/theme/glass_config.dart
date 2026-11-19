@@ -32,12 +32,13 @@ abstract final class GlassEffectConfig {
 
   /// 「界面不透明度」的默认档。
   ///
-  /// 只是出厂值，不参与任何换算——见 [surfaceAlpha]。0.30 是出厂给的
-  /// 「能透出背后」档：配合 [defaultSurfaceBlur] 的 0.90 一起，玻璃面才有
+  /// 只是出厂值，不参与任何换算——见 [surfaceAlpha]。0.65 是出厂给的
+  /// 「半透明但不飘」档：配合 [defaultSurfaceBlur] 的 1.00 一起，玻璃面才有
   /// 毛玻璃的观感。早先这里是 0.95（几乎实色），那是「全 App 不模糊、只用
   /// 透明度」时期的默认——在那套观感下太透会让文字压在滚动内容上发灰。
-  /// 现在默认开了虚化，模糊本身就把背景细节抹平了，可以放心透。
-  static const double defaultSurfaceOpacity = 0.30;
+  /// 后来又试过 0.30，太透了：模糊虽然抹平了背景细节，但整块面板的轮廓
+  /// 也跟着消失，读起来像「没有底」。0.65 是两者的中点。
+  static const double defaultSurfaceOpacity = 0.65;
 
   static void applyPerformanceMode({required bool reduceEffects}) {
     _reduceEffects = reduceEffects;
@@ -55,7 +56,7 @@ abstract final class GlassEffectConfig {
   static ValueListenable<double> get surfaceOpacityListenable =>
       _surfaceOpacitySignal;
 
-  /// 全局材质不透明度（0.3~1）。0.30 是出厂默认，1 是完全实色。
+  /// 全局材质不透明度（0.3~1）。0.65 是出厂默认，1 是完全实色。
   ///
   /// 非法值（NaN / Infinity）退回上限 1.0 而不是出厂档：坏数据只该让材质变成
   /// 最保守的实色，不该让它变透——透出来的东西压着文字是最难读的状态。
@@ -76,16 +77,15 @@ abstract final class GlassEffectConfig {
   /// 解析不出有效档位时退回不模糊，而不是退回满档模糊。
   static const double minSurfaceBlur = 0.0;
 
-  /// 「虚化」的出厂档：0.90，即接近设计基线的满档。
+  /// 「虚化」的出厂档：1.00，即设计基线的满档。
   ///
   /// 它是倍率：各材质本来就有自己的基线半径（顶栏 15、弹窗 25、播放器 60），
-  /// 这一档统一缩放它们。0.90 而不是 1.0，是给客户端留一点余量——1.0 在某些
-  /// 深度下会让基线上的 25 变成肉眼可辨的「糊过头」。
+  /// 这一档统一缩放它们。出厂给满档，是因为「虚化」是这一版的主卖点——第一次
+  /// 打开设置页的人应该立刻看到效果，而不是先去拖滑杆。觉得糊过头的人往下调，
+  /// 那条路比「默认没效果、不知道能调」友好得多。
   ///
   /// 早先这里是 0：那时全 App 只有播放器允许模糊，其余界面靠透明度撑着。
-  /// 现在虚化是用户可调的一档外观，默认打开才有意义——否则「调了没反应」
-  /// 是第一次打开设置页的人最容易踩的坑。
-  static const double defaultSurfaceBlur = 0.90;
+  static const double defaultSurfaceBlur = 1.00;
 
   /// 虚化档位变了会通知这里，理由同 [surfaceOpacityListenable]：滑杆拖动时
   /// 已经建好的玻璃面要当帧重画，不能等外层重建。

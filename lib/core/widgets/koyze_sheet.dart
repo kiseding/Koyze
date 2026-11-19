@@ -343,6 +343,11 @@ class KoyzeSheetTitle extends StatelessWidget {
 }
 
 /// 弹层右上角的圆形关闭键，与标题行、选项面板共用。
+///
+/// 关闭是这一层面板上唯一的「离开」动作，用 [AppColors.error] 的红。
+/// 之前它和旁边的图标按钮都是同一颗次要色圆点，五个按钮排在一起时只能
+/// 靠位置去认哪颗是关——而按错的代价是丢掉一层已经填了一半的内容。
+/// 红不是「危险」，是「这是出口」：iOS 的 sheet 也把关闭和确认分成两种颜色。
 class KoyzeSheetClose extends StatelessWidget {
   const KoyzeSheetClose({super.key, required this.onTap, this.tooltip});
 
@@ -351,6 +356,7 @@ class KoyzeSheetClose extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final error = AppColors.error;
     final button = Material(
       type: MaterialType.transparency,
       shape: const CircleBorder(),
@@ -362,14 +368,16 @@ class KoyzeSheetClose extends StatelessWidget {
           height: 36,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppColors.fill(context),
+            // 淡红底 + 同色描边：和旁边那颗灰底按钮形状一样、颜色完全不同，
+            // 一眼就能分出「这颗是关」。纯红图标压在灰底上会显得脏。
+            color: error.withValues(alpha: 0.12),
             shape: BoxShape.circle,
+            border: Border.all(
+              color: error.withValues(alpha: 0.24),
+              width: 0.8,
+            ),
           ),
-          child: Icon(
-            Icons.close_rounded,
-            size: 19,
-            color: AppColors.mutedText(context),
-          ),
+          child: Icon(Icons.close_rounded, size: 19, color: error),
         ),
       ),
     );

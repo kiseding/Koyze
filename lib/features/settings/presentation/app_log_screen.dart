@@ -418,6 +418,9 @@ class _AppLogScreenState extends State<AppLogScreen> {
             FxIconButton(
               tooltip: s.closeDiagnostics,
               onPressed: widget.onClose,
+              // 关闭键用 error 红：这一排四颗图标都是描边灰，只有位置能区分
+              // 「最小化 / 复制 / 清空 / 关闭」，而按错的代价是整块面板消失。
+              color: AppColors.error,
               icon: const Icon(Icons.close),
             ),
         ],

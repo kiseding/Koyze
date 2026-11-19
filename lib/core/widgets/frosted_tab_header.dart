@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
-import '../theme/glass_config.dart';
+import '../theme/app_tokens.dart';
 import 'gradient_bar_backgrounds.dart';
 import 'liquid_glass.dart';
 import 'pressable.dart';
@@ -60,48 +60,38 @@ class FrostedTabHeader extends StatelessWidget {
     final top = MediaQuery.paddingOf(context).top;
     final tabs = RootTabScope.maybeOf(context);
     if (tabs != null) {
-      return ValueListenableBuilder<double>(
-        valueListenable: GlassEffectConfig.surfaceOpacityListenable,
-        builder: (context, _, __) {
-          // 底色要跟着「界面不透明度」走：写死实色时滑杆拖到 40%，这一栏
-          // 还是原样，看着就是「根页不跟随设置」。乘上档位之后，列表从
-          // 图标和药丸背后穿过时才能真正透出来。
-          final surface = GlassEffectConfig.withSurfaceOpacity(
-            AppColors.scaffold(context),
-          );
-          return _buildTabHeader(context, top: top, surface: surface);
-        },
-      );
+      // 不再在这里包一层 ValueListenableBuilder 算底色：这层底已经交给
+      // [GradientFrost]，它自己监听「界面不透明度」「虚化」和滚动状态，
+      // 拖动滑杆时当帧重画。这里只负责把高度算给布局。
+      return _buildTabHeader(context, top: top);
     }
     return _buildPlainHeader(context, top: top);
   }
 
-  Widget _buildTabHeader(
-    BuildContext context, {
-    required double top,
-    required Color surface,
-  }) {
+  Widget _buildTabHeader(BuildContext context, {required double top}) {
     return Stack(
       children: [
         // 导航行需要一层底：列表滚上来时是从图标和药丸背后穿过的，
-        // 没有这层渐隐，文字会和歌词/歌名糊在一起。整块 chrome 高度上
-        // 保持实心，只在最后一段淡出——半透明会把封面上的亮色漏到
-        // 图标之间，看着像栏「脏了」。
+        // 没有这层底，文字会和封面/歌名糊在一起。
+        //
+        // 这层底走的是**和所有独立页面同一条** [GradientFrost]：根壳层这根栏
+        // 以前只铺一条纯色渐变，`surface` 乘不透明度之后确实会变淡，但背后
+        // 什么都没被糊过，于是「虚化」拖到 100% 这一栏也毫无变化——看起来
+        // 就是「tab 栏没用上虚化」。统一成一个实现之后，虚化档、滚动折扣、
+        // 不透明度三项对两根栏同时生效，不会再出现「这里跟、那里不跟」。
+        //
+        // 渐隐只在最后一段：整块 chrome 高度上保持浓度，快到底边才淡出。
+        // 半透明会让封面上的亮色漏到图标之间，看着像栏「脏了」。
         Positioned(
           top: 0,
           left: 0,
           right: 0,
           height: top + barHeight + 28,
           child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [0, 0.82, 1],
-                  colors: [surface, surface, surface.withValues(alpha: 0)],
-                ),
-              ),
+            child: GradientFrost(
+              sigma: blur ?? AppGlass.blurChrome,
+              fadeOutFrom: (top + barHeight) / (top + barHeight + 28),
+              child: const SizedBox.expand(),
             ),
           ),
         ),

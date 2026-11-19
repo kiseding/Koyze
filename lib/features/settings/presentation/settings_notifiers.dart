@@ -490,10 +490,10 @@ class PlayerBackdropScrimNotifier extends _SliderSettingNotifier {
   Future<void> commitScrim(double value) => resetTo(value);
 }
 
-/// 界面材质的不透明度倍率（0.3~1，默认 1）。
+/// 界面材质的不透明度倍率（0.3~1，默认 0.65）。
 ///
-/// 除了全屏播放器，界面上所有玻璃面（顶栏、卡片、菜单、胶囊）都只剩透明度，
-/// 这个值统一缩放它们的染色浓度。播放器那层模糊背景不受影响。
+/// 界面上所有玻璃面（顶栏、卡片、菜单、胶囊）共用这一档，它统一缩放它们的
+/// 染色浓度。播放器那层模糊背景不受影响。
 class GlassOpacityNotifier extends _SliderSettingNotifier {
   GlassOpacityNotifier({StorageLoader? storage})
     : super(GlassEffectConfig.defaultSurfaceOpacity, storage: storage);
@@ -520,16 +520,14 @@ class GlassOpacityNotifier extends _SliderSettingNotifier {
   Future<void> commitOpacity(double value) => resetTo(value);
 }
 
-/// 玻璃面的「虚化」档位（0~1，出厂 0.90）。
+/// 玻璃面的「虚化」档位（0~1，出厂 1.00）。
 ///
 /// 0 就是不采样背后、只用透明混合；往上拖才逐级打开 BackdropFilter，1 是
 /// 设计基线强度。它是倍率不是 sigma：各材质自带基线半径（顶栏 15、弹窗 25、
 /// 播放器 60），这一档统一缩放它们。
 ///
-/// 出厂 0.90 而不是 1.0，是给客户端留一点余量——满档在某些深度下会把基线上的
-/// 25 糊过头。早先这里是 0（那时全 App 只有播放器允许模糊），现在虚化是用户
-/// 可调的一档外观，默认打开才有意义，否则「调了没反应」是第一次打开设置页
-/// 的人最容易踩的坑。
+/// 出厂给满档：虚化是这一版的主卖点，第一次进设置页就该看到效果，而不是先
+/// 去猜哪个滑杆有用。嫌糊的人往下调，那条路比「默认没效果」友好得多。
 class GlassBlurNotifier extends _SliderSettingNotifier {
   GlassBlurNotifier({StorageLoader? storage})
     : super(GlassEffectConfig.defaultSurfaceBlur, storage: storage);

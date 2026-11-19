@@ -211,6 +211,7 @@ class GradientFrost extends StatelessWidget {
     required this.child,
     this.sigma = 16,
     this.base,
+    this.fadeOutFrom,
   });
 
   final Widget child;
@@ -219,6 +220,14 @@ class GradientFrost extends StatelessWidget {
 
   /// Tint colour; defaults to the themed bar base.
   final Color? base;
+
+  /// 染色层从哪个比例开始淡出（0~1，沿纵向）。null = 整块保持浓度。
+  ///
+  /// 根页的 tab 标题栏比栏本身高出一段：多出来的那 28pt 是为了让列表从栏底
+  /// 钻出来时不撞上一条硬边。那一段必须淡出，否则底边是一条明显的横线；
+  /// 但淡出又不能从栏顶就开始（标题会压到亮色背景上读不清），所以只有下面
+  /// 一小截渐变。独立页面的 AppBar 高度就是栏本身，用默认的 null 即可。
+  final double? fadeOutFrom;
 
   @override
   Widget build(BuildContext context) {
@@ -248,7 +257,23 @@ class GradientFrost extends StatelessWidget {
         : tint;
     final tintLayer = IgnorePointer(
       child: DecoratedBox(
-        decoration: BoxDecoration(color: solidTint.withValues(alpha: alpha)),
+        decoration: BoxDecoration(
+          color: fadeOutFrom == null
+              ? solidTint.withValues(alpha: alpha)
+              : null,
+          gradient: fadeOutFrom == null
+              ? null
+              : LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: [0, fadeOutFrom!.clamp(0.0, 1.0), 1],
+                  colors: [
+                    solidTint.withValues(alpha: alpha),
+                    solidTint.withValues(alpha: alpha),
+                    solidTint.withValues(alpha: 0),
+                  ],
+                ),
+        ),
       ),
     );
     // 「虚化」大于 0 时才真的采样背后：早先这里是整条栏一层的 BackdropFilter

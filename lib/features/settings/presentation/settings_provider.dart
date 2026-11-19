@@ -162,15 +162,14 @@ final playerBackdropScrimProvider =
       PlayerBackdropScrimNotifier.new,
     );
 
-/// 界面材质的不透明度倍率（0.3~1，默认 1）。
+/// 界面材质的不透明度倍率（0.3~1，默认 0.65）。
 ///
-/// 给除播放器以外的所有玻璃面统一缩放染色浓度——它们已经不做背景模糊，
-/// 只剩透明度这一档可调。
+/// 给所有玻璃面统一缩放染色浓度，见 [GlassEffectConfig.surfaceAlpha]。
 final glassOpacityProvider = NotifierProvider<GlassOpacityNotifier, double>(
   GlassOpacityNotifier.new,
 );
 
-/// 玻璃面的虚化档位（0~1，出厂 0.90 = 接近设计基线）。
+/// 玻璃面的虚化档位（0~1，出厂 1.00 = 设计基线满档）。
 ///
 /// 和「界面不透明度」是一对：不透明度决定「透多少」，虚化决定「透过来的东西
 /// 糊不糊」。两者独立存储，互不换算。

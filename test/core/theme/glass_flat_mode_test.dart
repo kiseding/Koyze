@@ -69,15 +69,15 @@ void main() {
     GlassEffectConfig.setSurfaceOpacity(
       GlassEffectConfig.defaultSurfaceOpacity,
     );
-    // 虚化也要复位：出厂档从 0 改成 0.9 之后，漏掉这一句会让上一条用例
-    // 留下的档位串到下一条里，采样/不采样的断言就成了薛定谔的。
+    // 虚化也要复位：出厂档是满档（1.0），漏掉这一句会让上一条用例留下的
+    // 档位串到下一条里，采样/不采样的断言就成了薛定谔的。
     GlassEffectConfig.setSurfaceBlur(GlassEffectConfig.defaultSurfaceBlur);
     GlassScrollActivity.reset();
   });
 
   group('GlassSurface', () {
     // 这一组测的是「**虚化关着**时玻璃面退化成半透明染色、不做采样」。
-    // 虚化出厂档从 0 改成 0.9 之后必须显式归零，否则测的就不是「关着」了。
+    // 虚化出厂档是满档，必须显式归零，否则测的就不是「关着」了。
     // `blurBehind: true`（全屏播放器）那条不受影响：它本来就强制采样。
     setUp(() => GlassEffectConfig.setSurfaceBlur(0));
 
@@ -272,8 +272,8 @@ void main() {
     // 设置页的滑杆改的是全局静态档位。外层路由不会因此重建，所以每块玻璃面
     // 必须自己监听——否则就是"拖了没反应，回上一页才变"。
     testWidgets('GlassSurface 不重建父级也会当场变透', (tester) async {
-      // 出厂档已经降到 0.3，比下面要调的 0.4 还低。先抬到 0.9 起跳，
-      // 否则「变透了」的断言只是在测一个反向变化。
+      // 出厂档是 0.65，比下面要调的 0.4 高。先抬到 0.9 起跳仍然有意义：
+      // 保证「变透了」测的是 alpha 下降，而不是撞到 0.65 的下限。
       GlassEffectConfig.setSurfaceOpacity(0.9);
       await tester.pumpWidget(
         _host(

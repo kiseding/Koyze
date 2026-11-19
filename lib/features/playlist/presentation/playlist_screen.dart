@@ -1274,6 +1274,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                           FxIconButton(
                             tooltip: S.of(context).closeImport,
                             onPressed: busy ? null : () => Navigator.pop(ctx),
+                            color: AppColors.error,
                             icon: const Icon(Icons.close_rounded),
                           ),
                         ],
@@ -1750,7 +1751,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       barrierDismissible: true,
       builder: (dialogCtx) {
         final on = AppColors.onScaffold(context);
-        final muted = AppColors.mutedText(context);
         Widget action({
           required IconData icon,
           required String label,
@@ -1817,7 +1817,8 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                       FxIconButton(
                         visualDensity: VisualDensity.compact,
                         onPressed: () => Navigator.pop(dialogCtx),
-                        icon: Icon(Icons.close_rounded, color: muted),
+                        color: AppColors.error,
+                        icon: const Icon(Icons.close_rounded),
                       ),
                     ],
                   ),

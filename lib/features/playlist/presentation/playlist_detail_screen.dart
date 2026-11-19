@@ -148,15 +148,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     });
   }
 
-  /// 收藏、最近播放、本地音乐的顶栏跟「猜你喜欢」一样，用页面底色，不用磨砂。
-  bool _flatTitleBar(String playlistId) {
-    return playlistId == 'favorites' ||
-        playlistId == 'recent' ||
-        playlistId == 'local';
-  }
-
-  double _listTopInset(BuildContext context, String playlistId) {
-    if (_flatTitleBar(playlistId)) return 4;
+  /// 列表顶部要让出的高度。
+  ///
+  /// 所有歌单现在都开着 `extendBodyBehindAppBar`，列表从屏幕最顶开始画，
+  /// 所以统一让出一个状态栏 + 工具栏。以前收藏 / 最近 / 本地这三个只让 4pt
+  /// （它们那时没有磨砂栏、body 也不延伸到栏下），现在并入同一套。
+  double _listTopInset(BuildContext context) {
     return MediaQuery.paddingOf(context).top + kToolbarHeight;
   }
 
@@ -262,24 +259,25 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         currentPageIds.isNotEmpty &&
         currentPageIds.every(_selectedFavoriteIds.contains);
 
-    final flatTitleBar = _flatTitleBar(playlist.id);
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        // 普通歌单列表滚进磨砂顶栏；这三个系统列表用实心底色，不延伸到栏下。
-        extendBodyBehindAppBar: !flatTitleBar,
+        // 所有歌单（含收藏 / 最近播放 / 本地音乐）列表都滚进磨砂顶栏。
+        //
+        // 这三个系统列表早先被单独排除在外：顶栏不铺磨砂、body 也不延伸到
+        // 栏下，整页是一块实心底色。当时这么写是为了「系统列表看着更稳」，
+        // 代价是它们成为全 App 唯一不吃「虚化」档的标题栏——滑杆拖到 100%
+        // 这三个页面毫无变化。统一之后每个页面的顶部都是同一块材质。
+        extendBodyBehindAppBar: true,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          elevation: flatTitleBar ? 0 : null,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
-          // 顶栏整栏磨砂玻璃，无底部渐变透明。系统列表不铺这层。
-          flexibleSpace: flatTitleBar
-              ? null
-              : GradientAppBarBackground(
-                  background: Theme.of(context).scaffoldBackgroundColor,
-                ),
+          // 顶栏整栏磨砂玻璃，无底部渐变透明。
+          flexibleSpace: GradientAppBarBackground(
+            background: Theme.of(context).scaffoldBackgroundColor,
+          ),
           // 只能放一个按钮：AppBar 把 leading 约束成 56pt 宽，塞两个 48pt 的
           // 图标按钮时第二个会溢出到标题上——画得出来，但点击落在盒子外，
           // 命中不了。多出来的动作一律进 actions。
@@ -620,7 +618,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final range = _pageRangeFor(_reorderedSongs.length);
     final songs = pageSlice(_reorderedSongs, range);
     // 列表可滚动到栏内部；顶部/底部预留栏空间，避免内容被栏遮挡。
-    final topInset = _listTopInset(context, playlist.id);
+    final topInset = _listTopInset(context);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Stack(
       children: [
@@ -692,7 +690,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         ? const <MusicItem>[]
         : ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
     // 列表全屏可滚动到栏内部；顶部/底部预留栏空间，滚动时才进入渐变区。
-    final topInset = _listTopInset(context, playlist.id);
+    final topInset = _listTopInset(context);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Stack(
       children: [

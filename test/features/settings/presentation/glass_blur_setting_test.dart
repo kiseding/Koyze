@@ -34,8 +34,8 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(notifier.value, GlassEffectConfig.defaultSurfaceBlur);
-      // 出厂就是开着虚化的：用户没动过滑杆时，界面也该是毛玻璃而不是一片实色。
-      expect(notifier.value, 0.9);
+      // 出厂就是满档虚化的：用户没动过滑杆时，界面也该是毛玻璃而不是一片实色。
+      expect(notifier.value, 1.0);
     },
   );
 
