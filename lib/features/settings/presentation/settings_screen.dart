@@ -1723,7 +1723,7 @@ class _GlassOpacitySlider extends ConsumerWidget {
 /// 「虚化」滑杆。
 ///
 /// 与不透明度是一对：不透明度决定「透多少」，虚化决定「透过来的东西糊不糊」。
-/// 出厂 0% 即不采样背后，和这一档上线前的观感完全一致。
+/// 出厂 90%，拖到 0 就是不采样背后、只剩透明混合。
 class _GlassBlurSlider extends ConsumerWidget {
   const _GlassBlurSlider();
 

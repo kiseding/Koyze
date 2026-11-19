@@ -9,16 +9,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 「虚化」这一档：出厂 0、越界收敛、倍率而非 sigma、拖动时的「立刻生效 +
 /// 合并落盘」，以及它确实驱动玻璃面重画。
 ///
-/// 这一档最要紧的性质是**默认关着**。每块玻璃面都要把背后整屏拷进离屏纹理
-/// 再卷积一次，出厂就打开会让低端机上的首屏明显变慢；所以 0 必须等价于
-/// 「这一档上线前的行为」。
+/// 这一档的默认值从 0（关）改成了 0.9（接近满档）：原先「关上更省」的考虑
+/// 建立在「只有播放器允许模糊」那套观感上，现在虚化本身就是用户可调的外观
+/// 项，出厂关着会让第一次打开设置页的人以为开关坏了。0 仍然是个合法值，
+/// 拖到底就退回「这一档上线前」的观感。
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   tearDown(
-    () => GlassEffectConfig.setSurfaceBlur(
-      GlassEffectConfig.defaultSurfaceBlur,
-    ),
+    () =>
+        GlassEffectConfig.setSurfaceBlur(GlassEffectConfig.defaultSurfaceBlur),
   );
 
   Future<StorageService> storageWith(Map<String, Object> values) async {
@@ -26,14 +26,18 @@ void main() {
     return StorageService.forTesting(await SharedPreferences.getInstance());
   }
 
-  test('an empty store keeps blur off', () async {
-    final storage = await storageWith(<String, Object>{});
-    final notifier = GlassBlurNotifier(storage: () async => storage);
-    await Future<void>.delayed(Duration.zero);
+  test(
+    'an empty store falls back to the shipped default, not to zero',
+    () async {
+      final storage = await storageWith(<String, Object>{});
+      final notifier = GlassBlurNotifier(storage: () async => storage);
+      await Future<void>.delayed(Duration.zero);
 
-    expect(notifier.value, GlassEffectConfig.defaultSurfaceBlur);
-    expect(notifier.value, 0.0);
-  });
+      expect(notifier.value, GlassEffectConfig.defaultSurfaceBlur);
+      // 出厂就是开着虚化的：用户没动过滑杆时，界面也该是毛玻璃而不是一片实色。
+      expect(notifier.value, 0.9);
+    },
+  );
 
   test('values below the floor and non-finite values fall back', () async {
     for (final stored in <double>[-3.0, double.nan, double.infinity]) {
@@ -89,7 +93,9 @@ void main() {
     }
   });
 
-  test('zero keeps every surface exactly as it was before this setting', () {
+  test('zero is still a valid setting: same look as before this slider', () {
+    // 0 不再是默认值，但用户把滑杆拖到底时仍然要回到「这一档上线前」的观感：
+    // 半透明染色、不采样背后，而不是变成一块实色。
     GlassEffectConfig.setSurfaceBlur(0);
 
     expect(GlassEffectConfig.userBlurEnabled, isFalse);
@@ -104,44 +110,46 @@ void main() {
     expect(GlassEffectConfig.userBlurEnabled, isTrue);
 
     GlassEffectConfig.setDisableAllGlassEffects(true);
-    addTearDown(
-      () => GlassEffectConfig.setDisableAllGlassEffects(false),
-    );
+    addTearDown(() => GlassEffectConfig.setDisableAllGlassEffects(false));
 
     expect(GlassEffectConfig.surfaceBlur, 0);
     expect(GlassEffectConfig.userBlurEnabled, isFalse);
     expect(GlassEffectConfig.scaleSurfaceBlur(20), 0);
   });
 
-  test('changing the value notifies surfaces even when nobody rebuilds them', () {
-    // 滑杆在设置页，玻璃面在别的路由下；光改静态字段不会让它们重画，
-    // 靠的就是这个信号。
-    var fired = 0;
-    void listener() => fired++;
-    GlassEffectConfig.surfaceBlurListenable.addListener(listener);
-    addTearDown(
-      () => GlassEffectConfig.surfaceBlurListenable.removeListener(listener),
-    );
+  test(
+    'changing the value notifies surfaces even when nobody rebuilds them',
+    () {
+      // 滑杆在设置页，玻璃面在别的路由下；光改静态字段不会让它们重画，
+      // 靠的就是这个信号。
+      var fired = 0;
+      void listener() => fired++;
+      GlassEffectConfig.surfaceBlurListenable.addListener(listener);
+      addTearDown(
+        () => GlassEffectConfig.surfaceBlurListenable.removeListener(listener),
+      );
 
-    GlassEffectConfig.setSurfaceBlur(0.4);
-    expect(fired, 1);
-    expect(GlassEffectConfig.surfaceBlur, 0.4);
+      GlassEffectConfig.setSurfaceBlur(0.4);
+      expect(fired, 1);
+      expect(GlassEffectConfig.surfaceBlur, 0.4);
 
-    // 同一个值重复设置不该产生多余的重画。
-    GlassEffectConfig.setSurfaceBlur(0.4);
-    expect(fired, 1);
+      // 同一个值重复设置不该产生多余的重画。
+      GlassEffectConfig.setSurfaceBlur(0.4);
+      expect(fired, 1);
 
-    GlassEffectConfig.setSurfaceBlur(0.7);
-    expect(fired, 2);
-  });
+      GlassEffectConfig.setSurfaceBlur(0.7);
+      expect(fired, 2);
+    },
+  );
 
   test('the blur signal is independent from the opacity signal', () {
     var opacityFired = 0;
     void opacityListener() => opacityFired++;
     GlassEffectConfig.surfaceOpacityListenable.addListener(opacityListener);
     addTearDown(
-      () => GlassEffectConfig.surfaceOpacityListenable
-          .removeListener(opacityListener),
+      () => GlassEffectConfig.surfaceOpacityListenable.removeListener(
+        opacityListener,
+      ),
     );
 
     GlassEffectConfig.setSurfaceBlur(0.5);

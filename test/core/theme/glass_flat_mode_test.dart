@@ -69,15 +69,24 @@ void main() {
     GlassEffectConfig.setSurfaceOpacity(
       GlassEffectConfig.defaultSurfaceOpacity,
     );
+    // 虚化也要复位：出厂档从 0 改成 0.9 之后，漏掉这一句会让上一条用例
+    // 留下的档位串到下一条里，采样/不采样的断言就成了薛定谔的。
+    GlassEffectConfig.setSurfaceBlur(GlassEffectConfig.defaultSurfaceBlur);
+    GlassScrollActivity.reset();
   });
 
   group('GlassSurface', () {
+    // 这一组测的是「**虚化关着**时玻璃面退化成半透明染色、不做采样」。
+    // 虚化出厂档从 0 改成 0.9 之后必须显式归零，否则测的就不是「关着」了。
+    // `blurBehind: true`（全屏播放器）那条不受影响：它本来就强制采样。
+    setUp(() => GlassEffectConfig.setSurfaceBlur(0));
+
     Widget surface() => GlassSurface(
       borderRadius: BorderRadius.circular(16),
       child: const Center(child: Text('玻璃')),
     );
 
-    testWidgets('默认走透明度，不再采样背后', (tester) async {
+    testWidgets('虚化关闭时不采样背后', (tester) async {
       await tester.pumpWidget(_host(surface()));
       expect(find.byType(BackdropFilter), findsNothing);
       expect(find.text('玻璃'), findsOneWidget);
@@ -160,12 +169,15 @@ void main() {
   });
 
   group('LiquidGlassSurface', () {
+    // 同上：测「虚化关着」时的行为，必须显式把虚化归零。
+    setUp(() => GlassEffectConfig.setSurfaceBlur(0));
+
     Widget capsule() => LiquidGlassSurface(
       borderRadius: BorderRadius.circular(22),
       child: const Center(child: Text('胶囊')),
     );
 
-    testWidgets('默认只做透明混合', (tester) async {
+    testWidgets('虚化关闭时只做透明混合', (tester) async {
       await tester.pumpWidget(_host(capsule()));
       expect(find.byType(BackdropFilter), findsNothing);
       expect(find.text('胶囊'), findsOneWidget);
@@ -233,9 +245,12 @@ void main() {
   });
 
   group('GradientFrost', () {
+    // 顶栏也只在虚化 > 0 时才铺 BackdropFilter，同样需要显式归零。
+    setUp(() => GlassEffectConfig.setSurfaceBlur(0));
+
     Widget frost() => const GradientFrost(child: SizedBox.expand());
 
-    testWidgets('默认不采样背后', (tester) async {
+    testWidgets('虚化关闭时不采样背后', (tester) async {
       await tester.pumpWidget(_host(frost()));
       expect(find.byType(BackdropFilter), findsNothing);
     });
@@ -257,6 +272,9 @@ void main() {
     // 设置页的滑杆改的是全局静态档位。外层路由不会因此重建，所以每块玻璃面
     // 必须自己监听——否则就是"拖了没反应，回上一页才变"。
     testWidgets('GlassSurface 不重建父级也会当场变透', (tester) async {
+      // 出厂档已经降到 0.3，比下面要调的 0.4 还低。先抬到 0.9 起跳，
+      // 否则「变透了」的断言只是在测一个反向变化。
+      GlassEffectConfig.setSurfaceOpacity(0.9);
       await tester.pumpWidget(
         _host(
           GlassSurface(
@@ -276,6 +294,7 @@ void main() {
     });
 
     testWidgets('迷你播放条用的液态玻璃同样当场变透', (tester) async {
+      GlassEffectConfig.setSurfaceOpacity(0.9);
       await tester.pumpWidget(
         _host(
           LiquidGlassSurface(

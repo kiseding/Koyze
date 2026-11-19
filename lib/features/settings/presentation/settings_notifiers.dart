@@ -520,11 +520,16 @@ class GlassOpacityNotifier extends _SliderSettingNotifier {
   Future<void> commitOpacity(double value) => resetTo(value);
 }
 
-/// 玻璃面的「虚化」档位（0~1，默认 0）。
+/// 玻璃面的「虚化」档位（0~1，出厂 0.90）。
 ///
-/// 0 就是不采样背后、只用透明混合——与这一档上线前的观感完全一致；往上拖
-/// 才逐级打开 BackdropFilter。出厂给 0 是因为每块玻璃面都要把背后整屏拷进
-/// 离屏纹理，低端机上代价很直观。
+/// 0 就是不采样背后、只用透明混合；往上拖才逐级打开 BackdropFilter，1 是
+/// 设计基线强度。它是倍率不是 sigma：各材质自带基线半径（顶栏 15、弹窗 25、
+/// 播放器 60），这一档统一缩放它们。
+///
+/// 出厂 0.90 而不是 1.0，是给客户端留一点余量——满档在某些深度下会把基线上的
+/// 25 糊过头。早先这里是 0（那时全 App 只有播放器允许模糊），现在虚化是用户
+/// 可调的一档外观，默认打开才有意义，否则「调了没反应」是第一次打开设置页
+/// 的人最容易踩的坑。
 class GlassBlurNotifier extends _SliderSettingNotifier {
   GlassBlurNotifier({StorageLoader? storage})
     : super(GlassEffectConfig.defaultSurfaceBlur, storage: storage);
@@ -534,7 +539,12 @@ class GlassBlurNotifier extends _SliderSettingNotifier {
   @override
   double normalize(double value) => value.isFinite
       ? value.clamp(GlassEffectConfig.minSurfaceBlur, 1.0).toDouble()
-      : GlassEffectConfig.defaultSurfaceBlur;
+      // 坏数据（NaN / Infinity）退到**关**，不是退到默认档。
+      //
+      // 退回默认档听着更「友好」，实际是惩罚：默认已经是 0.9 的满档模糊，
+      // 一份损坏的偏好设置会让界面突然变成最贵的那个档位——低端机直接卡。
+      // 坏数据只该回到「什么都不做」，用户想要虚化可以自己再拖。
+      : GlassEffectConfig.minSurfaceBlur;
 
   @override
   double? readFrom(StorageService storage) {

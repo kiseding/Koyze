@@ -11,6 +11,7 @@ import '../../../core/motion/motion_tokens.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/player_route_progress.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/effect_policy.dart';
 import '../../car_mode/presentation/car_mode_provider.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
@@ -152,13 +153,15 @@ class _MainScaffoldState extends ConsumerState<MainScaffold> {
               : Curves.easeOutCubic.transform(visibleProgress);
           final chromeOpacity = 1 - visibleProgress;
           final tabPush = chromeBottom * 0.6;
-          final shell = RootShellLayout(
-            usesSideNavigation: usesSideNavigation,
-            // 底部 chrome 不再"占位"：页面一直画到屏幕底边，dock 是浮在上面
-            // 的一层液态玻璃，滚动内容从它后面经过并透出来。各根页面用这个
-            // 高度给自己的滚动列表留出底部安全距离。
-            obscuredBottom: chromeBottom,
-            child: navigationShell,
+          final shell = GlassScrollObserver(
+            child: RootShellLayout(
+              usesSideNavigation: usesSideNavigation,
+              // 底部 chrome 不再"占位"：页面一直画到屏幕底边，dock 是浮在上面
+              // 的一层液态玻璃，滚动内容从它后面经过并透出来。各根页面用这个
+              // 高度给自己的滚动列表留出底部安全距离。
+              obscuredBottom: chromeBottom,
+              child: navigationShell,
+            ),
           );
 
           // 顶部栏固定在壳层里，不跟着页面走。四个根页面只把标题和动作

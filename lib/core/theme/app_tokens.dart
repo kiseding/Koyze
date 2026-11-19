@@ -255,12 +255,13 @@ class GlassSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 「界面不透明度」和「虚化」都是全局静态档位，改它们不会让外层重建；
-    // 这里直接监听信号，拖动滑杆时这一块当帧重画。
+    // 「界面不透明度」「虚化」和「正在滚动」都是全局信号，改它们不会让外层
+    // 重建；这里直接监听，拖动滑杆/起手滑动时这一块当帧重画。
     return ListenableBuilder(
       listenable: Listenable.merge([
         GlassEffectConfig.surfaceOpacityListenable,
         GlassEffectConfig.surfaceBlurListenable,
+        GlassScrollActivity.listenable,
       ]),
       builder: (context, _) => _buildSurface(context),
     );
@@ -272,9 +273,16 @@ class GlassSurface extends StatelessWidget {
     // 设置里的「虚化」只缩放真正下发给引擎的半径，不参与「这块面要不要退化成
     // 实色」的判断——档位为 0 时玻璃面仍然是半透明染色，只是不采样背后，
     // 与这一档上线前的观感完全一致。播放器自带模糊，不叠这一档。
-    final sigma = blurBehind
+    //
+    // 滚动中再乘一个折扣（见 [GlassScrollActivity]）：仍然真实采样，只是
+    // 卷积核小一半。**不是**关掉采样——那会让玻璃在滚动的瞬间变成纯透明
+    // 混合，用户看得见「玻璃没了」。
+    final scrolling = GlassScrollActivity.isScrolling && !blurBehind;
+    final scaled = blurBehind
         ? baseSigma
         : GlassEffectConfig.scaleSurfaceBlur(baseSigma);
+    final sigma =
+        scaled * (scrolling ? GlassScrollActivity.scrollBlurDiscount : 1.0);
     final allowBlur = blurBehind || GlassEffectConfig.userBlurEnabled;
     final base = _baseColor(context);
     final side =
@@ -314,9 +322,15 @@ class GlassSurface extends StatelessWidget {
         child: clipped(material),
       );
     }
-    if (!backdrop) {
+    if (!backdrop && !GlassEffectConfig.userBlurEnabled) {
       // 背后是纯色页面底：把底色混上去和「模糊一层纯色再混」是同一个结果，
       // 但不用每帧做一次全宽 BackdropFilter + 饱和度矩阵。
+      //
+      // 这个捷径只在**用户没开虚化**时成立。虚化档一旦 > 0，用户就是想看见
+      // 「透过来的东西变糊」——这时还按「背后是纯色」跳采样，结果是这块面
+      // 对滑杆毫无反应。之前虚化只对迷你播放条生效，正是因为它走的是
+      // LiquidGlassSurface，而这里 7 处 `backdrop: false`（首页搜索框、快捷
+      // 卡、榜单行、歌单行、设置分区卡…）全被这一条挡在外面。
       final flat = Color.alphaBlend(base, AppColors.scaffold(context));
       return DecoratedBox(
         decoration: BoxDecoration(

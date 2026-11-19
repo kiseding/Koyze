@@ -227,6 +227,7 @@ class GradientFrost extends StatelessWidget {
       listenable: Listenable.merge([
         GlassEffectConfig.surfaceOpacityListenable,
         GlassEffectConfig.surfaceBlurListenable,
+        GlassScrollActivity.listenable,
       ]),
       builder: (context, _) => _buildTint(context),
     );
@@ -252,8 +253,12 @@ class GradientFrost extends StatelessWidget {
     );
     // 「虚化」大于 0 时才真的采样背后：早先这里是整条栏一层的 BackdropFilter
     // （更早还按 6 条横带做「渐变模糊」），后来因为每帧一次全宽离屏拷贝被拿掉，
-    // 只剩一层平涂染色。现在把它作为可选档还给用户，默认仍然是关的。
+    // 只剩一层平涂染色。现在把它作为可选档还给用户，出厂跟着全局虚化档
+    // （0.90）一起打开。
     final frosted = !reduce && GlassEffectConfig.userBlurEnabled;
+    final scrollFactor = GlassScrollActivity.isScrolling
+        ? GlassScrollActivity.scrollBlurDiscount
+        : 1.0;
     return Stack(
       children: [
         if (frosted)
@@ -261,7 +266,8 @@ class GradientFrost extends StatelessWidget {
             child: IgnorePointer(
               child: ClipRect(
                 child: GlassBackdrop(
-                  sigma: GlassEffectConfig.scaleSurfaceBlur(sigma),
+                  sigma:
+                      GlassEffectConfig.scaleSurfaceBlur(sigma) * scrollFactor,
                   saturation: AppGlass.saturate,
                   allowBlur: true,
                   child: const ColoredBox(color: Color(0x00000000)),

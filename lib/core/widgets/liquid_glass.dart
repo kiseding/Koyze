@@ -72,6 +72,7 @@ class LiquidGlassSurface extends StatelessWidget {
       listenable: Listenable.merge([
         GlassEffectConfig.surfaceOpacityListenable,
         GlassEffectConfig.surfaceBlurListenable,
+        GlassScrollActivity.listenable,
       ]),
       builder: (context, _) => _buildSurface(context),
     );
@@ -90,7 +91,15 @@ class LiquidGlassSurface extends StatelessWidget {
     // 播放器（blurBehind）本来就要模糊；其余界面由设置里的「虚化」决定——
     // 档位为 0 时仍是纯透明混合，与这一档上线前完全一致。
     final allowBlur = blurBehind || GlassEffectConfig.userBlurEnabled;
-    final sigma = blurBehind ? blur : GlassEffectConfig.scaleSurfaceBlur(blur);
+    // 滚动中只把卷积核乘个折扣，不关采样：滚起来玻璃还在，只是糊得轻一点。
+    // 见 [GlassScrollActivity]。
+    final scrollFactor = GlassScrollActivity.isScrolling && !blurBehind
+        ? GlassScrollActivity.scrollBlurDiscount
+        : 1.0;
+    final sigma = (blurBehind
+            ? blur
+            : GlassEffectConfig.scaleSurfaceBlur(blur)) *
+        scrollFactor;
     final requested = (backdrop && allowBlur) ? quality : GlassQuality.minimal;
     final resolved = resolveGlassQuality(context, requested: requested);
 
