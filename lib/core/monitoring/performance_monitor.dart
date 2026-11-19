@@ -190,7 +190,11 @@ class PerformanceMonitor {
       // AppLog 默认只在诊断面板打开期间采集（见 app_log.dart 的 start/stop），
       // 而面板一关就停——那恰好漏掉面板关着时发生的卡顿，也就是用户真正抱怨
       // 的那一次。探针包里全程采集，用户滑完再打开面板就能看到 jank 摘要。
-      AppLog.instance.start();
+      //
+      // installHooks 必须为 false：接管 debugPrint 会把框架的海量输出灌进
+      // record()，而它每次都 List.unmodifiable 全量复制一遍条目——那等于让
+      // 测量工具自己制造卡顿。这里只留显式 record() 的条目。
+      AppLog.instance.start(installHooks: false);
     }
 
     // Periodic memory snapshots

@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../monitoring/debug_probe.dart';
+
 enum AppLogLevel { info, warning, error }
 
 final class AppLogEntry {
@@ -62,12 +64,16 @@ final class AppLog with WidgetsBindingObserver {
   /// [installHooks] 为 false 时只打开记录开关，不去接管 debugPrint 与全局错误
   /// 处理器——单元测试里没有绑定好的 WidgetsBinding，接管会直接抛异常。
   void start({bool installHooks = true}) {
+    // 诊断包（带 KOYZE_PROBE 编译）一律不接管 debugPrint：它要的是那几条
+    // 显式的 record()（比如帧探针的 jank 摘要），而 debugPrint 里框架的海量
+    // 输出会让 record() 每次 List.unmodifiable 全量复制，把测量变成噪声源。
+    final hooks = installHooks && !DebugProbe.staticallyEnabled;
     if (_collecting) {
-      if (installHooks) _installHooks();
+      if (hooks) _installHooks();
       return;
     }
     _collecting = true;
-    if (installHooks) _installHooks();
+    if (hooks) _installHooks();
     record('app', 'diagnostic logging started');
   }
 

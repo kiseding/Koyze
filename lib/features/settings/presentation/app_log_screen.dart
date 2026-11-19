@@ -34,8 +34,11 @@ void showDiagnosticLogOverlay(BuildContext context) {
 }
 
 void _closeDiagnosticLogOverlay() {
-  AppLog.instance.stop();
+  // 诊断包（带 KOYZE_PROBE 编译）关面板不停采集：它的用途就是让用户正常用
+  // 一次、再回来读那一段。中途点开面板看一眼不该把记录断掉——原先这里无条件
+  // stop，只要用户先好奇点开一次，后面滑出来的卡顿就全丢了。
   if (!DebugProbe.staticallyEnabled) {
+    AppLog.instance.stop();
     PerformanceMonitor().stopFrameProbe();
   }
   _diagnosticLogEntry?.remove();
