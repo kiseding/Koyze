@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: macos-15-intel
+      probe:
+        description: '编译进帧探针（AppLog 记 build_p95/raster_p95），用于定位卡顿在 UI 侧还是光栅侧。只产 artifact，不发 Release'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -71,7 +76,12 @@ jobs:
         run: pod install
 
       - name: Build unsigned iOS app
-        run: flutter build ios --release --no-codesign
+        env:
+          # 探针包走和正式包完全相同的编译路径（--release），只多一个编译期
+          # 常量，这样量到的帧耗时才代表真实体验。dart-define 用 env 展开：
+          # probe 为 false 时它展开成空串，不会留下一个多余的空参数。
+          PROBE_DEFINE: ${{ inputs.probe && '--dart-define=KOYZE_PROBE=true' || '' }}
+        run: flutter build ios --release --no-codesign $PROBE_DEFINE
 
       - name: Package and validate Apple ID sideload IPA
         run: |
@@ -96,7 +106,8 @@ jobs:
       - name: Upload Apple ID sideload IPA
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: Koyze-Apple-ID-Sideload-IPA
+          # 探针包加后缀，避免和正式包在 artifact 列表里混在一起。
+          name: Koyze-Apple-ID-Sideload-IPA${{ inputs.probe && '-PROBE' || '' }}
           path: build/ios/Koyze-Apple-ID-Sideload.ipa
           if-no-files-found: error
           retention-days: 7

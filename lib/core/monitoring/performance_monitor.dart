@@ -183,7 +183,15 @@ class PerformanceMonitor {
 
     // 帧探针只在明确打开时才接线（见 DebugProbe）：帧回调与 2 秒汇总定时器
     // 对正常用户没有任何产出，却要一直付调度开销。
-    if (DebugProbe.enabled) startFrameProbe();
+    if (DebugProbe.enabled) {
+      startFrameProbe();
+      // 探针包的用途是「让用户正常用一次，把那一瞬间的数据留住」。
+      //
+      // AppLog 默认只在诊断面板打开期间采集（见 app_log.dart 的 start/stop），
+      // 而面板一关就停——那恰好漏掉面板关着时发生的卡顿，也就是用户真正抱怨
+      // 的那一次。探针包里全程采集，用户滑完再打开面板就能看到 jank 摘要。
+      AppLog.instance.start();
+    }
 
     // Periodic memory snapshots
     _memoryCheckTimer = Timer.periodic(const Duration(minutes: 5), (_) {
