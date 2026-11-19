@@ -434,6 +434,18 @@ abstract class AppLocalizations {
   /// **'100% is solid; lower it to see through'**
   String get glassOpacitySubtitle;
 
+  /// No description provided for @glassBlur.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface blur'**
+  String get glassBlur;
+
+  /// No description provided for @glassBlurSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'0% stays sharp; raise it to frost what shows through'**
+  String get glassBlurSubtitle;
+
   /// No description provided for @playerBackdropPreviewEmpty.
   ///
   /// In en, this message translates to:

@@ -179,6 +179,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get glassOpacitySubtitle => '100% 为完全实色，调低更透';
 
   @override
+  String get glassBlur => '虚化';
+
+  @override
+  String get glassBlurSubtitle => '0% 为不虚化，调高后透过来的内容更糊';
+
+  @override
   String get playerBackdropPreviewEmpty => '没有正在播放的歌曲';
 
   @override

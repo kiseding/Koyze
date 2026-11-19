@@ -66,11 +66,14 @@ class LiquidGlassSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 迷你播放条、tab 胶囊都挂在这块材质上：设置里拖「界面不透明度」时，
-    // 它们得当场跟着变，而不是等下一次路由重建。
-    return ValueListenableBuilder<double>(
-      valueListenable: GlassEffectConfig.surfaceOpacityListenable,
-      builder: (context, _, _) => _buildSurface(context),
+    // 迷你播放条、tab 胶囊都挂在这块材质上：设置里拖「界面不透明度」或
+    // 「虚化」时，它们得当场跟着变，而不是等下一次路由重建。
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        GlassEffectConfig.surfaceOpacityListenable,
+        GlassEffectConfig.surfaceBlurListenable,
+      ]),
+      builder: (context, _) => _buildSurface(context),
     );
   }
 
@@ -84,8 +87,11 @@ class LiquidGlassSurface extends StatelessWidget {
         (isDark
             ? Colors.white.withValues(alpha: 0.20 * opacity)
             : const Color(0xFF3C3C43).withValues(alpha: 0.14 * opacity));
-    // 产品约定：只有全屏播放器允许模糊，其余界面只做透明混合。
-    final requested = (backdrop && blurBehind) ? quality : GlassQuality.minimal;
+    // 播放器（blurBehind）本来就要模糊；其余界面由设置里的「虚化」决定——
+    // 档位为 0 时仍是纯透明混合，与这一档上线前完全一致。
+    final allowBlur = blurBehind || GlassEffectConfig.userBlurEnabled;
+    final sigma = blurBehind ? blur : GlassEffectConfig.scaleSurfaceBlur(blur);
+    final requested = (backdrop && allowBlur) ? quality : GlassQuality.minimal;
     final resolved = resolveGlassQuality(context, requested: requested);
 
     return switch (resolved) {
@@ -101,16 +107,18 @@ class LiquidGlassSurface extends StatelessWidget {
         edge: edge,
         alpha: alpha,
         isDark: isDark,
-        blur: blur.clamp(0, 12).toDouble(),
+        blur: sigma.clamp(0, 12).toDouble(),
         saturation: 1.0,
+        allowBlur: allowBlur,
       ),
       GlassQuality.premium => _backdrop(
         base: base,
         edge: edge,
         alpha: alpha,
         isDark: isDark,
-        blur: blur,
+        blur: sigma,
         saturation: saturation,
+        allowBlur: allowBlur,
       ),
     };
   }
@@ -122,6 +130,7 @@ class LiquidGlassSurface extends StatelessWidget {
     required bool isDark,
     required double blur,
     required double saturation,
+    required bool allowBlur,
   }) {
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -134,7 +143,7 @@ class LiquidGlassSurface extends StatelessWidget {
         child: GlassBackdrop(
           sigma: blur,
           saturation: saturation,
-          allowBlur: blurBehind,
+          allowBlur: allowBlur,
           child: _layers(base: base, edge: edge, alpha: alpha, isDark: isDark),
         ),
       ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/music_source/platform/built_in_source_manager.dart';
+import '../../../core/network/network_gate.dart';
 import '../../../core/state/buildless_notifier.dart';
 import '../../../core/storage/storage_service.dart';
 
@@ -75,6 +76,17 @@ const Duration kRecommendationMinRefreshGap = Duration(minutes: 3);
 /// 重启软件再赌一次。留三分钟，够坏网络缓过来，也不至于一直空转。
 const Duration kRecommendationEmptyTtl = Duration(minutes: 3);
 
+/// 冷启动后第一次算推荐之前先等这么久。
+///
+/// 启动那一两秒里真正要紧的是首帧、会话恢复、本地曲库扫描；推荐卡片在首页
+/// 靠下，晚几秒出结果用户基本感知不到（结果还有 12 小时缓存兜底）。而它的
+/// 候选收集是「常听歌手 × 音源」的笛卡尔积，弱网下这一批请求会和首屏抢
+/// 同一条链路，并在一段时间后同时超时、同时失败返回。
+///
+/// 3 秒是经验值：覆盖完首帧 + 一次会话恢复，又不至于让用户切到推荐页时
+/// 还在等空态。
+const Duration kRecommendationStartupDelay = Duration(seconds: 3);
+
 /// 会影响推荐结果的数据版本。
 ///
 /// 只跟收藏和「歌单里的歌」有关：刻意不监听 `playlistRevisionProvider`，
@@ -138,14 +150,22 @@ final recommendationProvider =
 
 class RecommendationNotifier
     extends BuildlessNotifier<AsyncValue<List<RecommendedSong>>> {
-  RecommendationNotifier({Future<List<RecommendedSong>> Function()? loader})
-    : _loaderOverride = loader,
-      super(const AsyncValue.loading());
+  RecommendationNotifier({
+    Future<List<RecommendedSong>> Function()? loader,
+    Duration? startupDelay,
+  }) : _loaderOverride = loader,
+       _startupDelay = startupDelay ?? kRecommendationStartupDelay,
+       super(const AsyncValue.loading());
 
   final Future<List<RecommendedSong>> Function()? _loaderOverride;
+
+  /// 冷启动首次计算前等多久。测试传 [Duration.zero] 关掉这一档。
+  final Duration _startupDelay;
+
   Future<List<RecommendedSong>> Function() _loader = () async => const [];
   bool _loadStarted = false;
   Timer? _refreshTimer;
+  Timer? _startupDelayTimer;
   DateTime? _loadedAt;
   bool _inFlight = false;
   int _generation = 0;
@@ -168,6 +188,10 @@ class RecommendationNotifier
   Future<void> _ensureData({bool force = false}) async {
     if (_inFlight) return;
     if (!force && !_expired) return;
+    // 等待启动让路的那次还没触发：这次请求要么就是它，要么是用户提前来要，
+    // 不管哪种都应该立刻开跑，把定时器等掉。
+    _startupDelayTimer?.cancel();
+    _startupDelayTimer = null;
     _inFlight = true;
     final generation = ++_generation;
     try {
@@ -245,7 +269,16 @@ class RecommendationNotifier
     });
     if (!_loadStarted) {
       _loadStarted = true;
-      unawaited(_ensureData());
+      // 冷启动首次计算让路给首帧：结果本来就有 12 小时缓存，晚三秒没人看得出来，
+      // 但这一批「歌手 × 音源」请求会和首屏抢同一条弱网链路。
+      if (_startupDelay <= Duration.zero) {
+        unawaited(_ensureData());
+      } else {
+        _startupDelayTimer = Timer(_startupDelay, () {
+          _startupDelayTimer = null;
+          if (mounted) unawaited(_ensureData());
+        });
+      }
     }
     return super.build();
   }
@@ -254,6 +287,7 @@ class RecommendationNotifier
   void onTeardown() {
     _generation++;
     _refreshTimer?.cancel();
+    _startupDelayTimer?.cancel();
   }
 }
 
@@ -301,6 +335,10 @@ Future<List<RecommendedSong>> computeRecommendations(Ref ref) async {
     dominantPlatform: _dominantPlatform(favorites),
     availablePlatforms: sourceManager.allIds,
   );
+  // 两次候选收集共用一份名额，峰值并发只有 kRecommendationSearchConcurrency。
+  final searchGate = NetworkGate(
+    maxConcurrent: kRecommendationSearchConcurrency,
+  );
   if (artists.isNotEmpty && platformIds.isNotEmpty) {
     // artistWeights 的键是小写歌手名，映射回原始大小写用于搜索。
     final original = <String, String>{};
@@ -312,25 +350,26 @@ Future<List<RecommendedSong>> computeRecommendations(Ref ref) async {
         .take(6)
         .map((a) => original[a] ?? a)
         .toList(growable: false);
-    await _collectCandidates(
+    await collectRecommendationCandidates(
       manager: sourceManager,
       platformIds: platformIds,
       queries: queries,
       into: candidates,
+      gate: searchGate,
     );
   }
 
   // 口味提示：AI 收到「多来点粤语老歌」这类话后写进来，当作额外检索词。
   final focusQueries = tuningFocusQueries(tuning.focus);
   if (focusQueries.isNotEmpty && platformIds.isNotEmpty) {
-    await _collectCandidates(
+    await collectRecommendationCandidates(
       manager: sourceManager,
       platformIds: platformIds,
       queries: focusQueries,
       into: candidates,
+      gate: searchGate,
     );
   }
-
   final ranked = engine.recommend(
     favorites: favorites,
     candidates: candidates.values.toList(),
@@ -367,23 +406,39 @@ List<String> tuningFocusQueries(String focus) {
   return parts.take(4).toList(growable: false);
 }
 
-Future<void> _collectCandidates({
+/// 一次推荐计算里允许同时在飞的音源请求数。
+///
+/// 候选是「查询词 × 平台」的笛卡尔积，收藏里五个常听歌手 × 四个平台就是 20
+/// 条，全部并发发出去在弱网下会集体 connectionTimeout，十秒后又同一毫秒一起
+/// 失败返回，把 20 个异常砸在同一帧的 UI isolate 上（实测启动期 371ms 停顿）。
+/// 限到 3 条之后失败时刻被摊开，首屏要用的前几条仍然最先发出。
+const int kRecommendationSearchConcurrency = 3;
+
+Future<void> collectRecommendationCandidates({
   required BuiltInSourceManager manager,
   required List<String> platformIds,
   required List<String> queries,
   required Map<String, MusicItem> into,
+  NetworkGate? gate,
 }) async {
+  // 两次调用（常听歌手 / 口味提示）共用同一份额度，否则第二次又开三并发，
+  // 峰值还是两倍。
+  final limiter =
+      gate ?? NetworkGate(maxConcurrent: kRecommendationSearchConcurrency);
   await Future.wait([
     for (final query in queries)
       for (final platformId in platformIds)
-        manager
-            .search(platformId, query, limit: 40)
+        limiter
+            .run(
+              () => manager
+                  .search(platformId, query, limit: 40)
+                  .catchError((_) => <MusicItem>[]),
+            )
             .then((songs) {
               for (final song in songs) {
                 into[song.identityKey] = song;
               }
-            })
-            .catchError((_) {}),
+            }),
   ]);
 }
 

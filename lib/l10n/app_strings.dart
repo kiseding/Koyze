@@ -107,6 +107,8 @@ class S {
   String get playerBackdropPreviewEmpty => _l10n.playerBackdropPreviewEmpty;
   String get glassOpacity => _l10n.glassOpacity;
   String get glassOpacitySubtitle => _l10n.glassOpacitySubtitle;
+  String get glassBlur => _l10n.glassBlur;
+  String get glassBlurSubtitle => _l10n.glassBlurSubtitle;
   String get resetToDefault => _l10n.resetToDefault;
   String get lyricDisplay => _l10n.lyricDisplay;
   String get lyricDisplaySubtitle => _l10n.lyricDisplaySubtitle;

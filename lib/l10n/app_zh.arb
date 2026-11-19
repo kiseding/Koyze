@@ -56,6 +56,8 @@
   "backdropScrimShort": "压暗",
   "glassOpacity": "界面不透明度",
   "glassOpacitySubtitle": "100% 为完全实色，调低更透",
+  "glassBlur": "虚化",
+  "glassBlurSubtitle": "0% 为不虚化，调高后透过来的内容更糊",
   "playerBackdropPreviewEmpty": "没有正在播放的歌曲",
   "resetToDefault": "恢复默认",
   "general": "通用",

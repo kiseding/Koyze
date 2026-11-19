@@ -170,6 +170,14 @@ final glassOpacityProvider = NotifierProvider<GlassOpacityNotifier, double>(
   GlassOpacityNotifier.new,
 );
 
+/// 玻璃面的虚化档位（0~1，默认 0 = 不采样背后）。
+///
+/// 和「界面不透明度」是一对：不透明度决定「透多少」，虚化决定「透过来的东西
+/// 糊不糊」。两者独立存储，互不换算。
+final glassBlurProvider = NotifierProvider<GlassBlurNotifier, double>(
+  GlassBlurNotifier.new,
+);
+
 final cacheMaintenanceProvider = Provider<CacheMaintenanceService>((ref) {
   return CacheMaintenanceService();
 });

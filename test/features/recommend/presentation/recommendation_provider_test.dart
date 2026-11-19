@@ -25,6 +25,8 @@ void main() {
         ),
         recommendationProvider.overrideWith(
           () => RecommendationNotifier(
+            // 这里钉的是「什么时候重算」，不是启动让路，把延迟关掉。
+            startupDelay: Duration.zero,
             loader: () async {
               calls++;
               return const <RecommendedSong>[];
@@ -69,5 +71,38 @@ void main() {
   test('空结果用短 TTL，别让推荐空一整天', () {
     expect(kRecommendationEmptyTtl, lessThan(kRecommendationCacheTtl));
     expect(kRecommendationEmptyTtl.inMinutes, lessThanOrEqualTo(10));
+  });
+
+  test('冷启动首次计算让路给首帧，但用户一喊就立刻开跑', () async {
+    // 这一条钉的是启动期网络风暴的一半：推荐候选是「歌手 × 音源」的笛卡尔积，
+    // 以前 build 里立刻发出，正好压在首帧和会话恢复上。现在先等一段，
+    // 但用户主动打开推荐页（urgent）时必须跳过等待。
+    var calls = 0;
+    final container = ProviderContainer(
+      overrides: [
+        recommendationDataRevisionProvider.overrideWith((ref) => 0),
+        recommendationProvider.overrideWith(
+          () => RecommendationNotifier(
+            startupDelay: const Duration(seconds: 5),
+            loader: () async {
+              calls++;
+              return const <RecommendedSong>[];
+            },
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(recommendationProvider);
+    await _settle();
+    expect(calls, 0, reason: '启动窗口内不该发请求');
+
+    // 用户主动打开推荐页：不等那 5 秒。
+    await container
+        .read(recommendationProvider.notifier)
+        .refreshIfStale(urgent: true);
+    await _settle();
+    expect(calls, 1, reason: 'urgent 请求要打断启动让路');
   });
 }

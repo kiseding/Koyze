@@ -69,18 +69,24 @@ class SourceHealthMonitor {
   }
 
   /// Start periodic health monitoring.
+  ///
+  /// **启动时不立刻检查。** 以前这里会在启动那一秒对 5 个平台各发一次
+  /// HEAD，和首帧、会话恢复、曲库扫描抢同一条链路；而检查结果目前没有任何
+  /// 界面或业务读取（`healthMonitor` 只在 `exportFullReport` 里被序列化，
+  /// 而那个方法本身没有调用者）。让它推迟一个周期，既保留了「想看的时候
+  /// 有数据」，也不再往冷启动上添负担。
   void startMonitoring() {
     if (_isMonitoring) return;
-    
+
     _isMonitoring = true;
-    
-    // Initial check
-    checkAllSources();
-    
-    // Periodic checks
+
+    // Periodic checks：第一次在一个周期之后，不在启动窗口内。
     _checkTimer = Timer.periodic(CHECK_INTERVAL, (_) => checkAllSources());
-    
-    debugPrint('🏥 Source health monitoring started (interval: ${CHECK_INTERVAL.inMinutes}min)');
+
+    debugPrint(
+      '🏥 Source health monitoring started (first check in '
+      '${CHECK_INTERVAL.inMinutes}min, interval: ${CHECK_INTERVAL.inMinutes}min)',
+    );
   }
 
   /// Stop health monitoring.

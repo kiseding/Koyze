@@ -186,6 +186,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get glassOpacitySubtitle => '100% is solid; lower it to see through';
 
   @override
+  String get glassBlur => 'Interface blur';
+
+  @override
+  String get glassBlurSubtitle =>
+      '0% stays sharp; raise it to frost what shows through';
+
+  @override
   String get playerBackdropPreviewEmpty => 'Nothing playing';
 
   @override

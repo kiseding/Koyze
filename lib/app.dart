@@ -91,6 +91,8 @@ class LxMusicApp extends ConsumerWidget {
     // 界面材质的统一不透明度：玻璃面只剩透明度，这一档在根节点写进静态配置，
     // 之后所有 GlassSurface / LiquidGlassSurface 取值时都会乘上它。
     GlassEffectConfig.setSurfaceOpacity(ref.watch(glassOpacityProvider));
+    // 「虚化」同理：0 为出厂档（不采样背后），往上才逐级打开毛玻璃。
+    GlassEffectConfig.setSurfaceBlur(ref.watch(glassBlurProvider));
     ref.watch(playbackSessionRecorderProvider);
     ref.watch(playbackVolumeBindingProvider);
     ref.watch(playbackSpeedBindingProvider);

@@ -25,6 +25,24 @@ class _OkAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// 一样回 200，但记下被请求了几次——用来量「启动时有没有偷偷发请求」。
+class _CountingAdapter implements HttpClientAdapter {
+  int requests = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests++;
+    return ResponseBody.fromString('', 200);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   group('SourceHealthMonitor', () {
     late SourceHealthMonitor monitor;
@@ -110,6 +128,27 @@ void main() {
       );
 
       await monitor.checkAllSources();
+    });
+
+    test('startMonitoring 不在启动时抢发请求', () async {
+      // 启动那一秒对 5 个平台各发一次 HEAD，会和首帧、会话恢复、曲库扫描
+      // 抢同一条链路；而检查结果目前没有任何界面或业务读取。第一次检查
+      // 应该推到一个周期之后，需要数据的人显式调 checkAllSources()。
+      final counting = _CountingAdapter();
+      final watched = SourceHealthMonitor(dio: Dio()..httpClientAdapter = counting);
+      addTearDown(watched.dispose);
+
+      watched.startMonitoring();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(counting.requests, 0, reason: 'startMonitoring 不该立刻发请求');
+      expect(watched.getHealthStatus(), isEmpty);
+
+      // 显式要数据时仍然照常工作。
+      await watched.checkAllSources();
+      expect(counting.requests, MusicPlatform.values.length);
+
+      watched.stopMonitoring();
     });
   });
 

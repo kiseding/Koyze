@@ -255,17 +255,27 @@ class GlassSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 设置里的「界面不透明度」是全局静态档位，改它不会让外层重建；这里直接
-    // 监听信号，拖动滑杆时这一块当帧重画。
-    return ValueListenableBuilder<double>(
-      valueListenable: GlassEffectConfig.surfaceOpacityListenable,
-      builder: (context, _, _) => _buildSurface(context),
+    // 「界面不透明度」和「虚化」都是全局静态档位，改它们不会让外层重建；
+    // 这里直接监听信号，拖动滑杆时这一块当帧重画。
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        GlassEffectConfig.surfaceOpacityListenable,
+        GlassEffectConfig.surfaceBlurListenable,
+      ]),
+      builder: (context, _) => _buildSurface(context),
     );
   }
 
   Widget _buildSurface(BuildContext context) {
     final radius = borderRadius ?? BorderRadius.circular(16);
-    final sigma = blur ?? AppGlass.blurFor(style);
+    final baseSigma = blur ?? AppGlass.blurFor(style);
+    // 设置里的「虚化」只缩放真正下发给引擎的半径，不参与「这块面要不要退化成
+    // 实色」的判断——档位为 0 时玻璃面仍然是半透明染色，只是不采样背后，
+    // 与这一档上线前的观感完全一致。播放器自带模糊，不叠这一档。
+    final sigma = blurBehind
+        ? baseSigma
+        : GlassEffectConfig.scaleSurfaceBlur(baseSigma);
+    final allowBlur = blurBehind || GlassEffectConfig.userBlurEnabled;
     final base = _baseColor(context);
     final side =
         border ??
@@ -289,7 +299,7 @@ class GlassSurface extends StatelessWidget {
         : inner;
     // 简化特效、增强对比度、系统关掉动画：这三种情况都不该再为「看见背后」
     // 付出每帧一次全宽采样，直接按底色混出一块实色。
-    if (prefersFlatSurfaces(context) || sigma <= 0) {
+    if (prefersFlatSurfaces(context) || baseSigma <= 0) {
       final opaque = Color.alphaBlend(
         base.withValues(alpha: 0.94),
         AppColors.scaffold(context),
@@ -325,7 +335,7 @@ class GlassSurface extends StatelessWidget {
           ? GlassBackdrop(
               sigma: sigma,
               saturation: vivid ? AppGlass.saturate : null,
-              allowBlur: blurBehind,
+              allowBlur: allowBlur,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: base,
@@ -342,7 +352,7 @@ class GlassSurface extends StatelessWidget {
               radius: radius,
               border: side,
               vivid: vivid,
-              allowBlur: blurBehind,
+              allowBlur: allowBlur,
               child: material,
             ),
     );

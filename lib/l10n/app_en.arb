@@ -56,6 +56,8 @@
   "backdropScrimShort": "Dim",
   "glassOpacity": "Interface opacity",
   "glassOpacitySubtitle": "100% is solid; lower it to see through",
+  "glassBlur": "Interface blur",
+  "glassBlurSubtitle": "0% stays sharp; raise it to frost what shows through",
   "playerBackdropPreviewEmpty": "Nothing playing",
   "resetToDefault": "Reset to default",
   "general": "General",

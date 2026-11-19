@@ -685,7 +685,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         title: s.appearance,
         // 面板浓度直接在列表里调：拖动时周围的分区卡片就是预览，不用另开
         // 一个"看不见变化"的弹层。
-        leadIn: const [_GlassOpacitySlider()],
+        leadIn: const [_GlassOpacitySlider(), _GlassBlurSlider()],
         entries: [
           SettingsEntry(
             title: s.themeColor,
@@ -1608,17 +1608,31 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
   }
 }
 
-/// 「界面不透明度」滑杆。
+/// 外观分区顶部的一枚「标题 + 说明 + 百分比 + 滑杆」控件。
 ///
-/// 除全屏播放器外，界面上的玻璃面都只剩透明度（不再模糊），这一档统一缩放
-/// 它们的染色浓度：拖动时设置页自己的分区卡片就是预览，所以不需要单独的面板。
-class _GlassOpacitySlider extends ConsumerWidget {
-  const _GlassOpacitySlider();
+/// 不透明度和虚化长得一样，只有文案、区间、落点不同，抽出来免得两份重复代码
+/// 各自漂移。
+class _GlassSlider extends StatelessWidget {
+  const _GlassSlider({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.min,
+    required this.divisions,
+    required this.onChanged,
+    required this.onChangeEnd,
+  });
+
+  final String title;
+  final String subtitle;
+  final double value;
+  final double min;
+  final int divisions;
+  final ValueChanged<double> onChanged;
+  final VoidCallback onChangeEnd;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = S.of(context);
-    final value = ref.watch(glassOpacityProvider);
+  Widget build(BuildContext context) {
     final percent = '${(value * 100).round()}%';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
@@ -1633,7 +1647,7 @@ class _GlassOpacitySlider extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      s.glassOpacity,
+                      title,
                       style: TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w500,
@@ -1642,7 +1656,7 @@ class _GlassOpacitySlider extends ConsumerWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      s.glassOpacitySubtitle,
+                      subtitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1665,21 +1679,68 @@ class _GlassOpacitySlider extends ConsumerWidget {
             ],
           ),
           Slider(
-            value: value,
-            min: GlassEffectConfig.minSurfaceOpacity,
+            value: value.clamp(min, 1.0),
+            min: min,
             max: 1,
             // 5% 一档：再细就找不到"刚好看得清"的位置了。
-            divisions: 14,
+            divisions: divisions,
             label: percent,
-            onChanged: (next) {
-              // 立刻写进静态配置，同一帧里周围的面板就跟着变。
-              GlassEffectConfig.setSurfaceOpacity(next);
-              ref.read(glassOpacityProvider.notifier).setOpacity(next);
-            },
-            onChangeEnd: (_) => ref.read(glassOpacityProvider.notifier).flush(),
+            onChanged: onChanged,
+            onChangeEnd: (_) => onChangeEnd(),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 「界面不透明度」滑杆。
+///
+/// 这一档统一缩放玻璃面的染色浓度：拖动时设置页自己的分区卡片就是预览，
+/// 所以不需要单独的面板。
+class _GlassOpacitySlider extends ConsumerWidget {
+  const _GlassOpacitySlider();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    return _GlassSlider(
+      title: s.glassOpacity,
+      subtitle: s.glassOpacitySubtitle,
+      value: ref.watch(glassOpacityProvider),
+      min: GlassEffectConfig.minSurfaceOpacity,
+      divisions: 14,
+      onChanged: (next) {
+        // 立刻写进静态配置，同一帧里周围的面板就跟着变。
+        GlassEffectConfig.setSurfaceOpacity(next);
+        ref.read(glassOpacityProvider.notifier).setOpacity(next);
+      },
+      onChangeEnd: () => ref.read(glassOpacityProvider.notifier).flush(),
+    );
+  }
+}
+
+/// 「虚化」滑杆。
+///
+/// 与不透明度是一对：不透明度决定「透多少」，虚化决定「透过来的东西糊不糊」。
+/// 出厂 0% 即不采样背后，和这一档上线前的观感完全一致。
+class _GlassBlurSlider extends ConsumerWidget {
+  const _GlassBlurSlider();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    return _GlassSlider(
+      title: s.glassBlur,
+      subtitle: s.glassBlurSubtitle,
+      value: ref.watch(glassBlurProvider),
+      min: GlassEffectConfig.minSurfaceBlur,
+      divisions: 20,
+      onChanged: (next) {
+        GlassEffectConfig.setSurfaceBlur(next);
+        ref.read(glassBlurProvider.notifier).setBlur(next);
+      },
+      onChangeEnd: () => ref.read(glassBlurProvider.notifier).flush(),
     );
   }
 }

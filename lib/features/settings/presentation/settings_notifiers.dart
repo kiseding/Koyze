@@ -520,6 +520,35 @@ class GlassOpacityNotifier extends _SliderSettingNotifier {
   Future<void> commitOpacity(double value) => resetTo(value);
 }
 
+/// 玻璃面的「虚化」档位（0~1，默认 0）。
+///
+/// 0 就是不采样背后、只用透明混合——与这一档上线前的观感完全一致；往上拖
+/// 才逐级打开 BackdropFilter。出厂给 0 是因为每块玻璃面都要把背后整屏拷进
+/// 离屏纹理，低端机上代价很直观。
+class GlassBlurNotifier extends _SliderSettingNotifier {
+  GlassBlurNotifier({StorageLoader? storage})
+    : super(GlassEffectConfig.defaultSurfaceBlur, storage: storage);
+
+  static const String storageKey = 'glass_surface_blur';
+
+  @override
+  double normalize(double value) => value.isFinite
+      ? value.clamp(GlassEffectConfig.minSurfaceBlur, 1.0).toDouble()
+      : GlassEffectConfig.defaultSurfaceBlur;
+
+  @override
+  double? readFrom(StorageService storage) {
+    final value = storage.getDouble(storageKey);
+    return value == null ? null : normalize(value);
+  }
+
+  @override
+  Future<bool> writeValue(StorageService storage, double value) =>
+      storage.setDouble(storageKey, value);
+
+  void setBlur(double value) => applyLive(value);
+}
+
 class DefaultSearchPlatformNotifier extends _PersistedSettingNotifier<String> {
   DefaultSearchPlatformNotifier({StorageLoader? storage})
     : super('tx', storage: storage) {

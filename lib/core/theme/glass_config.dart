@@ -22,6 +22,7 @@ abstract final class GlassEffectConfig {
   static bool _reduceEffects = false;
   static bool _disableAllGlassEffects = false;
   static double _surfaceOpacity = defaultSurfaceOpacity;
+  static double _surfaceBlur = defaultSurfaceBlur;
 
   /// 设置页暴露的「界面不透明度」下限。
   ///
@@ -63,6 +64,50 @@ abstract final class GlassEffectConfig {
   }
 
   static double get surfaceOpacity => _surfaceOpacity;
+
+  /// 「虚化」档位下限。0 就是完全不采样背后——出厂状态，与关闭玻璃效果同观感。
+  static const double minSurfaceBlur = 0.0;
+
+  /// 「虚化」的出厂档：0，即不模糊。
+  ///
+  /// 出厂给 0 不是偷懒：每块玻璃面都要把「自己下面已经画好的整屏」拷进离屏
+  /// 纹理再卷积一次，一屏十块面就是十次全屏拷贝。这个代价在低端机上很直观，
+  /// 所以默认关着，想要毛玻璃的人自己往上拖。
+  static const double defaultSurfaceBlur = 0.0;
+
+  /// 虚化档位变了会通知这里，理由同 [surfaceOpacityListenable]：滑杆拖动时
+  /// 已经建好的玻璃面要当帧重画，不能等外层重建。
+  static final ValueNotifier<double> _surfaceBlurSignal =
+      ValueNotifier<double>(defaultSurfaceBlur);
+
+  static ValueListenable<double> get surfaceBlurListenable =>
+      _surfaceBlurSignal;
+
+  /// 全局虚化档位（0~1）。0 为不虚化，1 为设计基线强度。
+  ///
+  /// 它是**倍率**不是 sigma：各材质（顶栏、弹窗、卡片）本来就有自己的基线
+  /// 半径，这一档统一缩放它们，所以同一个百分比在每块面上的实际糊度不同，
+  /// 但「更糊了」的方向一致。
+  static void setSurfaceBlur(double value) {
+    final next = value.isFinite
+        ? value.clamp(minSurfaceBlur, 1.0).toDouble()
+        : defaultSurfaceBlur;
+    if (next == _surfaceBlur) return;
+    _surfaceBlur = next;
+    _surfaceBlurSignal.value = next;
+  }
+
+  /// 此刻生效的虚化档位。关掉全部玻璃效果时一切退回不模糊。
+  static double get surfaceBlur => _disableAllGlassEffects ? 0 : _surfaceBlur;
+
+  /// 是否要为用户打开背景采样。
+  ///
+  /// 调用方自己声明了 `blurBehind`（全屏播放器）时不受这一档影响——播放器
+  /// 的背景模糊有独立的滑杆，两套相乘会让「60」这个数字失去意义。
+  static bool get userBlurEnabled => surfaceBlur > 0;
+
+  /// 把一块面的基线模糊半径按档位缩放。
+  static double scaleSurfaceBlur(double sigma) => sigma * surfaceBlur;
 
   /// 此刻真正画到玻璃上的 alpha——**就是设置里选的那个百分比**。
   ///

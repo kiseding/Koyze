@@ -5,6 +5,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import '../theme/effect_policy.dart';
 import '../theme/glass_config.dart';
+import 'glass_backdrop.dart';
 
 /// Shared chrome surface for floating controls.
 ///
@@ -221,10 +222,13 @@ class GradientFrost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 顶栏染色浓度也吃「界面不透明度」这一档，同样要随滑杆当场重画。
-    return ValueListenableBuilder<double>(
-      valueListenable: GlassEffectConfig.surfaceOpacityListenable,
-      builder: (context, _, _) => _buildTint(context),
+    // 顶栏染色浓度吃「界面不透明度」，磨砂吃「虚化」——两档都要随滑杆当场重画。
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        GlassEffectConfig.surfaceOpacityListenable,
+        GlassEffectConfig.surfaceBlurListenable,
+      ]),
+      builder: (context, _) => _buildTint(context),
     );
   }
 
@@ -246,11 +250,25 @@ class GradientFrost extends StatelessWidget {
         decoration: BoxDecoration(color: solidTint.withValues(alpha: alpha)),
       ),
     );
+    // 「虚化」大于 0 时才真的采样背后：早先这里是整条栏一层的 BackdropFilter
+    // （更早还按 6 条横带做「渐变模糊」），后来因为每帧一次全宽离屏拷贝被拿掉，
+    // 只剩一层平涂染色。现在把它作为可选档还给用户，默认仍然是关的。
+    final frosted = !reduce && GlassEffectConfig.userBlurEnabled;
     return Stack(
       children: [
-        // 早期这里是整条栏一层的 BackdropFilter（更早还按 6 条横带做「渐变
-        // 模糊」）。现在全 App 只有播放器保留背景模糊，标题栏只用一层平涂的
-        // 染色压住底下滚动的列表。
+        if (frosted)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ClipRect(
+                child: GlassBackdrop(
+                  sigma: GlassEffectConfig.scaleSurfaceBlur(sigma),
+                  saturation: AppGlass.saturate,
+                  allowBlur: true,
+                  child: const ColoredBox(color: Color(0x00000000)),
+                ),
+              ),
+            ),
+          ),
         Positioned.fill(child: tintLayer),
         child,
       ],
