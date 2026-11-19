@@ -544,7 +544,7 @@
   "disconnect": "断开连接",
   "diagnosticsTitle": "实时诊断日志",
   "minimize": "最小化",
-  "copyAll": "复制全部",
+  "copyVisible": "复制当前标签",
   "closeDiagnostics": "关闭诊断日志",
   "clearMemoryLog": "清空内存日志",
   "diagnosticsRecording": "记录中",

@@ -705,7 +705,7 @@ class S {
   String get disconnect => _l10n.disconnect;
   String get diagnosticsTitle => _l10n.diagnosticsTitle;
   String get minimize => _l10n.minimize;
-  String get copyAll => _l10n.copyAll;
+  String get copyVisible => _l10n.copyVisible;
   String get closeDiagnostics => _l10n.closeDiagnostics;
   String get clearMemoryLog => _l10n.clearMemoryLog;
   String get diagnosticsHint => _l10n.diagnosticsHint;

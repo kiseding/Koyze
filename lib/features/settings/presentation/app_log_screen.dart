@@ -54,11 +54,50 @@ class _DiagnosticLogOverlay extends StatefulWidget {
   State<_DiagnosticLogOverlay> createState() => _DiagnosticLogOverlayState();
 }
 
-class _DiagnosticLogOverlayState extends State<_DiagnosticLogOverlay> {
+class _DiagnosticLogOverlayState extends State<_DiagnosticLogOverlay>
+    with WidgetsBindingObserver {
   bool _minimized = false;
   Offset? _position;
 
   void expand() => setState(() => _minimized = false);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // 兜底：无论这个浮层是被 X 关掉、被返回键关掉，还是被宿主整棵树重建顺手
+    // 摘掉，只要 State 离开就得停止采集。少了这一层，任何一条没人想到的移除
+    // 路径都会让 AppLog 在后台静悄悄地记录下去——那正是「关闭后还在记录」。
+    //
+    // 幂等：`_closeDiagnosticLogOverlay` 已经停过的话这里什么都不做。
+    if (!DebugProbe.staticallyEnabled) {
+      AppLog.instance.stop();
+      // 帧探针也得一起收——它每 2 秒排一次样本，留着空转是纯浪费。同样幂等。
+      PerformanceMonitor().stopFrameProbe();
+    }
+    super.dispose();
+  }
+
+  /// 返回键必须等于「关闭」。
+  ///
+  /// 这个面板挂在 rootOverlay 上、不是一条 `Route`，所以返回键原本跟它毫无
+  /// 关系：用户按返回，页面上什么都不会变，而 `AppLog` 还在后台一直收日志。
+  /// 那正是「关闭后还在记录」的来源——用户以为自己已经退出了。
+  ///
+  /// 不能用 `PopScope`：它靠 `ModalRoute` 注册 `PopEntry` 来拦返回，而
+  /// `OverlayEntry` 不在任何 Route 里，`ModalRoute.of` 直接是 null，写了也
+  /// 不会触发。能拦住 Overlay 的只有 `WidgetsBindingObserver.didPopRoute`，
+  /// 它在 route 栈判空之前就被调用，返回 true 表示「这次返回我处理了」。
+  @override
+  Future<bool> didPopRoute() async {
+    _closeDiagnosticLogOverlay();
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -229,6 +268,11 @@ class _AppLogScreenState extends State<AppLogScreen> {
     _jumpToLatest();
   }
 
+  /// 复制**当前选中标签**下的日志。
+  ///
+  /// 传进来的必须是 `_apply(entries)` 之后的结果，不是全量 entries：用户切到
+  /// 「错误」标签再点复制，期望拿到的是那几条错误，不是全部两千条。之前这里
+  /// 接的是全量列表，标签只改了屏幕上的显示，复制出去的东西跟看到的不是一回事。
   Future<void> _copyLogs(List<AppLogEntry> entries) async {
     if (entries.isEmpty) return;
     final text = entries.map((entry) => entry.text).join('\n\n');
@@ -265,7 +309,10 @@ class _AppLogScreenState extends State<AppLogScreen> {
           color: Theme.of(context).scaffoldBackgroundColor,
           child: Column(
             children: [
-              _buildHeader(context, s, entries),
+              // 复制走的是 visible（当前标签筛出来的那群），不是 entries。
+              // 让「看到什么」和「复制到什么」保持同一份数据，用户切到
+              // 「错误」再复制时不会莫名其妙得到两千条全量日志。
+              _buildHeader(context, s, entries, visible),
               _buildFilters(context, s, entries),
               Expanded(child: _buildList(context, s, entries, visible)),
               _buildFooter(context, s, visible),
@@ -276,7 +323,12 @@ class _AppLogScreenState extends State<AppLogScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, S s, List<AppLogEntry> entries) {
+  Widget _buildHeader(
+    BuildContext context,
+    S s,
+    List<AppLogEntry> entries,
+    List<AppLogEntry> visible,
+  ) {
     final onSurface = AppColors.onScaffold(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
@@ -351,8 +403,10 @@ class _AppLogScreenState extends State<AppLogScreen> {
               icon: const Icon(Icons.remove),
             ),
           FxIconButton(
-            tooltip: s.copyAll,
-            onPressed: entries.isEmpty ? null : () => _copyLogs(entries),
+            // 文案从「复制全部」改成「复制当前标签」：按钮只复制筛出来的那部分，
+            // tooltip 还写「全部」就是在骗人。
+            tooltip: s.copyVisible,
+            onPressed: visible.isEmpty ? null : () => _copyLogs(visible),
             icon: const Icon(Icons.copy_all_outlined),
           ),
           FxIconButton(

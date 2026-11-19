@@ -544,7 +544,7 @@
   "disconnect": "Disconnect",
   "diagnosticsTitle": "Diagnostics",
   "minimize": "Minimize",
-  "copyAll": "Copy all",
+  "copyVisible": "Copy current tab",
   "closeDiagnostics": "Close diagnostics",
   "clearMemoryLog": "Clear log",
   "diagnosticsRecording": "Recording",

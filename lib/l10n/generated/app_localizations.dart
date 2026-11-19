@@ -3212,11 +3212,11 @@ abstract class AppLocalizations {
   /// **'Minimize'**
   String get minimize;
 
-  /// No description provided for @copyAll.
+  /// No description provided for @copyVisible.
   ///
   /// In en, this message translates to:
-  /// **'Copy all'**
-  String get copyAll;
+  /// **'Copy current tab'**
+  String get copyVisible;
 
   /// No description provided for @closeDiagnostics.
   ///

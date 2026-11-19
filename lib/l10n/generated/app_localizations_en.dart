@@ -1638,7 +1638,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get minimize => 'Minimize';
 
   @override
-  String get copyAll => 'Copy all';
+  String get copyVisible => 'Copy current tab';
 
   @override
   String get closeDiagnostics => 'Close diagnostics';

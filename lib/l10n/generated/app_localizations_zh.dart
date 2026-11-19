@@ -1590,7 +1590,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get minimize => '最小化';
 
   @override
-  String get copyAll => '复制全部';
+  String get copyVisible => '复制当前标签';
 
   @override
   String get closeDiagnostics => '关闭诊断日志';
