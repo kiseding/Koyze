@@ -11,9 +11,8 @@ const BorderRadius kSettingsCardRadius = BorderRadius.all(Radius.circular(18));
 
 /// 设置行标题的样式。
 ///
-/// 抽出来是为了让「文本预热」用和真实行**完全一样**的样式：字号、字重、行高
-/// 只要差一档，预热的就是另一段 Paragraph，等于白做。改这里就等于同时改了
-/// 行和预热两处，不会再出现两边漂移。
+/// 开关行和导航行各有一处渲染，抽出来是为了两边不漂移：字号、字重、行高
+/// 改一处就够，也不会出现同一页里两种标题观感。
 TextStyle settingsRowTitleStyle(Color color) => TextStyle(
   fontSize: 14.5,
   fontWeight: FontWeight.w500,

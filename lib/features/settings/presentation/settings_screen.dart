@@ -46,7 +46,6 @@ import '../domain/settings_reset.dart';
 import 'settings_entry.dart';
 import 'settings_search_layer.dart';
 import 'settings_section_card.dart';
-import 'settings_text_warmup.dart';
 import 'package:koyze/core/widgets/koyze_modal.dart';
 
 const double settingsOptionMaxWidth = 340;
@@ -67,8 +66,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _handledInitialAction = false;
   bool _searching = false;
-  bool _warmUpQueued = false;
-
   /// Runs a row picked from search. Search closes first so the page a row
   /// pushes — or the sheet it opens — is not fighting the layer for the
   /// keyboard and the back gesture.
@@ -136,7 +133,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final s = S.of(context);
     final isLandscapeShell = RootShellLayout.usesSideNavigationOf(context);
     final sections = _buildSections(context, ref, s);
-    _queueTextWarmUp(sections, context);
 
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
@@ -173,8 +169,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // p95 是正常的、只有单帧离群，且 raster 一直很小——说明贵的是
                 // UI 线程把那些行第一次建出来，不是光栅。
                 //
-                // 预热文本排版解决不了这件事：那只让引擎记住 shaping 结果，
-                // 而 Element、RenderObject、Paragraph 对象本身仍要现建。
+                // 靠排版缓存解决不了这件事：TextPainter.layout 只让引擎记住
+                // shaping 与字体回退，而 Element、RenderObject、Paragraph
+                // 对象本身仍要现建。5.2.9 试过预排整页文本，对首滑没有改善，
+                // 那段代码已经删掉——别再走这条路。
                 //
                 // 这里把视口外的预建范围放宽到覆盖整页（内容约 4 屏），
                 // 代价转移到「打开设置页」那一帧。这是有意的取舍：转场动画里
@@ -231,31 +229,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
     );
-  }
-
-  /// 首帧之后把整页的文本排版预热一遍。
-  ///
-  /// 细节与理由都在 [SettingsTextWarmUp] 里；这里只负责把这一帧拿到的
-  /// 方向、字号倍率和近似行宽带过去，并保证一页只排一次。
-  void _queueTextWarmUp(
-    List<SettingsSectionSpec> sections,
-    BuildContext context,
-  ) {
-    if (_warmUpQueued || SettingsTextWarmUp.scheduled) return;
-    _warmUpQueued = true;
-    final textDirection = Directionality.of(context);
-    final textScaler = MediaQuery.textScalerOf(context);
-    // 行宽：卡片左右各 16 外边距 + 16 内边距，右侧再让出箭头/开关的位置。
-    final maxWidth = MediaQuery.sizeOf(context).width - 120;
-    // 放到帧后：预热不该挤进这一帧的 build。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      SettingsTextWarmUp.schedule(
-        sections: sections,
-        textDirection: textDirection,
-        textScaler: textScaler,
-        maxWidth: maxWidth,
-      );
-    });
   }
 
   /// 设置项的唯一来源：页面按它渲染，搜索按它建索引。
