@@ -278,58 +278,40 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
               : GradientAppBarBackground(
                   background: Theme.of(context).scaffoldBackgroundColor,
                 ),
-          leading: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FxIconButton(
-                tooltip: isSelectionMode
-                    ? S.of(context).exitMultiSelect
-                    : _isEditing
-                    ? S.of(context).cancelEdit
-                    : S.of(context).back,
-                icon: AnimatedIconSwitch(
-                  icon: isSelectionMode
-                      ? Icons.close
-                      : _isEditing
-                      ? Icons.close
-                      : Icons.arrow_back,
-                  keyValue: isSelectionMode
-                      ? Icons.close
-                      : _isEditing
-                      ? Icons.close
-                      : Icons.arrow_back,
-                  color: AppColors.onScaffold(context),
-                ),
-                onPressed: () {
-                  if (isSelectionMode) {
-                    setState(_selectedFavoriteIds.clear);
-                  } else if (_isEditing) {
-                    setState(() {
-                      _isEditing = false;
-                      _syncReorderedSongs(playlist, force: true);
-                    });
-                  } else {
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-              if (isSelectionMode)
-                FxIconButton(
-                  tooltip: isAllFavoritesSelected
-                      ? S.of(context).deselectAll
-                      : S.of(context).selectAll,
-                  onPressed: _selectionBusy || currentPageSongs.isEmpty
-                      ? null
-                      : () => _toggleAllFavoriteSelection(
-                          currentPageSongs,
-                          allSelected: isAllFavoritesSelected,
-                        ),
-                  icon: Icon(
-                    isAllFavoritesSelected ? Icons.deselect : Icons.select_all,
-                    color: AppColors.accentOf(context),
-                  ),
-                ),
-            ],
+          // 只能放一个按钮：AppBar 把 leading 约束成 56pt 宽，塞两个 48pt 的
+          // 图标按钮时第二个会溢出到标题上——画得出来，但点击落在盒子外，
+          // 命中不了。多出来的动作一律进 actions。
+          leading: FxIconButton(
+            tooltip: isSelectionMode
+                ? S.of(context).exitMultiSelect
+                : _isEditing
+                ? S.of(context).cancelEdit
+                : S.of(context).back,
+            icon: AnimatedIconSwitch(
+              icon: isSelectionMode
+                  ? Icons.close
+                  : _isEditing
+                  ? Icons.close
+                  : Icons.arrow_back,
+              keyValue: isSelectionMode
+                  ? Icons.close
+                  : _isEditing
+                  ? Icons.close
+                  : Icons.arrow_back,
+              color: AppColors.onScaffold(context),
+            ),
+            onPressed: () {
+              if (isSelectionMode) {
+                setState(_selectedFavoriteIds.clear);
+              } else if (_isEditing) {
+                setState(() {
+                  _isEditing = false;
+                  _syncReorderedSongs(playlist, force: true);
+                });
+              } else {
+                Navigator.pop(context);
+              }
+            },
           ),
           title: Text(
             isSelectionMode
@@ -353,6 +335,21 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ),
           actions: [
             if (isSelectionMode) ...[
+              FxIconButton(
+                tooltip: isAllFavoritesSelected
+                    ? S.of(context).deselectAll
+                    : S.of(context).selectAll,
+                onPressed: _selectionBusy || currentPageSongs.isEmpty
+                    ? null
+                    : () => _toggleAllFavoriteSelection(
+                        currentPageSongs,
+                        allSelected: isAllFavoritesSelected,
+                      ),
+                icon: Icon(
+                  isAllFavoritesSelected ? Icons.deselect : Icons.select_all,
+                  color: AppColors.accentOf(context),
+                ),
+              ),
               FxIconButton(
                 tooltip: S.of(context).downloadSelected,
                 onPressed: _selectionBusy
