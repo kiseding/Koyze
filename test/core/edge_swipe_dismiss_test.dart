@@ -453,11 +453,17 @@ void main() {
             find.ancestor(of: content, matching: find.byType(OverflowBox)),
           )
           .first;
-      expect(overflow.alignment, Alignment.center);
+      // 必须是 topCenter，不能是 center。
+      //
+      // 窗口收到比整屏矮时，居中裁切会把页面**上下对称**截掉——顶栏和
+      // 返回键正好落在被裁掉的上半截里，收拢过程看起来像页面散架。
+      // 顶对齐保证只要窗口还有高度，顶栏就一直在窗口内。
+      // （本条断言原本写的是 center，那是把当时的实现缺陷当成了契约。）
+      expect(overflow.alignment, Alignment.topCenter);
       expect(
         scales.any(
           (w) =>
-              w.alignment == Alignment.center &&
+              w.alignment == Alignment.topCenter &&
               (w.transform.storage[0] - expectedScale).abs() < 0.02,
         ),
         isTrue,

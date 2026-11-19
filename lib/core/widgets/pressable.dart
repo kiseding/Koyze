@@ -62,21 +62,40 @@ class _PressableState extends State<Pressable> {
             },
       onTapUp: onActivate == null
           ? null
-          : (_) async {
+          : (_) {
               setState(() {
                 _pressed = false;
                 _releasing = true;
               });
-              if (widget.captureExpandRect) {
-                final anchor = _expandAnchorKey.currentContext;
-                await Future.wait<void>([
-                  if (anchor != null) captureCardExpandOrigin(anchor),
-                  Future<void>.delayed(const Duration(milliseconds: 105)),
-                ]);
-                if (!mounted) return;
+              if (!widget.captureExpandRect) {
+                _releasing = false;
+                onActivate.call();
+                return;
               }
+              // 先把几何和快照塞进 capture 的同步段、立刻起跑路由，
+              // 再在后台等 GPU 回读完成。
+              //
+              // 旧实现在这里 `await Future.wait([capture, 105ms])`，
+              // 等于每次点卡片都先干等 105ms 才 push：屏幕上按下去之后
+              // 有 5~6 帧完全静止，然后整屏硬切——用户看到的"不流畅"。
+              // 105ms 本来是想让按压回弹先播完，但路由动画的 300ms 里
+              // 已经包含这段，多等一次只是把它变成空窗。
+              //
+              // `captureCardExpandOrigin` 的矩形记录是同步完成的（第一行
+              // 就写 `_cardExpandRect`），所以哪怕不 await 它也一定能被
+              // 随后的 pageBuilder 吃到——矩形 morph 不会退化。
+              // 快照要等 GPU 回读，晚到的那几帧只是没有快照可用
+              // （`sourceSnapshot == null`，转场走纯几何路径），
+              // 不会阻塞导航，也不会让动画停住。
+              final anchor = _expandAnchorKey.currentContext;
+              final pending = anchor == null
+                  ? Future<void>.value()
+                  : captureCardExpandOrigin(anchor);
               _releasing = false;
               onActivate.call();
+              // 需要挂一个兜底，否则 GPU 回读失败时未处理的异步异常
+              // 会冒到 zone 外。它必须在 call 之后——放在前面就是死等。
+              pending.catchError((Object _) {});
             },
       onTapCancel: onActivate == null ? null : () => _setPressed(false),
       child: AnimatedScale(

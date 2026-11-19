@@ -207,7 +207,20 @@ CustomTransitionPage<Object?> expandablePage(
       final curved = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
+        // 反向**必须线性**。
+        //
+        // `_CardRevealTransition` 里 `t = 1 - animation.value`，所以反向
+        // 曲线直接决定了收拢的节奏：easeInCubic 把 animation.value 在前
+        // 三分之一压得很低，于是 `t` 直线冲向 1——实测 180ms 的反向动画
+        // 在 136ms 时窗口就已经缩到源卡片大小（400x172 vs 380x150），
+        // 剩下的 44ms 无事可做，屏幕上立刻安静下来，最后才被真实卡片
+        // 补上。用户看到的就是"动效不完整 + 收尾闪一下"。
+        //
+        // 展开方向用 easeOutCubic 是对的：起点要跟手、终点要留惯性。
+        // 收拢方向要的恰恰相反：开头稳、结尾匀，全程都要有可见的变化。
+        // 线性把 100% 的行程摊在整段时间上，配合下面按尺寸判定交棒，
+        // 每一帧都在收缩，不会出现空转段。
+        reverseCurve: Curves.linear,
       );
       late final Widget transition;
       if (expanding) {
@@ -341,6 +354,17 @@ class _CardExpandRoute extends PageRoute<Object?> {
 
   @override
   bool get maintainState => _page.maintainState;
+
+  /// 关掉路由级快照。
+  ///
+  /// Flutter 默认会把「已稳定」的页面缓存成一张图层贴图，过渡期间直接
+  /// 复用。卡片页恰恰是**自绘 morph**：窗口矩形、内容缩放、快照交接
+  /// 每帧都在变，路由快照与实时绘制交替出现时，收尾那几帧会产生
+  /// "旧画面闪一下"的观感。全屏播放器路由早就关掉了它（见
+  /// app_router.dart 里 _PlayerTransitionRoute 的注释），卡片页这里
+  /// 一直漏着，属于同一个坑的第二个入口。
+  @override
+  bool get allowSnapshotting => false;
 
   @override
   Duration get transitionDuration => _page.transitionDuration;
@@ -762,11 +786,25 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         final progress = current?.progress ?? dismissProgress;
         final offset = current?.offset ?? dismissOffset;
         final locked = current?.locked ?? cardDismissLocked;
-        // 拖拽接管时用跟手的 dismiss 进度驱动矩形收拢，路由动画不参与，
-        // 松开后从当前位置继续播放关闭动效。
-        final t = locked || progress.value > 0
-            ? progress.value
-            : 1 - widget.animation.value;
+        final dragActive = current?.dragActive ?? edgeDragActive;
+        // 跟手时用手指的 dismiss 进度，其余一切情形都听路由动画。
+        //
+        // 分工必须这么切，不能"取两者更大值"：
+        //
+        // · 拖动中（dragActive）：矩形左缘跟着手指，progress 即真相。
+        // · 松手后（settle 阶段）：`_settleTo(targetMorph: 1)` 会把
+        //   progress 一路推到 1，但这段用的是 iosSpring，末段缓出——
+        //   若此时仍认 progress，窗口会在 settle 尾声就塌到源卡片大小，
+        //   之后 `EdgeSwipeDismiss` 才 pop，路由那 240ms 反向动画全被
+        //   吞掉，屏幕冻结一阵再硬切。现场录屏 f836~f842 冻结 7 帧、
+        //   f843 突变就是这么来的。
+        // · 所以松手瞬间就把主导权交回 `1 - animation.value`：settle 负责
+        //   手指的位移归位，路由动画负责形态收拢，两条曲线互不抢权。
+        //
+        // locked（拖拽已完成、只等路由移除）同样不再参与几何。
+        final t = dragActive && !locked
+            ? progress.value.clamp(0.0, 1.0)
+            : (1 - widget.animation.value).clamp(0.0, 1.0);
         // 窗口从源卡片矩形 lerp 到全屏：四边各自长到屏幕边。
         // 卡片界面元素跟着窗口一起移动，宽度按当前窗宽缩放；
         // 高度用同一比例，避免半宽矮卡被窗高单独压扁。
@@ -776,16 +814,42 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         // 无拖动的正常关闭（返回按钮/系统手势）直接归位到源位置，
         // 不能再往左缘飞。
         final fingerX = offset.value;
-        final dragging = locked || progress.value > 0;
+        // 只有手指还按在屏幕上才叫"拖动"。松手后（settle / locked）
+        // 矩形左缘由 settle 负责归位，这里的水平覆盖必须停手，
+        // 否则会把已经收窄的窗口又拽回手指位置。
+        final dragging = dragActive && !locked;
         final dismissing =
-            dragging || widget.animation.status == AnimationStatus.reverse;
-        // 源卡片只在快照交接窗口隐藏；进入最后 1% 时先恢复源卡片，
-        // 再移除转场层，避免真实卡片接管后仍被全局状态隐藏。
+            dragging ||
+            locked ||
+            progress.value > 0 ||
+            widget.animation.status == AnimationStatus.reverse;
+        // 窗口已经收到源卡片大小附近 —— 转场层该退场了。
+        //
+        // 判定按**窗口尺寸**，不按 `t`。
+        //
+        // 反向动画只有 180ms，而 `t = 1 - animation.value`：任何非线性
+        // 反向曲线都会让 `t` 在某一段里走完大半行程，用 `t` 做阈值就等于
+        // 用一个和"窗口长到多大"无关的量去决定何时砍层。实测旧实现
+        // （t >= 0.99 砍层）在 136ms 时窗口还有 400px 宽（屏幕 800、
+        // 源卡片 380），转场层已经消失，剩下 44ms 屏幕上没有转场内容，
+        // 最后才被真实卡片补上——这就是"收尾闪烁"的可测量来源。
+        //
+        // 阈值 1.02 / 1.06 留亚像素余量：松到 1.06 / 1.12 会正好把
+        // 402px（源卡片 380）判成"已到位"，收尾提前 40ms 结束。
+        final handoffReady =
+            currentRect.width <= sourceRect.width * 1.02 &&
+            currentRect.height <= sourceRect.height * 1.06;
+        // 源卡片只在快照交接窗口隐藏。
+        //
+        // 起点 0.58 与下面 snapshotOpacity 的淡入起点对齐：早了是重影
+        // （快照还没浮现、源卡片也没隐藏），晚了会露出真实卡片。
+        // 终点不写死，交给 `handoffReady`——转场层什么时候退场，源卡片
+        // 就什么时候恢复，两者是同一件事。
         final hideSource =
             widget.sourceSnapshot != null &&
             dismissing &&
-            t >= 0.87 &&
-            t < 0.99;
+            t >= 0.58 &&
+            !handoffReady;
         if (cardExpandSourceHidden.value != hideSource) {
           // 不能在 build 里直接写这个全局 notifier：它的监听者
           // （Pressable 的 ValueListenableBuilder）会在本帧的构建过程中被
@@ -811,27 +875,49 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         // 收拢矩形只是裁剪窗口——route 移除瞬间真实页面同像素接管，
         // 不会出现"快照 vs 实时渲染"的亮度跳变。
         // 展开方向保留原逻辑：内容淡出让快照盖住未长成的本体。
-        // 关闭 85%~95% 完成交接：实时页面淡出、源卡片快照淡入；
-        // 95%~99% 全程由快照沿矩形路径飞回，最后 1% 直接砍层。
+        //
+        // 关闭交接窗口整体提前：旧版是 85%~95% 淡入快照、95%~99% 只剩
+        // 快照飞回、最后 1% 砍层。`t` 由曲线驱动，末段极快——真实页面在
+        // 85% 之后几乎一帧内就消失，而快照在 95%~99% 之间只有 1~2 帧可画，
+        // 收尾就成了"先黑一下再冒出卡片"。
+        //
+        // 现在 58% 开始淡入快照、70% 完成实时页淡出（此时窗口还有 30%
+        // 的行程，足够铺满整个交接过程），终点交给上面的 handoffReady。
         final reveal = dismissing
-            ? ((0.95 - t) / 0.1).clamp(0.0, 1.0)
+            ? ((0.70 - t) / 0.12).clamp(0.0, 1.0)
             : ((1 - t) / 0.18).clamp(0.0, 1.0);
         final snapshotOpacity = dismissing
-            ? ((t - 0.85) / 0.1).clamp(0.0, 1.0)
+            ? ((t - 0.58) / 0.12).clamp(0.0, 1.0)
             : ((t - 0.8) / 0.2).clamp(0.0, 1.0);
         // 背景/表面圆角全程保持与源卡片一致（18），
         // 动效行进中矩形扩张/收缩不改变圆角。
         const radius = 18.0;
 
-        // 收拢完成（t 接近 1）时提前交棒：过渡层退场，真实页面直接接管，
-        // 避免末帧残留图层造成的亮度/内容跳变。
-        if (dismissing && t >= 0.99) {
+        // 收拢完成时提前交棒：转场层退场，真实页面直接接管。
+        // 判定见上面的 handoffReady（按窗口尺寸，不按 t）。
+        if (dismissing && handoffReady) {
           return const SizedBox.shrink();
         }
 
         return Stack(
           fit: StackFit.expand,
           children: [
+            // 展开过程中的"兜底底色"：卡片窗口还小的时候，窗口之外必须
+            // 有一层东西挡住下层页面。
+            //
+            // 这个透明路由（opaque=false）不会裁剪下层，所以窗口矩形以外
+            // 的区域直接露出首页。旧实现只有窗口内部那一层 ColoredBox，
+            // 于是整段展开里首页的搜索框、功能卡片、迷你条始终可见——
+            // 用户看到的就是"详情页铺开了，但首页还盖在上面"。
+            //
+            // 底色跟着 reveal 一起淡入（与窗口内背景同一条曲线），
+            // 窗口还小的时候它是半透明的，看起来像卡片在把整屏染成底色；
+            // 窗口长满时它已经是纯底色，无感。
+            if (!dismissing)
+              Opacity(
+                opacity: ((1 - t) / 0.30).clamp(0.0, 1.0),
+                child: ColoredBox(color: backgroundColor),
+              ),
             Positioned.fromRect(
               rect: currentRect,
               child: ClipRRect(
@@ -862,18 +948,24 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                           ),
                         ),
                       ),
-                    // 目的页按窗宽等比缩放，相对窗口居中：
-                    // 宽度跟着走，高度保持比例；收起时对称裁切。
+                    // 目的页按窗宽等比缩放。
+                    //
+                    // 对齐必须是 topCenter：收起时窗口从底部往上缩，只有
+                    // 顶部（标题栏、返回键）始终留在窗口里。旧实现用 center，
+                    // 窗口一矮就把顶栏裁掉——那段画面里详情页已经看不见标题，
+                    // 只剩几行歌曲在窗口里漂着，观感是"页面散架了"。
+                    // 展开方向 topCenter 也让标题栏贴着窗口上缘长出来，
+                    // 而不是从屏幕正中往上下两边撑。
                     Opacity(
                       opacity: reveal,
                       child: OverflowBox(
-                        alignment: Alignment.center,
+                        alignment: Alignment.topCenter,
                         minWidth: targetRect.width,
                         maxWidth: targetRect.width,
                         minHeight: targetRect.height,
                         maxHeight: targetRect.height,
                         child: Transform.scale(
-                          alignment: Alignment.center,
+                          alignment: Alignment.topCenter,
                           scale: currentRect.width / targetRect.width,
                           child: SizedBox(
                             width: targetRect.width,
