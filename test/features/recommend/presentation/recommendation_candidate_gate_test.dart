@@ -130,9 +130,7 @@ void main() {
   test('单个平台抛异常不影响其余请求', () async {
     final good = _FakePlatform('kw', _Probe());
     final bad = _ThrowingPlatform('tx');
-    final manager = BuiltInSourceManager(
-      platforms: <MusicPlatform>[good, bad],
-    );
+    final manager = BuiltInSourceManager(platforms: <MusicPlatform>[good, bad]);
     final into = <String, MusicItem>{};
 
     await collectRecommendationCandidates(
