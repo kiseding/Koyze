@@ -68,8 +68,26 @@ jobs:
       - name: Analyze Dart and Flutter sources
         run: flutter analyze --no-fatal-infos
 
-      - name: Run deterministic Flutter tests
-        run: flutter test --exclude-tags live
+      # 这里只跑构建配置校验，**不跑全量测试**。
+      #
+      # 全量测试集由 quality.yml 负责：同样的 `--exclude-tags live`，4 分片
+      # 在 ubuntu 上 217s 跑完；这一步单片串行在 macOS 上要 751s（固定成本：
+      # 每次 flutter test 都要重做约 100s 的测试入口编译，而 macOS runner 光
+      # Set up Flutter 就要 258s，开分片反而多付几份 setup）。
+      #
+      # 而且 macOS 并没有补上 Linux 测不到的覆盖：270 个测试文件里真正按平台
+      # 分支的只有 platform_defaults_test，它断言 `useSilenceKeepalive ==
+      # (Platform.isIOS || Platform.isMacOS)`——在 Linux 上比 false、在 macOS
+      # 上比 true，测的是同一个表达式的两种求值，两边都绿。真实 iOS 行为取决
+      # 于设备上的 Platform.isIOS，任何宿主机都测不到。其余 Platform.is 全是
+      # 源码字符串断言，与宿主无关。
+      #
+      # 历史数据也支持这个判断：40 次运行里这段测试一次都没拦下失败（4 次非
+      # success 是 2 次并发取消 + 1 次 analyze 失败 + 1 次 upload 失败）。
+      # analyze 保留——quality.yml 不响应 tag push，它是 tag 链路上唯一独立的
+      # 静态检查，fe87f66 那次就是它拦下的。
+      - name: Validate cross-platform build configuration
+        run: flutter test test/build_configuration_test.dart
 
       - name: Install CocoaPods dependencies
         working-directory: ios

@@ -122,15 +122,27 @@ void main() {
     }
   });
 
-  test('iOS CI gates the build on analysis and deterministic tests', () {
+  test('iOS CI gates the build on analysis and build config', () {
     final workflow = File('.github/workflows/build-ios.yml').readAsStringSync();
     final analyze = workflow.indexOf('run: flutter analyze --no-fatal-infos');
-    final test = workflow.indexOf('run: flutter test --exclude-tags live');
+    final config = workflow.indexOf(
+      'run: flutter test test/build_configuration_test.dart',
+    );
     final build = workflow.indexOf('run: flutter build ios');
 
     expect(analyze, greaterThanOrEqualTo(0));
-    expect(test, greaterThan(analyze));
-    expect(build, greaterThan(test));
+    expect(config, greaterThan(analyze));
+    expect(build, greaterThan(config));
+  });
+
+  test('iOS CI leaves the full suite to the quality gate', () {
+    // 全量测试只在 quality.yml 跑（分片）。iOS 那次单片串行在 macOS 上要
+    // 751s，而 macOS 并不补上 Linux 测不到的覆盖——平台相关断言只有
+    // platform_defaults_test 那一处，它在两个宿主上验证的是同一个表达式。
+    // 别把这行加回去：加了就等于让每次 push 多花 12 分钟重跑一遍已有的结果。
+    final workflow = File('.github/workflows/build-ios.yml').readAsStringSync();
+
+    expect(workflow, isNot(contains('flutter test --exclude-tags live')));
   });
 
   test('iOS CI publishes only the Apple ID sideload IPA', () {
