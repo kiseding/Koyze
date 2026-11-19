@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/animations/micro_animations.dart';
+import '../../../core/motion/motion_tokens.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
@@ -16,6 +17,7 @@ import '../../../core/widgets/auto_text_input.dart';
 import '../../../core/widgets/favorite_button.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/page_navigation_bar.dart';
+import '../../../core/widgets/pressable.dart';
 import '../data/playlist_repository.dart';
 import '../domain/playlist.dart';
 import '../domain/m3u_playlist.dart';
@@ -360,13 +362,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                   color: AppColors.accentOf(context),
                 ),
               ),
-              FxIconButton(
-                tooltip: S.of(context).unfavoriteSelected,
-                onPressed: _selectionBusy
-                    ? null
-                    : () => _removeSelectedFavorites(playlist),
-                icon: const Icon(Icons.favorite_border),
-                color: AppColors.error,
+              _BatchUnfavoriteButton(
+                count: _selectedFavoriteIds.length,
+                busy: _selectionBusy,
+                onPressed: () => _removeSelectedFavorites(playlist),
               ),
             ] else if (!_isEditing && playlist.songCount > 0)
               FxIconButton(
@@ -1293,5 +1292,84 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   void _showMutationError(String action, Object error) {
     if (!mounted) return;
     showAppNotification('$action: $error', type: AppNotificationType.error);
+  }
+}
+
+/// 批量取消收藏：选中模式下唯一一个「成批破坏性」动作。
+///
+/// 原来是一个和旁边「全选」「下载」长得一模一样的裸图标按钮——三个 48pt
+/// 图标并排，只有图标形状和颜色不同，`favorite_border` 和
+/// `download_outlined` 在深色小尺寸下几乎分不出来。这个动作一次会抹掉
+/// 整批收藏、且不可撤销，辨识度必须最高。
+///
+/// 视觉上给它一个专属底座：error 色淡底 + 同色描边 + 实心心形，和旁边
+/// 两个透明底的普通操作形成「实体按钮 vs 图标」的层级差；选中数量直接写
+/// 在按钮里，点之前就知道会影响多少首。按压反馈用 Pressable，与 App
+/// 其他主操作一致。
+class _BatchUnfavoriteButton extends StatelessWidget {
+  const _BatchUnfavoriteButton({
+    required this.count,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  /// 当前选中的歌曲数。0 表示还没选，按钮置灰不可点。
+  final int count;
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final enabled = count > 0 && !busy;
+    // 置灰时不保留 error 色：一颗灰掉的红色按钮读起来像「出错了」，
+    // 而这里只是「还没选东西」。降成 muted 才不会误判。
+    final color = enabled ? AppColors.error : AppColors.mutedText(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Tooltip(
+        message: s.unfavoriteSelected,
+        child: Pressable(
+          semanticLabel: s.unfavoriteSelected,
+          onTap: enabled ? onPressed : null,
+          scale: 0.95,
+          borderRadius: BorderRadius.circular(14),
+          child: AnimatedContainer(
+            duration: motionDuration(context, MotionDuration.micro),
+            height: 30,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: enabled ? 0.13 : 0.07),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: color.withValues(alpha: enabled ? 0.55 : 0.22),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 实心而不是描边：空心的心形在这个尺寸下和旁边的图标混成一片。
+                Icon(Icons.favorite, size: 15, color: color),
+                if (count > 0) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    '$count',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                      // 数字等宽，选中数量在 9→10 跳动时按钮不会左右抖。
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
