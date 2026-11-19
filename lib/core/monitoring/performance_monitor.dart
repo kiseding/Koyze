@@ -275,6 +275,11 @@ class PerformanceMonitor {
     final budget = _effectiveBudgetMs;
     var dropped = 0;
     var worst = 0.0;
+    // worst 只记「哪一帧最贵」，不说是 build 还是 raster。窗口里只有一个离群
+    // 帧时 p95 常常取不到它（26 帧的 p95 是第 25 个值），于是日志上看着一切
+    // 正常、却有个几百毫秒的 worst 对不上账。两个最大值分开记，一眼能判方向。
+    var worstBuild = 0.0;
+    var worstRaster = 0.0;
     for (var i = 0; i < _windowBuild.length; i++) {
       final build = _windowBuild[i];
       final raster = _windowRaster[i];
@@ -282,6 +287,8 @@ class PerformanceMonitor {
       final cost = build > raster ? build : raster;
       if (build > budget || raster > budget) dropped++;
       if (cost > worst) worst = cost;
+      if (build > worstBuild) worstBuild = build;
+      if (raster > worstRaster) worstRaster = raster;
     }
     final ratio = dropped / _windowBuild.length;
     final stutters =
@@ -306,6 +313,8 @@ class PerformanceMonitor {
           'budget=${budget.toStringAsFixed(1)}ms '
           'dropped=$dropped (${(ratio * 100).round()}%) '
           'worst=${worst.toStringAsFixed(1)}ms '
+          'worst_build=${worstBuild.toStringAsFixed(1)}ms '
+          'worst_raster=${worstRaster.toStringAsFixed(1)}ms '
           'build_p50=${_percentile(_windowBuild, 0.5)} '
           'build_p95=${_percentile(_windowBuild, 0.95)} '
           'raster_p50=${_percentile(_windowRaster, 0.5)} '

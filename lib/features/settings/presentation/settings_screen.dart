@@ -165,6 +165,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // 有界、卡片底色/圆角/边线/分隔线画在同一层里不会出现拼缝；
                 // 这不是「靠数字证明的最优解」，而是权衡后的稳定选择。
                 addRepaintBoundaries: false,
+                // 首屏之外的 30 来行在滑动时才第一次建 Element/RenderObject，
+                // 那一帧的 build 会到 110ms（120Hz 上等于丢 13 帧）。
+                //
+                // 真机探针（5.2.9 探针包，iPhone 17 / 120Hz）：
+                //   frames=282 worst=110.0ms build_p95=0.5 raster_p95=2.1
+                // p95 是正常的、只有单帧离群，且 raster 一直很小——说明贵的是
+                // UI 线程把那些行第一次建出来，不是光栅。
+                //
+                // 预热文本排版解决不了这件事：那只让引擎记住 shaping 结果，
+                // 而 Element、RenderObject、Paragraph 对象本身仍要现建。
+                //
+                // 这里把视口外的预建范围放宽到覆盖整页（内容约 4 屏），
+                // 代价转移到「打开设置页」那一帧。这是有意的取舍：转场动画里
+                // 掉一帧，比手指按在屏幕上时卡一下容易被接受。
+                cacheExtent: 5000,
                 padding: EdgeInsets.only(
                   top: isLandscapeShell ? 0 : FrostedTabHeader.extent(context),
                   bottom: RootShellLayout.obscuredBottomOf(context),
