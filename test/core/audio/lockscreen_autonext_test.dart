@@ -249,7 +249,7 @@ void main() {
 
   test('completion uses one native signal and no position threshold', () {
     final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
-    expect(source, contains('state != ProcessingState.completed'));
+    expect(source, contains('state != EngineProcessingState.completed'));
     expect(
       RegExp(r'processingStateStream\.listen').allMatches(source),
       hasLength(1),
@@ -318,9 +318,9 @@ void main() {
         source.indexOf('Future<void> setRepeatMode('),
         source.indexOf('Future<void> setShuffleMode('),
       );
-      expect(repeatMode, contains('setLoopMode(LoopMode.off)'));
-      expect(repeatMode, isNot(contains('setLoopMode(LoopMode.one)')));
-      expect(repeatMode, isNot(contains('setLoopMode(LoopMode.all)')));
+      expect(repeatMode, contains('setLoopMode(EngineLoopMode.off)'));
+      expect(repeatMode, isNot(contains('setLoopMode(EngineLoopMode.one)')));
+      expect(repeatMode, isNot(contains('setLoopMode(EngineLoopMode.all)')));
     },
   );
 

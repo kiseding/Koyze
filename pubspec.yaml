@@ -34,6 +34,13 @@ dependencies:
   audio_service: ^0.18.17
   audio_session: ^0.1.25
   rxdart: ^0.28.0
+  # mpv 播放引擎。纯 FFI 包：Dart 直接 dlopen libmpv，不经 ArkTS/napi。
+  # 用来替换 HarmonyOS 上有缓冲/时序问题的 AVPlayer；其它平台暂不启用，
+  # 由 playback_engine_factory.dart 按平台决定。
+  mpv_audio_kit: ^0.4.9
+  # 鸿蒙上要自己 dlopen("libc.so") 调 setlocale(LC_NUMERIC, "C")——
+  # libmpv 的 API 契约，不设 mpv_create() 会直接 abort。
+  ffi: ^2.1.3
   
   # 网络
   dio: ^5.7.0

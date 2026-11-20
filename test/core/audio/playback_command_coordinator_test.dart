@@ -1,15 +1,43 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:koyze/core/audio/just_audio_engine.dart';
 import 'package:koyze/core/audio/playback_command_coordinator.dart';
+import 'package:koyze/core/audio/playback_engine.dart';
+
+/// 协调器现在按 [PlaybackEngine] 编程。本文件里的 fake 都继承自
+/// `just_audio` 的 [AudioPlayer]，这里统一包一层适配器。
+///
+/// 适配器是纯转发（每个方法直接返回 fake 的 future，不加缓存也不改时序），
+/// 所以 fake 的调用记录、同步顺序与既有断言全部保持不变。
+PlaybackCommandCoordinator _coordinator(
+  AudioPlayer player, {
+  VoidCallback? onStateChanged,
+  PlaybackMutationError? onError,
+  PrepareForPlayback? prepareForPlayback,
+  Duration sourceLoadTimeout = const Duration(seconds: 20),
+  bool restartPlayAfterSourceChange = true,
+  bool pauseToRestartNativePlay = false,
+}) {
+  return PlaybackCommandCoordinator(
+    JustAudioEngine(player),
+    onStateChanged: onStateChanged,
+    onError: onError,
+    prepareForPlayback: prepareForPlayback,
+    sourceLoadTimeout: sourceLoadTimeout,
+    restartPlayAfterSourceChange: restartPlayAfterSourceChange,
+    pauseToRestartNativePlay: pauseToRestartNativePlay,
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('awaited native mutations never overlap', () async {
     final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     final sourceGate = player.gateNextMutation();
     final request = coordinator.requestSource(
@@ -34,7 +62,7 @@ void main() {
 
   test('temporary source plays without becoming authoritative', () async {
     final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     final request = coordinator.requestSource(
       occurrenceId: 2,
@@ -57,7 +85,7 @@ void main() {
     'temporary source superseded during install is not authoritative',
     () async {
       final player = _SerializedAudioPlayer();
-      final coordinator = PlaybackCommandCoordinator(player);
+      final coordinator = _coordinator(player);
       addTearDown(player.dispose);
       final first = coordinator.requestSource(
         occurrenceId: 1,
@@ -93,7 +121,7 @@ void main() {
   test('temporary play failure does not retry the same intent', () async {
     final player = _LifecycleAudioPlayer();
     final errors = <String>[];
-    final coordinator = PlaybackCommandCoordinator(
+    final coordinator = _coordinator(
       player,
       onError: (operation, _, __) => errors.add(operation),
     );
@@ -125,7 +153,7 @@ void main() {
     'discardTemporarySource pauses orphan silence for failed token',
     () async {
       final player = _SerializedAudioPlayer();
-      final coordinator = PlaybackCommandCoordinator(player);
+      final coordinator = _coordinator(player);
       addTearDown(player.dispose);
       final request = coordinator.requestSource(
         occurrenceId: 2,
@@ -148,7 +176,7 @@ void main() {
     'stopAndWait drains a queued source install before native stop',
     () async {
       final player = _SerializedAudioPlayer();
-      final coordinator = PlaybackCommandCoordinator(player);
+      final coordinator = _coordinator(player);
       addTearDown(player.dispose);
       final sourceGate = player.gateNextMutation();
       final request = coordinator.requestSource(
@@ -175,7 +203,7 @@ void main() {
 
   test('stopAndWait drains a queued pause before native stop', () async {
     final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     await _install(coordinator);
     await coordinator.recordExplicitPlayIntent();
@@ -197,7 +225,7 @@ void main() {
   test('stopAndWait rethrows a native stop failure after settling', () async {
     final failure = StateError('stop');
     final player = _SerializedAudioPlayer()..stopError = failure;
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
 
     await expectLater(coordinator.stopAndWait(), throwsA(same(failure)));
@@ -206,7 +234,7 @@ void main() {
 
   test('stopAndWait makes later public mutations permanently inert', () async {
     final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     final sourceGate = player.gateNextMutation();
     final request = coordinator.requestSource(
@@ -229,7 +257,7 @@ void main() {
       coordinator.recordExplicitPauseIntent(),
       coordinator.setDesiredPlayingPreservingIntent(true),
       coordinator.seek(const Duration(seconds: 3)),
-      coordinator.setLoopMode(LoopMode.one),
+      coordinator.setLoopMode(EngineLoopMode.one),
       coordinator.setShuffleModeEnabled(true),
       coordinator.beginInterruption(),
       coordinator.becomingNoisy(),
@@ -252,7 +280,7 @@ void main() {
     () async {
       final failure = StateError('stop');
       final player = _SerializedAudioPlayer()..stopError = failure;
-      final coordinator = PlaybackCommandCoordinator(player);
+      final coordinator = _coordinator(player);
       addTearDown(player.dispose);
       final sourceGate = player.gateNextMutation();
       final request = coordinator.requestSource(
@@ -282,7 +310,7 @@ void main() {
     () async {
       final failure = StateError('stop');
       final player = _SerializedAudioPlayer();
-      final coordinator = PlaybackCommandCoordinator(player);
+      final coordinator = _coordinator(player);
       addTearDown(player.dispose);
       await _install(coordinator);
       await coordinator.recordExplicitPlayIntent();
@@ -305,11 +333,11 @@ void main() {
 
   test('loop and shuffle apply in coordinator order without overlap', () async {
     final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     final gate = player.gateNextMutation();
 
-    final loop = coordinator.setLoopMode(LoopMode.off);
+    final loop = coordinator.setLoopMode(EngineLoopMode.off);
     await gate.started.future;
     final shuffle = coordinator.setShuffleModeEnabled(true);
 
@@ -325,7 +353,7 @@ void main() {
     'stale same-source play lifecycle completion has no pause side effect',
     () async {
       final player = _SerializedAudioPlayer();
-      final coordinator = PlaybackCommandCoordinator(player);
+      final coordinator = _coordinator(player);
       addTearDown(player.dispose);
       final request = coordinator.requestSource(
         occurrenceId: 1,
@@ -353,7 +381,7 @@ void main() {
 
   test('preserving pause stays paused until preserving resume', () async {
     final player = _LifecycleAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     await _install(coordinator);
 
@@ -375,7 +403,7 @@ void main() {
   test('immediate preserving pause silences playback without waiting for a '
       'slow in-flight source install', () async {
     final player = _SerializedAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     await _install(coordinator);
     await coordinator.recordExplicitPlayIntent();
@@ -407,7 +435,7 @@ void main() {
 
   test('preserving desired state cannot clear non-resumable denial', () async {
     final player = _LifecycleAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     await _install(coordinator);
     await coordinator.recordExplicitPlayIntent();
@@ -430,7 +458,7 @@ void main() {
     'desired playing intent ignores temporary interruption blocking',
     () async {
       final player = _LifecycleAudioPlayer();
-      final coordinator = PlaybackCommandCoordinator(player);
+      final coordinator = _coordinator(player);
       addTearDown(player.dispose);
       await _install(coordinator);
       await coordinator.recordExplicitPlayIntent();
@@ -447,7 +475,7 @@ void main() {
       'overlapping preserving owners block until $releaseFirst releases last',
       () async {
         final player = _LifecycleAudioPlayer();
-        final coordinator = PlaybackCommandCoordinator(player);
+        final coordinator = _coordinator(player);
         addTearDown(player.dispose);
         await _install(coordinator);
         await coordinator.recordExplicitPlayIntent();
@@ -472,7 +500,7 @@ void main() {
     'explicit pause remains denied after preserving owner release',
     () async {
       final player = _LifecycleAudioPlayer();
-      final coordinator = PlaybackCommandCoordinator(player);
+      final coordinator = _coordinator(player);
       addTearDown(player.dispose);
       await _install(coordinator);
       await coordinator.recordExplicitPlayIntent();
@@ -489,7 +517,7 @@ void main() {
 
   test('stop remains denied after preserving owner release', () async {
     final player = _LifecycleAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     await _install(coordinator);
     await coordinator.recordExplicitPlayIntent();
@@ -506,7 +534,7 @@ void main() {
 
   test('natural completion does not replay the current source', () async {
     final player = _LifecycleAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     await _install(coordinator);
     await coordinator.recordExplicitPlayIntent();
@@ -520,7 +548,7 @@ void main() {
 
   test('stop lifecycle completion cannot restart playback', () async {
     final player = _LifecycleAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     await _install(coordinator);
     await coordinator.recordExplicitPlayIntent();
@@ -536,7 +564,7 @@ void main() {
   test('stale play error is side-effect free for newer desired play', () async {
     final player = _SerializedAudioPlayer();
     final errors = <String>[];
-    final coordinator = PlaybackCommandCoordinator(
+    final coordinator = _coordinator(
       player,
       onError: (operation, _, __) => errors.add(operation),
     );
@@ -561,7 +589,7 @@ void main() {
       final player = _LifecycleAudioPlayer();
       final errors = <String>[];
       var publications = 0;
-      final coordinator = PlaybackCommandCoordinator(
+      final coordinator = _coordinator(
         player,
         onError: (operation, _, __) => errors.add(operation),
         onStateChanged: () => publications++,
@@ -588,7 +616,7 @@ void main() {
     () async {
       final player = _LifecycleAudioPlayer();
       var publications = 0;
-      final coordinator = PlaybackCommandCoordinator(
+      final coordinator = _coordinator(
         player,
         onStateChanged: () => publications++,
       );
@@ -611,7 +639,7 @@ void main() {
   test('current source play error still reports once', () async {
     final player = _LifecycleAudioPlayer();
     final errors = <String>[];
-    final coordinator = PlaybackCommandCoordinator(
+    final coordinator = _coordinator(
       player,
       onError: (operation, _, __) => errors.add(operation),
     );
@@ -631,7 +659,7 @@ void main() {
     () async {
       final player = _LifecycleAudioPlayer();
       var activationAttempts = 0;
-      final coordinator = PlaybackCommandCoordinator(
+      final coordinator = _coordinator(
         player,
         prepareForPlayback: () async {
           activationAttempts++;
@@ -661,7 +689,7 @@ void main() {
     () async {
       final player = _LifecycleAudioPlayer()..playNoOpIfAlreadyPlaying = true;
       final events = <String>[];
-      final coordinator = PlaybackCommandCoordinator(
+      final coordinator = _coordinator(
         player,
         prepareForPlayback: () async => events.add('prepare'),
       );
@@ -694,7 +722,7 @@ void main() {
     'Android source change may pause then play to restart native playback',
     () async {
       final player = _LifecycleAudioPlayer()..playNoOpIfAlreadyPlaying = true;
-      final coordinator = PlaybackCommandCoordinator(
+      final coordinator = _coordinator(
         player,
         pauseToRestartNativePlay: true,
       );
@@ -721,7 +749,7 @@ void main() {
 
   test('becoming noisy pauses without reinstalling the source', () async {
     final player = _LifecycleAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     await _install(coordinator);
     await coordinator.recordExplicitPlayIntent();
@@ -735,7 +763,7 @@ void main() {
 
   test('source commit reports installed and stale outcomes', () async {
     final player = _LifecycleAudioPlayer();
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     final stale = coordinator.requestSource(
       occurrenceId: 1,
@@ -765,7 +793,7 @@ void main() {
   test('authoritative source commit returns its install error', () async {
     final error = StateError('source install');
     final player = _LifecycleAudioPlayer()..sourceInstallError = error;
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     final request = coordinator.requestSource(
       occurrenceId: 1,
@@ -784,7 +812,7 @@ void main() {
   test('source shorter than 15 seconds fails installation', () async {
     final player = _LifecycleAudioPlayer()
       ..sourceDuration = const Duration(seconds: 14, milliseconds: 999);
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     final request = coordinator.requestSource(
       occurrenceId: 1,
@@ -808,7 +836,7 @@ void main() {
   test('source lasting exactly 15 seconds remains valid', () async {
     final player = _LifecycleAudioPlayer()
       ..sourceDuration = minimumResolvedAudioDuration;
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     final request = coordinator.requestSource(
       occurrenceId: 1,
@@ -831,7 +859,7 @@ void main() {
       final player = _LifecycleAudioPlayer()
         ..sourceInstallError = StateError('late source error')
         ..sourceInstallErrorAfterSet = true;
-      final coordinator = PlaybackCommandCoordinator(player);
+      final coordinator = _coordinator(player);
       addTearDown(player.dispose);
       final request = coordinator.requestSource(
         occurrenceId: 1,
@@ -852,7 +880,7 @@ void main() {
     'source load timeout fails the commit and lets a newer source install',
     () async {
       final player = _LifecycleAudioPlayer();
-      final coordinator = PlaybackCommandCoordinator(
+      final coordinator = _coordinator(
         player,
         sourceLoadTimeout: const Duration(milliseconds: 20),
       );
@@ -885,7 +913,7 @@ void main() {
   test('failed seek is consumed before a later interruption pause', () async {
     final errors = <String>[];
     final player = _LifecycleAudioPlayer()..failNextSeek = true;
-    final coordinator = PlaybackCommandCoordinator(
+    final coordinator = _coordinator(
       player,
       onError: (operation, _, __) => errors.add(operation),
     );
@@ -904,7 +932,7 @@ void main() {
 
   test('new explicit seek retries after a consumed seek failure', () async {
     final player = _LifecycleAudioPlayer()..failNextSeek = true;
-    final coordinator = PlaybackCommandCoordinator(player);
+    final coordinator = _coordinator(player);
     addTearDown(player.dispose);
     await _install(coordinator);
 

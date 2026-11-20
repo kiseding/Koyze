@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart' show IconData, Icons;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/audio/playback_command_coordinator.dart';
+import '../../../core/audio/playback_engine.dart';
 import '../../../core/state/buildless_notifier.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/audio/replay_gain.dart';
@@ -305,11 +305,11 @@ class PositionNotifier extends BuildlessNotifier<Duration>
   }
 
   final LxAudioHandler? _injectedHandler;
-  AudioPlayer? _player;
+  PlaybackEngine? _player;
   Timer? _timer;
-  StreamSubscription<AudioPlayer>? _playerSub;
+  StreamSubscription<PlaybackEngine>? _playerSub;
   StreamSubscription<Duration>? _posSub;
-  StreamSubscription<PositionDiscontinuity>? _discSub;
+  StreamSubscription<void>? _discSub;
   bool _frozen = false;
   bool _trackingStarted = false;
   int _playerBindingGeneration = 0;
@@ -332,7 +332,7 @@ class PositionNotifier extends BuildlessNotifier<Duration>
   void _startTracking(LxAudioHandler handler) {
     if (_trackingStarted) return;
     _trackingStarted = true;
-    _bindPlayer(handler.player);
+    _bindPlayer(handler.engine);
     _playerSub = handler.playerStream.listen(_bindPlayer);
 
     // 兜底轮询，覆盖部分 iOS 场景下 positionStream 间歇停更。
@@ -345,7 +345,7 @@ class PositionNotifier extends BuildlessNotifier<Duration>
     });
   }
 
-  void _bindPlayer(AudioPlayer player) {
+  void _bindPlayer(PlaybackEngine player) {
     if (!mounted || identical(_player, player)) return;
     final bindingGeneration = ++_playerBindingGeneration;
     final oldPositionSubscription = _posSub;

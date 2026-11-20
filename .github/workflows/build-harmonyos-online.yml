@@ -33,6 +33,11 @@ on:
         type: choice
         options: [debug, release]
         default: release
+      playback_engine:
+        description: '播放引擎（留空 = just_audio；填 mpv 出真机验证包）'
+        type: choice
+        options: ['', mpv]
+        default: ''
   push:
     branches: [main]
     paths:
@@ -79,6 +84,7 @@ jobs:
       # 必须用 tag 而不是分支：引擎工件只在这个 commit 上是完整的。
       FLUTTER_OHOS_REF: 3.44.9+ohos-0.0.1-canary1
       HAP_BUILD_MODE: ${{ inputs.mode || 'release' }}
+      PLAYBACK_ENGINE_INPUT: ${{ inputs.playback_engine || '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -268,6 +274,12 @@ jobs:
           # release 在 Windows 上还要绕开图标 tree-shaker：patched_sdk 与 dart-sdk
           # 的 SDK hash 不匹配，否则报 "Invalid SDK hash"
           [ "$mode" = "release" ] && extra="$extra --no-tree-shake-icons"
+          # 真机验证 mpv 引擎时用 workflow_dispatch 的 playback_engine 输入；
+          # push/tag 触发时为空，构建出来的仍是 just_audio 默认包。
+          # 工厂会自检 libmpv，加载失败自动退回 just_audio，所以这个包
+          # 即使 mpv 不可用也照样能出声。
+          engine="${PLAYBACK_ENGINE_INPUT:-}"
+          [ -n "$engine" ] && extra="$extra --dart-define=KOYZE_PLAYBACK_ENGINE=$engine"
           version="$(awk '/^version:/{print $2; exit}' pubspec.yaml)"
           version="${version%%+*}"
           test -n "$version"
@@ -278,6 +290,15 @@ jobs:
           for arch in arm64 x64; do
             # Flutter/Hvigor 复用 build 目录，清理后再切换架构，避免 HAP 混入上一架构。
             rm -rf build/ohos ohos/entry/build ohos/entry/libs ohos/har
+            # 上面这行会把预编译的 libmpv 一起删掉，必须重新铺回去，否则
+            # HAP 里没有 libmpv.so，mpv 引擎只能退回 just_audio。
+            # 没有对应 ABI 的预编译库时脚本只打印跳过，不影响构建。
+            case "$arch" in
+              arm64) abi=arm64-v8a ;;
+              x64) abi=x86_64 ;;
+              *) echo "::error::未知架构 $arch"; exit 1 ;;
+            esac
+            bash scripts/ohos/stage-libmpv.sh "$abi"
             set +e
             "$FLUTTER_OHOS_HOME/bin/flutter.bat" build hap \
               "--$mode" $extra --target-platform "ohos-$arch"
@@ -293,7 +314,10 @@ jobs:
               printf '%s\n' "${haps[@]}"
               exit 1
             fi
-            dst="$out/Koyze-${version}-ohos-$arch-unsigned.hap"
+            # 验证包带 -mpv 后缀，避免和正式产物同名混淆。
+            suffix=""
+            [ -n "${PLAYBACK_ENGINE_INPUT:-}" ] && suffix="-${PLAYBACK_ENGINE_INPUT}"
+            dst="$out/Koyze-${version}-ohos-$arch$suffix-unsigned.hap"
             cp "${haps[0]}" "$dst"
             echo "ohos-$arch HAP："
             ls -lh "$dst"
@@ -361,6 +385,10 @@ jobs:
                   'app': ('libs/arm64-v8a/libapp.so', 183),
                   'quickjs': ('libs/arm64-v8a/libquickjs_c_bridge.so', 183),
                   'cxx': ('libs/arm64-v8a/libc++_shared.so', 183),
+                  # 预编译的 libmpv 由 scripts/ohos/stage-libmpv.sh 在构建前
+                  # 铺进 entry/libs；上面的 rm -rf 会把它删掉，漏了这一步
+                  # 打出来的包没有任何报错、只是播放引擎静默退回 just_audio。
+                  'mpv': ('libs/arm64-v8a/libmpv.so', 183),
               },
               'ohos-x64': {
                   'flutter': ('libs/x86_64/libflutter.so', 62),

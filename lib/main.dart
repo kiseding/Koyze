@@ -8,6 +8,7 @@ import 'package:koyze/core/audio/audio_handler.dart';
 import 'package:koyze/core/audio/audio_runtime.dart';
 import 'package:koyze/core/audio/audio_session_config.dart';
 import 'package:koyze/core/audio/playback_cache_service.dart';
+import 'package:koyze/core/audio/playback_engine_factory.dart';
 import 'package:koyze/core/logging/app_log.dart';
 import 'package:koyze/core/monitoring/monitoring_service.dart';
 import 'package:koyze/core/performance/low_memory.dart';
@@ -173,7 +174,15 @@ Future<void> _bootstrapUnsafe(
         final session = await AudioSession.instance;
         await session.configure(musicAudioSessionConfiguration());
         AppLog.instance.record('audio.session', 'audio session configured');
+        // 默认 null，走 handler 自带的 just_audio 路径（含均衡器音效注入）。
+        // 设成 mpv 时引擎由工厂创建，handler 不再构造 AudioPlayer。
+        // 工厂自检 libmpv，失败返回 null —— 那就继续走 just_audio，宁可
+        // 没有 mpv 也不能没有声音。
+        final engine = hostPlaybackEngineKind() == PlaybackEngineKind.mpv
+            ? await createMpvPlaybackEngine()
+            : null;
         final lxHandler = LxAudioHandler(
+          engine: engine,
           prepareForPlayback: () async {
             AppLog.instance.record(
               'audio.session',

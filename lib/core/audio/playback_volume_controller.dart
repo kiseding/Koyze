@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:just_audio/just_audio.dart';
+import 'playback_engine.dart';
 
 /// Loudness multiplier applied while another app is playing audio.
 const double duckedPlaybackVolumeFactor = 0.35;
@@ -10,15 +10,15 @@ const double duckedPlaybackVolumeFactor = 0.35;
 ///
 /// Extracted from `LxAudioHandler` (which had grown to ~4000 lines) because
 /// volume is a self-contained concern: it holds two numbers, derives the
-/// effective volume, and writes it to whichever [AudioPlayer] is currently
+/// effective volume, and writes it to whichever [PlaybackEngine] is currently
 /// installed. Nothing else in the handler needs to know about ducking.
 ///
-/// The controller does not own the player. The handler calls [bindPlayer]
+/// The controller does not own the engine. The handler calls [bindPlayer]
 /// whenever the native player is (re)built, which keeps the "reapply desired
 /// state after a rebuild" behaviour in one place instead of duplicating the
 /// push call at every construction site.
 class PlaybackVolumeController {
-  AudioPlayer? _player;
+  PlaybackEngine? _player;
 
   double _volume = 1;
   bool _ducked = false;
@@ -47,9 +47,9 @@ class PlaybackVolumeController {
 
   bool get isDucked => _ducked;
 
-  /// Points the controller at a (possibly rebuilt) native player and
-  /// immediately reapplies the current effective volume to it.
-  void bindPlayer(AudioPlayer player) {
+  /// Points the controller at a (possibly rebuilt) engine and immediately
+  /// reapplies the current effective volume to it.
+  void bindPlayer(PlaybackEngine player) {
     _player = player;
     push();
   }

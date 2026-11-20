@@ -62,11 +62,11 @@ final class AudioHandlerMediaSource implements DesktopMediaSource {
   PlaybackState? get currentState => _handler.playbackState.value;
 
   @override
-  Duration get position => _handler.player.position;
+  Duration get position => _handler.engine.position;
 
   @override
   Duration? get duration =>
-      _durationSubject?.value ?? _handler.player.duration;
+      _durationSubject?.value ?? _handler.engine.duration;
 
   @override
   Future<void> play() => _handler.play();

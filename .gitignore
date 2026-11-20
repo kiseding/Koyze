@@ -79,3 +79,6 @@ webapp/public_release/
 
 # Kotlin 增量编译缓存（AGP 8.x 在 android/ 下生成）
 android/.kotlin/
+
+# 鸿蒙原生库输出目录：由 flutter build hap 与 scripts/ohos/stage-libmpv.sh 生成
+/ohos/entry/libs/

@@ -87,7 +87,7 @@ void main() {
 
   test('completion uses only the native completed processing state', () {
     final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
-    expect(source, contains('state != ProcessingState.completed'));
+    expect(source, contains('state != EngineProcessingState.completed'));
     expect(source, isNot(contains('skipToNext(seamless: true)')));
     expect(
       source,

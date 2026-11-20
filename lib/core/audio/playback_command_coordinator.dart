@@ -2,7 +2,8 @@ import 'dart:async';
 import '../logging/app_log.dart';
 
 import 'package:flutter/foundation.dart';
-import 'package:just_audio/just_audio.dart';
+
+import 'playback_engine.dart';
 
 typedef PlaybackMutationError =
     void Function(String operation, Object error, StackTrace stackTrace);
@@ -50,7 +51,7 @@ final class PreservingPauseOwner {
 }
 
 class PlaybackCommandCoordinator {
-  final AudioPlayer _player;
+  final PlaybackEngine _player;
   final VoidCallback? _onStateChanged;
   final PlaybackMutationError? _onError;
   final PrepareForPlayback? _prepareForPlayback;
@@ -76,8 +77,8 @@ class PlaybackCommandCoordinator {
   int _appliedSeekRevision = 0;
   int _failedSeekRevision = 0;
   Duration? _desiredSeek;
-  LoopMode? _desiredLoopMode;
-  LoopMode? _appliedLoopMode;
+  EngineLoopMode? _desiredLoopMode;
+  EngineLoopMode? _appliedLoopMode;
   bool? _desiredShuffleEnabled;
   bool? _appliedShuffleEnabled;
   int _playCommandToken = 0;
@@ -157,13 +158,19 @@ class PlaybackCommandCoordinator {
     return desired?.token == token && desired?.occurrenceId == occurrenceId;
   }
 
-  Future<SourceCommitResult> commitSource(int token, AudioSource source) async {
+  /// 提交音源。
+  ///
+  /// [source] 接受 [EngineAudioSource]，也接受引擎原生音源对象
+  /// （`just_audio` 的 `AudioSource`）。后者是既有测试与 just_audio 专用
+  /// 路径的用法，经 [EngineAudioSource.from] 包一层后 [nativeSource]
+  /// 原样保留，行为不变。
+  Future<SourceCommitResult> commitSource(int token, Object source) async {
     if (_shutdown) return const SourceCommitStale();
     final desired = _desiredSource;
     if (desired == null || desired.token != token) {
       return const SourceCommitStale();
     }
-    desired.source = source;
+    desired.source = EngineAudioSource.from(source);
     await _markDirty(awaitApplication: true);
     if (_desiredSource?.token != token) {
       return SourceCommitStale(
@@ -176,8 +183,9 @@ class PlaybackCommandCoordinator {
         : const SourceCommitStale();
   }
 
-  Future<bool> installTemporarySource(int token, AudioSource source) async {
+  Future<bool> installTemporarySource(int token, Object source) async {
     if (_shutdown || _desiredSource?.token != token) return false;
+    final engineSource = EngineAudioSource.from(source);
     final previous = _tail;
     _pendingReconciliations++;
     final next = () async {
@@ -194,7 +202,7 @@ class PlaybackCommandCoordinator {
           }
         }
         await _player
-            .setAudioSource(source, initialPosition: Duration.zero)
+            .setAudioSource(engineSource, initialPosition: Duration.zero)
             .timeout(_sourceLoadTimeout);
       } catch (error, stackTrace) {
         if (error is TimeoutException) {
@@ -422,7 +430,7 @@ class PlaybackCommandCoordinator {
     return _appliedSeekRevision == revision;
   }
 
-  Future<void> setLoopMode(LoopMode mode) {
+  Future<void> setLoopMode(EngineLoopMode mode) {
     if (_shutdown) return Future<void>.value();
     _desiredLoopMode = mode;
     return _markDirty();
@@ -583,7 +591,7 @@ class PlaybackCommandCoordinator {
         if (!_stopApplied &&
             (_installedSourceToken != null ||
                 _player.playing ||
-                _player.processingState != ProcessingState.idle)) {
+                _player.processingState != EngineProcessingState.idle)) {
           final playToken = _activePlayCommandToken;
           if (playToken != null) {
             _playEndReasons[playToken] = _PlayEndReason.stop;
@@ -726,7 +734,7 @@ class PlaybackCommandCoordinator {
     final ownsLifecycle = _ownsPlayLifecycle(token);
     final reason =
         _playEndReasons.remove(token) ??
-        (_player.processingState == ProcessingState.completed
+        (_player.processingState == EngineProcessingState.completed
             ? _PlayEndReason.completed
             : _PlayEndReason.unknown);
     if (!ownsLifecycle) {
@@ -807,7 +815,7 @@ class _DesiredSource {
   final int token;
   final int occurrenceId;
   final Duration position;
-  AudioSource? source;
+  EngineAudioSource? source;
 
   _DesiredSource({
     required this.token,

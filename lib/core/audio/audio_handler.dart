@@ -10,7 +10,9 @@ import 'package:rxdart/rxdart.dart';
 
 import '../logging/app_log.dart';
 import 'equalizer_bridge.dart';
+import 'just_audio_engine.dart';
 import 'playback_cache_service.dart';
+import 'playback_engine.dart';
 import 'playback_interruption.dart';
 import 'playback_lease_registry.dart';
 import 'queue_occurrence_ledger.dart';
@@ -240,6 +242,20 @@ AudioProcessingState audioProcessingState(ProcessingState state) =>
       ProcessingState.completed => AudioProcessingState.completed,
     };
 
+/// 把引擎无关的处理状态映射成 `audio_service` 的展示态。
+///
+/// 与 [audioProcessingState] 并存而不是合并：后者是 `just_audio` 的
+/// `ProcessingState`，被既有测试与 `just_audio` 专用路径直接引用，
+/// 改签名会牵动一大片无关代码。
+AudioProcessingState engineAudioProcessingState(EngineProcessingState state) =>
+    switch (state) {
+      EngineProcessingState.idle => AudioProcessingState.idle,
+      EngineProcessingState.loading => AudioProcessingState.loading,
+      EngineProcessingState.buffering => AudioProcessingState.buffering,
+      EngineProcessingState.ready => AudioProcessingState.ready,
+      EngineProcessingState.completed => AudioProcessingState.completed,
+    };
+
 /// 仅复用本地缓存文件。远程媒体 URL 可能带短期签名，必须重新解析。
 bool shouldReuseCachedPlayUrl({
   required String? cachedUrl,
@@ -333,12 +349,20 @@ class _ForegroundResolutionRequest {
 }
 
 class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
-  late AudioPlayer _player;
-  late final BehaviorSubject<AudioPlayer> _playerSubject;
+  late PlaybackEngine _player;
+  late final BehaviorSubject<PlaybackEngine> _playerSubject;
   late PlaybackCommandCoordinator _commands;
 
-  /// 播放器重建时用的工厂；注入播放器时为 null（无法重建）。
-  AudioPlayer Function()? _replacementPlayerFactory;
+  /// 底层 `just_audio` 播放器。
+  ///
+  /// 只有走 `just_audio` 引擎时才有值；mpv 引擎下为 null。保留它是为了让
+  /// 均衡器（`AudioPipeline` 只能在 `AudioPlayer` 构造时注入）和既有测试
+  /// 的 `handler.player as <fake>` 继续工作。生产代码不要依赖它——
+  /// 需要播放能力时用 [engine]。
+  AudioPlayer? _rawPlayer;
+
+  /// 播放器重建时用的工厂；注入播放器或引擎时为 null（无法重建）。
+  PlaybackEngine Function()? _replacementPlayerFactory;
   late final EqualizerBridge _equalizer;
   final PrepareForPlayback? _prepareForPlayback;
   final Duration _outputRouteRecoveryTimeout;
@@ -403,9 +427,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Object? _operationError;
   StackTrace? _operationStackTrace;
   static final Object _publicOperationZoneKey = Object();
-  StreamSubscription<PlaybackEvent>? _playbackEventSubscription;
+  StreamSubscription<void>? _playbackEventSubscription;
   StreamSubscription<Duration?>? _durationSubscription;
-  StreamSubscription<ProcessingState>? _processingStateSubscription;
+  StreamSubscription<EngineProcessingState>? _processingStateSubscription;
   int? _interruptionSourceGeneration;
   int? _interruptionUserIntentGeneration;
   String? _interruptionMediaId;
@@ -758,6 +782,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   LxAudioHandler({
     AudioPlayer? player,
     AudioPlayer Function()? playerFactory,
+    PlaybackEngine? engine,
     PrepareForPlayback? prepareForPlayback,
     Duration outputRouteRecoveryTimeout = const Duration(milliseconds: 1200),
     Duration resolveTimeout = _defaultResolveTimeout,
@@ -765,6 +790,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     bool? streamLocalFiles,
     EqualizerBridge? equalizer,
   }) : assert(player == null || playerFactory == null),
+       assert(engine == null || (player == null && playerFactory == null)),
        _prepareForPlayback = prepareForPlayback,
        _useSilenceKeepalive =
            useSilenceKeepalive ??
@@ -777,12 +803,27 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // 均衡器必须在播放器之前就绪：音效只能经 AudioPipeline 在构造时注入，
     // just_audio 不支持事后追加。
     _equalizer = equalizer ?? createEqualizerBridge();
-    _replacementPlayerFactory = player == null
-        ? (playerFactory ?? _createPlayerWithEqualizer)
-        : null;
-    _player = player ?? (playerFactory ?? _createPlayerWithEqualizer)();
-    _playerSubject = BehaviorSubject<AudioPlayer>.seeded(_player);
-    _equalizer.bindPlayer(_player);
+    if (engine != null) {
+      // 外部引擎（mpv）。没有可重建的工厂：引擎生命周期由调用方掌管，
+      // 且 mpv 不需要 just_audio 那套「原生播放器卡死后重建」的兜底。
+      _player = engine;
+      _rawPlayer = null;
+      _replacementPlayerFactory = null;
+    } else {
+      final raw = player ?? (playerFactory ?? _createPlayerWithEqualizer)();
+      _rawPlayer = raw;
+      _player = JustAudioEngine(raw);
+      _replacementPlayerFactory = player == null
+          ? () {
+              final rebuilt = (playerFactory ?? _createPlayerWithEqualizer)();
+              _rawPlayer = rebuilt;
+              return JustAudioEngine(rebuilt);
+            }
+          : null;
+    }
+    _playerSubject = BehaviorSubject<PlaybackEngine>.seeded(_player);
+    final rawPlayer = _rawPlayer;
+    if (rawPlayer != null) _equalizer.bindPlayer(rawPlayer);
     _commands = _createCommandCoordinator(_player);
     _volume.bindPlayer(_player);
     _publishPlaybackState();
@@ -895,6 +936,40 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Current user-facing volume, for diagnostics and tests.
   double get playbackVolume => _volume.volume;
 
+  /// 构造交给引擎的音源描述。
+  ///
+  /// 同一个对象里放两套信息：
+  /// - [EngineAudioSource.nativeSource] 是 `audioSourceFor()` 按平台挑好的
+  ///   `just_audio` 具体音源（带 Darwin 精确时长选项、Windows 本地代理等），
+  ///   `just_audio` 引擎原样转发，行为与重构前一致；
+  /// - `uri` / `headers` / `isSilence` / `durationHint` 是引擎无关的通用
+  ///   字段，mpv 引擎只读这些。
+  ///
+  /// 两条路径共用一次构造，避免「just_audio 走一套、mpv 走另一套」后
+  /// 平台细节（例如 `_streamLocalFiles`）在某一侧悄悄丢失。
+  EngineAudioSource _engineSourceFor(
+    String url, {
+    MediaItem? tag,
+    Map<String, String>? headers,
+  }) {
+    final isSilence = url.isEmpty;
+    return EngineAudioSource(
+      uri: isSilence ? '' : playableUri(url).toString(),
+      headers: headers,
+      tag: tag,
+      // 未解析曲目用超长静音占位，与 audioSourceFor 里的 SilenceAudioSource
+      // 保持同一个时长，避免 mpv 侧过早 completed 导致连跳多首。
+      durationHint: isSilence ? const Duration(days: 1) : null,
+      isSilence: isSilence,
+      nativeSource: audioSourceFor(
+        url,
+        tag: tag,
+        headers: headers,
+        streamLocalFiles: _streamLocalFiles,
+      ),
+    );
+  }
+
   /// 默认播放器。均衡器音效在这里注入。
   AudioPlayer _createPlayerWithEqualizer() {
     final effects = _equalizer.createEffects();
@@ -925,7 +1000,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
   }
 
-  PlaybackCommandCoordinator _createCommandCoordinator(AudioPlayer player) =>
+  PlaybackCommandCoordinator _createCommandCoordinator(PlaybackEngine player) =>
       PlaybackCommandCoordinator(
         player,
         onStateChanged: _publishPlaybackState,
@@ -951,12 +1026,23 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         pauseToRestartNativePlay: Platform.isAndroid,
       );
 
-  AudioPlayer get player => _player;
+  /// 当前播放引擎。所有播放操作都应该走它。
+  PlaybackEngine get engine => _player;
+
+  /// 底层 `just_audio` 播放器，仅在 `just_audio` 引擎下有值。
+  ///
+  /// 生产代码请用 [engine]；这里保留是为了让均衡器与既有测试能拿到具体
+  /// 类型。mpv 引擎下调用会抛错——那是刻意的：需要具体类型的代码本来就
+  /// 只对 just_audio 有意义。
+  AudioPlayer get player =>
+      _rawPlayer ??
+      (throw StateError('player 只在 just_audio 引擎下可用，请改用 engine'));
 
   /// 均衡器桥。设置页与均衡器界面通过它读写频段增益。
   EqualizerBridge get equalizer => _equalizer;
 
-  Stream<AudioPlayer> get playerStream => _playerSubject.stream;
+  /// 引擎（重新）建立的广播。消费方拿它重新订阅位置与时长流。
+  Stream<PlaybackEngine> get playerStream => _playerSubject.stream;
 
   @visibleForTesting
   Future<void> get debugOutputRouteRecoverySettled =>
@@ -1072,8 +1158,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         _installedMediaId != _activeItemId ||
         _player.position < _successfulPlaybackProgress ||
         !_player.playing ||
-        (_player.processingState != ProcessingState.ready &&
-            _player.processingState != ProcessingState.buffering)) {
+        (_player.processingState != EngineProcessingState.ready &&
+            _player.processingState != EngineProcessingState.buffering)) {
       return;
     }
     _consecutiveAutomaticTrackFailures = 0;
@@ -1204,7 +1290,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       provenance.interruptionGeneration == _interruptionGeneration;
 
   void _init() {
-    _playbackEventSubscription = _player.playbackEventStream.listen(
+    _playbackEventSubscription = _player.eventStream.listen(
       (_) {
         _publishKnownDurationIfChanged();
         _recordSuccessfulPlayback();
@@ -1244,7 +1330,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       state,
     ) {
       if (_disposed) return;
-      if (state != ProcessingState.completed) return;
+      if (state != EngineProcessingState.completed) return;
       _onTrackCompleted();
     });
   }
@@ -1301,7 +1387,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       !interruptionActive;
 
   Future<bool> _waitForOutputRouteProgress({
-    required AudioPlayer player,
+    required PlaybackEngine player,
     required Duration baseline,
   }) async {
     bool advanced(Duration position) =>
@@ -1503,7 +1589,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _player = replacementFactory();
     _commands = _createCommandCoordinator(_player);
     // 新播放器带的是新注入的均衡器音效，期望状态需要重新施加一次。
-    _equalizer.bindPlayer(_player);
+    final rawPlayer = _rawPlayer;
+    if (rawPlayer != null) _equalizer.bindPlayer(rawPlayer);
     _volume.bindPlayer(_player);
     if (_playbackSpeed != 1.0) {
       unawaited(_applySpeedToPlayer());
@@ -1583,7 +1670,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
     if (_installedPlaybackGeneration == _playGeneration &&
         _installedMediaId == itemId &&
-        _player.processingState != ProcessingState.idle) {
+        _player.processingState != EngineProcessingState.idle) {
       _clearOutputRouteRecovery();
     }
   }
@@ -1740,7 +1827,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         targetIndex: target,
       );
       if (_playGeneration == generation &&
-          _player.processingState == ProcessingState.completed) {
+          _player.processingState == EngineProcessingState.completed) {
         _scheduleCompletionRecovery(
           generation: generation,
           occurrenceId: expectedOccurrence,
@@ -1796,7 +1883,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           _activeItemId != itemId ||
           !_userWantsPlay ||
           interruptionActive ||
-          _player.processingState != ProcessingState.completed) {
+          _player.processingState != EngineProcessingState.completed) {
         return;
       }
       if (_lastHandledCompletionGeneration == generation) {
@@ -1891,7 +1978,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // MPNowPlayingInfoCenter and the Dynamic Island. Never leak engine idle
     // while a current media item should still occupy the lock screen.
     var processingState =
-        override ?? audioProcessingState(_player.processingState);
+        override ?? engineAudioProcessingState(_player.processingState);
     if (override == null &&
         processingState == AudioProcessingState.idle &&
         mediaItem.value != null) {
@@ -1973,7 +2060,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         _installedPlaybackGeneration == _playGeneration &&
         _installedMediaId == _queue[_currentIndex].id;
     final needsSourceReload =
-        _player.processingState == ProcessingState.idle ||
+        _player.processingState == EngineProcessingState.idle ||
         !hasInstalledCurrentSource;
     final routeRecoveryPosition = _outputRouteRecoveryPending
         ? (needsSourceReload
@@ -2205,7 +2292,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       restoreDuckedPlaybackVolume();
     }
     if (action == InterruptionAction.resume && ownsPlayback) {
-      if (_player.processingState == ProcessingState.completed) {
+      if (_player.processingState == EngineProcessingState.completed) {
         _onTrackCompleted();
       }
     } else if (action != InterruptionAction.resume &&
@@ -2240,7 +2327,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         _userWantsPlay &&
         !interruptionActive &&
         _player.playing &&
-        _player.processingState != ProcessingState.idle) {
+        _player.processingState != EngineProcessingState.idle) {
       _validateOutputRouteRecovery(recoveryPosition);
     }
   }
@@ -2410,17 +2497,17 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // never for the position to settle.
     for (var i = 0; i < 50 && ownsSeek(); i++) {
       final ps = _player.processingState;
-      if (ps == ProcessingState.ready ||
-          ps == ProcessingState.buffering ||
-          ps == ProcessingState.completed) {
+      if (ps == EngineProcessingState.ready ||
+          ps == EngineProcessingState.buffering ||
+          ps == EngineProcessingState.completed) {
         break;
       }
       await Future<void>.delayed(const Duration(milliseconds: 40));
     }
     final ps = _player.processingState;
     if (!ownsSeek() ||
-        ps == ProcessingState.loading ||
-        ps == ProcessingState.idle) {
+        ps == EngineProcessingState.loading ||
+        ps == EngineProcessingState.idle) {
       debugPrint('[AudioHandler] seek skipped: still $ps');
       return null;
     }
@@ -2609,7 +2696,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final keepaliveInstalled = _useSilenceKeepalive
         ? await _commands.installTemporarySource(
             sourceCommandToken,
-            audioSourceFor('', tag: nextItem),
+            _engineSourceFor('', tag: nextItem),
           )
         : false;
     if (!keepaliveInstalled &&
@@ -2715,7 +2802,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final keepaliveInstalled = _useSilenceKeepalive
         ? await _commands.installTemporarySource(
             sourceCommandToken,
-            audioSourceFor('', tag: previousItem),
+            _engineSourceFor('', tag: previousItem),
           )
         : false;
     if (!keepaliveInstalled &&
@@ -3568,11 +3655,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             : null;
         final commitResult = await _commands.commitSource(
           commandToken,
-          audioSourceFor(
+          _engineSourceFor(
             url,
             tag: updatedItem,
             headers: requestHeaders,
-            streamLocalFiles: _streamLocalFiles,
           ),
         );
         sourceTransitionFollows = true;
@@ -4041,7 +4127,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _repeatMode = repeatMode;
     _publishPlaybackState();
     // Single-source repeat is explicit so every replay emits one completion.
-    await _commands.setLoopMode(LoopMode.off);
+    await _commands.setLoopMode(EngineLoopMode.off);
   }
 
   @override

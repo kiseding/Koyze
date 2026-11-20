@@ -221,8 +221,8 @@ class LockScreenSyncService {
   }
 
   int _positionMs() {
-    final position = _handler.player.position;
-    final duration = _handler.player.duration;
+    final position = _handler.engine.position;
+    final duration = _handler.engine.duration;
     if (duration != null && duration > Duration.zero && position > duration) {
       return duration.inMilliseconds;
     }
@@ -230,7 +230,7 @@ class LockScreenSyncService {
   }
 
   int _durationMs(MusicItem music) {
-    final playerDuration = _handler.player.duration;
+    final playerDuration = _handler.engine.duration;
     if (playerDuration != null && playerDuration > Duration.zero) {
       return playerDuration.inMilliseconds;
     }

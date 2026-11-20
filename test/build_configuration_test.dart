@@ -188,6 +188,37 @@ void main() {
     expect(vendored, contains('x86_64/libc++_shared.so'));
   });
 
+  test('HarmonyOS CI restores the prebuilt libmpv after wiping entry/libs', () {
+    final workflow = File(
+      '.github/workflows/build-harmonyos-online.yml',
+    ).readAsStringSync();
+
+    // `ohos/entry/libs` 是构建输出目录，切换架构前会被整个删掉。预编译的
+    // libmpv 放在 third_party 下，必须在删完之后、构建之前重新铺回去——
+    // 漏了这一步 HAP 里就没有 libmpv.so，而且**不会有任何报错**，只是
+    // 播放引擎静默退回 just_audio。
+    final wipe = workflow.indexOf(
+      'rm -rf build/ohos ohos/entry/build ohos/entry/libs',
+    );
+    expect(wipe, isNonNegative);
+    final stage = workflow.indexOf('scripts/ohos/stage-libmpv.sh');
+    expect(stage, greaterThan(wipe));
+
+    // 最终 HAP 的内容校验必须点名 libmpv，否则上面那步被删掉也没人发现。
+    expect(workflow, contains("'mpv': ('libs/arm64-v8a/libmpv.so', 183)"));
+
+    // 预编译库本体要在仓库里，CI 才能铺得回去。
+    expect(
+      File('third_party/ohos-libmpv/arm64-v8a/libmpv.so').existsSync(),
+      isTrue,
+    );
+    // 缺了它 libmpv 连加载都过不了，必须同目录携带。
+    expect(
+      File('third_party/ohos-libmpv/arm64-v8a/libc++_shared.so').existsSync(),
+      isTrue,
+    );
+  });
+
   test('HarmonyOS CI pins a self-consistent engine/Dart toolchain', () {
     final online = File(
       '.github/workflows/build-harmonyos-online.yml',
