@@ -231,21 +231,25 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     bool isLandscapeShell,
   ) {
     final sections = _groupByPlatform(visible, categoryByKey);
-    // 视口从磨砂顶栏下面开始：吸顶的平台标题才不会被顶栏盖住。代价是
-    // 内容不再从顶栏底下钻过去，但这一页有吸顶条，留白换结构更划算。
-    // 横屏没有顶栏，但要躲开状态栏，否则吸顶条会压在电量图标上。
-    final topInset = isLandscapeShell
-        ? 12 + MediaQuery.paddingOf(context).top
-        : FrostedTabHeader.extent(context);
     // 侧栏模式（横屏 / 桌面）才用左右分栏，但窗口拉窄时两栏会互相挤，
     // 这时退回单列：左栏最窄也要 240，右栏再留 300 才装得下歌名。
     final useColumns = isLandscapeShell && contentWidth >= 560;
-    return Padding(
-      padding: EdgeInsets.only(top: topInset),
-      child: useColumns
-          ? _buildBrowseColumns(context, sections, contentWidth)
-          : _buildPortraitBrowse(context, sections, contentWidth),
-    );
+    if (useColumns) {
+      // 横屏 / 桌面走左栏，没有顶部标题栏，只需躲开状态栏。
+      return Padding(
+        padding: EdgeInsets.only(top: 12 + MediaQuery.paddingOf(context).top),
+        child: _buildBrowseColumns(context, sections, contentWidth),
+      );
+    }
+    // 竖屏：**不要**在这一层套 top padding。
+    //
+    // 早先这里包了 `Padding(top: 顶栏高度)`，滚动视口整个被推到标题栏下沿，
+    // 内容裁在自己的盒子里，永远到不了栏背后——栏背后只剩一块纯色页面底，
+    // 而「模糊一层纯色」和「什么都不做」在屏幕上是同一个像素。表现就是「四
+    // 个 tab 页里只有设置页看得到磨砂」：设置页把留白写在 ListView 的
+    // padding 里，视口从屏幕顶开始，内容才会从栏背后穿过。
+    // 现在留白改由 sliver 承担（见 [_buildPortraitBrowse]），视口回到 y=0。
+    return _buildPortraitBrowse(context, sections, contentWidth);
   }
 
   /// 竖屏：方案 A 的极简单列。
@@ -265,6 +269,13 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
       // ignore: deprecated_member_use
       cacheExtent: 400,
       slivers: [
+        // 让出根壳层标题栏的高度，但**写成 sliver 而不是外层 Padding**：
+        // 视口必须从屏幕顶开始，滚起来的内容才会从栏背后穿过，栏上的磨砂
+        // 才有东西可糊。写成外层 Padding 的话滚动视口被压到栏下沿，内容
+        // 永远到不了栏背后，磨砂看起来就是「没生效」。
+        SliverToBoxAdapter(
+          child: SizedBox(height: FrostedTabHeader.extent(context)),
+        ),
         // 摘要数「当前显示的分段」，胶囊吃「未筛选」的分段——传 shown 的话
         // 只剩一个平台，_buildPlatformChips 里的 platforms.length < 2 会把
         // 整条标签藏掉，用户就再也切不到别的平台了。

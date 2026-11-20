@@ -108,16 +108,29 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       isLoading: songSearch?.isLoading ?? false,
     );
     final isLandscapeShell = RootShellLayout.usesSideNavigationOf(context);
+    // 竖屏要给根壳层的标题栏让出高度；横屏走左栏，没有这根栏。
+    final headerInset = isLandscapeShell ? 0.0 : FrostedTabHeader.extent(context);
+    // 搜索块总高：46 输入框 + 10 上内边距 + 12 下内边距。
+    const searchBlockHeight = 68.0;
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         // 主壳已固定预留底部导航和迷你播放器；键盘直接覆盖它们，避免重复预留空白。
         resizeToAvoidBottomInset: false,
-        body: Column(
+        // Stack 而不是 Column：**滚动视口必须从屏幕顶开始**，滚起来的内容才会
+        // 从标题栏背后穿过，栏上的磨砂才有东西可糊。
+        //
+        // 早先是 `Column[SizedBox(栏高), Expanded(列表)]`，列表视口被排在栏
+        // 下沿，内容裁在自己的盒子里，永远到不了栏背后——栏背后只剩一块纯色
+        // 页面底，而「模糊一层纯色」和「什么都不做」是同一个像素。于是同一个
+        // 标题栏在设置页能看见磨砂、在这里看不见：设置页的留白写在 ListView
+        // 的 padding 里，视口本来就在顶部。
+        //
+        // 现在留白交给列表的 padding，搜索块浮在它上面保持固定。
+        body: Stack(
           children: [
             // 只发布标题：顶栏由根壳层渲染，切 tab 时不会跟着页面走。
-            // 这个页面是 Column 布局而不是 Stack，所以要显式让出栏的高度。
             RootHeaderPublisher(
               index: 2,
               title: S.of(context).playlists,
@@ -129,111 +142,110 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 ),
               ],
             ),
-            if (!isLandscapeShell)
-              SizedBox(height: FrostedTabHeader.extent(context)),
-            Expanded(
+            Positioned.fill(
               child: ShellContentFrame(
-                child: Column(
-                  children: [
-                    Padding(
-                      // 与卡片左边缘同一条线（16），上下的呼吸量也收在同一档，
-                      // 搜索条不再像被随手贴在标题下面。
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                      child: SizedBox(
-                        height: 46,
-                        child: OrigoChromeSurface(
-                          borderRadius: BorderRadius.circular(16),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          // 首页的搜索入口是一条玻璃条；这里原本是实心灰块，
-                          // 同一应用里两种搜索入口长得不一样，翻页时很跳。
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.search_rounded,
-                                size: 19,
+                child: ListView.builder(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    headerInset + searchBlockHeight,
+                    16,
+                    RootShellLayout.obscuredBottomOf(context),
+                  ),
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  itemCount: bodyItems.length,
+                  itemBuilder: (context, index) => _buildBodyItem(
+                    context,
+                    ref,
+                    playerService,
+                    bodyItems[index],
+                    favorites: favorites,
+                    local: local,
+                    recent: recent,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: headerInset,
+              left: 0,
+              right: 0,
+              child: ShellContentFrame(
+                child: Padding(
+                  // 与卡片左边缘同一条线（16），上下的呼吸量也收在同一档，
+                  // 搜索条不再像被随手贴在标题下面。
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                  child: SizedBox(
+                    height: 46,
+                    child: OrigoChromeSurface(
+                      borderRadius: BorderRadius.circular(16),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      // 首页的搜索入口是一条玻璃条；这里原本是实心灰块，
+                      // 同一应用里两种搜索入口长得不一样，翻页时很跳。
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.search_rounded,
+                            size: 19,
+                            color: AppColors.secondaryText(context),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              focusNode: _searchFocus,
+                              style: TextStyle(
+                                color: AppColors.onScaffold(context),
+                                fontSize: 14,
+                              ),
+                              // 延迟过滤，避免每个字符整页 rebuild 抢焦点
+                              onChanged: (_) {
+                                Future.microtask(() {
+                                  if (mounted) setState(() {});
+                                });
+                              },
+                              textInputAction: TextInputAction.search,
+                              decoration: InputDecoration(
+                                // 必须是显式 false：InputDecoration 的
+                                // filled 为 null 时会回填主题里的
+                                // filled:true，于是在玻璃条中间又糊出一块
+                                // 实心 surface（浅色主题下是白色）。
+                                filled: false,
+                                isCollapsed: true,
+                                // 光改 border 不够：主题给 enabledBorder 描了
+                                // 一圈 outlineVariant，TextField 会用它。
+                                // 外层玻璃条已经是这条搜索框的边界，里面再
+                                // 描一圈就是「框里套框」。
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                                hintText: S.of(context).searchLibraryHint,
+                                hintStyle: TextStyle(
+                                  color: AppColors.secondaryText(context),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (_searchQuery.isNotEmpty)
+                            FxIconButton(
+                              tooltip: S.of(context).clearSearch,
+                              icon: Icon(
+                                Icons.close_rounded,
+                                size: 17,
                                 color: AppColors.secondaryText(context),
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: TextField(
-                                  controller: _searchController,
-                                  focusNode: _searchFocus,
-                                  style: TextStyle(
-                                    color: AppColors.onScaffold(context),
-                                    fontSize: 14,
-                                  ),
-                                  // 延迟过滤，避免每个字符整页 rebuild 抢焦点
-                                  onChanged: (_) {
-                                    Future.microtask(() {
-                                      if (mounted) setState(() {});
-                                    });
-                                  },
-                                  textInputAction: TextInputAction.search,
-                                  decoration: InputDecoration(
-                                    // 必须是显式 false：InputDecoration 的
-                                    // filled 为 null 时会回填主题里的
-                                    // filled:true，于是在玻璃条中间又糊出一块
-                                    // 实心 surface（浅色主题下是白色）。
-                                    filled: false,
-                                    isCollapsed: true,
-                                    // 光改 border 不够：主题给 enabledBorder 描了
-                                    // 一圈 outlineVariant，TextField 会用它。
-                                    // 外层玻璃条已经是这条搜索框的边界，里面再
-                                    // 描一圈就是「框里套框」。
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    disabledBorder: InputBorder.none,
-                                    contentPadding: EdgeInsets.zero,
-                                    hintText: S.of(context).searchLibraryHint,
-                                    hintStyle: TextStyle(
-                                      color: AppColors.secondaryText(context),
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (_searchQuery.isNotEmpty)
-                                FxIconButton(
-                                  tooltip: S.of(context).clearSearch,
-                                  icon: Icon(
-                                    Icons.close_rounded,
-                                    size: 17,
-                                    color: AppColors.secondaryText(context),
-                                  ),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {});
-                                  },
-                                ),
-                            ],
-                          ),
-                        ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            ),
+                        ],
                       ),
                     ),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: EdgeInsets.fromLTRB(
-                          16,
-                          0,
-                          16,
-                          RootShellLayout.obscuredBottomOf(context),
-                        ),
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        itemCount: bodyItems.length,
-                        itemBuilder: (context, index) => _buildBodyItem(
-                          context,
-                          ref,
-                          playerService,
-                          bodyItems[index],
-                          favorites: favorites,
-                          local: local,
-                          recent: recent,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
