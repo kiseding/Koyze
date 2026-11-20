@@ -43,8 +43,13 @@ post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
-      # 1. 统一步署版本为 13.0
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      # 1. 统一部署版本，必须 >= 应用自己的最低版本（platform :ios, '15.0'）。
+      #    原先写死 13.0，比应用还低，等于给插件开了个更宽的窗口；结果
+      #    mpv_audio_kit 的 MediaSessionPlugin.swift 用了
+      #    setPrefersNoInterruptionsFromSystemAlerts（iOS 14.5+），在 13.0
+      #    下直接编译失败（"only available in iOS 14.5 or newer"）。
+      #    插件声明的是 15.0，应用最低也是 15.0，这里跟着对齐即可。
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
       # 2. 移除架构排除逻辑，允许 Apple Silicon 模拟器以原生 arm64 模式编译插件
       config.build_settings.delete 'EXCLUDED_ARCHS[sdk=iphonesimulator*]'
       # 3. 关闭此选项以修复 Swift 模块头文件生成的 Unsupported Swift architecture 错误

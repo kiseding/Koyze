@@ -188,6 +188,43 @@ void main() {
     expect(vendored, contains('x86_64/libc++_shared.so'));
   });
 
+  test('iOS pod deployment target is not below the app minimum', () {
+    // Podfile 的 post_install 会给每个 pod 强制写 IPHONEOS_DEPLOYMENT_TARGET。
+    // 写低于应用自己的最低版本没有意义（应用根本装不到那个系统上），却会
+    // 让用到较新 API 的插件编译失败：mpv_audio_kit 的 MediaSessionPlugin
+    // 用了 setPrefersNoInterruptionsFromSystemAlerts（iOS 14.5+），在 13.0
+    // 下报 "only available in iOS 14.5 or newer"。
+    final podfile = File('ios/Podfile').readAsStringSync();
+    final platform = RegExp(
+      r"platform :ios, '([\d.]+)'",
+    ).firstMatch(podfile)?.group(1);
+    final pods = RegExp(
+      r"IPHONEOS_DEPLOYMENT_TARGET'\] = '([\d.]+)'",
+    ).firstMatch(podfile)?.group(1);
+    expect(platform, isNotNull, reason: 'Podfile 里应有 platform :ios');
+    expect(pods, isNotNull, reason: 'Podfile 的 post_install 应设置部署目标');
+
+    // 逐段比较而不是只看 minor：13.0 与 15.0 的 minor 都是 0，只比 minor
+    // 会把「13 < 15」判成相等，守卫形同虚设。
+    List<int> parts(String v) => v.split('.').map(int.parse).toList();
+    final podsParts = parts(pods!);
+    final platformParts = parts(platform!);
+    var podsAtLeastPlatform = true;
+    for (var i = 0; i < 2; i++) {
+      final a = i < podsParts.length ? podsParts[i] : 0;
+      final b = i < platformParts.length ? platformParts[i] : 0;
+      if (a != b) {
+        podsAtLeastPlatform = a > b;
+        break;
+      }
+    }
+    expect(
+      podsAtLeastPlatform,
+      isTrue,
+      reason: 'pod 部署目标 $pods 低于应用最低版本 $platform',
+    );
+  });
+
   test('HarmonyOS CI restores the prebuilt libmpv after wiping entry/libs', () {
     final workflow = File(
       '.github/workflows/build-harmonyos-online.yml',
