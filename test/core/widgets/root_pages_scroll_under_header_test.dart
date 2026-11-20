@@ -31,7 +31,6 @@ import 'package:koyze/core/widgets/root_shell_layout.dart';
 import 'package:koyze/features/player/domain/player_service.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
 import 'package:koyze/features/playlist/data/playlist_repository.dart';
-import 'package:koyze/features/playlist/domain/playlist.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import 'package:koyze/features/playlist/presentation/playlist_screen.dart';
 import 'package:koyze/features/recommend/domain/recommendation_engine.dart';
