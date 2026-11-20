@@ -128,9 +128,17 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         // 的 padding 里，视口本来就在顶部。
         //
         // 现在留白交给列表的 padding，搜索块浮在它上面保持固定。
+        //
+        // 注意 Stack 的尺寸规则：默认 `StackFit.loose`，尺寸由**非定位子项**
+        // 撑开，`Positioned.fill` 的子项完全不参与。所以这里的列表必须是
+        // 普通子项（ShellContentFrame 里是撑满的 ListView），**不能**包进
+        // Positioned.fill——`RootHeaderPublisher` 只返回 SizedBox.shrink()，
+        // 一旦唯一的撑尺寸子项也变成定位子项，整个 Stack 会塌成 0×0，
+        // 这一页就只剩一片空白。搜索块是要浮起来的，才用 Positioned。
         body: Stack(
           children: [
             // 只发布标题：顶栏由根壳层渲染，切 tab 时不会跟着页面走。
+            // 它返回的是零尺寸盒子，不参与 Stack 的尺寸计算。
             RootHeaderPublisher(
               index: 2,
               title: S.of(context).playlists,
@@ -142,27 +150,25 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 ),
               ],
             ),
-            Positioned.fill(
-              child: ShellContentFrame(
-                child: ListView.builder(
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    headerInset + searchBlockHeight,
-                    16,
-                    RootShellLayout.obscuredBottomOf(context),
-                  ),
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  itemCount: bodyItems.length,
-                  itemBuilder: (context, index) => _buildBodyItem(
-                    context,
-                    ref,
-                    playerService,
-                    bodyItems[index],
-                    favorites: favorites,
-                    local: local,
-                    recent: recent,
-                  ),
+            ShellContentFrame(
+              child: ListView.builder(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  headerInset + searchBlockHeight,
+                  16,
+                  RootShellLayout.obscuredBottomOf(context),
+                ),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                itemCount: bodyItems.length,
+                itemBuilder: (context, index) => _buildBodyItem(
+                  context,
+                  ref,
+                  playerService,
+                  bodyItems[index],
+                  favorites: favorites,
+                  local: local,
+                  recent: recent,
                 ),
               ),
             ),

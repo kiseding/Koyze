@@ -146,6 +146,40 @@ void main() {
       );
     });
 
+    testWidgets('列表铺满屏幕，不是 0×0 那种空白页', (tester) async {
+      await tester.pumpWidget(_host(const PlaylistScreen(), _container()));
+      await tester.pump();
+
+      // Stack 默认 `StackFit.loose`，尺寸只由**非定位子项**撑开。把唯一的
+      // 撑尺寸子项（列表）包进 Positioned.fill，而另一个子项
+      // RootHeaderPublisher 返回 SizedBox.shrink()，整个 Stack 就会塌成
+      // 0×0——这一页看起来一片空白，但 analyze 和「视口在 y=0」全过。
+      final list = tester.getRect(find.byType(ListView));
+      expect(
+        list.width,
+        greaterThan(0),
+        reason: '列表宽度是 0，页面被 Stack 的尺寸规则挤塌了',
+      );
+      expect(
+        list.height,
+        greaterThan(0),
+        reason: '列表高度是 0，页面被 Stack 的尺寸规则挤塌了',
+      );
+      // 和页面自身比，不写死屏幕尺寸：测试 surface 是 800×600，而 _screen
+      // 只是喂给 MediaQuery 的数据，并不改变布局约束。
+      final page = tester.getRect(find.byType(PlaylistScreen));
+      expect(
+        list.width,
+        greaterThan(0),
+        reason: '列表宽度是 0，页面被 Stack 的尺寸规则挤塌了',
+      );
+      expect(
+        list.height,
+        page.height,
+        reason: '列表没有撑满页面高度，Stack 的尺寸没被非定位子项撑开',
+      );
+    });
+
     testWidgets('列表留白里含标题栏高度，首项不会被栏盖住', (tester) async {
       await tester.pumpWidget(_host(const PlaylistScreen(), _container()));
       await tester.pump();
