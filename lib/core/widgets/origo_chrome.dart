@@ -240,11 +240,16 @@ class GradientFrost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 顶栏染色浓度吃「界面不透明度」，磨砂吃「虚化」——两档都要随滑杆当场重画。
+    //
+    // 这里**不**监听 [GlassScrollActivity]：标题栏是常驻 chrome，不跟着手势
+    // 变材质。早先 sigma 在滚动期乘过 0.5 的折扣，结果是手指一抬模糊度就
+    // 跳一下；而独立页面的标题栏根本不在这套滚动观察范围内（`GlassScrollObserver`
+    // 只包了根壳层），同一个组件在两种页面里表现不一样。省下的那点卷积时间
+    // 换不来「同一根栏看着会变」，所以标题栏恒定满档。
     return ListenableBuilder(
       listenable: Listenable.merge([
         GlassEffectConfig.surfaceOpacityListenable,
         GlassEffectConfig.surfaceBlurListenable,
-        GlassScrollActivity.listenable,
       ]),
       builder: (context, _) => _buildTint(context),
     );
@@ -289,9 +294,6 @@ class GradientFrost extends StatelessWidget {
     // 只剩一层平涂染色。现在把它作为可选档还给用户，出厂跟着全局虚化档
     // （0.90）一起打开。
     final frosted = !reduce && GlassEffectConfig.userBlurEnabled;
-    final scrollFactor = GlassScrollActivity.isScrolling
-        ? GlassScrollActivity.scrollBlurDiscount
-        : 1.0;
     return Stack(
       children: [
         if (frosted)
@@ -299,8 +301,8 @@ class GradientFrost extends StatelessWidget {
             child: IgnorePointer(
               child: ClipRect(
                 child: GlassBackdrop(
-                  sigma:
-                      GlassEffectConfig.scaleSurfaceBlur(sigma) * scrollFactor,
+                  // 恒定满档，不乘滚动折扣：见 build 里的说明。
+                  sigma: GlassEffectConfig.scaleSurfaceBlur(sigma),
                   saturation: AppGlass.saturate,
                   allowBlur: true,
                   child: const ColoredBox(color: Color(0x00000000)),

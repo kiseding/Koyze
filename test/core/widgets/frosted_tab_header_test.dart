@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:koyze/core/theme/effect_policy.dart';
 import 'package:koyze/core/theme/glass_config.dart';
 import 'package:koyze/core/widgets/frosted_tab_header.dart';
+import 'package:koyze/core/widgets/glass_backdrop.dart';
 import 'package:koyze/core/widgets/gradient_bar_backgrounds.dart';
 import 'package:koyze/core/widgets/origo_chrome.dart';
 import 'package:koyze/core/widgets/root_tab_bar.dart';
@@ -67,11 +69,33 @@ void main() {
       expect(find.byType(BackdropFilter), findsNothing);
     });
 
-    testWidgets('滚动中仍然采样，只是半径乘折扣', (tester) async {
+    testWidgets('滚动中与停手后半径一致，不跟着手势变', (tester) async {
       GlassEffectConfig.setSurfaceBlur(1);
+      addTearDown(GlassScrollActivity.reset);
       await tester.pumpWidget(_host(_tabHeader()));
-      // 起手滚动之前就该有采样；这里只钉住「不会因为滚动而整条栏消失」。
-      expect(find.byType(BackdropFilter), findsOneWidget);
+      final idle = _backdropSigma(tester);
+
+      // 只置位不会触发重建（现在的实现已经不监听它了），所以手动把
+      // GradientFrost 标脏再 pump——模拟「滚动中这一帧真的重建了」。
+      // 少了这一步，即使实现里读 `isScrolling` 也测不出来。
+      GlassScrollActivity.set(true);
+      _rebuildFrost(tester);
+      await tester.pump();
+      final scrolling = _backdropSigma(tester);
+
+      GlassScrollActivity.set(false);
+      _rebuildFrost(tester);
+      await tester.pump();
+
+      // 早先滚动期 sigma 乘 0.5，手指一抬模糊度就跳一下。更糟的是独立页面
+      // 的标题栏不在 `GlassScrollObserver` 范围内（它只包了根壳层），所以
+      // 同一个组件在 tab 里会变、在收藏列表里不变——同一套材质两种观感。
+      expect(
+        scrolling,
+        idle,
+        reason: '滚动期把标题栏半径打了折，停手时会看到模糊度跳变',
+      );
+      expect(_backdropSigma(tester), idle);
     });
 
     testWidgets('拖不透明度滑杆时当帧重画', (tester) async {
@@ -152,6 +176,24 @@ void main() {
 /// 当前树里第一个 [GradientFrost]（tab 栏和独立页面各自只有一个）。
 GradientFrost _frost(WidgetTester tester) {
   return tester.widget<GradientFrost>(find.byType(GradientFrost).first);
+}
+
+/// 标题栏此刻真正喂给 `BackdropFilter` 的高斯半径。
+double _backdropSigma(WidgetTester tester) {
+  final backdrop = tester.widget<GlassBackdrop>(
+    find
+        .descendant(
+          of: find.byType(GradientFrost),
+          matching: find.byType(GlassBackdrop),
+        )
+        .first,
+  );
+  return backdrop.sigma;
+}
+
+/// 把 [GradientFrost] 标脏，逼它重新走一遍 build。
+void _rebuildFrost(WidgetTester tester) {
+  tester.element(find.byType(GradientFrost).first).markNeedsBuild();
 }
 
 /// [GradientFrost] 里那层染色（Stack 的最上层之外，直接带 color/gradient 的盒子）。

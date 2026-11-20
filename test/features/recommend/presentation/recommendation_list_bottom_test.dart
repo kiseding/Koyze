@@ -82,6 +82,23 @@ void main() {
     );
   });
 
+  testWidgets('滚动视口从屏幕顶开始，内容能钻到标题栏背后', (tester) async {
+    await _pumpScreen(tester);
+
+    // 这一条决定标题栏的磨砂看不看得见：`BackdropFilter` 糊一层纯色页面底
+    // 和什么都不做是同一个像素。早先 body 外面套了 `KoyzeAppBarBody`，列表
+    // 视口被压在栏下沿，内容永远钻不到栏背后，于是「猜你喜欢」的标题栏看着
+    // 就是没有虚化。让位改由列表自己的 padding 承担后，视口回到 y=0。
+    final viewport = tester.getRect(find.byType(Viewport).first);
+    expect(
+      viewport.top,
+      0,
+      reason:
+          '视口被压到了 y=${viewport.top}，栏背后只剩纯色底，'
+          '看起来就是「标题栏没虚化」',
+    );
+  });
+
   testWidgets('滚动区域铺到屏幕最底边，不在安全区上方提前收口', (tester) async {
     await _pumpScreen(tester);
 

@@ -49,6 +49,20 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
         flexibleSpace: GradientAppBarBackground(
           background: Theme.of(context).scaffoldBackgroundColor,
         ),
+        // 调校提示条挂在 AppBar 的 bottom 上，而不是塞进 body 的 Column。
+        //
+        // 这一条决定标题栏的磨砂看不看得见：`extendBodyBehindAppBar` 打开时，
+        // Scaffold 把「AppBar 总高（含 bottom）」并进 body 的
+        // `MediaQuery.padding.top`，[koyzeAppBarExtent] 读的就是它。挂在
+        // bottom 上，这个高度自动含进提示条；挂在 body 里，body 就得自己
+        // 让出这段，列表视口被压到栏下沿，内容永远钻不到栏背后——
+        // 模糊一层纯色底和什么都不做逐像素相同，栏看起来就是「没虚化」。
+        bottom: tuning.isEmpty
+            ? null
+            : PreferredSize(
+                preferredSize: Size.fromHeight(_tuningBarHeight(context)),
+                child: _tuningBar(context, ref, tuning),
+              ),
         title: Text(
           S.of(context).forYou,
           style: TextStyle(
@@ -71,130 +85,130 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
         child: SafeArea(
           top: false,
           bottom: false,
-          child: KoyzeAppBarBody(
-            child: Column(
-              children: [
-                if (tuning.isNotEmpty) _tuningBar(context, ref, tuning),
-                Expanded(
-                  child: recommendationsAsync.when(
-                    skipLoadingOnReload: true,
-                    skipLoadingOnRefresh: true,
-                    loading: () => const SafeArea(
-                      top: false,
-                      child: Center(child: AppLoadingIndicator()),
-                    ),
-                    error: (error, _) => SafeArea(
-                      top: false,
-                      child: _buildError(context, ref, error),
-                    ),
-                    data: (recommendations) => RefreshIndicator(
-                      color: kRecommendColor,
-                      // 手动下拉永远绕过 TTL：用户都已经做出「刷新」这个动作了，
-                      // 不该再被缓存挡一次。
-                      onRefresh: () =>
-                          ref.read(recommendationProvider.notifier).retry(),
-                      child: recommendations.isEmpty
-                          ? _buildEmptyScrollable(context)
-                          : AdaptiveSongList.builder(
-                              padding: _listPadding(context),
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              landscapeItemExtent: 76,
-                              itemCount: recommendations.length,
-                              itemBuilder: (context, index) {
-                                final rec = recommendations[index];
-                                return ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
+          child: recommendationsAsync.when(
+            skipLoadingOnReload: true,
+            skipLoadingOnRefresh: true,
+            loading: () => const SafeArea(
+              top: false,
+              child: Center(child: AppLoadingIndicator()),
+            ),
+            error: (error, _) =>
+                SafeArea(top: false, child: _buildError(context, ref, error)),
+            data: (recommendations) => RefreshIndicator(
+              color: kRecommendColor,
+              // 视口现在从屏幕顶开始（为了让内容能钻到标题栏背后），
+              // 指示器默认也会贴着屏幕顶出现，正好压在状态栏和标题上。
+              // 按栏高往下推，让它落在栏下沿——和视口被压下去时的观感一致。
+              edgeOffset: koyzeAppBarExtent(context),
+              // 手动下拉永远绕过 TTL：用户都已经做出「刷新」这个动作了，
+              // 不该再被缓存挡一次。
+              onRefresh: () =>
+                  ref.read(recommendationProvider.notifier).retry(),
+              child: recommendations.isEmpty
+                  ? _buildEmptyScrollable(context)
+                  : AdaptiveSongList.builder(
+                      padding: _listPadding(context),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      landscapeItemExtent: 76,
+                      itemCount: recommendations.length,
+                      itemBuilder: (context, index) {
+                        final rec = recommendations[index];
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          leading: SizedBox(
+                            width: 28,
+                            child: Consumer(
+                              builder: (context, ref, _) {
+                                final isPlaying = ref.watch(
+                                  currentMusicProvider.select(
+                                    (current) =>
+                                        current?.identityKey ==
+                                        rec.song.identityKey,
                                   ),
-                                  leading: SizedBox(
-                                    width: 28,
-                                    child: Consumer(
-                                      builder: (context, ref, _) {
-                                        final isPlaying = ref.watch(
-                                          currentMusicProvider.select(
-                                            (current) =>
-                                                current?.identityKey ==
-                                                rec.song.identityKey,
-                                          ),
-                                        );
-                                        if (isPlaying) {
-                                          return Icon(
-                                            Icons.play_arrow,
-                                            size: 22,
-                                            color: AppColors.accentOf(context),
-                                          );
-                                        }
-                                        return Text(
-                                          '${index + 1}',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w800,
-                                            color: index < 3
-                                                ? kRecommendColor
-                                                : AppColors.mutedText(context),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  title: Text(
-                                    rec.song.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: AppColors.onScaffold(context),
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    rec.reasons.isEmpty
-                                        ? rec.song.singer
-                                        : '${rec.song.singer} · ${rec.reasons.join('、')}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: AppColors.mutedText(context),
-                                    ),
-                                  ),
-                                  trailing: FxIconButton(
-                                    tooltip: S
-                                        .of(context)
-                                        .playNamed(rec.song.name),
-                                    icon: const Icon(
-                                      Icons.play_circle_outline,
-                                      size: 24,
-                                      color: kRecommendColor,
-                                    ),
-                                    onPressed: () => playProvider.playPlaylist(
-                                      recommendations
-                                          .map((r) => r.song)
-                                          .toList(),
-                                      index: index,
-                                      manualPlayName:
-                                          recommendations[index].song.name,
-                                    ),
-                                  ),
-                                  onTap: () => playProvider.playPlaylist(
-                                    recommendations.map((r) => r.song).toList(),
-                                    index: index,
-                                    manualPlayName:
-                                        recommendations[index].song.name,
+                                );
+                                if (isPlaying) {
+                                  return Icon(
+                                    Icons.play_arrow,
+                                    size: 22,
+                                    color: AppColors.accentOf(context),
+                                  );
+                                }
+                                return Text(
+                                  '${index + 1}',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: index < 3
+                                        ? kRecommendColor
+                                        : AppColors.mutedText(context),
                                   ),
                                 );
                               },
                             ),
+                          ),
+                          title: Text(
+                            rec.song.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.onScaffold(context),
+                            ),
+                          ),
+                          subtitle: Text(
+                            rec.reasons.isEmpty
+                                ? rec.song.singer
+                                : '${rec.song.singer} · ${rec.reasons.join('、')}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.mutedText(context),
+                            ),
+                          ),
+                          trailing: FxIconButton(
+                            tooltip: S.of(context).playNamed(rec.song.name),
+                            icon: const Icon(
+                              Icons.play_circle_outline,
+                              size: 24,
+                              color: kRecommendColor,
+                            ),
+                            onPressed: () => playProvider.playPlaylist(
+                              recommendations.map((r) => r.song).toList(),
+                              index: index,
+                              manualPlayName: recommendations[index].song.name,
+                            ),
+                          ),
+                          onTap: () => playProvider.playPlaylist(
+                            recommendations.map((r) => r.song).toList(),
+                            index: index,
+                            manualPlayName: recommendations[index].song.name,
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                ),
-              ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// 调校条的高度。
+  ///
+  /// 它挂在 `AppBar.bottom` 上，而 `PreferredSize` 必须给一个确定值，不能
+  /// 像 body 里的普通 widget 那样由内容自己撑。这里按「顶端 8 的呼吸量 +
+  /// 一行 11.5 号字」折算；字号跟着 textScaler 走，所以系统字体放大时
+  /// AppBar 总高一起涨，列表的让位量不会漏，也就不会把提示条挤出边界。
+  double _tuningBarHeight(BuildContext context) {
+    final text = MediaQuery.textScalerOf(context).scale(11.5);
+    // 系数 1.7 是行高留的余量：11.5 号字的 ascent+descent 约 1.35 倍，
+    // 再给按钮边框与抗锯齿留一点，宁可多出几个像素也不要溢出。
+    return 8 + text * 1.7;
   }
 
   /// 被 AI 调整过时，在列表上方留一句话 + 一个重置入口。
@@ -253,10 +267,17 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
   /// 压住；同时滚到底时它还能正常露出来，不会被安全区「截断」。
   EdgeInsets _listPadding(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
-    // 顶部**只能**留 8：栏高已经由外面的 KoyzeAppBarBody 让过一次了，
-    // 这里再叠一次 koyzeAppBarExtent 就会在「猜你喜欢」上面多空一个工具栏
-    // （下拉刷新的指示器也因此正好落在栏下，不会被顶栏挡住）。
-    return EdgeInsets.fromLTRB(16, 8, 16, 24 + bottom);
+    // 顶部让出整个 AppBar（含调校条）。body 开了 `extendBodyBehindAppBar`，
+    // 列表视口从屏幕顶开始，留白只能写进 padding——这是内容能钻进栏背后、
+    // 栏上磨砂有东西可糊的前提。让位交给外层容器（比如 KoyzeAppBarBody）
+    // 会把视口压到栏下沿，栏背后只剩一块纯色页面底，模糊一层纯色和什么都
+    // 不做逐像素相同，看起来就是「这根栏没虚化」。
+    return EdgeInsets.fromLTRB(
+      16,
+      koyzeAppBarExtent(context) + 8,
+      16,
+      24 + bottom,
+    );
   }
 
   /// 空态也要能下拉：没有候选往往正是最想重试的时候。
