@@ -1402,7 +1402,11 @@ class _LeaderboardSongRow extends ConsumerWidget {
           borderRadius: BorderRadius.circular(16),
           // 每行都在同一块纯白页面底上，模糊前后是同一个颜色。榜单能有上百行，
           // 一屏可见十来行——不改这一处，滚动时每帧要白跑十几次背景采样。
+          //
+          // solidBehind 是必须的：只写 backdrop: false 时，虚化档一开（出厂
+          // 即开）这些行又会重新采样，而这正是「引入虚化后滑动掉帧」的来源。
           backdrop: false,
+          solidBehind: true,
           border: Border.fromBorderSide(
             AppGlass.hairline(context, emphasized: false),
           ),

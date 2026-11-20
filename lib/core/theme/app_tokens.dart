@@ -204,6 +204,7 @@ class GlassSurface extends StatelessWidget {
     this.backdrop = true,
     this.blurBehind = false,
     this.clipContent = true,
+    this.solidBehind = false,
   });
 
   final Widget child;
@@ -252,6 +253,24 @@ class GlassSurface extends StatelessWidget {
   /// 水波纹——那一条交给 `InkWell.customBorder` 自己收边即可，不必为了一闪
   /// 而过的涟漪每帧裁整张卡。
   final bool clipContent;
+
+  /// 这块面的背后是**已知的纯色**（页面底色），没有会被透出来的内容。
+  ///
+  /// 与 [backdrop] 的区别很重要，两者以前被混成同一个开关：
+  ///
+  /// * [backdrop] 说的是「我背后可能有内容（列表、封面、图片），所以要不要
+  ///   采样由虚化档决定」。虚化档 > 0 时采样，用户滑到 100% 能看见透出来的
+  ///   东西变糊——这是用户想要的。
+  /// * [solidBehind] 说的是「我背后**确定**只有页面底色」。这时「模糊一层纯色
+  ///   再混上去」和「直接把这个颜色混上去」在数学上是同一个结果，采样纯属
+  ///   白花：每帧一次全宽离屏捕获 + 高斯卷积，换来的像素完全一样。
+  ///
+  /// 设置页分区卡片是最典型的例子：一屏四五张 700pt 高的整宽卡，背后全是
+  /// 纯色页面底。给它们开 [solidBehind] 之后，虚化滑杆拖到 100% 这一页也不
+  /// 会多出五六层全宽采样。首页搜索框、榜单行、歌单行同理。
+  ///
+  /// 判断标准只有一条：**这块面背后会不会有滚动内容经过**。会，就别开。
+  final bool solidBehind;
 
   @override
   Widget build(BuildContext context) {
@@ -322,15 +341,17 @@ class GlassSurface extends StatelessWidget {
         child: clipped(material),
       );
     }
-    if (!backdrop && !GlassEffectConfig.userBlurEnabled) {
+    if (solidBehind || (!backdrop && !GlassEffectConfig.userBlurEnabled)) {
       // 背后是纯色页面底：把底色混上去和「模糊一层纯色再混」是同一个结果，
       // 但不用每帧做一次全宽 BackdropFilter + 饱和度矩阵。
       //
-      // 这个捷径只在**用户没开虚化**时成立。虚化档一旦 > 0，用户就是想看见
-      // 「透过来的东西变糊」——这时还按「背后是纯色」跳采样，结果是这块面
-      // 对滑杆毫无反应。之前虚化只对迷你播放条生效，正是因为它走的是
-      // LiquidGlassSurface，而这里 7 处 `backdrop: false`（首页搜索框、快捷
-      // 卡、榜单行、歌单行、设置分区卡…）全被这一条挡在外面。
+      // 两条进入条件语义不同，不能合并成一个开关（见 [solidBehind] 的注释）：
+      //
+      // * [solidBehind]：调用方**确定**背后是纯色。无论虚化档开到多少都不采样
+      //   ——采样纯色再模糊，结果和直接混色逐像素相同，纯属白花。
+      // * `!backdrop`：调用方只是「没声明」。这时虚化档 > 0 就当它背后可能有
+      //   东西，照常采样——否则用户滑到 100% 这些面对滑杆毫无反应，那正是
+      //   「虚化只对迷你播放条生效」的成因。
       final flat = Color.alphaBlend(base, AppColors.scaffold(context));
       return DecoratedBox(
         decoration: BoxDecoration(

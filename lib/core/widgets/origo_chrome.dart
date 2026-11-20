@@ -24,6 +24,7 @@ class OrigoChromeSurface extends StatelessWidget {
     this.boxShadow,
     this.blur,
     this.backdrop = true,
+    this.solidBehind = false,
   });
 
   final Widget child;
@@ -47,7 +48,13 @@ class OrigoChromeSurface extends StatelessWidget {
   ///
   /// 首页那排快捷卡是最典型的例子——一屏十张卡各自抓一次背景，全都在采样
   /// 同一块纯色底。手机上这类多余采样正是滑动掉帧的主因之一。
+  ///
+  /// 注意它只是「没声明」的意思：虚化档 > 0 时仍会采样，否则这些面对滑杆
+  /// 毫无反应。**确定**背后是纯色时请改用 [solidBehind]。
   final bool backdrop;
+
+  /// 背后**确定**只有页面底色，没有滚动内容会经过。见 [GlassSurface.solidBehind]。
+  final bool solidBehind;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +66,7 @@ class OrigoChromeSurface extends StatelessWidget {
       emphasized: emphasized,
       blur: blur,
       backdrop: backdrop,
+      solidBehind: solidBehind,
       border: Border.fromBorderSide(
         AppGlass.hairline(context, emphasized: emphasized),
       ),

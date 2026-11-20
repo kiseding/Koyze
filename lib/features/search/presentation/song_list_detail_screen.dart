@@ -228,7 +228,11 @@ class _SongListRow extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         // 行背后是纯色页面底，模糊与实色完全相同；搜索结果动辄几十上百行，
         // 每行一次背景采样在滑动时是纯浪费。
+        //
+        // 必须用 solidBehind：只写 backdrop: false 挡不住虚化档——那一档开着
+        //（出厂即开）时这些行又会长回来采样，滑动立刻变贵。
         backdrop: false,
+        solidBehind: true,
         border: Border.fromBorderSide(
           AppGlass.hairline(context, emphasized: false),
         ),

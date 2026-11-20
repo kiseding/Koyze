@@ -59,6 +59,17 @@ class SettingsSectionCard extends StatelessWidget {
           child: GlassSurface(
             style: AppGlassStyle.regular,
             backdrop: false,
+            // 设置页这张卡背后**只有页面底色**：它是整页里最靠后的一层内容，
+            // 卡片之间和卡片下面都没有滚动内容经过（列表本身在卡片外层，
+            // 卡片自己是不透明的整宽块）。
+            //
+            // 所以这里声明的不是「我要不要采样」，而是「采样纯色没有意义」：
+            // 虚化滑杆拖到 100%，这一页也不该凭空多出四五层全宽离屏捕获。
+            // 一屏四五张 700pt 高的卡，那正好是滚动掉帧的主要来源。
+            //
+            // 别改成 true：卡片里的文字/开关不会被裁到圆角外，不需要为它们
+            // 花每帧一次的全宽卷积。
+            solidBehind: true,
             clipContent: false,
             borderRadius: kSettingsCardRadius,
             border: Border.fromBorderSide(

@@ -473,7 +473,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         borderRadius: BorderRadius.circular(16),
         // 每一行都铺在同一块纯色页面底上，模糊前后是同一个像素；这里每行都
         // 采样一次纯属白烧 GPU，歌单一长就是每帧几十次。
+        //
+        // solidBehind 才是真正省掉采样的那个开关：只写 backdrop: false 时，
+        // 虚化档一开这些行又会重新采样，于是长歌单滚动立刻掉帧。
         backdrop: false,
+        solidBehind: true,
         border: Border.fromBorderSide(
           AppGlass.hairline(context, emphasized: false),
         ),

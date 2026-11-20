@@ -314,7 +314,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         accent: AppColors.accentOf(context),
         // 背后是整页的纯色底，模糊前后一模一样；省掉这次全屏采样。
+        // 用 solidBehind 而不是只写 backdrop: false——后者只在虚化关着时
+        // 才省，虚化开着（出厂就是开的）照样会为一片纯色抓一次背景。
         backdrop: false,
+        solidBehind: true,
         child: Row(
           children: [
             Icon(Icons.search_rounded, color: hint, size: 21),
@@ -633,6 +636,7 @@ class _QuickEntryCard extends ConsumerWidget {
         // 一屏十张快捷卡，每张都在同一块纯色底上抓一次背景，却看不出差别。
         // 改成实色混合同一个底色，八次全屏采样直接省掉。
         backdrop: false,
+        solidBehind: true,
         child: Row(
           children: [
             Container(

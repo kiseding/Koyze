@@ -473,7 +473,11 @@ class _FontTile extends StatelessWidget {
     final accent = AppColors.accentOf(context);
     return GlassSurface(
       style: AppGlassStyle.regular,
+      // 这一行是列表里的普通一项，背后只有页面底色——没有别的内容会从它背后
+      // 经过，模糊一层纯色和直接混色逐像素相同。用 solidBehind 声明这一点，
+      // 虚化档开到 100% 也不会为它多付一次全宽采样。
       backdrop: false,
+      solidBehind: true,
       borderRadius: BorderRadius.circular(16),
       border: Border.fromBorderSide(AppGlass.hairline(context)),
       child: Padding(
