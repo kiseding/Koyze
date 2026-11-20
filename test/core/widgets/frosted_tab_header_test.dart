@@ -103,7 +103,73 @@ void main() {
       );
       expect(find.byType(GradientFrost), findsOneWidget);
     });
+
+    testWidgets('模糊半径和独立页面一致', (tester) async {
+      GlassEffectConfig.setSurfaceBlur(1);
+      await tester.pumpWidget(_host(_tabHeader()));
+      final tabSigma = _frost(tester).sigma;
+
+      await tester.pumpWidget(
+        _host(const GradientAppBarBackground(background: Colors.transparent)),
+      );
+      final appBarSigma = _frost(tester).sigma;
+
+      // tab 栏早先取 `AppGlass.blurChrome`（15 × 0.85 = 12.75），独立页面
+      // 取写死的 16。并排看就是两种材质，所以钉住这个相等关系。
+      expect(tabSigma, appBarSigma);
+      expect(tabSigma, GradientAppBarBackground.defaultBlur);
+    });
+
+    testWidgets('染色层是纯色，没有栏下渐隐', (tester) async {
+      GlassEffectConfig.setSurfaceBlur(1);
+      GlassEffectConfig.setSurfaceOpacity(0.65);
+      await tester.pumpWidget(_host(_tabHeader()));
+
+      // 早先 tab 栏比栏本体高 28pt 并把那一截淡出到 0，导致栏下三分之一是
+      // 半透明的，滚到那里的封面会透上来。收藏列表没有这截渐隐，两相对比
+      // 就显出「tab 栏更淡」。现在两边都是纯色平涂。
+      final layer = _tintLayer(tester);
+      expect(layer.color, isNotNull, reason: '染色层不该是渐变');
+      expect(layer.gradient, isNull);
+    });
+
+    testWidgets('背景层高度就是栏本体，不多留一截', (tester) async {
+      GlassEffectConfig.setSurfaceBlur(1);
+      await tester.pumpWidget(_host(_tabHeader()));
+
+      final top = 59.0; // _host 里的状态栏高度
+      final frostBox = tester.getSize(
+        find.descendant(
+          of: find.byType(FrostedTabHeader),
+          matching: find.byType(GradientFrost),
+        ),
+      );
+      expect(frostBox.height, top + FrostedTabHeader.barHeight);
+    });
   });
+}
+
+/// 当前树里第一个 [GradientFrost]（tab 栏和独立页面各自只有一个）。
+GradientFrost _frost(WidgetTester tester) {
+  return tester.widget<GradientFrost>(find.byType(GradientFrost).first);
+}
+
+/// [GradientFrost] 里那层染色（Stack 的最上层之外，直接带 color/gradient 的盒子）。
+BoxDecoration _tintLayer(WidgetTester tester) {
+  final boxes = tester.widgetList<DecoratedBox>(
+    find.descendant(
+      of: find.byType(GradientFrost),
+      matching: find.byType(DecoratedBox),
+    ),
+  );
+  for (final box in boxes) {
+    final decoration = box.decoration;
+    if (decoration is! BoxDecoration) continue;
+    if (decoration.color != null || decoration.gradient != null) {
+      return decoration;
+    }
+  }
+  fail('GradientFrost 下面没有找到染色层');
 }
 
 /// 顶栏染色层此刻的 alpha。虚化打开时染色层是一个渐变色，取它最浓的一端。

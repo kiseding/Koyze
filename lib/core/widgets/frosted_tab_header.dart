@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
-import '../theme/app_tokens.dart';
 import 'gradient_bar_backgrounds.dart';
 import 'liquid_glass.dart';
 import 'pressable.dart';
@@ -80,17 +79,19 @@ class FrostedTabHeader extends StatelessWidget {
         // 就是「tab 栏没用上虚化」。统一成一个实现之后，虚化档、滚动折扣、
         // 不透明度三项对两根栏同时生效，不会再出现「这里跟、那里不跟」。
         //
-        // 渐隐只在最后一段：整块 chrome 高度上保持浓度，快到底边才淡出。
-        // 半透明会让封面上的亮色漏到图标之间，看着像栏「脏了」。
+        // 高度和模糊半径都跟独立页面的 AppBar 取同一个值，栏下**不再多出
+        // 一截渐隐区**。早先这里高 28pt 并让它淡出到 0，想的是「列表从栏底
+        // 钻出来时不撞硬边」；代价是这根栏整体比收藏列表浅一档——栏下三分
+        // 之一是半透明的，滚到那里的封面会透上来，看着像栏「没画满」。
+        // 收藏列表一直是没有这截渐隐的，两相对比就更明显。现在统一成硬边。
         Positioned(
           top: 0,
           left: 0,
           right: 0,
-          height: top + barHeight + 28,
+          height: top + barHeight,
           child: IgnorePointer(
             child: GradientFrost(
-              sigma: blur ?? AppGlass.blurChrome,
-              fadeOutFrom: (top + barHeight) / (top + barHeight + 28),
+              sigma: blur ?? GradientAppBarBackground.defaultBlur,
               child: const SizedBox.expand(),
             ),
           ),

@@ -82,6 +82,19 @@ class GradientAppBarBackground extends StatelessWidget {
     this.vivid = true,
   });
 
+  /// 所有标题栏共用的模糊半径。
+  ///
+  /// 独立页面的 AppBar 和根壳层的 tab 栏必须是**同一个数**，否则两根栏并排
+  /// 看就是两种材质。以前这里写死 16，tab 栏却取 `AppGlass.blurChrome`
+  /// （15 × 0.85 = 12.75），差 3.25 sigma——肉眼能看出 tab 栏更「清」。
+  /// 现在两边都从这里取。
+  ///
+  /// 不用 `AppGlass.blurChrome` 的原因：那条路径额外乘了性能模式的
+  /// `_blurScale`（0.85 / 0.65），而标题栏是常驻 chrome，降档后整根栏会
+  /// 变得比正文还清楚。真正该跟用户档位走的是 [GlassEffectConfig.surfaceBlur]，
+  /// 它在 [GradientFrost] 内部对 sigma 再乘一次，两条路径都不落下。
+  static const double defaultBlur = 16;
+
   /// 保留参数以兼容现有调用；实际 tint 由玻璃底色决定。
   final Color background;
 
@@ -97,7 +110,7 @@ class GradientAppBarBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final frost = GradientFrost(
-      sigma: blur ?? 16,
+      sigma: blur ?? defaultBlur,
       child: child ?? const SizedBox.expand(),
     );
     if (child != null) return frost;
