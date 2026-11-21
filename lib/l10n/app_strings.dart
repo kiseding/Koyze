@@ -511,6 +511,8 @@ class S {
   String get searchLyrics => _l10n.searchLyrics;
   String get equalizerUnavailable => _l10n.equalizerUnavailable;
   String get equalizerUnavailableBody => _l10n.equalizerUnavailableBody;
+  String get equalizerEngineFallback => _l10n.equalizerEngineFallback;
+  String get equalizerEngineFallbackBody => _l10n.equalizerEngineFallbackBody;
   String get equalizerHint => _l10n.equalizerHint;
   String get unavailableOnPlatform => _l10n.unavailableOnPlatform;
   String get gainDb => _l10n.gainDb;

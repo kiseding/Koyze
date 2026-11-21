@@ -10,6 +10,7 @@ import '../../../core/app_version.dart';
 import '../../../core/card_expand.dart';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/logging/app_log.dart';
+import '../../../core/platform/save_file_target.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_themes.dart';
@@ -1474,10 +1475,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         fileName: fileName,
         type: FileType.custom,
         allowedExtensions: const ['json'],
-        bytes: Platform.isIOS || Platform.isAndroid ? bytes : null,
+        // 鸿蒙与 Android / iOS 同一条原生保存通道：不传字节会直接抛
+        // `ArgumentError`。原先只判 Android/iOS，鸿蒙上导出必失败。
+        bytes: saveFileNeedsBytes ? bytes : null,
       );
       if (savedPath == null) return;
-      if (!Platform.isIOS && !Platform.isAndroid) {
+      // 反过来，鸿蒙返回的是 `file://docs/...` 而非可写路径，再拿去
+      // `File(...)` 会报 13900002。只有「只给路径」的平台才需要自己写。
+      if (callerWritesSavedFile) {
         await File(savedPath).writeAsString(jsonStr);
       }
 

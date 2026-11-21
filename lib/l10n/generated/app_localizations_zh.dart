@@ -1057,7 +1057,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get equalizerUnavailableBody =>
-      '均衡器需要播放引擎开放音频特效通道。iOS / macOS 的 AVPlayer 与 Windows 的 Media Foundation 都没有暴露这一层，因此暂时只在 Android 上生效。';
+      '均衡器需要播放引擎开放音频特效通道。iOS / macOS 的 AVPlayer 与 Windows 的 Media Foundation 都没有暴露这一层，因此这里无法生效。';
+
+  @override
+  String get equalizerEngineFallback => '均衡器不可用：音频引擎已回退';
+
+  @override
+  String get equalizerEngineFallbackBody =>
+      '本平台本应通过 libmpv 支持均衡器，但当前运行的是 just_audio 回退路径——通常是 libmpv 没能加载。重新安装完整包，或在反馈中附上启动日志里的 mpv 相关行，可以定位到具体原因。';
 
   @override
   String get equalizerHint => '按频段调整播放音色，对所有音源生效';

@@ -1089,7 +1089,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get equalizerUnavailableBody =>
-      'The equalizer needs an audio-effects channel. AVPlayer on iOS and macOS, and Media Foundation on Windows, do not expose one, so it currently works on Android only.';
+      'The equalizer needs an audio-effects channel. AVPlayer on iOS and macOS, and Media Foundation on Windows, do not expose one, so it cannot take effect here.';
+
+  @override
+  String get equalizerEngineFallback =>
+      'Equalizer unavailable: audio engine fell back';
+
+  @override
+  String get equalizerEngineFallbackBody =>
+      'This platform should support the equalizer through libmpv, but the app is currently running the just_audio fallback — usually because libmpv failed to load. Reinstalling the full package, or sharing the mpv lines from the startup log, will pin down the cause.';
 
   @override
   String get equalizerHint => 'Adjust the tone for every source';

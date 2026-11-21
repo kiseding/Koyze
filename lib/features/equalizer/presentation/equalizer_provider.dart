@@ -39,6 +39,7 @@ class EqualizerState {
   const EqualizerState({
     this.settings = const EqualizerSettings(),
     this.supported = false,
+    this.unavailable = EqualizerUnavailable.platform,
     this.layout,
     this.loading = true,
   });
@@ -47,6 +48,13 @@ class EqualizerState {
 
   /// 当前平台是否有可用的均衡器实现。
   final bool supported;
+
+  /// 不可用的原因。只在 [supported] 为 false 时才有意义。
+  ///
+  /// 界面必须区分「平台本来就没有」和「平台有但引擎回退了」——后者是可
+  /// 诊断的问题（libmpv 没加载起来），说成「当前平台不支持」会把用户
+  /// 引向错误的结论。
+  final EqualizerUnavailable unavailable;
 
   /// 设备真实频段布局；播放器还没激活过时为 null。
   final EqualizerBandLayout? layout;
@@ -70,11 +78,13 @@ class EqualizerState {
   EqualizerState copyWith({
     EqualizerSettings? settings,
     bool? supported,
+    EqualizerUnavailable? unavailable,
     EqualizerBandLayout? layout,
     bool? loading,
   }) => EqualizerState(
     settings: settings ?? this.settings,
     supported: supported ?? this.supported,
+    unavailable: unavailable ?? this.unavailable,
     layout: layout ?? this.layout,
     loading: loading ?? this.loading,
   );
@@ -84,7 +94,12 @@ class EqualizerState {
 String equalizerSubtitle(EqualizerState state, {Locale? locale}) {
   final en = locale?.languageCode == 'en';
   if (!state.supported) {
-    return en ? 'Not supported on this platform' : '当前平台不支持';
+    return switch (state.unavailable) {
+      EqualizerUnavailable.engineFallback =>
+        en ? 'Unavailable: audio engine fell back' : '不可用：音频引擎已回退',
+      EqualizerUnavailable.platform =>
+        en ? 'Not supported on this platform' : '当前平台不支持',
+    };
   }
   if (!state.settings.enabled) return en ? 'Off' : '未开启';
   final preset = _presetSubtitle(state.settings.presetId, en: en);
@@ -118,11 +133,28 @@ final equalizerProvider = NotifierProvider<EqualizerNotifier, EqualizerState>(
   EqualizerNotifier.new,
 );
 
+/// 从桥推导「不可用原因」。
+///
+/// 桥自己知道为什么不可用（[UnsupportedEqualizerBridge.reason]），但
+/// [EqualizerBridge] 接口不该为此多一个字段——支持均衡器的实现根本没有
+/// 「原因」可言。所以在这里按具体类型取，取不到就按平台不支持处理。
+EqualizerUnavailable _unavailableOf(EqualizerBridge bridge) =>
+    bridge is UnsupportedEqualizerBridge
+    ? bridge.reason
+    : EqualizerUnavailable.platform;
+
 class EqualizerNotifier extends BuildlessNotifier<EqualizerState> {
   EqualizerNotifier({EqualizerBridge? bridge, StorageLoader? storage})
     : _bridgeOverride = bridge,
       _storageOverride = storage,
-      super(EqualizerState(supported: bridge?.isSupported ?? false)) {
+      super(
+        EqualizerState(
+          supported: bridge?.isSupported ?? false,
+          unavailable: bridge == null
+              ? EqualizerUnavailable.platform
+              : _unavailableOf(bridge),
+        ),
+      ) {
     // Direct instantiation (tests) has no provider to build, so the restore
     // starts here; provider-hosted instances start it from [build].
     if (bridge != null) {
@@ -150,7 +182,12 @@ class EqualizerNotifier extends BuildlessNotifier<EqualizerState> {
     _storage = _storageOverride ?? ref.watch(equalizerStorageProvider);
     if (!_restoreStarted) {
       _restoreStarted = true;
-      publish(EqualizerState(supported: _bridge.isSupported));
+      publish(
+        EqualizerState(
+          supported: _bridge.isSupported,
+          unavailable: _unavailableOf(_bridge),
+        ),
+      );
       _restored = _restore();
     }
     return super.build();

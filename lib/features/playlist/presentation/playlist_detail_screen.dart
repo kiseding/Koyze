@@ -10,6 +10,7 @@ import '../../../l10n/app_strings.dart';
 import '../../../core/animations/micro_animations.dart';
 import '../../../core/motion/motion_tokens.dart';
 import '../../../core/pagination/page_range.dart';
+import '../../../core/platform/save_file_target.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
@@ -1212,11 +1213,12 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         fileName: fileName,
         type: FileType.custom,
         allowedExtensions: const ['m3u8', 'm3u'],
-        // 移动端的 saveFile 只返回用户选的路径，字节要自己写过去。
-        bytes: Platform.isIOS || Platform.isAndroid ? bytes : null,
+        // 移动端（含鸿蒙）的 saveFile 由原生侧落盘，字节必须一起传；
+        // 桌面端只返回路径，内容要自己写。判据见 save_file_target.dart。
+        bytes: saveFileNeedsBytes ? bytes : null,
       );
       if (path == null) return;
-      if (!Platform.isIOS && !Platform.isAndroid) {
+      if (callerWritesSavedFile) {
         await File(path).writeAsBytes(bytes);
       }
       if (!context.mounted) return;

@@ -2153,8 +2153,20 @@ abstract class AppLocalizations {
   /// No description provided for @equalizerUnavailableBody.
   ///
   /// In en, this message translates to:
-  /// **'The equalizer needs an audio-effects channel. AVPlayer on iOS and macOS, and Media Foundation on Windows, do not expose one, so it currently works on Android only.'**
+  /// **'The equalizer needs an audio-effects channel. AVPlayer on iOS and macOS, and Media Foundation on Windows, do not expose one, so it cannot take effect here.'**
   String get equalizerUnavailableBody;
+
+  /// No description provided for @equalizerEngineFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Equalizer unavailable: audio engine fell back'**
+  String get equalizerEngineFallback;
+
+  /// No description provided for @equalizerEngineFallbackBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This platform should support the equalizer through libmpv, but the app is currently running the just_audio fallback — usually because libmpv failed to load. Reinstalling the full package, or sharing the mpv lines from the startup log, will pin down the cause.'**
+  String get equalizerEngineFallbackBody;
 
   /// No description provided for @equalizerHint.
   ///

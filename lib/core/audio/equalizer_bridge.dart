@@ -134,19 +134,55 @@ abstract class EqualizerBridge {
   Future<void> dispose();
 }
 
+/// 均衡器不可用的原因。
+///
+/// 界面需要区分这两种情况，否则会把「引擎回退」说成「平台不支持」：
+///
+/// * [platform]: 这个平台**从来没有**均衡器实现。iOS / macOS 的原生侧是
+///   AVPlayer，没有音效通道；Windows / Linux 的 just_audio 同样没实现。
+///   Web 也属于这一类。用户看到「不支持」是准确信息，没有可操作空间。
+/// * [engineFallback]: 平台**本该支持**（宏蒙靠 mpv 的 `af` 链），但当前
+///   跑的是 just_audio 回退路径。这通常意味着 libmpv 没加载起来，是
+///   可诊断、可修的问题，不该让用户以为设备不支持。
+enum EqualizerUnavailable {
+  /// 平台本身没有实现。
+  platform,
+
+  /// 平台支持，但当前引擎不是 mpv。
+  engineFallback,
+}
+
 /// 依平台创建均衡器桥。
 ///
-/// 只有 Android 可用：just_audio 的 `DarwinAudioEffect` 仅是空 mixin，
-/// iOS / macOS 侧的原生实现（AVPlayer）没有任何音效通道；
-/// `just_audio_windows` 同样未实现音效注入。
+/// 只有 Android 的 just_audio 有原生音效通道：`DarwinAudioEffect` 仅是
+/// 空 mixin，iOS / macOS 侧没有任何音效注入；`just_audio_windows` 也没有。
+/// 鸿蒙靠 mpv 走 `af` 链，不经过这里——见 `mpv_equalizer_factory.dart`。
 EqualizerBridge createEqualizerBridge({bool? supported}) {
   final available = supported ?? (!kIsWeb && Platform.isAndroid);
-  return available ? AndroidEqualizerBridge() : const UnsupportedEqualizerBridge();
+  if (available) return AndroidEqualizerBridge();
+  return UnsupportedEqualizerBridge(_unavailableReasonForHost());
+}
+
+/// 当前宿主在「引擎回退」时应该报哪一种不可用。
+///
+/// 只有鸿蒙落在 [EqualizerUnavailable.engineFallback]：它是唯一一个
+/// 「平台有实现（mpv af 链）但默认引擎之外没有退路」的宿主。其它平台
+/// 无论引擎是什么都没有音效通道，报 [EqualizerUnavailable.platform]。
+EqualizerUnavailable _unavailableReasonForHost() {
+  if (!kIsWeb && Platform.operatingSystem == 'ohos') {
+    return EqualizerUnavailable.engineFallback;
+  }
+  return EqualizerUnavailable.platform;
 }
 
 /// 平台没有均衡器实现时的占位桥，所有操作都是空操作。
 class UnsupportedEqualizerBridge implements EqualizerBridge {
-  const UnsupportedEqualizerBridge();
+  const UnsupportedEqualizerBridge([
+    this.reason = EqualizerUnavailable.platform,
+  ]);
+
+  /// 不可用的原因，供界面选文案。
+  final EqualizerUnavailable reason;
 
   @override
   bool get isSupported => false;

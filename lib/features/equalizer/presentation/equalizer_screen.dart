@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:koyze/l10n/app_strings.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:koyze/core/theme/app_colors.dart';
+import 'package:koyze/core/audio/equalizer_bridge.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/widgets/fx_icon_button.dart';
 import 'package:koyze/core/widgets/fx_switch.dart';
@@ -139,7 +140,7 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                   _buildSwitchCard(context, state),
                   if (!state.supported) ...[
                     const SizedBox(height: 16),
-                    _buildUnsupportedNotice(context),
+                    _buildUnsupportedNotice(context, state),
                   ] else ...[
                     const SizedBox(height: 20),
                     _buildPresetSection(context, state),
@@ -202,7 +203,11 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
     );
   }
 
-  Widget _buildUnsupportedNotice(BuildContext context) {
+  Widget _buildUnsupportedNotice(BuildContext context, EqualizerState state) {
+    // 两种「不可用」必须分开说。引擎回退是可诊断的问题（libmpv 没起来），
+    // 说成「当前平台不支持」会让用户以为设备没有这个能力，从此不再尝试。
+    final fallback = state.unavailable == EqualizerUnavailable.engineFallback;
+    final s = S.of(context);
     return _Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -210,7 +215,9 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
-              Icons.info_outline_rounded,
+              fallback
+                  ? Icons.warning_amber_rounded
+                  : Icons.info_outline_rounded,
               size: 20,
               color: AppColors.secondaryText(context),
             ),
@@ -220,7 +227,9 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    S.of(context).equalizerUnavailable,
+                    fallback
+                        ? s.equalizerEngineFallback
+                        : s.equalizerUnavailable,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -229,7 +238,9 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    S.of(context).equalizerUnavailableBody,
+                    fallback
+                        ? s.equalizerEngineFallbackBody
+                        : s.equalizerUnavailableBody,
                     style: TextStyle(
                       fontSize: 12.5,
                       height: 1.5,

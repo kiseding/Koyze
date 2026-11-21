@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:koyze/core/audio/equalizer_bridge.dart';
 import 'package:koyze/core/storage/storage_service.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_preset.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_settings.dart';
@@ -242,6 +243,40 @@ void main() {
         ),
       ),
       '已开启 · 摇滚',
+    );
+  });
+
+  test('引擎回退与平台不支持要分开说', () async {
+    // 鸿蒙上 libmpv 没加载起来时，均衡器走 just_audio 回退路径，拿不到
+    // 音效通道。这时说「当前平台不支持」是错的——平台本身支持，问题在
+    // 引擎。用户看到前者只会放弃，看到后者还能去查日志。
+    expect(
+      equalizerSubtitle(
+        const EqualizerState(
+          supported: false,
+          unavailable: EqualizerUnavailable.engineFallback,
+        ),
+      ),
+      '不可用：音频引擎已回退',
+    );
+    // 其它平台维持原样。
+    expect(
+      equalizerSubtitle(
+        const EqualizerState(
+          supported: false,
+          unavailable: EqualizerUnavailable.platform,
+        ),
+      ),
+      '当前平台不支持',
+    );
+  });
+
+  test('不支持的空实现默认按平台不支持报，不会误报成引擎回退', () async {
+    // 默认参数必须是 platform：漏传时宁可说「平台不支持」，也不能把所有
+    // 平台都诊断成引擎故障。
+    expect(
+      const UnsupportedEqualizerBridge().reason,
+      EqualizerUnavailable.platform,
     );
   });
 }

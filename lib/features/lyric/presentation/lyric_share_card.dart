@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/platform/save_file_target.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/koyze_modal.dart';
@@ -93,10 +94,11 @@ class _LyricCardDialogState extends State<_LyricCardDialog> {
         fileName: fileName,
         type: FileType.custom,
         allowedExtensions: const ['png'],
-        bytes: Platform.isIOS || Platform.isAndroid ? bytes : null,
+        // 鸿蒙与 Android / iOS 一样由原生侧落盘，漏传字节会抛异常。
+        bytes: saveFileNeedsBytes ? bytes : null,
       );
       if (path == null) return;
-      if (!Platform.isIOS && !Platform.isAndroid) {
+      if (callerWritesSavedFile) {
         await File(path).writeAsBytes(bytes);
       }
       if (!mounted) return;
