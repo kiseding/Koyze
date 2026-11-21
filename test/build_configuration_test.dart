@@ -225,6 +225,102 @@ void main() {
     );
   });
 
+  test('Web 编译图里不出现 mpv / dart:ffi', () {
+    // Web 构建（scripts/build-web.sh）只从 lib/main_web.dart 出发编译，凡是
+    // 从这里可达的库都会进 dart2js。而 dart2js 只允许 JS interop 成员是
+    // `external`，mpv_audio_kit 与 package:ffi 全是 dart:ffi 的 external
+    // 声明——一旦可达，整条 Web 构建直接报
+    // "Only JS interop members may be 'external'"，报错落在 pub-cache 里的
+    // 第三方文件上，看不出是哪个本地改动引入的。
+    //
+    // v6.0.0 就是这么挂的：LxAudioHandler 为了做 `engine is MpvEngine` 直接
+    // import 了 mpv_engine，而 Web 入口经 audio_handler.dart 一路可达。现在
+    // 类型判断挪进了条件导入的原生分支，这条测试把边界钉死。
+    //
+    // 两个约定必须和构建脚本保持一致，否则这里会误报或漏报：
+    //   1. scripts/web-patch/lib 覆盖 lib 的同名文件（脚本用 cp -r 覆盖）；
+    //   2. 条件导入按 Web 环境求值：dart.library.io 为 false（取默认分支），
+    //      dart.library.js_interop 为 true（取备选分支）。
+    // dart:io 不在禁止列表里——构建脚本会把它改写成 io_shim，那是 Web 安全的。
+    const patchRoot = 'scripts/web-patch/lib';
+
+    /// 逻辑路径（`lib/...`）→ 磁盘上的实际文件，patch 覆盖优先。
+    String? actual(String logical) {
+      final patched = '$patchRoot/${logical.substring('lib/'.length)}';
+      if (File(patched).existsSync()) return patched;
+      return File(logical).existsSync() ? logical : null;
+    }
+
+    String normalize(String path) {
+      final parts = <String>[];
+      for (final segment in path.split('/')) {
+        if (segment.isEmpty || segment == '.') continue;
+        // `..` 最多退到包根为止：Dart 解析 package: URI 时不会越过 `lib/`，
+        // 而仓库里确实有 `lib/core/storage/xxx.dart` 写
+        // `import '../../../core/storage/storage_service.dart'` 这种多退一级
+        // 的写法，靠的就是这个截断。这里若照搬文件系统语义会把 `lib` 也删掉，
+        // 后面所有路径都对不上。
+        if (segment == '..') {
+          if (parts.length > 1) parts.removeLast();
+          continue;
+        }
+        parts.add(segment);
+      }
+      return parts.join('/');
+    }
+
+    final directive = RegExp(
+      r"""^\s*(?:import|export)\s+'([^']+)'(?:\s+if\s*\(([^)]+)\)\s+'([^']+)')?""",
+      multiLine: true,
+    );
+
+    final forbidden = <String>[];
+    final visited = <String>{};
+    final queue = <String>['lib/main_web.dart'];
+
+    while (queue.isNotEmpty) {
+      final logical = normalize(queue.removeLast());
+      if (!visited.add(logical)) continue;
+
+      final file = actual(logical);
+      expect(file, isNotNull, reason: 'Web 编译图引用了不存在的文件 $logical');
+      final source = File(file!).readAsStringSync();
+
+      for (final match in directive.allMatches(source)) {
+        final primary = match.group(1)!;
+        final condition = match.group(2);
+        final alternate = match.group(3);
+        var chosen = primary;
+        if (condition != null && alternate != null) {
+          chosen = condition.contains('js_interop') ? alternate : primary;
+        }
+
+        if (chosen == 'dart:ffi' ||
+            chosen.startsWith('package:ffi/') ||
+            chosen.startsWith('package:mpv_audio_kit/')) {
+          forbidden.add('$logical -> $chosen');
+          continue;
+        }
+        if (chosen.startsWith('package:koyze/')) {
+          queue.add('lib/${chosen.substring('package:koyze/'.length)}');
+          continue;
+        }
+        if (chosen.startsWith('dart:') || chosen.startsWith('package:')) {
+          continue;
+        }
+        final directory = logical.substring(0, logical.lastIndexOf('/'));
+        queue.add(normalize('$directory/$chosen'));
+      }
+    }
+
+    expect(
+      forbidden,
+      isEmpty,
+      reason: 'Web 编译图里出现了 mpv / dart:ffi，dart2js 会直接编译失败：\n'
+          '${forbidden.join('\n')}',
+    );
+  });
+
   test('HarmonyOS CI restores the prebuilt libmpv after wiping entry/libs', () {
     final workflow = File(
       '.github/workflows/build-harmonyos-online.yml',

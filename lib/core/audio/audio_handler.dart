@@ -11,8 +11,7 @@ import 'package:rxdart/rxdart.dart';
 import '../logging/app_log.dart';
 import 'equalizer_bridge.dart';
 import 'just_audio_engine.dart';
-import 'mpv_equalizer_bridge.dart';
-import 'mpv_engine.dart';
+import 'mpv_equalizer_factory.dart';
 import 'playback_cache_service.dart';
 import 'playback_engine.dart';
 import 'playback_interruption.dart';
@@ -974,12 +973,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// 按引擎挑均衡器实现。
   ///
-  /// mpv 走自己的 `af` 音频滤镜链，因此均衡器在所有跑 mpv 的平台上都可用；
-  /// just_audio 仍然只有 Android 有原生音效通道，其余平台返回空实现。
-  static EqualizerBridge _equalizerFor(PlaybackEngine? engine) {
-    if (engine is MpvEngine) return MpvEqualizerBridge(engine);
-    return createEqualizerBridge();
-  }
+  /// 真正的类型判断在 `mpv_equalizer_factory_native.dart` 里：Web 上不能
+  /// 出现 `MpvEngine` 这个名字，否则会把 mpv 的 FFI 依赖拖进 dart2js。
+  static EqualizerBridge _equalizerFor(PlaybackEngine? engine) =>
+      equalizerForEngine(engine);
 
   /// 默认播放器。均衡器音效在这里注入。
   AudioPlayer _createPlayerWithEqualizer() {
