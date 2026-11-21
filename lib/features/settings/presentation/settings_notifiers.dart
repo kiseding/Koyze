@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/audio/audio_enhancement.dart';
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/performance/low_memory.dart';
 import '../../../core/storage/persisted_setting.dart';
@@ -1275,5 +1276,47 @@ class FlowingBackdropNotifier extends _PersistedSettingNotifier<bool> {
     unawaited(
       persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
     );
+  }
+}
+
+/// 除均衡器之外的音频增强（交叉馈送 / 响度均衡 / 限幅）。
+///
+/// 三项存在同一个键里：它们都是「mpv af 链上的一个开关」，分开存会让
+/// 首次进入设置页时触发三次独立的异步读取，而它们总是一起被施加。
+class AudioEnhancementNotifier
+    extends _PersistedSettingNotifier<AudioEnhancementSettings> {
+  AudioEnhancementNotifier({StorageLoader? storage})
+    : super(const AudioEnhancementSettings(), storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'audio_enhancement_v1';
+
+  @override
+  AudioEnhancementSettings? readFrom(StorageService storage) {
+    final raw = storage.getJson(storageKey);
+    if (raw == null) return null;
+    return AudioEnhancementSettings.fromJson(raw);
+  }
+
+  Future<void> setCrossfeedEnabled(bool enabled) =>
+      _commit(setting.value.copyWith(crossfeedEnabled: enabled));
+
+  Future<void> setCrossfeedStrength(double strength) {
+    if (!strength.isFinite) return Future<void>.value();
+    return _commit(
+      setting.value.copyWith(crossfeedStrength: strength.clamp(0.0, 1.0)),
+    );
+  }
+
+  Future<void> setLoudnessEnabled(bool enabled) =>
+      _commit(setting.value.copyWith(loudnessEnabled: enabled));
+
+  Future<void> setLimiterEnabled(bool enabled) =>
+      _commit(setting.value.copyWith(limiterEnabled: enabled));
+
+  Future<void> _commit(AudioEnhancementSettings next) async {
+    if (next == setting.value) return;
+    await persist(next, (storage) => storage.setJson(storageKey, next.toJson()));
   }
 }

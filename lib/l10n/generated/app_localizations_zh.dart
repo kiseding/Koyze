@@ -2897,7 +2897,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get skipSilence => '跳过静音';
 
   @override
-  String get skipSilenceSubtitle => '跳过首尾与中间的空白（仅 Android）';
+  String get skipSilenceSubtitle => '自动跳过开头的空白段落';
 
   @override
   String get playbackFade => '播放淡入淡出';
@@ -3326,4 +3326,42 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get fileManagerAccessDenied => '没有权限访问这个位置';
+
+  @override
+  String get crossfeed => '交叉馈送';
+
+  @override
+  String get crossfeedSubtitle => '耳机听早期立体声录音时，缓解声音全挤在一侧';
+
+  @override
+  String get crossfeedStrength => '交叉馈送强度';
+
+  @override
+  String get loudnessLeveling => '响度均衡';
+
+  @override
+  String get loudnessLevelingSubtitle => '把不同录音的音量拉平，代价是轻微压缩动态';
+
+  @override
+  String get limiterProtection => '削波保护';
+
+  @override
+  String get limiterProtectionSubtitle => '增益过高时压住峰值，避免削顶失真';
+
+  @override
+  String get audioEnhancementUnavailable => '当前播放引擎不支持';
+
+  @override
+  String get preamp => '前级增益';
+
+  @override
+  String get preampHint => 'AutoEQ 自带的余量，防止叠加后削波';
+
+  @override
+  String autoEqParametric(int count) {
+    return '按原始参数下发：$count 个滤波器';
+  }
+
+  @override
+  String get autoEqParametricHint => '已保留每个滤波器的频率与 Q 值，不再降采样到固定频段';
 }

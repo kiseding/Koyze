@@ -2971,7 +2971,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get skipSilenceSubtitle =>
-      'Skip silence at the start and middle (Android only)';
+      'Skip silent lead-in before the music starts';
 
   @override
   String get playbackFade => 'Play/pause fade';
@@ -3414,4 +3414,48 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fileManagerAccessDenied => 'No permission to access this location';
+
+  @override
+  String get crossfeed => 'Crossfeed';
+
+  @override
+  String get crossfeedSubtitle =>
+      'Eases the in-head effect on early hard-panned stereo';
+
+  @override
+  String get crossfeedStrength => 'Crossfeed strength';
+
+  @override
+  String get loudnessLeveling => 'Loudness leveling';
+
+  @override
+  String get loudnessLevelingSubtitle =>
+      'Evens out volume between recordings, at the cost of some dynamics';
+
+  @override
+  String get limiterProtection => 'Clipping protection';
+
+  @override
+  String get limiterProtectionSubtitle =>
+      'Catches peaks when gain runs hot, avoiding hard clipping';
+
+  @override
+  String get audioEnhancementUnavailable =>
+      'Not supported by the current engine';
+
+  @override
+  String get preamp => 'Preamp';
+
+  @override
+  String get preampHint =>
+      'Headroom shipped with the AutoEQ profile, prevents clipping';
+
+  @override
+  String autoEqParametric(int count) {
+    return 'Applied as published: $count filters';
+  }
+
+  @override
+  String get autoEqParametricHint =>
+      'Every filter keeps its own frequency and Q — no downsampling to fixed bands';
 }

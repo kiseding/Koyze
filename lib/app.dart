@@ -98,6 +98,7 @@ class LxMusicApp extends ConsumerWidget {
     ref.watch(playbackSpeedBindingProvider);
     ref.watch(playbackTuningBindingProvider);
     ref.watch(replayGainBindingProvider);
+    ref.watch(audioEnhancementBindingProvider);
     ref.watch(queueArtworkWarmerProvider);
     ref.watch(recentPlayRecorderProvider);
     ref.watch(playHistoryRecorderProvider);

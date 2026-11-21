@@ -1822,5 +1822,24 @@
   "fileManagerPartialResult": "{ok} succeeded, {failed} failed",
   "fileManagerMoveHint": "After moving, the files are no longer in a scanned folder and will drop out of your library on the next rescan.",
   "fileManagerConflict": "A file with the same name already exists in the target folder",
-  "fileManagerAccessDenied": "No permission to access this location"
+  "fileManagerAccessDenied": "No permission to access this location",
+  "crossfeed": "Crossfeed",
+  "crossfeedSubtitle": "Eases the in-head effect on early hard-panned stereo",
+  "crossfeedStrength": "Crossfeed strength",
+  "loudnessLeveling": "Loudness leveling",
+  "loudnessLevelingSubtitle": "Evens out volume between recordings, at the cost of some dynamics",
+  "limiterProtection": "Clipping protection",
+  "limiterProtectionSubtitle": "Catches peaks when gain runs hot, avoiding hard clipping",
+  "audioEnhancementUnavailable": "Not supported by the current engine",
+  "preamp": "Preamp",
+  "preampHint": "Headroom shipped with the AutoEQ profile, prevents clipping",
+  "autoEqParametric": "Applied as published: {count} filters",
+  "autoEqParametricHint": "Every filter keeps its own frequency and Q — no downsampling to fixed bands",
+  "@autoEqParametric": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

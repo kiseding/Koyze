@@ -5,6 +5,7 @@ import 'package:flutter/material.dart' show IconData, Icons;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rxdart/rxdart.dart';
 
+import '../../../core/audio/audio_enhancement.dart';
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/audio/playback_command_coordinator.dart';
 import '../../../core/audio/playback_engine.dart';
@@ -87,6 +88,39 @@ final playbackTuningBindingProvider = Provider<void>((ref) {
   ref.listen<double>(pitchSemitonesProvider, (_, _) => apply());
   ref.listen<bool>(skipSilenceEnabledProvider, (_, _) => apply());
   ref.listen<bool>(playbackFadeEnabledProvider, (_, _) => apply());
+  apply();
+});
+
+/// 音频增强（交叉馈送 / 响度均衡 / 限幅）是否可用。
+///
+/// 不缓存成 Provider：启动早期 `audioHandler` 还是未初始化的 late 变量，
+/// 缓存下来的 false 会让设置页的开关永远置灰。每次 build 现算一次更稳。
+bool audioEnhancementSupported() {
+  try {
+    final handler = audioHandler;
+    if (handler is LxAudioHandler) return handler.enhancement.isSupported;
+  } catch (_) {
+    // 启动引导还没完成。
+  }
+  return false;
+}
+
+/// 把音频增强设置同步到播放引擎。
+///
+/// 和均衡器一样，这些是 mpv `af` 链上的开关，改一次就写一次属性；
+/// 引擎重建后的重新施加在 `_replaceNativePlayer` 里做。
+final audioEnhancementBindingProvider = Provider<void>((ref) {
+  void apply() {
+    try {
+      final handler = audioHandler;
+      if (handler is! LxAudioHandler) return;
+      handler.applyEnhancements(ref.read(audioEnhancementProvider));
+    } catch (_) {
+      // 同上。
+    }
+  }
+
+  ref.listen<AudioEnhancementSettings>(audioEnhancementProvider, (_, _) => apply());
   apply();
 });
 

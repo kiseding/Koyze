@@ -509,6 +509,68 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => context.push('/equalizer'),
             captureExpandOrigin: true,
           ),
+          // 三项音频增强都挂在 mpv 的 af 链上。引擎是 just_audio 回退路径
+          // 时它们无处可写，索性不显示——比显示一排拨了没反应的开关诚实。
+          if (audioEnhancementSupported()) ...[
+            SettingsEntry(
+              title: s.crossfeed,
+              subtitle: s.crossfeedSubtitle,
+              keywords: const [
+                '交叉',
+                'crossfeed',
+                '耳机',
+                'headphone',
+                '头中效应',
+                '声场',
+                'stereo',
+              ],
+              toggleValue: ref.watch(audioEnhancementProvider).crossfeedEnabled,
+              onToggle: (value) => ref
+                  .read(audioEnhancementProvider.notifier)
+                  .setCrossfeedEnabled(value),
+            ),
+            if (ref.watch(audioEnhancementProvider).crossfeedEnabled)
+              SettingsEntry(
+                title: s.crossfeedStrength,
+                subtitle: '${(ref.watch(audioEnhancementProvider).crossfeedStrength * 100).round()}%',
+                keywords: const ['强度', 'strength', '交叉', 'crossfeed'],
+                onTap: () => _showCrossfeedStrengthSheet(context, ref),
+              ),
+            SettingsEntry(
+              title: s.loudnessLeveling,
+              subtitle: s.loudnessLevelingSubtitle,
+              keywords: const [
+                '响度',
+                'loudness',
+                '音量',
+                'volume',
+                '拉平',
+                '动态',
+                'dynamic',
+              ],
+              toggleValue: ref.watch(audioEnhancementProvider).loudnessEnabled,
+              onToggle: (value) => ref
+                  .read(audioEnhancementProvider.notifier)
+                  .setLoudnessEnabled(value),
+            ),
+            SettingsEntry(
+              title: s.limiterProtection,
+              subtitle: s.limiterProtectionSubtitle,
+              keywords: const [
+                '削波',
+                'clip',
+                'limiter',
+                '限幅',
+                '峰值',
+                'peak',
+                '失真',
+              ],
+              toggleValue: ref.watch(audioEnhancementProvider).limiterEnabled,
+              onToggle: (value) => ref
+                  .read(audioEnhancementProvider.notifier)
+                  .setLimiterEnabled(value),
+            ),
+          ],
           SettingsEntry(
             title: s.playbackFade,
             subtitle: s.playbackFadeSubtitle,
@@ -1116,6 +1178,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       isScrollControlled: true,
       builder: (_) => _PrecacheCountPicker(title: S.of(context).precacheCount),
+    );
+  }
+
+  /// 交叉馈送强度。
+  ///
+  /// 拖动时立刻写设置（`apply` 内部有 120 ms 合并窗口），松手前就能听到
+  /// 变化——这种参数必须边听边调，点了确定才生效等于盲调。
+  void _showCrossfeedStrengthSheet(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    var value = ref.read(audioEnhancementProvider).crossfeedStrength;
+    showKoyzeSheet<void>(
+      context: context,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setState) => Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(s.crossfeedStrength, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(
+                s.crossfeedSubtitle,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      value: value,
+                      min: 0,
+                      max: 1,
+                      divisions: 20,
+                      label: '${(value * 100).round()}%',
+                      onChanged: (next) {
+                        setState(() => value = next);
+                        ref
+                            .read(audioEnhancementProvider.notifier)
+                            .setCrossfeedStrength(next);
+                      },
+                    ),
+                  ),
+                  SizedBox(
+                    width: 48,
+                    child: Text(
+                      '${(value * 100).round()}%',
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

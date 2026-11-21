@@ -1064,5 +1064,17 @@
   "fileManagerPartialResult": "成功 {ok} 个，失败 {failed} 个",
   "fileManagerMoveHint": "移动后文件就不在原来的扫描目录里了，下次重扫会从本地音乐中移除。",
   "fileManagerConflict": "目标文件夹里已经有同名文件",
-  "fileManagerAccessDenied": "没有权限访问这个位置"
+  "fileManagerAccessDenied": "没有权限访问这个位置",
+  "crossfeed": "交叉馈送",
+  "crossfeedSubtitle": "耳机听早期立体声录音时，缓解声音全挤在一侧",
+  "crossfeedStrength": "交叉馈送强度",
+  "loudnessLeveling": "响度均衡",
+  "loudnessLevelingSubtitle": "把不同录音的音量拉平，代价是轻微压缩动态",
+  "limiterProtection": "削波保护",
+  "limiterProtectionSubtitle": "增益过高时压住峰值，避免削顶失真",
+  "audioEnhancementUnavailable": "当前播放引擎不支持",
+  "preamp": "前级增益",
+  "preampHint": "AutoEQ 自带的余量，防止叠加后削波",
+  "autoEqParametric": "按原始参数下发：{count} 个滤波器",
+  "autoEqParametricHint": "已保留每个滤波器的频率与 Q 值，不再降采样到固定频段"
 }

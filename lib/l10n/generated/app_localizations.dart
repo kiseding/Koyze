@@ -5393,7 +5393,7 @@ abstract class AppLocalizations {
   /// No description provided for @skipSilenceSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Skip silence at the start and middle (Android only)'**
+  /// **'Skip silent lead-in before the music starts'**
   String get skipSilenceSubtitle;
 
   /// No description provided for @playbackFade.
@@ -6175,6 +6175,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No permission to access this location'**
   String get fileManagerAccessDenied;
+
+  /// No description provided for @crossfeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Crossfeed'**
+  String get crossfeed;
+
+  /// No description provided for @crossfeedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Eases the in-head effect on early hard-panned stereo'**
+  String get crossfeedSubtitle;
+
+  /// No description provided for @crossfeedStrength.
+  ///
+  /// In en, this message translates to:
+  /// **'Crossfeed strength'**
+  String get crossfeedStrength;
+
+  /// No description provided for @loudnessLeveling.
+  ///
+  /// In en, this message translates to:
+  /// **'Loudness leveling'**
+  String get loudnessLeveling;
+
+  /// No description provided for @loudnessLevelingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Evens out volume between recordings, at the cost of some dynamics'**
+  String get loudnessLevelingSubtitle;
+
+  /// No description provided for @limiterProtection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clipping protection'**
+  String get limiterProtection;
+
+  /// No description provided for @limiterProtectionSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Catches peaks when gain runs hot, avoiding hard clipping'**
+  String get limiterProtectionSubtitle;
+
+  /// No description provided for @audioEnhancementUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not supported by the current engine'**
+  String get audioEnhancementUnavailable;
+
+  /// No description provided for @preamp.
+  ///
+  /// In en, this message translates to:
+  /// **'Preamp'**
+  String get preamp;
+
+  /// No description provided for @preampHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Headroom shipped with the AutoEQ profile, prevents clipping'**
+  String get preampHint;
+
+  /// No description provided for @autoEqParametric.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied as published: {count} filters'**
+  String autoEqParametric(int count);
+
+  /// No description provided for @autoEqParametricHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Every filter keeps its own frequency and Q — no downsampling to fixed bands'**
+  String get autoEqParametricHint;
 }
 
 class _AppLocalizationsDelegate

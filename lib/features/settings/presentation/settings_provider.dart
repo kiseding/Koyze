@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/audio/audio_enhancement.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 
 import 'settings_notifiers.dart';
@@ -123,10 +124,16 @@ final pitchSemitonesProvider = NotifierProvider<PitchSemitonesNotifier, double>(
   PitchSemitonesNotifier.new,
 );
 
-/// 跳过静音（Android）。
+/// 跳过静音。
 final skipSilenceEnabledProvider = NotifierProvider<SkipSilenceNotifier, bool>(
   SkipSilenceNotifier.new,
 );
+
+/// 音频增强（交叉馈送 / 响度均衡 / 限幅）。
+final audioEnhancementProvider =
+    NotifierProvider<AudioEnhancementNotifier, AudioEnhancementSettings>(
+      AudioEnhancementNotifier.new,
+    );
 
 /// 播放/暂停淡入淡出。
 final playbackFadeEnabledProvider =
