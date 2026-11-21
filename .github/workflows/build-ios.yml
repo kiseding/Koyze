@@ -91,7 +91,24 @@ jobs:
 
       - name: Install CocoaPods dependencies
         working-directory: ios
-        run: pod install
+        # `pod install` 第一次跑会去 cdn.cocoapods.org 克隆 trunk spec 仓库，
+        # 这个 CDN 偶发超时（v6.0.0 那次就是：30s 后 "Unable to add a source
+        # with url https://cdn.cocoapods.org/ named trunk" 直接失败，而同一
+        # commit 在 main 上是绿的）。Podfile.lock 已入库，重试不会带来版本
+        # 漂移，所以这里退避重试三次，而不是让一次 CDN 抖动卡住整个发版。
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if pod install; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::pod install 连续三次失败，最后一次已放弃重试"
+              exit 1
+            fi
+            echo "::warning::pod install 第 $attempt 次失败，10s 后重试（多为 CocoaPods CDN 抖动）"
+            sleep 10
+          done
 
       - name: Build unsigned iOS app
         env:
