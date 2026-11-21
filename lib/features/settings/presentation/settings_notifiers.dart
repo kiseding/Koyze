@@ -837,7 +837,11 @@ class PitchSemitonesNotifier extends _PersistedSettingNotifier<double> {
   }
 }
 
-/// 跳过静音（仅 Android 的原生 skipSilence）。
+/// 跳过静音。
+///
+/// 不再是 Android 专属：mpv 引擎用 `silenceremove` 滤镜实现，跑 mpv 的
+/// 平台（Android / iOS / macOS / Windows / Linux / 鸿蒙）都生效；只有
+/// 退回 just_audio 引擎时才仍是 Android ExoPlayer 的原生能力。
 class SkipSilenceNotifier extends _PersistedSettingNotifier<bool> {
   SkipSilenceNotifier({StorageLoader? storage})
     : super(false, storage: storage) {

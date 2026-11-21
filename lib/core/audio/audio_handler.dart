@@ -904,7 +904,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  /// 跳过静音（Android ExoPlayer 的 skipSilence）。
+  /// 跳过静音。
+  ///
+  /// 两条实现路径：mpv 引擎走 `silenceremove` 滤镜（跑 mpv 的平台全都
+  /// 生效）；just_audio 引擎只有 Android 的 ExoPlayer 有原生 skipSilence。
   bool _skipSilence = false;
 
   bool get skipSilence => _skipSilence;
@@ -919,7 +922,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     try {
       await _player.setSkipSilenceEnabled(_skipSilence);
     } catch (error, stackTrace) {
-      // 仅 Android 实现；其它平台抛 MissingPlugin/Unimplemented。
+      // just_audio 引擎上只有 Android 实现；其它平台抛
+      // MissingPlugin/Unimplemented，mpv 引擎不会走到这里。
       AppLog.instance.record(
         'audio.skip_silence',
         'setSkipSilence($_skipSilence) failed: $error',

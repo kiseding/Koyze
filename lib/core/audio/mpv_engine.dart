@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:mpv_audio_kit/mpv_audio_kit.dart' as mpv;
 
+import '../logging/ohos_hilog.dart';
+import 'mpv_audio_chain.dart';
 import 'playback_engine.dart';
 import 'stream_utils.dart';
 
@@ -38,6 +40,14 @@ class MpvEngine implements PlaybackEngine {
   MpvEngine(this._player);
 
   final mpv.Player _player;
+
+  /// `af` 链的唯一写者。均衡器与跳过静音都往这里登记，由它合并后一次写入。
+  ///
+  /// 必须共用同一个实例：mpv 的 `af` 是整条替换的，两个写者各写各的会
+  /// 互相抹掉。详见 [MpvAudioChain]。
+  late final MpvAudioChain audioChain = MpvAudioChain(
+    MpvPlayerAfWriter(_player),
+  );
 
   /// 底层播放器。诊断页与媒体会话设置需要。
   mpv.Player get rawPlayer => _player;
@@ -338,11 +348,21 @@ class MpvEngine implements PlaybackEngine {
   @override
   Future<void> setPitch(double pitch) => _player.setPitch(pitch);
 
-  /// mpv 没有 `setSkipSilenceEnabled`，但可以用 FFmpeg 的 silenceremove
-  /// 滤镜达到同样效果。为了不干扰用户已设置的音效链，这里退化为无操作：
-  /// 跳过静音是次要特性，静默失效比破坏音效链安全。
+  /// 跳过静音。与 `just_audio` 的 `skipSilence` 语义不同，实现也不同：
+  /// mpv 没有这个开关，走 FFmpeg 的 `silenceremove` 滤镜。
+  ///
+  /// 这**不是**只属于 Android 的功能——只要跑的是 mpv 引擎，Android、iOS、
+  /// macOS、Windows、Linux、鸿蒙都能用，因为滤镜做在 mpv 自己的音频链里，
+  /// 不依赖系统音效通道。
+  ///
+  /// 只裁开头：中途裁剪会让滤镜输出比解复用器短，进度条从那一刻起持续
+  /// 落后，且 seek 会落到错位置。理由写在 [buildMpvSkipSilenceFilters]。
   @override
-  Future<void> setSkipSilenceEnabled(bool enabled) async {}
+  Future<void> setSkipSilenceEnabled(bool enabled) async {
+    audioChain.setSkipSilence(buildMpvSkipSilenceFilters(enabled: enabled));
+    // 鸿蒙上 mpv 的诊断只能走 hilog（stdout 没有接收方）。
+    ohosLog('KoyzeMpv', 'skip silence = $enabled');
+  }
 
   @override
   Future<void> setLoopMode(EngineLoopMode mode) {
@@ -361,6 +381,7 @@ class MpvEngine implements PlaybackEngine {
 
   @override
   Future<void> dispose() async {
+    await audioChain.dispose();
     await _player.dispose();
   }
 }

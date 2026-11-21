@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:just_audio/just_audio.dart' show AndroidAudioEffect, AudioPlayer;
-import 'package:mpv_audio_kit/mpv_audio_kit.dart' as mpv;
 
 import '../logging/app_log.dart';
-import '../logging/ohos_hilog.dart';
 import 'equalizer_bridge.dart';
 import 'mpv_engine.dart';
 
@@ -132,6 +131,9 @@ String _formatNumber(double value) {
 ///
 /// 与 [AndroidEqualizerBridge] 的差别：那边依赖播放器暴露的频段参数，
 /// 播放器没连上平台时拿不到；这边布局是固定的，进页面就能画滑块。
+///
+/// **不自己写 `af`**：写整条链路会让同进程里的另一个写者（跳过静音）被
+/// 抹掉。这里只登记自己的滤镜，由引擎侧的 [MpvAudioChain] 合并后一次写入。
 class MpvEqualizerBridge implements EqualizerBridge {
   MpvEqualizerBridge(
     this._engine, {
@@ -201,34 +203,18 @@ class MpvEqualizerBridge implements EqualizerBridge {
     // 用滤镜链本身当签名，避免同样的状态重复写属性。
     final signature = filters.join(',');
     if (signature == _appliedValue) return;
-    try {
-      // 不能直接写 `af`：mpv_audio_kit 把这条属性托管给了 AudioEffects，
-      // 直写会被拒绝（"Property `af` is owned by the typed AudioEffects
-      // bundle"）。custom 里的每条字符串就是 af 链里的一个滤镜。
-      await _engine.rawPlayer.setAudioEffects(
-        mpv.AudioEffects(custom: filters),
-      );
-      _appliedValue = signature;
-      final readback = await _engine.rawPlayer.getRawProperty('af');
-      ohosLog(
-        'KoyzeMpv',
-        'af filters=${filters.length} readback="${readback ?? ''}"',
-      );
-      AppLog.instance.record(
-        'audio.equalizer',
-        signature.isEmpty ? 'mpv af cleared' : 'mpv af = $signature',
-      );
-    } catch (error, stackTrace) {
-      ohosLog('KoyzeMpv', 'af set failed: $error');
-      // 均衡器失败不能影响播放：记下来，下次状态变化再试。
-      AppLog.instance.record(
-        'audio.equalizer',
-        'mpv af 写入失败：$error',
-        level: AppLogLevel.warning,
-        stackTrace: stackTrace,
-      );
-    }
+    _appliedValue = signature;
+    // 只登记，不落盘：引擎会把这条与跳过静音合并后写入 af。
+    _engine.audioChain.setEqualizer(filters);
+    AppLog.instance.record(
+      'audio.equalizer',
+      signature.isEmpty ? 'mpv eq cleared' : 'mpv eq = $signature',
+    );
   }
+
+  /// 等待当前排队的写入完成。测试用。
+  @visibleForTesting
+  Future<void> get settled => _queue;
 
   @override
   Future<void> dispose() async {

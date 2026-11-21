@@ -1686,7 +1686,7 @@
   "pitchReset": "Original",
   "pitchHint": "Shifts pitch without changing speed. Negative values help you sing along lower.",
   "skipSilence": "Skip silence",
-  "skipSilenceSubtitle": "Skip silence at the start and middle (Android only)",
+  "skipSilenceSubtitle": "Skip silent lead-in before the music starts",
   "playbackFade": "Play/pause fade",
   "playbackFadeSubtitle": "Soft ramps on play and pause so headphones don't pop",
   "exportM3u": "Export as M3U",

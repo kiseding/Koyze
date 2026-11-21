@@ -928,7 +928,7 @@
   "pitchReset": "原调",
   "pitchHint": "变调不变速。负值适合跟着降调唱，正值会更亮一些。",
   "skipSilence": "跳过静音",
-  "skipSilenceSubtitle": "跳过首尾与中间的空白（仅 Android）",
+  "skipSilenceSubtitle": "自动跳过开头的空白段落",
   "playbackFade": "播放淡入淡出",
   "playbackFadeSubtitle": "播放与暂停时短暂渐变，避免爆音",
   "exportM3u": "导出为 M3U",
