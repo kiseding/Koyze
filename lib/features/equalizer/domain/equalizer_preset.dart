@@ -61,6 +61,18 @@ class EqualizerPreset {
 
 /// 内置预设。顺序即界面展示顺序：前面是「原声」与常用风格，
 /// 后面是单频段增强。
+///
+/// 曲线设计原则（改动前请先读）：
+///
+/// 1. 每条曲线的**平均值刻意保持在 0 dB**。`gainsFor` 会先减均值对齐响度，
+///    平均值已经是 0 时这一步就变成恒等变换，设计值能 1:1 落到设备上；
+///    否则会被整体平移，甚至平移出天花板而被二次削峰（历史上「电子」的
+///    910Hz 就从 -2 被平移成了 -3.6）。
+/// 2. 每条曲线的**形状必须明显不同**，不能只差一个整体抬高。相邻预设的
+///    响度差在 1.9 dB 以上才听得出区别；只差一个常数位移等于没差别
+///    （历史上「摇滚」与「电子」只差 0.30 dB，换预设毫无感觉）。
+/// 3. 峰值控制在 5 dB 以内、谷值不低于 -7 dB。五段布局的相邻段相隔约
+///    1.95 个倍频程，叠加后峰峰值可达单段的 1.3 倍，留足余量才不会削波。
 const List<EqualizerPreset> equalizerPresets = <EqualizerPreset>[
   EqualizerPreset(
     id: 'flat',
@@ -73,103 +85,117 @@ const List<EqualizerPreset> equalizerPresets = <EqualizerPreset>[
       EqualizerControlPoint(14000, 0),
     ],
   ),
+  // 流行：低频铺底 + 中高频提亮，超高频略收（电音合成器的齿音多）。
   EqualizerPreset(
     id: 'pop',
     label: '流行',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 1),
+      EqualizerControlPoint(60, 4),
       EqualizerControlPoint(230, 2),
-      EqualizerControlPoint(910, 0),
-      EqualizerControlPoint(3600, 1.5),
-      EqualizerControlPoint(14000, 1),
+      EqualizerControlPoint(910, -1),
+      EqualizerControlPoint(3600, 2),
+      EqualizerControlPoint(14000, -7),
     ],
   ),
+  // 摇滚：低频推进 + 中频大幅挖空（吉他/军鼓的经典「笑脸」），
+  // 与电子同为两头翘，但凹陷落在 910Hz 且幅度更深、超高频不抬。
   EqualizerPreset(
     id: 'rock',
     label: '摇滚',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 3),
+      EqualizerControlPoint(60, 5),
       EqualizerControlPoint(230, 1),
-      EqualizerControlPoint(910, -2),
-      EqualizerControlPoint(3600, 1),
-      EqualizerControlPoint(14000, 2),
+      EqualizerControlPoint(910, -5),
+      EqualizerControlPoint(3600, 2),
+      EqualizerControlPoint(14000, -3),
     ],
   ),
+  // 爵士：低频温和、中频饱满、高频收敛，听的是铜管与人声的圆润。
+  // 唯一一条整体下坡的曲线（除单频段预设外），与流行/摇滚明显区分。
   EqualizerPreset(
     id: 'jazz',
     label: '爵士',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 2),
-      EqualizerControlPoint(230, 1),
-      EqualizerControlPoint(910, -1),
-      EqualizerControlPoint(3600, 1),
-      EqualizerControlPoint(14000, 2),
+      EqualizerControlPoint(60, 3),
+      EqualizerControlPoint(230, 2),
+      EqualizerControlPoint(910, 0),
+      EqualizerControlPoint(3600, -1),
+      EqualizerControlPoint(14000, -4),
     ],
   ),
+  // 古典：一条**温和**的整段上坡。厅堂录音的低频本就偏厚，收一点更通透；
+  // 高频只轻轻抬起，避免弦乐泛音过亮发刺。与「高音增强」那种陡上坡
+  // 明显不同——两者的区别不在方向，而在幅度与拐点位置。
   EqualizerPreset(
     id: 'classical',
     label: '古典',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 0),
+      EqualizerControlPoint(60, -3),
       EqualizerControlPoint(230, -1),
-      EqualizerControlPoint(910, -2),
+      EqualizerControlPoint(910, 0),
       EqualizerControlPoint(3600, 1),
       EqualizerControlPoint(14000, 3),
     ],
   ),
+  // 电子：极低频顶起、中频大幅退让、超高频再抬一档，是「两头翘」里
+  // 凹陷位置最高的一条（3600Hz），跟摇滚的 910Hz 凹陷错开。
   EqualizerPreset(
     id: 'electronic',
     label: '电子',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 4),
-      EqualizerControlPoint(230, 2),
-      EqualizerControlPoint(910, -2),
-      EqualizerControlPoint(3600, 1),
-      EqualizerControlPoint(14000, 3),
+      EqualizerControlPoint(60, 5),
+      EqualizerControlPoint(230, 0),
+      EqualizerControlPoint(910, -4),
+      EqualizerControlPoint(3600, -3),
+      EqualizerControlPoint(14000, 2),
     ],
   ),
+  // 民谣：中高频突出（原声吉他的箱体共鸣在 900Hz 附近），两端都收。
   EqualizerPreset(
     id: 'folk',
     label: '民谣',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 1.5),
-      EqualizerControlPoint(230, 0.5),
-      EqualizerControlPoint(910, 1),
-      EqualizerControlPoint(3600, 0.5),
-      EqualizerControlPoint(14000, 0.5),
+      EqualizerControlPoint(60, -3),
+      EqualizerControlPoint(230, 1),
+      EqualizerControlPoint(910, 5),
+      EqualizerControlPoint(3600, -1),
+      EqualizerControlPoint(14000, -2),
     ],
   ),
+  // 人声：中频极突出，低频与超高频同时退让，齿音不刺。
   EqualizerPreset(
     id: 'vocal',
     label: '人声',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, -3),
-      EqualizerControlPoint(230, -1),
-      EqualizerControlPoint(910, 3),
-      EqualizerControlPoint(3600, 2),
-      EqualizerControlPoint(14000, -1),
+      EqualizerControlPoint(60, -5),
+      EqualizerControlPoint(230, -3),
+      EqualizerControlPoint(910, 5),
+      EqualizerControlPoint(3600, 3),
+      EqualizerControlPoint(14000, 0),
     ],
   ),
+  // 低音增强：一条整齐的下坡，低频全抬、高频全收。
   EqualizerPreset(
     id: 'bass',
     label: '低音增强',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, 4),
-      EqualizerControlPoint(230, 2.5),
+      EqualizerControlPoint(60, 5),
+      EqualizerControlPoint(230, 4),
       EqualizerControlPoint(910, 0),
-      EqualizerControlPoint(3600, -1),
-      EqualizerControlPoint(14000, -1.5),
+      EqualizerControlPoint(3600, -4),
+      EqualizerControlPoint(14000, -5),
     ],
   ),
+  // 高音增强：低音增强的镜像，一条整齐的上坡。
   EqualizerPreset(
     id: 'treble',
     label: '高音增强',
     curve: <EqualizerControlPoint>[
-      EqualizerControlPoint(60, -1.5),
-      EqualizerControlPoint(230, -1),
-      EqualizerControlPoint(910, 0),
-      EqualizerControlPoint(3600, 2.5),
-      EqualizerControlPoint(14000, 4),
+      EqualizerControlPoint(60, -4),
+      EqualizerControlPoint(230, -4),
+      EqualizerControlPoint(910, -1),
+      EqualizerControlPoint(3600, 4),
+      EqualizerControlPoint(14000, 5),
     ],
   ),
 ];

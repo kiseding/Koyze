@@ -98,9 +98,9 @@ void main() {
     await tester.tap(find.text('Bass boost'));
     await tester.pumpAndSettle();
 
-    expect(bridge.applies.last.gains, <double>[3, 1.5, -1, -2, -2.5]);
-    expect(find.text('+3'), findsOneWidget);
-    expect(find.text('+1.5'), findsOneWidget);
+    expect(bridge.applies.last.gains, <double>[5, 4, 0, -4, -5]);
+    expect(find.text('+5'), findsOneWidget);
+    expect(find.text('+4'), findsOneWidget);
     // 预设选择已落盘。
     expect(
       EqualizerSettings.fromJson(
@@ -164,7 +164,7 @@ void main() {
     await tester.pumpWidget(_app(bridge, storage));
     await tester.pumpAndSettle();
 
-    expect(find.text('-3'), findsWidgets);
+    expect(find.text('-5'), findsWidgets);
 
     await tester.tap(find.text('Reset'));
     await tester.pumpAndSettle();

@@ -40,9 +40,9 @@ void main() {
     expect(notifier.value.settings.enabled, isTrue);
     expect(notifier.value.settings.presetId, 'bass');
     expect(notifier.value.layout, fiveBandLayout);
-    expect(notifier.value.gains, <double>[3, 1.5, -1, -2, -2.5]);
+    expect(notifier.value.gains, <double>[5, 4, 0, -4, -5]);
     expect(bridge.applies.single.enabled, isTrue);
-    expect(bridge.applies.single.gains, <double>[3, 1.5, -1, -2, -2.5]);
+    expect(bridge.applies.single.gains, <double>[5, 4, 0, -4, -5]);
   });
 
   test('没有保存过时使用默认值且不报错', () async {
@@ -79,9 +79,9 @@ void main() {
     expect(saved.enabled, isTrue);
     expect(saved.presetId, 'treble');
     // 高音增强在 5 段布局上采样出的增益。
-    expect(saved.gains, <double>[-2.5, -2, -1, 1.5, 3]);
+    expect(saved.gains, <double>[-4, -4, -1, 4, 5]);
     expect(bridge.applies.last.enabled, isTrue);
-    expect(bridge.applies.last.gains, <double>[-2.5, -2, -1, 1.5, 3]);
+    expect(bridge.applies.last.gains, <double>[-4, -4, -1, 4, 5]);
   });
 
   test('拖动频段会切换成自定义并保留其它频段', () async {
@@ -105,7 +105,7 @@ void main() {
 
     expect(notifier.value.settings.isCustom, isTrue);
     expect(notifier.value.settings.presetId, kCustomPresetId);
-    expect(notifier.value.gains, <double>[3, 7.5, -1, -2, -2.5]);
+    expect(notifier.value.gains, <double>[5, 7.5, 0, -4, -5]);
     expect(notifier.value.settings.presetLabel, '自定义');
   });
 
@@ -177,7 +177,8 @@ void main() {
     expect(notifier.value.layoutReady, isTrue);
     expect(notifier.value.effectiveLayout, tenBandLayout);
     expect(notifier.value.gains.length, 10);
-    expect(notifier.value.gains.first, closeTo(3, 0.5));
+    // 十段布局下「低音增强」首段抬到 4.6 dB（五段时是 5 dB）。
+    expect(notifier.value.gains.first, closeTo(4.6, 0.5));
   });
 
   test('平台不支持时不施加但仍保留设置', () async {

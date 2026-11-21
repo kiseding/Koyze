@@ -34,6 +34,16 @@ const EqualizerBandLayout _tenBandLayout = EqualizerBandLayout(
   centerFrequencies: _tenBands,
 );
 
+/// 去掉整体位移，只留曲线的**形状**。
+///
+/// 响度对齐会把整条曲线平移，所以两条只差一个常数的曲线听感完全相同，
+/// 但增益数组并不相等。比较形状才是「听不听得出区别」的正确判据。
+List<double> _shapeOf(List<double> gains) {
+  if (gains.isEmpty) return const <double>[];
+  final mean = gains.reduce((a, b) => a + b) / gains.length;
+  return <double>[for (final gain in gains) gain - mean];
+}
+
 void main() {
   group('预设曲线', () {
     test('每个预设的 id 唯一、控制点按频率升序', () {
@@ -60,25 +70,40 @@ void main() {
 
     test('控制点处取到预设值，并按平均响度对齐', () {
       final bass = equalizerPresetById('bass')!;
-      expect(bass.gainAt(60), 4);
-      expect(bass.gainAt(230), 2.5);
-      expect(bass.gainsFor(_fiveBands), <double>[3, 1.5, -1, -2, -2.5]);
+      expect(bass.gainAt(60), 5);
+      expect(bass.gainAt(230), 4);
+      // 曲线均值本来就是 0，响度对齐是恒等变换，设计值 1:1 落地。
+      expect(bass.gainsFor(_fiveBands), <double>[5, 4, 0, -4, -5]);
     });
 
     test('相邻控制点之间按对数频率线性插值', () {
       final bass = equalizerPresetById('bass')!;
-      // 60Hz(4dB) 与 230Hz(2.5dB) 的几何中点上应恰好取到 3.25dB。
+      // 60Hz(5dB) 与 230Hz(4dB) 的几何中点上应恰好取到 4.5dB。
       final geometricMean = math.sqrt(60 * 230);
-      expect(bass.gainAt(geometricMean), closeTo(3.25, 1e-9));
+      expect(bass.gainAt(geometricMean), closeTo(4.5, 1e-9));
       // 线性频率轴的 145Hz 在对数轴上偏高频一侧，取值必须低于线性插值。
-      expect(bass.gainAt((60 + 230) / 2), lessThan(3.25));
+      expect(bass.gainAt((60 + 230) / 2), lessThan(4.5));
     });
 
     test('两端之外取端点值', () {
       final treble = equalizerPresetById('treble')!;
-      expect(treble.gainAt(10), -1.5); // 低于最低控制点 60Hz
-      expect(treble.gainAt(24000), 4); // 高于最高控制点 14kHz
-      expect(treble.gainAt(0), -1.5); // 非法频率不抛异常
+      expect(treble.gainAt(10), -4); // 低于最低控制点 60Hz
+      expect(treble.gainAt(24000), 5); // 高于最高控制点 14kHz
+      expect(treble.gainAt(0), -4); // 非法频率不抛异常
+    });
+
+    test('所有预设的平均值都是 0 dB（响度对齐不改变设计形状）', () {
+      // 若某条曲线的均值不为 0，gainsFor 会整体平移它，甚至平移出天花板后
+      // 再被削一刀。历史上「电子」的 910Hz 就是这样从 -2 变成 -3.6 的。
+      for (final preset in equalizerPresets) {
+        final gains = preset.gainsFor(_fiveBands);
+        final mean = gains.reduce((a, b) => a + b) / gains.length;
+        expect(
+          mean,
+          closeTo(0, 0.06),
+          reason: '${preset.id} 采样后平均值应回到 0 dB 附近',
+        );
+      }
     });
 
     test('所有预设在任何采样点都不超过 ±12 dB', () {
@@ -99,9 +124,68 @@ void main() {
       expect(rock.gainsFor(_fiveBands).length, 5);
       expect(rock.gainsFor(_tenBands).length, 10);
       // 低频段在两种布局下取到的值应当接近（都落在 60Hz 控制点附近）。
-      // 响度对齐后摇滚低频大约 +2 dB，不再被整段压到 0 以下。
-      expect(rock.gainsFor(_fiveBands).first, closeTo(2, 0.5));
-      expect(rock.gainsFor(_tenBands).first, closeTo(2, 0.5));
+      expect(rock.gainsFor(_fiveBands).first, closeTo(5, 0.5));
+      expect(rock.gainsFor(_tenBands).first, closeTo(5, 0.5));
+    });
+
+    test('预设之间必须听得出区别', () {
+      // 这条测试是「换了预设没感觉」这个缺陷的回归防护。
+      //
+      // 判据不能用「增益数组是否相同」—— 两条曲线可能只差一个整体位移，
+      // 数组不同但听感一样（响度对齐会把整体位移抹掉）。这里改用两两之间
+      // 的**形状差异**：先各自去掉均值，再比较逐段差的均方根。
+      //
+      // 1.0 dB 是听感上的保守下限：认真 AB 对比时 1 dB 可辨，日常听歌
+      // 需要 3 dB 以上。取 1.0 既不会再让两个预设变成同一个声音，也不至于
+      // 逼着曲线做夸张到失真的造型。
+      final sampled = <String, List<double>>{
+        for (final preset in equalizerPresets)
+          preset.id: _shapeOf(preset.gainsFor(_fiveBands)),
+      };
+      final ids = sampled.keys.toList();
+      for (var i = 0; i < ids.length; i++) {
+        for (var j = i + 1; j < ids.length; j++) {
+          final a = sampled[ids[i]]!;
+          final b = sampled[ids[j]]!;
+          var sum = 0.0;
+          for (var k = 0; k < a.length; k++) {
+            final diff = a[k] - b[k];
+            sum += diff * diff;
+          }
+          final rms = math.sqrt(sum / a.length);
+          expect(
+            rms,
+            greaterThan(1.0),
+            reason: '预设「${ids[i]}」与「${ids[j]}」的曲线形状只差 '
+                '${rms.toStringAsFixed(2)} dB，用户听不出区别',
+          );
+        }
+      }
+    });
+
+    test('每条预设都有足够的动态范围', () {
+      // 峰峰值太小等于「开了跟没开一样」。原声除外的每条预设都应在
+      // 5 dB 以上；这条阈值同时挡住「整条曲线只抬了 1 dB」这类退步。
+      for (final preset in equalizerPresets) {
+        if (preset.id == 'flat') continue;
+        final gains = preset.gainsFor(_fiveBands);
+        final span = gains.reduce(math.max) - gains.reduce(math.min);
+        expect(
+          span,
+          greaterThan(5),
+          reason: '${preset.id} 的峰峰值只有 ${span.toStringAsFixed(1)} dB',
+        );
+      }
+    });
+
+    test('单条曲线不会把设备推到削波区', () {
+      // 峰值留在 5 dB、谷值不低于 -7 dB：五段布局叠加后实际响应还会再
+      // 放大一些，但仍远低于 ±12 dB 的设备上限，不会因叠峰削波。
+      for (final preset in equalizerPresets) {
+        final gains = preset.gainsFor(_fiveBands);
+        expect(gains.reduce(math.max), lessThanOrEqualTo(5));
+        expect(gains.reduce(math.min), greaterThanOrEqualTo(-7));
+      }
     });
 
     test('未知 id 的标签回落到自定义', () {
@@ -138,8 +222,9 @@ void main() {
       );
       final gains = settings.gainsFor(_tenBandLayout);
       expect(gains.length, 10);
-      expect(gains.first, closeTo(3, 0.5));
-      expect(gains.last, closeTo(-2.5, 0.5));
+      // 低音增强在十段布局上同样是一条整齐的下坡（首段最抬、末段最收）。
+      expect(gains.first, closeTo(4.6, 0.5));
+      expect(gains.last, closeTo(-5.4, 0.5));
     });
 
     test('段数不一致且为自定义时视为原声', () {
@@ -199,13 +284,8 @@ void main() {
         presetId: 'bass',
         gains: <double>[6, 4, 1, 0, 0],
       );
-      expect(settings.gainsFor(_fiveBandLayout), <double>[
-        3,
-        1.5,
-        -1,
-        -2,
-        -2.5,
-      ]);
+      // 存的旧增益 [6,4,1,0,0] 必须被丢掉，换成当前「低音增强」曲线。
+      expect(settings.gainsFor(_fiveBandLayout), <double>[5, 4, 0, -4, -5]);
     });
   });
 }
