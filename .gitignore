@@ -82,3 +82,25 @@ android/.kotlin/
 
 # 鸿蒙原生库输出目录：由 flutter build hap 与 scripts/ohos/stage-libmpv.sh 生成
 /ohos/entry/libs/
+
+# ohos 工程的本地产物。oh_modules 是 ohpm 依赖树，BuildProfile.ets 与
+# oh-package-lock.json5 由 DevEco/ohpm 在构建期生成；第三方的 build/ 是
+# hvigor 增量缓存。三者都能重建，入错库会让每个插件的 diff 噪音不断。
+third_party/*/ohos/oh_modules/
+third_party/*/ohos/build/
+third_party/*/ohos/BuildProfile.ets
+third_party/*/ohos/oh-package-lock.json5
+
+# 本地预编译的 libmpv：只有 arm64-v8a 是随仓库分发的正式版本；x86_64 是
+# 模拟器调试用的本地产物（约 30 MB），不入库。
+/third_party/ohos-libmpv/x86_64/
+
+# flutter_tools 写入的机器状态（是否是 CI bot），随环境变化。
+/.flutter_tool_state
+
+# 本地 CI 校验用的临时解包目录
+/ci_tmp/
+
+# rawfile 是 flutter_tools 在构建期生成的（flutter_assets 约 120MB，外加它
+# 从 base/profile 搬过来的 buildinfo.json5）。体积大且每轮重建，不入库。
+/ohos/entry/src/main/resources/rawfile/

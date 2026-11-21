@@ -1028,7 +1028,6 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         if (!keyboardRequested) {
           keyboardRequested = true;
           requestTextInput(
-            ctx,
             nameFocus,
             initialDelay: const Duration(milliseconds: 280),
             retryDelay: const Duration(milliseconds: 220),

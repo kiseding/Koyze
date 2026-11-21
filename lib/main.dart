@@ -10,6 +10,7 @@ import 'package:koyze/core/audio/audio_session_config.dart';
 import 'package:koyze/core/audio/playback_cache_service.dart';
 import 'package:koyze/core/audio/playback_engine_factory.dart';
 import 'package:koyze/core/logging/app_log.dart';
+import 'package:koyze/core/logging/ohos_hilog.dart';
 import 'package:koyze/core/monitoring/monitoring_service.dart';
 import 'package:koyze/core/performance/low_memory.dart';
 import 'package:koyze/core/network/music_source_service.dart';
@@ -181,6 +182,9 @@ Future<void> _bootstrapUnsafe(
         final engine = hostPlaybackEngineKind() == PlaybackEngineKind.mpv
             ? await createMpvPlaybackEngine()
             : null;
+        // 引擎选型只记一行：鸿蒙上出问题时要第一眼看出走的是 mpv 还是
+        // just_audio，而 AppLog 只在诊断面板打开时收集，这里额外进 hilog。
+        ohosLog('KoyzeMpv', 'playback engine = ${engine.runtimeType}');
         final lxHandler = LxAudioHandler(
           engine: engine,
           prepareForPlayback: () async {

@@ -860,7 +860,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         if (!keyboardRequested) {
           keyboardRequested = true;
           requestTextInput(
-            dialogContext,
             nameFocus,
             initialDelay: const Duration(milliseconds: 280),
             retryDelay: const Duration(milliseconds: 220),
@@ -974,7 +973,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
         if (!keyboardRequested) {
           keyboardRequested = true;
           requestTextInput(
-            ctx,
             nameFocus,
             initialDelay: const Duration(milliseconds: 280),
             retryDelay: const Duration(milliseconds: 220),
@@ -1234,7 +1232,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
             if (importTab == 0 && !keyboardRequested) {
               keyboardRequested = true;
               requestTextInput(
-                ctx,
                 inputFocus,
                 initialDelay: const Duration(milliseconds: 280),
                 retryDelay: const Duration(milliseconds: 220),

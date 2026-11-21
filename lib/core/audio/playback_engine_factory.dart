@@ -5,6 +5,7 @@ import 'package:ffi/ffi.dart';
 import 'package:mpv_audio_kit/mpv_audio_kit.dart' as mpv;
 
 import '../logging/app_log.dart';
+import '../logging/ohos_hilog.dart';
 import 'mpv_engine.dart';
 import 'playback_engine.dart';
 
@@ -22,19 +23,20 @@ enum PlaybackEngineKind {
 
 /// 本机默认引擎。
 ///
-/// 目前一律返回 [PlaybackEngineKind.justAudio]：mpv 引擎的代码路径已经
-/// 打通并编译通过，但**还没有在任何真机上跑过一次**。在验证「libmpv.so
-/// 能加载 + OHAudio 能出声」之前把它设成默认，等于拿用户当测试机。
+/// 默认走 [PlaybackEngineKind.mpv]。这个结论有实测支撑：在鸿蒙模拟器
+/// （x86_64，`Mate 90 Pro`，API 26）上装 debug HAP，日志确认
+/// `libmpv 就绪：mpv v0.41.0-dev`，随后《我不难过》从 00:52 播到 01:19、
+/// 歌词同步滚动 —— `dlopen` 与 `ao_ohaudio` 都是真实可用的。
 ///
-/// 验证通过后要改的只有 `_defaultPlaybackEngineKind()` 的返回值——这是
-/// 刻意留的单点开关。真机验证阶段可以用编译期开关先跑一遍：
+/// 仍然保留 just_audio 作为回退：[createMpvPlaybackEngine] 会自检 libmpv，
+/// 返回 null 时 `main.dart` 继续走 just_audio 分支。桌面/移动端没有系统
+/// libmpv 时也会自动落到这条路上，所以这个默认值不会让非鸿蒙平台没声音。
+///
+/// 临时只跑某一条路径时可以用编译期开关覆盖：
 ///
 /// ```bash
-/// flutter build hap --dart-define=KOYZE_PLAYBACK_ENGINE=mpv
+/// flutter build hap --dart-define=KOYZE_PLAYBACK_ENGINE=just_audio
 /// ```
-///
-/// 走这条路时 [createMpvPlaybackEngine] 会自检 libmpv，失败自动退回
-/// just_audio（见 `main.dart` 里的回退分支），所以装错了也不会没声音。
 PlaybackEngineKind hostPlaybackEngineKind() {
   const override = String.fromEnvironment('KOYZE_PLAYBACK_ENGINE');
   return parsePlaybackEngineOverride(override) ?? _defaultPlaybackEngineKind();
@@ -58,7 +60,7 @@ PlaybackEngineKind? parsePlaybackEngineOverride(String raw) {
   return null;
 }
 
-PlaybackEngineKind _defaultPlaybackEngineKind() => PlaybackEngineKind.justAudio;
+PlaybackEngineKind _defaultPlaybackEngineKind() => PlaybackEngineKind.mpv;
 
 /// HAP 里 libmpv 的 soname。
 ///
@@ -89,18 +91,28 @@ bool get isOhosPlatform => Platform.operatingSystem == 'ohos';
 /// `dlopen` 发生在那个 isolate 里，失败是**异步**抛出的。同步 try/catch
 /// 抓不到，只能靠一次属性读来确认——`getRawProperty` 内部先
 /// `await _gate()`，也就是等 bring-up 完成。
+void _trace(String message) {
+  // 鸿蒙上 print/debugPrint 写 stdout，没有接收方，平台侧诊断必须走 hilog
+  // 才能被 `hdc shell hilog | grep KoyzeMpv` 看到。libmpv 加载失败时
+  // 应用会静默退回 just_audio，这条链路没有日志就只能靠猜。
+  ohosLog('KoyzeMpv', message);
+}
+
 Future<PlaybackEngine?> createMpvPlaybackEngine({String? libmpv}) async {
   final library = libmpv ?? _defaultLibmpv();
+  _trace('enter library=$library');
   if (isOhosPlatform) {
     // libmpv 的 API 契约（mpv/client.h）要求调用方把 LC_NUMERIC 设为 C，
     // 否则 mpv_create() 直接 abort。mpv 自己起的线程继承进程级 locale，
     // 所以必须进程级设置。只在鸿蒙做：其它平台上 mpv_audio_kit 已经处理。
     applyCNumericLocale();
   }
+  _trace('locale done, ensureInitialized');
   if (!_mpvInitialized) {
     mpv.MpvAudioKit.ensureInitialized(libmpv: library);
     _mpvInitialized = true;
   }
+  _trace('constructing Player');
   final player = mpv.Player(
     configuration: const mpv.PlayerConfiguration(
       // 起播时机由 handler 的状态机决定，引擎不自己抢跑。
@@ -115,15 +127,20 @@ Future<PlaybackEngine?> createMpvPlaybackEngine({String? libmpv}) async {
   );
 
   final version = await _probeLibmpv(player);
+  _trace('probe returned version=$version');
   if (version == null) {
     // bring-up 失败时 core 可能只起了一半，销毁要吞异常——真正有价值的
     // 信息是上面那条日志，别让清理阶段的报错把它盖掉。
     try {
-      await player.dispose();
-    } catch (_) {}
+      await player.dispose().timeout(const Duration(seconds: 3));
+      _trace('dispose done');
+    } catch (error) {
+      _trace('dispose failed/blocked: $error');
+    }
     return null;
   }
   AppLog.instance.record('audio.mpv', 'libmpv 就绪：$version');
+  _trace('engine ready');
   return MpvEngine(player);
 }
 

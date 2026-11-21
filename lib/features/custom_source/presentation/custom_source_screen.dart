@@ -373,7 +373,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
       builder: (dialogContext) {
         if (!keyboardRequested) {
           keyboardRequested = true;
-          requestTextInput(dialogContext, nameFocus);
+          requestTextInput(nameFocus);
         }
         return KoyzeDialog(
           backgroundColor: AppColors.dialogBg(dialogContext),
@@ -390,7 +390,6 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                   nameController,
                   S.of(context).sourceName,
                   focusNode: nameFocus,
-                  autofocus: true,
                 ),
                 const SizedBox(height: 8),
                 _buildTextField(
@@ -474,7 +473,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
       builder: (dialogContext) {
         if (!keyboardRequested) {
           keyboardRequested = true;
-          requestTextInput(dialogContext, nameFocus);
+          requestTextInput(nameFocus);
         }
         return KoyzeDialog(
           backgroundColor: AppColors.dialogBg(dialogContext),
@@ -491,7 +490,6 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                   nameController,
                   S.of(context).sourceName,
                   focusNode: nameFocus,
-                  autofocus: true,
                 ),
                 const SizedBox(height: 8),
                 _buildTextField(
@@ -564,7 +562,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
       builder: (dialogContext) {
         if (!keyboardRequested) {
           keyboardRequested = true;
-          requestTextInput(dialogContext, inputFocus);
+          requestTextInput(inputFocus);
         }
         return StatefulBuilder(
           builder: (dialogContext, setState) {
@@ -613,7 +611,6 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                   TextField(
                     controller: controller,
                     focusNode: inputFocus,
-                    autofocus: true,
                     keyboardType: desktopSafeKeyboardType(TextInputType.url),
                     textInputAction: TextInputAction.done,
                     autocorrect: false,
@@ -719,7 +716,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
       builder: (dialogContext) {
         if (!keyboardRequested) {
           keyboardRequested = true;
-          requestTextInput(dialogContext, inputFocus);
+          requestTextInput(inputFocus);
         }
         return StatefulBuilder(
           builder: (dialogContext, setState) => KoyzeDialog(
@@ -743,7 +740,6 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 TextField(
                   controller: controller,
                   focusNode: inputFocus,
-                  autofocus: true,
                   textInputAction: TextInputAction.done,
                   autocorrect: false,
                   style: TextStyle(
@@ -934,12 +930,12 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     String label, {
     int maxLines = 1,
     FocusNode? focusNode,
-    bool autofocus = false,
   }) {
+    // 这里刻意不开 autofocus：焦点统一由 requestTextInput 在首帧后请求，
+    // 两处同时抢焦点会在真机上和 IME 的打开/关闭撞在一起。
     return TextField(
       controller: controller,
       focusNode: focusNode,
-      autofocus: autofocus,
       style: TextStyle(color: AppColors.onScaffold(context)),
       maxLines: maxLines,
       decoration: InputDecoration(

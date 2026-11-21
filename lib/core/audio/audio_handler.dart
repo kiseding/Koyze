@@ -11,6 +11,8 @@ import 'package:rxdart/rxdart.dart';
 import '../logging/app_log.dart';
 import 'equalizer_bridge.dart';
 import 'just_audio_engine.dart';
+import 'mpv_equalizer_bridge.dart';
+import 'mpv_engine.dart';
 import 'playback_cache_service.dart';
 import 'playback_engine.dart';
 import 'playback_interruption.dart';
@@ -800,9 +802,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
            AudioHandlerPlatformDefaults.current.streamLocalFiles,
        _outputRouteRecoveryTimeout = outputRouteRecoveryTimeout,
        _resolveTimeout = resolveTimeout {
-    // 均衡器必须在播放器之前就绪：音效只能经 AudioPipeline 在构造时注入，
-    // just_audio 不支持事后追加。
-    _equalizer = equalizer ?? createEqualizerBridge();
+    // 均衡器要在播放前就绪：just_audio 的音效只能经 AudioPipeline 在构造
+    // 时注入，不支持事后追加；mpv 侧则是一串 `af` 属性，随时可写。
+    _equalizer = equalizer ?? _equalizerFor(engine);
     if (engine != null) {
       // 外部引擎（mpv）。没有可重建的工厂：引擎生命周期由调用方掌管，
       // 且 mpv 不需要 just_audio 那套「原生播放器卡死后重建」的兜底。
@@ -968,6 +970,15 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         streamLocalFiles: _streamLocalFiles,
       ),
     );
+  }
+
+  /// 按引擎挑均衡器实现。
+  ///
+  /// mpv 走自己的 `af` 音频滤镜链，因此均衡器在所有跑 mpv 的平台上都可用；
+  /// just_audio 仍然只有 Android 有原生音效通道，其余平台返回空实现。
+  static EqualizerBridge _equalizerFor(PlaybackEngine? engine) {
+    if (engine is MpvEngine) return MpvEqualizerBridge(engine);
+    return createEqualizerBridge();
   }
 
   /// 默认播放器。均衡器音效在这里注入。

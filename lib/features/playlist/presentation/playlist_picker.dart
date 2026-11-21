@@ -210,7 +210,6 @@ class _PlaylistPickerContentState
             setState(() => _showCreateField = shouldShow);
             if (shouldShow) {
               requestTextInput(
-                context,
                 _newPlaylistFocus,
                 initialDelay: const Duration(milliseconds: 220),
                 retryDelay: const Duration(milliseconds: 180),

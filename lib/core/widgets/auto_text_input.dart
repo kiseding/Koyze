@@ -31,17 +31,27 @@ TextInputType desktopSafeKeyboardType(TextInputType type) {
 /// This helper retries once after the first frame so mobile keyboards appear
 /// reliably for freshly opened input flows. For animated dialogs, pass
 /// [initialDelay] so the IME request lands after the route transition settles.
+///
+/// 刻意**不接收 BuildContext**：这个函数是在 post-frame 回调里干活的。
+/// `FocusScope.of(context)` 会顺带给那个元素登记一条 inherited 依赖——回调真
+/// 跑起来时弹窗可能正在关闭，这条迟到的登记就落在了一个生命周期已不可信的
+/// 元素上。真机 debug 构建上「关掉带键盘的弹窗后立刻再开一个」会撞到
+/// `InheritedElement.debugDeactivated` 的 `_dependents.isEmpty` 断言、整屏红，
+/// 这是那条路径里唯一会改 widget 树的动作，因此把它去掉。
+///
+/// `FocusNode.requestFocus()` 只走焦点树，不碰 widget 树；节点还没挂进焦点
+/// 树时会记下 `_requestFocusWhenReparented`，挂载后自动补上，正是弹窗场景
+/// 需要的行为。
 void requestTextInput(
-  BuildContext context,
   FocusNode focusNode, {
   bool Function()? canRequest,
   Duration initialDelay = Duration.zero,
   Duration retryDelay = const Duration(milliseconds: 120),
 }) {
   void show() {
-    if (!context.mounted || !focusNode.canRequestFocus) return;
+    if (!focusNode.canRequestFocus) return;
     if (canRequest != null && !canRequest()) return;
-    FocusScope.of(context).requestFocus(focusNode);
+    focusNode.requestFocus();
     unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.show'));
   }
 

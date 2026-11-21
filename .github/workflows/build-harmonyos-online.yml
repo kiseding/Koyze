@@ -290,6 +290,14 @@ jobs:
           for arch in arm64 x64; do
             # Flutter/Hvigor 复用 build 目录，清理后再切换架构，避免 HAP 混入上一架构。
             rm -rf build/ohos ohos/entry/build ohos/entry/libs ohos/har
+            # `flutter build hap` 会把 base/profile/buildinfo.json5 **移动**到
+            # rawfile/（flutter_tools 的 copyFlutterBuildInfoFile 末尾有
+            # deleteSync），所以上一轮构建结束后工作区里它是“已删除”状态。
+            # 不恢复的话，第二轮构建看不到模板，impeller 开关就不会进包。
+            git checkout -- ohos/entry/src/main/resources/base/profile/buildinfo.json5
+            # rawfile 里那份是构建产物：删掉让本轮重新从模板生成，避免上一轮
+            # 写入的 flag 被静默沿用。
+            rm -f ohos/entry/src/main/resources/rawfile/buildinfo.json5
             # 上面这行会把预编译的 libmpv 一起删掉，必须重新铺回去，否则
             # HAP 里没有 libmpv.so，mpv 引擎只能退回 just_audio。
             # 没有对应 ABI 的预编译库时脚本只打印跳过，不影响构建。
@@ -406,6 +414,30 @@ jobs:
                   flutter_member = expected[target]['flutter'][0]
                   if flutter_member not in names:
                       raise SystemExit(f'{hap.name} is missing {flutter_member}')
+                  # 一个 HAP 只能带自己架构的**核心**库。历史上 5.2.2 的 x64
+                  # 包里混进过 26MB 的 arm64 libmpv：构建前 ohos/entry/libs
+                  # 里留着上一轮 arm64 的预编译库，hvigor 就整个打进去了。
+                  # 留其它 ABI 的目录本身不算错——flutter_js 这个 har 自带
+                  # arm64-v8a 与 x86_64 两套 quickjs（约 2.5MB），
+                  # 三个线上包都这样，删不得也拦不得。能拦的是「不属于该架构
+                  # 的 Flutter/mpv 运行时」：libapp.so、libflutter.so、libmpv.so
+                  # 出现错架构，说明构建目录真的串了。
+                  expected_abi = {
+                      'ohos-arm64': 'arm64-v8a',
+                      'ohos-x64': 'x86_64',
+                  }[target]
+                  critical = ('libapp.so', 'libflutter.so', 'libmpv.so')
+                  misplaced = sorted(
+                      name for name in names
+                      if name.startswith('libs/') and name.count('/') >= 2
+                      and name.split('/')[1] != expected_abi
+                      and name.split('/')[2] in critical
+                  )
+                  if misplaced:
+                      raise SystemExit(
+                          f'{hap.name} 的 libs/ 下出现了非 {expected_abi} 架构的关键库 '
+                          f'{misplaced}；构建前需要清掉 ohos/entry/libs 里的其他架构'
+                      )
                   versions = sorted({
                       m.group(1).decode()
                       for m in version_pattern.finditer(archive.read(flutter_member))

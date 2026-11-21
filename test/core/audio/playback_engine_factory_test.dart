@@ -39,11 +39,16 @@ void main() {
     });
   });
 
-  test('mpv 不是默认引擎，必须显式开启', () {
-    // 真机验证之前默认值必须留在 just_audio。如果有人为了图省事把
-    // _defaultPlaybackEngineKind() 改成 mpv，这条会红 —— 那时候请先确认
-    // 真机上 libmpv.so 能加载、OHAudio 能出声，再连同这条测试一起改。
-    expect(hostPlaybackEngineKind(), PlaybackEngineKind.justAudio);
+  test('mpv 是默认引擎', () {
+    // 默认值已从 just_audio 切到 mpv。切之前做过的验证：鸿蒙模拟器
+    // （x86_64 / API 26）上装 debug HAP，日志确认 libmpv 自检返回
+    // `mpv v0.41.0-dev`，随后歌曲进度从 00:52 走到 01:19、歌词同步滚动，
+    // 说明 dlopen 与 ao_ohaudio 都真的在工作。
+    //
+    // 仍然没做的是 arm64 真机验证。真机上如果 libmpv.so 加载失败，
+    // createMpvPlaybackEngine 会返回 null，main.dart 自动退回 just_audio
+    // ——退路在，所以这个默认值最坏情况是「回到旧行为」，不是「没声音」。
+    expect(hostPlaybackEngineKind(), PlaybackEngineKind.mpv);
   });
 
   test('鸿蒙按 soname 找库，不写绝对路径', () {
