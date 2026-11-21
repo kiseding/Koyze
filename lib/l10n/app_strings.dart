@@ -1201,10 +1201,10 @@ class S {
   String get playerSpectrumSubtitle => _l10n.playerSpectrumSubtitle;
   String get playerSpectrumStyle => _l10n.playerSpectrumStyle;
   String get playerSpectrumStyleBars => _l10n.playerSpectrumStyleBars;
-  String get playerSpectrumStylePills => _l10n.playerSpectrumStylePills;
-  String get playerSpectrumStyleMirror => _l10n.playerSpectrumStyleMirror;
-  String get playerSpectrumStyleWave => _l10n.playerSpectrumStyleWave;
-  String get playerSpectrumStyleRibbon => _l10n.playerSpectrumStyleRibbon;
+  String get playerSpectrumStyleLeds => _l10n.playerSpectrumStyleLeds;
+  String get playerSpectrumStyleDots => _l10n.playerSpectrumStyleDots;
+  String get playerSpectrumStyleRidges => _l10n.playerSpectrumStyleRidges;
+  String get playerSpectrumStyleHalo => _l10n.playerSpectrumStyleHalo;
   String get preamp => _l10n.preamp;
   String get preampHint => _l10n.preampHint;
   String autoEqParametric(int count) => _l10n.autoEqParametric(count);

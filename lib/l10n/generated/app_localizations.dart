@@ -6248,29 +6248,29 @@ abstract class AppLocalizations {
   /// **'Bars'**
   String get playerSpectrumStyleBars;
 
-  /// No description provided for @playerSpectrumStylePills.
+  /// No description provided for @playerSpectrumStyleLeds.
   ///
   /// In en, this message translates to:
-  /// **'Dots'**
-  String get playerSpectrumStylePills;
+  /// **'Levels'**
+  String get playerSpectrumStyleLeds;
 
-  /// No description provided for @playerSpectrumStyleMirror.
+  /// No description provided for @playerSpectrumStyleDots.
   ///
   /// In en, this message translates to:
-  /// **'Mirrored'**
-  String get playerSpectrumStyleMirror;
+  /// **'Glow dots'**
+  String get playerSpectrumStyleDots;
 
-  /// No description provided for @playerSpectrumStyleWave.
+  /// No description provided for @playerSpectrumStyleRidges.
   ///
   /// In en, this message translates to:
-  /// **'Curve'**
-  String get playerSpectrumStyleWave;
+  /// **'Ridges'**
+  String get playerSpectrumStyleRidges;
 
-  /// No description provided for @playerSpectrumStyleRibbon.
+  /// No description provided for @playerSpectrumStyleHalo.
   ///
   /// In en, this message translates to:
-  /// **'Waveform'**
-  String get playerSpectrumStyleRibbon;
+  /// **'Halo'**
+  String get playerSpectrumStyleHalo;
 
   /// No description provided for @preamp.
   ///

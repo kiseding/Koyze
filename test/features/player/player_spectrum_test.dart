@@ -37,12 +37,12 @@ void main() {
       final first = PlayerSpectrumNotifier(storage: () async => storage);
       await Future<void>.delayed(Duration.zero);
 
-      await first.setStyle(SpectrumStyle.ribbon);
+      await first.setStyle(SpectrumStyle.halo);
       await first.setEnabled(false);
 
       final second = PlayerSpectrumNotifier(storage: () async => storage);
       await Future<void>.delayed(Duration.zero);
-      expect(second.value.style, SpectrumStyle.ribbon);
+      expect(second.value.style, SpectrumStyle.halo);
       expect(second.value.enabled, isFalse);
     });
 
@@ -61,10 +61,10 @@ void main() {
     test('样式名是稳定字符串，改枚举名不会让旧设置失效', () {
       // 断言具体的字面量，而不是 enum.name：后者一改名就把用户的设置弄丢。
       expect(SpectrumStyle.bars.storageValue, 'bars');
-      expect(SpectrumStyle.pills.storageValue, 'pills');
-      expect(SpectrumStyle.mirror.storageValue, 'mirror');
-      expect(SpectrumStyle.wave.storageValue, 'wave');
-      expect(SpectrumStyle.ribbon.storageValue, 'ribbon');
+      expect(SpectrumStyle.leds.storageValue, 'leds');
+      expect(SpectrumStyle.dots.storageValue, 'dots');
+      expect(SpectrumStyle.ridges.storageValue, 'ridges');
+      expect(SpectrumStyle.halo.storageValue, 'halo');
       for (final style in SpectrumStyle.values) {
         expect(
           SpectrumStyle.fromStorage(style.storageValue),
@@ -77,15 +77,15 @@ void main() {
     test('相等性与 JSON 往返', () {
       const settings = PlayerSpectrumSettings(
         enabled: false,
-        style: SpectrumStyle.mirror,
+        style: SpectrumStyle.dots,
       );
       final restored = PlayerSpectrumSettings.fromJson(settings.toJson());
       expect(restored, settings);
       expect(restored.hashCode, settings.hashCode);
       // 缺字段的旧数据也要能读：升级后不该丢用户已选的样式。
       expect(
-        PlayerSpectrumSettings.fromJson(const {'style': 'wave'}).style,
-        SpectrumStyle.wave,
+        PlayerSpectrumSettings.fromJson(const {'style': 'halo'}).style,
+        SpectrumStyle.halo,
       );
     });
   });
@@ -153,8 +153,8 @@ void main() {
             trackColor: const Color(0xFF333333),
           ),
         );
-        // 五种样式都必须落到画布上。mirror 只占中线两侧、wave/ribbon 是
-        // 细线，像素数差别很大，所以只断言「有相当量的不透明像素」。
+        // 五种样式都必须落到画布上。光点只占几个亮核、光带只有一圈边，
+        // 像素数差别很大，所以只断言「有相当量的不透明像素」。
         expect(
           opaquePixels(data),
           greaterThan(120),
@@ -178,12 +178,12 @@ void main() {
       expect(opaquePixels(empty), greaterThan(0));
     });
 
-    test('镜像样式上下对称', () async {
+    test('电平样式是分段的：列内存在未点亮的暗带', () async {
       final data = await rasterize(
         SpectrumPainter(
-          display: bands,
-          peak: bands,
-          style: SpectrumStyle.mirror,
+          display: List<double>.filled(24, 0.55),
+          peak: List<double>.filled(24, 0.55),
+          style: SpectrumStyle.leds,
           accent: const Color(0xFF8B82EA),
           trackColor: const Color(0xFF333333),
         ),
@@ -191,27 +191,82 @@ void main() {
       final bytes = data.buffer.asUint8List();
       const width = 120;
       const height = 40;
-
       int alphaAt(int x, int y) => bytes[(y * width + x) * 4 + 3];
 
-      // 取一根足够高的柱子所在列，比较相对中线对称的两个像素。
-      var checked = 0;
-      for (var x = 0; x < width; x += 3) {
-        for (var dy = 1; dy < height ~/ 2 - 2; dy++) {
-          final top = alphaAt(x, height ~/ 2 - 1 - dy);
-          final bottom = alphaAt(x, height ~/ 2 + dy);
-          if (top > 40 || bottom > 40) {
-            expect(
-              (top - bottom).abs(),
-              lessThan(90),
-              reason: '列 $x 偏移 $dy 处上下不对称（$top vs $bottom）',
-            );
-            checked++;
-            break;
-          }
+      // 逐列数「亮 → 暗」的切换次数。电平表每一格之间必有缝，柱状没有；
+      // 这条断言就是在钉住「分段」这个结构特征，而不是「画了东西」。
+      var best = 0;
+      for (var x = 0; x < width; x++) {
+        var transitions = 0;
+        var previousLit = false;
+        for (var y = 0; y < height; y++) {
+          final lit = alphaAt(x, y) > 110;
+          if (previousLit && !lit) transitions++;
+          previousLit = lit;
         }
+        if (transitions > best) best = transitions;
       }
-      expect(checked, greaterThan(5), reason: '没找到足够的柱子列来验证对称');
+      expect(best, greaterThanOrEqualTo(2), reason: '电平表没画出分段，等于一根细柱');
+    });
+
+    test('光点样式是亮点加细尾，不是实心柱', () async {
+      Future<int> brightPixels(SpectrumStyle style) async {
+        final data = await rasterize(
+          SpectrumPainter(
+            display: List<double>.filled(24, 0.55),
+            peak: List<double>.filled(24, 0.55),
+            style: style,
+            accent: const Color(0xFF8B82EA),
+            trackColor: const Color(0xFF333333),
+          ),
+        );
+        final bytes = data.buffer.asUint8List();
+        var count = 0;
+        for (var i = 3; i < bytes.length; i += 4) {
+          if (bytes[i] > 150) count++;
+        }
+        return count;
+      }
+
+      final bars = await brightPixels(SpectrumStyle.bars);
+      final dots = await brightPixels(SpectrumStyle.dots);
+      // 同样幅值下，柱状是整片亮，光点只有几个亮核加一根淡尾线。
+      // 若两者像素数接近，说明光点退化成了「换皮柱子」。
+      expect(
+        dots,
+        lessThan(bars ~/ 2),
+        reason: '光点的亮像素（$dots）和柱状（$bars）太接近，形状没有真正区分开',
+      );
+    });
+
+    test('光环是空心的：只有两边亮，中间不填色', () async {
+      final data = await rasterize(
+        SpectrumPainter(
+          display: List<double>.filled(24, 1),
+          peak: List<double>.filled(24, 1),
+          style: SpectrumStyle.halo,
+          accent: const Color(0xFF8B82EA),
+          trackColor: const Color(0xFF333333),
+        ),
+      );
+      final bytes = data.buffer.asUint8List();
+      const width = 120;
+      const height = 40;
+      int alphaAt(int x, int y) => bytes[(y * width + x) * 4 + 3];
+
+      // 满幅时带子大约占中间 6..29（厚度 0.56H，中心 0.44H）。
+      // 取中列：中心应近乎透明，上下边界应亮。
+      const x = 60;
+      final center = alphaAt(x, 17);
+      var brightest = 0;
+      for (var y = 0; y < height; y++) {
+        final a = alphaAt(x, y);
+        if (a > brightest) brightest = a;
+      }
+
+      // 若这里变成实心，光环就退化成第二座山脊——「线」和「块」必须分开。
+      expect(center, lessThan(60), reason: '光环被填实了（中心 alpha=$center）');
+      expect(brightest, greaterThan(120), reason: '边框不够亮，光环看不出来');
     });
 
     test('比例尺一致：更高的幅值画出更高的柱', () async {
@@ -220,7 +275,7 @@ void main() {
           SpectrumPainter(
             display: [value],
             peak: [value],
-            style: SpectrumStyle.pills,
+            style: SpectrumStyle.bars,
             accent: const Color(0xFF8B82EA),
             trackColor: const Color(0xFF333333),
           ),

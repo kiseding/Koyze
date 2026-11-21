@@ -2617,10 +2617,10 @@ class _AccentSwatch extends StatelessWidget {
 /// 频谱样式在界面上的名字。
 String spectrumStyleLabel(S s, SpectrumStyle style) => switch (style) {
   SpectrumStyle.bars => s.playerSpectrumStyleBars,
-  SpectrumStyle.pills => s.playerSpectrumStylePills,
-  SpectrumStyle.mirror => s.playerSpectrumStyleMirror,
-  SpectrumStyle.wave => s.playerSpectrumStyleWave,
-  SpectrumStyle.ribbon => s.playerSpectrumStyleRibbon,
+  SpectrumStyle.leds => s.playerSpectrumStyleLeds,
+  SpectrumStyle.dots => s.playerSpectrumStyleDots,
+  SpectrumStyle.ridges => s.playerSpectrumStyleRidges,
+  SpectrumStyle.halo => s.playerSpectrumStyleHalo,
 };
 
 /// 样式选择面板里的一行：左边是名字，右边是这块样式的实时预览。

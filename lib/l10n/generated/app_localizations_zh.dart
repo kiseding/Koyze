@@ -3364,16 +3364,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerSpectrumStyleBars => '柱状';
 
   @override
-  String get playerSpectrumStylePills => '圆点';
+  String get playerSpectrumStyleLeds => '电平';
 
   @override
-  String get playerSpectrumStyleMirror => '镜像';
+  String get playerSpectrumStyleDots => '光点';
 
   @override
-  String get playerSpectrumStyleWave => '曲线';
+  String get playerSpectrumStyleRidges => '山脊';
 
   @override
-  String get playerSpectrumStyleRibbon => '声波';
+  String get playerSpectrumStyleHalo => '光环';
 
   @override
   String get preamp => '前级增益';

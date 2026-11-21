@@ -162,7 +162,7 @@ void main() {
       wrap(
         PlayerSpectrumStrip(
           sourceOverride: source,
-          style: SpectrumStyle.ribbon,
+          style: SpectrumStyle.halo,
         ),
       ),
     );
@@ -173,7 +173,7 @@ void main() {
         .map((paint) => paint.painter)
         .whereType<SpectrumPainter>()
         .map((painter) => painter.style);
-    expect(styles, contains(SpectrumStyle.ribbon));
+    expect(styles, contains(SpectrumStyle.halo));
     expect(source.hasListener, isTrue, reason: '换样式不该把数据流断掉');
   });
 }

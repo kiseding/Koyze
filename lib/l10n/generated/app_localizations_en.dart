@@ -3457,16 +3457,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerSpectrumStyleBars => 'Bars';
 
   @override
-  String get playerSpectrumStylePills => 'Dots';
+  String get playerSpectrumStyleLeds => 'Levels';
 
   @override
-  String get playerSpectrumStyleMirror => 'Mirrored';
+  String get playerSpectrumStyleDots => 'Glow dots';
 
   @override
-  String get playerSpectrumStyleWave => 'Curve';
+  String get playerSpectrumStyleRidges => 'Ridges';
 
   @override
-  String get playerSpectrumStyleRibbon => 'Waveform';
+  String get playerSpectrumStyleHalo => 'Halo';
 
   @override
   String get preamp => 'Preamp';

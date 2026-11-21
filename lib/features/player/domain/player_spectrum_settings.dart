@@ -4,32 +4,44 @@ import 'package:flutter/foundation.dart';
 ///
 /// 放在 domain 而不是和绘制器一起：设置页要读它来做选择器，而设置层不应该
 /// 依赖 player 的 presentation。绘制器那边 `switch` 这个枚举决定几何形状。
+///
+/// 五档是**五种不同的读法**，不是同一根柱子换圆角：
+///
+/// - [bars] 看「包络」：柱高即幅值，最直白。
+/// - [leds] 看「档位」：一列离散方块，像老式电平表的灯柱。
+/// - [dots] 看「轨迹」：每列一个浮动的光点，尾线连着底，幅度变化是位移。
+/// - [ridges] 看「地形」：三层山脊叠在一起，前低后高，有纵深。
+/// - [halo] 看「轮廓」：上下边界围成一个空心光环，响的时候张开。
 enum SpectrumStyle {
   /// 竖柱 + 顶部峰值帽。最直白的「频谱分析仪」，与均衡器页的柱状语言一致。
   bars,
 
-  /// 圆头细柱，柱宽与间距接近 1:1，比 [bars] 轻。窄条上更干净。
-  pills,
+  /// 分段电平表：每列由若干方块组成，点亮的格数等于幅值。
+  leds,
 
-  /// 镜像柱：以条的水平中线为轴上下对称。视觉重心居中，不压迫下方进度条。
-  mirror,
+  /// 浮动光点：每列一个圆点，纵向位置跟着幅值走，底部拖一条细尾线。
+  dots,
 
-  /// 平滑曲线 + 向下渐隐的面积填充。没有柱子边界，适合「氛围」而非「仪表」。
-  wave,
+  /// 三层山脊：后层更高更暗，前层更矮更亮，叠出纵深。
+  ridges,
 
-  /// 曲线 + 上下对称填充，像声波包络。比 [wave] 更有体积感。
-  ribbon;
+  /// 空心光环：上下两条边界围成一个闭合线框，只有描边、不填色。
+  /// 响的时候线框张开，安静时收成一条线。
+  halo;
 
   /// 持久化用的稳定字符串。改枚举名不该让用户的设置失效，所以显式写死。
   String get storageValue => switch (this) {
     SpectrumStyle.bars => 'bars',
-    SpectrumStyle.pills => 'pills',
-    SpectrumStyle.mirror => 'mirror',
-    SpectrumStyle.wave => 'wave',
-    SpectrumStyle.ribbon => 'ribbon',
+    SpectrumStyle.leds => 'leds',
+    SpectrumStyle.dots => 'dots',
+    SpectrumStyle.ridges => 'ridges',
+    SpectrumStyle.halo => 'halo',
   };
 
-  static SpectrumStyle fromStorage(Object? value, {SpectrumStyle fallback = SpectrumStyle.bars}) {
+  static SpectrumStyle fromStorage(
+    Object? value, {
+    SpectrumStyle fallback = SpectrumStyle.bars,
+  }) {
     if (value is! String) return fallback;
     for (final style in SpectrumStyle.values) {
       if (style.storageValue == value) return style;
