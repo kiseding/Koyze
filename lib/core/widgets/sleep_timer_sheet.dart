@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_colors.dart';
 import 'app_notification.dart';
+import 'fx_switch.dart';
 import '../../features/player/presentation/player_provider.dart';
 import '../../l10n/app_strings.dart';
 import '../../../core/widgets/koyze_sheet.dart';
@@ -83,7 +84,7 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
                     );
                   },
                 ),
-              SwitchListTile.adaptive(
+              FxSwitchTile(
                 dense: true,
                 value: fadeOut,
                 onChanged: (value) =>

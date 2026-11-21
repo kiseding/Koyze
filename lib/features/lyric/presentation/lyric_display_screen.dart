@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/fx_switch.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../l10n/app_strings.dart';
 import '../../settings/presentation/settings_provider.dart';
@@ -379,7 +380,7 @@ class _LyricSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SwitchListTile.adaptive(
+    return FxSwitchTile(
       value: value,
       onChanged: onChanged,
       title: Text(
@@ -391,7 +392,7 @@ class _LyricSwitch extends StatelessWidget {
         ),
       ),
       contentPadding: EdgeInsets.zero,
-      activeThumbColor: AppColors.accentOf(context),
+      accent: AppColors.accentOf(context),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:koyze/core/widgets/fx_switch.dart';
 import 'package:koyze/features/lyric/presentation/lyric_display_screen.dart';
 import 'package:koyze/features/lyric/presentation/lyric_preview.dart';
 import 'package:koyze/features/settings/presentation/settings_provider.dart';
@@ -139,7 +140,7 @@ void main() {
     // 默认开：预览里的日文行会带译文。
     expect(find.text('像要沉下去一般'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(SwitchListTile, s.lyricTranslation));
+    await tester.tap(find.widgetWithText(FxSwitchTile, s.lyricTranslation));
     await tester.pumpAndSettle();
     expect(find.text('像要沉下去一般'), findsNothing);
   });

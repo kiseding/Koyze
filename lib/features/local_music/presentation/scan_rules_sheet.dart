@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/fx_switch.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../l10n/app_strings.dart';
 import '../domain/local_scan_rules.dart';
@@ -151,7 +152,7 @@ class _ScanRulesSheetState extends ConsumerState<_ScanRulesSheet> {
                       ),
                   ],
                 ),
-                SwitchListTile.adaptive(
+                FxSwitchTile(
                   dense: true,
                   value: rules.skipDuplicates,
                   onChanged: (value) =>

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/fx_switch.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../l10n/app_strings.dart';
 import '../../settings/presentation/settings_provider.dart';
@@ -69,10 +70,11 @@ class PlayerBackdropSheet extends ConsumerWidget {
                     .setScrim(value),
               ),
               const SizedBox(height: 6),
-              SwitchListTile.adaptive(
+              FxSwitchTile(
                 value: ref.watch(flowingBackdropProvider),
-                onChanged: (value) =>
-                    ref.read(flowingBackdropProvider.notifier).setEnabled(value),
+                onChanged: (value) => ref
+                    .read(flowingBackdropProvider.notifier)
+                    .setEnabled(value),
                 title: Text(
                   s.flowingBackdrop,
                   style: TextStyle(
@@ -89,7 +91,7 @@ class PlayerBackdropSheet extends ConsumerWidget {
                   ),
                 ),
                 contentPadding: EdgeInsets.zero,
-                activeThumbColor: AppColors.accentOf(context),
+                accent: AppColors.accentOf(context),
               ),
               Align(
                 alignment: Alignment.centerRight,
