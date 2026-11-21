@@ -99,7 +99,9 @@ class KgSource extends MusicPlatform {
       final body = _asMap(response.data);
       if (body == null) return [];
       clearFailure();
-      return compute(_parseSearchPayload, body);
+      // 必须 await：`compute` 的解析跑在另一个 isolate 里，异常若不以
+      // await 拉回，下面的 catch 根本抓不到，会变成未捕获的异步错误。
+      return await compute(_parseSearchPayload, body);
     } catch (e) {
       throw noteFailure('search', e);
     }

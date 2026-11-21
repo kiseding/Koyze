@@ -174,11 +174,13 @@ class AiScheduleRunner {
     try {
       final config = _ref.read(aiConfigProvider);
       if (!config.isConfigured) {
-        return _fail(task, at, AiFailureKind.notConfigured);
+        // await 是必要的：`_fail` 会写运行记录，写失败要落到下面的 catch，
+        // 而不是从 try 里逃出去变成未捕获异常。
+        return await _fail(task, at, AiFailureKind.notConfigured);
       }
       final key = await _ref.read(aiConfigProvider.notifier).loadKey();
       if (key == null || key.isEmpty) {
-        return _fail(task, at, AiFailureKind.unauthorized);
+        return await _fail(task, at, AiFailureKind.unauthorized);
       }
       final reply = await _ref
           .read(aiAgentProvider)
