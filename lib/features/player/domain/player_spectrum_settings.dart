@@ -8,10 +8,10 @@ import 'package:flutter/foundation.dart';
 /// 五档是**五种不同的读法**，不是同一根柱子换圆角：
 ///
 /// - [bars] 看「包络」：柱高即幅值，最直白。
-/// - [leds] 看「档位」：一列离散方块，像老式电平表的灯柱。
+/// - [leds] 看「灯柱」：每列由一串小方块堆起来，点亮多少格就是多响。
 /// - [dots] 看「轨迹」：每列一个浮动的光点，尾线连着底，幅度变化是位移。
 /// - [ridges] 看「地形」：三层山脊叠在一起，前低后高，有纵深。
-/// - [fade] 看「重心」：柱子向上化进背景，亮度压在底部。
+/// - [steps] 看「刻度」：幅值吸附到有限档位，连成一条不断的楼梯轮廓。
 enum SpectrumStyle {
   /// 竖柱 + 顶部峰值帽。最直白的「频谱分析仪」，与均衡器页的柱状语言一致。
   bars,
@@ -25,9 +25,11 @@ enum SpectrumStyle {
   /// 三层山脊：后层更高更暗，前层更矮更亮，叠出纵深。
   ridges,
 
-  /// 消隐：柱子从底部的实色向上淡出到透明，地面压一条亮线。
-  /// 最亮的地方在地板而不是顶端，观感是「光柱」而不是「柱子」。
-  fade;
+  /// 阶梯：连续幅值量化到有限档位，画成一条中间不断开的楼梯轮廓。
+  ///
+  /// 和 [leds] 都涉及「量化」，但一个是逐列断开的小方块、一个是贯穿整条的
+  /// 折线：电平表读的是每列点亮了几格，阶梯读的是整条轮廓跳了几级。
+  steps;
 
   /// 持久化用的稳定字符串。改枚举名不该让用户的设置失效，所以显式写死。
   String get storageValue => switch (this) {
@@ -35,7 +37,7 @@ enum SpectrumStyle {
     SpectrumStyle.leds => 'leds',
     SpectrumStyle.dots => 'dots',
     SpectrumStyle.ridges => 'ridges',
-    SpectrumStyle.fade => 'fade',
+    SpectrumStyle.steps => 'steps',
   };
 
   static SpectrumStyle fromStorage(

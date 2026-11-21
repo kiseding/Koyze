@@ -3373,7 +3373,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playerSpectrumStyleRidges => '山脊';
 
   @override
-  String get playerSpectrumStyleFade => '消隐';
+  String get playerSpectrumStyleSteps => '阶梯';
 
   @override
   String get preamp => '前级增益';

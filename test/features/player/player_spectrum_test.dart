@@ -37,12 +37,12 @@ void main() {
       final first = PlayerSpectrumNotifier(storage: () async => storage);
       await Future<void>.delayed(Duration.zero);
 
-      await first.setStyle(SpectrumStyle.fade);
+      await first.setStyle(SpectrumStyle.steps);
       await first.setEnabled(false);
 
       final second = PlayerSpectrumNotifier(storage: () async => storage);
       await Future<void>.delayed(Duration.zero);
-      expect(second.value.style, SpectrumStyle.fade);
+      expect(second.value.style, SpectrumStyle.steps);
       expect(second.value.enabled, isFalse);
     });
 
@@ -64,7 +64,7 @@ void main() {
       expect(SpectrumStyle.leds.storageValue, 'leds');
       expect(SpectrumStyle.dots.storageValue, 'dots');
       expect(SpectrumStyle.ridges.storageValue, 'ridges');
-      expect(SpectrumStyle.fade.storageValue, 'fade');
+      expect(SpectrumStyle.steps.storageValue, 'steps');
       for (final style in SpectrumStyle.values) {
         expect(
           SpectrumStyle.fromStorage(style.storageValue),
@@ -84,8 +84,8 @@ void main() {
       expect(restored.hashCode, settings.hashCode);
       // 缺字段的旧数据也要能读：升级后不该丢用户已选的样式。
       expect(
-        PlayerSpectrumSettings.fromJson(const {'style': 'fade'}).style,
-        SpectrumStyle.fade,
+        PlayerSpectrumSettings.fromJson(const {'style': 'steps'}).style,
+        SpectrumStyle.steps,
       );
     });
   });
@@ -239,12 +239,17 @@ void main() {
       );
     });
 
-    test('消隐的重心在底部：越往上越淡', () async {
+    test('阶梯把连续幅值量化到有限档位', () async {
+      // 24 列幅值平滑递增，跨满量程。不做量化时会有二十来种不同的柱高；
+      // 量化后只允许出现个位数种高度——这是这一档和柱状的根本差别。
+      final values = [
+        for (var i = 0; i < 24; i++) (0.10 + i * 0.034).clamp(0.0, 1.0),
+      ];
       final data = await rasterize(
         SpectrumPainter(
-          display: List<double>.filled(24, 0.9),
+          display: values,
           peak: const [],
-          style: SpectrumStyle.fade,
+          style: SpectrumStyle.steps,
           accent: const Color(0xFF8B82EA),
           trackColor: const Color(0xFF333333),
         ),
@@ -254,17 +259,26 @@ void main() {
       const height = 40;
       int alphaAt(int x, int y) => bytes[(y * width + x) * 4 + 3];
 
-      // 取一根柱子的中线：贴近地面应该最亮，靠近柱顶应该几乎化掉。
-      // 这一条钉住的是它和柱状的本质差别——柱状是「顶亮底暗」。
-      const x = 2;
-      var bottom = 0;
-      for (var y = height - 1; y >= height - 8; y--) {
-        final a = alphaAt(x, y);
-        if (a > bottom) bottom = a;
+      // 每列取最上面的不透明像素。列宽 5px，取中心。
+      final tops = <int>{};
+      for (var column = 0; column < values.length; column++) {
+        final x = column * 5 + 2;
+        var top = height;
+        for (var y = 0; y < height; y++) {
+          if (alphaAt(x, y) > 40) {
+            top = y;
+            break;
+          }
+        }
+        tops.add(top);
       }
-      final nearTop = alphaAt(x, (height * 0.18).round());
-      expect(bottom, greaterThan(150), reason: '底部不够实（$bottom）');
-      expect(nearTop, lessThan(bottom ~/ 3), reason: '顶部没有化开（$nearTop vs $bottom）');
+
+      expect(
+        tops.length,
+        lessThanOrEqualTo(9),
+        reason: '柱高种类太多（${tops.length} 种），说明没有量化成台阶',
+      );
+      expect(tops.length, greaterThan(3), reason: '整条被压成了一级，没有台阶感');
     });
 
     test('比例尺一致：更高的幅值画出更高的柱', () async {

@@ -1838,7 +1838,7 @@
   "playerSpectrumStyleLeds": "Levels",
   "playerSpectrumStyleDots": "Glow dots",
   "playerSpectrumStyleRidges": "Ridges",
-  "playerSpectrumStyleFade": "Fade",
+  "playerSpectrumStyleSteps": "Steps",
   "preamp": "Preamp",
   "preampHint": "Headroom shipped with the AutoEQ profile, prevents clipping",
   "autoEqParametric": "Applied as published: {count} filters",

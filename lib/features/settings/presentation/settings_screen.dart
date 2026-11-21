@@ -2620,7 +2620,7 @@ String spectrumStyleLabel(S s, SpectrumStyle style) => switch (style) {
   SpectrumStyle.leds => s.playerSpectrumStyleLeds,
   SpectrumStyle.dots => s.playerSpectrumStyleDots,
   SpectrumStyle.ridges => s.playerSpectrumStyleRidges,
-  SpectrumStyle.fade => s.playerSpectrumStyleFade,
+  SpectrumStyle.steps => s.playerSpectrumStyleSteps,
 };
 
 /// 样式选择面板里的一行：左边是名字，右边是这块样式的实时预览。

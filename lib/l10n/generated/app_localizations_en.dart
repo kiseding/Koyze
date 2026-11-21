@@ -3466,7 +3466,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerSpectrumStyleRidges => 'Ridges';
 
   @override
-  String get playerSpectrumStyleFade => 'Fade';
+  String get playerSpectrumStyleSteps => 'Steps';
 
   @override
   String get preamp => 'Preamp';

@@ -55,10 +55,16 @@ class SpectrumPainter extends CustomPainter {
         _paintDots(canvas, size);
       case SpectrumStyle.ridges:
         _paintRidges(canvas, size);
-      case SpectrumStyle.fade:
-        _paintFade(canvas, size);
+      case SpectrumStyle.steps:
+        _paintSteps(canvas, size);
     }
   }
+
+  /// 阶梯量化到几档。
+  ///
+  /// 8 档在 44px 高的条上约 5px 一级，一眼能数清级别；再多就退化成连续曲线，
+  /// 再少（4 档）动态范围又太挤，安静段落整条贴底。
+  static const _stepLevels = 8;
 
   void _paintIdle(Canvas canvas, Size size) {
     final count = 56;
@@ -238,39 +244,63 @@ class SpectrumPainter extends CustomPainter {
     }
   }
 
-  /// 消隐：柱子从底部的实色向上淡出到透明，底部压一条亮基线。
+  /// 阶梯：把连续幅值吸附到有限档位，画成一条不断的楼梯轮廓。
   ///
-  /// 和柱状的区别在「重心」：柱状把最亮的部分放在顶端（那是峰值），消隐把
-  /// 最亮的部分放在地面（那是音量），顶部干脆化进背景。所以它看起来像一排
-  /// 从地板往上打的光柱，而不是一排柱子。
-  void _paintFade(Canvas canvas, Size size) {
+  /// 它和柱状的分水岭不在形状而在**值域**：柱子的高度是连续的，台阶的高度
+  /// 只取几个离散值，所以相邻频段常常落在同一档，连成一段真正的水平踏面。
+  /// 这和「电平表」也不是一回事——电平是每列独立的小方块，列与列之间有缝；
+  /// 阶梯是整条连续折线，中间不留缝，读的是一把量程尺的轮廓。
+  void _paintSteps(Canvas canvas, Size size) {
     final count = display.length;
-    final step = size.width / count;
-    final barWidth = math.max(2.0, step * 0.55);
-    final paint = Paint()..style = PaintingStyle.fill;
+    final stepWidth = size.width / count;
+    final baseline = size.height - 1;
 
+    // 量化到 [_stepLevels] 档。round 而不是 floor：floor 会让整条在安静段落
+    // 一直贴底，档位反而看不出来。
+    final heights = <double>[
+      for (final value in display)
+        (value.clamp(0.0, 1.0) * _stepLevels).round() / _stepLevels,
+    ];
+
+    // 楼梯轮廓：每列先垂直上去，再水平走到下一列起点。相邻同档的两列因此
+    // 连成一段长踏面，肉眼一眼能看出「跳了一级」。
+    final topLine = Path()..moveTo(0, baseline - heights.first * baseline);
     for (var i = 0; i < count; i++) {
-      final value = display[i].clamp(0.0, 1.0);
-      final height = math.max(2.0, value * (size.height - 1.5));
-      final left = i * step + (step - barWidth) / 2;
-      final rect = Rect.fromLTWH(left, size.height - height, barWidth, height);
-      paint.shader = LinearGradient(
-        begin: Alignment.bottomCenter,
-        end: Alignment.topCenter,
-        colors: [
-          accent.withValues(alpha: 0.95),
-          accent.withValues(alpha: 0.45),
-          accent.withValues(alpha: 0.0),
-        ],
-        stops: const [0.0, 0.42, 1.0],
-      ).createShader(rect);
-      canvas.drawRect(rect, paint);
+      final top = baseline - heights[i] * baseline;
+      topLine
+        ..lineTo(i * stepWidth, top)
+        ..lineTo((i + 1) * stepWidth, top);
     }
 
-    // 地面亮线：没有它，柱子会像悬在半空；有了它，整条读作「光从地面打上来」。
-    canvas.drawRect(
-      Rect.fromLTWH(0, size.height - 1.2, size.width, 1.2),
-      Paint()..color = accent.withValues(alpha: 0.55),
+    final body = Path.from(topLine)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    canvas.drawPath(
+      body,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..shader = LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            accent.withValues(alpha: 0.44),
+            accent.withValues(alpha: 0.92),
+          ],
+        ).createShader(Offset.zero & size),
+    );
+
+    // 踏面高光：只描上边界。它同时干了两件事——把相邻两级的落差强调出来，
+    // 也压住折线的毛边，让台阶看起来是「切」出来的而不是「糊」出来的。
+    canvas.drawPath(
+      topLine,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..strokeJoin = StrokeJoin.miter
+        ..color = Color.lerp(accent, Colors.white, 0.40)!
+            .withValues(alpha: 0.92),
     );
   }
 
