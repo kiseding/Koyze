@@ -1211,6 +1211,11 @@ class S {
   String get preampHint => _l10n.preampHint;
   String autoEqParametric(int count) => _l10n.autoEqParametric(count);
   String get autoEqParametricHint => _l10n.autoEqParametricHint;
+  String get audioEnhancementSection => _l10n.audioEnhancementSection;
+  String get audioEnhancementSectionHint =>
+      _l10n.audioEnhancementSectionHint;
+  String get spectrumSection => _l10n.spectrumSection;
+  String get spectrumSectionHint => _l10n.spectrumSectionHint;
   String get playbackFade => _l10n.playbackFade;
   String get playbackFadeSubtitle => _l10n.playbackFadeSubtitle;
   String get exportM3u => _l10n.exportM3u;

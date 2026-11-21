@@ -897,7 +897,7 @@
   "autoEqImport": "导入 AutoEQ",
   "autoEqImported": "已导入 {name}",
   "autoEqImportFailed": "这个文件里没有可识别的 AutoEQ 曲线",
-  "replayGain": "响度均衡",
+  "replayGain": "响度归一化",
   "replayGainSubtitle": "按 ReplayGain 标签拉平专辑间音量",
   "lockScreenLyric": "锁屏歌词",
   "lockScreenLyricSubtitle": "在锁屏与通知栏显示当前歌词行",
@@ -1086,5 +1086,9 @@
   "preamp": "前级增益",
   "preampHint": "AutoEQ 自带的余量，防止叠加后削波",
   "autoEqParametric": "按原始参数下发：{count} 个滤波器",
-  "autoEqParametricHint": "已保留每个滤波器的频率与 Q 值，不再降采样到固定频段"
+  "autoEqParametricHint": "已保留每个滤波器的频率与 Q 值，不再降采样到固定频段",
+  "audioEnhancementSection": "音频增强",
+  "audioEnhancementSectionHint": "这几项和均衡器一起挂在播放引擎的滤镜链上，改完即时生效。",
+  "spectrumSection": "播放页频谱",
+  "spectrumSectionHint": "只影响播放页的画法，不改声音本身。"
 }

@@ -3491,4 +3491,18 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get autoEqParametricHint =>
       'Every filter keeps its own frequency and Q — no downsampling to fixed bands';
+
+  @override
+  String get audioEnhancementSection => 'Audio enhancement';
+
+  @override
+  String get audioEnhancementSectionHint =>
+      'These sit on the same filter chain as the equalizer and apply as you change them.';
+
+  @override
+  String get spectrumSection => 'Player spectrum';
+
+  @override
+  String get spectrumSectionHint =>
+      'Only changes how the player draws the bars, not the sound.';
 }

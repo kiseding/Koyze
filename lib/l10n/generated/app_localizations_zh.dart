@@ -2799,7 +2799,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get autoEqImportFailed => '这个文件里没有可识别的 AutoEQ 曲线';
 
   @override
-  String get replayGain => '响度均衡';
+  String get replayGain => '响度归一化';
 
   @override
   String get replayGainSubtitle => '按 ReplayGain 标签拉平专辑间音量';
@@ -3395,4 +3395,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get autoEqParametricHint => '已保留每个滤波器的频率与 Q 值，不再降采样到固定频段';
+
+  @override
+  String get audioEnhancementSection => '音频增强';
+
+  @override
+  String get audioEnhancementSectionHint => '这几项和均衡器一起挂在播放引擎的滤镜链上，改完即时生效。';
+
+  @override
+  String get spectrumSection => '播放页频谱';
+
+  @override
+  String get spectrumSectionHint => '只影响播放页的画法，不改声音本身。';
 }

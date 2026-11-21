@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,9 +25,7 @@ import '../../playlist/data/playlist_repository.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../player/platform/android_floating_player.dart';
 import '../../player/domain/player_backdrop.dart';
-import '../../player/domain/player_spectrum_settings.dart';
 import '../../player/presentation/player_backdrop_sheet.dart';
-import '../../player/presentation/widgets/player_spectrum_painter.dart';
 import '../../updates/presentation/update_sheet.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
@@ -494,7 +491,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
             onTap: () => _showAudioQualityDialog(context, ref),
           ),
-          // 均衡器紧跟音质：这两项改的都是「声音本身」，剩下的是播放行为。
+          // 音效入口紧跟音质：这一页里的东西改的都是「声音本身」，
+          // 剩下的是播放行为。均衡器和交叉馈送 / 响度 / 限幅 / 频谱现在
+          // 都在这一页里，所以关键词也一并收进来——搜索「交叉馈送」的人
+          // 应该落到这一行，而不是搜不到。
           SettingsEntry(
             title: s.equalizer,
             subtitle: equalizerSubtitle(
@@ -509,105 +509,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               '低音',
               'bass',
               '频段',
+              '交叉馈送',
+              'crossfeed',
+              '响度',
+              'loudness',
+              '削波',
+              'limiter',
+              '频谱',
+              'spectrum',
+              '可视化',
+              'visualizer',
             ],
             onTap: () => context.push('/equalizer'),
             captureExpandOrigin: true,
           ),
-          // 三项音频增强都挂在 mpv 的 af 链上。引擎是 just_audio 回退路径
-          // 时它们无处可写，索性不显示——比显示一排拨了没反应的开关诚实。
-          if (audioEnhancementSupported()) ...[
-            SettingsEntry(
-              title: s.crossfeed,
-              subtitle: s.crossfeedSubtitle,
-              keywords: const [
-                '交叉',
-                'crossfeed',
-                '耳机',
-                'headphone',
-                '头中效应',
-                '声场',
-                'stereo',
-              ],
-              toggleValue: ref.watch(audioEnhancementProvider).crossfeedEnabled,
-              onToggle: (value) => ref
-                  .read(audioEnhancementProvider.notifier)
-                  .setCrossfeedEnabled(value),
-            ),
-            if (ref.watch(audioEnhancementProvider).crossfeedEnabled)
-              SettingsEntry(
-                title: s.crossfeedStrength,
-                subtitle: '${(ref.watch(audioEnhancementProvider).crossfeedStrength * 100).round()}%',
-                keywords: const ['强度', 'strength', '交叉', 'crossfeed'],
-                onTap: () => _showCrossfeedStrengthSheet(context, ref),
-              ),
-            SettingsEntry(
-              title: s.loudnessLeveling,
-              subtitle: s.loudnessLevelingSubtitle,
-              keywords: const [
-                '响度',
-                'loudness',
-                '音量',
-                'volume',
-                '拉平',
-                '动态',
-                'dynamic',
-              ],
-              toggleValue: ref.watch(audioEnhancementProvider).loudnessEnabled,
-              onToggle: (value) => ref
-                  .read(audioEnhancementProvider.notifier)
-                  .setLoudnessEnabled(value),
-            ),
-            SettingsEntry(
-              title: s.limiterProtection,
-              subtitle: s.limiterProtectionSubtitle,
-              keywords: const [
-                '削波',
-                'clip',
-                'limiter',
-                '限幅',
-                '峰值',
-                'peak',
-                '失真',
-              ],
-              toggleValue: ref.watch(audioEnhancementProvider).limiterEnabled,
-              onToggle: (value) => ref
-                  .read(audioEnhancementProvider.notifier)
-                  .setLimiterEnabled(value),
-            ),
-          ],
-          // 实时频谱。它不改声音，只是把已经播出来的声音画出来，
-          // 所以放在音频增强之后、播放行为之前。
-          //
-          // 只有 mpv 有 `stream.fft`：Web 与 just_audio 回退路径整组隐藏，
-          // 而不是留一个拨了没反应的开关。
-          if (playerSpectrumSupported()) ...[
-            SettingsEntry(
-              title: s.playerSpectrum,
-              subtitle: s.playerSpectrumSubtitle,
-              keywords: const [
-                '频谱',
-                'spectrum',
-                '可视化',
-                'visualizer',
-                '波形',
-                'waveform',
-                '律动',
-              ],
-              toggleValue: ref.watch(playerSpectrumProvider).enabled,
-              onToggle: (value) =>
-                  ref.read(playerSpectrumProvider.notifier).setEnabled(value),
-            ),
-            if (ref.watch(playerSpectrumProvider).enabled)
-              SettingsEntry(
-                title: s.playerSpectrumStyle,
-                subtitle: spectrumStyleLabel(
-                  s,
-                  ref.watch(playerSpectrumProvider).style,
-                ),
-                keywords: const ['样式', 'style', '频谱', 'spectrum'],
-                onTap: () => _showSpectrumStyleSheet(context, ref),
-              ),
-          ],
+          // 交叉馈送 / 响度均衡 / 削波保护 / 实时频谱都搬去了均衡器页
+          // （页面现在叫「音效」）。它们和均衡器一样，改的都是「声音本身」，
+          // 而这里剩下的都是播放行为——两件事混在一页里，找一个音效项得先
+          // 猜它归哪边。设置页只留一行入口，放在音质下面。
           SettingsEntry(
             title: s.playbackFade,
             subtitle: s.playbackFadeSubtitle,
@@ -1215,103 +1134,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       isScrollControlled: true,
       builder: (_) => _PrecacheCountPicker(title: S.of(context).precacheCount),
-    );
-  }
-
-  /// 交叉馈送强度。
-  ///
-  /// 拖动时立刻写设置（`apply` 内部有 120 ms 合并窗口），松手前就能听到
-  /// 变化——这种参数必须边听边调，点了确定才生效等于盲调。
-  void _showCrossfeedStrengthSheet(BuildContext context, WidgetRef ref) {
-    final s = S.of(context);
-    var value = ref.read(audioEnhancementProvider).crossfeedStrength;
-    showKoyzeSheet<void>(
-      context: context,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setState) => Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(s.crossfeedStrength, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(
-                s.crossfeedSubtitle,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Slider(
-                      value: value,
-                      min: 0,
-                      max: 1,
-                      divisions: 20,
-                      label: '${(value * 100).round()}%',
-                      onChanged: (next) {
-                        setState(() => value = next);
-                        ref
-                            .read(audioEnhancementProvider.notifier)
-                            .setCrossfeedStrength(next);
-                      },
-                    ),
-                  ),
-                  SizedBox(
-                    width: 48,
-                    child: Text(
-                      '${(value * 100).round()}%',
-                      textAlign: TextAlign.end,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 频谱样式的选择面板。
-  ///
-  /// 每项都带一张实时预览：这五种样式的差别全在几何形状上，靠文字
-  /// （「柱状」「曲线」）选不准，看到才选得出来。预览用的是合成的固定波形，
-  /// 不依赖播放状态——在设置页选样式时可能根本没在放歌。
-  void _showSpectrumStyleSheet(BuildContext context, WidgetRef ref) {
-    final s = S.of(context);
-    // 面板里不解构 watch：选中即 pop，不需要跟着 provider 重建；而且
-    // `ref.watch` 在 build 之外调用会在调试模式下断言。
-    final current = ref.read(playerSpectrumProvider).style;
-    showKoyzeSheet<void>(
-      context: context,
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 4, bottom: 14),
-              child: Text(
-                s.playerSpectrumStyle,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            for (final style in SpectrumStyle.values)
-              _SpectrumStyleTile(
-                style: style,
-                label: spectrumStyleLabel(s, style),
-                selected: current == style,
-                onTap: () {
-                  ref.read(playerSpectrumProvider.notifier).setStyle(style);
-                  Navigator.of(sheetContext).pop();
-                },
-              ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -2619,139 +2441,3 @@ class _AccentSwatch extends StatelessWidget {
   }
 }
 
-/// 频谱样式在界面上的名字。
-String spectrumStyleLabel(S s, SpectrumStyle style) => switch (style) {
-  SpectrumStyle.bars => s.playerSpectrumStyleBars,
-  SpectrumStyle.leds => s.playerSpectrumStyleLeds,
-  SpectrumStyle.dots => s.playerSpectrumStyleDots,
-  SpectrumStyle.ridges => s.playerSpectrumStyleRidges,
-  SpectrumStyle.steps => s.playerSpectrumStyleSteps,
-};
-
-/// 样式选择面板里的一行：左边是名字，右边是这块样式的实时预览。
-///
-/// 预览用合成波形而不是等播放页的数据：用户在设置页挑样式时很可能没在
-/// 放歌，那时候拿不到帧，预览会是空的——而空预览等于没预览。
-class _SpectrumStyleTile extends StatefulWidget {
-  const _SpectrumStyleTile({
-    required this.style,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final SpectrumStyle style;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  State<_SpectrumStyleTile> createState() => _SpectrumStyleTileState();
-}
-
-class _SpectrumStyleTileState extends State<_SpectrumStyleTile>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2600),
-  )..repeat();
-
-  /// 合成一帧：几个固定频段的叠加，随时间缓慢起伏。
-  ///
-  /// 形状刻意做成「低频强、高频弱」的倾斜，跟真实音乐的能量分布一致，
-  /// 这样预览里的柱高关系和播放页看到的不会差太多。
-  ///
-  List<double> _syntheticBands(double t, {int count = 48}) {
-    final values = List<double>.filled(count, 0);
-    for (var i = 0; i < count; i++) {
-      final x = i / (count - 1);
-      var e = 0.0;
-      e += 0.95 * _bump(x, 0.04 + 0.03 * math.sin(t * 1.7), 0.10);
-      e += 0.72 * _bump(x, 0.22 + 0.07 * math.sin(t * 1.1 + 1.3), 0.14);
-      e += 0.48 * _bump(x, 0.46 + 0.09 * math.sin(t * 0.9 + 2.1), 0.16);
-      e += 0.30 * _bump(x, 0.72 + 0.06 * math.sin(t * 1.4 + 0.5), 0.15);
-      final pulse = 0.55 + 0.45 * math.pow(1 - (t * 2.4 % 1), 2).toDouble();
-      values[i] = (e * pulse).clamp(0.0, 1.0);
-    }
-    return values;
-  }
-
-  double _bump(double x, double center, double width) {
-    final d = (x - center) / width;
-    return math.exp(-d * d);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = AppColors.accentOf(context);
-    final border = AppColors.cardBorder(context);
-
-    return Semantics(
-      button: true,
-      selected: widget.selected,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
-            decoration: BoxDecoration(
-              color: widget.selected
-                  ? accent.withValues(alpha: 0.10)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: widget.selected
-                    ? accent.withValues(alpha: 0.55)
-                    : border.withValues(alpha: 0.55),
-              ),
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 118,
-                  height: 34,
-                  child: AnimatedBuilder(
-                    animation: _controller,
-                    builder: (context, _) {
-                      final t = _controller.value * 2.6;
-                      return CustomPaint(
-                        painter: SpectrumPainter(
-                          display: _syntheticBands(t),
-                          peak: _syntheticBands(t),
-                          style: widget.style,
-                          accent: accent,
-                          trackColor: border,
-                          // 预览每秒重排一百多帧，靠控制器进度当版本号，
-                          // 保证 `shouldRepaint` 每次都放行。
-                          revision: (_controller.value * 100000).round(),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    widget.label,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-                if (widget.selected)
-                  Icon(Icons.check, size: 18, color: accent),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

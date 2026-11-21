@@ -92,10 +92,7 @@ final playbackTuningBindingProvider = Provider<void>((ref) {
 });
 
 /// 音频增强（交叉馈送 / 响度均衡 / 限幅）是否可用。
-///
-/// 不缓存成 Provider：启动早期 `audioHandler` 还是未初始化的 late 变量，
-/// 缓存下来的 false 会让设置页的开关永远置灰。每次 build 现算一次更稳。
-bool audioEnhancementSupported() {
+final audioEnhancementSupportedProvider = Provider<bool>((ref) {
   try {
     final handler = audioHandler;
     if (handler is LxAudioHandler) return handler.enhancement.isSupported;
@@ -103,14 +100,13 @@ bool audioEnhancementSupported() {
     // 启动引导还没完成。
   }
   return false;
-}
+});
 
 /// 实时频谱是否可用。
 ///
-/// 同样不缓存：只有 mpv 才有 `stream.fft`，Web 与 just_audio 回退路径都
-/// 拿不到数据。设置页据此决定要不要显示频谱条目——留一个拨了没反应的
-/// 开关比不显示更糟。
-bool playerSpectrumSupported() {
+/// 只有 mpv 才有 `stream.fft`，Web 与 just_audio 回退路径都拿不到数据。
+/// 界面据此决定要不要显示频谱条目——留一个拨了没反应的开关比不显示更糟。
+final playerSpectrumSupportedProvider = Provider<bool>((ref) {
   try {
     final handler = audioHandler;
     if (handler is LxAudioHandler) return handler.spectrum.available;
@@ -118,7 +114,7 @@ bool playerSpectrumSupported() {
     // 启动引导还没完成。
   }
   return false;
-}
+});
 
 /// 把音频增强设置同步到播放引擎。
 ///

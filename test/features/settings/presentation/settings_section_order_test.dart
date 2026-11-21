@@ -107,4 +107,53 @@ void main() {
     expect(reset, greaterThan(topOf('清除缓存')));
     expect(reset, lessThan(tops[9]));
   });
+
+  testWidgets('音效项整组搬进均衡器页，设置页只剩一行入口', (tester) async {
+    tester.view.physicalSize = const Size(390, 6000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final storage = StorageService.forTesting(
+      await SharedPreferences.getInstance(),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        equalizerBridgeProvider.overrideWithValue(
+          const UnsupportedEqualizerBridge(),
+        ),
+        equalizerStorageProvider.overrideWithValue(() async => storage),
+        settingsDeviceIdProvider.overrideWith((ref) async => 'device_test'),
+        sleepTimerProvider.overrideWith(() => SleepTimerNotifier(() async {})),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 这四项以前在「播放」区里，和淡入淡出、跳过静音混排。它们改的是
+    // 声音本身，现在归均衡器页（标题仍是「均衡器」）。如果哪天有人把它们
+    // 加回设置页，这里会红——同一个开关两个入口是最容易复发的漂移。
+    for (final label in ['交叉馈送', '响度均衡', '削波保护', '实时频谱']) {
+      expect(
+        find.text(label),
+        findsNothing,
+        reason: '「$label」属于均衡器页，设置页不该再有第二处',
+      );
+    }
+    // 入口还在，而且搜索「交叉馈送」要能落到它上面（关键词已并进入口行）。
+    expect(find.text('均衡器'), findsOneWidget);
+  });
 }

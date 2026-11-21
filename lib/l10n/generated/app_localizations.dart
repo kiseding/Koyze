@@ -6307,6 +6307,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Every filter keeps its own frequency and Q — no downsampling to fixed bands'**
   String get autoEqParametricHint;
+
+  /// No description provided for @audioEnhancementSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio enhancement'**
+  String get audioEnhancementSection;
+
+  /// No description provided for @audioEnhancementSectionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These sit on the same filter chain as the equalizer and apply as you change them.'**
+  String get audioEnhancementSectionHint;
+
+  /// No description provided for @spectrumSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Player spectrum'**
+  String get spectrumSection;
+
+  /// No description provided for @spectrumSectionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only changes how the player draws the bars, not the sound.'**
+  String get spectrumSectionHint;
 }
 
 class _AppLocalizationsDelegate

@@ -1845,6 +1845,10 @@
   "preampHint": "Headroom shipped with the AutoEQ profile, prevents clipping",
   "autoEqParametric": "Applied as published: {count} filters",
   "autoEqParametricHint": "Every filter keeps its own frequency and Q — no downsampling to fixed bands",
+  "audioEnhancementSection": "Audio enhancement",
+  "audioEnhancementSectionHint": "These sit on the same filter chain as the equalizer and apply as you change them.",
+  "spectrumSection": "Player spectrum",
+  "spectrumSectionHint": "Only changes how the player draws the bars, not the sound.",
   "@autoEqParametric": {
     "placeholders": {
       "count": {

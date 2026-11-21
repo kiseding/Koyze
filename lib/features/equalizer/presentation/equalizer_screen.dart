@@ -14,6 +14,9 @@ import 'package:koyze/core/widgets/app_notification.dart';
 import 'package:koyze/core/widgets/gradient_bar_backgrounds.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_preset.dart';
 import 'package:koyze/features/equalizer/presentation/equalizer_provider.dart';
+import 'package:koyze/features/player/presentation/player_provider.dart';
+import 'package:koyze/features/player/presentation/widgets/spectrum_style_sheet.dart';
+import 'package:koyze/features/settings/presentation/settings_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../core/widgets/origo_chrome.dart';
 
@@ -152,6 +155,18 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                     _buildBandSection(context, state),
                     const SizedBox(height: 14),
                     _buildFootnote(context, state),
+                  ],
+                  // 以下两段与均衡器是否可用无关：它们各自判断自己的引擎
+                  // 能力。均衡器在 iOS 上没有实现，但交叉馈送 / 响度 / 限幅
+                  // 在 mpv 上照样能用——把整页当成一个开关会把能用的功能
+                  // 一起藏掉。
+                  if (ref.watch(audioEnhancementSupportedProvider)) ...[
+                    const SizedBox(height: 24),
+                    _buildEnhancementSection(context),
+                  ],
+                  if (ref.watch(playerSpectrumSupportedProvider)) ...[
+                    const SizedBox(height: 24),
+                    _buildSpectrumSection(context),
                   ],
                 ],
               ),
@@ -441,6 +456,317 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
         fontSize: 11.5,
         height: 1.5,
         color: AppColors.mutedText(context),
+      ),
+    );
+  }
+
+  /// 音频增强：交叉馈送、响度均衡、削波保护。
+  ///
+  /// 这三项以前在「设置 > 播放」里，和淡入淡出、跳过静音、预缓存挤在一起。
+  /// 它们和均衡器是同一类东西——都往引擎的滤镜链上挂一段处理，改的是声音
+  /// 本身——所以搬到这里，一个页面就能把「音色怎么调」全部调完。
+  Widget _buildEnhancementSection(BuildContext context) {
+    final s = S.of(context);
+    final settings = ref.watch(audioEnhancementProvider);
+    final notifier = ref.read(audioEnhancementProvider.notifier);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(text: s.audioEnhancementSection),
+        const SizedBox(height: 10),
+        _Card(
+          child: _DividedColumn(
+            children: [
+              _SwitchRow(
+                title: s.crossfeed,
+                subtitle: s.crossfeedSubtitle,
+                value: settings.crossfeedEnabled,
+                onChanged: notifier.setCrossfeedEnabled,
+              ),
+              // 强度只在开着的时候才有意义，和设置页里的从属关系一致。
+              if (settings.crossfeedEnabled)
+                _SliderRow(
+                  title: s.crossfeedStrength,
+                  value: settings.crossfeedStrength,
+                  min: 0,
+                  max: 1,
+                  divisions: 20,
+                  label: '${(settings.crossfeedStrength * 100).round()}%',
+                  onChanged: notifier.setCrossfeedStrength,
+                ),
+              _SwitchRow(
+                title: s.loudnessLeveling,
+                subtitle: s.loudnessLevelingSubtitle,
+                value: settings.loudnessEnabled,
+                onChanged: notifier.setLoudnessEnabled,
+              ),
+              _SwitchRow(
+                title: s.limiterProtection,
+                subtitle: s.limiterProtectionSubtitle,
+                value: settings.limiterEnabled,
+                onChanged: notifier.setLimiterEnabled,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          s.audioEnhancementSectionHint,
+          style: TextStyle(
+            fontSize: 11.5,
+            height: 1.5,
+            color: AppColors.mutedText(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 播放页实时频谱。
+  ///
+  /// 它不改声音，只是把已经播出来的声音画出来，所以和上面那段分开——把
+  /// 一个纯视觉项塞进「音频增强」会让人以为它会动声音。
+  Widget _buildSpectrumSection(BuildContext context) {
+    final s = S.of(context);
+    final spectrum = ref.watch(playerSpectrumProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(text: s.spectrumSection),
+        const SizedBox(height: 10),
+        _Card(
+          child: _DividedColumn(
+            children: [
+              _SwitchRow(
+                title: s.playerSpectrum,
+                subtitle: s.playerSpectrumSubtitle,
+                value: spectrum.enabled,
+                onChanged: ref
+                    .read(playerSpectrumProvider.notifier)
+                    .setEnabled,
+              ),
+              if (spectrum.enabled)
+                _NavRow(
+                  title: s.playerSpectrumStyle,
+                  subtitle: spectrumStyleLabel(s, spectrum.style),
+                  onTap: () => showSpectrumStyleSheet(context, ref),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          s.spectrumSectionHint,
+          style: TextStyle(
+            fontSize: 11.5,
+            height: 1.5,
+            color: AppColors.mutedText(context),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 卡片里的若干行，行与行之间插一条发丝线。
+///
+/// 卡片里可能夹着条件行（交叉馈送强度只在开着时出现），手写数组很容易把
+/// 分隔线落在错的位置，或者最后一行多出一条尾巴。这里按「真正的子项」算，
+/// 条件行加不加都不会错位。
+class _DividedColumn extends StatelessWidget {
+  const _DividedColumn({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          children[i],
+          if (i < children.length - 1)
+            Divider(
+              height: 1,
+              thickness: 0.5,
+              color: AppColors.cardBorder(context),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+/// 卡片里的一行开关：左边标题 + 副标题，右边开关。
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.onScaffold(context),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.3,
+                    color: AppColors.secondaryText(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          FxSwitch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+/// 卡片里的一行导航：点开面板。右侧显示当前值，再一颗箭头。
+class _NavRow extends StatelessWidget {
+  const _NavRow({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
+        child: Row(
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w500,
+                color: AppColors.onScaffold(context),
+              ),
+            ),
+            const Spacer(),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: AppColors.secondaryText(context),
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: AppColors.secondaryText(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 卡片里的一行滑块：拖动即时生效，右侧显示百分比。
+///
+/// 增强参数必须边听边调，所以这里不做「确定后才应用」——notifier 内部有
+/// 120 ms 合并窗口，连续拖动不会把属性写入打爆。
+class _SliderRow extends StatelessWidget {
+  const _SliderRow({
+    required this.title,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.label,
+    required this.onChanged,
+  });
+
+  final String title;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final String label;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.onScaffold(context),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 48,
+                child: Text(
+                  label,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.onScaffold(context),
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            divisions: divisions,
+            label: label,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }
