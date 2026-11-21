@@ -13,6 +13,7 @@ import '../../../core/theme/app_themes.dart';
 import '../../../core/theme/glass_config.dart';
 import '../../nas/domain/nas_url.dart';
 import '../../player/domain/player_backdrop.dart';
+import '../../player/domain/player_spectrum_settings.dart';
 import 'settings_provider.dart' show AudioQualityOption, audioQualityToken;
 
 // ---- Notifiers ----
@@ -1316,6 +1317,38 @@ class AudioEnhancementNotifier
       _commit(setting.value.copyWith(limiterEnabled: enabled));
 
   Future<void> _commit(AudioEnhancementSettings next) async {
+    if (next == setting.value) return;
+    await persist(next, (storage) => storage.setJson(storageKey, next.toJson()));
+  }
+}
+
+/// 播放页实时频谱条的开关与样式。
+///
+/// 与 [AudioEnhancementNotifier] 同样是「一小组总是一起读的属性」，因此存在
+/// 同一个 JSON 键里。但它和音频增强没有因果关系：频谱只是把已经播出来的
+/// 声音画出来，不改声音本身，所以是独立一项。
+class PlayerSpectrumNotifier extends _PersistedSettingNotifier<PlayerSpectrumSettings> {
+  PlayerSpectrumNotifier({StorageLoader? storage})
+    : super(const PlayerSpectrumSettings(), storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'player_spectrum_v1';
+
+  @override
+  PlayerSpectrumSettings? readFrom(StorageService storage) {
+    final raw = storage.getJson(storageKey);
+    if (raw == null) return null;
+    return PlayerSpectrumSettings.fromJson(raw);
+  }
+
+  Future<void> setEnabled(bool enabled) =>
+      _commit(setting.value.copyWith(enabled: enabled));
+
+  Future<void> setStyle(SpectrumStyle style) =>
+      _commit(setting.value.copyWith(style: style));
+
+  Future<void> _commit(PlayerSpectrumSettings next) async {
     if (next == setting.value) return;
     await persist(next, (storage) => storage.setJson(storageKey, next.toJson()));
   }

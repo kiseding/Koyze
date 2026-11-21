@@ -46,7 +46,8 @@ import '../../settings/presentation/settings_provider.dart'
         pitchSemitonesProvider,
         pitchSemitonesLabel,
         pitchFactorForSemitones,
-        kPitchFactor432Hz;
+        kPitchFactor432Hz,
+        playerSpectrumProvider;
 import '../../lyric/presentation/lyric_view.dart';
 import '../../lyric/presentation/lyric_provider.dart';
 import '../../lyric/presentation/lyric_share_card.dart';
@@ -54,6 +55,7 @@ import '../../home/presentation/widgets/mini_bar.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/motion/motion_tokens.dart';
 import 'widgets/player_progress_bar.dart';
+import 'widgets/player_spectrum_strip.dart';
 import 'widgets/player_volume_button.dart';
 import 'queue_edit_sheet.dart';
 import '../../../core/widgets/loading_widget.dart';
@@ -1622,47 +1624,71 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     bool compact = false,
     bool horizontalVolume = false,
   }) {
+    final spectrumEnabled = ref.watch(playerSpectrumProvider).enabled;
     return Opacity(
       opacity: chromeFade,
-      child: Column(
-        mainAxisAlignment: compact
-            ? MainAxisAlignment.center
-            : MainAxisAlignment.start,
-        children: [
-          _StaggeredFade(
-            delay: 0.2,
-            child: _buildSongInfo(
-              currentMusic,
-              compact: compact,
-              horizontalVolume: horizontalVolume,
-            ),
-          ),
-          _StaggeredFade(delay: 0.3, child: const _CurrentLyricLine()),
-          _StaggeredFade(
-            delay: 0.45,
-            child: _PlayerProgress(
-              duration: duration,
-              seeking: _seeking,
-              seekValue: _seekValue,
-              onDragStart: _beginSeek,
-              onDragUpdate: _updateSeek,
-              onSeekEnd: _finishSeek,
-              onSeekCancel: _cancelSeek,
-              onTapSeek: _tapSeek,
-              pinTimesToEnds: compact,
-            ),
-          ),
-          _StaggeredFade(
-            delay: 0.5,
-            child: _buildControls(
-              playerService,
-              isPlaying,
-              playMode,
-              compact: compact,
-            ),
-          ),
-          _buildSourceQualityBar(currentMusic),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 竖屏这条 Column 在 PageView 的页面里按内容撑开，高度无界；横屏
+          // 它被夹在 `Expanded(flex: 5)` 里，高度有界。横屏空间紧，频谱条
+          // 是锦上添花——剩余高度不够时整条摘掉，宁可看不到，也不能把封面
+          // 和控制区挤到溢出。
+          final spectrumFits =
+              !compact ||
+              !constraints.maxHeight.isFinite ||
+              constraints.maxHeight >= 300;
+          return Column(
+            mainAxisAlignment: compact
+                ? MainAxisAlignment.center
+                : MainAxisAlignment.start,
+            children: [
+              _StaggeredFade(
+                delay: 0.2,
+                child: _buildSongInfo(
+                  currentMusic,
+                  compact: compact,
+                  horizontalVolume: horizontalVolume,
+                ),
+              ),
+              _StaggeredFade(delay: 0.3, child: const _CurrentLyricLine()),
+              // 实时频谱条：夹在歌词行与进度条之间。纯展示、不吃手势、高度
+              // 固定，不参与任何 Expanded，因此它出现时封面与控制区的比例
+              // 不变。引擎不支持（Web / just_audio 回退）时整块归零。
+              if (spectrumEnabled && spectrumFits)
+                _StaggeredFade(
+                  delay: 0.38,
+                  child: PlayerSpectrumStrip(
+                    style: ref.watch(playerSpectrumProvider).style,
+                    height: compact ? 30 : 44,
+                  ),
+                ),
+              _StaggeredFade(
+                delay: 0.45,
+                child: _PlayerProgress(
+                  duration: duration,
+                  seeking: _seeking,
+                  seekValue: _seekValue,
+                  onDragStart: _beginSeek,
+                  onDragUpdate: _updateSeek,
+                  onSeekEnd: _finishSeek,
+                  onSeekCancel: _cancelSeek,
+                  onTapSeek: _tapSeek,
+                  pinTimesToEnds: compact,
+                ),
+              ),
+              _StaggeredFade(
+                delay: 0.5,
+                child: _buildControls(
+                  playerService,
+                  isPlaying,
+                  playMode,
+                  compact: compact,
+                ),
+              ),
+              _buildSourceQualityBar(currentMusic),
+            ],
+          );
+        },
       ),
     );
   }

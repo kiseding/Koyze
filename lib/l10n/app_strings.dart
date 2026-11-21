@@ -1197,6 +1197,14 @@ class S {
   String get limiterProtection => _l10n.limiterProtection;
   String get limiterProtectionSubtitle => _l10n.limiterProtectionSubtitle;
   String get audioEnhancementUnavailable => _l10n.audioEnhancementUnavailable;
+  String get playerSpectrum => _l10n.playerSpectrum;
+  String get playerSpectrumSubtitle => _l10n.playerSpectrumSubtitle;
+  String get playerSpectrumStyle => _l10n.playerSpectrumStyle;
+  String get playerSpectrumStyleBars => _l10n.playerSpectrumStyleBars;
+  String get playerSpectrumStylePills => _l10n.playerSpectrumStylePills;
+  String get playerSpectrumStyleMirror => _l10n.playerSpectrumStyleMirror;
+  String get playerSpectrumStyleWave => _l10n.playerSpectrumStyleWave;
+  String get playerSpectrumStyleRibbon => _l10n.playerSpectrumStyleRibbon;
   String get preamp => _l10n.preamp;
   String get preampHint => _l10n.preampHint;
   String autoEqParametric(int count) => _l10n.autoEqParametric(count);

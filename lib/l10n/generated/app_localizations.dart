@@ -6224,6 +6224,54 @@ abstract class AppLocalizations {
   /// **'Not supported by the current engine'**
   String get audioEnhancementUnavailable;
 
+  /// No description provided for @playerSpectrum.
+  ///
+  /// In en, this message translates to:
+  /// **'Live spectrum'**
+  String get playerSpectrum;
+
+  /// No description provided for @playerSpectrumSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'A moving spectrum strip between lyrics and progress'**
+  String get playerSpectrumSubtitle;
+
+  /// No description provided for @playerSpectrumStyle.
+  ///
+  /// In en, this message translates to:
+  /// **'Spectrum style'**
+  String get playerSpectrumStyle;
+
+  /// No description provided for @playerSpectrumStyleBars.
+  ///
+  /// In en, this message translates to:
+  /// **'Bars'**
+  String get playerSpectrumStyleBars;
+
+  /// No description provided for @playerSpectrumStylePills.
+  ///
+  /// In en, this message translates to:
+  /// **'Dots'**
+  String get playerSpectrumStylePills;
+
+  /// No description provided for @playerSpectrumStyleMirror.
+  ///
+  /// In en, this message translates to:
+  /// **'Mirrored'**
+  String get playerSpectrumStyleMirror;
+
+  /// No description provided for @playerSpectrumStyleWave.
+  ///
+  /// In en, this message translates to:
+  /// **'Curve'**
+  String get playerSpectrumStyleWave;
+
+  /// No description provided for @playerSpectrumStyleRibbon.
+  ///
+  /// In en, this message translates to:
+  /// **'Waveform'**
+  String get playerSpectrumStyleRibbon;
+
   /// No description provided for @preamp.
   ///
   /// In en, this message translates to:

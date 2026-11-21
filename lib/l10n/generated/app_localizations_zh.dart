@@ -3352,6 +3352,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get audioEnhancementUnavailable => '当前播放引擎不支持';
 
   @override
+  String get playerSpectrum => '实时频谱';
+
+  @override
+  String get playerSpectrumSubtitle => '在歌词与进度条之间显示一条律动条';
+
+  @override
+  String get playerSpectrumStyle => '频谱样式';
+
+  @override
+  String get playerSpectrumStyleBars => '柱状';
+
+  @override
+  String get playerSpectrumStylePills => '圆点';
+
+  @override
+  String get playerSpectrumStyleMirror => '镜像';
+
+  @override
+  String get playerSpectrumStyleWave => '曲线';
+
+  @override
+  String get playerSpectrumStyleRibbon => '声波';
+
+  @override
   String get preamp => '前级增益';
 
   @override

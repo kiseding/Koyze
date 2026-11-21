@@ -10,6 +10,7 @@ import 'package:rxdart/rxdart.dart';
 
 import '../logging/app_log.dart';
 import 'audio_enhancement.dart';
+import 'audio_spectrum.dart';
 import 'equalizer_bridge.dart';
 import 'just_audio_engine.dart';
 import 'mpv_equalizer_factory.dart';
@@ -371,6 +372,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   ///
   /// 不是 final：just_audio 的播放器重建时会换一个引擎，写入端要跟着换。
   late AudioEnhancementSink _enhancement;
+
+  /// 实时频谱来源。惰性：没有订阅者时底层 FFT 管线不跑，播放页打开才开算。
+  late AudioSpectrumSource _spectrum;
 
   /// 最近一次登记的增强设置。重建后要原样再施加一遍，否则用户会发现
   /// 「播放出错恢复之后，交叉馈送自己关了」。
@@ -838,6 +842,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final rawPlayer = _rawPlayer;
     if (rawPlayer != null) _equalizer.bindPlayer(rawPlayer);
     _enhancement = createAudioEnhancementSink(_player);
+    _spectrum = createAudioSpectrumSource(_player);
     _commands = _createCommandCoordinator(_player);
     _volume.bindPlayer(_player);
     _publishPlaybackState();
@@ -1068,6 +1073,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// 音频增强写入端。设置页通过 [applyEnhancements] 使用，一般不直接读它。
   AudioEnhancementSink get enhancement => _enhancement;
+
+  /// 实时频谱来源。播放页订阅它来画律动条。
+  AudioSpectrumSource get spectrum => _spectrum;
 
   /// 施加音频增强设置。
   ///
@@ -1631,6 +1639,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // 增强项的写入端绑的是引擎实例，重建后必须换到新引擎上再补一遍。
     _enhancement = createAudioEnhancementSink(_player);
     _enhancement.apply(_enhancementSettings);
+    // 频谱来源同样绑在引擎实例上。旧的那个已经没有 FFT 管线可订阅，先关掉。
+    final previousSpectrum = _spectrum;
+    _spectrum = createAudioSpectrumSource(_player);
+    unawaited(previousSpectrum.dispose());
     _volume.bindPlayer(_player);
     if (_playbackSpeed != 1.0) {
       unawaited(_applySpeedToPlayer());
@@ -3186,6 +3198,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await cleanup(_drainLeaseReleases);
     await cleanup(_commands.stopAndWait);
     await cleanup(_equalizer.dispose);
+    // 频谱必须先于引擎关闭：它持有一条 stream.fft 订阅，订阅本身会
+    // 让 mpv 的 FFT 计时器继续跑，先断掉再销毁引擎才不会撞上已释放的 core。
+    await cleanup(_spectrum.dispose);
     await cleanup(_player.dispose);
     await cleanup(_playerSubject.close);
 

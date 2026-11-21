@@ -105,6 +105,21 @@ bool audioEnhancementSupported() {
   return false;
 }
 
+/// 实时频谱是否可用。
+///
+/// 同样不缓存：只有 mpv 才有 `stream.fft`，Web 与 just_audio 回退路径都
+/// 拿不到数据。设置页据此决定要不要显示频谱条目——留一个拨了没反应的
+/// 开关比不显示更糟。
+bool playerSpectrumSupported() {
+  try {
+    final handler = audioHandler;
+    if (handler is LxAudioHandler) return handler.spectrum.available;
+  } catch (_) {
+    // 启动引导还没完成。
+  }
+  return false;
+}
+
 /// 把音频增强设置同步到播放引擎。
 ///
 /// 和均衡器一样，这些是 mpv `af` 链上的开关，改一次就写一次属性；

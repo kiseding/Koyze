@@ -3444,6 +3444,31 @@ class AppLocalizationsEn extends AppLocalizations {
       'Not supported by the current engine';
 
   @override
+  String get playerSpectrum => 'Live spectrum';
+
+  @override
+  String get playerSpectrumSubtitle =>
+      'A moving spectrum strip between lyrics and progress';
+
+  @override
+  String get playerSpectrumStyle => 'Spectrum style';
+
+  @override
+  String get playerSpectrumStyleBars => 'Bars';
+
+  @override
+  String get playerSpectrumStylePills => 'Dots';
+
+  @override
+  String get playerSpectrumStyleMirror => 'Mirrored';
+
+  @override
+  String get playerSpectrumStyleWave => 'Curve';
+
+  @override
+  String get playerSpectrumStyleRibbon => 'Waveform';
+
+  @override
   String get preamp => 'Preamp';
 
   @override

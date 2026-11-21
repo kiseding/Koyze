@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/audio/audio_enhancement.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
+import '../../player/domain/player_spectrum_settings.dart';
 
 import 'settings_notifiers.dart';
 
@@ -138,6 +139,12 @@ final audioEnhancementProvider =
 /// 播放/暂停淡入淡出。
 final playbackFadeEnabledProvider =
     NotifierProvider<PlaybackFadeNotifier, bool>(PlaybackFadeNotifier.new);
+
+/// 播放页实时频谱条的开关与样式。
+final playerSpectrumProvider =
+    NotifierProvider<PlayerSpectrumNotifier, PlayerSpectrumSettings>(
+      PlayerSpectrumNotifier.new,
+    );
 
 /// 常听预缓存开关。
 final precacheEnabledProvider = NotifierProvider<PrecacheEnabledNotifier, bool>(
