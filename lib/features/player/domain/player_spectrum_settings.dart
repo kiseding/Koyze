@@ -56,11 +56,12 @@ enum SpectrumStyle {
 @immutable
 class PlayerSpectrumSettings {
   const PlayerSpectrumSettings({
-    this.enabled = true,
+    this.enabled = false,
     this.style = SpectrumStyle.bars,
   });
 
-  /// 是否显示。默认开——这是纯装饰，开着不会影响其它任何元素。
+  /// 是否显示。默认关——它是纯装饰，而且会占掉一行高度；关掉之后那一行
+  /// 留给「下一句歌词」，信息密度更高。想看的人自己去设置里打开。
   final bool enabled;
 
   final SpectrumStyle style;
@@ -81,7 +82,7 @@ class PlayerSpectrumSettings {
   factory PlayerSpectrumSettings.fromJson(Map<String, dynamic> json) {
     final enabled = json['enabled'];
     return PlayerSpectrumSettings(
-      enabled: enabled is bool ? enabled : true,
+      enabled: enabled is bool ? enabled : false,
       style: SpectrumStyle.fromStorage(json['style']),
     );
   }

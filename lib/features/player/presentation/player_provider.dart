@@ -873,6 +873,18 @@ class ScrubCoordinator {
   int _generation = 0;
   final Map<int, _ScrubTransaction> _transactions = {};
 
+  /// 暂停与 seek 的等待预算。
+  ///
+  /// 这条链路是「先暂停 → 再 seek → 再决定要不要恢复」，每一步都要等引擎
+  /// 回话。只要其中一步的 Future 不完成，`finish` 就会一直挂在 `await` 上，
+  /// 而 `_position.freeze()` 已经生效——表现就是**进度条停在被拖的位置、
+  /// 时间不再走动、切歌也不刷新**（位置更新全被冻结吞掉）。
+  ///
+  /// 所以每一步都必须有上限：超时就当作「这一步没成功」，继续往下走，
+  /// 至少把解冻和 UI 复位做完。宁可丢一次 seek，也不能让播放器卡死。
+  static const pauseBudget = Duration(seconds: 2);
+  static const seekBudget = Duration(seconds: 3);
+
   ScrubCoordinator(this._playback, this._position);
 
   Future<int> begin() async {
@@ -891,11 +903,15 @@ class ScrubCoordinator {
               transaction.pauseRequested && transaction.owns(_playback),
         );
     final pauseFuture = shouldPause
-        ? _playback.pauseForScrub(
-            sourceGeneration: sourceGeneration,
-            userIntentGeneration: userIntentGeneration,
-            stillOwnsScrub: () => generation == _generation,
-          )
+        ? _playback
+              .pauseForScrub(
+                sourceGeneration: sourceGeneration,
+                userIntentGeneration: userIntentGeneration,
+                stillOwnsScrub: () => generation == _generation,
+              )
+              // 暂停迟迟不返回时不再等：null 等于「没拿到暂停所有权」，
+              // 后面的 seek 与解冻照常进行。
+              .timeout(pauseBudget, onTimeout: () => null)
         : Future<PreservingPauseOwner?>.value();
     _transactions[generation] = _ScrubTransaction(
       generation: generation,
@@ -942,14 +958,14 @@ class ScrubCoordinator {
       await transaction.pauseFuture;
       if (generation != _generation) return;
       if (!transaction.owns(_playback)) return;
-      confirmed = await _playback.seekConfirmed(position);
+      confirmed = await _playback
+          .seekConfirmed(position)
+          .timeout(seekBudget, onTimeout: () => null);
       if (generation != _generation) return;
     } finally {
-      await _releaseTransaction(
-        transaction,
-        resumeAfter:
-            confirmed != null && resumeAfter && transaction.owns(_playback),
-      );
+      // 解冻放在释放之前：`_releaseTransaction` 同样是「等引擎回话」，
+      // 万一它挂住，位置不能陪着一起卡死。顺序反过来就是「拖完进度条，
+      // 时间永远不动」那个 bug。
       if (generation == _generation) {
         final actual =
             transaction.sourceGeneration == _playback.sourceGeneration
@@ -957,6 +973,11 @@ class ScrubCoordinator {
             : _playback.position;
         _position.unfreeze(actual);
       }
+      await _releaseTransaction(
+        transaction,
+        resumeAfter:
+            confirmed != null && resumeAfter && transaction.owns(_playback),
+      ).timeout(pauseBudget, onTimeout: () {});
     }
   }
 
@@ -965,10 +986,14 @@ class ScrubCoordinator {
     if (transaction == null) return;
     final ownsCurrent = generation == _generation;
     if (ownsCurrent) _generation++;
-    await _releaseTransaction(transaction, resumeAfter: true);
+    // 先解冻再释放，理由同 [finish]：释放要等引擎，不能让它拖住位置。
     if (ownsCurrent && _generation == generation + 1) {
       _position.unfreeze(_playback.position);
     }
+    await _releaseTransaction(
+      transaction,
+      resumeAfter: true,
+    ).timeout(pauseBudget, onTimeout: () {});
   }
 
   Future<void> cancelAll() async {
@@ -976,14 +1001,14 @@ class ScrubCoordinator {
     if (transactions.isEmpty) return;
     final cancelledGeneration = _generation;
     _generation++;
+    if (_generation == cancelledGeneration + 1) {
+      _position.unfreeze(_playback.position);
+    }
     await Future.wait(
       transactions.map(
         (transaction) => _releaseTransaction(transaction, resumeAfter: true),
       ),
-    );
-    if (_generation == cancelledGeneration + 1) {
-      _position.unfreeze(_playback.position);
-    }
+    ).timeout(pauseBudget, onTimeout: () => const <void>[]);
   }
 
   Future<void> _releaseTransaction(

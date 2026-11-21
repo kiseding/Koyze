@@ -80,7 +80,14 @@ String _formatPlayerDuration(Duration d) {
 }
 
 class _CurrentLyricLine extends ConsumerStatefulWidget {
-  const _CurrentLyricLine();
+  const _CurrentLyricLine({this.showNextLine = false});
+
+  /// 频谱条没显示时补一行「下一句」。
+  ///
+  /// 频谱是纯装饰，关掉之后这块会空出一整条，歌词上下没有依托，看起来
+  /// 像没加载完。补一句预告既填了空，也比装饰条有用——下一句是唱到一半
+  /// 时最想看到的信息。
+  final bool showNextLine;
 
   @override
   ConsumerState<_CurrentLyricLine> createState() => _CurrentLyricLineState();
@@ -123,6 +130,7 @@ class _CurrentLyricLineState extends ConsumerState<_CurrentLyricLine>
   Widget build(BuildContext context) {
     final lyrics = ref.watch(currentLyricProvider);
     final currentLineIndex = ref.watch(currentLineIndexProvider);
+    final showNextLine = widget.showNextLine;
 
     String text = ' ';
     String? translation;
@@ -136,8 +144,21 @@ class _CurrentLyricLineState extends ConsumerState<_CurrentLyricLine>
       hasLine = true;
     }
 
+    // 下一句：只有当前行落在有效范围内时才取，否则（前奏、间奏、曲尾）
+    // 会显示成第一句，看起来像「提前跳词」。
+    String nextText = ' ';
+    var hasNextLine = false;
+    final nextIndex = currentLineIndex + 1;
+    if (hasLine && nextIndex >= 0 && nextIndex < lyrics.lines.length) {
+      final next = lyrics.lines[nextIndex].text.trim();
+      if (next.isNotEmpty) {
+        nextText = next;
+        hasNextLine = true;
+      }
+    }
+
     return SizedBox(
-      height: 44,
+      height: showNextLine ? 62 : 44,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: FadeTransition(
@@ -173,6 +194,26 @@ class _CurrentLyricLineState extends ConsumerState<_CurrentLyricLine>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+              if (showNextLine) ...[
+                const SizedBox(height: 6),
+                // 比当前行小一号、暗两档：读得到，但不和正在唱的那句抢
+                // 注意力。opacity 走 0.55 是因为 mutedText 已经很淡，再叠
+                // 一层 alpha 会在深色背景上彻底看不见。
+                Opacity(
+                  opacity: hasNextLine ? 0.55 : 0.01,
+                  child: Text(
+                    nextText,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.mutedText(context),
+                      fontSize: 12,
+                      height: 1.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -889,6 +930,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   Widget build(BuildContext context) {
     final playerService = ref.watch(playerServiceProvider);
+
+    // 切歌时强制退出 seek 状态。一次 seek 事务属于某一首歌，跨曲目没有
+    // 意义；而位置冻结一旦因为异常路径没解开，新曲目的进度就完全不刷新
+    // （表现是「切歌也不好使」）。这里做最后一道兜底。
+    ref.listen(currentMusicProvider, (previous, next) {
+      if (previous?.id == next?.id) return;
+      if (!_seeking && _dragOperation == null) return;
+      _cancelActiveScrub();
+      if (mounted) setState(() => _seeking = false);
+    });
+
     final currentMusic = ref.watch(currentMusicProvider);
     // 窄 watch：只订阅 playing 变化，避免 playbackState 其它字段
     // （position/buffered 等高频更新）触发整页重建。
@@ -1650,7 +1702,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   horizontalVolume: horizontalVolume,
                 ),
               ),
-              _StaggeredFade(delay: 0.3, child: const _CurrentLyricLine()),
+              // 频谱不显示时（关掉了，或横屏高度不够）补一句「下一句」：
+              // 这块原本会空出一整条，看起来像没加载完。横屏多一行要 18px，
+              // 空间本来就紧，只有确定放得下才加。
+              _StaggeredFade(
+                delay: 0.3,
+                child: _CurrentLyricLine(
+                  showNextLine:
+                      !(spectrumEnabled && spectrumFits) &&
+                      (!compact ||
+                          !constraints.maxHeight.isFinite ||
+                          constraints.maxHeight >= 340),
+                ),
+              ),
               // 实时频谱条：夹在歌词行与进度条之间。纯展示、不吃手势、高度
               // 固定，不参与任何 Expanded，因此它出现时封面与控制区的比例
               // 不变。引擎不支持（Web / just_audio 回退）时整块归零。
@@ -1989,17 +2053,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _finishSeek(Duration target) async {
     final operation = _dragOperation;
-    if (operation == null) return;
-    final mayClear = await _scrubSession.finish(
-      operation,
-      target,
-      resumeAfter: _wasPlayingBeforeSeek,
-    );
-    if (mounted && mayClear) {
-      if (identical(_dragOperation, operation)) {
+    if (operation == null) {
+      // 手势结束但没拿到操作句柄（上一次已被取消）：进度条必须回到跟随
+      // 播放位置的状态，否则会永远停在被拖的地方。
+      if (mounted && _seeking) setState(() => _seeking = false);
+      return;
+    }
+    try {
+      await _scrubSession.finish(
+        operation,
+        target,
+        resumeAfter: _wasPlayingBeforeSeek,
+      );
+    } finally {
+      // 无论 seek 成功、被更新的一次操作取代，还是抛了异常，都要收尾。
+      // 这里曾经只在 `mayClear == true` 时复位，一旦 Session 判定「已被
+      // 接管」就再也不复位，进度条和时间一起冻住。
+      if (mounted && identical(_dragOperation, operation)) {
         _dragOperation = null;
+        setState(() => _seeking = false);
       }
-      setState(() => _seeking = false);
     }
   }
 
@@ -2016,13 +2089,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _wasPlayingBeforeSeek = playing;
     });
     final operation = _scrubSession.begin();
-    final mayClear = await _scrubSession.finish(
-      operation,
-      target,
-      resumeAfter: playing,
-    );
-    if (mounted && mayClear) {
-      setState(() => _seeking = false);
+    try {
+      await _scrubSession.finish(operation, target, resumeAfter: playing);
+    } finally {
+      if (mounted) setState(() => _seeking = false);
     }
   }
 

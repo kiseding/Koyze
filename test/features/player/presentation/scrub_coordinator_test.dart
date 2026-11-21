@@ -602,6 +602,57 @@ void main() {
 
     expect(player.playing, isTrue);
   });
+  test('引擎暂停迟迟不返回时，seek 仍在预算内完成并解冻', () async {
+    // 真实故障：pauseForScrub 的 Future 不完成 → begin 永不返回 → finish
+    // 挂在 await 上 → _position 一直冻结。表现就是「拖完进度条，位置和
+    // 时间一起冻住，切歌也不刷新」。这条钉住「每一步都必须有上限」。
+    final gate = _Gate();
+    final playback = _FakeScrubPlayback(
+      playing: true,
+      position: const Duration(seconds: 12),
+      seekResult: const Duration(seconds: 45),
+      pauseGate: gate,
+    );
+    final position = _FakeScrubPosition();
+    final coordinator = ScrubCoordinator(playback, position);
+
+    final beginFuture = coordinator.begin();
+    await gate.started.future;
+    final generation = await beginFuture;
+    expect(playback.pauseCalls, 1);
+
+    await coordinator.finish(
+      generation,
+      const Duration(seconds: 45),
+      resumeAfter: true,
+    );
+
+    expect(position.unfreezes, [const Duration(seconds: 45)]);
+  });
+
+  test('seek 迟迟不返回时也会解冻，且不错误地恢复播放', () async {
+    final gate = _Gate();
+    final playback = _FakeScrubPlayback(
+      playing: false,
+      position: const Duration(seconds: 5),
+      seekGate: gate,
+    );
+    final position = _FakeScrubPosition();
+    final coordinator = ScrubCoordinator(playback, position);
+
+    final generation = await coordinator.begin();
+    final finishFuture = coordinator.finish(
+      generation,
+      const Duration(seconds: 30),
+      resumeAfter: true,
+    );
+    await gate.started.future;
+    await finishFuture;
+
+    expect(position.unfreezes, isNotEmpty);
+    expect(playback.resumeCalls, 0, reason: 'seek 没确认就不该恢复播放');
+  });
+
 }
 
 class _FakeScrubPlayback implements ScrubPlayback {
@@ -636,6 +687,7 @@ class _FakeScrubPlayback implements ScrubPlayback {
     this.seekError,
     this.pauseError,
     this.seekGate,
+    this.pauseGate,
   });
 
   void userPause() {

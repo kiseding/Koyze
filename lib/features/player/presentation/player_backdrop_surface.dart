@@ -119,20 +119,34 @@ class _PlayerBackdropArtworkState extends State<PlayerBackdropArtwork>
         );
 
         final controller = _controller;
-        if (!animate || controller == null) return layer;
+
+        // 平移 + 微旋转 + 缩放的同一套变换，播放中与暂停后都用它。
+        //
+        // 关键：不漂移时不能「撤掉变换」直接返回原图。播放时这张图被放大
+        // 到 1.08~1.13，一旦停手就缩回 1.0、平移归零——在整屏虚化层上就是
+        // 清清楚楚的「背景忽然变了一下」，也就是点播放/暂停时看到的那下
+        // 抖动。所以暂停时用控制器当前值把变换**冻结**在原地。
+        Widget transformed(Widget child, double t) => Transform.translate(
+          offset: Offset((t - 0.5) * 18, (0.5 - t) * 12),
+          child: Transform.rotate(
+            angle: (t - 0.5) * 0.012,
+            child: Transform.scale(scale: 1.08 + t * 0.05, child: child),
+          ),
+        );
+
+        // 控制器为 null（从未播放过、或一进来就是暂停）时取中点：位移为
+        // 零、缩放 1.105，与播放中任意相位的取景范围一致，不会露边。
+        final frozen = Curves.easeInOut.transform(controller?.value ?? 0.5);
+        if (!animate || controller == null) {
+          return transformed(layer, frozen);
+        }
 
         return AnimatedBuilder(
           animation: controller,
-          builder: (context, child) {
-            final t = Curves.easeInOut.transform(controller.value);
-            return Transform.translate(
-              offset: Offset((t - 0.5) * 18, (0.5 - t) * 12),
-              child: Transform.rotate(
-                angle: (t - 0.5) * 0.012,
-                child: Transform.scale(scale: 1.08 + t * 0.05, child: child),
-              ),
-            );
-          },
+          builder: (context, child) => transformed(
+            child!,
+            Curves.easeInOut.transform(controller.value),
+          ),
           child: layer,
         );
       },

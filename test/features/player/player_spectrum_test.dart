@@ -23,12 +23,13 @@ void main() {
       return StorageService.forTesting(await SharedPreferences.getInstance());
     }
 
-    test('空存储时默认开启、样式为柱状', () async {
+    test('空存储时默认关闭、样式为柱状', () async {
       final storage = await storageWith(<String, Object>{});
       final notifier = PlayerSpectrumNotifier(storage: () async => storage);
       await Future<void>.delayed(Duration.zero);
 
-      expect(notifier.value.enabled, isTrue);
+      // 默认关：这一行高度留给「下一句歌词」，信息密度更高。
+      expect(notifier.value.enabled, isFalse);
       expect(notifier.value.style, SpectrumStyle.bars);
     });
 
@@ -53,8 +54,9 @@ void main() {
       final notifier = PlayerSpectrumNotifier(storage: () async => storage);
       await Future<void>.delayed(Duration.zero);
 
-      // 一份坏掉的设置不该让播放器起不来，也不该让频谱消失。
-      expect(notifier.value.enabled, isTrue);
+      // 一份坏掉的设置不该让播放器起不来。`enabled` 不是 bool 时退回默认
+      // 值（现在是 false），样式名不认识时退回柱状。
+      expect(notifier.value.enabled, isFalse);
       expect(notifier.value.style, SpectrumStyle.bars);
     });
 
