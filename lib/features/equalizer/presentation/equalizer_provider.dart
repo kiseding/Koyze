@@ -172,6 +172,12 @@ class EqualizerNotifier extends BuildlessNotifier<EqualizerState> {
     await _bridge.apply(
       enabled: settings.enabled,
       gains: settings.gainsFor(value.effectiveLayout),
+      // AutoEQ 走参数均衡：原始滤波器逐个下发，Q 值不丢。其它预设没有
+      // 这个概念，传空列表让桥退回固定频段。
+      biquads: settings.usesParametricAutoEq
+          ? settings.autoEqBiquads
+          : const <AutoEqBiquad>[],
+      preampDb: settings.usesParametricAutoEq ? settings.preampDb : 0,
     );
     await _refreshLayout();
   }
@@ -213,9 +219,23 @@ class EqualizerNotifier extends BuildlessNotifier<EqualizerState> {
         presetId: kAutoEqPresetId,
         autoEqName: profile.name,
         autoEqCurve: profile.curve,
+        // 保留原始滤波器与 Preamp：ParametricEQ 走参数均衡，不再降采样。
+        autoEqBiquads: profile.biquads,
+        preampDb: profile.preampDb,
       ),
     );
     return true;
+  }
+
+  /// 调整 Preamp。只对 AutoEQ 有效。
+  ///
+  /// 允许用户改是因为耳机阻抗不匹配时，同一个 AutoEQ 方案在不同设备上
+  /// 需要的余量不一样；但下限锁在 -24 dB，再低就是「听不见」而不是「不削波」。
+  Future<void> setPreamp(double preampDb) {
+    if (!preampDb.isFinite) return Future<void>.value();
+    return _commit(
+      value.settings.copyWith(preampDb: preampDb.clamp(-24.0, 12.0)),
+    );
   }
 
   /// 重新读取设备频段布局。播放器刚激活时用得上。
@@ -228,6 +248,12 @@ class EqualizerNotifier extends BuildlessNotifier<EqualizerState> {
     await _bridge.apply(
       enabled: settings.enabled,
       gains: settings.gainsFor(value.effectiveLayout),
+      // AutoEQ 走参数均衡：原始滤波器逐个下发，Q 值不丢。其它预设没有
+      // 这个概念，传空列表让桥退回固定频段。
+      biquads: settings.usesParametricAutoEq
+          ? settings.autoEqBiquads
+          : const <AutoEqBiquad>[],
+      preampDb: settings.usesParametricAutoEq ? settings.preampDb : 0,
     );
     await _refreshLayout();
   }

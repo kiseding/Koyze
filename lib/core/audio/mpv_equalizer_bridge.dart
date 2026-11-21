@@ -98,6 +98,67 @@ List<String> buildMpvEqualizerFilters({
   return filters;
 }
 
+/// 把 AutoEQ 的滤波器原样编成 ffmpeg 滤镜条目。
+///
+/// 这是「全平台均衡器」最直接的收益：以前 AutoEQ 曲线要先降采样到设备
+/// 固定的 5 个中心频率，Q 值信息全丢——一个 `Fc 3200 Hz Q 4.0` 的窄带
+/// 修正会被抹成覆盖整个 910~3600 区间的宽包。mpv 的 `af` 支持任意中心
+/// 频率，于是可以按滤波器逐个下发，曲线与 AutoEQ 作者发布的完全一致。
+///
+/// 顺序上 Preamp 必须排在最前面：它是给后面叠加出来的峰值预留的余量，
+/// 放到后面就变成「先削波再衰减」，削掉的信息回不来了。
+List<String> buildMpvAutoEqFilters({
+  required bool enabled,
+  required List<AutoEqBiquad> biquads,
+  double preampDb = 0,
+}) {
+  if (!enabled) return const <String>[];
+  final filters = <String>[];
+  // Preamp 单独判断：AutoEQ 的取值通常在 -12 ~ 0 dB，|x| < 0.05 时没有
+  // 实际意义，跳过可以少挂一个滤镜。
+  if (preampDb.isFinite && preampDb.abs() >= 0.05) {
+    filters.add('volume=${_formatNumber(preampDb)}dB');
+  }
+  for (final biquad in biquads) {
+    if (!biquad.enabled) continue;
+    if (!biquad.gainDb.isFinite || !biquad.frequencyHz.isFinite) continue;
+    if (biquad.gainDb.abs() < 0.05) continue;
+    final frequency = _formatNumber(
+      biquad.frequencyHz.clamp(10.0, 20000.0),
+    );
+    final width = _formatNumber(biquadWidthOctaves(biquad.q));
+    final gain = _formatNumber(biquad.gainDb);
+    // 架式滤波器和峰值滤波器的参数名不同，但 width_type 的含义一致。
+    final name = biquad.isLowShelf
+        ? 'lowshelf'
+        : biquad.isHighShelf
+        ? 'highshelf'
+        : 'equalizer';
+    filters.add(
+      '$name=f=$frequency:width_type=o:width=$width:g=$gain',
+    );
+  }
+  return filters;
+}
+
+/// 把 biquad 的 Q 值换算成 ffmpeg 需要的倍频程带宽。
+///
+/// 关系是 `Q = 1 / (2 · sinh(ln2/2 · BW))`，反解得到下面的公式。校验：
+/// Q = 1.41 恰好是 1 个倍频程，Q = 0.7 约 1.9 个倍频程——和听感一致
+/// （Q 越低，影响范围越宽）。
+///
+/// `dart:math` 没有 `asinh`，这里用它的对数定义 `asinh(x) = ln(x + √(x²+1))`
+/// 自己算。arg 恒为正（Q > 0），所以不会出现负对数。
+double biquadWidthOctaves(double q) {
+  if (!q.isFinite || q <= 0) return 1;
+  final x = 1 / (2 * q);
+  final asinh = math.log(x + math.sqrt(x * x + 1));
+  final octaves = (2 / math.ln2) * asinh;
+  if (!octaves.isFinite || octaves <= 0) return 1;
+  // 上限 4 个倍频程：再宽就等于整体音量变化，交给 Preamp 处理更清楚。
+  return octaves.clamp(0.1, 4);
+}
+
 /// 兼容旧口径：把滤镜条目串成一条 `af` 字符串（用逗号分隔）。
 ///
 /// 走 [MpvEqualizerBridge] 时用的是 [buildMpvEqualizerFilters] + 官方
@@ -147,6 +208,8 @@ class MpvEqualizerBridge implements EqualizerBridge {
 
   bool _desiredEnabled = false;
   List<double> _desiredGains = const <double>[];
+  List<AutoEqBiquad> _desiredBiquads = const <AutoEqBiquad>[];
+  double _desiredPreampDb = 0;
   String? _appliedValue;
   Timer? _timer;
   Future<void> _queue = Future<void>.value();
@@ -165,17 +228,34 @@ class MpvEqualizerBridge implements EqualizerBridge {
   void bindPlayer(AudioPlayer player) {}
 
   @override
-  void rememberDesired({required bool enabled, required List<double> gains}) {
+  void rememberDesired({
+    required bool enabled,
+    required List<double> gains,
+    List<AutoEqBiquad> biquads = const <AutoEqBiquad>[],
+    double preampDb = 0,
+  }) {
     _desiredEnabled = enabled;
     _desiredGains = List<double>.of(gains);
+    _desiredBiquads = List<AutoEqBiquad>.of(biquads);
+    _desiredPreampDb = preampDb;
   }
 
   @override
   Future<EqualizerBandLayout?> loadLayout() async => kMpvEqualizerLayout;
 
   @override
-  Future<void> apply({required bool enabled, required List<double> gains}) {
-    rememberDesired(enabled: enabled, gains: gains);
+  Future<void> apply({
+    required bool enabled,
+    required List<double> gains,
+    List<AutoEqBiquad> biquads = const <AutoEqBiquad>[],
+    double preampDb = 0,
+  }) {
+    rememberDesired(
+      enabled: enabled,
+      gains: gains,
+      biquads: biquads,
+      preampDb: preampDb,
+    );
     _schedule();
     // 与 Android 侧一致：不阻塞调用方，失败只记日志。
     return Future<void>.value();
@@ -196,10 +276,19 @@ class MpvEqualizerBridge implements EqualizerBridge {
 
   Future<void> _applyDesired() async {
     if (_disposed) return;
-    final filters = buildMpvEqualizerFilters(
-      enabled: _desiredEnabled,
-      gains: _desiredGains,
-    );
+    // AutoEQ 走参数均衡：原始滤波器逐个下发，不经过 5 段采样。
+    // 其它预设/自定义曲线仍走固定频段，因为它们的语义就是「几个频段的
+    // 增益」，没有 Q 值可保留。
+    final filters = _desiredBiquads.isNotEmpty
+        ? buildMpvAutoEqFilters(
+            enabled: _desiredEnabled,
+            biquads: _desiredBiquads,
+            preampDb: _desiredPreampDb,
+          )
+        : buildMpvEqualizerFilters(
+            enabled: _desiredEnabled,
+            gains: _desiredGains,
+          );
     // 用滤镜链本身当签名，避免同样的状态重复写属性。
     final signature = filters.join(',');
     if (signature == _appliedValue) return;

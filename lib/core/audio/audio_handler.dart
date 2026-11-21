@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../logging/app_log.dart';
+import 'audio_enhancement.dart';
 import 'equalizer_bridge.dart';
 import 'just_audio_engine.dart';
 import 'mpv_equalizer_factory.dart';
@@ -365,6 +366,17 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// 播放器重建时用的工厂；注入播放器或引擎时为 null（无法重建）。
   PlaybackEngine Function()? _replacementPlayerFactory;
   late final EqualizerBridge _equalizer;
+
+  /// 除均衡器之外的音频增强（交叉馈送 / 响度均衡 / 限幅）。
+  ///
+  /// 不是 final：just_audio 的播放器重建时会换一个引擎，写入端要跟着换。
+  late AudioEnhancementSink _enhancement;
+
+  /// 最近一次登记的增强设置。重建后要原样再施加一遍，否则用户会发现
+  /// 「播放出错恢复之后，交叉馈送自己关了」。
+  AudioEnhancementSettings _enhancementSettings =
+      const AudioEnhancementSettings();
+
   final PrepareForPlayback? _prepareForPlayback;
   final Duration _outputRouteRecoveryTimeout;
   final Duration _resolveTimeout;
@@ -825,6 +837,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _playerSubject = BehaviorSubject<PlaybackEngine>.seeded(_player);
     final rawPlayer = _rawPlayer;
     if (rawPlayer != null) _equalizer.bindPlayer(rawPlayer);
+    _enhancement = createAudioEnhancementSink(_player);
     _commands = _createCommandCoordinator(_player);
     _volume.bindPlayer(_player);
     _publishPlaybackState();
@@ -1052,6 +1065,18 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// 均衡器桥。设置页与均衡器界面通过它读写频段增益。
   EqualizerBridge get equalizer => _equalizer;
+
+  /// 音频增强写入端。设置页通过 [applyEnhancements] 使用，一般不直接读它。
+  AudioEnhancementSink get enhancement => _enhancement;
+
+  /// 施加音频增强设置。
+  ///
+  /// 不 await：写入走的是 `af` 属性，失败只记日志（见 [MpvAudioChain]），
+  /// 阻塞调用方只会让设置页卡一下。
+  void applyEnhancements(AudioEnhancementSettings settings) {
+    _enhancementSettings = settings;
+    _enhancement.apply(settings);
+  }
 
   /// 引擎（重新）建立的广播。消费方拿它重新订阅位置与时长流。
   Stream<PlaybackEngine> get playerStream => _playerSubject.stream;
@@ -1603,6 +1628,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // 新播放器带的是新注入的均衡器音效，期望状态需要重新施加一次。
     final rawPlayer = _rawPlayer;
     if (rawPlayer != null) _equalizer.bindPlayer(rawPlayer);
+    // 增强项的写入端绑的是引擎实例，重建后必须换到新引擎上再补一遍。
+    _enhancement = createAudioEnhancementSink(_player);
+    _enhancement.apply(_enhancementSettings);
     _volume.bindPlayer(_player);
     if (_playbackSpeed != 1.0) {
       unawaited(_applySpeedToPlayer());

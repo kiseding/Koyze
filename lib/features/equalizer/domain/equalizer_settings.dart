@@ -29,6 +29,8 @@ class EqualizerSettings {
     this.gains = const <double>[],
     this.autoEqName,
     this.autoEqCurve = const <EqualizerControlPoint>[],
+    this.autoEqBiquads = const <AutoEqBiquad>[],
+    this.preampDb = 0,
   });
 
   /// 总开关。
@@ -46,9 +48,25 @@ class EqualizerSettings {
   /// 导入的 AutoEQ 曲线控制点；仅在 [presetId] 为 [kAutoEqPresetId] 时使用。
   final List<EqualizerControlPoint> autoEqCurve;
 
+  /// AutoEQ 的原始滤波器（带各自的频率与 Q 值）。
+  ///
+  /// 和 [autoEqCurve] 是同一份数据的两种形态：曲线用于画图与降级到固定
+  /// 频段，滤波器用于在 mpv 上按原样精确下发。两者都存是为了让「换到
+  /// just_audio 回退路径」时仍有可用的近似。
+  final List<AutoEqBiquad> autoEqBiquads;
+
+  /// AutoEQ 文件自带的 Preamp（dB，通常为负）。
+  ///
+  /// 以前这个值被丢掉，改用「把曲线均值归零」来近似响度对齐。两者不等价：
+  /// Preamp 是作者按峰值算的余量，均值归零是统计量，会漏掉局部峰。
+  final double preampDb;
+
   bool get isCustom => presetId == kCustomPresetId;
 
   bool get isAutoEq => presetId == kAutoEqPresetId;
+
+  /// 是否走参数均衡（AutoEQ 且原始滤波器可用）。
+  bool get usesParametricAutoEq => isAutoEq && autoEqBiquads.isNotEmpty;
 
   /// 界面展示用的预设名。
   String get presetLabel {
@@ -65,12 +83,16 @@ class EqualizerSettings {
     List<double>? gains,
     String? autoEqName,
     List<EqualizerControlPoint>? autoEqCurve,
+    List<AutoEqBiquad>? autoEqBiquads,
+    double? preampDb,
   }) => EqualizerSettings(
     enabled: enabled ?? this.enabled,
     presetId: presetId ?? this.presetId,
     gains: gains ?? this.gains,
     autoEqName: autoEqName ?? this.autoEqName,
     autoEqCurve: autoEqCurve ?? this.autoEqCurve,
+    autoEqBiquads: autoEqBiquads ?? this.autoEqBiquads,
+    preampDb: preampDb ?? this.preampDb,
   );
 
   /// 按 [layout] 解析实际要施加的增益。
@@ -105,6 +127,18 @@ class EqualizerSettings {
       'autoEqCurve': <List<double>>[
         for (final point in autoEqCurve) [point.frequencyHz, point.gainDb],
       ],
+    if (autoEqBiquads.isNotEmpty)
+      'autoEqBiquads': <Map<String, dynamic>>[
+        for (final biquad in autoEqBiquads)
+          <String, dynamic>{
+            'type': biquad.type,
+            'f': biquad.frequencyHz,
+            'g': biquad.gainDb,
+            'q': biquad.q,
+            if (!biquad.enabled) 'off': true,
+          },
+      ],
+    if (preampDb != 0) 'preampDb': preampDb,
   };
 
   static EqualizerSettings fromJson(Map<String, dynamic> json) {
@@ -128,6 +162,30 @@ class EqualizerSettings {
       }
     }
     final rawPreset = json['preset'];
+    final biquads = <AutoEqBiquad>[];
+    final rawBiquads = json['autoEqBiquads'];
+    if (rawBiquads is List) {
+      for (final item in rawBiquads) {
+        if (item is! Map) continue;
+        final type = item['type']?.toString();
+        final frequency = (item['f'] as num?)?.toDouble();
+        final gain = (item['g'] as num?)?.toDouble();
+        final q = (item['q'] as num?)?.toDouble();
+        if (type == null || frequency == null || gain == null) continue;
+        if (!frequency.isFinite || frequency <= 0) continue;
+        if (!gain.isFinite) continue;
+        biquads.add(
+          AutoEqBiquad(
+            type: type,
+            frequencyHz: frequency,
+            gainDb: gain,
+            q: q != null && q.isFinite && q > 0 ? q : 0.707,
+            enabled: item['off'] != true,
+          ),
+        );
+      }
+    }
+    final rawPreamp = (json['preampDb'] as num?)?.toDouble();
     return EqualizerSettings(
       enabled: json['enabled'] == true,
       presetId: rawPreset is String && rawPreset.isNotEmpty
@@ -136,6 +194,8 @@ class EqualizerSettings {
       gains: List<double>.unmodifiable(gains),
       autoEqName: json['autoEqName']?.toString(),
       autoEqCurve: List<EqualizerControlPoint>.unmodifiable(curve),
+      autoEqBiquads: List<AutoEqBiquad>.unmodifiable(biquads),
+      preampDb: rawPreamp != null && rawPreamp.isFinite ? rawPreamp : 0,
     );
   }
 
@@ -145,16 +205,20 @@ class EqualizerSettings {
       other.enabled == enabled &&
       other.presetId == presetId &&
       other.autoEqName == autoEqName &&
+      other.preampDb == preampDb &&
       listEquals(other.gains, gains) &&
-      listEquals(other.autoEqCurve, autoEqCurve);
+      listEquals(other.autoEqCurve, autoEqCurve) &&
+      listEquals(other.autoEqBiquads, autoEqBiquads);
 
   @override
   int get hashCode => Object.hash(
     enabled,
     presetId,
     autoEqName,
+    preampDb,
     Object.hashAll(gains),
     Object.hashAll(autoEqCurve),
+    Object.hashAll(autoEqBiquads),
   );
 }
 

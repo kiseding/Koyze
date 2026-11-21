@@ -143,6 +143,10 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                   ] else ...[
                     const SizedBox(height: 20),
                     _buildPresetSection(context, state),
+                    if (state.settings.usesParametricAutoEq) ...[
+                      const SizedBox(height: 16),
+                      _buildParametricCard(context, state),
+                    ],
                     const SizedBox(height: 20),
                     _buildBandSection(context, state),
                     const SizedBox(height: 14),
@@ -270,6 +274,103 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  /// 参数化 AutoEQ 的信息卡。
+  ///
+  /// 每个滤波器按原样下发，滑块就失去了意义——那五个频段不再对应任何真实
+  /// 的滤波器，拖动只会覆盖掉刚导入的曲线。所以这里换成一张说明卡加一个
+  /// Preamp 调节，而不是继续画一排会骗人的滑块。
+  Widget _buildParametricCard(BuildContext context, EqualizerState state) {
+    final s = S.of(context);
+    final settings = state.settings;
+    return _Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.tune_rounded,
+                  size: 18,
+                  color: AppColors.accentOf(context),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    s.autoEqParametric(settings.autoEqBiquads.length),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onScaffold(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              s.autoEqParametricHint,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.5,
+                color: AppColors.secondaryText(context),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Text(
+                  s.preamp,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.onScaffold(context),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Slider(
+                    value: settings.preampDb.clamp(-24.0, 12.0),
+                    min: -24,
+                    max: 12,
+                    divisions: 72,
+                    label: '${settings.preampDb.toStringAsFixed(1)} dB',
+                    onChanged: state.interactive
+                        ? (value) => ref
+                              .read(equalizerProvider.notifier)
+                              .setPreamp(value)
+                        : null,
+                  ),
+                ),
+                SizedBox(
+                  width: 62,
+                  child: Text(
+                    '${settings.preampDb.toStringAsFixed(1)} dB',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onScaffold(context),
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              s.preampHint,
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.45,
+                color: AppColors.mutedText(context),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

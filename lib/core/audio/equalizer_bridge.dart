@@ -46,6 +46,53 @@ class EqualizerBandLayout {
       '$minDecibels..$maxDecibels dB)';
 }
 
+/// AutoEQ 参数均衡器里的一个 biquad。
+///
+/// 和 [EqualizerBandLayout] 的区别是「精度」：频段布局只能表达固定几个
+/// 中心频率上的增益，而 AutoEQ 发布的曲线是若干个任意频率、任意 Q 值的
+/// 滤波器。以前把它降采样到 5 个固定频段，Q 值信息全丢，窄带修正（比如
+/// 3.2 kHz 的齿音峰）几乎无法还原。mpv 的 `af` 链支持任意中心频率，
+/// 所以这里保留原始参数，逐个下发。
+@immutable
+class AutoEqBiquad {
+  const AutoEqBiquad({
+    required this.type,
+    required this.frequencyHz,
+    required this.gainDb,
+    required this.q,
+    this.enabled = true,
+  });
+
+  /// `PK`（peaking）/ `LS`、`LSC`（低架）/ `HS`、`HSC`（高架）。
+  /// 数字是老格式的 peaking。
+  final String type;
+
+  final double frequencyHz;
+  final double gainDb;
+  final double q;
+  final bool enabled;
+
+  bool get isLowShelf => type.toUpperCase().startsWith('LS');
+  bool get isHighShelf => type.toUpperCase().startsWith('HS');
+
+  @override
+  bool operator ==(Object other) =>
+      other is AutoEqBiquad &&
+      other.type == type &&
+      other.frequencyHz == frequencyHz &&
+      other.gainDb == gainDb &&
+      other.q == q &&
+      other.enabled == enabled;
+
+  @override
+  int get hashCode => Object.hash(type, frequencyHz, gainDb, q, enabled);
+
+  @override
+  String toString() =>
+      'AutoEqBiquad($type ${frequencyHz.toStringAsFixed(1)} Hz '
+      '${gainDb.toStringAsFixed(1)} dB Q=${q.toStringAsFixed(2)})';
+}
+
 /// 均衡器与音频引擎之间的桥。
 ///
 /// 关键约束：just_audio 的音效必须在 [AudioPlayer] 构造时通过
@@ -63,13 +110,26 @@ abstract class EqualizerBridge {
   void bindPlayer(AudioPlayer player);
 
   /// 记录期望状态，供播放器重建、首次激活后自动重新施加。
-  void rememberDesired({required bool enabled, required List<double> gains});
+  ///
+  /// [biquads] 非空表示走「参数均衡」路线（AutoEQ 原样下发），此时
+  /// [gains] 不参与计算；[preampDb] 是给叠加后的峰值留的余量。
+  void rememberDesired({
+    required bool enabled,
+    required List<double> gains,
+    List<AutoEqBiquad> biquads = const <AutoEqBiquad>[],
+    double preampDb = 0,
+  });
 
   /// 当前频段布局；音效尚未激活（还没连上平台）时返回 null。
   Future<EqualizerBandLayout?> loadLayout();
 
   /// 立即施加状态；布局不可用时只记录期望值，等激活后自动补上。
-  Future<void> apply({required bool enabled, required List<double> gains});
+  Future<void> apply({
+    required bool enabled,
+    required List<double> gains,
+    List<AutoEqBiquad> biquads = const <AutoEqBiquad>[],
+    double preampDb = 0,
+  });
 
   Future<void> dispose();
 }
@@ -98,13 +158,23 @@ class UnsupportedEqualizerBridge implements EqualizerBridge {
   void bindPlayer(AudioPlayer player) {}
 
   @override
-  void rememberDesired({required bool enabled, required List<double> gains}) {}
+  void rememberDesired({
+    required bool enabled,
+    required List<double> gains,
+    List<AutoEqBiquad> biquads = const <AutoEqBiquad>[],
+    double preampDb = 0,
+  }) {}
 
   @override
   Future<EqualizerBandLayout?> loadLayout() async => null;
 
   @override
-  Future<void> apply({required bool enabled, required List<double> gains}) async {}
+  Future<void> apply({
+    required bool enabled,
+    required List<double> gains,
+    List<AutoEqBiquad> biquads = const <AutoEqBiquad>[],
+    double preampDb = 0,
+  }) async {}
 
   @override
   Future<void> dispose() async {}
@@ -160,9 +230,17 @@ class AndroidEqualizerBridge implements EqualizerBridge {
   }
 
   @override
-  void rememberDesired({required bool enabled, required List<double> gains}) {
+  void rememberDesired({
+    required bool enabled,
+    required List<double> gains,
+    List<AutoEqBiquad> biquads = const <AutoEqBiquad>[],
+    double preampDb = 0,
+  }) {
     _desiredEnabled = enabled;
     _desiredGains = List<double>.of(gains);
+    // 系统音效通道只有固定频段，无法表达任意 Q 值。AutoEQ 的曲线在
+    // 上层已经被采样成频段增益，这里直接用那份结果——精度差一些，但
+    // 这是 just_audio 回退路径的固有限制，不是这里能补的。
   }
 
   @override
@@ -173,8 +251,18 @@ class AndroidEqualizerBridge implements EqualizerBridge {
   }
 
   @override
-  Future<void> apply({required bool enabled, required List<double> gains}) {
-    rememberDesired(enabled: enabled, gains: gains);
+  Future<void> apply({
+    required bool enabled,
+    required List<double> gains,
+    List<AutoEqBiquad> biquads = const <AutoEqBiquad>[],
+    double preampDb = 0,
+  }) {
+    rememberDesired(
+      enabled: enabled,
+      gains: gains,
+      biquads: biquads,
+      preampDb: preampDb,
+    );
     // 不等待结果：播放器还没激活时这里会一直等到超时，用户操作不该被拖住。
     // 布局不可用时期望值已经记下，等激活后由 bindPlayer / 播放状态变化补上。
     unawaited(_enqueue());

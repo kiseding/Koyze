@@ -41,6 +41,13 @@ class FakeEqualizerBridge implements EqualizerBridge {
       <({bool enabled, List<double> gains})>[];
   ({bool enabled, List<double> gains})? desired;
 
+  /// 最近一次随 [apply] 传来的参数均衡数据（AutoEQ 的原始滤波器）。
+  ///
+  /// 单独记而不是塞进 [applies]，是因为那批断言都在看「五个频段推了什么」，
+  /// 加字段会让它们全部要改；参数均衡只影响 AutoEQ 那一条路径。
+  List<AutoEqBiquad> lastBiquads = const <AutoEqBiquad>[];
+  double lastPreampDb = 0;
+
   @override
   bool get isSupported => supported;
 
@@ -51,8 +58,15 @@ class FakeEqualizerBridge implements EqualizerBridge {
   void bindPlayer(AudioPlayer player) {}
 
   @override
-  void rememberDesired({required bool enabled, required List<double> gains}) {
+  void rememberDesired({
+    required bool enabled,
+    required List<double> gains,
+    List<AutoEqBiquad> biquads = const <AutoEqBiquad>[],
+    double preampDb = 0,
+  }) {
     desired = (enabled: enabled, gains: List<double>.of(gains));
+    lastBiquads = List<AutoEqBiquad>.of(biquads);
+    lastPreampDb = preampDb;
   }
 
   @override
@@ -62,8 +76,15 @@ class FakeEqualizerBridge implements EqualizerBridge {
   Future<void> apply({
     required bool enabled,
     required List<double> gains,
+    List<AutoEqBiquad> biquads = const <AutoEqBiquad>[],
+    double preampDb = 0,
   }) async {
-    rememberDesired(enabled: enabled, gains: gains);
+    rememberDesired(
+      enabled: enabled,
+      gains: gains,
+      biquads: biquads,
+      preampDb: preampDb,
+    );
     applies.add(desired!);
   }
 

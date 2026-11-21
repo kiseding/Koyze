@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:koyze/core/audio/equalizer_bridge.dart' show AutoEqBiquad;
+
 import 'equalizer_preset.dart';
 
 /// AutoEQ 参数均衡器里的一个 biquad。
@@ -113,6 +115,22 @@ class AutoEqProfile {
   final double preampDb;
 
   final List<AutoEqFilter> filters;
+
+  /// 可直接下发到 mpv `af` 链的滤波器列表。
+  ///
+  /// 这是「不降采样」的那份数据：频率与 Q 值都保持 AutoEQ 发布的原值。
+  /// 只有 [filters] 为空（GraphicEQ 格式）时才为空，那种格式本身就是
+  /// 采样点，没有 Q 值可言。
+  List<AutoEqBiquad> get biquads => List<AutoEqBiquad>.unmodifiable(<AutoEqBiquad>[
+    for (final filter in filters)
+      AutoEqBiquad(
+        type: filter.type,
+        frequencyHz: filter.frequencyHz,
+        gainDb: filter.gainDb,
+        q: filter.q,
+        enabled: filter.enabled,
+      ),
+  ]);
 
   EqualizerPreset toPreset() =>
       EqualizerPreset(id: 'autoeq', label: name, curve: curve);
