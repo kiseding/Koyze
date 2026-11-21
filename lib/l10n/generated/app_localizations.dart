@@ -6266,11 +6266,11 @@ abstract class AppLocalizations {
   /// **'Ridges'**
   String get playerSpectrumStyleRidges;
 
-  /// No description provided for @playerSpectrumStyleHalo.
+  /// No description provided for @playerSpectrumStyleFade.
   ///
   /// In en, this message translates to:
-  /// **'Halo'**
-  String get playerSpectrumStyleHalo;
+  /// **'Fade'**
+  String get playerSpectrumStyleFade;
 
   /// No description provided for @preamp.
   ///

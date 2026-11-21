@@ -1204,7 +1204,7 @@ class S {
   String get playerSpectrumStyleLeds => _l10n.playerSpectrumStyleLeds;
   String get playerSpectrumStyleDots => _l10n.playerSpectrumStyleDots;
   String get playerSpectrumStyleRidges => _l10n.playerSpectrumStyleRidges;
-  String get playerSpectrumStyleHalo => _l10n.playerSpectrumStyleHalo;
+  String get playerSpectrumStyleFade => _l10n.playerSpectrumStyleFade;
   String get preamp => _l10n.preamp;
   String get preampHint => _l10n.preampHint;
   String autoEqParametric(int count) => _l10n.autoEqParametric(count);

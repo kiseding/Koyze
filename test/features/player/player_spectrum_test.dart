@@ -37,12 +37,12 @@ void main() {
       final first = PlayerSpectrumNotifier(storage: () async => storage);
       await Future<void>.delayed(Duration.zero);
 
-      await first.setStyle(SpectrumStyle.halo);
+      await first.setStyle(SpectrumStyle.fade);
       await first.setEnabled(false);
 
       final second = PlayerSpectrumNotifier(storage: () async => storage);
       await Future<void>.delayed(Duration.zero);
-      expect(second.value.style, SpectrumStyle.halo);
+      expect(second.value.style, SpectrumStyle.fade);
       expect(second.value.enabled, isFalse);
     });
 
@@ -64,7 +64,7 @@ void main() {
       expect(SpectrumStyle.leds.storageValue, 'leds');
       expect(SpectrumStyle.dots.storageValue, 'dots');
       expect(SpectrumStyle.ridges.storageValue, 'ridges');
-      expect(SpectrumStyle.halo.storageValue, 'halo');
+      expect(SpectrumStyle.fade.storageValue, 'fade');
       for (final style in SpectrumStyle.values) {
         expect(
           SpectrumStyle.fromStorage(style.storageValue),
@@ -84,8 +84,8 @@ void main() {
       expect(restored.hashCode, settings.hashCode);
       // 缺字段的旧数据也要能读：升级后不该丢用户已选的样式。
       expect(
-        PlayerSpectrumSettings.fromJson(const {'style': 'halo'}).style,
-        SpectrumStyle.halo,
+        PlayerSpectrumSettings.fromJson(const {'style': 'fade'}).style,
+        SpectrumStyle.fade,
       );
     });
   });
@@ -239,12 +239,12 @@ void main() {
       );
     });
 
-    test('光环是空心的：只有两边亮，中间不填色', () async {
+    test('消隐的重心在底部：越往上越淡', () async {
       final data = await rasterize(
         SpectrumPainter(
-          display: List<double>.filled(24, 1),
-          peak: List<double>.filled(24, 1),
-          style: SpectrumStyle.halo,
+          display: List<double>.filled(24, 0.9),
+          peak: const [],
+          style: SpectrumStyle.fade,
           accent: const Color(0xFF8B82EA),
           trackColor: const Color(0xFF333333),
         ),
@@ -254,19 +254,17 @@ void main() {
       const height = 40;
       int alphaAt(int x, int y) => bytes[(y * width + x) * 4 + 3];
 
-      // 满幅时带子大约占中间 6..29（厚度 0.56H，中心 0.44H）。
-      // 取中列：中心应近乎透明，上下边界应亮。
-      const x = 60;
-      final center = alphaAt(x, 17);
-      var brightest = 0;
-      for (var y = 0; y < height; y++) {
+      // 取一根柱子的中线：贴近地面应该最亮，靠近柱顶应该几乎化掉。
+      // 这一条钉住的是它和柱状的本质差别——柱状是「顶亮底暗」。
+      const x = 2;
+      var bottom = 0;
+      for (var y = height - 1; y >= height - 8; y--) {
         final a = alphaAt(x, y);
-        if (a > brightest) brightest = a;
+        if (a > bottom) bottom = a;
       }
-
-      // 若这里变成实心，光环就退化成第二座山脊——「线」和「块」必须分开。
-      expect(center, lessThan(60), reason: '光环被填实了（中心 alpha=$center）');
-      expect(brightest, greaterThan(120), reason: '边框不够亮，光环看不出来');
+      final nearTop = alphaAt(x, (height * 0.18).round());
+      expect(bottom, greaterThan(150), reason: '底部不够实（$bottom）');
+      expect(nearTop, lessThan(bottom ~/ 3), reason: '顶部没有化开（$nearTop vs $bottom）');
     });
 
     test('比例尺一致：更高的幅值画出更高的柱', () async {

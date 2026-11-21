@@ -55,8 +55,8 @@ class SpectrumPainter extends CustomPainter {
         _paintDots(canvas, size);
       case SpectrumStyle.ridges:
         _paintRidges(canvas, size);
-      case SpectrumStyle.halo:
-        _paintHalo(canvas, size);
+      case SpectrumStyle.fade:
+        _paintFade(canvas, size);
     }
   }
 
@@ -238,71 +238,39 @@ class SpectrumPainter extends CustomPainter {
     }
   }
 
-  /// 光环：上下边界围成一个闭合的「线框」，只有描边，不填色。
+  /// 消隐：柱子从底部的实色向上淡出到透明，底部压一条亮基线。
   ///
-  /// 这是五种里唯一一个**看轮廓**而不是看面积的：带子变厚时线框张开，变薄时
-  /// 收成一条线。刻意空心——一旦填色就会和山脊撞脸，两者必须是「线」和
-  /// 「块」的区别。
-  void _paintHalo(Canvas canvas, Size size) {
+  /// 和柱状的区别在「重心」：柱状把最亮的部分放在顶端（那是峰值），消隐把
+  /// 最亮的部分放在地面（那是音量），顶部干脆化进背景。所以它看起来像一排
+  /// 从地板往上打的光柱，而不是一排柱子。
+  void _paintFade(Canvas canvas, Size size) {
     final count = display.length;
-    if (count < 2) return;
-    final step = size.width / (count - 1);
+    final step = size.width / count;
+    final barWidth = math.max(2.0, step * 0.55);
+    final paint = Paint()..style = PaintingStyle.fill;
 
-    final top = <Offset>[];
-    final bottom = <Offset>[];
     for (var i = 0; i < count; i++) {
       final value = display[i].clamp(0.0, 1.0);
-      final thickness = size.height * (0.10 + 0.46 * value);
-      final center = size.height * (0.52 - 0.08 * value);
-      top.add(Offset(i * step, center - thickness / 2));
-      bottom.add(Offset(i * step, center + thickness / 2));
+      final height = math.max(2.0, value * (size.height - 1.5));
+      final left = i * step + (step - barWidth) / 2;
+      final rect = Rect.fromLTWH(left, size.height - height, barWidth, height);
+      paint.shader = LinearGradient(
+        begin: Alignment.bottomCenter,
+        end: Alignment.topCenter,
+        colors: [
+          accent.withValues(alpha: 0.95),
+          accent.withValues(alpha: 0.45),
+          accent.withValues(alpha: 0.0),
+        ],
+        stops: const [0.0, 0.42, 1.0],
+      ).createShader(rect);
+      canvas.drawRect(rect, paint);
     }
 
-    final loop = _smoothPath(top);
-    for (var i = count - 1; i > 0; i--) {
-      final current = bottom[i];
-      final previous = bottom[i - 1];
-      loop.quadraticBezierTo(
-        current.dx,
-        current.dy,
-        (current.dx + previous.dx) / 2,
-        (current.dy + previous.dy) / 2,
-      );
-    }
-    loop
-      ..quadraticBezierTo(
-        bottom.first.dx,
-        bottom.first.dy,
-        bottom.first.dx,
-        bottom.first.dy,
-      )
-      ..close();
-
-    // 三层描边叠出「灯管」的发光：外层宽而淡、中层收紧、内芯最亮。
-    canvas.drawPath(
-      loop,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5
-        ..strokeJoin = StrokeJoin.round
-        ..color = accent.withValues(alpha: 0.10),
-    );
-    canvas.drawPath(
-      loop,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..strokeJoin = StrokeJoin.round
-        ..color = accent.withValues(alpha: 0.30),
-    );
-    canvas.drawPath(
-      loop,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..strokeJoin = StrokeJoin.round
-        ..color = Color.lerp(accent, Colors.white, 0.55)!
-            .withValues(alpha: 0.96),
+    // 地面亮线：没有它，柱子会像悬在半空；有了它，整条读作「光从地面打上来」。
+    canvas.drawRect(
+      Rect.fromLTWH(0, size.height - 1.2, size.width, 1.2),
+      Paint()..color = accent.withValues(alpha: 0.55),
     );
   }
 

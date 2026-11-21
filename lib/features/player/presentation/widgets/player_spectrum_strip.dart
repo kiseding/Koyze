@@ -185,6 +185,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     } else {
       _target = List<double>.of(bands);
     }
+
     // 减弱动效时保留数据但不逐帧重绘——那条细线本身不需要补间。
     if (_reduceMotion) {
       setState(() {});

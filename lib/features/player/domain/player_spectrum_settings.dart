@@ -11,7 +11,7 @@ import 'package:flutter/foundation.dart';
 /// - [leds] 看「档位」：一列离散方块，像老式电平表的灯柱。
 /// - [dots] 看「轨迹」：每列一个浮动的光点，尾线连着底，幅度变化是位移。
 /// - [ridges] 看「地形」：三层山脊叠在一起，前低后高，有纵深。
-/// - [halo] 看「轮廓」：上下边界围成一个空心光环，响的时候张开。
+/// - [fade] 看「重心」：柱子向上化进背景，亮度压在底部。
 enum SpectrumStyle {
   /// 竖柱 + 顶部峰值帽。最直白的「频谱分析仪」，与均衡器页的柱状语言一致。
   bars,
@@ -25,9 +25,9 @@ enum SpectrumStyle {
   /// 三层山脊：后层更高更暗，前层更矮更亮，叠出纵深。
   ridges,
 
-  /// 空心光环：上下两条边界围成一个闭合线框，只有描边、不填色。
-  /// 响的时候线框张开，安静时收成一条线。
-  halo;
+  /// 消隐：柱子从底部的实色向上淡出到透明，地面压一条亮线。
+  /// 最亮的地方在地板而不是顶端，观感是「光柱」而不是「柱子」。
+  fade;
 
   /// 持久化用的稳定字符串。改枚举名不该让用户的设置失效，所以显式写死。
   String get storageValue => switch (this) {
@@ -35,7 +35,7 @@ enum SpectrumStyle {
     SpectrumStyle.leds => 'leds',
     SpectrumStyle.dots => 'dots',
     SpectrumStyle.ridges => 'ridges',
-    SpectrumStyle.halo => 'halo',
+    SpectrumStyle.fade => 'fade',
   };
 
   static SpectrumStyle fromStorage(

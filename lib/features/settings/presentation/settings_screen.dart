@@ -2620,7 +2620,7 @@ String spectrumStyleLabel(S s, SpectrumStyle style) => switch (style) {
   SpectrumStyle.leds => s.playerSpectrumStyleLeds,
   SpectrumStyle.dots => s.playerSpectrumStyleDots,
   SpectrumStyle.ridges => s.playerSpectrumStyleRidges,
-  SpectrumStyle.halo => s.playerSpectrumStyleHalo,
+  SpectrumStyle.fade => s.playerSpectrumStyleFade,
 };
 
 /// 样式选择面板里的一行：左边是名字，右边是这块样式的实时预览。
@@ -2655,8 +2655,8 @@ class _SpectrumStyleTileState extends State<_SpectrumStyleTile>
   ///
   /// 形状刻意做成「低频强、高频弱」的倾斜，跟真实音乐的能量分布一致，
   /// 这样预览里的柱高关系和播放页看到的不会差太多。
-  List<double> _syntheticBands(double t) {
-    const count = 48;
+  ///
+  List<double> _syntheticBands(double t, {int count = 48}) {
     final values = List<double>.filled(count, 0);
     for (var i = 0; i < count; i++) {
       final x = i / (count - 1);

@@ -1080,7 +1080,7 @@
   "playerSpectrumStyleLeds": "电平",
   "playerSpectrumStyleDots": "光点",
   "playerSpectrumStyleRidges": "山脊",
-  "playerSpectrumStyleHalo": "光环",
+  "playerSpectrumStyleFade": "消隐",
   "preamp": "前级增益",
   "preampHint": "AutoEQ 自带的余量，防止叠加后削波",
   "autoEqParametric": "按原始参数下发：{count} 个滤波器",
