@@ -29,6 +29,7 @@ class PlayerSpectrumStrip extends ConsumerStatefulWidget {
     super.key,
     this.style = SpectrumStyle.bars,
     this.height = 44,
+    this.horizontalInset = 0,
     this.accentOverride,
     this.sourceOverride,
   });
@@ -38,6 +39,13 @@ class PlayerSpectrumStrip extends ConsumerStatefulWidget {
 
   /// 条带高度。竖屏取 44；横屏信息列更紧，由外部传更小的值。
   final double height;
+
+  /// 左右内缩，用来和进度条轨道对齐。
+  ///
+  /// 进度条不是通栏的：它左右各有「当前时间 / 总时长」两个标签，轨道夹在
+  /// 中间。频谱条若铺满整行，会比轨道宽出一截，看起来像压到了时间上。
+  /// 所以由调用方按同一套间距算好传进来。
+  final double horizontalInset;
 
   /// 强制指定主色。为空时取主题强调色。
   final Color? accentOverride;
@@ -66,6 +74,20 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   Ticker? _ticker;
   Duration _lastTick = Duration.zero;
   DateTime? _lastFrameAt;
+
+  /// 数据版本号，每次幅值真的变了就 +1。
+  ///
+  /// 补间是原地改 [_display] 的元素，新旧 painter 会持有同一个 List，所以
+  /// `shouldRepaint` 只能靠这个数字判断——详见 [SpectrumPainter.revision]。
+  int _revision = 0;
+
+  /// 订阅成功后的「一直没有帧」探测。
+  ///
+  /// 频谱条最难受的失败是「静态」：形状画出来了但永远不动。它可能是补间
+  /// 没触发重绘（本仓库踩过），也可能是 mpv 根本不发 fft 帧（libmpv 太老、
+  /// 没有 `pcm-tap-frame` 属性）。后者在 UI 上无法区分，只能打一行日志，
+  /// 让排查的人一眼看出是哪一类。
+  Timer? _firstFrameTimer;
 
   /// 引擎是否支持。启动早期 `audioHandler` 是未初始化的 late 变量，
   /// 读它会抛；那时先当作不支持，下一次依赖变化再判。
@@ -143,6 +165,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
         if (mounted) _scheduleAttachRetry();
       },
     );
+    _armFirstFrameProbe();
   }
 
   /// 启动早期的重试。上限 20 次（约两秒），失败到底就静默放弃——
@@ -152,6 +175,20 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     _attachAttempts++;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _attach();
+    });
+  }
+
+  /// 订阅建立后 3 秒仍一帧未收到，打一行日志。
+  ///
+  /// 只在「从未收到过帧」时触发，所以正常暂停（之前收到过）不会误报。
+  void _armFirstFrameProbe() {
+    _firstFrameTimer?.cancel();
+    _firstFrameTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || _lastFrameAt != null) return;
+      debugPrint(
+        '[spectrum] 已订阅但 3 秒内没有 fft 帧：'
+        '检查 libmpv 是否提供 pcm-tap-frame（需 v0.41+），以及此时是否在播放',
+      );
     });
   }
 
@@ -174,6 +211,8 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   void _onFrame(SpectrumFrame frame) {
     if (!mounted) return;
     _lastFrameAt = DateTime.now();
+    _firstFrameTimer?.cancel();
+    _firstFrameTimer = null;
     final bands = frame.bands;
     if (bands.isEmpty) return;
 
@@ -185,6 +224,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     } else {
       _target = List<double>.of(bands);
     }
+    _revision++;
 
     // 减弱动效时保留数据但不逐帧重绘——那条细线本身不需要补间。
     if (_reduceMotion) {
@@ -254,7 +294,10 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
       }
     }
 
-    if (changed && mounted) setState(() {});
+    if (changed && mounted) {
+      _revision++;
+      setState(() {});
+    }
 
     // 数据断了（暂停 / 播放结束 / 页面不可见）就停：没有新帧时补间终将
     // 落到目标，继续跑 ticker 只是空转。
@@ -266,6 +309,8 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   @override
   void dispose() {
     _stopTicker();
+    _firstFrameTimer?.cancel();
+    _firstFrameTimer = null;
     unawaited(_subscription?.cancel());
     _subscription = null;
     super.dispose();
@@ -282,14 +327,17 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
 
     if (_reduceMotion) {
       // 减弱动效：保留位置与语义，但不逐帧重绘。
-      return SizedBox(
-        height: widget.height,
-        child: Center(
-          child: Container(
-            height: 2,
-            decoration: BoxDecoration(
-              color: track,
-              borderRadius: BorderRadius.circular(1),
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: widget.horizontalInset),
+        child: SizedBox(
+          height: widget.height,
+          child: Center(
+            child: Container(
+              height: 2,
+              decoration: BoxDecoration(
+                color: track,
+                borderRadius: BorderRadius.circular(1),
+              ),
             ),
           ),
         ),
@@ -297,16 +345,20 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     }
 
     return RepaintBoundary(
-      child: SizedBox(
-        height: widget.height,
-        width: double.infinity,
-        child: CustomPaint(
-          painter: SpectrumPainter(
-            display: _display,
-            peak: _peak,
-            style: widget.style,
-            accent: accent,
-            trackColor: track,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: widget.horizontalInset),
+        child: SizedBox(
+          height: widget.height,
+          width: double.infinity,
+          child: CustomPaint(
+            painter: SpectrumPainter(
+              display: _display,
+              peak: _peak,
+              style: widget.style,
+              accent: accent,
+              trackColor: track,
+              revision: _revision,
+            ),
           ),
         ),
       ),

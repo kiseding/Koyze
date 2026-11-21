@@ -2725,6 +2725,9 @@ class _SpectrumStyleTileState extends State<_SpectrumStyleTile>
                           style: widget.style,
                           accent: accent,
                           trackColor: border,
+                          // 预览每秒重排一百多帧，靠控制器进度当版本号，
+                          // 保证 `shouldRepaint` 每次都放行。
+                          revision: (_controller.value * 100000).round(),
                         ),
                       );
                     },

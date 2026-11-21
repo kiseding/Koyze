@@ -1660,6 +1660,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   child: PlayerSpectrumStrip(
                     style: ref.watch(playerSpectrumProvider).style,
                     height: compact ? 30 : 44,
+                    // 和进度条轨道左右对齐：进度条外层左右各 16，竖屏时间
+                    // 标签固定 58、与轨道间隔 8，所以 16 + 58 + 8 = 82。
+                    // 横屏时间标签改成按内容自适应（`pinTimesToEnds`），
+                    // 五行时间通常 38~42 宽，取 62 与之相称；它随位数轻微
+                    // 浮动的部分不值得让频谱跟着抖。
+                    horizontalInset: compact ? 62 : 82,
                   ),
                 ),
               _StaggeredFade(

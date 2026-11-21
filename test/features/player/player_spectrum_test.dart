@@ -312,5 +312,59 @@ void main() {
       final high = await columnHeight(0.9);
       expect(high, greaterThan(low + 8), reason: '幅值到高度的映射没有单调性');
     });
+
+    group('重绘判定', () {
+      SpectrumPainter painter(
+        List<double> display, {
+        required int revision,
+      }) =>
+          SpectrumPainter(
+            display: display,
+            peak: display,
+            style: SpectrumStyle.bars,
+            accent: const Color(0xFF8B82EA),
+            trackColor: const Color(0xFF333333),
+            revision: revision,
+          );
+
+      test('原地改幅值后，靠 revision 判定要重绘', () {
+        // 真实链路就是这样：补间直接在同一个 List 上改元素。新旧 painter
+        // 持有同一个引用，靠 identity 比较会永远认为「没变」，画面停在首帧。
+        final display = List<double>.of(bands);
+        final before = painter(display, revision: 0);
+
+        display[0] = (display[0] + 0.4).clamp(0.0, 1.0);
+        final after = painter(display, revision: 1);
+
+        expect(
+          after.shouldRepaint(before),
+          isTrue,
+          reason: '原地更新没有被识别，频谱会变成静态的',
+        );
+      });
+
+      test('数据与样式都没变时不重绘', () {
+        final display = List<double>.of(bands);
+        expect(
+          painter(display, revision: 7).shouldRepaint(painter(display, revision: 7)),
+          isFalse,
+          reason: '每帧都无条件重绘会白白吃掉渲染时间',
+        );
+      });
+
+      test('换样式即使 revision 不变也要重绘', () {
+        final display = List<double>.of(bands);
+        final before = painter(display, revision: 3);
+        final after = SpectrumPainter(
+          display: display,
+          peak: display,
+          style: SpectrumStyle.steps,
+          accent: const Color(0xFF8B82EA),
+          trackColor: const Color(0xFF333333),
+          revision: 3,
+        );
+        expect(after.shouldRepaint(before), isTrue);
+      });
+    });
   });
 }

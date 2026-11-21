@@ -19,6 +19,7 @@ class SpectrumPainter extends CustomPainter {
     required this.style,
     required this.accent,
     required this.trackColor,
+    this.revision = 0,
   });
 
   /// 幅值，长度即频段数量。
@@ -34,6 +35,16 @@ class SpectrumPainter extends CustomPainter {
 
   /// 轨道色。用于空态底纹与电平表的未点亮格。
   final Color trackColor;
+
+  /// 数据版本号，每次幅值更新时由调用方自增。
+  ///
+  /// 不能靠 `identical(display, old.display)` 判断是否需要重绘：补间是原地
+  /// 修改 [display] 的元素（每帧重建一个 64 元素的 List 太浪费），于是新旧
+  /// painter 持有的是**同一个 List**，identity 永远相等，`shouldRepaint`
+  /// 恒为 false，CustomPaint 就永远停在第一帧——数据一直在动，画面却是静的。
+  /// 也不能改用 `listEquals`：old 引用的那个 List 内容已经被改掉了，比较的
+  /// 是同一份数据，同样恒为 true。只有版本号是可靠的信号。
+  final int revision;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -330,6 +341,5 @@ class SpectrumPainter extends CustomPainter {
       oldDelegate.style != style ||
       oldDelegate.accent != accent ||
       oldDelegate.trackColor != trackColor ||
-      !identical(oldDelegate.display, display) ||
-      !identical(oldDelegate.peak, peak);
+      oldDelegate.revision != revision;
 }
