@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:mpv_audio_kit/mpv_audio_kit.dart' as mpv;
 
+import '../logging/app_log.dart';
 import '../logging/ohos_hilog.dart';
 import 'mpv_audio_chain.dart';
 import 'playback_engine.dart';
@@ -139,16 +140,34 @@ class MpvEngine implements PlaybackEngine {
     controller = StreamController<EngineProcessingState>(
       onListen: () {
         controller.add(last);
-        for (final source in <Stream<Object?>>[
-          _player.stream.playing,
-          _player.stream.buffering,
-          _player.stream.completed,
-          _player.stream.duration,
+        for (final entry in <(String, Stream<Object?>)>[
+          ('playing', _player.stream.playing),
+          ('buffering', _player.stream.buffering),
+          ('completed', _player.stream.completed),
+          ('duration', _player.stream.duration),
         ]) {
           subscriptions.add(
-            source.listen((_) {
+            entry.$2.listen((_) {
               final next = processingState;
               if (next == last) return;
+              // 「播完不自动切下一首」在 handler 侧已经布满了提前返回的
+              // 原因日志，但那条链只在**收到 completed 事件之后**才会开口。
+              // 如果 mpv 根本没把完成信号透出来，上游一行日志都不会有，看
+              // 起来就像 handler 装作没事。这里把每次状态迁移的来源流、
+              // 原始生命周期字段和推导结果一起打出来，真机上僵住时能直接
+              // 分辨是「mpv 没发」还是「handler 拒收」。
+              //
+              // 必须走 [ohosLog]：`debugPrint` 在鸿蒙 HAP 里写 stdout 没有
+              // 接收方，`AppLog` 默认不采集，两者都留不下痕迹。
+              final state = _player.state;
+              final detail =
+                  'processing $last -> $next via ${entry.$1} '
+                  '(completed=${state.completed} playing=${state.playing} '
+                  'loop=${state.loop} buffering=${state.buffering} '
+                  'playlistIndex=${state.playlist.index} '
+                  'playlistLength=${state.playlist.items.length})';
+              AppLog.instance.record('audio.engine', detail);
+              ohosLog('KoyzeMpv', 'autonext: $detail');
               last = next;
               controller.add(next);
             }),

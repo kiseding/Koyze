@@ -265,6 +265,41 @@ void main() {
     );
   });
 
+  test('自动连播诊断必须能到达 hilog，而不只是 debugPrint', () {
+    // 「播完不自动切下一首」的根因定位全靠这条链上的日志。上一版把它们写进
+    // `debugPrint` + `AppLog.record`，结果两个通道在真机上都是瞎的：
+    //   * 鸿蒙 HAP 进程的 stdout 没有接收方，`debugPrint` 直接丢弃；
+    //   * `AppLog.instance` 是 `AppLog()`，`startRecording` 默认 false，
+    //     `record()` 在诊断面板没打开时立刻 return。
+    // 于是真机复现时一行日志都没有，只能继续猜。这里把「必须同时写
+    // hilog」钉死，避免以后有人把诊断退回成看不见的形式。
+    final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
+    expect(
+      source,
+      contains("ohosLog('KoyzeMpv'"),
+      reason: '自动连播诊断必须走 hilog，否则鸿蒙真机上完全看不到',
+    );
+    expect(source, contains('void _logAutoNext('));
+    expect(source, contains('void _logCompletionRejected('));
+
+    // 引擎侧的状态迁移同样要靠 hilog：如果 mpv 根本没发 completed，
+    // handler 的日志一个字都不会出现，必须能从引擎侧分辨出来。
+    final engine = File('lib/core/audio/mpv_engine.dart').readAsStringSync();
+    expect(engine, contains("ohosLog('KoyzeMpv'"));
+    expect(engine, contains('autonext:'));
+
+    // hilog 通道自己必须是 Web 安全的：它被 audio_handler 引用，而后者在
+    // Web 编译图里可达。直接 import dart:ffi 会让 dart2js 整条构建失败。
+    final hilog = File('lib/core/logging/ohos_hilog.dart').readAsStringSync();
+    expect(hilog, isNot(contains("import 'dart:ffi'")));
+    expect(hilog, contains("if (dart.library.io) 'ohos_hilog_native.dart'"));
+    expect(
+      File('lib/core/logging/ohos_hilog_web.dart').existsSync(),
+      isTrue,
+      reason: 'Web 分支必须存在，否则 dart2js 会撞上 ffi',
+    );
+  });
+
   test('seamless queue-item command remains available for background use', () {
     final source = File('lib/core/audio/audio_handler.dart').readAsStringSync();
     expect(source, contains('Duration initialPosition = Duration.zero'));

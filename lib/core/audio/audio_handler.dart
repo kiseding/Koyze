@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../logging/app_log.dart';
+import '../logging/ohos_hilog.dart';
 import 'audio_enhancement.dart';
 import 'audio_spectrum.dart';
 import 'equalizer_bridge.dart';
@@ -1727,14 +1728,29 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  void _logCompletionRejected(String reason) {
-    debugPrint('[AudioHandler] completion rejected: $reason');
+  /// 自动连播链路的诊断出口。
+  ///
+  /// 三个通道缺一不可，都踩过坑：
+  /// - `AppLog.record` 只在诊断面板打开期间才收（`_collecting` 默认 false），
+  ///   正常运行时它什么都不留，只能给打开面板的用户看；
+  /// - `debugPrint` 写进程 stdout，鸿蒙 HAP 的 stdout 没有接收方，等于黑洞；
+  /// - 只有 [ohosLog] 走 NDK 的 `OH_LOG_Print` 能落到 hilog，
+  ///   `hdc shell hilog | grep KoyzeMpv` 才抓得到。
+  ///
+  /// 上一版只用了前两个，于是「播完不自动切下一首」在真机上复现时，
+  /// 精心埋的每一处提前返回原因一条都看不到——等于没埋。
+  void _logAutoNext(String message, {bool warning = true}) {
+    debugPrint('[AudioHandler] $message');
     AppLog.instance.record(
       'audio.autonext',
-      'completion rejected: $reason',
-      level: AppLogLevel.warning,
+      message,
+      level: warning ? AppLogLevel.warning : AppLogLevel.info,
     );
+    ohosLog('KoyzeMpv', 'autonext: $message', error: warning);
   }
+
+  void _logCompletionRejected(String reason) =>
+      _logAutoNext('completion rejected: $reason');
 
   void _onTrackCompleted() {
     if (_disposed) return;
@@ -1787,22 +1803,25 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // 这条排查链是「播完不切下一首」的唯一入口。条件多达九项，指着代码
       // 推理很容易判错哪一项没通过——真机上僵在这里时，日志里连一行都没有，
       // 于是只能靠猜。这里一次把每一项的实际取值打出来，逐个对照即可。
-      AppLog.instance.record(
-        'audio.autonext',
+      _logAutoNext(
         'completion precheck rejected '
-            'id=$expectedId idx=$expectedIndex occurrence=$expectedOccurrence '
-            'queueLength=${_queue.length} '
-            'occurrenceAtIdx=${expectedIndex >= 0 && expectedIndex < _queue.length ? _occurrenceIdAt(expectedIndex) : null} '
-            'queueIdAtIdx=${expectedIndex >= 0 && expectedIndex < _queue.length ? _queue[expectedIndex].id : null} '
-            'mediaItemId=${mediaItem.value?.id} installedMediaId=$_installedMediaId',
-        level: AppLogLevel.warning,
+        'id=$expectedId idx=$expectedIndex occurrence=$expectedOccurrence '
+        'queueLength=${_queue.length} '
+        'occurrenceAtIdx=${expectedIndex >= 0 && expectedIndex < _queue.length ? _occurrenceIdAt(expectedIndex) : null} '
+        'queueIdAtIdx=${expectedIndex >= 0 && expectedIndex < _queue.length ? _queue[expectedIndex].id : null} '
+        'mediaItemId=${mediaItem.value?.id} installedMediaId=$_installedMediaId',
       );
       return;
     }
     final expectedIntentGeneration = _userIntentGeneration;
     final provenance = _captureStartProvenance();
     _lastHandledCompletionGeneration = gen;
-    debugPrint('[AudioHandler] track completed idx=$expectedIndex');
+    _logAutoNext(
+      'track completed idx=$expectedIndex queueLength=${_queue.length} '
+      'repeat=${playbackState.value.repeatMode} '
+      'shuffle=${playbackState.value.shuffleMode}',
+      warning: false,
+    );
     final mayContinue =
         _canAdvanceAfterTrackFailure ||
         _loopsInMemorySequential ||
@@ -1927,19 +1946,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         // 注意 `_completionRepeatMode` 会把「整表顺序播放」改写成 all，
         // 所以顺序播放整张歌单时不该走到这个分支——真走到了，说明
         // 队列在播放期间被裁掉了。
-        debugPrint(
-          '[AudioHandler] completion stopped: no next target '
-          'idx=$_currentIndex queueLength=${_queue.length} '
-          'repeatMode=${playbackState.value.repeatMode} '
-          'shuffle=${playbackState.value.shuffleMode}',
-        );
-        AppLog.instance.record(
-          'audio.autonext',
+        _logAutoNext(
           'no next target idx=$_currentIndex '
-              'queueLength=${_queue.length} '
-              'repeatMode=${playbackState.value.repeatMode} '
-              'shuffle=${playbackState.value.shuffleMode}',
-          level: AppLogLevel.warning,
+          'queueLength=${_queue.length} '
+          'repeatMode=${playbackState.value.repeatMode} '
+          'shuffle=${playbackState.value.shuffleMode} '
+          'effectiveRepeat=${_completionRepeatMode(playbackState.value.repeatMode)}',
         );
         _userWantsPlay = false;
         await _commands.setDesiredPlayingPreservingIntent(false);
