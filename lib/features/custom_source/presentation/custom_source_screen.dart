@@ -553,6 +553,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     final pageContext = context;
     final controller = TextEditingController();
     final inputFocus = FocusNode();
+    Future<Object?>? routeRemoved;
     var keyboardRequested = false;
     bool isLoading = false;
 
@@ -560,6 +561,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
       context: pageContext,
       barrierDismissible: true,
       builder: (dialogContext) {
+        routeRemoved ??= ModalRoute.of(dialogContext)?.completed;
         if (!keyboardRequested) {
           keyboardRequested = true;
           requestTextInput(inputFocus);
@@ -580,7 +582,8 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 url,
               );
               if (!dialogContext.mounted || !pageContext.mounted) return;
-              setState(() => isLoading = false);
+              if (ModalRoute.of(dialogContext)?.isCurrent != true) return;
+              inputFocus.unfocus();
               Navigator.pop(dialogContext);
               showAppNotification(
                 success ? S.of(context).importOk : S.of(context).importLinkBad,
@@ -697,7 +700,9 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
           },
         );
       },
-    ).whenComplete(() {
+    ).whenComplete(() async {
+      // The closing route still owns the TextField during its exit animation.
+      await routeRemoved;
       controller.dispose();
       inputFocus.dispose();
     });

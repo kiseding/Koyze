@@ -58,6 +58,39 @@ void main() {
     },
   );
 
+  testWidgets('URL import closes safely with a focused input', (tester) async {
+    final completion = Completer<bool>();
+    String? submitted;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          customSourceServiceProvider.overrideWithValue(_NoopService()),
+          importCustomSourceFromUrlProvider.overrideWithValue((url) {
+            submitted = url;
+            return completion.future;
+          }),
+        ],
+        child: const MaterialApp(home: CustomSourceScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Import from a link'));
+    await tester.pumpAndSettle();
+    const url = 'https://example.com/a.js';
+    await tester.enterText(find.byType(TextField), url);
+    await tester.tap(find.text('Import'));
+    await tester.pump();
+    expect(submitted, url);
+
+    completion.complete(true);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 30));
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('closing log dialog cancels its event subscription', (
     tester,
   ) async {

@@ -261,8 +261,21 @@ Future<PlaybackEngine> createMpvPlaybackEngine({String? libmpv}) async {
     );
   }
   AppLog.instance.record('audio.mpv', 'libmpv 就绪：${probe.version}');
+  var supportsPcmTap = true;
+  if (isOhosPlatform) {
+    try {
+      final properties = await player
+          .getRawPropertyNode('property-list')
+          .timeout(const Duration(seconds: 2));
+      supportsPcmTap =
+          properties is List && properties.contains('pcm-tap-frame');
+    } catch (_) {
+      supportsPcmTap = false;
+    }
+    _trace('pcm-tap-frame supported=$supportsPcmTap');
+  }
   _trace('engine ready');
-  return MpvEngine(player);
+  return MpvEngine(player, supportsPcmTap: supportsPcmTap);
 }
 
 /// `mpv-version` 的读取结果。失败时 [version] 为 null 并带上 [error]。

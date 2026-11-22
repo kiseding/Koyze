@@ -9,6 +9,7 @@ import '../../../core/audio/audio_enhancement.dart';
 import '../../../core/audio/audio_handler.dart';
 import '../../../core/audio/playback_command_coordinator.dart';
 import '../../../core/audio/playback_engine.dart';
+import '../../../core/logging/ohos_hilog.dart';
 import '../../../core/state/buildless_notifier.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/audio/replay_gain.dart';
@@ -890,7 +891,6 @@ class ScrubCoordinator {
     final userIntentGeneration = _playback.userIntentGeneration;
     final interruptionGeneration = _playback.interruptionGeneration;
     final startBlockGeneration = _playback.playbackStartBlockGeneration;
-    _position.freeze();
 
     final pauseHeldByPrevious = previousTransactions
         .where(
@@ -919,6 +919,8 @@ class ScrubCoordinator {
               // 后面的 seek 与解冻照常进行。
               .timeout(pauseBudget, onTimeout: () => null)
         : Future<PreservingPauseOwner?>.value();
+    // Don't freeze if a synchronous backend read or pause dispatch throws.
+    _position.freeze();
     _transactions[generation] = _ScrubTransaction(
       generation: generation,
       sourceGeneration: sourceGeneration,
@@ -958,8 +960,12 @@ class ScrubCoordinator {
     required bool resumeAfter,
   }) async {
     final transaction = _transactions[generation];
-    if (transaction == null) return;
+    if (transaction == null) {
+      ohosLog('KoyzeSeek', 'scrub finish missing transaction=$generation');
+      return;
+    }
     if (generation != _generation) {
+      ohosLog('KoyzeSeek', 'scrub finish superseded=$generation by=$_generation');
       // 已被后来者取代：按它自己的意图收尾，不要替它决定「恢复播放」。
       await _releaseTransaction(
         transaction,
@@ -971,10 +977,22 @@ class ScrubCoordinator {
     try {
       await transaction.pauseFuture;
       if (generation != _generation) return;
-      if (!transaction.owns(_playback)) return;
+      if (!transaction.owns(_playback)) {
+        ohosLog(
+          'KoyzeSeek',
+          'scrub lost ownership '
+          'source=${transaction.sourceGeneration}/${_playback.sourceGeneration} '
+          'intent=${transaction.userIntentGeneration}/${_playback.userIntentGeneration}',
+        );
+        return;
+      }
+      ohosLog('KoyzeSeek', 'scrub dispatch generation=$generation');
       confirmed = await _playback
           .seekConfirmed(position)
-          .timeout(seekBudget, onTimeout: () => null);
+          .timeout(seekBudget, onTimeout: () {
+            ohosLog('KoyzeSeek', 'scrub seek timed out generation=$generation');
+            return null;
+          });
       if (generation != _generation) return;
     } finally {
       // 解冻放在释放之前：`_releaseTransaction` 同样是「等引擎回话」，
@@ -1113,10 +1131,10 @@ class _HandlerScrubPlayback implements ScrubPlayback {
   _HandlerScrubPlayback(this._handler, this._fallback, this._position);
 
   @override
-  bool get playing => _handler?.player.playing ?? false;
+  bool get playing => _handler?.engine.playing ?? false;
 
   @override
-  Duration get position => _handler?.player.position ?? _position.position;
+  Duration get position => _handler?.engine.position ?? _position.position;
 
   @override
   int get sourceGeneration => _handler?.sourceGeneration ?? 0;
@@ -1207,7 +1225,7 @@ final seekProvider = Provider<Future<void> Function(Duration)>((ref) {
     final h = audioHandler is LxAudioHandler
         ? audioHandler as LxAudioHandler
         : null;
-    final wasPlaying = h?.player.playing ?? false;
+    final wasPlaying = h?.engine.playing ?? false;
     final generation = await ref.read(beginScrubProvider)();
     await ref.read(finishScrubProvider)(
       generation,

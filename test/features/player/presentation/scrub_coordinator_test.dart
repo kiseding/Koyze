@@ -177,6 +177,17 @@ void main() {
     expect(playback.resumeCalls, 0);
   });
 
+  test('failed engine state read does not freeze the position', () async {
+    final playback = _UnreadableScrubPlayback();
+    final position = _FakeScrubPosition();
+    final coordinator = ScrubCoordinator(playback, position);
+
+    await expectLater(coordinator.begin(), throwsStateError);
+
+    expect(position.freezeCalls, 0);
+    expect(playback.seekCalls, 0);
+  });
+
   test('thrown scrub pause still unfreezes owning transaction', () async {
     final playback = _FakeScrubPlayback(
       playing: true,
@@ -848,6 +859,13 @@ class _FakeScrubPlayback implements ScrubPlayback {
     if (seekResult != null) position = seekResult!;
     return seekResult;
   }
+}
+
+class _UnreadableScrubPlayback extends _FakeScrubPlayback {
+  _UnreadableScrubPlayback() : super(playing: false, position: Duration.zero);
+
+  @override
+  bool get playing => throw StateError('engine state unavailable');
 }
 
 class _FakeScrubPosition implements ScrubPosition {

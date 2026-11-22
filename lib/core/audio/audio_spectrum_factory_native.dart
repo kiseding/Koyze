@@ -12,7 +12,9 @@ import 'playback_engine.dart';
 /// 频谱能力（它的 `audio_session` 不暴露采样），因此返回空实现让播放页
 /// 整块不渲染，而不是显示一条永远不动的空条。
 AudioSpectrumSource buildAudioSpectrumSource(PlaybackEngine? engine) {
-  if (engine is MpvEngine) return MpvAudioSpectrumSource(engine.rawPlayer);
+  if (engine is MpvEngine && engine.supportsPcmTap) {
+    return MpvAudioSpectrumSource(engine.rawPlayer);
+  }
   return const NoopAudioSpectrumSource();
 }
 
@@ -84,10 +86,18 @@ class MpvAudioSpectrumSource implements AudioSpectrumSource {
 
     // 单订阅广播包一层：多个消费方（例如以后歌词页也要画）不会各自
     // 触发一条 mpv 订阅，也不会因为其中一方先取消就把另一方的流掐掉。
-    final controller = StreamController<SpectrumFrame>.broadcast();
+    final controller = StreamController<SpectrumFrame>.broadcast(
+      onListen: _start,
+      onCancel: _stop,
+    );
     _controller = controller;
-    _configure();
+    return controller.stream;
+  }
 
+  void _start() {
+    final controller = _controller;
+    if (_disposed || controller == null) return;
+    _configure();
     _subscription = _player.stream.fft.listen(
       (frame) {
         final bands = frame.bands;
@@ -109,16 +119,19 @@ class MpvAudioSpectrumSource implements AudioSpectrumSource {
       onError: (_) {},
       cancelOnError: false,
     );
-    return controller.stream;
+  }
+
+  void _stop() {
+    final subscription = _subscription;
+    _subscription = null;
+    unawaited(subscription?.cancel());
   }
 
   void _configure() {
     if (_configured) return;
     _configured = true;
     // 失败不抛：老版本 libmpv 可能没有频谱属性，那时保持默认即可。
-    unawaited(
-      _player.setSpectrum(kSpectrumSettings).catchError((_) {}),
-    );
+    unawaited(_player.setSpectrum(kSpectrumSettings).catchError((_) {}));
   }
 
   @override

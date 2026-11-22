@@ -2654,10 +2654,18 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         ps == EngineProcessingState.loading ||
         ps == EngineProcessingState.idle) {
       debugPrint('[AudioHandler] seek skipped: still $ps');
+      ohosLog('KoyzeSeek', 'handler seek skipped state=$ps owns=${ownsSeek()}');
       return null;
     }
 
-    if (!await _commands.seek(target) || !ownsSeek()) return null;
+    final applied = await _commands.seek(target);
+    if (!applied || !ownsSeek()) {
+      ohosLog(
+        'KoyzeSeek',
+        'handler seek not confirmed applied=$applied owns=${ownsSeek()}',
+      );
+      return null;
+    }
 
     var confirmed = _player.position;
     if (confirmed.isNegative) confirmed = Duration.zero;
@@ -2807,6 +2815,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         await _resolveSkipTarget(forward: true, loopAtEnd: loopAtEnd);
     if (nextIndex < 0 || nextIndex >= _queue.length) {
       // 没有下一首可切（队尾 + 不循环）：撤回刚才的静音，当前这首接着放。
+      if (seamless) {
+        _logCompletionRejected(
+          'skip target invalid nextIndex=$nextIndex queueLength=${_queue.length}',
+        );
+      }
       if (halt != null) await _abortSkipRestoringPlayback(halt);
       return;
     }
@@ -2846,6 +2859,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         : false;
     if (!keepaliveInstalled &&
         !_commands.ownsSourceRequest(sourceCommandToken, nextOccurrence)) {
+      // 装源请求已被后来的命令顶掉（用户手动切歌、播放器重建等）。
+      _logAutoNext(
+        'seamless skip abandoned: source request token lost '
+        'token=$sourceCommandToken occurrence=$nextOccurrence '
+        'seamless=$seamless',
+      );
       if (_nativeTransitionSourceToken == sourceCommandToken) {
         _nativeTransitionSourceToken = null;
       }
@@ -2858,6 +2877,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final liveIndex = _indexOfOccurrence(nextOccurrence);
     if (liveIndex < 0 ||
         !_commands.ownsSourceRequest(sourceCommandToken, nextOccurrence)) {
+      _logAutoNext(
+        'seamless skip abandoned: occurrence gone or token lost '
+        'liveIndex=$liveIndex occurrence=$nextOccurrence '
+        'queueLength=${_queue.length} seamless=$seamless',
+      );
       if (keepaliveInstalled) {
         await _commands.discardTemporarySource(sourceCommandToken);
       }

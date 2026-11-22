@@ -106,11 +106,15 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     }
 
     final isPlayingValue = isPlaying.value ?? false;
-    // 无歌曲时播放条只是占位，直接使用 Minimal 档，避免固定层在滚动时
-    // 为不存在的内容付出背景采样成本。
-    final quality = currentMusic == null
-        ? GlassQuality.minimal
-        : widget.glassQuality;
+    // 无歌曲时也必须保留虚化。
+    //
+    // 这里曾经按「没有内容就不必付采样成本」降成 [GlassQuality.minimal]，
+    // 但 minimal 的定义就是**不读取背景**——于是空态迷你条退化成一层半透明
+    // 实色，和旁边的搜索框、底部标签栏这些真玻璃并排放在一起，一眼就能看出
+    // 不是同一套材质。空态是用户每天打开 App 都会看到的默认画面，为省一点
+    // 静态采样的开销牺牲它的观感不划算：这块区域面积小，而且只覆盖在页面
+    // 底部一条，代价远低于整屏列表。
+    final quality = widget.glassQuality;
 
     final titleColor = AppColors.onScaffold(context);
     final subColor = AppColors.secondaryText(context);

@@ -38,7 +38,9 @@ import 'stream_utils.dart';
 ///    的额外变调」；mpv 的 `setPitch` 是独立的音高倍数。两者在 Koyze 的
 ///    用法里都是「1.0 = 不变」，所以直接透传。
 class MpvEngine implements PlaybackEngine {
-  MpvEngine(this._player);
+  MpvEngine(this._player, {this.supportsPcmTap = true});
+
+  final bool supportsPcmTap;
 
   final mpv.Player _player;
 
@@ -67,7 +69,11 @@ class MpvEngine implements PlaybackEngine {
   @override
   EngineProcessingState get processingState {
     final state = _player.state;
-    if (state.completed) return EngineProcessingState.completed;
+    // eofReached can still belong to the previous file after buffering ends.
+    // Only the backend's completion flag represents a completion transition.
+    if (state.completed) {
+      return EngineProcessingState.completed;
+    }
     if (state.pausedForCache) return EngineProcessingState.buffering;
     // mpv 的 `buffering` 指「打开文件」阶段，不是播放中的网络卡顿。
     if (state.buffering) return EngineProcessingState.loading;
@@ -144,6 +150,14 @@ class MpvEngine implements PlaybackEngine {
           ('playing', _player.stream.playing),
           ('buffering', _player.stream.buffering),
           ('completed', _player.stream.completed),
+          // `eof-reached` 是「播完」最原始的信号，必须自己进触发源。
+          //
+          // 不能指望 `completed` 把它带出来：上游的 `completed` 是
+          // `eof-reached` 与 `_isEndOfContent()` 的**与**，后者读的
+          // `loop` / `playlist` 两个镜像可能还没回填完，于是这个与运算
+          // 恒为假、`completed` 永不触发。此时只有 `eof-reached` 自己
+          // 会动，不订阅它就等于整条完成链没有入口。
+          ('eof', _player.stream.eofReached),
           ('duration', _player.stream.duration),
         ]) {
           subscriptions.add(
@@ -162,7 +176,8 @@ class MpvEngine implements PlaybackEngine {
               final state = _player.state;
               final detail =
                   'processing $last -> $next via ${entry.$1} '
-                  '(completed=${state.completed} playing=${state.playing} '
+                  '(completed=${state.completed} eof=${state.eofReached} '
+                  'playing=${state.playing} '
                   'loop=${state.loop} buffering=${state.buffering} '
                   'playlistIndex=${state.playlist.index} '
                   'playlistLength=${state.playlist.items.length})';
@@ -352,7 +367,19 @@ class MpvEngine implements PlaybackEngine {
   }
 
   @override
-  Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seek(Duration position) async {
+    ohosLog('KoyzeSeek', 'mpv seek targetMs=${position.inMilliseconds}');
+    try {
+      await _player.seek(position);
+      ohosLog(
+        'KoyzeSeek',
+        'mpv seek acknowledged positionMs=${this.position.inMilliseconds}',
+      );
+    } catch (_) {
+      ohosLog('KoyzeSeek', 'mpv seek failed');
+      rethrow;
+    }
+  }
 
   /// mpv 用 `setRate` 而不是 `setSpeed`。
   @override

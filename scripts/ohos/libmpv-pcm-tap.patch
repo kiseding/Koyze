@@ -1,0 +1,215 @@
+diff --git a/audio/out/ao.h b/audio/out/ao.h
+index ce044fd..6812d0c 100644
+--- a/audio/out/ao.h
++++ b/audio/out/ao.h
+@@ -34,8 +34,20 @@ enum aocontrol {
+     AOCONTROL_SET_MUTE,
+     // Has char* as argument, which contains the desired stream title.
+     AOCONTROL_UPDATE_STREAM_TITLE,
++    // Drains recent, interleaved PCM from a visualization-capable AO.
++    AOCONTROL_GET_PCM_TAP,
+ };
+
++struct ao_pcm_tap {
++    void *data;
++    size_t capacity;
++    int frames, channels, rate, format;
++    int64_t timestamp;
++};
++
++#define AO_PCM_TAP_FRAMES 8192
++#define AO_PCM_TAP_MAX_STRIDE (16 * 4)
++
+ // If set, then the queued audio data is the last. Note that after a while, new
+ // data might be written again, instead of closing the AO.
+ #define PLAYER_FINAL_CHUNK 1
+diff --git a/audio/out/ao_ohaudio.c b/audio/out/ao_ohaudio.c
+index 5010eef..83f530b 100644
+--- a/audio/out/ao_ohaudio.c
++++ b/audio/out/ao_ohaudio.c
+@@ -41,8 +41,61 @@ struct priv {
+     bool timestamp_valid;
+
+     int encoding_type;
++    mp_mutex tap_lock;
++    int tap_write, tap_count;
++    int64_t tap_timestamp;
++    unsigned char tap_data[AO_PCM_TAP_FRAMES * AO_PCM_TAP_MAX_STRIDE];
+ };
+
++static void capture_pcm(struct ao *ao, const unsigned char *data, int frames,
++                        int64_t timestamp)
++{
++    struct priv *p = ao->priv;
++    const size_t stride = ao->sstride;
++    // Never wait for the visualization consumer on the audio thread.
++    if (frames <= 0 || stride > AO_PCM_TAP_MAX_STRIDE ||
++        mp_mutex_trylock(&p->tap_lock))
++        return;
++    if (frames > AO_PCM_TAP_FRAMES) {
++        data += (frames - AO_PCM_TAP_FRAMES) * stride;
++        frames = AO_PCM_TAP_FRAMES;
++    }
++    int first = MPMIN(frames, AO_PCM_TAP_FRAMES - p->tap_write);
++    memcpy(p->tap_data + p->tap_write * stride, data, first * stride);
++    memcpy(p->tap_data, data + first * stride, (frames - first) * stride);
++    p->tap_write = (p->tap_write + frames) % AO_PCM_TAP_FRAMES;
++    p->tap_count = MPMIN(p->tap_count + frames, AO_PCM_TAP_FRAMES);
++    p->tap_timestamp = timestamp;
++    mp_mutex_unlock(&p->tap_lock);
++}
++
++static int read_pcm(struct ao *ao, struct ao_pcm_tap *tap)
++{
++    struct priv *p = ao->priv;
++    const size_t stride = ao->sstride;
++    if (!stride || stride > AO_PCM_TAP_MAX_STRIDE)
++        return CONTROL_ERROR;
++    mp_mutex_lock(&p->tap_lock);
++    int frames = p->tap_count;
++    if (!frames || frames * stride > tap->capacity) {
++        mp_mutex_unlock(&p->tap_lock);
++        return CONTROL_ERROR;
++    }
++    int start = (p->tap_write + AO_PCM_TAP_FRAMES - frames) % AO_PCM_TAP_FRAMES;
++    int first = MPMIN(frames, AO_PCM_TAP_FRAMES - start);
++    memcpy(tap->data, p->tap_data + start * stride, first * stride);
++    memcpy((unsigned char *)tap->data + first * stride, p->tap_data,
++           (frames - first) * stride);
++    tap->timestamp = p->tap_timestamp;
++    p->tap_count = 0;
++    mp_mutex_unlock(&p->tap_lock);
++    tap->frames = frames;
++    tap->channels = ao->channels.num;
++    tap->rate = ao->samplerate;
++    tap->format = ao->format;
++    return CONTROL_OK;
++}
++
+ static void reset_timing(struct priv *p)
+ {
+     p->last_query = 0;
+@@ -71,6 +124,7 @@ static void uninit(struct ao* ao)
+         p->builder = NULL;
+     }
+
++    mp_mutex_destroy(&p->tap_lock);
+     reset_timing(p);
+ }
+
+@@ -123,7 +177,8 @@ static OH_AudioData_Callback_Result audio_on_write_callback(
+
+     int64_t end_time = now +
+         MP_TIME_S_TO_NS(samples + p->queued_frames) / ao->samplerate;
+-    ao_read_data(ao, &audioData, samples, end_time, NULL, true, true);
++    int copied = ao_read_data(ao, &audioData, samples, end_time, NULL, true, true);
++    capture_pcm(ao, audioData, copied, now);
+     p->written_frames += samples;
+
+     return AUDIO_DATA_CALLBACK_RESULT_VALID;
+@@ -134,6 +189,7 @@ static int init(struct ao* ao)
+     struct priv* p = ao->priv;
+     OH_AudioStream_Result res = 0;
+
++    mp_mutex_init(&p->tap_lock);
+     res = OH_AudioStreamBuilder_Create(&p->builder, AUDIOSTREAM_TYPE_RENDERER);
+
+     if (res != AUDIOSTREAM_SUCCESS) {
+@@ -202,6 +258,8 @@ static int control(struct ao *ao, enum aocontrol cmd, void *arg)
+     OH_AudioStream_Result res = 0;
+
+     switch (cmd) {
++    case AOCONTROL_GET_PCM_TAP:
++        return read_pcm(ao, arg);
+     case AOCONTROL_GET_VOLUME:
+         res = OH_AudioRenderer_GetVolume(p->renderer, &volume);
+         if (res != AUDIOSTREAM_SUCCESS) {
+@@ -229,6 +287,9 @@ static void reset(struct ao *ao)
+
+     OH_AudioRenderer_Pause(p->renderer);
+     OH_AudioRenderer_Flush(p->renderer);
++    mp_mutex_lock(&p->tap_lock);
++    p->tap_count = 0;
++    mp_mutex_unlock(&p->tap_lock);
+     reset_timing(p);
+ }
+
+diff --git a/player/command.c b/player/command.c
+index 1efb810..20e69ba 100644
+--- a/player/command.c
++++ b/player/command.c
+@@ -1921,6 +1921,64 @@ static int mp_property_audio_out_params(void *ctx, struct m_property *prop,
+     return r;
+ }
+
++#if HAVE_OHOS
++static int mp_property_pcm_tap_frame(void *ctx, struct m_property *prop,
++                                     int action, void *arg)
++{
++    MPContext *mpctx = ctx;
++    if (action == M_PROPERTY_GET_TYPE) {
++        *(struct m_option *)arg = (struct m_option){.type = CONF_TYPE_NODE};
++        return M_PROPERTY_OK;
++    }
++    if (action != M_PROPERTY_GET && action != M_PROPERTY_GET_NODE)
++        return M_PROPERTY_NOT_IMPLEMENTED;
++    if (!mpctx->ao)
++        return M_PROPERTY_UNAVAILABLE;
++
++    int rate, format;
++    struct mp_chmap channels;
++    ao_get_format(mpctx->ao, &rate, &format, &channels);
++    if (channels.num <= 0 || channels.num > AO_PCM_TAP_MAX_STRIDE / 4 ||
++        (format != AF_FORMAT_FLOAT && format != AF_FORMAT_S32 &&
++         format != AF_FORMAT_S16 && format != AF_FORMAT_U8))
++        return M_PROPERTY_UNAVAILABLE;
++
++    struct ao_pcm_tap tap = {
++        .capacity = AO_PCM_TAP_FRAMES * channels.num * af_fmt_to_bytes(format),
++    };
++    tap.data = talloc_size(NULL, tap.capacity);
++    if (ao_control(mpctx->ao, AOCONTROL_GET_PCM_TAP, &tap) != CONTROL_OK) {
++        talloc_free(tap.data);
++        return M_PROPERTY_UNAVAILABLE;
++    }
++
++    mpv_node *node = arg;
++    node_init(node, MPV_FORMAT_NODE_MAP, NULL);
++    node_map_add_int64(node, "sample_rate", tap.rate);
++    node_map_add_int64(node, "channels", tap.channels);
++    node_map_add_int64(node, "pts_ns", tap.timestamp);
++    mpv_byte_array *samples = node_map_add(node, "samples", MPV_FORMAT_BYTE_ARRAY)->u.ba;
++    int count = tap.frames * tap.channels;
++    samples->size = count * sizeof(float);
++    if (tap.format == AF_FORMAT_FLOAT) {
++        samples->data = talloc_steal(samples, tap.data);
++    } else {
++        float *out = talloc_array(samples, float, count);
++        for (int i = 0; i < count; i++) {
++            if (tap.format == AF_FORMAT_S16)
++                out[i] = ((int16_t *)tap.data)[i] / 32768.0f;
++            else if (tap.format == AF_FORMAT_S32)
++                out[i] = ((int32_t *)tap.data)[i] / 2147483648.0f;
++            else
++                out[i] = (((uint8_t *)tap.data)[i] - 128) / 128.0f;
++        }
++        samples->data = out;
++        talloc_free(tap.data);
++    }
++    return M_PROPERTY_OK;
++}
++#endif
++
+ static struct track* track_next(struct MPContext *mpctx, enum stream_type type,
+                                 int direction, struct track *track)
+ {
+@@ -4436,6 +4494,9 @@ static const struct m_property mp_properties_base[] = {
+     M_PROPERTY_ALIAS("audio-codec", "current-tracks/audio/codec-desc"),
+     {"audio-params", mp_property_audio_params},
+     {"audio-out-params", mp_property_audio_out_params},
++#if HAVE_OHOS
++    {"pcm-tap-frame", mp_property_pcm_tap_frame},
++#endif
+     {"aid", mp_property_switch_track, .priv = (void *)(const int[]){0, STREAM_AUDIO}},
+     {"audio-device", mp_property_audio_device},
+     {"audio-device-list", mp_property_audio_devices},

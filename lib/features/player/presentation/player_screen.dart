@@ -60,6 +60,7 @@ import 'widgets/player_volume_button.dart';
 import 'queue_edit_sheet.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../core/logging/app_log.dart';
+import '../../../core/logging/ohos_hilog.dart';
 
 double _playbackQueueSheetInitialSize(BuildContext context, int itemCount) {
   final screenHeight = MediaQuery.sizeOf(context).height;
@@ -80,7 +81,9 @@ String _formatPlayerDuration(Duration d) {
 }
 
 class _CurrentLyricLine extends ConsumerStatefulWidget {
-  const _CurrentLyricLine({this.showNextLine = false});
+  const _CurrentLyricLine({this.showNextLine = false, this.bottomSlot});
+
+  final Widget? bottomSlot;
 
   /// 频谱条没显示时补一行「下一句」。
   ///
@@ -157,8 +160,22 @@ class _CurrentLyricLineState extends ConsumerState<_CurrentLyricLine>
       }
     }
 
-    return SizedBox(
-      height: showNextLine ? 62 : 44,
+    final nextLine = Opacity(
+      opacity: hasNextLine ? 0.55 : 0.01,
+      child: Text(
+        nextText,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: AppColors.mutedText(context),
+          fontSize: 12,
+          height: 1.2,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+    final mainLine = SizedBox(
+      height: widget.bottomSlot == null && showNextLine ? 62 : 44,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: FadeTransition(
@@ -180,44 +197,45 @@ class _CurrentLyricLineState extends ConsumerState<_CurrentLyricLine>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
-              Text(
-                translation ?? ' ',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: translation != null
-                      ? AppColors.mutedText(context)
-                      : AppColors.mutedText(context).withValues(alpha: 0.01),
-                  fontSize: 11,
-                  height: 1.2,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (showNextLine) ...[
-                const SizedBox(height: 6),
-                // 比当前行小一号、暗两档：读得到，但不和正在唱的那句抢
-                // 注意力。opacity 走 0.55 是因为 mutedText 已经很淡，再叠
-                // 一层 alpha 会在深色背景上彻底看不见。
-                Opacity(
-                  opacity: hasNextLine ? 0.55 : 0.01,
-                  child: Text(
-                    nextText,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
-                      height: 1.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+              if (translation?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 2),
+                Text(
+                  translation!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.mutedText(context),
+                    fontSize: 11,
+                    height: 1.2,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
+              ],
+              if (showNextLine && widget.bottomSlot == null) ...[
+                const SizedBox(height: 6),
+                nextLine,
               ],
             ],
           ),
         ),
       ),
+    );
+    if (widget.bottomSlot == null) return mainLine;
+    return Column(
+      children: [
+        mainLine,
+        SizedBox(
+          height: _lyricSpectrumSlotHeight,
+          child: showNextLine
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _portraitPlayerContentInset,
+                  ),
+                  child: Center(child: nextLine),
+                )
+              : widget.bottomSlot,
+        ),
+      ],
     );
   }
 }
@@ -228,12 +246,13 @@ class _PlayerProgress extends ConsumerWidget {
   final double seekValue;
   final void Function(double value) onDragStart;
   final void Function(double value) onDragUpdate;
-  final Future<void> Function(Duration target) onSeekEnd;
+  final Future<void> Function(Duration total) onSeekEnd;
   final VoidCallback onSeekCancel;
   final Future<void> Function(double value, Duration target) onTapSeek;
 
   /// 横屏把左右时间贴到行两端，和下面五个控件的外缘对齐。
   final bool pinTimesToEnds;
+  final double horizontalInset;
 
   const _PlayerProgress({
     required this.duration,
@@ -245,6 +264,7 @@ class _PlayerProgress extends ConsumerWidget {
     required this.onSeekCancel,
     required this.onTapSeek,
     this.pinTimesToEnds = false,
+    this.horizontalInset = 16,
   });
 
   @override
@@ -286,7 +306,7 @@ class _PlayerProgress extends ConsumerWidget {
 
     return RepaintBoundary(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 13),
+        padding: EdgeInsets.fromLTRB(horizontalInset, 0, horizontalInset, 13),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -315,9 +335,7 @@ class _PlayerProgress extends ConsumerWidget {
                     onHorizontalDragUpdate: (d) =>
                         onDragUpdate(ratioAt(d.localPosition)),
                     onHorizontalDragEnd: (_) {
-                      // 用 State 里最新的比例，而不是这次 build 捕获的
-                      // `seekValue`：快速拖动时后者可能落后一帧。
-                      onSeekEnd(targetAt(seekValue));
+                      onSeekEnd(Duration(milliseconds: totalMs.round()));
                     },
                     onHorizontalDragCancel: onSeekCancel,
                     onTapUp: (d) {
@@ -501,6 +519,22 @@ class _FullPlayerArtworkSwitcherState extends State<_FullPlayerArtworkSwitcher>
   }
 }
 
+const _portraitPlayerContentInset = 32.0;
+// The favorite button's touch target extends past the visible heart.
+const _portraitFavoriteTrailingSpace = 12.0;
+const _portraitLyricTopGap = 15.0;
+const _portraitLyricBottomGap = 7.0;
+const _lyricSpectrumSlotHeight = 30.0;
+
+double _portraitArtworkWidth(double availableWidth) =>
+    (availableWidth - 2 * _portraitPlayerContentInset).clamp(
+      0.0,
+      double.infinity,
+    );
+
+double _portraitArtworkHeight(double width, double availableHeight) =>
+    (availableHeight - 8).clamp(0.0, width);
+
 const kFullPlayerArtworkSwitchDuration = Duration(milliseconds: 860);
 const kFullPlayerTrackSwitchDuration = Duration(milliseconds: 880);
 const kFullPlayerTrackSwitchReverseDuration = MotionDuration.playerReverse;
@@ -555,16 +589,15 @@ Rect _fullArtworkRect(
       topGap -
       infoHeight -
       controlsHeight;
-  final side = (screenW - 64).clamp(240.0, 420.0);
-  final limit = available - 8;
-  final box = limit <= 0 ? 0.0 : side.clamp(0.0, limit);
-  final left = (screenW - box) / 2;
-  final top = safeTop + appBarHeight + topGap + ((available - box) / 2);
+  final contentWidth = screenW - media.padding.horizontal;
+  final width = _portraitArtworkWidth(contentWidth);
+  final height = _portraitArtworkHeight(width, available);
+  final top = safeTop + appBarHeight + topGap + ((available - height) / 2);
   return Rect.fromLTWH(
-    left,
+    media.padding.left + _portraitPlayerContentInset,
     top.clamp(safeTop + appBarHeight, screenH),
-    box,
-    box,
+    width,
+    height,
   );
 }
 
@@ -914,6 +947,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   void _cancelActiveScrub() {
+    _seekGestureActive = false;
     final operation = _dragOperation;
     _dragOperation = null;
     final cancelledCurrent = operation != null
@@ -1680,7 +1714,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     bool compact = false,
     bool horizontalVolume = false,
   }) {
-    final spectrumEnabled = ref.watch(playerSpectrumProvider).enabled;
+    final spectrum = ref.watch(playerSpectrumProvider);
+    final spectrumEnabled =
+        spectrum.enabled && ref.watch(playerSpectrumSupportedProvider);
     return Opacity(
       opacity: chromeFade,
       child: LayoutBuilder(
@@ -1706,35 +1742,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   horizontalVolume: horizontalVolume,
                 ),
               ),
-              // 频谱不显示时（关掉了，或横屏高度不够）补一句「下一句」：
-              // 这块原本会空出一整条，看起来像没加载完。横屏多一行要 18px，
-              // 空间本来就紧，只有确定放得下才加。
+              // 下一句和频谱只交换内容，不改变当前歌词或控件的位置。
               _StaggeredFade(
                 delay: 0.3,
                 child: _CurrentLyricLine(
-                  showNextLine:
-                      !(spectrumEnabled && spectrumFits) &&
-                      (!compact ||
-                          !constraints.maxHeight.isFinite ||
-                          constraints.maxHeight >= 340),
+                  showNextLine: spectrumFits && !spectrumEnabled,
+                  bottomSlot: !spectrumFits
+                      ? null
+                      : spectrumEnabled
+                      ? PlayerSpectrumStrip(
+                          style: spectrum.style,
+                          height: _lyricSpectrumSlotHeight,
+                          horizontalInset: compact
+                              ? 16
+                              : _portraitPlayerContentInset,
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ),
-              // 实时频谱条：夹在歌词行与进度条之间。纯展示、不吃手势、高度
-              // 固定，不参与任何 Expanded，因此它出现时封面与控制区的比例
-              // 不变。引擎不支持（Web / just_audio 回退）时整块归零。
-              if (spectrumEnabled && spectrumFits)
-                _StaggeredFade(
-                  delay: 0.38,
-                  child: PlayerSpectrumStrip(
-                    style: ref.watch(playerSpectrumProvider).style,
-                    height: compact ? 30 : 44,
-                    // 与「时间两侧」对齐，也就是进度条整行的外缘，而不是
-                    // 中间那截轨道：进度条外层左右各 16，跟它下面的播放
-                    // 控件、上面的歌词是同一个左边界。频谱若只对齐轨道，
-                    // 左右会各缩进 66~82，看起来像被时间标签挤住了。
-                    horizontalInset: 16,
-                  ),
-                ),
+              if (!compact) const SizedBox(height: _portraitLyricBottomGap),
               _StaggeredFade(
                 delay: 0.45,
                 child: _PlayerProgress(
@@ -1743,10 +1769,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   seekValue: _seekValue,
                   onDragStart: _beginSeek,
                   onDragUpdate: _updateSeek,
-                  onSeekEnd: _finishSeek,
+                  onSeekEnd: (total) => _finishSeek(
+                    Duration(
+                      milliseconds: (_seekValue * total.inMilliseconds).round(),
+                    ),
+                  ),
                   onSeekCancel: _cancelSeek,
                   onTapSeek: _tapSeek,
-                  pinTimesToEnds: compact,
+                  pinTimesToEnds: true,
+                  horizontalInset: compact ? 16 : _portraitPlayerContentInset,
                 ),
               ),
               _StaggeredFade(
@@ -1779,10 +1810,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         final heightBudget = constraints.maxHeight - (fill ? 20 : 8);
         final fitted = (widthBudget < heightBudget ? widthBudget : heightBudget)
             .clamp(0.0, double.infinity);
-        final side = fill
+        final width = fill
             ? fitted * 0.9
-            : (constraints.maxWidth - 64).clamp(240.0, 420.0);
-        final box = fill ? side : side.clamp(0.0, constraints.maxHeight - 8);
+            : _portraitArtworkWidth(constraints.maxWidth);
+        // Height-constrained portrait layouts crop the image rather than
+        // shrinking its width away from the title and favorite button.
+        final height = fill
+            ? width
+            : _portraitArtworkHeight(width, constraints.maxHeight);
         return Opacity(
           opacity: routeReveal,
           child: Center(
@@ -1790,9 +1825,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               semanticLabel: S.of(context).openLyrics,
               onTap: _openLyricsPage,
               child: Container(
-                width: box,
-                height: box,
-                margin: EdgeInsets.symmetric(horizontal: fill ? 8 : 32),
+                width: width,
+                height: height,
+                margin: EdgeInsets.symmetric(
+                  horizontal: fill ? 8 : _portraitPlayerContentInset,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(22),
                   boxShadow: [
@@ -1837,9 +1874,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     bool horizontalVolume = false,
   }) {
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 16 : 32,
-        vertical: compact ? 8 : 24,
+      padding: EdgeInsets.fromLTRB(
+        compact ? 16 : _portraitPlayerContentInset,
+        compact ? 8 : 24,
+        compact
+            ? 16
+            : _portraitPlayerContentInset - _portraitFavoriteTrailingSpace,
+        compact ? 8 : _portraitLyricTopGap,
       ),
       child: Row(
         children: [
@@ -2075,6 +2116,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _finishSeek(Duration target) async {
     final operation = _dragOperation;
+    ohosLog(
+      'KoyzeSeek',
+      'scrub release targetMs=${target.inMilliseconds} '
+          'hasOperation=${operation != null}',
+    );
     _seekGestureActive = false;
     if (operation == null) {
       // 手势结束但没拿到操作句柄（上一次已被取消）：进度条必须回到跟随
@@ -2083,11 +2129,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       return;
     }
     try {
-      await _scrubSession.finish(
+      final finished = await _scrubSession.finish(
         operation,
         target,
         resumeAfter: _wasPlayingBeforeSeek,
       );
+      ohosLog('KoyzeSeek', 'scrub session finished=$finished');
+    } catch (error, stack) {
+      ohosLog('KoyzeSeek', 'scrub session failed: $error');
+      for (final frame in stack.toString().split('\n').take(6)) {
+        ohosLog('KoyzeSeek', frame);
+      }
+      rethrow;
     } finally {
       // 无论 seek 成功、被更新的一次操作取代，还是抛了异常，都要收尾。
       // 这里曾经只在 `mayClear == true` 时复位，一旦 Session 判定「已被
@@ -2104,8 +2157,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   /// 必须同时做三件事：取消 scrub 事务、放开手势闸门、把 `_seeking` 复位。
   /// 少做最后一步的表现就是「进度条卡在手拖的位置，时间也不走了」。
   void _cancelSeek() {
-    _seekGestureActive = false;
-    _dragOperation = null;
     _cancelActiveScrub();
     if (mounted) {
       if (_seeking) {
