@@ -469,7 +469,12 @@ jobs:
                           dynamic = subprocess.check_output([readelf, '-d', str(library)], text=True)
                       needed = set(re.findall(r'\(NEEDED\).*?\[([^\]]+)\]', dynamic))
                       allowed = {'libc.so', 'libc++_shared.so', 'libohaudio.so'}
-                      if 'libohaudio.so' not in needed or needed - allowed:
+                      # libc++_shared.so 是必须项，不是可选项：libmpv 导入了
+                      # std::__n1::to_chars(char*, char*, float/double)，这个符号只有
+                      # libc++ 提供。只把 so 放进 HAP、libmpv 却没声明依赖时，linker 不会
+                      # 去兄弟库里找符号，dlopen 直接失败——v6.0.2 就是这么在启动时崩的。
+                      required = {'libohaudio.so', 'libc++_shared.so'}
+                      if not required <= needed or needed - allowed:
                           raise SystemExit(f'{hap.name}: unexpected libmpv dependencies: {sorted(needed)}')
                       print(f'{hap.name}: {member} DT_NEEDED {sorted(needed)}')
           PY
