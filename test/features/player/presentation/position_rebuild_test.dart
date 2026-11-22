@@ -62,4 +62,31 @@ void main() {
     expect(() => notifier.update(const Duration(seconds: 2)), returnsNormally);
     expect(notifications, 1);
   });
+
+  group('TrackStartGate（切歌立刻归零）', () {
+    test('没切歌时全部放行', () {
+      final gate = TrackStartGate();
+      expect(gate.accepts(const Duration(minutes: 3)), isTrue);
+    });
+
+    test('切歌后挡住上一首的残留位置', () {
+      final gate = TrackStartGate()..arm();
+
+      // mpv 换源后 time-pos 还是上一首的读数，这类值必须挡住，
+      // 否则进度条会被它重新拉回老位置。
+      expect(gate.accepts(const Duration(minutes: 2)), isFalse);
+      expect(gate.awaiting, isTrue);
+
+      // 新曲目起播的位置放行，闸门就此关闭。
+      expect(gate.accepts(Duration.zero), isTrue);
+      expect(gate.awaiting, isFalse);
+      expect(gate.accepts(const Duration(minutes: 2)), isTrue);
+    });
+
+    test('慢速音源超时后无条件放行', () {
+      final gate = TrackStartGate()..arm();
+      gate.release();
+      expect(gate.accepts(const Duration(minutes: 1)), isTrue);
+    });
+  });
 }
