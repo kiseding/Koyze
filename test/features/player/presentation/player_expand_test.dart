@@ -120,7 +120,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('竖屏频谱只替换后两句，当前句和进度条不移动', (tester) async {
+  testWidgets('全屏播放器只显示下一句歌词且切换频谱不移动其它内容', (tester) async {
     tester.view.physicalSize = const Size(420, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -144,7 +144,7 @@ void main() {
     final current = find.text('当前歌词');
     final progress = find.text('03:20');
     expect(find.text('预告第一句'), findsOneWidget);
-    expect(find.text('预告第二句'), findsOneWidget);
+    expect(find.text('预告第二句'), findsNothing);
     final currentRect = tester.getRect(current);
     final progressRect = tester.getRect(progress);
     final container = ProviderScope.containerOf(tester.element(current));
@@ -161,7 +161,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('曲尾只显示剩余的后续歌词，不循环预告首句', (tester) async {
+  testWidgets('曲尾只显示剩余的一句，不循环预告首句', (tester) async {
     tester.view.physicalSize = const Size(420, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);

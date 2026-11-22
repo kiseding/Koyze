@@ -242,13 +242,7 @@ class _CurrentLyricLineState extends ConsumerState<_CurrentLyricLine>
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      previewLine(1),
-                      if (!widget.compact) ...[
-                        const SizedBox(height: 4),
-                        previewLine(2),
-                      ],
-                    ],
+                    children: [previewLine(1)],
                   ),
                 )
               : Center(child: widget.spectrum),
