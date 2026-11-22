@@ -128,6 +128,41 @@ void main() {
     expect(state.controls, isNot(contains(MediaControl.play)));
   });
 
+  test('pause intent does not bounce when engine still reports playing',
+      () async {
+    final player = _PlaybackStateAudioPlayer()
+      ..sourceInstallProcessingState = ProcessingState.ready;
+    final handler = LxAudioHandler(player: player);
+    addTearDown(player.dispose);
+    handler.urlResolver = (id, [extras]) async => 'file:///tmp/$id.mp3';
+    await handler.setPlaylist(const [MediaItem(id: 'A', title: 'A')]);
+
+    final states = <bool>[];
+    final subscription = handler.playbackState.listen(
+      (state) => states.add(state.playing),
+    );
+    addTearDown(subscription.cancel);
+    final pauseGate = player.gateNextPause();
+    final pausing = handler.pause();
+    player.emit(processingState: ProcessingState.ready, playing: true);
+    await pumpEventQueue();
+    await pauseGate.started.future;
+    player.emit(processingState: ProcessingState.ready, playing: true);
+    await pumpEventQueue();
+
+    final firstPaused = states.indexOf(false);
+    expect(firstPaused, isNonNegative);
+    expect(states.skip(firstPaused), everyElement(isFalse));
+
+    pauseGate.release.complete();
+    await pausing;
+    player.emit(processingState: ProcessingState.ready, playing: true);
+    await pumpEventQueue();
+    expect(handler.playbackState.value.playing, isFalse);
+    await handler.play();
+    expect(handler.playbackState.value.playing, isTrue);
+  });
+
   test('engine idle during playback publishes buffering, never idle', () async {
     final player = _PlaybackStateAudioPlayer()
       ..sourceInstallProcessingState = ProcessingState.ready;

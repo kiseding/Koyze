@@ -37,7 +37,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get localLibrary => 'Local music folders';
 
   @override
-  String get localLibrarySubtitle => 'Scan folders, rescan, and match songs';
+  String get localLibrarySubtitle => 'Manage local music folders';
 
   @override
   String get customSources => 'Custom sources';
@@ -1122,6 +1122,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rescan => 'Scan again';
 
   @override
+  String get rescanEntryTitle => 'Refresh and match';
+
+  @override
+  String get rescanEntrySubtitle => 'Refresh your local music library';
+
+  @override
   String get noLocalSongs =>
       'No local songs yet\nAdd a folder, or wait for downloads to be scanned';
 
@@ -1129,7 +1135,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get localLibraryTitle => 'On this device';
 
   @override
-  String get folderPickerHint => 'Add opens the system folder picker';
+  String get folderPickerHint => 'Add a music folder';
 
   @override
   String get androidMediaStore => 'Android MediaStore · scanned first';
@@ -1138,8 +1144,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get writeTags => 'Write tags (experimental)';
 
   @override
-  String get writeTagsHint =>
-      'Write title, artist, album, and artwork into the file. Needs file access.';
+  String get writeTagsHint => 'Write matched details to song files';
 
   @override
   String get pickFolderFailed => 'Could not choose a music folder';
@@ -1893,7 +1898,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String mediaStoreHint(int count) {
-    return 'MediaStore can rescan. $count folders saved';
+    return '$count folders configured';
   }
 
   @override
@@ -3339,8 +3344,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fileManagerEntry => 'File manager';
 
   @override
-  String get fileManagerEntrySubtitle =>
-      'Move music out of the app into a public folder';
+  String get fileManagerEntrySubtitle => 'Move music out of the app';
 
   @override
   String get fileManagerPickFolder => 'Switch folder';

@@ -402,6 +402,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   int _seekGeneration = 0;
   bool _userWantsPlay = true;
   int _userIntentGeneration = 0;
+  int? _pauseLockIntentGeneration;
   int _installedSourceOwnerToken = 0;
   int _installedPlaybackGeneration = -1;
   String? _installedMediaId;
@@ -1179,6 +1180,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   int _recordExplicitPlaybackIntent(bool wantsPlay) {
     _userIntentGeneration++;
+    if (wantsPlay) _pauseLockIntentGeneration = null;
     _userWantsPlay = wantsPlay;
     return _userIntentGeneration;
   }
@@ -2119,8 +2121,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // Keep published playing=true during card-play / skip resolve, but do not
     // lock processingState to buffering: engine events (ready/completed) must
     // still surface while the new URL is resolving.
+    final pausing = _pauseLockIntentGeneration == _userIntentGeneration;
     final playing =
-        playingOverride ?? (keepingNativeSession ? true : _player.playing);
+        !pausing && (playingOverride ?? (keepingNativeSession || _player.playing));
     // just_audio reports idle while swapping sources. audio_service treats a
     // non-idle → idle transition as stopService, which clears
     // MPNowPlayingInfoCenter and the Dynamic Island. Never leak engine idle
@@ -2169,8 +2172,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> play() async {
     // 淡入只在「从暂停到播放」时做：已经在播时按 play 是幂等操作，不该
-    // 让声音先掉到 0 再回来。
-    final fade = _playbackFade && !_player.playing;
+    // 让声音先掉到 0 再回来。暂停淡出尚未完成时再次播放，也必须接管淡出。
+    final resumingPendingPause =
+        _pauseLockIntentGeneration == _userIntentGeneration;
+    final fade = _playbackFade && (!_player.playing || resumingPendingPause);
     if (fade) {
       _volume.cancelRamp();
       _volume.setTemporaryGain(0);
@@ -2194,6 +2199,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
     if (_disposed) return;
     _userIntentGeneration++;
+    _pauseLockIntentGeneration = null;
     _userWantsPlay = true;
     final currentOccurrenceId = _activeOccurrenceId;
     final pendingOccurrenceId = _commands.desiredSourceOccurrenceId;
@@ -2253,18 +2259,21 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> pause() async {
-    final fade = _playbackFade && _player.playing && !_disposed;
-    // 淡出要等走完再暂停，否则用户听到的是硬切。但这段等待不能让队列在
-    // 期间被「播完自动下一首」推进，所以先声明暂停意图再淡出。
-    if (fade) {
-      _declarePauseIntent();
-      await _volume.fadeOutToSilence(_fadeOutDuration);
-    }
+    if (_disposed) return;
+    final fade = _playbackFade && _player.playing;
+    final intent = _declarePauseIntent();
     try {
-      await _runPublicOperation<void>(_pause, disposedValue: null);
+      if (fade) await _volume.fadeOutToSilence(_fadeOutDuration);
+      await _runPublicOperation<void>(() async {
+        if (intent != _userIntentGeneration || _disposed) return;
+        unawaited(_commands.recordExplicitPauseIntent());
+        await _player.pause();
+      }, disposedValue: null);
     } finally {
-      // 恢复成 1：下一次播放要从满音量开始（play 会先压到 0 再淡入）。
-      if (fade) _volume.clearTemporaryGain();
+      if (intent == _userIntentGeneration) {
+        if (fade) _volume.clearTemporaryGain();
+        _publishPlaybackState();
+      }
     }
   }
 
@@ -2272,14 +2281,16 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// 播放按钮。真正的引擎暂停在 [_pauseInternal] 末尾。
   ///
   /// 抽成方法是因为 [pause] 的淡出需要在引擎暂停之前先抢到意图。
-  void _declarePauseIntent() {
-    _userIntentGeneration++;
+  int _declarePauseIntent() {
+    final intent = ++_userIntentGeneration;
+    _pauseLockIntentGeneration = intent;
     _userWantsPlay = false;
     // Drop the card-play / skip overlay immediately so mini-player and
     // full-screen buttons flip to play while an in-flight setPlaylist is
     // still resolving the next URL.
     _nativeTransitionSourceToken = null;
     _publishPlaybackState(playingOverride: false);
+    return intent;
   }
 
   /// 播放/暂停时的音量淡入淡出。
@@ -2298,11 +2309,6 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (!enabled) _volume.clearTemporaryGain();
   }
 
-  Future<void> _pause() async {
-    if (_disposed) return;
-    await pauseInternal(clearIntent: true);
-  }
-
   /// [clearIntent]=false：拖进度条暂停，不取消「还要继续听」意图（自动下一首仍有效）
   Future<PreservingPauseOwner?> pauseInternal({bool clearIntent = true}) =>
       _runPublicOperation<PreservingPauseOwner?>(
@@ -2314,17 +2320,25 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     bool clearIntent = true,
   }) async {
     if (_disposed) return null;
-    if (clearIntent) _declarePauseIntent();
-    final owner = clearIntent ? null : await _commands.pausePreservingIntent();
-    if (_disposed) return null;
-    if (clearIntent) unawaited(_commands.recordExplicitPauseIntent());
-    if (_disposed) return null;
-    // User-initiated pause must silence the engine immediately even if a
-    // source install is still in flight. Quality reload / scrub already pause
-    // once through pausePreservingIntent(); a second engine pause here would
-    // double-count and break "playing quality change pauses … resumes".
-    if (clearIntent) await _player.pause();
-    return owner;
+    final intent = clearIntent ? _declarePauseIntent() : null;
+    try {
+      final owner = clearIntent ? null : await _commands.pausePreservingIntent();
+      if (_disposed) return null;
+      if (clearIntent) unawaited(_commands.recordExplicitPauseIntent());
+      if (_disposed) return null;
+      // User-initiated pause must silence the engine immediately even if a
+      // source install is still in flight. Quality reload / scrub already pause
+      // once through pausePreservingIntent(); a second engine pause here would
+      // double-count and break "playing quality change pauses … resumes".
+      if (clearIntent) await _player.pause();
+      return owner;
+    } finally {
+      // A native engine can send a delayed playing=true event after pause() has
+      // returned, so retain the explicit pause lock until a play intent arrives.
+      if (intent != null && intent == _userIntentGeneration) {
+        _publishPlaybackState();
+      }
+    }
   }
 
   Future<PreservingPauseOwner?> pauseForScrub({

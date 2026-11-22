@@ -155,7 +155,7 @@ abstract class AppLocalizations {
   /// No description provided for @localLibrarySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Scan folders, rescan, and match songs'**
+  /// **'Manage local music folders'**
   String get localLibrarySubtitle;
 
   /// No description provided for @customSources.
@@ -2210,6 +2210,18 @@ abstract class AppLocalizations {
   /// **'Scan again'**
   String get rescan;
 
+  /// No description provided for @rescanEntryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh and match'**
+  String get rescanEntryTitle;
+
+  /// No description provided for @rescanEntrySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh your local music library'**
+  String get rescanEntrySubtitle;
+
   /// No description provided for @noLocalSongs.
   ///
   /// In en, this message translates to:
@@ -2225,7 +2237,7 @@ abstract class AppLocalizations {
   /// No description provided for @folderPickerHint.
   ///
   /// In en, this message translates to:
-  /// **'Add opens the system folder picker'**
+  /// **'Add a music folder'**
   String get folderPickerHint;
 
   /// No description provided for @androidMediaStore.
@@ -2243,7 +2255,7 @@ abstract class AppLocalizations {
   /// No description provided for @writeTagsHint.
   ///
   /// In en, this message translates to:
-  /// **'Write title, artist, album, and artwork into the file. Needs file access.'**
+  /// **'Write matched details to song files'**
   String get writeTagsHint;
 
   /// No description provided for @pickFolderFailed.
@@ -3551,7 +3563,7 @@ abstract class AppLocalizations {
   /// No description provided for @mediaStoreHint.
   ///
   /// In en, this message translates to:
-  /// **'MediaStore can rescan. {count} folders saved'**
+  /// **'{count} folders configured'**
   String mediaStoreHint(int count);
 
   /// No description provided for @downloadFolder.
@@ -6041,7 +6053,7 @@ abstract class AppLocalizations {
   /// No description provided for @fileManagerEntrySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Move music out of the app into a public folder'**
+  /// **'Move music out of the app'**
   String get fileManagerEntrySubtitle;
 
   /// No description provided for @fileManagerPickFolder.

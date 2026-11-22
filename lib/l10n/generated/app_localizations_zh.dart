@@ -36,7 +36,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get localLibrary => '本地音乐目录';
 
   @override
-  String get localLibrarySubtitle => '扫描目录、刷新歌曲与刮削信息';
+  String get localLibrarySubtitle => '管理本地音乐目录';
 
   @override
   String get customSources => '自定义源';
@@ -1088,13 +1088,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get rescan => '重新扫描';
 
   @override
+  String get rescanEntryTitle => '刷新并刮削';
+
+  @override
+  String get rescanEntrySubtitle => '更新本地音乐曲库';
+
+  @override
   String get noLocalSongs => '还没有本地歌曲\n添加文件夹或等待下载完成后自动扫描';
 
   @override
   String get localLibraryTitle => '本地音乐库';
 
   @override
-  String get folderPickerHint => '添加会打开系统文件夹选择器并授权访问';
+  String get folderPickerHint => '添加音乐文件夹';
 
   @override
   String get androidMediaStore => 'Android MediaStore · 默认优先扫描';
@@ -1103,7 +1109,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get writeTags => '注入tag（实验性）';
 
   @override
-  String get writeTagsHint => '将歌名，歌手，专辑，封面等信息写入歌曲文件，需要读写权限';
+  String get writeTagsHint => '把匹配到的信息写回歌曲文件';
 
   @override
   String get pickFolderFailed => '选择音乐文件夹失败';
@@ -1840,7 +1846,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String mediaStoreHint(int count) {
-    return 'MediaStore 可重扫，已配置 $count 个目录';
+    return '已配置 $count 个目录';
   }
 
   @override
@@ -3253,7 +3259,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get fileManagerEntry => '文件管理';
 
   @override
-  String get fileManagerEntrySubtitle => '把应用内的音乐搬到公共文件夹';
+  String get fileManagerEntrySubtitle => '将音乐移出应用';
 
   @override
   String get fileManagerPickFolder => '切换文件夹';

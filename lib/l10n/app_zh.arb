@@ -9,7 +9,7 @@
   "cloudAccountSubtitle": "同步收藏、歌单、设置与自定义音源",
   "advanced": "高级功能",
   "localLibrary": "本地音乐目录",
-  "localLibrarySubtitle": "扫描目录、刷新歌曲与刮削信息",
+  "localLibrarySubtitle": "管理本地音乐目录",
   "customSources": "自定义源",
   "customSourcesSubtitle": "",
   "customSourcesEmpty": "尚未添加音源",
@@ -377,12 +377,14 @@
   "bandsPending": "播放器尚未连接，暂按常见 5 段展示；开始播放后会自动读取设备频段",
   "localMusicSettings": "本地音乐设置",
   "rescan": "重新扫描",
+  "rescanEntryTitle": "刷新并刮削",
+  "rescanEntrySubtitle": "更新本地音乐曲库",
   "noLocalSongs": "还没有本地歌曲\n添加文件夹或等待下载完成后自动扫描",
   "localLibraryTitle": "本地音乐库",
-  "folderPickerHint": "添加会打开系统文件夹选择器并授权访问",
+  "folderPickerHint": "添加音乐文件夹",
   "androidMediaStore": "Android MediaStore · 默认优先扫描",
   "writeTags": "注入tag（实验性）",
-  "writeTagsHint": "将歌名，歌手，专辑，封面等信息写入歌曲文件，需要读写权限",
+  "writeTagsHint": "把匹配到的信息写回歌曲文件",
   "pickFolderFailed": "选择音乐文件夹失败",
   "chooseMusicFolder": "选择音乐文件夹",
   "chooseFolderFailed": "选择文件夹失败",
@@ -600,7 +602,14 @@
   "startupFailedHint": "请重新打开应用；如果问题持续，请查看设置中的诊断日志。\n{error}",
   "bandsReady": "已读取设备频段：{count} 段（{range}）",
   "localSongCount": "已收录 {count} 首本地歌曲\n前往「我的歌单 > 本地音乐」播放",
-  "mediaStoreHint": "MediaStore 可重扫，已配置 {count} 个目录",
+  "mediaStoreHint": "已配置 {count} 个目录",
+  "@mediaStoreHint": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "downloadFolder": "下载目录 · 自动收录",
   "importingCount": "SAF 正在导入 {done} / {total}",
   "mediaStoreImporting": "MediaStore 正在导入 {done} / {total}",
@@ -1042,7 +1051,7 @@
   "flowingBackdropSubtitle": "让模糊封面缓慢漂移",
   "fileManagerTitle": "文件管理",
   "fileManagerEntry": "文件管理",
-  "fileManagerEntrySubtitle": "把应用内的音乐搬到公共文件夹",
+  "fileManagerEntrySubtitle": "将音乐移出应用",
   "fileManagerPickFolder": "切换文件夹",
   "fileManagerPickTarget": "搬到哪个文件夹",
   "fileManagerPickFailed": "选择文件夹失败",

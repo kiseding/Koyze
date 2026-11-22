@@ -78,19 +78,6 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
               color: AppColors.onScaffold(context),
             ),
           ),
-          actions: [
-            FxIconButton(
-              tooltip: S.of(context).rescan,
-              icon: Icon(
-                Icons.refresh,
-                color: AppColors.onScaffold(context),
-                size: 22,
-              ),
-              onPressed: _scanning || _scraping || _tagWriting
-                  ? null
-                  : () => _rescan(),
-            ),
-          ],
         ),
         extendBodyBehindAppBar: true,
         // 卡片会越加越多（目录、导出、写标签、文件管理），固定 Column 在小屏
@@ -99,6 +86,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
+              _buildRescanEntry(context),
               _buildHeader(context, dirs, downloadDir, mediaStoreEnabled),
               if (_scanning || _scraping || _tagWriting)
                 _buildProgress(context),
@@ -118,6 +106,89 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRescanEntry(BuildContext context) {
+    final accent = AppColors.accentOf(context);
+    final busy = _scanning || _scraping || _tagWriting;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: GlassSurface(
+        style: AppGlassStyle.regular,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.fromBorderSide(
+          AppGlass.hairline(context, emphasized: false),
+        ),
+        padding: EdgeInsets.zero,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: busy ? null : () => _rescan(),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(Icons.refresh_rounded, color: accent),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          S.of(context).rescanEntryTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.onScaffold(context),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          busy
+                              ? S.of(context).rescanning
+                              : S.of(context).rescanEntrySubtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.mutedText(context),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (busy)
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: accent,
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.mutedText(context),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -188,6 +259,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                                       context,
                                     ).mediaStoreHint(directories.length)
                                   : S.of(context).folderPickerHint,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: AppColors.mutedText(context),
                                 fontSize: 12,
@@ -287,6 +360,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                           const SizedBox(height: 4),
                           Text(
                             S.of(context).writeTagsHint,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: AppColors.mutedText(context),
                               fontSize: 12,
@@ -479,6 +554,8 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                           const SizedBox(height: 4),
                           Text(
                             S.of(context).fileManagerEntrySubtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: AppColors.mutedText(context),
                               fontSize: 12,

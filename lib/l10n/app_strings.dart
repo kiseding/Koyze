@@ -520,6 +520,8 @@ class S {
   String get bandsPending => _l10n.bandsPending;
   String get localMusicSettings => _l10n.localMusicSettings;
   String get rescan => _l10n.rescan;
+  String get rescanEntryTitle => _l10n.rescanEntryTitle;
+  String get rescanEntrySubtitle => _l10n.rescanEntrySubtitle;
   String get noLocalSongs => _l10n.noLocalSongs;
   String get localLibraryTitle => _l10n.localLibraryTitle;
   String get folderPickerHint => _l10n.folderPickerHint;

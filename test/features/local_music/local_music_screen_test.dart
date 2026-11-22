@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,13 +13,30 @@ import 'package:koyze/features/download/domain/download_task.dart';
 import 'package:koyze/features/download/presentation/download_provider.dart';
 import 'package:koyze/features/local_music/domain/local_file_system.dart';
 import 'package:koyze/features/local_music/domain/local_music_library.dart';
+import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
 import 'package:koyze/features/local_music/presentation/local_file_manager_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_screen.dart';
 import 'package:koyze/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 记录被 push 的路由，用来判断转场走的是哪一条分支。
+class _BlockingScanner extends LocalMusicScanner {
+  final Completer<void> scanStarted = Completer<void>();
+  final Completer<void> finishScan = Completer<void>();
+
+  @override
+  Future<List<LocalTrack>> scanDirectory(
+    String directoryPath, {
+    Future<bool> Function(String path)? shouldSkip,
+    void Function(String path)? onDiscoveredPath,
+    void Function(int scanned, int total)? onProgress,
+  }) async {
+    if (!scanStarted.isCompleted) scanStarted.complete();
+    await finishScan.future;
+    return const [];
+  }
+}
+
 class _RouteRecorder extends NavigatorObserver {
   final List<Route<dynamic>> pushed = <Route<dynamic>>[];
 
@@ -62,6 +81,86 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('重扫入口位于独立卡片行而非 AppBar，并保留忙碌禁用状态', (tester) async {
+    tester.view.physicalSize = const Size(320, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    SharedPreferences.setMockInitialValues({
+      'local_music_download_dir_v1': downloads,
+      'local_music_dirs_v1': <String>[downloads, musicDir],
+    });
+    final storage = StorageService.forTesting(
+      await SharedPreferences.getInstance(),
+    );
+    final scanner = _BlockingScanner();
+    final library = LocalMusicLibrary(storage: storage, scanner: scanner);
+    await library.init();
+    final container = ProviderContainer(
+      overrides: [
+        localMusicLibraryProvider.overrideWith((ref) async => library),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          locale: Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: LocalMusicScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final rescanLabel = find.text('刷新并刮削');
+    expect(rescanLabel, findsOneWidget);
+    expect(
+      find.ancestor(of: rescanLabel, matching: find.byType(AppBar)),
+      findsNothing,
+    );
+    expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
+    for (final description in [
+      '更新本地音乐曲库',
+      '已配置 2 个目录',
+    ]) {
+      final text = tester.widget<Text>(find.text(description));
+      expect(text.maxLines, 1);
+      expect(text.overflow, TextOverflow.ellipsis);
+    }
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(rescanLabel);
+    await tester.runAsync(() => scanner.scanStarted.future);
+    await tester.pump();
+    await tester.pump();
+
+    final rescanCard = find.ancestor(
+      of: rescanLabel,
+      matching: find.byType(GlassSurface),
+    );
+    final inkWell = find.descendant(
+      of: rescanCard,
+      matching: find.byType(InkWell),
+    );
+    expect(tester.widget<InkWell>(inkWell).onTap, isNull);
+    expect(
+      find.descendant(
+        of: rescanCard,
+        matching: find.text('正在重新扫描本地音乐来源…'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    scanner.finishScan.complete();
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('顶部只让出顶栏高度，不再多空一个工具栏', (tester) async {
     await pumpScreen(tester);

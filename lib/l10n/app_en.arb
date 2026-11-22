@@ -9,7 +9,7 @@
   "cloudAccountSubtitle": "Sync favorites, playlists, settings, and custom sources",
   "advanced": "Advanced",
   "localLibrary": "Local music folders",
-  "localLibrarySubtitle": "Scan folders, rescan, and match songs",
+  "localLibrarySubtitle": "Manage local music folders",
   "customSources": "Custom sources",
   "customSourcesSubtitle": "",
   "customSourcesEmpty": "No sources added yet",
@@ -377,12 +377,14 @@
   "bandsPending": "Player not connected. Showing a typical 5-band layout until playback starts.",
   "localMusicSettings": "Local music",
   "rescan": "Scan again",
+  "rescanEntryTitle": "Refresh and match",
+  "rescanEntrySubtitle": "Refresh your local music library",
   "noLocalSongs": "No local songs yet\nAdd a folder, or wait for downloads to be scanned",
   "localLibraryTitle": "On this device",
-  "folderPickerHint": "Add opens the system folder picker",
+  "folderPickerHint": "Add a music folder",
   "androidMediaStore": "Android MediaStore · scanned first",
   "writeTags": "Write tags (experimental)",
-  "writeTagsHint": "Write title, artist, album, and artwork into the file. Needs file access.",
+  "writeTagsHint": "Write matched details to song files",
   "pickFolderFailed": "Could not choose a music folder",
   "chooseMusicFolder": "Choose a music folder",
   "chooseFolderFailed": "Could not choose a folder",
@@ -904,7 +906,7 @@
       }
     }
   },
-  "mediaStoreHint": "MediaStore can rescan. {count} folders saved",
+  "mediaStoreHint": "{count} folders configured",
   "@mediaStoreHint": {
     "placeholders": {
       "count": {
@@ -1800,7 +1802,7 @@
   "flowingBackdropSubtitle": "Slowly pan the blurred artwork",
   "fileManagerTitle": "File manager",
   "fileManagerEntry": "File manager",
-  "fileManagerEntrySubtitle": "Move music out of the app into a public folder",
+  "fileManagerEntrySubtitle": "Move music out of the app",
   "fileManagerPickFolder": "Switch folder",
   "fileManagerPickTarget": "Move to which folder",
   "fileManagerPickFailed": "Could not pick a folder",
