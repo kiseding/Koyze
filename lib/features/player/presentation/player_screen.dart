@@ -81,16 +81,15 @@ String _formatPlayerDuration(Duration d) {
 }
 
 class _CurrentLyricLine extends ConsumerStatefulWidget {
-  const _CurrentLyricLine({this.showNextLine = false, this.bottomSlot});
+  const _CurrentLyricLine({
+    required this.compact,
+    required this.showPreviewSlot,
+    this.spectrum,
+  });
 
-  final Widget? bottomSlot;
-
-  /// 频谱条没显示时补一行「下一句」。
-  ///
-  /// 频谱是纯装饰，关掉之后这块会空出一整条，歌词上下没有依托，看起来
-  /// 像没加载完。补一句预告既填了空，也比装饰条有用——下一句是唱到一半
-  /// 时最想看到的信息。
-  final bool showNextLine;
+  final bool compact;
+  final bool showPreviewSlot;
+  final Widget? spectrum;
 
   @override
   ConsumerState<_CurrentLyricLine> createState() => _CurrentLyricLineState();
@@ -133,7 +132,20 @@ class _CurrentLyricLineState extends ConsumerState<_CurrentLyricLine>
   Widget build(BuildContext context) {
     final lyrics = ref.watch(currentLyricProvider);
     final currentLineIndex = ref.watch(currentLineIndexProvider);
-    final showNextLine = widget.showNextLine;
+    final mainHeight =
+        MediaQuery.textScalerOf(context).scale(14) * 1.2 +
+        MediaQuery.textScalerOf(context).scale(11) * 1.2 +
+        2;
+    final previewLineHeight = MediaQuery.textScalerOf(context).scale(12) * 1.2;
+    final previewCount = widget.compact ? 1 : 2;
+    final previewGap = widget.compact ? 0.0 : 8.0;
+    final spectrumHeight = widget.compact
+        ? _compactSpectrumHeight
+        : _portraitSpectrumHeight;
+    final slotHeight = math.max(
+      spectrumHeight,
+      previewLineHeight * previewCount + (previewCount - 1) * 4,
+    );
 
     String text = ' ';
     String? translation;
@@ -147,35 +159,33 @@ class _CurrentLyricLineState extends ConsumerState<_CurrentLyricLine>
       hasLine = true;
     }
 
-    // 下一句：只有当前行落在有效范围内时才取，否则（前奏、间奏、曲尾）
-    // 会显示成第一句，看起来像「提前跳词」。
-    String nextText = ' ';
-    var hasNextLine = false;
-    final nextIndex = currentLineIndex + 1;
-    if (hasLine && nextIndex >= 0 && nextIndex < lyrics.lines.length) {
-      final next = lyrics.lines[nextIndex].text.trim();
-      if (next.isNotEmpty) {
-        nextText = next;
-        hasNextLine = true;
-      }
+    Widget previewLine(int offset) {
+      final index = currentLineIndex + offset;
+      final next = hasLine && index < lyrics.lines.length
+          ? lyrics.lines[index].text.trim()
+          : '';
+      return SizedBox(
+        height: previewLineHeight,
+        child: next.isEmpty
+            ? null
+            : Text(
+                next,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.mutedText(
+                    context,
+                  ).withValues(alpha: offset == 1 ? 0.72 : 0.52),
+                  fontSize: 12,
+                  height: 1.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+      );
     }
 
-    final nextLine = Opacity(
-      opacity: hasNextLine ? 0.55 : 0.01,
-      child: Text(
-        nextText,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: AppColors.mutedText(context),
-          fontSize: 12,
-          height: 1.2,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
     final mainLine = SizedBox(
-      height: widget.bottomSlot == null && showNextLine ? 62 : 44,
+      height: math.max(widget.compact ? 44.0 : 38.0, mainHeight.ceilToDouble()),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: FadeTransition(
@@ -211,29 +221,37 @@ class _CurrentLyricLineState extends ConsumerState<_CurrentLyricLine>
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
-              if (showNextLine && widget.bottomSlot == null) ...[
-                const SizedBox(height: 6),
-                nextLine,
-              ],
             ],
           ),
         ),
       ),
     );
-    if (widget.bottomSlot == null) return mainLine;
+    if (!widget.showPreviewSlot) return mainLine;
     return Column(
       children: [
         mainLine,
+        SizedBox(height: previewGap),
         SizedBox(
-          height: _lyricSpectrumSlotHeight,
-          child: showNextLine
+          height: slotHeight,
+          child: widget.spectrum == null
               ? Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: _portraitPlayerContentInset,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: widget.compact
+                        ? 16
+                        : _portraitPlayerContentInset,
                   ),
-                  child: Center(child: nextLine),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      previewLine(1),
+                      if (!widget.compact) ...[
+                        const SizedBox(height: 4),
+                        previewLine(2),
+                      ],
+                    ],
+                  ),
                 )
-              : widget.bottomSlot,
+              : Center(child: widget.spectrum),
         ),
       ],
     );
@@ -522,9 +540,10 @@ class _FullPlayerArtworkSwitcherState extends State<_FullPlayerArtworkSwitcher>
 const _portraitPlayerContentInset = 32.0;
 // The favorite button's touch target extends past the visible heart.
 const _portraitFavoriteTrailingSpace = 12.0;
-const _portraitLyricTopGap = 15.0;
-const _portraitLyricBottomGap = 7.0;
-const _lyricSpectrumSlotHeight = 30.0;
+const _portraitLyricTopGap = 11.0;
+const _portraitLyricBottomGap = 5.0;
+const _portraitSpectrumHeight = 34.0;
+const _compactSpectrumHeight = 30.0;
 
 double _portraitArtworkWidth(double availableWidth) =>
     (availableWidth - 2 * _portraitPlayerContentInset).clamp(
@@ -1742,22 +1761,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   horizontalVolume: horizontalVolume,
                 ),
               ),
-              // 下一句和频谱只交换内容，不改变当前歌词或控件的位置。
+              // 未播歌词和频谱共用一块空间，不移动当前歌词或控件。
               _StaggeredFade(
                 delay: 0.3,
                 child: _CurrentLyricLine(
-                  showNextLine: spectrumFits && !spectrumEnabled,
-                  bottomSlot: !spectrumFits
-                      ? null
-                      : spectrumEnabled
+                  compact: compact,
+                  showPreviewSlot: spectrumFits,
+                  spectrum: spectrumFits && spectrumEnabled
                       ? PlayerSpectrumStrip(
                           style: spectrum.style,
-                          height: _lyricSpectrumSlotHeight,
+                          height: compact
+                              ? _compactSpectrumHeight
+                              : _portraitSpectrumHeight,
                           horizontalInset: compact
                               ? 16
                               : _portraitPlayerContentInset,
                         )
-                      : const SizedBox.shrink(),
+                      : null,
                 ),
               ),
               if (!compact) const SizedBox(height: _portraitLyricBottomGap),

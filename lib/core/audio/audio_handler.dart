@@ -1780,7 +1780,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_installedPlaybackGeneration != _playGeneration) {
       _logCompletionRejected(
         'generationMismatch installed=$_installedPlaybackGeneration '
-            'play=$_playGeneration',
+            'play=$_playGeneration owner=$_installedSourceOwnerToken '
+            'nativeToken=${_commands.installedSourceToken} '
+            'desiredOccurrence=${_commands.desiredSourceOccurrenceId} '
+            'activeOccurrence=$_activeOccurrenceId',
       );
       return;
     }
@@ -3011,14 +3014,25 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// 队尾且不循环、懒加载窗口取不到新条目、乱序下只有一首，都会走到这里。
   Future<void> _abortSkipRestoringPlayback(_PlaybackHalt halt) async {
     if (_disposed) return;
-    await _commands.releasePreservingIntent(halt.owner);
-    if (_disposed || !_userWantsPlay) return;
-    _publishPlaybackState(positionOverride: _player.position);
-    try {
-      await _player.play();
-    } catch (error) {
-      debugPrint('[AudioHandler] resume after aborted skip failed: $error');
+    // A cancelled skip invalidated async work, but did not replace the source.
+    // Rebind only the exact source that the halt invalidated, before releasing
+    // the pause can resume playback and deliver its next completion event.
+    if (!_isStale(halt.generation) &&
+        _installedPlaybackGeneration == halt.generation - 1 &&
+        _commands.installedSourceIsAuthoritative &&
+        _commands.installedSourceToken == _installedSourceOwnerToken &&
+        _activeOccurrenceId != null &&
+        _commands.desiredSourceOccurrenceId == _activeOccurrenceId &&
+        _installedMediaId != null &&
+        _installedMediaId == _activeItemId) {
+      if (_lastHandledCompletionGeneration == _installedPlaybackGeneration) {
+        _lastHandledCompletionGeneration = halt.generation;
+      }
+      _installedPlaybackGeneration = halt.generation;
     }
+    await _commands.releasePreservingIntent(halt.owner);
+    if (_disposed || _isStale(halt.generation) || !_userWantsPlay) return;
+    _publishPlaybackState(positionOverride: _player.position);
   }
 
   /// 立刻停止当前输出；进度归零。
@@ -3026,7 +3040,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// 装源成功后必须尽快 [releasePreservingIntent]，否则 effectivePlaying 一直为 false，
   /// 新曲装完也不会自动 play，表现为锁屏下一首直接停住。
   Future<_PlaybackHalt> _haltCurrentPlayback() async {
-    _bumpGeneration();
+    final generation = _bumpGeneration();
     _cancelForegroundCacheWork();
     // Pause immediately instead of waiting behind an in-flight (potentially
     // slow) source install so the previous track goes silent right away.
@@ -3036,7 +3050,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       playingOverride: true,
       positionOverride: Duration.zero,
     );
-    return _PlaybackHalt(owner);
+    return _PlaybackHalt(owner, generation);
   }
 
   Future<void> _ensureLazyQueueAhead(int minimumItems) async {
@@ -4492,5 +4506,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 class _PlaybackHalt {
   final PreservingPauseOwner owner;
 
-  const _PlaybackHalt(this.owner);
+  final int generation;
+
+  const _PlaybackHalt(this.owner, this.generation);
 }

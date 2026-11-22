@@ -100,7 +100,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
 
-    // 第二帧突然满幅。上升系数 0.34，一帧（16ms）最多走约三分之一。
+    // 第二帧突然满幅：约一个屏幕帧内应明显上升，但不能直接贴满。
     source.emit(List<double>.filled(24, 1));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
@@ -143,11 +143,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 32));
 
-    expect(
-      hasSpectrum(tester),
-      isFalse,
-      reason: '开了「减弱动效」还在每帧重绘，等于把系统设置当空气',
-    );
+    expect(hasSpectrum(tester), isFalse, reason: '开了「减弱动效」还在每帧重绘，等于把系统设置当空气');
     expect(tester.getSize(find.byType(PlayerSpectrumStrip)).height, 44);
   });
 
@@ -160,10 +156,7 @@ void main() {
 
     await tester.pumpWidget(
       wrap(
-        PlayerSpectrumStrip(
-          sourceOverride: source,
-          style: SpectrumStyle.steps,
-        ),
+        PlayerSpectrumStrip(sourceOverride: source, style: SpectrumStyle.steps),
       ),
     );
     await tester.pump();

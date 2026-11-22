@@ -64,7 +64,8 @@ class PlayerSpectrumStrip extends ConsumerStatefulWidget {
   final AudioSpectrumSource? sourceOverride;
 
   @override
-  ConsumerState<PlayerSpectrumStrip> createState() => _PlayerSpectrumStripState();
+  ConsumerState<PlayerSpectrumStrip> createState() =>
+      _PlayerSpectrumStripState();
 }
 
 class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
@@ -79,7 +80,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   List<double> _peak = const [];
 
   Ticker? _ticker;
-  Duration _lastTick = Duration.zero;
+  Duration? _lastTick;
   DateTime? _lastFrameAt;
 
   /// 数据版本号，每次幅值真的变了就 +1。
@@ -225,27 +226,24 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
 
     if (_target.length != bands.length) {
       // 柱数变化（例如以后调小 bandCount）时整体重置，避免下标错位。
-      _target = List<double>.of(bands);
-      _display = List<double>.of(bands);
-      _peak = List<double>.of(bands);
+      setState(() {
+        _target = List<double>.of(bands);
+        _display = List<double>.of(bands);
+        _peak = List<double>.of(bands);
+        _revision++;
+      });
     } else {
       _target = List<double>.of(bands);
     }
-    _revision++;
-
-    // 减弱动效时保留数据但不逐帧重绘——那条细线本身不需要补间。
-    if (_reduceMotion) {
-      setState(() {});
-      return;
-    }
-    _ensureTicker();
+    // 减弱动效只显示静线，不需要逐帧重绘。
+    if (!_reduceMotion) _ensureTicker();
   }
 
   void _ensureTicker() {
     if (_ticker != null) return;
     final ticker = createTicker(_tick);
     _ticker = ticker;
-    _lastTick = Duration.zero;
+    _lastTick = null;
     ticker.start();
   }
 
@@ -256,28 +254,21 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
 
   /// 逐帧补间。
   ///
-  /// 30Hz 的数据配 120Hz 的屏幕，直接画最新值会让柱子在两次数据之间冻住；
-  /// 这里用与帧率无关的指数逼近把台阶抹平。
-  ///
-  /// 上升要快、下降要慢，但**都不能慢到吃掉频段差异**。之前的
-  /// 0.34 / 0.11 是叠在 mpv 内部平滑之上的第二层平滑，两层一叠，各频段
-  /// 之间的差距在到达屏幕前就被抹平了——用户看到的就是「所有柱子都
-  /// 差不多高」，听不出音调变化。
-  ///
-  /// 现在 mpv 侧的 `attackSmoothing` / `releaseSmoothing` 已经降到很轻
-  /// （见 `kSpectrumSettings`），补间的阻尼就可以调小：上升 0.62 让瞬态
-  /// 基本跟得上，下降 0.22 仍留一点拖影，但不至于把相邻频段糊成一片。
+  /// 用与帧率无关的快速上升和较短回落突出鼓点、琴键起音；仍保留补间，
+  /// 不直接把 40 Hz 的新频谱值硬跳到屏幕上。
   void _tick(Duration elapsed) {
     if (_display.isEmpty) {
       _stopTicker();
       return;
     }
 
-    final delta = _lastTick == Duration.zero
+    final lastTick = _lastTick;
+    final delta = lastTick == null
         ? 1 / 60
-        : (elapsed - _lastTick).inMicroseconds / 1e6;
+        : (elapsed - lastTick).inMicroseconds / 1e6;
     _lastTick = elapsed;
     final dt = delta.clamp(0.0, 0.06);
+    if (dt == 0) return;
 
     final display = _display;
     final peak = _peak;
@@ -287,7 +278,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
       final target = i < _target.length ? _target[i] : 0.0;
       final current = display[i];
       final rise = target > current;
-      final rate = rise ? 0.62 : 0.22;
+      final rate = rise ? 0.76 : 0.34;
       final factor = 1 - math.pow(1 - rate, dt * 60).toDouble();
       final next = current + (target - current) * factor;
       if ((next - current).abs() > 0.0006) {
@@ -302,8 +293,8 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
       if (display[i] > peak[i]) {
         peak[i] = display[i];
         changed = true;
-      } else if (peak[i] > 0) {
-        final decayed = peak[i] - dt * 0.55;
+      } else if (peak[i] > display[i]) {
+        final decayed = peak[i] - dt * 1.45;
         peak[i] = decayed < display[i] ? display[i] : decayed;
         changed = true;
       }
@@ -317,7 +308,8 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     // 数据断了（暂停 / 播放结束 / 页面不可见）就停：没有新帧时补间终将
     // 落到目标，继续跑 ticker 只是空转。
     final last = _lastFrameAt;
-    final stale = last == null || DateTime.now().difference(last).inMilliseconds > 400;
+    final stale =
+        last == null || DateTime.now().difference(last).inMilliseconds > 400;
     if (stale && !changed) _stopTicker();
   }
 

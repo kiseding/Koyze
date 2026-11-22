@@ -12,6 +12,19 @@ import 'package:koyze/features/player/domain/player_service.dart';
 import 'package:koyze/features/home/presentation/widgets/mini_bar.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
 import 'package:koyze/features/player/presentation/player_screen.dart';
+import 'package:koyze/features/player/domain/player_spectrum_settings.dart';
+import 'package:koyze/features/player/presentation/widgets/player_spectrum_strip.dart';
+import 'package:koyze/features/settings/presentation/settings_provider.dart';
+
+class _TestSpectrumNotifier extends PlayerSpectrumNotifier {
+  _TestSpectrumNotifier()
+    : super(storage: () async => throw StateError('No test storage'));
+
+  @override
+  PlayerSpectrumSettings build() => const PlayerSpectrumSettings();
+
+  void enable() => state = state.copyWith(enabled: true);
+}
 
 /// 全屏播放器的展开/收起是「矩形 morph」而不是 Hero 飞行。
 ///
@@ -24,7 +37,12 @@ void main() {
     playerRouteProgress.value = 0;
   });
 
-  Widget harness({PlayMode playMode = PlayMode.sequential}) {
+  Widget harness({
+    PlayMode playMode = PlayMode.sequential,
+    Lyrics? lyrics,
+    int lineIndex = -1,
+    double textScale = 1,
+  }) {
     final music = MusicItem(
       id: 't1',
       name: '测试歌曲名称',
@@ -57,10 +75,20 @@ void main() {
           (int gen, Duration target, {required bool resumeAfter}) async {},
         ),
         cancelScrubProvider.overrideWithValue((int gen) async {}),
-        currentLyricProvider.overrideWithValue(Lyrics.empty()),
-        currentLineIndexProvider.overrideWithValue(-1),
+        currentLyricProvider.overrideWithValue(lyrics ?? Lyrics.empty()),
+        currentLineIndexProvider.overrideWithValue(lineIndex),
+        if (lyrics != null) ...[
+          playerSpectrumProvider.overrideWith(_TestSpectrumNotifier.new),
+          playerSpectrumSupportedProvider.overrideWithValue(true),
+        ],
       ],
       child: MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
+        ),
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(
@@ -91,6 +119,73 @@ void main() {
     await tester.pumpWidget(harness());
     await tester.pump();
   }
+
+  testWidgets('竖屏频谱只替换后两句，当前句和进度条不移动', (tester) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    playerRouteProgress.value = 1;
+    await tester.pumpWidget(
+      harness(
+        lineIndex: 0,
+        textScale: 1.35,
+        lyrics: const Lyrics(
+          raw: '',
+          lines: [
+            LyricLine(time: Duration.zero, text: '当前歌词', translation: '当前翻译'),
+            LyricLine(time: Duration(seconds: 1), text: '预告第一句'),
+            LyricLine(time: Duration(seconds: 2), text: '预告第二句'),
+          ],
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    final current = find.text('当前歌词');
+    final progress = find.text('03:20');
+    expect(find.text('预告第一句'), findsOneWidget);
+    expect(find.text('预告第二句'), findsOneWidget);
+    final currentRect = tester.getRect(current);
+    final progressRect = tester.getRect(progress);
+    final container = ProviderScope.containerOf(tester.element(current));
+    (container.read(playerSpectrumProvider.notifier) as _TestSpectrumNotifier)
+        .enable();
+    await tester.pump();
+    expect(find.text('预告第一句'), findsNothing);
+    expect(find.text('预告第二句'), findsNothing);
+    expect(find.text('当前翻译'), findsOneWidget);
+    expect(find.byType(PlayerSpectrumStrip), findsOneWidget);
+    expect(tester.getRect(current), currentRect);
+    expect(tester.getRect(progress), progressRect);
+    expect(currentRect.center.dx, 210);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('曲尾只显示剩余的后续歌词，不循环预告首句', (tester) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    playerRouteProgress.value = 1;
+    await tester.pumpWidget(
+      harness(
+        lineIndex: 1,
+        lyrics: const Lyrics(
+          raw: '',
+          lines: [
+            LyricLine(time: Duration.zero, text: '队首歌词'),
+            LyricLine(time: Duration(seconds: 1), text: '倒数第二句'),
+            LyricLine(time: Duration(seconds: 2), text: '最后一句'),
+          ],
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('倒数第二句'), findsOneWidget);
+    expect(find.text('最后一句'), findsOneWidget);
+    expect(find.text('队首歌词'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   /// 收集当前渲染树里所有 `Positioned.fromRect` 出来的矩形。
   List<Rect> morphRects(WidgetTester tester) {
@@ -134,11 +229,7 @@ void main() {
       final fullScreenRects = rects.where(
         (r) => r.width >= screen.width - 1 && r.height >= screen.height - 1,
       );
-      expect(
-        fullScreenRects,
-        isEmpty,
-        reason: 'progress=0 时不应存在覆盖全屏的 morph 层',
-      );
+      expect(fullScreenRects, isEmpty, reason: 'progress=0 时不应存在覆盖全屏的 morph 层');
     });
 
     testWidgets('morph 矩形随 progress 单调变大', (tester) async {
@@ -234,7 +325,8 @@ void main() {
         expect(
           hasIgnore,
           isTrue,
-          reason: 'Positioned 矩形层 ${(element.widget as Positioned).left}, '
+          reason:
+              'Positioned 矩形层 ${(element.widget as Positioned).left}, '
               '${(element.widget as Positioned).top} 缺少 IgnorePointer',
         );
       }

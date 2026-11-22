@@ -1,26 +1,49 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mpv_audio_kit/mpv_audio_kit.dart';
 import 'package:koyze/core/audio/audio_spectrum_factory_native.dart';
 
-/// 频谱条「看不出音调差别」是一类**回归起来毫无声响**的 bug：形状照常
-/// 渲染、照常随时间跳动，只是所有柱子高度趋同。它不报错、不掉帧，肉眼
-/// 也说不清哪里不对——所以必须把「为什么会趋同」的那几条参数钉住。
+// Exercise the upstream PCM-to-FFT algorithm as well as our display mapping.
+List<double> _analyze(double hz, double amplitude) {
+  const rate = 48000;
+  final samples = Float32List.fromList(
+    List.generate(
+      kSpectrumSettings.fftSize,
+      (i) => amplitude * math.sin(2 * math.pi * hz * i / rate),
+    ),
+  );
+  return mapPlayerSpectrumBands(
+    BandProcessor(kSpectrumSettings).process(
+      PcmFrame(
+        samples: samples,
+        timestamp: Duration.zero,
+        sampleRate: rate,
+        channels: 1,
+      ),
+    )!,
+  );
+}
+
 void main() {
   group('播放页频谱参数', () {
-    test('dB 窗口收窄到音乐的常见动态范围', () {
-      final settings = kSpectrumSettings;
-      // 默认 -100/-30 是 70 dB 的窗口。流行乐母带基本落在 -45~-8 dB，
-      // 压进 70 dB 之后所有频段都挤在中段，相邻柱子的差不到一格像素。
-      final window = settings.maxDb - settings.minDb;
-      expect(
-        window,
-        lessThanOrEqualTo(50),
-        reason: 'dB 窗口超过 50 会让所有频段挤在同一高度区间，'
-            '频谱看起来「一样高」。实际 $window dB '
-            '(${settings.minDb} → ${settings.maxDb})',
-      );
-      expect(settings.maxDb, greaterThan(settings.minDb));
-      // 上沿不能压到 -20 以上：那样正常的人声就已经削顶，动态全丢。
-      expect(settings.maxDb, lessThanOrEqualTo(-10));
+    test('约 -60 dB 的高频成分能带动右侧，强弱仍可区分', () {
+      final soft = _analyze(9000, 0.002);
+      final loud = _analyze(9000, 0.008);
+      final high = soft.skip(26).reduce(math.max);
+      expect(high, greaterThan(0.10));
+      expect(loud.skip(26).reduce(math.max), greaterThan(high + 0.10));
+      expect(soft.take(26), everyElement(lessThan(0.01)));
+    });
+
+    test('底鼓、琴键频段分开，静音不制造动态', () {
+      final bass = _analyze(75, 0.1);
+      final piano = _analyze(880, 0.1);
+      expect(bass.take(9).reduce(math.max), greaterThan(0.4));
+      expect(piano.skip(14).take(8).reduce(math.max), greaterThan(0.4));
+      expect(bass.skip(26), everyElement(0.0));
+      expect(_analyze(0, 0), everyElement(0.0));
     });
 
     test('内部平滑足够轻，不与 UI 层补间叠加成双重平滑', () {
@@ -47,7 +70,8 @@ void main() {
       expect(
         settings.bandCount,
         lessThanOrEqualTo(48),
-        reason: '段数过多会让每根柱子窄到无法单独辨认，'
+        reason:
+            '段数过多会让每根柱子窄到无法单独辨认，'
             '「看得出音调不同」首先得「看得出是不同的柱子」',
       );
       expect(settings.bandCount, greaterThanOrEqualTo(16));

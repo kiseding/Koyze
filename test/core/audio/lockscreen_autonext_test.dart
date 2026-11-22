@@ -61,6 +61,31 @@ void main() {
     );
   });
 
+  test('completion still advances after a cancelled manual skip', () async {
+    await handler.setPlaylist([item('A'), item('B')]);
+    handler.configureLazyQueue(
+      loadMore: (_) async => const <MediaItem>[],
+      rebuildForShuffle: (current, shuffle, minimumItems) async =>
+          const <MediaItem>[],
+    );
+    player.gateNextPause();
+    final switching = handler.skipToNext();
+    await player.pauseStarted.future;
+    await handler.updateQueue([handler.queueItems.first]);
+    player.releasePause.complete();
+    await switching;
+    expect(handler.mediaItem.value?.id, 'A');
+    expect(player.playing, isTrue);
+    await handler.addQueueItem(item('C'));
+
+    player.emitCompleted();
+    player.emitCompleted();
+    await pumpEventQueue();
+
+    expect(handler.mediaItem.value?.id, 'C');
+    expect(handler.currentQueueIndex, 1);
+  });
+
   test('duplicate completion advances only once', () async {
     await handler.setPlaylist([item('A'), item('B'), item('C')]);
     final loadsBeforeCompletion = player.sourceLoadCalls;
@@ -481,7 +506,7 @@ class _CompletionAudioPlayer extends AudioPlayer {
     final started = _pauseStarted;
     final release = _releasePause;
     if (started != null && release != null) {
-      started.complete();
+      if (!started.isCompleted) started.complete();
       await release.future;
       _pauseStarted = null;
       _releasePause = null;

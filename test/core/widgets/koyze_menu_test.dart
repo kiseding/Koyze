@@ -100,15 +100,49 @@ void main() {
     expect(
       surface.top,
       greaterThanOrEqualTo(trigger.bottom + 5),
-      reason: '菜单顶边应在按钮底边下方留出缝隙，实际 surface=$surface '
+      reason:
+          '菜单顶边应在按钮底边下方留出缝隙，实际 surface=$surface '
           'trigger=$trigger',
     );
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('菜单采样背后内容做模糊，而不是只盖一层半透明底色', (
-    tester,
-  ) async {
+  testWidgets('展开及关闭时原三点持续可见，长菜单不覆盖按钮', (tester) async {
+    _setViewport(tester);
+    await tester.pumpWidget(
+      _host(onSelected: (_) {}, labels: List.generate(30, (i) => 'Action $i')),
+    );
+    final trigger = find.byKey(const ValueKey('menu-trigger'));
+    final dots = find.byIcon(Icons.more_vert_rounded);
+    final original = tester.getRect(dots);
+    void expectVisible() {
+      expect(dots, findsOneWidget);
+      expect(tester.getRect(dots), original);
+      final ancestors = tester.widgetList<Opacity>(
+        find.ancestor(of: dots, matching: find.byType(Opacity)),
+      );
+      expect(ancestors.every((widget) => widget.opacity == 1), isTrue);
+    }
+
+    await tester.tap(trigger);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expectVisible();
+    await tester.pumpAndSettle();
+    expectVisible();
+    final surface = tester.getRect(
+      find.byKey(const ValueKey('koyze-menu-morph-surface')),
+    );
+    expect(surface.top, greaterThan(tester.getRect(trigger).bottom));
+    await tester.tapAt(original.center);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expectVisible();
+    await tester.pumpAndSettle();
+    expect(find.text('Action 0'), findsNothing);
+  });
+
+  testWidgets('菜单采样背后内容做模糊，而不是只盖一层半透明底色', (tester) async {
     _setViewport(tester);
     await tester.pumpWidget(_host(onSelected: (_) {}));
     await _openMenu(tester);

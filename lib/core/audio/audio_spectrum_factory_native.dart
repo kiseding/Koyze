@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:mpv_audio_kit/mpv_audio_kit.dart' as mpv;
 
@@ -20,42 +21,73 @@ AudioSpectrumSource buildAudioSpectrumSource(PlaybackEngine? engine) {
 
 /// 播放页频谱条该用的 FFT 参数。
 ///
-/// 默认参数（`SpectrumSettings()`）是给网页分析器那种大画面用的，直接
-/// 套到播放页会造成一个很具体的问题：**所有柱子高度差不多**，看不出
-/// 低音、中音、高音的区别。原因有三条，逐条对应下面的覆盖值：
-///
-/// 1. **70 dB 的动态窗口太宽**。默认 `minDb = -100` / `maxDb = -30`，
-///    而流行/摇滚母带的能量基本落在 -45~-8 dB。把 70 dB 线性压进
-///    0.0-1.0 之后，绝大多数频段都挤在 0.4-0.7 这同一段里，相邻柱子的
-///    差距不到一格像素——看起来就是「一样高」。收到 45 dB
-///    （-60 → -15）之后，同样的内容能铺满整条，层次才出得来。
-/// 2. **内部平滑过强**。`attackSmoothing = 0.5` / `releaseSmoothing = 0.1`
-///    是给「没有外部补间」的消费者准备的；播放页的 `PlayerSpectrumStrip`
-///    自己还要按帧做一次指数逼近，两层平滑叠在一起，瞬态（鼓点、拨弦）
-///    的差异被抹平。这里把内部平滑降到很轻，把「怎么动」的决策权交给
-///    UI 层一处。
-/// 3. **64 段在窄条上过密**。条宽约 300dp 时每柱只有 4-5px，相邻频段
-///    挤在一起，视觉上分不出边界。32 段给每柱约 9dp，既保留了对数分频
-///    的音高语义，又能让每根柱子被眼睛单独看见——「看得出音调不同」
-///    首先得「看得出这是不同的柱子」。
-///
-/// `fftSize` 保持 2048：约 23 Hz 的频率分辨率足以分开底鼓与 sub-bass，
-/// 而 2048 点在 48 kHz 下只跨 42.7ms，仍在 A/V 同步的可接受范围内。
-/// `overlapFactor` 保持 4（75% 重叠），跨帧连续性靠它，不靠平滑。
+/// 2048 点 FFT 在 48 kHz 下约 43 ms。保留 32 个对数频段，但提早到
+/// 14 kHz 收尾，减少空气频段的占比。较低的采集底限保留微弱的泛音，
+/// 最终显示范围由 [mapPlayerSpectrumBands] 按频段决定。
 const mpv.SpectrumSettings kSpectrumSettings = mpv.SpectrumSettings(
   fftSize: 2048,
   bandCount: 32,
   bandLowHz: 30,
-  bandHighHz: 16000,
-  emitInterval: Duration(milliseconds: 33),
-  // 内部只做极轻的防抖，避免单个异常帧造成闪烁；真正的攻击/衰减曲线
-  // 在 `PlayerSpectrumStrip` 里按帧率无关的方式统一处理。
-  attackSmoothing: 0.85,
-  releaseSmoothing: 0.35,
-  minDb: -60,
-  maxDb: -15,
+  bandHighHz: 14000,
+  emitInterval: Duration(milliseconds: 25),
+  // The strip shapes the unsmoothed bins once, after frequency weighting.
+  attackSmoothing: 1,
+  releaseSmoothing: 1,
+  minDb: -80,
+  maxDb: -10,
   overlapFactor: 4,
 );
+
+/// Reaggregate real FFT bins for the display. An average alone dilutes a
+/// piano overtone across the many bins in a wide upper band. Blend the mean
+/// with the strongest two bins and lower the visual floor towards the treble.
+/// Nothing is borrowed from other bands, so absent frequencies stay quiet.
+List<double> mapPlayerSpectrumBands(mpv.FftFrame frame) {
+  final bins = frame.bins;
+  final count = frame.bands.length;
+  final values = List<double>.filled(count, 0, growable: false);
+  if (bins.isEmpty ||
+      count == 0 ||
+      frame.sampleRate <= 0 ||
+      frame.bandLowHz <= 0 ||
+      frame.bandHighHz <= frame.bandLowHz) {
+    return values;
+  }
+  final binHz = frame.sampleRate / (2 * bins.length);
+  final ratio = math.pow(frame.bandHighHz / frame.bandLowHz, 1 / count);
+  var lowHz = frame.bandLowHz;
+  for (var i = 0; i < count; i++) {
+    final highHz = lowHz * ratio;
+    final start = (lowHz / binHz).floor().clamp(1, bins.length);
+    final end = (highHz / binHz).ceil().clamp(start, bins.length);
+    lowHz = highHz;
+    if (start == end) continue;
+    var sum = 0.0;
+    var strongest = 0.0;
+    var second = 0.0;
+    for (var j = start; j < end; j++) {
+      final raw = bins[j];
+      final value = raw.isFinite ? raw.clamp(0.0, 1.0) : 0.0;
+      sum += value;
+      if (value > strongest) {
+        second = strongest;
+        strongest = value;
+      } else if (value > second) {
+        second = value;
+      }
+    }
+    final mean = sum / (end - start);
+    final crest = end - start == 1 ? strongest : (strongest + second) / 2;
+    final level = crest * 0.94 + mean * 0.06;
+    final treble = ((i / math.max(1, count - 1) - 0.45) / 0.55).clamp(0.0, 1.0);
+    final floorDb = -52 - 22 * treble;
+    final db =
+        kSpectrumSettings.minDb +
+        level * (kSpectrumSettings.maxDb - kSpectrumSettings.minDb);
+    values[i] = ((db - floorDb) / (-12 - floorDb)).clamp(0.0, 1.0);
+  }
+  return values;
+}
 
 /// 从 mpv 的 `stream.fft` 取实时频谱。
 ///
@@ -100,15 +132,9 @@ class MpvAudioSpectrumSource implements AudioSpectrumSource {
     _configure();
     _subscription = _player.stream.fft.listen(
       (frame) {
-        final bands = frame.bands;
-        final values = List<double>.filled(bands.length, 0, growable: false);
-        for (var i = 0; i < bands.length; i++) {
-          final value = bands[i];
-          values[i] = value.isFinite ? value.clamp(0.0, 1.0) : 0.0;
-        }
         controller.add(
           SpectrumFrame(
-            bands: values,
+            bands: mapPlayerSpectrumBands(frame),
             bandLowHz: frame.bandLowHz,
             bandHighHz: frame.bandHighHz,
           ),

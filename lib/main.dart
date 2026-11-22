@@ -850,7 +850,7 @@ Future<void> _bootstrapUnsafe(
               // 显示歌词，用户会以为设置没生效。
               if (!container.read(lockScreenLyricEnabledProvider)) return '';
               final lyrics = container.read(currentLyricLoadProvider).lyrics;
-              return lyrics.getCurrentLine(lxHandler.player.position)?.text ??
+              return lyrics.getCurrentLine(lxHandler.engine.position)?.text ??
                   '';
             },
           );

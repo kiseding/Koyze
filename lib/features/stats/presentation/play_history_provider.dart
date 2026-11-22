@@ -35,7 +35,7 @@ final playHistoryRecorderProvider = Provider<void>((ref) {
     }
     final music = _musicFromMedia(mediaItem);
     final position = audioHandler is LxAudioHandler
-        ? (audioHandler as LxAudioHandler).player.position
+        ? (audioHandler as LxAudioHandler).engine.position
         : Duration.zero;
     if (music.id != store.currentSongId) {
       store.beginSession(

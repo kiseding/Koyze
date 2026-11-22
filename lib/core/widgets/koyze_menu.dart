@@ -68,12 +68,6 @@ class _KoyzePopupMenuButtonState<T> extends State<KoyzePopupMenuButton<T>> {
         constraints: widget.constraints,
         color: widget.color,
         anchorRadius: widget.anchorRadius,
-        anchorIcon: widget.child == null
-            ? IconTheme.merge(
-                data: IconThemeData(size: widget.iconSize),
-                child: widget.icon ?? const Icon(Icons.more_vert_rounded),
-              )
-            : null,
       );
       if (!mounted) return;
       setState(() => _open = false);
@@ -109,10 +103,9 @@ class _KoyzePopupMenuButtonState<T> extends State<KoyzePopupMenuButton<T>> {
               child: widget.child,
             ),
           );
-    return IgnorePointer(
-      ignoring: _open,
-      child: Opacity(opacity: _open ? 0 : 1, child: trigger),
-    );
+    // The modal barrier owns dismissal while open; the original anchor stays
+    // painted in place instead of being replaced by a fading icon in the menu.
+    return IgnorePointer(ignoring: _open, child: trigger);
   }
 }
 
@@ -125,7 +118,6 @@ Future<T?> showKoyzeMenu<T>({
   BoxConstraints? constraints,
   Color? color,
   double? anchorRadius,
-  Widget? anchorIcon,
 }) async {
   if (items.isEmpty) return null;
   final navigator = Navigator.of(context);
@@ -137,7 +129,6 @@ Future<T?> showKoyzeMenu<T>({
     constraints: constraints,
     color: color,
     anchorRadius: anchorRadius ?? anchor.shortestSide / 2,
-    anchorIcon: anchorIcon,
     media: MediaQuery.of(context),
     themes: InheritedTheme.capture(from: context, to: navigator.context),
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
@@ -156,7 +147,6 @@ class _KoyzeMenuRoute<T> extends PopupRoute<T> {
     required this.constraints,
     required this.color,
     required this.anchorRadius,
-    required this.anchorIcon,
     required this.media,
     required this.themes,
     required this.barrierLabel,
@@ -168,7 +158,6 @@ class _KoyzeMenuRoute<T> extends PopupRoute<T> {
   final BoxConstraints? constraints;
   final Color? color;
   final double anchorRadius;
-  final Widget? anchorIcon;
   final MediaQueryData media;
   final CapturedThemes themes;
   VoidCallback? selectedCallback;
@@ -283,33 +272,15 @@ class _KoyzeMenuRoute<T> extends PopupRoute<T> {
                           // 边线与投影由外层 CustomPaint 统一按形变路径
                           // 绘制，这里不再叠一份，否则动画过程中会出现
                           // 两条错位的轮廓线。
-                          border: const Border.fromBorderSide(
-                            BorderSide.none,
-                          ),
+                          border: const Border.fromBorderSide(BorderSide.none),
                           boxShadow: const <BoxShadow>[],
                           clipContent: false,
                           child: Material(
                             type: MaterialType.transparency,
-                            child: Stack(
-                              children: [
-                                IgnorePointer(
-                                  ignoring:
-                                      animation.status !=
-                                      AnimationStatus.completed,
-                                  child: Opacity(opacity: reveal, child: child),
-                                ),
-                                if (anchorIcon != null && progress < 1)
-                                  Positioned.fill(
-                                    child: CustomSingleChildLayout(
-                                      delegate: _AnchorIconLayout(geometry),
-                                      child: Opacity(
-                                        opacity: (1 - animation.value / 0.24)
-                                            .clamp(0.0, 1.0),
-                                        child: anchorIcon,
-                                      ),
-                                    ),
-                                  ),
-                              ],
+                            child: IgnorePointer(
+                              ignoring:
+                                  animation.status != AnimationStatus.completed,
+                              child: Opacity(opacity: reveal, child: child),
                             ),
                           ),
                         ),
@@ -517,10 +488,11 @@ class _KoyzeMenuGeometry {
     // 与按钮的点击热区糊在一起。
     final below = anchor.bottom + gap;
     final above = anchor.top - gap - size.height;
-    final y = (below + size.height <= safe.bottom
-            ? below
-            : (above >= safe.top ? above : below))
-        .clamp(safe.top, math.max(safe.top, safe.bottom - size.height));
+    final y =
+        (below + size.height <= safe.bottom
+                ? below
+                : (above >= safe.top ? above : below))
+            .clamp(safe.top, math.max(safe.top, safe.bottom - size.height));
     return Offset(x.toDouble(), y.toDouble());
   }
 
@@ -528,7 +500,18 @@ class _KoyzeMenuGeometry {
   static const double gap = 6;
 
   RRect shape(Size size, double progress) {
-    final origin = anchor.shift(-position(size));
+    // Start the morph in the gap-facing edge of the panel, not over the icon.
+    final offset = position(size);
+    final fromBelow = offset.dy >= anchor.bottom;
+    final origin = Rect.fromLTWH(
+      (anchor.left - offset.dx).clamp(
+        0.0,
+        math.max(0.0, size.width - anchor.width),
+      ),
+      fromBelow ? 0 : math.max(0.0, size.height - 6),
+      math.min(anchor.width, size.width),
+      math.min(6.0, size.height),
+    );
     final rect = Rect.lerp(origin, Offset.zero & size, progress)!;
     return RRect.fromRectAndRadius(
       rect,
@@ -548,7 +531,17 @@ class _KoyzeMenuLayout extends SingleChildLayoutDelegate {
       BoxConstraints(
         minWidth: width,
         maxWidth: width,
-        maxHeight: math.max(1, geometry.safe.height),
+        // Scroll tall menus instead of letting the viewport clamp them back
+        // over the trigger when neither side can fit every item.
+        maxHeight: math.max(
+          1,
+          math.max(
+            geometry.safe.bottom -
+                geometry.anchor.bottom -
+                _KoyzeMenuGeometry.gap,
+            geometry.anchor.top - geometry.safe.top - _KoyzeMenuGeometry.gap,
+          ),
+        ),
       );
 
   @override
@@ -557,23 +550,6 @@ class _KoyzeMenuLayout extends SingleChildLayoutDelegate {
 
   @override
   bool shouldRelayout(covariant _KoyzeMenuLayout oldDelegate) => true;
-}
-
-class _AnchorIconLayout extends SingleChildLayoutDelegate {
-  _AnchorIconLayout(this.geometry);
-
-  final _KoyzeMenuGeometry geometry;
-
-  @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
-      BoxConstraints.tight(geometry.anchor.size);
-
-  @override
-  Offset getPositionForChild(Size size, Size childSize) =>
-      geometry.anchor.topLeft - geometry.position(size);
-
-  @override
-  bool shouldRelayout(covariant _AnchorIconLayout oldDelegate) => true;
 }
 
 class _KoyzeMenuClipper extends CustomClipper<Path> {
