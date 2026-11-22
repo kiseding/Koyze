@@ -12,7 +12,7 @@
 #   scripts/ohos/stage-libmpv.sh            # 所有已提供的 ABI
 #   scripts/ohos/stage-libmpv.sh arm64-v8a  # 只拷指定 ABI
 #
-# 没有预编译库的 ABI 会被跳过而不是报错，但**该 ABI 的包装上去是起不来的**：
+# 缺少指定 ABI 的预编译库必须中止构建：
 # libmpv 是鸿蒙上唯一的播放引擎，`createMpvPlaybackEngine` 在它加载失败时
 # 直接抛 `PlaybackEngineUnavailable`，应用落到启动失败页并显示具体原因。
 #
@@ -36,22 +36,18 @@ else
 fi
 
 if [ "${#abis[@]}" -eq 0 ]; then
-  echo "stage-libmpv: $src 下没有任何 ABI 目录，跳过"
-  exit 0
+  echo "stage-libmpv: $src 下没有任何 ABI 目录" >&2
+  exit 1
 fi
 
-staged=0
 for abi in "${abis[@]}"; do
-  if [ ! -d "$src/$abi" ]; then
-    echo "stage-libmpv: 跳过 $abi（$src/$abi 不存在）"
-    continue
-  fi
+  for lib in libmpv.so libc++_shared.so; do
+    if [ ! -s "$src/$abi/$lib" ]; then
+      echo "stage-libmpv: 缺少 $src/$abi/$lib，拒绝构建不可启动的 HAP" >&2
+      exit 1
+    fi
+  done
   mkdir -p "$dst/$abi"
-  cp -f "$src/$abi"/*.so "$dst/$abi"/
-  echo "stage-libmpv: $abi <- $(cd "$src/$abi" && ls ./*.so | tr '\n' ' ')"
-  staged=$((staged + 1))
+  cp -f "$src/$abi/libmpv.so" "$src/$abi/libc++_shared.so" "$dst/$abi"/
+  echo "stage-libmpv: $abi <- libmpv.so libc++_shared.so"
 done
-
-if [ "$staged" -eq 0 ]; then
-  echo "stage-libmpv: 一个 ABI 都没拷到"
-fi

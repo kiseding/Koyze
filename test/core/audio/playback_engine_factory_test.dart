@@ -59,10 +59,10 @@ void main() {
     // 17 个 OH_AudioRenderer_* / OH_AudioStreamBuilder_* 符号），而模拟器
     // 把它装在 /system/lib64/ndk/，不在应用 linker namespace 的搜索路径里。
     // 不预加载就 dlopen 失败，mpv-version 读出 null。
+    expect(kOhosNdkDependencies, ['libohaudio.so']);
     final code = _codeOnly('lib/core/audio/playback_engine_factory.dart');
-    expect(code, contains('preloadOhosNdkLibraries()'));
-    // 必须在 ensureInitialized / Player 构造之前调用。
-    final preload = code.indexOf('preloadOhosNdkLibraries()');
+    // 必须在 ensureInitialized / Player 构造之前调用（不匹配函数声明）。
+    final preload = code.indexOf('= preloadOhosNdkLibraries();');
     final ensure = code.indexOf('MpvAudioKit.ensureInitialized');
     expect(preload, greaterThan(0));
     expect(preload, lessThan(ensure));

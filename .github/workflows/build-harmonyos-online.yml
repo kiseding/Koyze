@@ -34,7 +34,7 @@ on:
         options: [debug, release]
         default: release
       playback_engine:
-        description: '播放引擎（留空 = just_audio；填 mpv 出真机验证包）'
+        description: '默认使用 libmpv；选 mpv 为验证包文件名添加 -mpv 后缀'
         type: choice
         options: ['', mpv]
         default: ''
@@ -274,10 +274,7 @@ jobs:
           # release 在 Windows 上还要绕开图标 tree-shaker：patched_sdk 与 dart-sdk
           # 的 SDK hash 不匹配，否则报 "Invalid SDK hash"
           [ "$mode" = "release" ] && extra="$extra --no-tree-shake-icons"
-          # 真机验证 mpv 引擎时用 workflow_dispatch 的 playback_engine 输入；
-          # push/tag 触发时为空，构建出来的仍是 just_audio 默认包。
-          # 工厂会自检 libmpv，加载失败自动退回 just_audio，所以这个包
-          # 即使 mpv 不可用也照样能出声。
+          # 正式包和验证包都使用 libmpv，不回退到 just_audio。
           engine="${PLAYBACK_ENGINE_INPUT:-}"
           [ -n "$engine" ] && extra="$extra --dart-define=KOYZE_PLAYBACK_ENGINE=$engine"
           version="$(awk '/^version:/{print $2; exit}' pubspec.yaml)"
@@ -298,9 +295,7 @@ jobs:
             # rawfile 里那份是构建产物：删掉让本轮重新从模板生成，避免上一轮
             # 写入的 flag 被静默沿用。
             rm -f ohos/entry/src/main/resources/rawfile/buildinfo.json5
-            # 上面这行会把预编译的 libmpv 一起删掉，必须重新铺回去，否则
-            # HAP 里没有 libmpv.so，mpv 引擎只能退回 just_audio。
-            # 没有对应 ABI 的预编译库时脚本只打印跳过，不影响构建。
+            # 清理目录后重新放入当前 ABI 的 libmpv；缺库时必须中止构建。
             case "$arch" in
               arm64) abi=arm64-v8a ;;
               x64) abi=x86_64 ;;
@@ -376,16 +371,21 @@ jobs:
           dart_version="$("$FLUTTER_OHOS_HOME/bin/cache/dart-sdk/bin/dart.exe" --version 2>&1 \
             | tr -d '\r' | sed -n 's/^Dart SDK version: \([^ ]*\).*/\1/p')"
           test -n "$dart_version" || { echo "::error::无法从 Dart SDK 读取版本"; exit 1; }
-          python - "$out" "$HAP_BUILD_MODE" "$dart_version" <<'PY'
+          readelf="$HOS_SDK_HOME/default/openharmony/native/llvm/bin/llvm-readelf.exe"
+          test -f "$readelf" || { echo "::error::找不到 $readelf"; exit 1; }
+          python - "$out" "$HAP_BUILD_MODE" "$dart_version" "$readelf" <<'PY'
           import re
           import struct
+          import subprocess
           import sys
+          import tempfile
           import zipfile
           from pathlib import Path
 
           out = Path(sys.argv[1])
           mode = sys.argv[2]
           dart_version = sys.argv[3]
+          readelf = sys.argv[4]
           version_pattern = re.compile(rb'(\d+\.\d+\.\d+) \([^)]*\) \([^)]*\) on "ohos[^"]*"')
           expected = {
               'ohos-arm64': {
@@ -393,9 +393,6 @@ jobs:
                   'app': ('libs/arm64-v8a/libapp.so', 183),
                   'quickjs': ('libs/arm64-v8a/libquickjs_c_bridge.so', 183),
                   'cxx': ('libs/arm64-v8a/libc++_shared.so', 183),
-                  # 预编译的 libmpv 由 scripts/ohos/stage-libmpv.sh 在构建前
-                  # 铺进 entry/libs；上面的 rm -rf 会把它删掉，漏了这一步
-                  # 打出来的包没有任何报错、只是播放引擎静默退回 just_audio。
                   'mpv': ('libs/arm64-v8a/libmpv.so', 183),
               },
               'ohos-x64': {
@@ -403,6 +400,7 @@ jobs:
                   'app': ('libs/x86_64/libapp.so', 62),
                   'quickjs': ('libs/x86_64/libquickjs_c_bridge.so', 62),
                   'cxx': ('libs/x86_64/libc++_shared.so', 62),
+                  'mpv': ('libs/x86_64/libmpv.so', 62),
               },
           }
           for hap in sorted(out.glob('*.hap')):
@@ -448,9 +446,9 @@ jobs:
                           f'与 AOT 生成器 {dart_version} 不一致；该 HAP 安装后会报 '
                           f'"VM snapshot invalid"'
                       )
-                  if mode != 'release':
-                      continue
                   for label, (member, machine) in expected[target].items():
+                      if mode != 'release' and label not in ('mpv', 'cxx'):
+                          continue
                       if member not in names:
                           raise SystemExit(f'{hap.name} is missing {member}')
                       data = archive.read(member)
@@ -461,6 +459,19 @@ jobs:
                           raise SystemExit(
                               f'{hap.name} {label} ELF machine {actual}, expected {machine}'
                           )
+                      if label != 'mpv':
+                          continue
+                      if b'pcm-tap-frame\0' not in data:
+                          raise SystemExit(f'{hap.name}: {member} is missing the PCM tap')
+                      with tempfile.TemporaryDirectory() as temp:
+                          library = Path(temp) / 'libmpv.so'
+                          library.write_bytes(data)
+                          dynamic = subprocess.check_output([readelf, '-d', str(library)], text=True)
+                      needed = set(re.findall(r'\(NEEDED\).*?\[([^\]]+)\]', dynamic))
+                      allowed = {'libc.so', 'libc++_shared.so', 'libohaudio.so'}
+                      if 'libohaudio.so' not in needed or needed - allowed:
+                          raise SystemExit(f'{hap.name}: unexpected libmpv dependencies: {sorted(needed)}')
+                      print(f'{hap.name}: {member} DT_NEEDED {sorted(needed)}')
           PY
           # 不再在这里直接生成 SHA256SUMS.txt。
           #
@@ -476,7 +487,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Koyze-HarmonyOS-HAPs
+          name: Koyze-HarmonyOS-HAPs-${{ github.sha }}
           path: build/harmonyos-${{ env.HAP_BUILD_MODE }}/*
           if-no-files-found: error
           retention-days: 7

@@ -91,9 +91,7 @@ third_party/*/ohos/build/
 third_party/*/ohos/BuildProfile.ets
 third_party/*/ohos/oh-package-lock.json5
 
-# 本地预编译的 libmpv：只有 arm64-v8a 是随仓库分发的正式版本；x86_64 是
-# 模拟器调试用的本地产物（约 30 MB），不入库。
-/third_party/ohos-libmpv/x86_64/
+# arm64-v8a 和 x86_64 的 libmpv 均随仓库分发，供 CI 打包。
 
 # flutter_tools 写入的机器状态（是否是 CI bot），随环境变化。
 /.flutter_tool_state

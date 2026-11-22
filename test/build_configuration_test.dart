@@ -3,6 +3,29 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('all platform CI outputs identify the source commit', () {
+    for (final target in [
+      'android',
+      'harmonyos-online',
+      'ios',
+      'linux',
+      'macos',
+      'windows',
+    ]) {
+      final workflow = File(
+        '.github/workflows/build-$target.yml',
+      ).readAsStringSync();
+      expect(workflow, contains(r'-${{ github.sha }}'), reason: target);
+    }
+    final web = File(
+      '.github/workflows/build-web-docker.yml',
+    ).readAsStringSync();
+    expect(
+      web,
+      contains(r'org.opencontainers.image.revision=${{ github.sha }}'),
+    );
+  });
+
   test('root toolchain requirements match the supported Flutter release', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
 
@@ -149,11 +172,14 @@ void main() {
     final workflow = File('.github/workflows/build-ios.yml').readAsStringSync();
 
     expect(workflow, contains('Koyze-Apple-ID-Sideload.ipa'));
-    expect(workflow, contains('Koyze-Apple-ID-Sideload-IPA'));
     expect(
       workflow,
-      contains('rm -rf build/ios/ipa-sideload/Payload/Runner.app/PlugIns'),
+      contains(r'Koyze-Apple-ID-Sideload-IPA-${{ github.sha }}'),
     );
+    expect(workflow, contains('KoyzeSourceCommit'));
+    expect(workflow, contains('Frameworks/libmpv.framework/libmpv'));
+    expect(workflow, contains('pcm-tap-frame'));
+    expect(workflow, contains(r'rm -rf "$app/PlugIns"'));
     expect(workflow, isNot(contains('Koyze-unsigned.ipa')));
     expect(workflow, isNot(contains('Koyze-unsigned-IPA')));
   });
@@ -316,7 +342,8 @@ void main() {
     expect(
       forbidden,
       isEmpty,
-      reason: 'Web 编译图里出现了 mpv / dart:ffi，dart2js 会直接编译失败：\n'
+      reason:
+          'Web 编译图里出现了 mpv / dart:ffi，dart2js 会直接编译失败：\n'
           '${forbidden.join('\n')}',
     );
   });
@@ -360,10 +387,7 @@ void main() {
     // 引擎工件只在 tag 3.44.9+ohos-0.0.1-canary1（har revision 7c82f544）上
     // 完整；分支 HEAD 已换成只有 artifacts.zip 的 revision，按分支拉会缺
     // AOT 生成器，所以必须按 tag 锁定。
-    expect(
-      online,
-      contains('FLUTTER_OHOS_REF: 3.44.9+ohos-0.0.1-canary1'),
-    );
+    expect(online, contains('FLUTTER_OHOS_REF: 3.44.9+ohos-0.0.1-canary1'));
     expect(online, contains(r'-b "$FLUTTER_OHOS_REF"'));
 
     for (final workflowName in [
@@ -788,7 +812,9 @@ void main() {
     //   code without having the flutter: generate flag turned on.
     // 两个架构的 HAP 全部构建失败。
     Map<String, String> flutterFlags(String path) {
-      final lines = File(path).readAsStringSync().replaceAll('\r\n', '\n').split('\n');
+      final lines = File(
+        path,
+      ).readAsStringSync().replaceAll('\r\n', '\n').split('\n');
       // 必须是列 0 的顶级 flutter:，否则会先匹配到 dependencies 里的
       // `  flutter:`（后跟 `sdk: flutter`）。
       final start = lines.indexWhere((line) => line == 'flutter:');
@@ -811,11 +837,16 @@ void main() {
     final main = flutterFlags('pubspec.yaml');
     final ohos = flutterFlags('pubspec_ohos.yaml');
 
-    expect(main['generate'], 'true', reason: 'pubspec.yaml 缺少 flutter: generate: true');
+    expect(
+      main['generate'],
+      'true',
+      reason: 'pubspec.yaml 缺少 flutter: generate: true',
+    );
     expect(
       ohos,
       equals(main),
-      reason: 'pubspec_ohos.yaml 会被复制成 pubspec.yaml，flutter: 段必须与主 '
+      reason:
+          'pubspec_ohos.yaml 会被复制成 pubspec.yaml，flutter: 段必须与主 '
           'pubspec 完全一致；缺失的键：'
           '${main.keys.where((key) => !ohos.containsKey(key)).toList()}',
     );
@@ -828,7 +859,9 @@ void main() {
     //
     // 反向不查：拷贝里多出来的（just_audio_ohos 这类鸿蒙独占包）是正常的。
     Set<String> depKeys(String path, String section) {
-      final lines = File(path).readAsStringSync().replaceAll('\r\n', '\n').split('\n');
+      final lines = File(
+        path,
+      ).readAsStringSync().replaceAll('\r\n', '\n').split('\n');
       final start = lines.indexWhere((line) => line == section);
       expect(start, greaterThanOrEqualTo(0), reason: '$path 缺少 $section 段');
 
@@ -852,7 +885,8 @@ void main() {
       expect(
         missing,
         isEmpty,
-        reason: 'pubspec_ohos.yaml 的 $section 缺少：$missing。'
+        reason:
+            'pubspec_ohos.yaml 的 $section 缺少：$missing。'
             '鸿蒙构建会把它覆盖成 pubspec.yaml，缺项即编译失败。',
       );
     }
@@ -1047,11 +1081,7 @@ void main() {
       reason: 'iOS 只能由用户挑目录，不能自己拼公共路径',
     );
     expect(delegate, contains('forOpeningContentTypes: [.folder]'));
-    expect(
-      delegate,
-      contains('bookmarkData'),
-      reason: '选一次就要记住，否则每首歌弹一次窗',
-    );
+    expect(delegate, contains('bookmarkData'), reason: '选一次就要记住，否则每首歌弹一次窗');
     expect(delegate, contains('documentPickerWasCancelled'));
     expect(
       delegate,

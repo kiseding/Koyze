@@ -126,8 +126,15 @@ jobs:
           plutil -lint build/ios/iphoneos/Runner.app/PrivacyInfo.xcprivacy
           rm -rf build/ios/ipa-sideload
           mkdir -p build/ios/ipa-sideload/Payload
-          ditto build/ios/iphoneos/Runner.app build/ios/ipa-sideload/Payload/Runner.app
-          rm -rf build/ios/ipa-sideload/Payload/Runner.app/PlugIns
+          app=build/ios/ipa-sideload/Payload/Runner.app
+          ditto build/ios/iphoneos/Runner.app "$app"
+          commit="$(git rev-parse HEAD)"
+          test "$commit" = "$GITHUB_SHA"
+          /usr/libexec/PlistBuddy -c "Add :KoyzeSourceCommit string $commit" "$app/Info.plist"
+          mpv="$app/Frameworks/libmpv.framework/libmpv"
+          test -f "$mpv"
+          python3 -c 'import pathlib, sys; sys.exit(0 if b"pcm-tap-frame\0" in pathlib.Path(sys.argv[1]).read_bytes() else "Packaged iOS libmpv is missing pcm-tap-frame")' "$mpv"
+          rm -rf "$app/PlugIns"
           test ! -d build/ios/ipa-sideload/Payload/Runner.app/PlugIns
           (
             cd build/ios/ipa-sideload
@@ -142,7 +149,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           # 探针包加后缀，避免和正式包在 artifact 列表里混在一起。
-          name: Koyze-Apple-ID-Sideload-IPA${{ inputs.probe && '-PROBE' || '' }}
+          name: Koyze-Apple-ID-Sideload-IPA-${{ github.sha }}${{ inputs.probe && '-PROBE' || '' }}
           path: build/ios/Koyze-Apple-ID-Sideload.ipa
           if-no-files-found: error
           retention-days: 7

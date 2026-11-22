@@ -91,6 +91,7 @@ jobs:
           push: false
           load: true
           tags: koyze-web:ci
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
             FLUTTER_STORAGE_BASE_URL=https://storage.googleapis.com
             PUB_HOSTED_URL=https://pub.dev

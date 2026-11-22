@@ -69,35 +69,10 @@ PlaybackEngineKind _defaultPlaybackEngineKind() => PlaybackEngineKind.mpv;
 /// 路径反而会在安装位置变化后失效。
 const String kOhosLibmpvName = 'libmpv.so';
 
-/// 我们这份 `libmpv.so` 依赖、但可能不在应用 linker 搜索路径里的系统库。
-///
-/// 清单是从 ELF 的 `DT_NEEDED` 里读出来的，**两种 ABI 不一样**：
-///
-/// * x86_64（模拟器）：`libc++_shared` / `libohaudio` / `libc`，只有 3 个，
-///   而且模拟器上 `dlopen` 一直成功 —— 这也是早期「libmpv 可用」的验证
-///   能通过的原因。
-/// * arm64-v8a（真机）：多出 `libnative_media_vdec/acodec/codecbase/core`、
-///   `libnative_window`、`libnative_image` 共 6 个硬解/视频输出依赖。
-///
-/// 鸿蒙把系统级 NDK 库装在 `/system/lib64/ndk/`。一旦某个依赖不在应用
-/// namespace 的搜索路径里，`dlopen("libmpv.so")` 在解析 `NEEDED` 阶段就
-/// 失败，`mpv-version` 读出 null，上层只能看到「libmpv 不可用」；而且失败
-/// 发生在 mpv 自己的事件 isolate 里，日志里连一条 `dlopen` 报错都没有。
-///
-/// 预加载是**幂等且无副作用**的兜底：同名库一旦已在进程内，后续解析
-/// `NEEDED` 会直接复用已加载的 handle，不再走文件搜索。所以即使某个库本来
-/// 就能按 soname 找到，这里重复 open 一次也不会有代价；反过来，如果真机上
-/// 正是因为缺这几个库而起不来，这一趟就能救回来。
-const List<String> kOhosNdkDependencies = [
-  'libohaudio.so',
-  // 以下 6 个只出现在 arm64 的 libmpv 里。x64 上逐个失败但没有副作用。
-  'libnative_media_vdec.so',
-  'libnative_media_acodec.so',
-  'libnative_media_codecbase.so',
-  'libnative_media_core.so',
-  'libnative_window.so',
-  'libnative_image.so',
-];
+/// 两种 ABI 都构建为纯音频：libc++_shared 随 HAP 分发，libc 由系统提供。
+/// 唯一需要兜底预加载的是可能不在应用 linker 搜索路径里的 libohaudio。
+/// 不探测视频 / OHCodec 库，避免把可选组件缺失误报为启动失败原因。
+const List<String> kOhosNdkDependencies = ['libohaudio.so'];
 
 /// 鸿蒙系统库的可能目录，按命中概率排列。
 const List<String> kOhosSystemLibDirs = [
@@ -185,7 +160,7 @@ class PlaybackEngineUnavailable implements Exception {
 /// * `.so` 没打进 HAP：读不到库文件；
 /// * `libc++_shared.so` 没跟 `libmpv.so` 放同一目录——它不在应用 linker
 ///   namespace 里，缺了它 `dlopen` 直接失败；
-/// * 依赖的 `libohaudio.so` / `libnative_media_*.so` 不在 linker 搜索路径里
+/// * 依赖的 `libohaudio.so` 不在 linker 搜索路径里
 ///   （鸿蒙把系统库装在 `/system/lib64/ndk/`）。这条最隐蔽，见
 ///   [kOhosNdkDependencies]。
 ///
@@ -215,9 +190,7 @@ Future<PlaybackEngine> createMpvPlaybackEngine({String? libmpv}) async {
   _trace('locale done, ensureInitialized');
   var preload = (loaded: 0, failed: <String>[]);
   if (isOhosPlatform) {
-    // 必须在 mpv 之前：libmpv 的 DT_NEEDED 里有 libohaudio 与 libnative_media_*，
-    // 系统把它们放在 /system/lib64/ndk/，不在应用 linker namespace 的搜索
-    // 路径里。详见 [kOhosNdkDependencies]。
+    // 先预加载 libohaudio，处理系统库目录不在应用 linker 搜索路径里的设备。
     preload = preloadOhosNdkLibraries();
   }
   if (!_mpvInitialized) {
@@ -261,19 +234,24 @@ Future<PlaybackEngine> createMpvPlaybackEngine({String? libmpv}) async {
     );
   }
   AppLog.instance.record('audio.mpv', 'libmpv 就绪：${probe.version}');
-  var supportsPcmTap = true;
-  if (isOhosPlatform) {
-    try {
-      final properties = await player
-          .getRawPropertyNode('property-list')
-          .timeout(const Duration(seconds: 2));
-      supportsPcmTap =
-          properties is List && properties.contains('pcm-tap-frame');
-    } catch (_) {
-      supportsPcmTap = false;
-    }
-    _trace('pcm-tap-frame supported=$supportsPcmTap');
+  // Determine support from the loaded library on every native platform.
+  var supportsPcmTap = false;
+  try {
+    final properties = await player
+        .getRawPropertyNode('property-list')
+        .timeout(const Duration(seconds: 2));
+    supportsPcmTap = properties is List && properties.contains('pcm-tap-frame');
+  } catch (error) {
+    AppLog.instance.record(
+      'audio.mpv',
+      'PCM tap capability probe failed: $error',
+    );
   }
+  AppLog.instance.record(
+    'audio.mpv',
+    'pcm-tap-frame supported=$supportsPcmTap',
+  );
+  _trace('pcm-tap-frame supported=$supportsPcmTap');
   _trace('engine ready');
   return MpvEngine(player, supportsPcmTap: supportsPcmTap);
 }
