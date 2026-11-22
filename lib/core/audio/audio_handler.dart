@@ -1727,6 +1727,15 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  void _logCompletionRejected(String reason) {
+    debugPrint('[AudioHandler] completion rejected: $reason');
+    AppLog.instance.record(
+      'audio.autonext',
+      'completion rejected: $reason',
+      level: AppLogLevel.warning,
+    );
+  }
+
   void _onTrackCompleted() {
     if (_disposed) return;
     if (_automaticFailureSkippingHalted) return;
@@ -1736,13 +1745,34 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _resolveTimedOutOccurrenceId = null;
     _timeoutRetriedOccurrences.clear();
     // 自动连播视为用户仍要听：拖进度 pause 不 clearIntent 时仍可连播
-    if (!_userWantsPlay) return;
-    if (interruptionActive) return;
-    if (_queue.isEmpty) return;
-    if (!_commands.installedSourceIsAuthoritative) return;
-    if (_installedPlaybackGeneration != _playGeneration) return;
+    if (!_userWantsPlay) {
+      _logCompletionRejected('userWantsPlay=false');
+      return;
+    }
+    if (interruptionActive) {
+      _logCompletionRejected('interruptionActive');
+      return;
+    }
+    if (_queue.isEmpty) {
+      _logCompletionRejected('queueEmpty');
+      return;
+    }
+    if (!_commands.installedSourceIsAuthoritative) {
+      _logCompletionRejected('sourceNotAuthoritative');
+      return;
+    }
+    if (_installedPlaybackGeneration != _playGeneration) {
+      _logCompletionRejected(
+        'generationMismatch installed=$_installedPlaybackGeneration '
+            'play=$_playGeneration',
+      );
+      return;
+    }
     final gen = _installedPlaybackGeneration;
-    if (_lastHandledCompletionGeneration == gen) return;
+    if (_lastHandledCompletionGeneration == gen) {
+      _logCompletionRejected('alreadyHandled generation=$gen');
+      return;
+    }
     final expectedId = _activeItemId;
     final expectedIndex = _currentIndex;
     final expectedOccurrence = _activeOccurrenceId;
@@ -1754,6 +1784,19 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         _queue[expectedIndex].id != expectedId ||
         mediaItem.value?.id != expectedId ||
         _installedMediaId != expectedId) {
+      // 这条排查链是「播完不切下一首」的唯一入口。条件多达九项，指着代码
+      // 推理很容易判错哪一项没通过——真机上僵在这里时，日志里连一行都没有，
+      // 于是只能靠猜。这里一次把每一项的实际取值打出来，逐个对照即可。
+      AppLog.instance.record(
+        'audio.autonext',
+        'completion precheck rejected '
+            'id=$expectedId idx=$expectedIndex occurrence=$expectedOccurrence '
+            'queueLength=${_queue.length} '
+            'occurrenceAtIdx=${expectedIndex >= 0 && expectedIndex < _queue.length ? _occurrenceIdAt(expectedIndex) : null} '
+            'queueIdAtIdx=${expectedIndex >= 0 && expectedIndex < _queue.length ? _queue[expectedIndex].id : null} '
+            'mediaItemId=${mediaItem.value?.id} installedMediaId=$_installedMediaId',
+        level: AppLogLevel.warning,
+      );
       return;
     }
     final expectedIntentGeneration = _userIntentGeneration;
@@ -1831,6 +1874,22 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           mediaItem.value?.id != expectedId ||
           _userIntentGeneration != expectedIntentGeneration ||
           !_userWantsPlay) {
+        // 第二轮复核。走到这里说明完成事件已经被受理，但 `await
+        // _ensureLazyQueueAhead` 期间状态变了。同样是「不切歌」的一种
+        // 死法，而且比第一轮更隐蔽——用户已经在等下一首了。
+        _logCompletionRejected(
+          'post-refill recheck failed '
+              'stale=${_isStale(generation)} '
+              'authoritative=${_commands.installedSourceIsAuthoritative} '
+              'installedGen=$_installedPlaybackGeneration expectGen=$generation '
+              'installedMediaId=$_installedMediaId expectId=$expectedId '
+              'activeItemId=$_activeItemId '
+              'activeOccurrence=$_activeOccurrenceId expectOccurrence=$expectedOccurrence '
+              'currentIndex=$_currentIndex expectIndex=$expectedIndex '
+              'queueLength=${_queue.length} '
+              'intentGen=$_userIntentGeneration expectIntentGen=$expectedIntentGeneration '
+              'userWantsPlay=$_userWantsPlay',
+        );
         return;
       }
       final shuffle =
@@ -1853,6 +1912,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             );
       if (target < 0) {
         if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all) {
+          _logCompletionRejected(
+            'shuffle produced no target index=$_currentIndex '
+                'queueLength=${_queue.length}',
+          );
           _scheduleCompletionRecovery(
             generation: generation,
             occurrenceId: expectedOccurrence,
@@ -1860,6 +1923,24 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           );
           return;
         }
+        // 「播完就不动了」最常来自这里：队列到底且 repeat=off。
+        // 注意 `_completionRepeatMode` 会把「整表顺序播放」改写成 all，
+        // 所以顺序播放整张歌单时不该走到这个分支——真走到了，说明
+        // 队列在播放期间被裁掉了。
+        debugPrint(
+          '[AudioHandler] completion stopped: no next target '
+          'idx=$_currentIndex queueLength=${_queue.length} '
+          'repeatMode=${playbackState.value.repeatMode} '
+          'shuffle=${playbackState.value.shuffleMode}',
+        );
+        AppLog.instance.record(
+          'audio.autonext',
+          'no next target idx=$_currentIndex '
+              'queueLength=${_queue.length} '
+              'repeatMode=${playbackState.value.repeatMode} '
+              'shuffle=${playbackState.value.shuffleMode}',
+          level: AppLogLevel.warning,
+        );
         _userWantsPlay = false;
         await _commands.setDesiredPlayingPreservingIntent(false);
         if (!_isStale(generation) &&

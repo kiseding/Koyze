@@ -40,11 +40,18 @@ class PlayerSpectrumStrip extends ConsumerStatefulWidget {
   /// 条带高度。竖屏取 44；横屏信息列更紧，由外部传更小的值。
   final double height;
 
-  /// 左右内缩，用来和进度条轨道对齐。
+  /// 左右内缩。
   ///
-  /// 进度条不是通栏的：它左右各有「当前时间 / 总时长」两个标签，轨道夹在
-  /// 中间。频谱条若铺满整行，会比轨道宽出一截，看起来像压到了时间上。
-  /// 所以由调用方按同一套间距算好传进来。
+  /// 对齐目标是**进度条上方那一行的时间标签**（当前时间 / 总时长），
+  /// 不是进度条轨道本身。两个理由：
+  ///
+  /// 1. 语义上，频谱和时间标签都在回答「这一首歌的进度」这件事，同一列
+  ///    元素应该共享同一条左右基准线；对着一根细细的轨道边对齐，反而
+  ///    让频谱显得比它上面那行字更宽。
+  /// 2. 视觉上，轨道两端是圆头，左侧还有一个小圆点；把频谱对到圆点或
+  ///    圆头的外沿，右边就会多出一截空白，看起来像没对齐。
+  ///
+  /// 调用方传入与时间标签一致的水平内缩即可。
   final double horizontalInset;
 
   /// 强制指定主色。为空时取主题强调色。
@@ -250,8 +257,16 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   /// 逐帧补间。
   ///
   /// 30Hz 的数据配 120Hz 的屏幕，直接画最新值会让柱子在两次数据之间冻住；
-  /// 这里用与帧率无关的指数逼近把台阶抹平。上升比下降快（0.34 / 0.11），
-  /// 打击感的瞬态不糊，同时衰减留拖影。
+  /// 这里用与帧率无关的指数逼近把台阶抹平。
+  ///
+  /// 上升要快、下降要慢，但**都不能慢到吃掉频段差异**。之前的
+  /// 0.34 / 0.11 是叠在 mpv 内部平滑之上的第二层平滑，两层一叠，各频段
+  /// 之间的差距在到达屏幕前就被抹平了——用户看到的就是「所有柱子都
+  /// 差不多高」，听不出音调变化。
+  ///
+  /// 现在 mpv 侧的 `attackSmoothing` / `releaseSmoothing` 已经降到很轻
+  /// （见 `kSpectrumSettings`），补间的阻尼就可以调小：上升 0.62 让瞬态
+  /// 基本跟得上，下降 0.22 仍留一点拖影，但不至于把相邻频段糊成一片。
   void _tick(Duration elapsed) {
     if (_display.isEmpty) {
       _stopTicker();
@@ -272,7 +287,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
       final target = i < _target.length ? _target[i] : 0.0;
       final current = display[i];
       final rise = target > current;
-      final rate = rise ? 0.34 : 0.11;
+      final rate = rise ? 0.62 : 0.22;
       final factor = 1 - math.pow(1 - rate, dt * 60).toDouble();
       final next = current + (target - current) * factor;
       if ((next - current).abs() > 0.0006) {

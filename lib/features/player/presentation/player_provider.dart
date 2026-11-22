@@ -892,12 +892,22 @@ class ScrubCoordinator {
     final startBlockGeneration = _playback.playbackStartBlockGeneration;
     _position.freeze();
 
-    final shouldPause =
-        _playback.playing ||
-        previousTransactions.any(
+    final pauseHeldByPrevious = previousTransactions
+        .where(
           (transaction) =>
               transaction.pauseRequested && transaction.owns(_playback),
-        );
+        )
+        .toList(growable: false);
+    final shouldPause = _playback.playing || pauseHeldByPrevious.isNotEmpty;
+    // 恢复意图要在暂停**之前**取：一旦 `pauseForScrub` 生效，`playing`
+    // 就变 false 了，那时再问只会得到「本来就没在播」。
+    //
+    // 暂停已经被前一个事务接管时（正播着拖动，中途又开了一次手势），
+    // 此刻 `playing` 同样是 false，但「本来在播」这个事实只留在前一个
+    // 事务里——要继承它的意图，否则连续拖动会把播放状态吃掉。
+    final resumeOnRelease =
+        _playback.playing ||
+        pauseHeldByPrevious.any((transaction) => transaction.resumeOnRelease);
     final pauseFuture = shouldPause
         ? _playback
               .pauseForScrub(
@@ -917,12 +927,16 @@ class ScrubCoordinator {
       startBlockGeneration: startBlockGeneration,
       pauseFuture: pauseFuture,
       pauseRequested: shouldPause,
+      resumeOnRelease: resumeOnRelease,
     );
     for (final transaction in previousTransactions) {
       unawaited(
+        // 按该事务开始时记录的意图释放，而不是一律恢复播放：连续拖动时
+        // 旧事务本来就该「回到它来之前的样子」——它来时在暂停，就该留在
+        // 暂停。
         _releaseTransaction(
           transaction,
-          resumeAfter: true,
+          resumeAfter: transaction.resumeOnRelease,
         ).catchError((Object _, StackTrace __) {}),
       );
     }
@@ -946,7 +960,11 @@ class ScrubCoordinator {
     final transaction = _transactions[generation];
     if (transaction == null) return;
     if (generation != _generation) {
-      await _releaseTransaction(transaction, resumeAfter: true);
+      // 已被后来者取代：按它自己的意图收尾，不要替它决定「恢复播放」。
+      await _releaseTransaction(
+        transaction,
+        resumeAfter: transaction.resumeOnRelease,
+      );
       return;
     }
     Duration? confirmed;
@@ -971,8 +989,19 @@ class ScrubCoordinator {
       }
       await _releaseTransaction(
         transaction,
+        // seek 失败时不假装播完就没播过：`confirmed == null` 说明引擎没
+        // 确认落点，这时恢复播放会让界面显示的位置与实际声音对不上。
+        //
+        // `resumeAfter` 是调用方的否决权，`transaction.resumeOnRelease` 是
+        // 「开始时本来在播」这个事实，两者都成立才恢复：
+        // - 入参由调用方在抬手那一刻读取，和 `begin()` 之间隔着一次异步
+        //   暂停，期间 `playing` 已经变成 false，单看它永远是「不要恢复」；
+        // - 反过来只听事务里的记录，调用方显式要求「留在暂停」就会被无视。
         resumeAfter:
-            confirmed != null && resumeAfter && transaction.owns(_playback),
+            resumeAfter &&
+            confirmed != null &&
+            transaction.resumeOnRelease &&
+            transaction.owns(_playback),
       ).timeout(pauseBudget, onTimeout: () {});
     }
   }
@@ -988,7 +1017,8 @@ class ScrubCoordinator {
     }
     await _releaseTransaction(
       transaction,
-      resumeAfter: true,
+      // 手势被打断 = 什么都没发生，回到它来之前的状态。
+      resumeAfter: transaction.resumeOnRelease,
     ).timeout(pauseBudget, onTimeout: () {});
   }
 
@@ -1002,7 +1032,10 @@ class ScrubCoordinator {
     }
     await Future.wait(
       transactions.map(
-        (transaction) => _releaseTransaction(transaction, resumeAfter: true),
+        (transaction) => _releaseTransaction(
+          transaction,
+          resumeAfter: transaction.resumeOnRelease,
+        ),
       ),
     ).timeout(pauseBudget, onTimeout: () => const <void>[]);
   }
@@ -1038,7 +1071,22 @@ class _ScrubTransaction {
   final int interruptionGeneration;
   final int startBlockGeneration;
   final Future<PreservingPauseOwner?> pauseFuture;
+
+  /// 本次事务是否真的向引擎发起了暂停。
+  ///
+  /// 注意它不等于「事务开始时在播放」：拖动手势连续触发 [ScrubCoordinator.begin]
+  /// 时，后一个事务会因为前一个还没释放而同样返回 true（它要接管那次暂停）。
+  /// 判断「该不该恢复播放」必须看 [resumeOnRelease]。
   final bool pauseRequested;
+
+  /// 释放这个事务时是否应恢复播放。
+  ///
+  /// 在 [ScrubCoordinator.begin] 里按**那一刻**引擎是否在播固定下来，
+  /// 之后不再改。原来的实现把释放处的 `resumeAfter` 硬编码成 true，
+  /// 于是「暂停状态下拖动进度条」会被强行开始播放——用户只想看看拖到
+  /// 哪里，松手却响了起来。
+  final bool resumeOnRelease;
+
   Future<void>? releaseFuture;
 
   _ScrubTransaction({
@@ -1049,6 +1097,7 @@ class _ScrubTransaction {
     required this.startBlockGeneration,
     required this.pauseFuture,
     required this.pauseRequested,
+    required this.resumeOnRelease,
   });
 
   bool owns(ScrubPlayback playback) =>

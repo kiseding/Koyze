@@ -175,13 +175,11 @@ Future<void> _bootstrapUnsafe(
         final session = await AudioSession.instance;
         await session.configure(musicAudioSessionConfiguration());
         AppLog.instance.record('audio.session', 'audio session configured');
-        // 默认 null，走 handler 自带的 just_audio 路径（含均衡器音效注入）。
-        // 设成 mpv 时引擎由工厂创建，handler 不再构造 AudioPlayer。
-        // 工厂自检 libmpv，失败返回 null —— 那就继续走 just_audio，宁可
-        // 没有 mpv 也不能没有声音。
-        final engine = hostPlaybackEngineKind() == PlaybackEngineKind.mpv
-            ? await createMpvPlaybackEngine()
-            : null;
+        // 引擎只有 mpv 一条路：均衡器 / 交叉馈送 / 限幅 / 实时频谱全挂在
+        // mpv 的滤镜链与 FFT 管线上，退回 just_audio 等于让它们集体失效，
+        // 用户看到的只是「均衡器不可用」。libmpv 起不来就直接抛，由
+        // `_bootstrap` 落到启动失败页并给出具体原因；不再静默降级。
+        final engine = await createMpvPlaybackEngine();
         // 引擎选型只记一行：鸿蒙上出问题时要第一眼看出走的是 mpv 还是
         // just_audio，而 AppLog 只在诊断面板打开时收集，这里额外进 hilog。
         ohosLog('KoyzeMpv', 'playback engine = ${engine.runtimeType}');

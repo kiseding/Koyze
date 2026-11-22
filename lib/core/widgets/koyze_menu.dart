@@ -5,9 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../motion/motion_tokens.dart';
-import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
-import '../theme/glass_config.dart';
 
 /// Koyze 的锚点菜单按钮。
 ///
@@ -265,10 +263,31 @@ class _KoyzeMenuRoute<T> extends PopupRoute<T> {
                       ),
                       child: ClipPath(
                         clipper: clipper,
-                        // 只用透明度：菜单底色本身就是不低的浓度（0.64/0.82），
-                        // 去掉背景采样后依旧读得清，也省掉每次弹出一次离屏模糊。
-                        child: DecoratedBox(
-                          decoration: _menuDecoration(context, color),
+                        // 真采样背后的内容做模糊，而不是只盖一层半透明底色。
+                        //
+                        // 以前的实现「只用透明度」，理由是省一次离屏模糊；
+                        // 代价是菜单在彩色封面或图片上展开时，底下的内容
+                        // 一条条透出来，和 App 里其它玻璃面（顶栏、弹窗、
+                        // 底栏）完全不是一个材质——用户一眼就能看出这个
+                        // 菜单「没虚化」。
+                        //
+                        // `blurBehind: true` 是刻意打开的：菜单浮在播放器
+                        // 封面、歌单列表之上，背后必然有内容经过，属于
+                        // [GlassSurface.blurBehind] 的适用场景。
+                        child: GlassSurface(
+                          style: AppGlassStyle.sheet,
+                          blurBehind: true,
+                          blur: AppGlass.blurSheet,
+                          color: color,
+                          borderRadius: BorderRadius.circular(22),
+                          // 边线与投影由外层 CustomPaint 统一按形变路径
+                          // 绘制，这里不再叠一份，否则动画过程中会出现
+                          // 两条错位的轮廓线。
+                          border: const Border.fromBorderSide(
+                            BorderSide.none,
+                          ),
+                          boxShadow: const <BoxShadow>[],
+                          clipContent: false,
                           child: Material(
                             type: MaterialType.transparency,
                             child: Stack(
@@ -376,28 +395,6 @@ class _KoyzeMenuRoute<T> extends PopupRoute<T> {
 
 /// 菜单项文字的基准样式：渲染和测宽共用同一份，避免两边算出来不一样宽。
 const _menuLabelStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.w500);
-
-BoxDecoration _menuDecoration(BuildContext context, Color? color) {
-  final base = color ?? AppColors.card(context);
-  final highlight = Color.lerp(
-    base,
-    Colors.white,
-    AppColors.isDark(context) ? 0.12 : 0.24,
-  )!;
-  // 和顶栏、卡片共用同一档「界面不透明度」：滑杆上的数字就是最终 alpha。
-  // 菜单是独立路由，打开时按当时的档位画一次就够，不需要跟着滑杆逐帧变。
-  final alpha = GlassEffectConfig.surfaceAlpha;
-  return BoxDecoration(
-    gradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        highlight.withValues(alpha: alpha),
-        base.withValues(alpha: alpha),
-      ],
-    ),
-  );
-}
 
 class _KoyzeMenuTile<T> extends StatelessWidget {
   const _KoyzeMenuTile({
@@ -509,13 +506,26 @@ class _KoyzeMenuGeometry {
       safe.left,
       math.max(safe.left, safe.right - size.width),
     );
-    final y =
-        (anchor.top + size.height <= safe.bottom
-                ? anchor.top
-                : anchor.bottom - size.height)
-            .clamp(safe.top, math.max(safe.top, safe.bottom - size.height));
+    // 优先在触发按钮**下方**展开，这是用户对「三点菜单」的默认预期：菜单
+    // 从按钮下面掉出来，按钮本身仍然完整可见。
+    //
+    // 原来的实现两个分支都是「与按钮重叠」——`anchor.top`（盖住按钮）或
+    // `anchor.bottom - size.height`（从按钮底部往上，同样盖住）。观感上
+    // 菜单像是从按钮身上长出来的，而不是挂在按钮下面。
+    //
+    // 下方放不下时才翻到上方，并且同样留出 [gap] 的缝隙，避免菜单边框
+    // 与按钮的点击热区糊在一起。
+    final below = anchor.bottom + gap;
+    final above = anchor.top - gap - size.height;
+    final y = (below + size.height <= safe.bottom
+            ? below
+            : (above >= safe.top ? above : below))
+        .clamp(safe.top, math.max(safe.top, safe.bottom - size.height));
     return Offset(x.toDouble(), y.toDouble());
   }
+
+  /// 菜单与触发按钮之间的留白。
+  static const double gap = 6;
 
   RRect shape(Size size, double progress) {
     final origin = anchor.shift(-position(size));

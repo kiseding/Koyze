@@ -85,6 +85,48 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('菜单在三点按钮下方展开，不盖住按钮', (tester) async {
+    _setViewport(tester);
+    await tester.pumpWidget(_host(onSelected: (_) {}));
+    final trigger = tester.getRect(find.byKey(const ValueKey('menu-trigger')));
+    await _openMenu(tester);
+
+    final surface = tester.getRect(
+      find.byKey(const ValueKey('koyze-menu-morph-surface')),
+    );
+    // 用户对三点菜单的默认预期是「从按钮下面掉出来」，按钮本身仍完整可见。
+    // 旧实现两个分支都与按钮重叠（anchor.top 或 anchor.bottom - height），
+    // 观感上菜单是从按钮身上长出来的。
+    expect(
+      surface.top,
+      greaterThanOrEqualTo(trigger.bottom + 5),
+      reason: '菜单顶边应在按钮底边下方留出缝隙，实际 surface=$surface '
+          'trigger=$trigger',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('菜单采样背后内容做模糊，而不是只盖一层半透明底色', (
+    tester,
+  ) async {
+    _setViewport(tester);
+    await tester.pumpWidget(_host(onSelected: (_) {}));
+    await _openMenu(tester);
+
+    // 用户能在彩色封面/图片上看出「这个菜单没虚化」：底下的内容一条条透出来，
+    // 和 App 里其它玻璃面（顶栏、弹窗、底栏）完全不是一个材质。
+    // BackdropFilter 的存在就是「真的做了背景模糊」的可判定证据。
+    final blur = find.descendant(
+      of: find.byKey(const ValueKey('koyze-menu-morph-surface')),
+      matching: find.byType(BackdropFilter),
+    );
+    expect(
+      blur,
+      findsAtLeastNWidgets(1),
+      reason: '菜单必须走 GlassSurface 的背景采样，不能只靠 alpha',
+    );
+  });
+
   testWidgets('anchored menu returns the selected PopupMenuItem value', (
     tester,
   ) async {

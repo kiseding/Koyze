@@ -296,29 +296,33 @@ class _PlayerProgress extends ConsumerWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final width = constraints.maxWidth;
+                  // tap 与 drag 在手势竞技场里互斥：轻点只会走 onTapUp，
+                  // 拖过 slop 只会走 drag 回调。所以两条路各开各的事务，
+                  // 不会互相打断。
+                  //
+                  // 不要在这里加 `onTapDown` 去提前 begin：一旦手指划过
+                  // slop，drag 胜出会让 tap 判负并触发 `onTapCancel`，
+                  // 于是「begin → cancel → dragStart 再 begin」白跑一遍，
+                  // 前一个事务的 generation 已经作废，seek 反而更容易丢。
+                  double ratioAt(Offset local) =>
+                      (local.dx / width).clamp(0.0, 1.0);
+                  Duration targetAt(double v) =>
+                      Duration(milliseconds: (v * totalMs).round());
                   final interactiveTrack = GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onHorizontalDragStart: (d) {
-                      onDragStart((d.localPosition.dx / width).clamp(0.0, 1.0));
-                    },
-                    onHorizontalDragUpdate: (d) {
-                      onDragUpdate(
-                        (d.localPosition.dx / width).clamp(0.0, 1.0),
-                      );
-                    },
+                    onHorizontalDragStart: (d) =>
+                        onDragStart(ratioAt(d.localPosition)),
+                    onHorizontalDragUpdate: (d) =>
+                        onDragUpdate(ratioAt(d.localPosition)),
                     onHorizontalDragEnd: (_) {
-                      final target = Duration(
-                        milliseconds: (seekValue * totalMs).round(),
-                      );
-                      onSeekEnd(target);
+                      // 用 State 里最新的比例，而不是这次 build 捕获的
+                      // `seekValue`：快速拖动时后者可能落后一帧。
+                      onSeekEnd(targetAt(seekValue));
                     },
                     onHorizontalDragCancel: onSeekCancel,
                     onTapUp: (d) {
-                      final v = (d.localPosition.dx / width).clamp(0.0, 1.0);
-                      final target = Duration(
-                        milliseconds: (v * totalMs).round(),
-                      );
-                      onTapSeek(v, target);
+                      final v = ratioAt(d.localPosition);
+                      onTapSeek(v, targetAt(v));
                     },
                     child: SizedBox(
                       height: 45,
@@ -1724,12 +1728,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   child: PlayerSpectrumStrip(
                     style: ref.watch(playerSpectrumProvider).style,
                     height: compact ? 30 : 44,
-                    // 和进度条轨道左右对齐：进度条外层左右各 16，竖屏时间
-                    // 标签固定 58、与轨道间隔 8，所以 16 + 58 + 8 = 82。
-                    // 横屏时间标签改成按内容自适应（`pinTimesToEnds`），
-                    // 五行时间通常 38~42 宽，取 62 与之相称；它随位数轻微
-                    // 浮动的部分不值得让频谱跟着抖。
-                    horizontalInset: compact ? 62 : 82,
+                    // 与「时间两侧」对齐，也就是进度条整行的外缘，而不是
+                    // 中间那截轨道：进度条外层左右各 16，跟它下面的播放
+                    // 控件、上面的歌词是同一个左边界。频谱若只对齐轨道，
+                    // 左右会各缩进 66~82，看起来像被时间标签挤住了。
+                    horizontalInset: 16,
                   ),
                 ),
               _StaggeredFade(
@@ -2037,8 +2040,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     );
   }
 
+  /// 进度条的唯一入口。
+  ///
+  /// 点击与拖动走同一条路：开始一次 scrub 事务并冻结位置，移动只改 UI
+  /// 比例，抬起时提交 seek 并解冻。以前点击走 `_tapSeek`、拖动走
+  /// `_beginSeek`，两套各自调 `begin()`：快速连点会在第一个事务还挂在
+  /// `pauseForScrub` 上时又开第二个，`_generation` 一路递增，前一个
+  /// `finish` 直接返回，于是「seek 没生效」「进度条停在中间不动」
+  /// 「时间不再走」都会零星出现。
+  ///
+  /// [_seekGestureActive] 是这套模型的闸门：一次手势只允许一次 begin，
+  /// 抬起时无论有没有拖出距离都只有一次 finish。
+  bool _seekGestureActive = false;
+
   void _beginSeek(double value) {
+    if (_seekGestureActive) {
+      // 已经在一次手势里：只更新比例，不重开事务。
+      setState(() => _seekValue = value);
+      return;
+    }
     final playing = ref.read(playbackStateProvider).value?.playing ?? false;
+    _seekGestureActive = true;
     setState(() {
       _seeking = true;
       _wasPlayingBeforeSeek = playing;
@@ -2053,6 +2075,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   Future<void> _finishSeek(Duration target) async {
     final operation = _dragOperation;
+    _seekGestureActive = false;
     if (operation == null) {
       // 手势结束但没拿到操作句柄（上一次已被取消）：进度条必须回到跟随
       // 播放位置的状态，否则会永远停在被拖的地方。
@@ -2076,24 +2099,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
   }
 
+  /// 手势被打断（系统手势、父级滚动抢走、控件被移除）。
+  ///
+  /// 必须同时做三件事：取消 scrub 事务、放开手势闸门、把 `_seeking` 复位。
+  /// 少做最后一步的表现就是「进度条卡在手拖的位置，时间也不走了」。
   void _cancelSeek() {
+    _seekGestureActive = false;
+    _dragOperation = null;
     _cancelActiveScrub();
-    if (mounted) setState(() {});
+    if (mounted) {
+      if (_seeking) {
+        setState(() => _seeking = false);
+      } else {
+        setState(() {});
+      }
+    }
   }
 
+  /// 点击：开一次事务再立刻提交，语义等同于「拖到那个位置就松手」。
   Future<void> _tapSeek(double value, Duration target) async {
-    final playing = ref.read(playbackStateProvider).value?.playing ?? false;
-    setState(() {
-      _seekValue = value;
-      _seeking = true;
-      _wasPlayingBeforeSeek = playing;
-    });
-    final operation = _scrubSession.begin();
-    try {
-      await _scrubSession.finish(operation, target, resumeAfter: playing);
-    } finally {
-      if (mounted) setState(() => _seeking = false);
-    }
+    if (!_seekGestureActive) _beginSeek(value);
+    await _finishSeek(target);
   }
 
   Widget _buildControls(

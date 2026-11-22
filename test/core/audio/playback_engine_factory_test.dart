@@ -44,10 +44,6 @@ void main() {
     // （x86_64 / API 26）上装 debug HAP，日志确认 libmpv 自检返回
     // `mpv v0.41.0-dev`，随后歌曲进度从 00:52 走到 01:19、歌词同步滚动，
     // 说明 dlopen 与 ao_ohaudio 都真的在工作。
-    //
-    // 仍然没做的是 arm64 真机验证。真机上如果 libmpv.so 加载失败，
-    // createMpvPlaybackEngine 会返回 null，main.dart 自动退回 just_audio
-    // ——退路在，所以这个默认值最坏情况是「回到旧行为」，不是「没声音」。
     expect(hostPlaybackEngineKind(), PlaybackEngineKind.mpv);
   });
 
@@ -58,6 +54,20 @@ void main() {
     expect(kOhosLibmpvName.contains('/'), isFalse);
   });
 
+  test('鸿蒙要先预加载 NDK 依赖，否则 libmpv 的依赖解析会失败', () {
+    // 实测：这份 libmpv.so 的 NEEDED 里有 libohaudio.so（ao_ohaudio，
+    // 17 个 OH_AudioRenderer_* / OH_AudioStreamBuilder_* 符号），而模拟器
+    // 把它装在 /system/lib64/ndk/，不在应用 linker namespace 的搜索路径里。
+    // 不预加载就 dlopen 失败，mpv-version 读出 null。
+    final code = _codeOnly('lib/core/audio/playback_engine_factory.dart');
+    expect(code, contains('preloadOhosNdkLibraries()'));
+    // 必须在 ensureInitialized / Player 构造之前调用。
+    final preload = code.indexOf('preloadOhosNdkLibraries()');
+    final ensure = code.indexOf('MpvAudioKit.ensureInitialized');
+    expect(preload, greaterThan(0));
+    expect(preload, lessThan(ensure));
+  });
+
   test('平台判定不依赖 dart:io 的 isOhos', () {
     // 普通 Flutter SDK 的 Platform 没有 isOhos 字段，用了就编译不过；
     // 字符串比较让同一份代码在两套 SDK 下都能编译。
@@ -66,19 +76,28 @@ void main() {
     expect(code, isNot(contains('Platform.isOhos')));
   });
 
-  test('创建引擎前必须自检，失败返回 null 让调用方回退', () {
+  test('创建引擎前必须自检，失败抛异常而不是返回 null', () {
     // 同步 try/catch 抓不到 dlopen 失败 —— 它发生在事件 isolate 里，
     // 是异步抛出的。只能靠读一次 mpv-version（内部 await _gate()）确认。
     final code = _codeOnly('lib/core/audio/playback_engine_factory.dart');
-    expect(code, contains('Future<PlaybackEngine?> createMpvPlaybackEngine'));
+    // 返回类型必须是非空：已经没有「返回 null 让调用方回退」这条路径。
+    expect(code, contains('Future<PlaybackEngine> createMpvPlaybackEngine'));
+    expect(code, isNot(contains('Future<PlaybackEngine?>')));
     expect(code, contains("getRawProperty('mpv-version')"));
     expect(code, contains('await player.dispose()'));
+    // 均衡器 / 限幅 / 频谱全挂在 mpv 上，静默退回 just_audio 会让它们集体失效。
+    expect(code, contains('throw PlaybackEngineUnavailable'));
   });
 
-  test('main 在引擎不可用时继续用 just_audio', () {
+  test('main 直接 await 引擎，不再按 kind 分支', () {
     final code = _codeOnly('lib/main.dart');
     expect(code, contains('await createMpvPlaybackEngine()'));
     expect(code, contains('engine: engine'));
+    // 旧实现是「工厂返回 null 就继续走 just_audio」；那条路已经去掉了。
+    expect(code, isNot(contains('失败返回 null')));
+    // 也别留下 `hostPlaybackEngineKind() == ... ? ... : null` 这种
+    // 「引擎可能不存在」的三元分支——引擎只有一个来源。
+    expect(code, isNot(contains('hostPlaybackEngineKind() ==')));
   });
 
   test('生产代码只通过 engine 访问播放器', () {

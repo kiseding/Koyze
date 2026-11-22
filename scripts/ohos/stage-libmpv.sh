@@ -12,8 +12,13 @@
 #   scripts/ohos/stage-libmpv.sh            # 所有已提供的 ABI
 #   scripts/ohos/stage-libmpv.sh arm64-v8a  # 只拷指定 ABI
 #
-# 没有预编译库的 ABI（例如 x64 模拟器）会被跳过而不是报错：mpv 引擎创建前
-# 会自检 libmpv，不可用时自动退回 just_audio，HAP 仍然可用。
+# 没有预编译库的 ABI 会被跳过而不是报错，但**该 ABI 的包装上去是起不来的**：
+# libmpv 是鸿蒙上唯一的播放引擎，`createMpvPlaybackEngine` 在它加载失败时
+# 直接抛 `PlaybackEngineUnavailable`，应用落到启动失败页并显示具体原因。
+#
+# 这里不再有「退回 just_audio」这条路——均衡器、交叉馈送、限幅、实时频谱
+# 全部挂在 mpv 的 `af` 滤镜链和 FFT 管线上，换成 just_audio 它们会集体失效，
+# 用户看到的只是一句「均衡器不可用」。与其静默降级，不如在启动时就明确失败。
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"

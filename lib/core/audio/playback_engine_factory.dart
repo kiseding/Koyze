@@ -28,9 +28,10 @@ enum PlaybackEngineKind {
 /// `libmpv 就绪：mpv v0.41.0-dev`，随后《我不难过》从 00:52 播到 01:19、
 /// 歌词同步滚动 —— `dlopen` 与 `ao_ohaudio` 都是真实可用的。
 ///
-/// 仍然保留 just_audio 作为回退：[createMpvPlaybackEngine] 会自检 libmpv，
-/// 返回 null 时 `main.dart` 继续走 just_audio 分支。桌面/移动端没有系统
-/// libmpv 时也会自动落到这条路上，所以这个默认值不会让非鸿蒙平台没声音。
+/// **鸿蒙上没有回退**：均衡器、交叉馈送、限幅、实时频谱全部挂在 mpv 的
+/// 滤镜链 / FFT 管线上，退回 `just_audio` 等于让这一整套功能集体失效，
+/// 用户看到的就是「均衡器不可用」。宁可显式报错，也不静默降级到半个
+/// 播放器。桌面/移动端同理——它们本来就该带 libmpv。
 ///
 /// 临时只跑某一条路径时可以用编译期开关覆盖：
 ///
@@ -68,21 +69,125 @@ PlaybackEngineKind _defaultPlaybackEngineKind() => PlaybackEngineKind.mpv;
 /// 路径反而会在安装位置变化后失效。
 const String kOhosLibmpvName = 'libmpv.so';
 
+/// 我们这份 `libmpv.so` 依赖、但可能不在应用 linker 搜索路径里的系统库。
+///
+/// 清单是从 ELF 的 `DT_NEEDED` 里读出来的，**两种 ABI 不一样**：
+///
+/// * x86_64（模拟器）：`libc++_shared` / `libohaudio` / `libc`，只有 3 个，
+///   而且模拟器上 `dlopen` 一直成功 —— 这也是早期「libmpv 可用」的验证
+///   能通过的原因。
+/// * arm64-v8a（真机）：多出 `libnative_media_vdec/acodec/codecbase/core`、
+///   `libnative_window`、`libnative_image` 共 6 个硬解/视频输出依赖。
+///
+/// 鸿蒙把系统级 NDK 库装在 `/system/lib64/ndk/`。一旦某个依赖不在应用
+/// namespace 的搜索路径里，`dlopen("libmpv.so")` 在解析 `NEEDED` 阶段就
+/// 失败，`mpv-version` 读出 null，上层只能看到「libmpv 不可用」；而且失败
+/// 发生在 mpv 自己的事件 isolate 里，日志里连一条 `dlopen` 报错都没有。
+///
+/// 预加载是**幂等且无副作用**的兜底：同名库一旦已在进程内，后续解析
+/// `NEEDED` 会直接复用已加载的 handle，不再走文件搜索。所以即使某个库本来
+/// 就能按 soname 找到，这里重复 open 一次也不会有代价；反过来，如果真机上
+/// 正是因为缺这几个库而起不来，这一趟就能救回来。
+const List<String> kOhosNdkDependencies = [
+  'libohaudio.so',
+  // 以下 6 个只出现在 arm64 的 libmpv 里。x64 上逐个失败但没有副作用。
+  'libnative_media_vdec.so',
+  'libnative_media_acodec.so',
+  'libnative_media_codecbase.so',
+  'libnative_media_core.so',
+  'libnative_window.so',
+  'libnative_image.so',
+];
+
+/// 鸿蒙系统库的可能目录，按命中概率排列。
+const List<String> kOhosSystemLibDirs = [
+  '/system/lib64/ndk',
+  '/system/lib64',
+  '/system/lib/ndk',
+];
+
+/// 依次尝试的完整路径：库 × 目录。
+List<String> get kOhosPreloadCandidates => [
+  for (final dir in kOhosSystemLibDirs)
+    for (final lib in kOhosNdkDependencies) '$dir/$lib',
+];
+
+/// 把 [kOhosNdkDependencies] 里的库预加载进当前进程。
+///
+/// 返回 (成功数, 失败清单)。只在鸿蒙上调用，且必须在创建 mpv 之前。
+/// 已经加载过的库再 `open` 一次会拿到同一个 handle，代价可以忽略。
+({int loaded, List<String> failed}) preloadOhosNdkLibraries() {
+  var loaded = 0;
+  final failed = <String>[];
+  final loadedNames = <String>{};
+  for (final dir in kOhosSystemLibDirs) {
+    for (final lib in kOhosNdkDependencies) {
+      if (loadedNames.contains(lib)) continue;
+      try {
+        DynamicLibrary.open('$dir/$lib');
+        loadedNames.add(lib);
+        loaded++;
+        _trace('preloaded $lib <- $dir');
+      } catch (error) {
+        // 只在这本库的最后一个候选目录失败时记一笔，中间目录失败是正常的。
+        if (dir == kOhosSystemLibDirs.last) {
+          failed.add('$lib ($error)');
+        }
+      }
+    }
+  }
+  _trace('preload ndk: loaded=$loaded failed=${failed.join(' | ')}');
+  return (loaded: loaded, failed: failed);
+}
+
 /// 当前进程是否跑在 OpenHarmony / HarmonyOS 上。
 ///
 /// 不用 `Platform.isOhos`：普通 Flutter SDK 的 `dart:io` 没有这个字段，
 /// 字符串比较让同一份代码在两套 SDK 下都能编译。
 bool get isOhosPlatform => Platform.operatingSystem == 'ohos';
 
-/// 创建 mpv 引擎，并在返回前确认 libmpv 真的能用。
+/// libmpv 在这个进程里起不来的原因。
 ///
-/// 返回 `null` 表示 libmpv 不可用，调用方必须退回 just_audio。这不是
-/// 防御性编程的洁癖，而是设备上真实会发生的三种失败：
+/// 抛它而不是返回 null：均衡器 / 交叉馈送 / 限幅 / 实时频谱全部挂在 mpv
+/// 的滤镜链与 FFT 管线上。静默退回 `just_audio` 会让这些功能集体失效，
+/// 用户看到的是「均衡器不可用」这种无从下手的提示；启动直接失败至少
+/// 能看到一句具体原因加一个重试按钮。
+class PlaybackEngineUnavailable implements Exception {
+  const PlaybackEngineUnavailable({
+    required this.reason,
+    this.diagnostic,
+    this.cause,
+  });
+
+  /// 面向用户的短句。
+  final String reason;
+
+  /// 面向排查的细节：候选路径、`mpv-version` 读失败的原因等。
+  final String? diagnostic;
+
+  /// 原始异常（如果有）。
+  final Object? cause;
+
+  @override
+  String toString() =>
+      'PlaybackEngineUnavailable($reason${diagnostic == null ? '' : '；$diagnostic'})';
+}
+
+/// 创建 mpv 引擎并确认 libmpv 真的能用。
 ///
-/// * `.so` 没打进 HAP（ABI 目录名写错、打包时被 strip 掉）；
+/// 只有一条路径：拿不到可用的 libmpv 就抛 [PlaybackEngineUnavailable]，
+/// 由 `main.dart` 落到启动失败页。没有「返回 null 让调用方回退」这回事
+/// ——均衡器 / 交叉馈送 / 限幅 / 实时频谱全挂在 mpv 上，退回 `just_audio`
+/// 等于让它们集体失效，用户只会看到「均衡器不可用」这种无从下手的提示。
+///
+/// 设备上真实会发生的三种失败：
+///
+/// * `.so` 没打进 HAP：读不到库文件；
 /// * `libc++_shared.so` 没跟 `libmpv.so` 放同一目录——它不在应用 linker
 ///   namespace 里，缺了它 `dlopen` 直接失败；
-/// * `LC_NUMERIC` 没设成 `C`，`mpv_create()` 走 abort 分支。
+/// * 依赖的 `libohaudio.so` / `libnative_media_*.so` 不在 linker 搜索路径里
+///   （鸿蒙把系统库装在 `/system/lib64/ndk/`）。这条最隐蔽，见
+///   [kOhosNdkDependencies]。
 ///
 /// 三种现象都是「点了播放没声音」，日志里却长得完全不一样，所以这里主动
 /// 读一次 `mpv-version` 把结论钉进日志。
@@ -94,11 +199,11 @@ bool get isOhosPlatform => Platform.operatingSystem == 'ohos';
 void _trace(String message) {
   // 鸿蒙上 print/debugPrint 写 stdout，没有接收方，平台侧诊断必须走 hilog
   // 才能被 `hdc shell hilog | grep KoyzeMpv` 看到。libmpv 加载失败时
-  // 应用会静默退回 just_audio，这条链路没有日志就只能靠猜。
+  // 这条链路没有日志就只能靠猜。
   ohosLog('KoyzeMpv', message);
 }
 
-Future<PlaybackEngine?> createMpvPlaybackEngine({String? libmpv}) async {
+Future<PlaybackEngine> createMpvPlaybackEngine({String? libmpv}) async {
   final library = libmpv ?? _defaultLibmpv();
   _trace('enter library=$library');
   if (isOhosPlatform) {
@@ -108,6 +213,13 @@ Future<PlaybackEngine?> createMpvPlaybackEngine({String? libmpv}) async {
     applyCNumericLocale();
   }
   _trace('locale done, ensureInitialized');
+  var preload = (loaded: 0, failed: <String>[]);
+  if (isOhosPlatform) {
+    // 必须在 mpv 之前：libmpv 的 DT_NEEDED 里有 libohaudio 与 libnative_media_*，
+    // 系统把它们放在 /system/lib64/ndk/，不在应用 linker namespace 的搜索
+    // 路径里。详见 [kOhosNdkDependencies]。
+    preload = preloadOhosNdkLibraries();
+  }
   if (!_mpvInitialized) {
     mpv.MpvAudioKit.ensureInitialized(libmpv: library);
     _mpvInitialized = true;
@@ -126,9 +238,9 @@ Future<PlaybackEngine?> createMpvPlaybackEngine({String? libmpv}) async {
     ),
   );
 
-  final version = await _probeLibmpv(player);
-  _trace('probe returned version=$version');
-  if (version == null) {
+  final probe = await _probeLibmpv(player);
+  _trace('probe returned version=${probe.version} error=${probe.error}');
+  if (probe.version == null) {
     // bring-up 失败时 core 可能只起了一半，销毁要吞异常——真正有价值的
     // 信息是上面那条日志，别让清理阶段的报错把它盖掉。
     try {
@@ -137,15 +249,27 @@ Future<PlaybackEngine?> createMpvPlaybackEngine({String? libmpv}) async {
     } catch (error) {
       _trace('dispose failed/blocked: $error');
     }
-    return null;
+    throw PlaybackEngineUnavailable(
+      reason: '音频引擎（libmpv）加载失败',
+      diagnostic: [
+        'library=$library',
+        if (isOhosPlatform) 'ndk 预加载 ${preload.loaded} 个',
+        if (preload.failed.isNotEmpty) '未加载：${preload.failed.join(', ')}',
+        if (probe.error != null) 'probe: ${probe.error}',
+      ].join('；'),
+      cause: probe.error,
+    );
   }
-  AppLog.instance.record('audio.mpv', 'libmpv 就绪：$version');
+  AppLog.instance.record('audio.mpv', 'libmpv 就绪：${probe.version}');
   _trace('engine ready');
   return MpvEngine(player);
 }
 
-/// 读一次 `mpv-version` 确认库真的起来了，返回版本串；失败返回 null。
-Future<String?> _probeLibmpv(mpv.Player player) async {
+/// `mpv-version` 的读取结果。失败时 [version] 为 null 并带上 [error]。
+typedef _LibmpvProbe = ({String? version, Object? error});
+
+/// 读一次 `mpv-version` 确认库真的起来了。
+Future<_LibmpvProbe> _probeLibmpv(mpv.Player player) async {
   try {
     final version = await player
         .getRawProperty('mpv-version')
@@ -153,15 +277,15 @@ Future<String?> _probeLibmpv(mpv.Player player) async {
     if (version == null || version.isEmpty) {
       throw StateError('mpv-version 返回空值');
     }
-    return version;
+    return (version: version, error: null);
   } catch (error, stackTrace) {
     AppLog.instance.record(
       'audio.mpv',
-      'libmpv 自检失败，退回 just_audio：$error',
+      'libmpv 自检失败：$error',
       level: AppLogLevel.error,
       stackTrace: stackTrace,
     );
-    return null;
+    return (version: null, error: error);
   }
 }
 

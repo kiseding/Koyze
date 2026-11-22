@@ -366,7 +366,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                 busy: _selectionBusy,
                 onPressed: () => _removeSelectedFavorites(playlist),
               ),
-            ] else if (!_isEditing && playlist.songCount > 0)
+            ] else if (!_isEditing && !isFavorites && playlist.songCount > 0)
+              // 收藏页不再放右上角播放键：「播放全部」在三点菜单里已经有一项，
+              // 两个入口做同一件事只会让这一行挤成图标走廊。普通歌单页保留，
+              // 因为那里的常用操作不该埋在二级菜单里。
               FxIconButton(
                 tooltip: S.of(context).playAll,
                 onPressed: () => _playSong(playerService, playlist, 0),

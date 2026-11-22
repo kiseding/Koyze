@@ -16,6 +16,45 @@ AudioSpectrumSource buildAudioSpectrumSource(PlaybackEngine? engine) {
   return const NoopAudioSpectrumSource();
 }
 
+/// 播放页频谱条该用的 FFT 参数。
+///
+/// 默认参数（`SpectrumSettings()`）是给网页分析器那种大画面用的，直接
+/// 套到播放页会造成一个很具体的问题：**所有柱子高度差不多**，看不出
+/// 低音、中音、高音的区别。原因有三条，逐条对应下面的覆盖值：
+///
+/// 1. **70 dB 的动态窗口太宽**。默认 `minDb = -100` / `maxDb = -30`，
+///    而流行/摇滚母带的能量基本落在 -45~-8 dB。把 70 dB 线性压进
+///    0.0-1.0 之后，绝大多数频段都挤在 0.4-0.7 这同一段里，相邻柱子的
+///    差距不到一格像素——看起来就是「一样高」。收到 45 dB
+///    （-60 → -15）之后，同样的内容能铺满整条，层次才出得来。
+/// 2. **内部平滑过强**。`attackSmoothing = 0.5` / `releaseSmoothing = 0.1`
+///    是给「没有外部补间」的消费者准备的；播放页的 `PlayerSpectrumStrip`
+///    自己还要按帧做一次指数逼近，两层平滑叠在一起，瞬态（鼓点、拨弦）
+///    的差异被抹平。这里把内部平滑降到很轻，把「怎么动」的决策权交给
+///    UI 层一处。
+/// 3. **64 段在窄条上过密**。条宽约 300dp 时每柱只有 4-5px，相邻频段
+///    挤在一起，视觉上分不出边界。32 段给每柱约 9dp，既保留了对数分频
+///    的音高语义，又能让每根柱子被眼睛单独看见——「看得出音调不同」
+///    首先得「看得出这是不同的柱子」。
+///
+/// `fftSize` 保持 2048：约 23 Hz 的频率分辨率足以分开底鼓与 sub-bass，
+/// 而 2048 点在 48 kHz 下只跨 42.7ms，仍在 A/V 同步的可接受范围内。
+/// `overlapFactor` 保持 4（75% 重叠），跨帧连续性靠它，不靠平滑。
+const mpv.SpectrumSettings kSpectrumSettings = mpv.SpectrumSettings(
+  fftSize: 2048,
+  bandCount: 32,
+  bandLowHz: 30,
+  bandHighHz: 16000,
+  emitInterval: Duration(milliseconds: 33),
+  // 内部只做极轻的防抖，避免单个异常帧造成闪烁；真正的攻击/衰减曲线
+  // 在 `PlayerSpectrumStrip` 里按帧率无关的方式统一处理。
+  attackSmoothing: 0.85,
+  releaseSmoothing: 0.35,
+  minDb: -60,
+  maxDb: -15,
+  overlapFactor: 4,
+);
+
 /// 从 mpv 的 `stream.fft` 取实时频谱。
 ///
 /// 数据在音频输出端采集，**位于效果链之后**——用户听到什么，频谱就是什么。
@@ -73,17 +112,12 @@ class MpvAudioSpectrumSource implements AudioSpectrumSource {
     return controller.stream;
   }
 
-  /// 把管线配置成适合播放页的一条窄条。
-  ///
-  /// 64 段是 mpv 的默认值，正好够一条几百像素宽的条用；`fftSize` 保持
-  /// 2048（30 Hz 分辨率下能分离开底鼓与 sub-bass，延迟仍在 A/V 同步阈值
-  /// 内）。`emitInterval` 沿用 33ms ≈ 30fps，和 Flutter 的帧预算对齐。
   void _configure() {
     if (_configured) return;
     _configured = true;
     // 失败不抛：老版本 libmpv 可能没有频谱属性，那时保持默认即可。
     unawaited(
-      _player.setSpectrum(const mpv.SpectrumSettings()).catchError((_) {}),
+      _player.setSpectrum(kSpectrumSettings).catchError((_) {}),
     );
   }
 

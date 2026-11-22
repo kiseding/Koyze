@@ -15,6 +15,103 @@ void main() {
   });
   tearDownAll(AudioHandlerPlatformDefaults.resetCurrent);
 
+  test('暂停状态下拖动进度条不会强行恢复播放', () async {
+    // 真实故障：本来就暂停着，用户拖了拖进度条想看看拖到哪，一松手歌就
+    // 响起来。根因是释放处的 resumeAfter 被硬编码成 true，不管这个事务
+    // 开始时引擎到底在不在播。
+    final playback = _FakeScrubPlayback(
+      playing: false,
+      position: const Duration(seconds: 11),
+      seekResult: const Duration(seconds: 36),
+    );
+    final position = _FakeScrubPosition();
+    final coordinator = ScrubCoordinator(playback, position);
+
+    final generation = await coordinator.begin();
+    await coordinator.finish(
+      generation,
+      const Duration(seconds: 36),
+      // 调用方如实转达「本来在暂停」。
+      resumeAfter: false,
+    );
+
+    expect(playback.pauseCalls, 0, reason: '本来就没在播，不该白暂停一次');
+    expect(playback.resumeCalls, 0, reason: '暂停时拖动不该开始播放');
+    expect(playback.playing, isFalse);
+    expect(position.unfreezes, [const Duration(seconds: 36)]);
+  });
+
+  test('调用方否决恢复时，即使在播也留在暂停', () async {
+    final playback = _FakeScrubPlayback(
+      playing: true,
+      position: const Duration(seconds: 11),
+      seekResult: const Duration(seconds: 36),
+    );
+    final position = _FakeScrubPosition();
+    final coordinator = ScrubCoordinator(playback, position);
+
+    final generation = await coordinator.begin();
+    await coordinator.finish(
+      generation,
+      const Duration(seconds: 36),
+      resumeAfter: false,
+    );
+
+    expect(playback.pauseCalls, 1);
+    expect(playback.resumeCalls, 0, reason: '调用方的否决权必须生效');
+    expect(playback.playing, isFalse);
+  });
+
+  test('连续拖动时继承「本来在播」，中途新事务不会吃掉播放状态', () async {
+    // 正播着拖动，中途又开了一次 begin（第二个手指、或系统把手势重发）。
+    // 此刻 playing 已经是 false（被第一次 pause 打掉了），新事务若只看
+    // 自己那次快照，就会认定「本来没在播」，松手后歌再也不会响。
+    final playback = _FakeScrubPlayback(
+      playing: true,
+      position: const Duration(seconds: 11),
+      seekResult: const Duration(seconds: 36),
+    );
+    final position = _FakeScrubPosition();
+    final coordinator = ScrubCoordinator(playback, position);
+
+    final firstGeneration = await coordinator.begin();
+    expect(playback.playing, isFalse, reason: '第一次 begin 已经暂停');
+    final secondGeneration = await coordinator.begin();
+    await coordinator.finish(
+      firstGeneration,
+      const Duration(seconds: 30),
+      resumeAfter: true,
+    );
+    await coordinator.finish(
+      secondGeneration,
+      const Duration(seconds: 36),
+      resumeAfter: true,
+    );
+
+    expect(playback.resumeCalls, greaterThanOrEqualTo(1));
+    expect(playback.playing, isTrue, reason: '本来是播着的，拖完应该继续播');
+  });
+
+  test('取消手势回到它来之前的状态：暂停的仍暂停，播放的仍播放', () async {
+    for (final wasPlaying in [false, true]) {
+      final playback = _FakeScrubPlayback(
+        playing: wasPlaying,
+        position: const Duration(seconds: 11),
+        seekResult: const Duration(seconds: 36),
+      );
+      final coordinator = ScrubCoordinator(playback, _FakeScrubPosition());
+
+      final generation = await coordinator.begin();
+      await coordinator.cancel(generation);
+
+      expect(
+        playback.playing,
+        wasPlaying,
+        reason: wasPlaying ? '取消后应恢复播放' : '取消后应保持暂停',
+      );
+    }
+  });
+
   test('loading seek unfreezes to current engine position without resuming',
       () async {
     final playback = _FakeScrubPlayback(

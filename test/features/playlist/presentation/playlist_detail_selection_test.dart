@@ -125,7 +125,16 @@ void main() {
     // 取消全选后没有选中项，多选工具条自动收起。
     expect(find.byIcon(Icons.select_all), findsNothing);
     expect(find.byIcon(Icons.deselect), findsNothing);
-    expect(find.byTooltip('播放全部'), findsOneWidget, reason: '回到普通模式的工具栏');
+    expect(
+      find.byIcon(Icons.more_vert_rounded),
+      findsOneWidget,
+      reason: '回到普通模式的工具栏（收藏页只留三点菜单）',
+    );
+    expect(
+      find.byTooltip('播放全部'),
+      findsNothing,
+      reason: '收藏页不放右上角播放键，「播放全部」只在三点菜单里',
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -229,7 +238,10 @@ void main() {
     // 注意不能用「实心心形」判断——收藏列表里每首歌的收藏按钮本来就是
     // 实心的，全页有十几颗。
     expect(find.byTooltip('取消收藏已选歌曲'), findsNothing);
-    expect(find.byTooltip('播放全部'), findsOneWidget);
+    // 收藏页右上角只有三点菜单：播放键已移除，「播放全部」从菜单进。
+    expect(find.byTooltip('播放全部'), findsNothing);
+    expect(find.byIcon(Icons.play_circle_fill), findsNothing);
+    expect(find.byIcon(Icons.more_vert_rounded), findsOneWidget);
   });
 }
 
