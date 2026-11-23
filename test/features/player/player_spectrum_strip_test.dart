@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:koyze/core/audio/audio_handler.dart';
 import 'package:koyze/core/audio/audio_spectrum.dart';
 import 'package:koyze/features/player/domain/player_spectrum_settings.dart';
 import 'package:koyze/features/player/presentation/widgets/player_spectrum_painter.dart';
 import 'package:koyze/features/player/presentation/widgets/player_spectrum_strip.dart';
+import 'package:rxdart/rxdart.dart';
 
 /// 频谱条的挂载、订阅、卸载与减弱动效。
 ///
@@ -36,6 +39,19 @@ class _FakeSpectrumSource implements AudioSpectrumSource {
     disposeCount++;
     await _controller.close();
   }
+}
+
+class _FakePlaybackHandler implements LxAudioHandler {
+  @override
+  final mediaItem = BehaviorSubject<MediaItem?>.seeded(null);
+  @override
+  int? activePlaybackOccurrenceId = 1;
+
+  @override
+  bool hasInstalledPositionSource = true;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -105,6 +121,57 @@ void main() {
     await tester.pump(const Duration(milliseconds: 16));
     expect(hasSpectrum(tester), isTrue);
     expect(tester.getSize(find.byType(PlayerSpectrumStrip)).height, 44);
+  });
+
+  testWidgets('切歌立即清空频谱，装源前丢弃残留帧', (tester) async {
+    final source = _FakeSpectrumSource();
+    final handler = _FakePlaybackHandler();
+    const song = MediaItem(id: 'same-song', title: 'Same song');
+    handler.mediaItem.add(song);
+    await tester.pumpWidget(
+      wrap(
+        PlayerSpectrumStrip(sourceOverride: source, handlerOverride: handler),
+      ),
+    );
+
+    SpectrumPainter spectrum() => tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .map((paint) => paint.painter)
+        .whereType<SpectrumPainter>()
+        .single;
+
+    source.emit(const [0.9, 0.8]);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(spectrum().peak, [0.9, 0.8]);
+
+    handler.mediaItem.add(song.copyWith(title: 'Updated metadata'));
+    await tester.pump();
+    expect(spectrum().display, [0.9, 0.8]);
+
+    // 队列里连续出现同一首歌时，曲目 ID 一样，队列条目已经切换。
+    handler.activePlaybackOccurrenceId = 2;
+    handler.hasInstalledPositionSource = false;
+    handler.mediaItem.add(song);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(spectrum().display, isEmpty);
+    expect(spectrum().peak, isEmpty);
+
+    source.emit(const [0.9, 0.8]);
+    await tester.pump();
+    expect(spectrum().display, isEmpty);
+
+    handler.hasInstalledPositionSource = true;
+    source.emit(const [0.2, 0.3]);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(spectrum().display, [0.2, 0.3]);
+    expect(spectrum().peak, [0.2, 0.3]);
+
+    await tester.pumpWidget(wrap(const SizedBox.shrink()));
+    expect(handler.mediaItem.hasListener, isFalse);
+    await handler.mediaItem.close();
   });
 
   testWidgets('后续帧是补间上来的，不会硬跳', (tester) async {

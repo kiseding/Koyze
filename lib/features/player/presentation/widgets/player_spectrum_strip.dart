@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,7 @@ class PlayerSpectrumStrip extends ConsumerStatefulWidget {
     this.horizontalInset = 0,
     this.accentOverride,
     this.sourceOverride,
+    this.handlerOverride,
   });
 
   /// 绘制样式。
@@ -63,16 +65,22 @@ class PlayerSpectrumStrip extends ConsumerStatefulWidget {
   /// 条的补间、峰值衰减、ticker 停机这些逻辑只能靠肉眼在真机上验。
   final AudioSpectrumSource? sourceOverride;
 
+  /// 注入播放状态，便于用合成频谱验证切歌交接。
+  final LxAudioHandler? handlerOverride;
+
   @override
   ConsumerState<PlayerSpectrumStrip> createState() =>
       _PlayerSpectrumStripState();
 }
 
 class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   /// 数据源。引擎重建后 handler 会换一个新的 source，所以不跨帧缓存。
   AudioSpectrumSource? _source;
   StreamSubscription<SpectrumFrame>? _subscription;
+  StreamSubscription<MediaItem?>? _itemSubscription;
+  LxAudioHandler? _handler;
+  (int?, String?)? _track;
 
   /// 目标值（mpv 最新一帧）与显示值（逐帧补间后的值）。
   List<double> _target = const [];
@@ -122,24 +130,18 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   @override
   void didUpdateWidget(covariant PlayerSpectrumStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.sourceOverride, widget.sourceOverride)) {
-      // 换了注入源就重订：测试里会中途换源验证取消是否干净。
-      unawaited(_subscription?.cancel());
-      _subscription = null;
-      _source = null;
+    if (!identical(oldWidget.sourceOverride, widget.sourceOverride) ||
+        !identical(oldWidget.handlerOverride, widget.handlerOverride)) {
       _attach();
     }
   }
 
   void _attach() {
-    AudioSpectrumSource? source;
-    final override = widget.sourceOverride;
-    if (override != null) {
-      source = override;
-    } else {
+    var handler = widget.handlerOverride;
+    if (handler == null && widget.sourceOverride == null) {
       try {
-        final handler = audioHandler;
-        if (handler is LxAudioHandler) source = handler.spectrum;
+        final globalHandler = audioHandler;
+        if (globalHandler is LxAudioHandler) handler = globalHandler;
       } catch (_) {
         // 启动引导还没完成，`audioHandler` 是未初始化的 late 变量。依赖变化
         // 不一定会再来（主题、MediaQuery 都没变的话），所以自己安排有限次
@@ -149,14 +151,25 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
       }
     }
 
-    if (identical(source, _source) && source?.available == true) return;
+    final handlerChanged = !identical(handler, _handler);
+    if (handlerChanged) {
+      unawaited(_itemSubscription?.cancel());
+      _handler = handler;
+      _track = _trackOf(handler);
+      _itemSubscription = handler?.mediaItem.listen((_) => _syncTrack());
+    }
+
+    final source = widget.sourceOverride ?? handler?.spectrum;
+    if (!handlerChanged &&
+        identical(source, _source) &&
+        source?.available == true) {
+      return;
+    }
     unawaited(_subscription?.cancel());
     _subscription = null;
     _firstFrameTimer?.cancel();
-    _lastFrameAt = null;
-    _stopTicker();
-    _target = _display = _peak = const [];
-    _revision++;
+    _firstFrameTimer = null;
+    _clearSpectrum();
     _source = source;
     if (source == null || !source.available) {
       _markSupported(false);
@@ -184,6 +197,26 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _attach();
     });
+  }
+
+  (int?, String?)? _trackOf(LxAudioHandler? handler) => handler == null
+      ? null
+      : (handler.activePlaybackOccurrenceId, handler.mediaItem.value?.id);
+
+  void _syncTrack() {
+    if (!mounted) return;
+    final track = _trackOf(_handler);
+    if (_track == track) return;
+    _track = track;
+    setState(_clearSpectrum);
+    if (_source?.available == true) _armFirstFrameProbe();
+  }
+
+  void _clearSpectrum() {
+    _lastFrameAt = null;
+    _stopTicker();
+    _target = _display = _peak = const [];
+    _revision++;
   }
 
   /// 等待首个有效帧，已经显示过频谱的暂停状态不受影响。
@@ -214,8 +247,12 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   }
 
   void _onFrame(SpectrumFrame frame) {
+    if (!mounted) return;
+    _syncTrack();
+    // 解析及装源期间，FFT 仍可能来自上一首或临时静音源。
+    if (_handler?.hasInstalledPositionSource == false) return;
     final bands = frame.bands;
-    if (!mounted || bands.isEmpty) return;
+    if (bands.isEmpty) return;
     _lastFrameAt = DateTime.now();
     _firstFrameTimer?.cancel();
     _firstFrameTimer = null;
@@ -317,6 +354,8 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     _firstFrameTimer = null;
     unawaited(_subscription?.cancel());
     _subscription = null;
+    unawaited(_itemSubscription?.cancel());
+    _itemSubscription = null;
     super.dispose();
   }
 
