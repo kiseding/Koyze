@@ -1494,37 +1494,30 @@ class CustomSourceEngine {
       return null;
     }
 
-    // 关键修复：JS 端 evaluate 后的 (async function(){})() 立即返回，
-    // 但 await handlers[i](params) 内部创建的 Promise 不会自动 resolve。
-    // 立刻 flush microtask，让同步分支（无 HTTP 请求的 handler）能直接
-    // 发出 lx_response，避免不必要的 15 秒等待。
-    // 对于 Android QuickJS，一次 flush 不够（Promise 链需要多次事件循环），
-    // 使用轮询方式每 500ms flush 一次，直到 completer 完成或超时。
+    // QuickJS 需要主动推进 Promise 队列。首次 flush 也可能直接完成请求，
+    // 因此退出轮询后仍要取出已完成的结果（包括 null 或脚本错误）。
     _flushMicrotasks();
 
-    final deadline = DateTime.now().add(const Duration(seconds: 15));
-    debugPrint(
-      '[LX] _callRequestEvent polling reqId=$reqId pending=${_pendingRequests.length} handlers set',
-    );
-    while (!completer.isCompleted && DateTime.now().isBefore(deadline)) {
-      _flushMicrotasks(maxIterations: 4);
-      try {
+    const requestTimeout = Duration(seconds: 15);
+    const pollInterval = Duration(milliseconds: 500);
+    final pollExpired = Object();
+    final elapsed = Stopwatch()..start();
+    try {
+      while (!completer.isCompleted) {
+        final remaining = requestTimeout - elapsed.elapsed;
+        if (remaining <= Duration.zero) break;
+        _flushMicrotasks(maxIterations: 4);
         final result = await completer.future.timeout(
-          const Duration(milliseconds: 500),
+          remaining < pollInterval ? remaining : pollInterval,
+          onTimeout: () => pollExpired,
         );
-        return result;
-      } on TimeoutException {
-        // 继续轮询
-      } catch (e) {
-        _pendingRequests.remove(reqId);
-        if (e is TimeoutException) {
-          final errMsg = '请求超时(15s): ${params['action']}';
-          _eventController.add({'type': 'error', 'message': errMsg});
-        } else {
-          _eventController.add({'type': 'error', 'message': '请求失败: $e'});
-        }
-        return null;
+        if (!identical(result, pollExpired)) return result;
       }
+      if (completer.isCompleted) return await completer.future;
+    } catch (e) {
+      _pendingRequests.remove(reqId);
+      _eventController.add({'type': 'error', 'message': '请求失败: $e'});
+      return null;
     }
 
     // 超时

@@ -89,12 +89,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   /// `shouldRepaint` 只能靠这个数字判断——详见 [SpectrumPainter.revision]。
   int _revision = 0;
 
-  /// 订阅成功后的「一直没有帧」探测。
-  ///
-  /// 频谱条最难受的失败是「静态」：形状画出来了但永远不动。它可能是补间
-  /// 没触发重绘（本仓库踩过），也可能是 mpv 根本不发 fft 帧（libmpv 太老、
-  /// 没有 `pcm-tap-frame` 属性）。后者在 UI 上无法区分，只能打一行日志，
-  /// 让排查的人一眼看出是哪一类。
+  /// 在数据源迟迟没有提供首帧时隐藏空频谱。
   Timer? _firstFrameTimer;
 
   /// 引擎是否支持。启动早期 `audioHandler` 是未初始化的 late 变量，
@@ -154,14 +149,19 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
       }
     }
 
+    if (identical(source, _source) && source?.available == true) return;
+    unawaited(_subscription?.cancel());
+    _subscription = null;
+    _firstFrameTimer?.cancel();
+    _lastFrameAt = null;
+    _stopTicker();
+    _target = _display = _peak = const [];
+    _revision++;
+    _source = source;
     if (source == null || !source.available) {
       _markSupported(false);
       return;
     }
-    if (identical(source, _source)) return;
-
-    unawaited(_subscription?.cancel());
-    _source = source;
     _attachAttempts = 0;
     _markSupported(true);
     _subscription = source.frames.listen(
@@ -186,17 +186,14 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     });
   }
 
-  /// 订阅建立后 3 秒仍一帧未收到，打一行日志。
-  ///
-  /// 只在「从未收到过帧」时触发，所以正常暂停（之前收到过）不会误报。
+  /// 等待首个有效帧，已经显示过频谱的暂停状态不受影响。
   void _armFirstFrameProbe() {
     _firstFrameTimer?.cancel();
     _firstFrameTimer = Timer(const Duration(seconds: 3), () {
       if (!mounted || _lastFrameAt != null) return;
-      debugPrint(
-        '[spectrum] 已订阅但 3 秒内没有 fft 帧：'
-        '检查 libmpv 是否提供 pcm-tap-frame（需 v0.41+），以及此时是否在播放',
-      );
+      // A native backend can advertise the tap before it supplies samples.
+      // Hide the empty strip while keeping the subscription able to recover.
+      _markSupported(false);
     });
   }
 
@@ -217,12 +214,12 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   }
 
   void _onFrame(SpectrumFrame frame) {
-    if (!mounted) return;
+    final bands = frame.bands;
+    if (!mounted || bands.isEmpty) return;
     _lastFrameAt = DateTime.now();
     _firstFrameTimer?.cancel();
     _firstFrameTimer = null;
-    final bands = frame.bands;
-    if (bands.isEmpty) return;
+    _markSupported(true);
 
     if (_target.length != bands.length) {
       // 柱数变化（例如以后调小 bandCount）时整体重置，避免下标错位。

@@ -556,6 +556,10 @@ class PlaybackCommandCoordinator {
         }
         return;
       }
+      debugPrint(
+        '[AudioHandler] play requested token=$playableSourceToken '
+        'command=$playToken',
+      );
       final lifecycle = _player.play();
       unawaited(
         lifecycle.then(

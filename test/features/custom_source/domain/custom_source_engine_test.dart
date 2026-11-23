@@ -129,6 +129,22 @@ void main() {
     expect(flushBlock, contains('_runtime!.executePendingJob'));
   });
 
+  test('LX consumes an already completed response before reporting timeout', () {
+    final bridge = File(
+      'lib/features/custom_source/domain/custom_source_engine.dart',
+    ).readAsStringSync();
+    final polling = bridge.indexOf('while (!completer.isCompleted)');
+    final consume = bridge.indexOf(
+      'if (completer.isCompleted) return await completer.future;',
+      polling,
+    );
+    final timeout = bridge.indexOf('_callRequestEvent TIMEOUT', polling);
+
+    expect(polling, isNonNegative);
+    expect(consume, greaterThan(polling));
+    expect(timeout, greaterThan(consume));
+  });
+
   test('LX randomBytes uses the secure Dart bridge and returns Uint8Array', () {
     final bridge = File(
       'lib/features/custom_source/domain/custom_source_engine.dart',

@@ -3540,6 +3540,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (index < 0 || index >= _queue.length) return;
 
       final startProvenance = provenance ?? _captureStartProvenance();
+      final loadStopwatch = Stopwatch()..start();
       final occurrenceId = _occurrenceIdAt(index);
       final item = _queue[index];
       final itemId = item.id;
@@ -3848,11 +3849,20 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             ? <String, String>{
                 ...mediaRequestHeaders(
                   url,
-                  updatedItem.extras?['platform']?.toString() ?? '',
+                  (updatedItem.extras?['resolvedPlatform'] ??
+                          updatedItem.extras?['platform'])
+                      ?.toString() ??
+                      '',
                 ),
                 if (resolutionHeaders != null) ...resolutionHeaders,
               }
             : null;
+        final installStopwatch = Stopwatch()..start();
+        debugPrint(
+          '[AudioHandler] source install requested occurrence=$occurrenceId '
+          'token=$commandToken cached=${stagedLease != null} '
+          'elapsed=${loadStopwatch.elapsedMilliseconds}ms',
+        );
         final commitResult = await _commands.commitSource(
           commandToken,
           _engineSourceFor(
@@ -3893,6 +3903,11 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         _installedSourceOwnerToken = commandToken;
         _installedPlaybackGeneration = gen;
         _installedMediaId = itemId;
+        debugPrint(
+          '[AudioHandler] source installed occurrence=$occurrenceId '
+          'token=$commandToken install=${installStopwatch.elapsedMilliseconds}ms '
+          'elapsed=${loadStopwatch.elapsedMilliseconds}ms',
+        );
         _publishKnownDurationIfChanged();
         if (_nativeTransitionSourceToken == commandToken) {
           _nativeTransitionSourceToken = null;
@@ -3915,7 +3930,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         );
         if (!_isStale(gen)) _schedulePreload();
       } catch (e, stackTrace) {
-        debugPrint('[AudioHandler] 播放失败: $e');
+        debugPrint(
+          '[AudioHandler] source load failed occurrence=$occurrenceId '
+          'token=$commandToken installAttempted=$sourceInstallAttempted '
+          'elapsed=${loadStopwatch.elapsedMilliseconds}ms '
+          'errorType=${e.runtimeType}',
+        );
         await _discardStagedLease(occurrenceId, stagedLease);
         if (_disposed) Error.throwWithStackTrace(e, stackTrace);
         var transactionIndex = activeItemIndex();
@@ -3927,10 +3947,14 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               _badCacheRetriedOccurrenceIds.add(occurrenceId)) {
             final discardCacheKey = _discardCacheKey!;
             final badKey =
+                _cacheKeyFromLeasePath(stagedLease.path) ??
                 _leases.foregroundCacheKey ??
-                item.extras?['cacheKey']?.toString() ??
-                _cacheKeyFromLeasePath(stagedLease.path);
+                _queue[transactionIndex].extras?['cacheKey']?.toString();
             if (badKey != null && badKey.isNotEmpty) {
+              debugPrint(
+                '[AudioHandler] retrying cached source occurrence=$occurrenceId '
+                'token=$commandToken cacheKey=$badKey',
+              );
               try {
                 await discardCacheKey(badKey);
               } catch (discardError) {
@@ -3940,6 +3964,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
                   level: AppLogLevel.error,
                 );
               }
+              transactionIndex = activeItemIndex();
+              if (transactionIndex < 0) return;
               final clearedExtras = Map<String, dynamic>.from(
                 _queue[transactionIndex].extras ?? {},
               );

@@ -1540,7 +1540,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Widget _buildSourceQualityBar(MusicItem music) {
     final media = ref.watch(currentMediaItemProvider).value;
     final extras = media?.extras ?? music.toJson();
-    final platform = (extras['platform'] ?? music.platform).toString();
+    final platform =
+        (extras['resolvedPlatform'] ?? extras['platform'] ?? music.platform)
+            .toString();
     final isLocal =
         extras['local'] == true ||
         extras['source']?.toString() == 'local' ||

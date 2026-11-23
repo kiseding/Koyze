@@ -91,6 +91,22 @@ void main() {
     expect(tester.getSize(find.byType(PlayerSpectrumStrip)).height, 44);
   });
 
+  testWidgets('首帧超时后隐藏，收到有效帧后恢复', (tester) async {
+    final source = _FakeSpectrumSource();
+    await tester.pumpWidget(wrap(PlayerSpectrumStrip(sourceOverride: source)));
+    source.emit(const []);
+    await tester.pump(const Duration(seconds: 3));
+
+    expect(tester.getSize(find.byType(PlayerSpectrumStrip)).height, 0);
+    expect(source.hasListener, isTrue);
+
+    source.emit(const [0.4, 0.6]);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(hasSpectrum(tester), isTrue);
+    expect(tester.getSize(find.byType(PlayerSpectrumStrip)).height, 44);
+  });
+
   testWidgets('后续帧是补间上来的，不会硬跳', (tester) async {
     final source = _FakeSpectrumSource();
     await tester.pumpWidget(wrap(PlayerSpectrumStrip(sourceOverride: source)));

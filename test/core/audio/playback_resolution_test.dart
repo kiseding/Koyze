@@ -257,6 +257,8 @@ void main() {
         ]);
         expect(result, isA<CachedPlayback>());
         expect(result!.playableUrl, 'file:///tmp/wy-320k.mp3');
+        expect(result.qualityExtras['resolvedPlatform'], 'wy');
+        expect(result.qualityExtras, isNot(contains('platform')));
       },
     );
 
