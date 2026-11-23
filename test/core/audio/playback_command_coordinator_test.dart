@@ -747,6 +747,32 @@ void main() {
     },
   );
 
+  test('a deferred first play survives stale native playing state', () async {
+    final player = _SerializedAudioPlayer();
+    final coordinator = _coordinator(player);
+    addTearDown(player.dispose);
+    await _install(coordinator);
+    await coordinator.recordExplicitPlayIntent();
+
+    final next = coordinator.requestSource(
+      occurrenceId: 2,
+      position: Duration.zero,
+    );
+    final owner = await coordinator.pausePreservingIntentImmediately();
+    player.keepPlayingStateOnPause = true;
+    player._playing = true;
+    player.calls.clear();
+    await coordinator.commitSource(
+      next,
+      AudioSource.uri(Uri.parse('file:///tmp/B.mp3')),
+    );
+    expect(player.calls, isNot(contains('play')));
+
+    await coordinator.releasePreservingIntent(owner);
+    expect(player.calls, containsAllInOrder(['source', 'speed', 'play']));
+    expect(player.calls.where((call) => call == 'play'), hasLength(1));
+  });
+
   test('becoming noisy pauses without reinstalling the source', () async {
     final player = _LifecycleAudioPlayer();
     final coordinator = _coordinator(player);
@@ -963,6 +989,7 @@ class _SerializedAudioPlayer extends AudioPlayer {
   final _mutationGates = <_Gate>[];
   final _playGates = <_Gate>[];
   Object? stopError;
+  bool keepPlayingStateOnPause = false;
 
   _Gate gateNextMutation() {
     final gate = _Gate();
@@ -1017,7 +1044,7 @@ class _SerializedAudioPlayer extends AudioPlayer {
   @override
   Future<void> pause() => _mutate('pause', () {
     pauseCalls++;
-    _playing = false;
+    if (!keepPlayingStateOnPause) _playing = false;
   });
 
   @override

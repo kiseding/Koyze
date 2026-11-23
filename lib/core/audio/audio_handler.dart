@@ -35,6 +35,9 @@ late AudioHandler audioHandler;
 typedef UrlResolver =
     Future<String?> Function(String mediaId, [Map<String, dynamic>? extras]);
 
+typedef BeginAutoNextBackgroundTask =
+    Future<Future<void> Function()?> Function();
+
 typedef LazyQueueLoader = Future<List<MediaItem>> Function(int minimumItems);
 typedef LazyQueueShuffleRebuilder =
     Future<List<MediaItem>> Function(
@@ -383,6 +386,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       const AudioEnhancementSettings();
 
   final PrepareForPlayback? _prepareForPlayback;
+  /// Optional platform task that keeps natural track handoff runnable.
+  final BeginAutoNextBackgroundTask? beginAutoNextBackgroundTask;
   final Duration _outputRouteRecoveryTimeout;
   final Duration _resolveTimeout;
   final AudioInterruptionPolicy _interruptionPolicy = AudioInterruptionPolicy();
@@ -803,6 +808,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     AudioPlayer Function()? playerFactory,
     PlaybackEngine? engine,
     PrepareForPlayback? prepareForPlayback,
+    this.beginAutoNextBackgroundTask,
     Duration outputRouteRecoveryTimeout = const Duration(milliseconds: 1200),
     Duration resolveTimeout = _defaultResolveTimeout,
     bool? useSilenceKeepalive,
@@ -1060,6 +1066,17 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// 当前播放引擎。所有播放操作都应该走它。
   PlaybackEngine get engine => _player;
+
+  int? get activePlaybackOccurrenceId => _activeOccurrenceId;
+
+  /// A selected queue entry may be displayed while the engine still holds
+  /// the previous source or the temporary audio used during a transition.
+  bool get hasInstalledPositionSource =>
+      _activeOccurrenceId != null &&
+      _installedPlaybackGeneration == _playGeneration &&
+      _installedMediaId == _activeItemId &&
+      _commands.desiredSourceOccurrenceId == _activeOccurrenceId &&
+      _commands.installedSourceToken == _installedSourceOwnerToken;
 
   /// 底层 `just_audio` 播放器，仅在 `just_audio` 引擎下有值。
   ///
@@ -1782,10 +1799,10 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_installedPlaybackGeneration != _playGeneration) {
       _logCompletionRejected(
         'generationMismatch installed=$_installedPlaybackGeneration '
-            'play=$_playGeneration owner=$_installedSourceOwnerToken '
-            'nativeToken=${_commands.installedSourceToken} '
-            'desiredOccurrence=${_commands.desiredSourceOccurrenceId} '
-            'activeOccurrence=$_activeOccurrenceId',
+        'play=$_playGeneration owner=$_installedSourceOwnerToken '
+        'nativeToken=${_commands.installedSourceToken} '
+        'desiredOccurrence=${_commands.desiredSourceOccurrenceId} '
+        'activeOccurrence=$_activeOccurrenceId',
       );
       return;
     }
@@ -1869,8 +1886,29 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     required PlaybackStartProvenance provenance,
     required bool mayContinue,
   }) async {
+    Future<void> Function()? endBackgroundTask;
     try {
-      if (mayContinue) {
+      if (mayContinue &&
+          _userWantsPlay &&
+          !interruptionActive &&
+          !_isStale(generation) &&
+          _userIntentGeneration == expectedIntentGeneration) {
+        // MPV may release the native output at EOF. Keep enough execution
+        // time to resolve and install the next source after iOS backgrounds us.
+        final beginBackgroundTask = beginAutoNextBackgroundTask;
+        if (beginBackgroundTask != null) {
+          try {
+            endBackgroundTask = await beginBackgroundTask();
+          } catch (error) {
+            _logAutoNext('background task start failed: ${error.runtimeType}');
+          }
+        }
+        if (_isStale(generation) ||
+            _userIntentGeneration != expectedIntentGeneration ||
+            !_userWantsPlay ||
+            interruptionActive) {
+          return;
+        }
         try {
           await _prepareForPlayback?.call();
         } catch (error, stackTrace) {
@@ -1897,22 +1935,23 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           _queue[_currentIndex].id != expectedId ||
           mediaItem.value?.id != expectedId ||
           _userIntentGeneration != expectedIntentGeneration ||
-          !_userWantsPlay) {
+          !_userWantsPlay ||
+          interruptionActive) {
         // 第二轮复核。走到这里说明完成事件已经被受理，但 `await
         // _ensureLazyQueueAhead` 期间状态变了。同样是「不切歌」的一种
         // 死法，而且比第一轮更隐蔽——用户已经在等下一首了。
         _logCompletionRejected(
           'post-refill recheck failed '
-              'stale=${_isStale(generation)} '
-              'authoritative=${_commands.installedSourceIsAuthoritative} '
-              'installedGen=$_installedPlaybackGeneration expectGen=$generation '
-              'installedMediaId=$_installedMediaId expectId=$expectedId '
-              'activeItemId=$_activeItemId '
-              'activeOccurrence=$_activeOccurrenceId expectOccurrence=$expectedOccurrence '
-              'currentIndex=$_currentIndex expectIndex=$expectedIndex '
-              'queueLength=${_queue.length} '
-              'intentGen=$_userIntentGeneration expectIntentGen=$expectedIntentGeneration '
-              'userWantsPlay=$_userWantsPlay',
+          'stale=${_isStale(generation)} '
+          'authoritative=${_commands.installedSourceIsAuthoritative} '
+          'installedGen=$_installedPlaybackGeneration expectGen=$generation '
+          'installedMediaId=$_installedMediaId expectId=$expectedId '
+          'activeItemId=$_activeItemId '
+          'activeOccurrence=$_activeOccurrenceId expectOccurrence=$expectedOccurrence '
+          'currentIndex=$_currentIndex expectIndex=$expectedIndex '
+          'queueLength=${_queue.length} '
+          'intentGen=$_userIntentGeneration expectIntentGen=$expectedIntentGeneration '
+          'userWantsPlay=$_userWantsPlay',
         );
         return;
       }
@@ -1938,7 +1977,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all) {
           _logCompletionRejected(
             'shuffle produced no target index=$_currentIndex '
-                'queueLength=${_queue.length}',
+            'queueLength=${_queue.length}',
           );
           _scheduleCompletionRecovery(
             generation: generation,
@@ -1996,6 +2035,12 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         occurrenceId: expectedOccurrence,
         itemId: expectedId,
       );
+    } finally {
+      try {
+        await endBackgroundTask?.call();
+      } catch (error) {
+        _logAutoNext('background task end failed: ${error.runtimeType}');
+      }
     }
   }
 
@@ -2123,7 +2168,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // still surface while the new URL is resolving.
     final pausing = _pauseLockIntentGeneration == _userIntentGeneration;
     final playing =
-        !pausing && (playingOverride ?? (keepingNativeSession || _player.playing));
+        !pausing &&
+        (playingOverride ?? (keepingNativeSession || _player.playing));
     // just_audio reports idle while swapping sources. audio_service treats a
     // non-idle → idle transition as stopService, which clears
     // MPNowPlayingInfoCenter and the Dynamic Island. Never leak engine idle
@@ -2322,7 +2368,9 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_disposed) return null;
     final intent = clearIntent ? _declarePauseIntent() : null;
     try {
-      final owner = clearIntent ? null : await _commands.pausePreservingIntent();
+      final owner = clearIntent
+          ? null
+          : await _commands.pausePreservingIntent();
       if (_disposed) return null;
       if (clearIntent) unawaited(_commands.recordExplicitPauseIntent());
       if (_disposed) return null;
@@ -2948,8 +2996,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     // 手动切歌先静音，理由同 [_skipToNextInternal]；同样先纯本地确认有上一首，
     // 避免队首按「上一首」变成暂停。
-    final canSkipWithoutRefill =
-        _computeSkipTarget(forward: false) >= 0;
+    final canSkipWithoutRefill = _computeSkipTarget(forward: false) >= 0;
     final halt = canSkipWithoutRefill ? await _haltCurrentPlayback() : null;
     if (_disposed) {
       if (halt != null) await _commands.releasePreservingIntent(halt.owner);
@@ -3850,8 +3897,8 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
                 ...mediaRequestHeaders(
                   url,
                   (updatedItem.extras?['resolvedPlatform'] ??
-                          updatedItem.extras?['platform'])
-                      ?.toString() ??
+                              updatedItem.extras?['platform'])
+                          ?.toString() ??
                       '',
                 ),
                 if (resolutionHeaders != null) ...resolutionHeaders,
@@ -3865,11 +3912,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         );
         final commitResult = await _commands.commitSource(
           commandToken,
-          _engineSourceFor(
-            url,
-            tag: updatedItem,
-            headers: requestHeaders,
-          ),
+          _engineSourceFor(url, tag: updatedItem, headers: requestHeaders),
         );
         sourceTransitionFollows = true;
         if (commitResult is SourceCommitStale) {

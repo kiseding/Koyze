@@ -1570,11 +1570,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ? _localFallbackQualityFromUrl(urlForQuality)
                     : correctQualityFromUrl(urlForQuality, requested)
               : null);
+    final resolving = !isLocal &&
+        ref.watch(
+          playbackStateProvider.select((state) {
+            final processing = state.value?.processingState;
+            return processing == AudioProcessingState.loading ||
+                processing == AudioProcessingState.buffering;
+          }),
+        );
     final qualityText = actual != null
         ? S.of(context).qualityText(actual)
-        : (isLocal
-              ? S.of(context).unknownQuality
-              : S.of(context).resolvingQuality);
+        : (resolving
+              ? S.of(context).resolvingQuality
+              : S.of(context).unknownQuality);
     // 纯透明底，整体下移 10px；点击收起全屏播放器
     return Padding(
       padding: const EdgeInsets.only(top: 14, bottom: 4),

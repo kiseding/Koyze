@@ -61,6 +61,63 @@ void main() {
     );
   });
 
+  test(
+    'auto-next holds the background task until playback is handed off',
+    () async {
+      await handler.dispose();
+      final events = <String>[];
+      handler = LxAudioHandler(
+        player: player = _CompletionAudioPlayer(),
+        beginAutoNextBackgroundTask: () async {
+          events.add('begin');
+          return () async {
+            events.add('end:${handler.mediaItem.value?.id}:${player.playing}');
+          };
+        },
+        prepareForPlayback: () async => events.add('prepare'),
+      );
+      await handler.setPlaylist([item('A'), item('B')]);
+      events.clear();
+
+      handler.debugEmitTrackCompleted();
+      await pumpEventQueue();
+
+      expect(events.first, 'begin');
+      expect(events, contains('prepare'));
+      expect(events.last, 'end:B:true');
+      expect(events.where((event) => event.startsWith('end:')), hasLength(1));
+    },
+  );
+
+  test(
+    'pause while acquiring background task releases it without advancing',
+    () async {
+      await handler.dispose();
+      final started = Completer<void>();
+      final acquire = Completer<Future<void> Function()>();
+      var releases = 0;
+      handler = LxAudioHandler(
+        player: player = _CompletionAudioPlayer(),
+        beginAutoNextBackgroundTask: () {
+          started.complete();
+          return acquire.future;
+        },
+      );
+      await handler.setPlaylist([item('A'), item('B')]);
+      handler.debugEmitTrackCompleted();
+      await started.future;
+      await handler.pause();
+      acquire.complete(() async {
+        releases++;
+      });
+      await pumpEventQueue();
+
+      expect(releases, 1);
+      expect(handler.mediaItem.value?.id, 'A');
+      expect(player.playing, isFalse);
+    },
+  );
+
   test('completion still advances after a cancelled manual skip', () async {
     await handler.setPlaylist([item('A'), item('B')]);
     handler.configureLazyQueue(

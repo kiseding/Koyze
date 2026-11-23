@@ -63,6 +63,7 @@ class PlaybackCommandCoordinator {
   int _sourceToken = 0;
   _DesiredSource? _desiredSource;
   int? _installedSourceToken;
+  int? _sourceAwaitingFirstPlay;
   int? _temporarySourceToken;
   bool _stopDesired = false;
   bool _stopApplied = false;
@@ -560,6 +561,9 @@ class PlaybackCommandCoordinator {
         '[AudioHandler] play requested token=$playableSourceToken '
         'command=$playToken',
       );
+      if (_sourceAwaitingFirstPlay == playableSourceToken) {
+        _sourceAwaitingFirstPlay = null;
+      }
       final lifecycle = _player.play();
       unawaited(
         lifecycle.then(
@@ -612,7 +616,6 @@ class PlaybackCommandCoordinator {
       }
 
       final desiredSource = _desiredSource;
-      var sourceChanged = false;
       if (desiredSource != null &&
           desiredSource.source != null &&
           _failedSourceToken != desiredSource.token &&
@@ -659,7 +662,7 @@ class PlaybackCommandCoordinator {
         _temporarySourceToken = null;
         _activePlayCommandToken = null;
         _lastPlayAttemptRevision = -1;
-        sourceChanged = true;
+        _sourceAwaitingFirstPlay = desiredSource.token;
         _notifyIfCurrent(commandRevision);
         if (_desiredSource?.token != desiredSource.token) {
           await _reconcile(_revision);
@@ -703,11 +706,12 @@ class PlaybackCommandCoordinator {
 
       if (!sourceReady) return;
 
-      if ((sourceChanged || !_player.playing) &&
-          _activePlayCommandToken == null) {
-        final playableSourceToken =
-            _installedSourceToken ?? _temporarySourceToken;
-        if (playableSourceToken == null) return;
+      final playableSourceToken = _installedSourceToken ?? _temporarySourceToken;
+      if (playableSourceToken == null) return;
+      // The first play can be deferred by a preserving pause during install.
+      // Carry it across reconciliations even if the engine still reports playing.
+      final firstPlay = _sourceAwaitingFirstPlay == playableSourceToken;
+      if ((firstPlay || !_player.playing) && _activePlayCommandToken == null) {
         if (_failedPlayIntentRevision == _intentRevision &&
             _failedPlaySourceToken == playableSourceToken) {
           return;
@@ -716,7 +720,7 @@ class PlaybackCommandCoordinator {
         _lastPlayAttemptRevision = _revision;
         await _beginPlay(
           playableSourceToken,
-          forceRestart: sourceChanged && _restartPlayAfterSourceChange,
+          forceRestart: firstPlay && _restartPlayAfterSourceChange,
         );
         _notifyIfCurrent(commandRevision);
       }

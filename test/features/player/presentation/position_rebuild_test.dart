@@ -66,27 +66,34 @@ void main() {
   group('TrackStartGate（切歌立刻归零）', () {
     test('没切歌时全部放行', () {
       final gate = TrackStartGate();
-      expect(gate.accepts(const Duration(minutes: 3)), isTrue);
+      expect(
+        gate.accepts(const Duration(minutes: 3), sourceInstalled: true),
+        isTrue,
+      );
     });
 
-    test('切歌后挡住上一首的残留位置', () {
+    test('装源前的归零和旧位置均不能打开闸门', () {
       final gate = TrackStartGate()..arm();
-
-      // mpv 换源后 time-pos 还是上一首的读数，这类值必须挡住，
-      // 否则进度条会被它重新拉回老位置。
-      expect(gate.accepts(const Duration(minutes: 2)), isFalse);
+      expect(gate.accepts(Duration.zero, sourceInstalled: false), isFalse);
+      expect(
+        gate.accepts(const Duration(minutes: 2), sourceInstalled: false),
+        isFalse,
+      );
       expect(gate.awaiting, isTrue);
-
-      // 新曲目起播的位置放行，闸门就此关闭。
-      expect(gate.accepts(Duration.zero), isTrue);
-      expect(gate.awaiting, isFalse);
-      expect(gate.accepts(const Duration(minutes: 2)), isTrue);
     });
 
-    test('慢速音源超时后无条件放行', () {
+    test('新源装好后仍要等到引擎位置回到新曲开头', () {
       final gate = TrackStartGate()..arm();
-      gate.release();
-      expect(gate.accepts(const Duration(minutes: 1)), isTrue);
+      expect(
+        gate.accepts(const Duration(minutes: 2), sourceInstalled: true),
+        isFalse,
+      );
+      expect(gate.accepts(Duration.zero, sourceInstalled: true), isTrue);
+      expect(gate.awaiting, isFalse);
+      expect(
+        gate.accepts(const Duration(minutes: 2), sourceInstalled: true),
+        isTrue,
+      );
     });
   });
 }

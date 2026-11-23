@@ -760,6 +760,69 @@ void main() {
     expect(player.playing, isFalse);
   });
 
+  test('an uncached replacement playlist plays after slow resolution', () async {
+    final player = _InterruptionAudioPlayer();
+    final handler = LxAudioHandler(player: player);
+    addTearDown(handler.dispose);
+    await handler.setPlaylist([_item('A')]);
+    final previousPlayCalls = player.playCalls;
+    final resolve = _Gate();
+    handler.urlResolver = (id, [extras]) async {
+      resolve.started.complete();
+      await resolve.release.future;
+      return 'file:///tmp/$id.mp3';
+    };
+
+    final replacement = handler.setPlaylist([
+      const MediaItem(id: 'B', title: 'B'),
+    ], userInitiated: true);
+    await resolve.started.future;
+    expect(player.playCalls, previousPlayCalls);
+    // Model the previous native playing flag lingering across pause and load.
+    player.reportStalePlaying = true;
+    resolve.release.complete();
+    await replacement;
+
+    expect(handler.mediaItem.value?.id, 'B');
+    expect(handler.hasInstalledPositionSource, isTrue);
+    expect(player.playCalls, greaterThan(previousPlayCalls));
+  });
+
+  test('a slow track switch never restores the outgoing position', () async {
+    final player = _InterruptionAudioPlayer();
+    final handler = LxAudioHandler(player: player, useSilenceKeepalive: false);
+    addTearDown(handler.dispose);
+    await handler.setPlaylist([_item('A'), _item('B')]);
+    await player.seek(const Duration(seconds: 42));
+    final notifier = PositionNotifier(handler);
+    final positions = <Duration>[];
+    notifier.addListener(positions.add, fireImmediately: false);
+    try {
+      final sourceGate = _Gate();
+      player.gateNextSourceInstall(sourceGate);
+      final selection = handler.skipToQueueItem(1);
+      await sourceGate.started.future;
+      await pumpEventQueue();
+      expect(notifier.value, Duration.zero);
+
+      await player.seek(Duration.zero);
+      await pumpEventQueue();
+      await player.seek(const Duration(seconds: 42));
+      await pumpEventQueue();
+      expect(notifier.value, Duration.zero);
+
+      sourceGate.release.complete();
+      await selection;
+      await pumpEventQueue();
+      await player.seek(const Duration(milliseconds: 400));
+      await pumpEventQueue();
+      expect(positions, [Duration.zero, const Duration(milliseconds: 400)]);
+    } finally {
+      notifier.dispose();
+      await handler.dispose();
+    }
+  });
+
   test('output route recovery keeps the player and preserves progress', () async {
     var playerCreations = 0;
     final handler = LxAudioHandler(playerFactory: () {
@@ -1036,6 +1099,7 @@ class _InterruptionAudioPlayer extends AudioPlayer {
   @override
   double volume = 1;
   bool advanceOnPlay = false;
+  bool reportStalePlaying = false;
 
   void gateNextPause(_Gate gate) => _pauseGates.add(gate);
 
@@ -1053,7 +1117,7 @@ class _InterruptionAudioPlayer extends AudioPlayer {
   AudioSource? get audioSource => _source;
 
   @override
-  bool get playing => _playing;
+  bool get playing => _playing || reportStalePlaying;
 
   @override
   Duration get position => _position;

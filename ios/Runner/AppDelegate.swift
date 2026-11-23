@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate,
   UIDocumentPickerDelegate {
+  private var autoNextTasks: [String: UIBackgroundTaskIdentifier] = [:]
   private var sourceTasks: [String: URLSessionDataTask] = [:]
   private var cancelledSourceTaskIDs = Set<String>()
   private let sourceTaskLock = NSLock()
@@ -88,6 +89,36 @@ import UniformTypeIdentifiers
           message: error.localizedDescription,
           details: nil
         ))
+      }
+    }
+
+    let autoNextChannel = FlutterMethodChannel(
+      name: "koyze/auto_next_background_task",
+      binaryMessenger: registrar.messenger()
+    )
+    autoNextChannel.setMethodCallHandler { [weak self] call, result in
+      guard let self else { return result(nil) }
+      switch call.method {
+      case "begin":
+        let token = UUID().uuidString
+        let identifier = UIApplication.shared.beginBackgroundTask(withName: "Koyze auto-next") {
+          [weak self] in
+          self?.endAutoNextTask(token, reason: "expired")
+        }
+        guard identifier != .invalid else {
+          NSLog("[Koyze] auto-next background task unavailable")
+          return result(nil)
+        }
+        self.autoNextTasks[token] = identifier
+        NSLog("[Koyze] auto-next background task started")
+        result(token)
+      case "end":
+        if let token = call.arguments as? String {
+          self.endAutoNextTask(token, reason: "finished")
+        }
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
       }
     }
 
@@ -287,6 +318,12 @@ import UniformTypeIdentifiers
       sourceTaskLock.unlock()
       task.resume()
     }
+  }
+
+  private func endAutoNextTask(_ token: String, reason: String) {
+    guard let identifier = autoNextTasks.removeValue(forKey: token) else { return }
+    UIApplication.shared.endBackgroundTask(identifier)
+    NSLog("[Koyze] auto-next background task %@", reason)
   }
 
   // MARK: - 导出到「文件」App

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 import 'dart:async';
@@ -185,6 +186,16 @@ Future<void> _bootstrapUnsafe(
         ohosLog('KoyzeMpv', 'playback engine = ${engine.runtimeType}');
         final lxHandler = LxAudioHandler(
           engine: engine,
+          beginAutoNextBackgroundTask: Platform.isIOS
+              ? () async {
+                  const channel = MethodChannel(
+                    'koyze/auto_next_background_task',
+                  );
+                  final token = await channel.invokeMethod<String>('begin');
+                  if (token == null) return null;
+                  return () => channel.invokeMethod<void>('end', token);
+                }
+              : null,
           prepareForPlayback: () async {
             AppLog.instance.record(
               'audio.session',

@@ -360,14 +360,10 @@ class TrackStartGate {
   /// 换歌：开始挡。
   void arm() => _awaiting = true;
 
-  /// 无条件放行（超时兜底用）。挡太久会让进度条彻底不动，比偶发一次
-  /// 旧读数更难接受。
-  void release() => _awaiting = false;
-
   /// 引擎上报的位置是否可以采信。放行时自动结束等待。
-  bool accepts(Duration position) {
+  bool accepts(Duration position, {required bool sourceInstalled}) {
     if (!_awaiting) return true;
-    if (position > window) return false;
+    if (!sourceInstalled || position > window) return false;
     _awaiting = false;
     return true;
   }
@@ -395,8 +391,9 @@ class PositionNotifier extends BuildlessNotifier<Duration>
   StreamSubscription<void>? _discSub;
   StreamSubscription<MediaItem?>? _itemSub;
   final TrackStartGate _trackStartGate = TrackStartGate();
-  Timer? _trackStartRelease;
+  LxAudioHandler? _handler;
   String? _activeItemId;
+  int? _activeOccurrenceId;
   bool _frozen = false;
   bool _trackingStarted = false;
   int _playerBindingGeneration = 0;
@@ -419,12 +416,15 @@ class PositionNotifier extends BuildlessNotifier<Duration>
   void _startTracking(LxAudioHandler handler) {
     if (_trackingStarted) return;
     _trackingStarted = true;
+    _handler = handler;
+    _activeItemId = handler.mediaItem.value?.id;
+    _activeOccurrenceId = handler.activePlaybackOccurrenceId;
+    if (_activeItemId != null && !handler.hasInstalledPositionSource) {
+      _trackStartGate.arm();
+    }
     _bindPlayer(handler.engine);
     _playerSub = handler.playerStream.listen(_bindPlayer);
-    // 切歌的唯一可靠信号是 mediaItem：`player.position` 在换源后还会带着
-    // 上一首的 time-pos，只盯引擎永远等不到「已经换歌」这件事。
-    _activeItemId = handler.mediaItem.value?.id;
-    _itemSub = handler.mediaItem.listen(_onMediaItemChanged);
+    _itemSub = handler.mediaItem.listen((_) => _syncTrack());
 
     // 兜底轮询，覆盖部分 iOS 场景下 positionStream 间歇停更。
     _timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
@@ -432,7 +432,7 @@ class PositionNotifier extends BuildlessNotifier<Duration>
       final player = _player;
       if (player == null) return;
       final p = player.position;
-      if (!_trackStartGate.accepts(p)) return;
+      if (!_acceptEnginePosition(p)) return;
       if ((p - value).inMilliseconds.abs() >= 30) update(p);
     });
   }
@@ -441,25 +441,31 @@ class PositionNotifier extends BuildlessNotifier<Duration>
   ///
   /// 不做这件事的后果是进度条停在上一首的位置上，等新文件装载完成后再跳回
   /// 开头——用户看到的就是「切歌后时间轴没有第一时间归零」。
-  void _onMediaItemChanged(MediaItem? item) {
-    if (!mounted) return;
-    final id = item?.id;
-    if (id == null || id == _activeItemId) return;
+  void _syncTrack() {
+    final handler = _handler;
+    if (!mounted || handler == null) return;
+    final id = handler.mediaItem.value?.id;
+    final occurrenceId = handler.activePlaybackOccurrenceId;
+    if (id == null ||
+        (id == _activeItemId && occurrenceId == _activeOccurrenceId)) {
+      return;
+    }
     final hadTrack = _activeItemId != null;
     _activeItemId = id;
-    // 首次装载不算切歌：启动/恢复会话时进度本来就该从 0 开始，不该顺手
-    // 把恢复出来的位置刷掉。
+    _activeOccurrenceId = occurrenceId;
+    // 首次装载可能带有会话恢复位置。
     if (!hadTrack) return;
-
     _trackStartGate.arm();
-    _trackStartRelease?.cancel();
-    // 兜底：音源慢到几秒还没起播时，不能让闸门把进度条永久冻住。
-    _trackStartRelease = Timer(const Duration(seconds: 4), () {
-      if (!mounted) return;
-      _trackStartGate.release();
-    });
-    // 拖动进度条期间由 scrub 自己持有位置，别在手指底下改数值。
     if (!_frozen) update(Duration.zero);
+  }
+
+  bool _acceptEnginePosition(Duration position) {
+    _syncTrack();
+    final handler = _handler;
+    return _trackStartGate.accepts(
+      position,
+      sourceInstalled: handler?.hasInstalledPositionSource ?? false,
+    );
   }
 
   void _bindPlayer(PlaybackEngine player) {
@@ -476,14 +482,19 @@ class PositionNotifier extends BuildlessNotifier<Duration>
     if (oldDiscontinuitySubscription != null) {
       unawaited(oldDiscontinuitySubscription.cancel());
     }
-    update(player.position);
-    _posSub = player.positionStream.listen((position) {
+    if (!_frozen && _acceptEnginePosition(player.position)) {
+      update(player.position);
+    }
+    _posSub = player.positionStream.listen((_) {
       if (!mounted ||
           _frozen ||
           bindingGeneration != _playerBindingGeneration) {
         return;
       }
-      if (!_trackStartGate.accepts(position)) return;
+      // Read the current snapshot. A queued callback can carry a sample from
+      // before the new source was installed.
+      final position = player.position;
+      if (!_acceptEnginePosition(position)) return;
       if ((position - value).inMilliseconds.abs() >= 16) update(position);
     });
     _discSub = player.positionDiscontinuityStream.listen((_) {
@@ -494,8 +505,9 @@ class PositionNotifier extends BuildlessNotifier<Duration>
       }
       // 切歌瞬间 playing 的翻转也会走到这里，那时 `player.position` 还是
       // 上一首的读数；闸门挡住它，否则进度条会被这一下重新拉回去。
-      if (!_trackStartGate.accepts(player.position)) return;
-      update(player.position);
+      final position = player.position;
+      if (!_acceptEnginePosition(position)) return;
+      update(position);
     });
   }
 
@@ -513,16 +525,20 @@ class PositionNotifier extends BuildlessNotifier<Duration>
 
   @override
   void unfreeze(Duration position) {
-    // 拖动期间如果正好切了歌，闸门还挂着；这里以用户拖到的位置为准，
-    // 否则引擎要等到超时才被放行，进度条会僵在拖动结束的位置上。
-    _trackStartGate.release();
-    update(position);
     _frozen = false;
+    _syncTrack();
+    if (_trackStartGate.awaiting) {
+      final current = _player?.position ?? Duration.zero;
+      update(_acceptEnginePosition(current) ? current : Duration.zero);
+      return;
+    }
+    update(position);
   }
 
   void jumpTo(Duration position) {
     if (_frozen) return;
-    _trackStartGate.release();
+    _syncTrack();
+    if (_trackStartGate.awaiting) return;
     update(position);
   }
 
@@ -534,8 +550,7 @@ class PositionNotifier extends BuildlessNotifier<Duration>
     _posSub?.cancel();
     _discSub?.cancel();
     _itemSub?.cancel();
-    _trackStartRelease?.cancel();
-    _trackStartRelease = null;
+    _handler = null;
   }
 }
 
