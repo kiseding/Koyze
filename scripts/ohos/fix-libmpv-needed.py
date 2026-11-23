@@ -113,7 +113,7 @@ def main(path: str) -> int:
     needed = [(val, base) for tag, val, base in entries if tag == DT_NEEDED]
     names = [cstr(table, val).decode("utf-8", "replace") for val, _ in needed]
     if WANT.decode() in names:
-        print(f"{path}: 已声明 {WANT.decode()}，无需修改")
+        _log(f"{path}: 已声明 {WANT.decode()}，无需修改")
         return 0
     if "libohaudio.so" not in names:
         raise ElfError(f"NEEDED={names}，不符合预期（缺 libohaudio.so）")
@@ -153,8 +153,8 @@ def main(path: str) -> int:
         # SONAME 槽改造成额外的 NEEDED
         base = spare[0]
         struct.pack_into("<qQ", data, base, DT_NEEDED, tail)
-        print(f"{path}: 在 dynstr 尾部追加 {WANT.decode()}，复用 SONAME 槽")
-        print(f"{path}: DT_NEEDED -> {names + [WANT.decode()]}")
+        _log(f"{path}: 在 dynstr 尾部追加 {WANT.decode()}，复用 SONAME 槽")
+        _log(f"{path}: DT_NEEDED -> {names + [WANT.decode()]}")
         open(path, "wb").write(data)
         return 0
 
@@ -167,8 +167,8 @@ def main(path: str) -> int:
             place_string(start, require_empty=False)
             struct.pack_into("<qQ", data, libc[1], DT_NEEDED, start)   # 本来就指向 start
             struct.pack_into("<qQ", data, soname[1], DT_DEBUG, 0)      # 名字已不存在
-            print(f"{path}: 用 'libc.so' 槽位改写为 {WANT.decode()}，SONAME 槽改为 DT_DEBUG")
-            print(f"{path}: DT_NEEDED -> {['libohaudio.so', WANT.decode()]}")
+            _log(f"{path}: 用 'libc.so' 槽位改写为 {WANT.decode()}，SONAME 槽改为 DT_DEBUG")
+            _log(f"{path}: DT_NEEDED -> {['libohaudio.so', WANT.decode()]}")
             open(path, "wb").write(data)
             return 0
 
@@ -178,15 +178,48 @@ def main(path: str) -> int:
     )
 
 
+def _log(message: str, *, error: bool = False) -> None:
+    """打印一条日志，永远不让编码问题变成构建失败。
+
+    优先用 UTF-8 输出；万一控制台仍不接受（重定向成只认 ASCII 的流），
+    退成 ASCII 转义——难看，但比整条构建链路跟着挂掉强。
+    """
+    stream = sys.stderr if error else sys.stdout
+    try:
+        print(message, file=stream)
+    except UnicodeEncodeError:
+        print(message.encode("ascii", "backslashreplace").decode("ascii"), file=stream)
+
+
+def _force_utf8_output() -> None:
+    """让中文日志在任何控制台上都能打出来。
+
+    Windows runner 上的 Python 默认按 cp1252 编码 stdout，任何中文都会抛
+    UnicodeEncodeError——而脚本的日志恰好全是中文。构建日志必须能读懂，
+    不能因为一个 print 把整个 HAP 构建带崩，所以这里把两个输出流都改成
+    UTF-8，并用 replace 兜底：真遇到无法编码的字符时降级成占位符，而不是
+    抛异常。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:  # 极老的 Python 或已被重定向成非文本流
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
+
+
 if __name__ == "__main__":
+    _force_utf8_output()
     if len(sys.argv) < 2:
-        print(__doc__, file=sys.stderr)
+        _log(__doc__, error=True)
         sys.exit(2)
     rc = 0
     for p in sys.argv[1:]:
         try:
             main(p)
         except ElfError as exc:
-            print(f"{p}: {exc}", file=sys.stderr)
+            _log(f"{p}: {exc}", error=True)
             rc = 1
     sys.exit(rc)
