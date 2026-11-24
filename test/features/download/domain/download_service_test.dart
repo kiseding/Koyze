@@ -592,7 +592,7 @@ void main() {
   );
 
   test(
-    'startup recovers promoted file and removes strict orphan and part',
+    'startup recovers owned promoted file and preserves unknown matching files',
     () async {
       final root = await Directory.systemTemp.createTemp('downloads_');
       final recoverable = File('${root.path}/Song-task-2.mp3')
@@ -633,8 +633,8 @@ void main() {
         ).absolute.path.replaceAll(r'\', '/'),
         recoverable.absolute.path.replaceAll(r'\', '/'),
       );
-      expect(orphan.existsSync(), isFalse);
-      expect(part.existsSync(), isFalse);
+      expect(orphan.existsSync(), isTrue);
+      expect(part.existsSync(), isTrue);
       expect(unrelated.existsSync(), isTrue);
     },
   );
@@ -678,11 +678,11 @@ void main() {
 
     expect(service.tasks, isEmpty);
     expect(storage.saved, isEmpty);
-    expect(empty.existsSync(), isFalse);
+    expect(empty.existsSync(), isTrue);
   });
 
   test(
-    'startup quarantines multi-final candidates including empty and deletes all owned',
+    'startup quarantines multi-final candidates and preserves all files',
     () async {
       final root = await Directory.systemTemp.createTemp('downloads_');
       final nonEmpty = File('${root.path}/Song-task-2.mp3')
@@ -717,14 +717,14 @@ void main() {
 
       expect(service.tasks, isEmpty);
       expect(storage.quarantine, hasLength(1));
-      expect(nonEmpty.existsSync(), isFalse);
-      expect(empty.existsSync(), isFalse);
+      expect(nonEmpty.existsSync(), isTrue);
+      expect(empty.existsSync(), isTrue);
       expect(unrelated.existsSync(), isTrue);
     },
   );
 
   test(
-    'startup quarantines multi empty finals and deletes all owned',
+    'startup quarantines multi empty finals and preserves all files',
     () async {
       final root = await Directory.systemTemp.createTemp('downloads_');
       final emptyMp3 = File('${root.path}/Song-task-2.mp3')
@@ -759,8 +759,8 @@ void main() {
 
       expect(service.tasks, isEmpty);
       expect(storage.quarantine, hasLength(1));
-      expect(emptyMp3.existsSync(), isFalse);
-      expect(emptyFlac.existsSync(), isFalse);
+      expect(emptyMp3.existsSync(), isTrue);
+      expect(emptyFlac.existsSync(), isTrue);
       expect(unrelated.existsSync(), isTrue);
     },
   );

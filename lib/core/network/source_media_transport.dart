@@ -25,6 +25,8 @@ final class SourceMediaTransport {
   SourceMediaTransport({
     SourceStreamSandbox? sandbox,
     this.maximumBytes = 512 * 1024 * 1024,
+    this.downloadBodyIdleTimeout = const Duration(minutes: 5),
+    this.readBodyIdleTimeout = const Duration(seconds: 15),
   }) : _sandbox =
            sandbox ??
            SourceStreamSandbox(
@@ -36,6 +38,8 @@ final class SourceMediaTransport {
 
   final SourceStreamSandbox _sandbox;
   final int maximumBytes;
+  final Duration downloadBodyIdleTimeout;
+  final Duration readBodyIdleTimeout;
 
   Future<int> download(
     String url,
@@ -69,7 +73,15 @@ final class SourceMediaTransport {
       }
       output = await File(destination).open(mode: FileMode.write);
       var received = 0;
-      await for (final chunk in response.body) {
+      await for (final chunk in response.body.timeout(
+        downloadBodyIdleTimeout,
+        onTimeout: (sink) => sink.addError(
+          const SourceRequestPolicyException(
+            'timeout',
+            'Source response body stalled',
+          ),
+        ),
+      )) {
         if (cancelToken?.isCancelled == true) {
           throw cancelToken!.cancelError!;
         }
@@ -121,7 +133,15 @@ final class SourceMediaTransport {
         throw MediaTransferLimitException(maximumBytes);
       }
       final bytes = <int>[];
-      await for (final chunk in response.body) {
+      await for (final chunk in response.body.timeout(
+        readBodyIdleTimeout,
+        onTimeout: (sink) => sink.addError(
+          const SourceRequestPolicyException(
+            'timeout',
+            'Source response body stalled',
+          ),
+        ),
+      )) {
         if (chunk.length > maximumBytes - bytes.length) {
           throw MediaTransferLimitException(maximumBytes);
         }

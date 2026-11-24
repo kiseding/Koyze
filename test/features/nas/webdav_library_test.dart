@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/features/nas/domain/nas_config.dart';
 import 'package:koyze/features/nas/domain/nas_kind.dart';
 import 'package:koyze/features/nas/domain/webdav_client.dart';
+import 'package:koyze/features/player/domain/music_item.dart';
 
 const _config = NasConfig(
   kind: NasKind.webdav,
@@ -177,6 +178,39 @@ void main() {
       expect(songs.map((song) => song.meta?['suffix']), contains('ape'));
     });
 
+    test('does not send WebDAV credentials to cross-origin directory hrefs',
+        () async {
+      final requests = <RequestOptions>[];
+      final root = _multistatus([
+        _entry('/music/', dir: true),
+        _entry('https://attacker.example/music/child/', dir: true),
+      ]);
+      final child = _multistatus([
+        _entry('https://attacker.example/music/child/', dir: true),
+        _entry('https://attacker.example/music/child/song.mp3', size: 10),
+      ]);
+      final client = WebDavNasClient(
+        dio: _fakeDio(
+          {'/music/': root, '/music/child/': child},
+          onRequest: (options) => requests.add(options),
+        ),
+      );
+      addTearDown(client.dispose);
+
+      final songs = await client.getLibrarySongs(_config, _secrets);
+      final rootRequest = requests.firstWhere(
+        (request) => request.uri.host == 'nas.local',
+      );
+      final proxyRequest = requests.firstWhere(
+        (request) => request.uri.host == 'attacker.example',
+      );
+
+      expect(songs, hasLength(1));
+      expect(rootRequest.headers['Authorization'], startsWith('Basic '));
+      expect(proxyRequest.method, 'PROPFIND');
+      expect(proxyRequest.headers['Authorization'], isNull);
+    });
+
     test('keeps a file that lives on the proxy host from another origin',
         () async {
       final xml = _multistatus([
@@ -190,6 +224,67 @@ void main() {
 
       expect(songs, hasLength(1));
       expect(songs.single.name, 'proxied');
+    });
+
+    test('does not send WebDAV credentials to cross-origin sidecar lyrics',
+        () async {
+      RequestOptions? lyricRequest;
+      final xml = _multistatus([
+        _entry('/music/', dir: true),
+        _entry('https://media.example.com/music/proxied.mp3', size: 10),
+        _entry('https://media.example.com/music/proxied.lrc', size: 20),
+      ]);
+      final client = WebDavNasClient(
+        dio: _fakeDio(
+          {'/music/': xml},
+          lyricBytes: utf8.encode('[00:01.00]Proxy lyric'),
+          onRequest: (options) {
+            if (options.method == 'GET') lyricRequest = options;
+          },
+        ),
+      );
+      addTearDown(client.dispose);
+
+      final songs = await client.getLibrarySongs(_config, _secrets);
+      final song = songs.single;
+      expect(song.name, 'proxied');
+      expect(
+        song.meta?['lyricUrl'],
+        'https://media.example.com/music/proxied.lrc',
+      );
+
+      final lyric = await client.getLyrics(_config, _secrets, song);
+
+      expect(lyric, '[00:01.00]Proxy lyric');
+      expect(lyricRequest?.uri.host, 'media.example.com');
+      expect(lyricRequest?.headers['Authorization'], isNull);
+    });
+
+    test('does not send credentials to a cross-origin collection href',
+        () async {
+      final requests = <RequestOptions>[];
+      final root = _multistatus([
+        _entry('/music/', dir: true),
+        _entry('https://media.example.com/music/child/', dir: true),
+      ]);
+      final child = _multistatus([
+        _entry('https://media.example.com/music/child/', dir: true),
+      ]);
+      final client = WebDavNasClient(
+        dio: _fakeDio(
+          {'/music/': root, '/music/child/': child},
+          onRequest: requests.add,
+        ),
+      );
+      addTearDown(client.dispose);
+
+      await client.getLibrarySongs(_config, _secrets);
+
+      expect(requests, hasLength(2));
+      expect(requests.first.uri.host, 'nas.local');
+      expect(requests.first.headers['Authorization'], isNotNull);
+      expect(requests.last.uri.host, 'media.example.com');
+      expect(requests.last.headers['Authorization'], isNull);
     });
 
     test('fetches sidecar lyrics with the connection headers', () async {
@@ -219,6 +314,20 @@ void main() {
         lyricRequest?.headers['Authorization'],
         'Basic ${base64.encode(utf8.encode('alice:secret'))}',
       );
+
+      final proxiedSong = MusicItem(
+        id: 'https://media.example.com/music/song.lrc',
+        name: 'Proxy',
+        singer: '',
+        source: 'webdav',
+        platform: 'webdav',
+        meta: const {
+          'lyricUrl': 'https://media.example.com/music/song.lrc',
+        },
+      );
+      await client.getLyrics(_config, _secrets, proxiedSong);
+      expect(lyricRequest?.uri.host, 'media.example.com');
+      expect(lyricRequest?.headers['Authorization'], isNull);
     });
 
     test('lists subdirectories relative to the server root', () async {

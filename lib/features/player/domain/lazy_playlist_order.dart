@@ -136,7 +136,7 @@ final class LazyPlaylistWindow {
 
   /// 随机顺序走完后另开一轮，从一首不是刚播完的歌开始。
   Future<List<LazyPlaylistEntry>> continueShuffled({required int count}) async {
-    if (length <= 0 || count <= 0) return const [];
+    if (length <= 0) return const [];
     var start = length == 1 ? 0 : _random.nextInt(length);
     final last = _lastLoadedIndex;
     if (length > 1 && last != null && start == last) {

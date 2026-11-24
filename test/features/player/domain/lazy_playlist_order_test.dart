@@ -142,12 +142,16 @@ void main() {
       );
 
       final first = await window.takeEntries(4);
-      final more = await window.continueShuffled(count: 2);
+      final exhausted = await window.takeEntries(1);
+      final more = await window.continueShuffled(count: 0);
+      final next = await window.takeEntries(2);
 
       expect(first, hasLength(4));
-      expect(more, hasLength(2));
-      expect(more.first.index, isNot(first.last.index));
-      expect(more.map((entry) => entry.index).toSet().length, 2);
+      expect(exhausted, isEmpty);
+      expect(more, isEmpty);
+      expect(next, hasLength(2));
+      expect(next.first.index, isNot(first.last.index));
+      expect(next.map((entry) => entry.index).toSet().length, 2);
     },
   );
 }

@@ -15,9 +15,14 @@ void main() {
     if (await tempDir.exists()) await tempDir.delete(recursive: true);
   });
 
-  SourceMediaTransport client(SourceTransport handler, {int maximumBytes = 8}) {
+  SourceMediaTransport client(
+    SourceTransport handler, {
+    int maximumBytes = 8,
+    Duration downloadBodyIdleTimeout = const Duration(minutes: 5),
+  }) {
     return SourceMediaTransport(
       maximumBytes: maximumBytes,
+      downloadBodyIdleTimeout: downloadBodyIdleTimeout,
       sandbox: SourceStreamSandbox(
         policy: SourceRequestPolicy(
           resolve: (_) async => [InternetAddress('93.184.216.34')],
@@ -73,6 +78,31 @@ void main() {
     );
     expect(File(destination).existsSync(), isFalse);
   });
+
+  test(
+    'times out a stalled media response body and removes partial file',
+    () async {
+      final transport = client(
+        (request, cancellation) async => SourceTransportResponse(
+          statusCode: 200,
+          headers: const {},
+          body: Stream<List<int>>.multi((_) {}),
+        ),
+        downloadBodyIdleTimeout: const Duration(milliseconds: 10),
+      );
+      final destination = '${tempDir.path}/stalled.part';
+
+      await expectLater(
+        transport.download(
+          'http://media.example/song.mp3',
+          destination,
+          headers: const {},
+        ),
+        throwsA(isA<SourceRequestPolicyException>()),
+      );
+      expect(File(destination).existsSync(), isFalse);
+    },
+  );
 
   test('revalidates redirect and strips non-safe media headers', () async {
     final requests = <ValidatedSourceRequest>[];

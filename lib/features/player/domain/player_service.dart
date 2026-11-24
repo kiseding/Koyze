@@ -74,7 +74,17 @@ class PlayerService {
     }
     final playableSongs = await _withoutDisliked(songs);
     if (!ownsQueueReplacement(generation)) return;
-    if (playableSongs.isEmpty) return;
+    if (playableSongs.isEmpty) {
+      currentLazyPlaylistId = null;
+      currentLazyPlaylistSongCount = 0;
+      nowPlayingLeaderboardId = null;
+      if (audioHandler is LxAudioHandler) {
+        final handler = audioHandler as LxAudioHandler;
+        handler.clearLazyQueue();
+        await handler.setPlaylist(const [], playWhenReady: false);
+      }
+      return;
+    }
     final safeIndex = index.clamp(0, playableSongs.length - 1);
     currentLazyPlaylistId = null;
     currentLazyPlaylistSongCount = 0;
@@ -116,11 +126,16 @@ class PlayerService {
   }) async {
     final generation = queueGeneration ?? beginQueueReplacement();
     if (!ownsQueueReplacement(generation)) return;
-    currentLazyPlaylistId = playlistId;
-    currentLazyPlaylistSongCount = songCount;
-    nowPlayingLeaderboardId = null;
-    if (songCount <= 0 || audioHandler is! LxAudioHandler) return;
+    if (audioHandler is! LxAudioHandler) return;
     final handler = audioHandler as LxAudioHandler;
+    if (songCount <= 0) {
+      currentLazyPlaylistId = null;
+      currentLazyPlaylistSongCount = 0;
+      nowPlayingLeaderboardId = null;
+      handler.clearLazyQueue();
+      await handler.setPlaylist(const [], playWhenReady: false);
+      return;
+    }
     final shuffle =
         handler.playbackState.value.shuffleMode == AudioServiceShuffleMode.all;
     var shuffleEnabled = shuffle;
@@ -130,6 +145,9 @@ class PlayerService {
       shuffle: shuffle,
       loadPage: loadPage,
     );
+    currentLazyPlaylistId = playlistId;
+    currentLazyPlaylistSongCount = songCount;
+    nowPlayingLeaderboardId = null;
 
     Future<List<MediaItem>> mediaItems(
       List<LazyPlaylistEntry> entries,
@@ -139,15 +157,30 @@ class PlayerService {
           _convertToMediaItemSync(entry.song, lazyPlaylistIndex: entry.index),
     ];
 
-    final initialEntries = await window.takeEntries(9);
-    if (!ownsQueueReplacement(generation) || initialEntries.isEmpty) return;
+    final initialEntries = await _playableEntries(
+      window,
+      count: 9,
+      generation: generation,
+    );
+    if (!ownsQueueReplacement(generation)) return;
+    if (initialEntries.isEmpty) {
+      currentLazyPlaylistId = null;
+      currentLazyPlaylistSongCount = 0;
+      handler.clearLazyQueue();
+      await handler.setPlaylist(const [], playWhenReady: false);
+      return;
+    }
     if (manual) {
       _notifyManualPlay(initialEntries.first.song.name);
     }
     handler.configureLazyQueue(
       loadMore: (minimumItems) async {
         if (!ownsQueueReplacement(generation)) return const [];
-        var entries = await window.takeEntries(minimumItems);
+        var entries = await _playableEntries(
+          window,
+          count: minimumItems,
+          generation: generation,
+        );
         if (!ownsQueueReplacement(generation)) return const [];
         if (entries.isEmpty &&
             handler.playbackState.value.repeatMode !=
@@ -156,12 +189,12 @@ class PlayerService {
               shuffleEnabled ||
               handler.playbackState.value.shuffleMode ==
                   AudioServiceShuffleMode.all;
-          entries = shuffling
-              ? await window.continueShuffled(count: minimumItems)
-              : await window.restartFromBeginning(
-                  shuffle: false,
-                  count: minimumItems,
-                );
+          entries = await _playableEntries(
+            window,
+            count: minimumItems,
+            generation: generation,
+            nextPass: shuffling ? 'shuffle' : 'sequential',
+          );
           if (!ownsQueueReplacement(generation)) return const [];
         }
         return mediaItems(entries);
@@ -171,10 +204,11 @@ class PlayerService {
         shuffleEnabled = enabled;
         final index = current.extras?['_lazyPlaylistIndex'];
         if (index is! int) return const [];
-        final entries = await window.restartEntriesAfterCurrent(
-          currentIndex: index,
-          shuffle: enabled,
+        final entries = await _playableEntries(
+          window,
           count: minimumItems,
+          generation: generation,
+          restartAfterCurrent: (index, enabled),
         );
         return ownsQueueReplacement(generation)
             ? mediaItems(entries)
@@ -183,7 +217,14 @@ class PlayerService {
     );
     if (!ownsQueueReplacement(generation)) return;
     final initialItems = await mediaItems(initialEntries);
-    if (!ownsQueueReplacement(generation) || initialItems.isEmpty) return;
+    if (!ownsQueueReplacement(generation)) return;
+    if (initialItems.isEmpty) {
+      currentLazyPlaylistId = null;
+      currentLazyPlaylistSongCount = 0;
+      handler.clearLazyQueue();
+      await handler.setPlaylist(const [], playWhenReady: false);
+      return;
+    }
     await handler.setPlaylist(
       initialItems,
       playWhenReady: autoplay,
@@ -197,6 +238,65 @@ class PlayerService {
         queueGeneration: generation,
       ),
     );
+  }
+
+  Future<List<LazyPlaylistEntry>> _playableEntries(
+    LazyPlaylistWindow window, {
+    required int count,
+    required int generation,
+    String? nextPass,
+    (int, bool)? restartAfterCurrent,
+  }) async {
+    final entries = <LazyPlaylistEntry>[];
+    final scanLimit = restartAfterCurrent == null
+        ? window.length
+        : (window.length - 1).clamp(0, window.length);
+    var scanned = 0;
+
+    if (restartAfterCurrent != null) {
+      final (currentIndex, shuffle) = restartAfterCurrent;
+      await window.restartEntriesAfterCurrent(
+        currentIndex: currentIndex,
+        shuffle: shuffle,
+        count: 0,
+      );
+    }
+
+    while (entries.length < count && scanned < scanLimit) {
+      if (!ownsQueueReplacement(generation)) return const [];
+      final page = await window.takeEntries(
+        (scanLimit - scanned).clamp(1, count - entries.length),
+      );
+      if (page.isEmpty) break;
+      scanned += page.length;
+      for (final entry in page) {
+        if (!ownsQueueReplacement(generation)) return const [];
+        if (!await _isSongDisliked(entry.song)) entries.add(entry);
+      }
+    }
+
+    if (entries.isNotEmpty || nextPass == null) return entries;
+    if (!ownsQueueReplacement(generation)) return const [];
+    if (nextPass == 'shuffle') {
+      await window.continueShuffled(count: 0);
+    } else {
+      await window.restartFromBeginning(shuffle: false, count: 0);
+    }
+
+    scanned = 0;
+    while (entries.length < count && scanned < window.length) {
+      if (!ownsQueueReplacement(generation)) return const [];
+      final page = await window.takeEntries(
+        (window.length - scanned).clamp(1, count - entries.length),
+      );
+      if (page.isEmpty) break;
+      scanned += page.length;
+      for (final entry in page) {
+        if (!ownsQueueReplacement(generation)) return const [];
+        if (!await _isSongDisliked(entry.song)) entries.add(entry);
+      }
+    }
+    return entries;
   }
 
   Future<bool> _isSongDisliked(MusicItem song) async {

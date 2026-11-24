@@ -765,7 +765,19 @@ class MusicSourceService {
       ),
       platform: 'subsonic',
       songId: music.songmid ?? music.id,
+      trustedNetwork: _sameOrigin(service.config.baseUrl, url),
     );
+  }
+
+  bool _sameOrigin(String configuredUrl, String mediaUrl) {
+    final configured = Uri.tryParse(configuredUrl);
+    final media = Uri.tryParse(mediaUrl);
+    if (configured == null || media == null || media.userInfo.isNotEmpty) {
+      return false;
+    }
+    return configured.scheme.toLowerCase() == media.scheme.toLowerCase() &&
+        configured.host.toLowerCase() == media.host.toLowerCase() &&
+        configured.port == media.port;
   }
 
   Future<PlayUrlResult?> _resolveNasUrl(

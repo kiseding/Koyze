@@ -378,6 +378,7 @@ void main() {
     expect(result, isNotNull);
     expect(result!.requestedQuality, '320k');
     expect(result.actualQuality, '192k');
+    expect(result.trustedNetwork, isTrue);
   });
 
   test('server URL infers HTTP for LAN hosts and HTTPS for domains', () {

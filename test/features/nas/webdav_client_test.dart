@@ -339,6 +339,82 @@ void main() {
         'Basic ${base64.encode(utf8.encode('alice:secret'))}',
       );
       expect(result.url, isNot(contains('secret')));
+
+      final proxyMusic = music.copyWith(
+        id: 'https://media.example.com/music/a.flac',
+        songmid: 'https://media.example.com/music/a.flac',
+        meta: const {'webdavUrl': 'https://media.example.com/music/a.flac'},
+      );
+      final proxyResult = await client.streamResult(
+        _basicConfig,
+        const NasSecrets(password: 'secret'),
+        proxyMusic,
+        quality: '320k',
+      );
+      expect(proxyResult.url, 'https://media.example.com/music/a.flac');
+      expect(proxyResult.headers, isEmpty);
+      expect(proxyResult.trustedNetwork, isFalse);
+
+      Future<NasPlayUrlResult> resultFor(
+        String url, {
+        NasConfig config = _basicConfig,
+        NasSecrets secrets = const NasSecrets(password: 'secret'),
+      }) {
+        return client.streamResult(
+          config,
+          secrets,
+          music.copyWith(
+            id: url,
+            songmid: url,
+            meta: {'webdavUrl': url},
+          ),
+          quality: '320k',
+        );
+      }
+
+      final defaultPort = await resultFor(
+        'http://nas.local/music/default-port.flac',
+        config: const NasConfig(
+          kind: NasKind.webdav,
+          baseUrl: 'http://nas.local',
+          username: 'alice',
+          rootPath: '/music',
+        ),
+      );
+      expect(defaultPort.trustedNetwork, isTrue);
+      expect(defaultPort.headers['Authorization'], startsWith('Basic '));
+
+      final schemeMismatch = await resultFor(
+        'https://nas.local:8080/music/a.flac',
+      );
+      expect(schemeMismatch.trustedNetwork, isFalse);
+      expect(schemeMismatch.headers, isEmpty);
+
+      final userInfoTarget = await resultFor(
+        'http://alice@nas.local:8080/music/a.flac',
+      );
+      expect(userInfoTarget.trustedNetwork, isFalse);
+      expect(userInfoTarget.headers, isEmpty);
+
+      final nearHost = await resultFor(
+        'http://nas.local.attacker.example:8080/music/a.flac',
+      );
+      expect(nearHost.trustedNetwork, isFalse);
+      expect(nearHost.headers, isEmpty);
+
+      final bearer = await resultFor(
+        'https://dav.example.com/music/a.flac',
+        config: const NasConfig(
+          kind: NasKind.webdav,
+          baseUrl: 'https://dav.example.com',
+          username: '',
+          rootPath: '/music',
+          authMethod: NasAuthMethod.bearer,
+        ),
+        secrets: const NasSecrets(token: 'bearer-secret'),
+      );
+      expect(bearer.trustedNetwork, isTrue);
+      expect(bearer.headers['Authorization'], 'Bearer bearer-secret');
     });
 
     test('search filters scanned library by name, artist, album', () async {

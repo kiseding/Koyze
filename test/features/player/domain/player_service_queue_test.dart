@@ -117,6 +117,127 @@ void main() {
   );
 
   test(
+    'paged playlist scans past disliked entries before installing queue',
+    () async {
+      audioHandler = handler;
+      final service = PlayerService(
+        isDisliked: (song) async => song.id != 's109',
+      );
+      final songs = [
+        for (var i = 0; i < 220; i++)
+          MusicItem(
+            id: 's$i',
+            name: 's$i',
+            singer: '',
+            source: 'test',
+            url: 'file:///tmp/s$i.mp3',
+          ),
+      ];
+      final requests = <(int, int)>[];
+
+      await service.playPagedPlaylist(
+        songCount: songs.length,
+        startIndex: 0,
+        playlistId: 'paged-dislike',
+        loadPage: (offset, limit) async {
+          requests.add((offset, limit));
+          return songs.sublist(offset, (offset + limit).clamp(0, songs.length));
+        },
+      );
+
+      expect(handler.mediaItem.value?.id, songs[109].identityKey);
+      expect(handler.queueItems.length, 1);
+      expect(requests.map((request) => request.$1), [0, 100, 200]);
+      expect(requests.every((request) => request.$2 == 100), isTrue);
+    },
+  );
+
+  test('all-disliked paged playlist clears old queue and lazy loader', () async {
+    audioHandler = handler;
+    final oldSong = MusicItem(
+      id: 'old',
+      name: 'old',
+      singer: '',
+      source: 'test',
+      url: 'file:///tmp/old.mp3',
+    );
+    final service = PlayerService(isDisliked: (_) async => true);
+    await service.playPlaylist([oldSong]);
+    await service.playPagedPlaylist(
+      songCount: 2,
+      startIndex: 0,
+      playlistId: 'all-disliked',
+      loadPage: (_, __) async => [
+        oldSong,
+        MusicItem(
+          id: 'also-disliked',
+          name: 'also-disliked',
+          singer: '',
+          source: 'test',
+        ),
+      ],
+    );
+
+    expect(handler.queueItems, isEmpty);
+    expect(handler.mediaItem.value, isNull);
+    expect(service.currentLazyPlaylistId, isNull);
+    expect(service.currentLazyPlaylistSongCount, 0);
+  });
+
+  test('all-disliked regular playlist clears the old queue', () async {
+    audioHandler = handler;
+    final playable = MusicItem(
+      id: 'playable',
+      name: 'playable',
+      singer: '',
+      source: 'test',
+    );
+    var dislikeAll = false;
+    final service = PlayerService(isDisliked: (_) async => dislikeAll);
+    await service.playPlaylist([playable]);
+    expect(handler.queueItems, isNotEmpty);
+
+    dislikeAll = true;
+    await service.playPlaylist([playable.copyWith(id: 'disliked')]);
+
+    expect(handler.queueItems, isEmpty);
+    expect(handler.mediaItem.value, isNull);
+    expect(service.currentLazyPlaylistId, isNull);
+    expect(service.currentLazyPlaylistSongCount, 0);
+  });
+
+  test('empty paged playlist clears old queue and lazy loader', () async {
+    audioHandler = handler;
+    final service = PlayerService();
+    final oldSong = MusicItem(
+      id: 'old',
+      name: 'old',
+      singer: '',
+      source: 'test',
+      url: 'file:///tmp/old.mp3',
+    );
+    await service.playPagedPlaylist(
+      songCount: 1,
+      startIndex: 0,
+      playlistId: 'old-playlist',
+      loadPage: (_, __) async => [oldSong],
+    );
+    expect(handler.queueItems, isNotEmpty);
+
+    await service.playPagedPlaylist(
+      songCount: 0,
+      startIndex: 0,
+      playlistId: 'empty-playlist',
+      loadPage: (_, __) async => const [],
+    );
+
+    expect(handler.queueItems, isEmpty);
+    expect(service.currentLazyPlaylistId, isNull);
+    expect(service.currentLazyPlaylistSongCount, 0);
+    expect(handler.mediaItem.value, isNull);
+  });
+
+  test(
     'paged sequential play returns to the first song after the last',
     () async {
       audioHandler = handler;

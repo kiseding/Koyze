@@ -465,8 +465,6 @@ class DownloadService {
     }
 
     final matchedFinals = <String, List<File>>{};
-    final parts = <File>[];
-    final orphans = <File>[];
 
     for (final file in files) {
       final name = file.uri.pathSegments.last;
@@ -479,10 +477,7 @@ class DownloadService {
       final revision = int.parse(match.group(3)!);
       final kind = match.group(4)!;
 
-      if (kind == 'part') {
-        parts.add(file);
-        continue;
-      }
+      if (kind == 'part') continue;
 
       DownloadTask? owner;
       for (final task in _tasks) {
@@ -492,9 +487,7 @@ class DownloadService {
           break;
         }
       }
-      if (owner == null) {
-        orphans.add(file);
-      } else {
+      if (owner != null) {
         matchedFinals.putIfAbsent(owner.id, () => []).add(file);
       }
     }
@@ -528,9 +521,6 @@ class DownloadService {
         quarantineChanged = true;
         _tasks.removeAt(index);
         _tasksDirtyFromReconcile = true;
-        for (final f in candidates) {
-          await _safeDelete(f.path);
-        }
         continue;
       }
 
@@ -560,7 +550,8 @@ class DownloadService {
       final path = task.savePath;
       final file = path == null ? null : File(path);
       if (file == null || !await file.exists() || await file.length() == 0) {
-        if (file != null && await file.exists()) await _safeDelete(file.path);
+        // Reconcile stale task metadata, but never infer file ownership from
+        // a task record strongly enough to delete the path during startup.
         _tasks.removeAt(i);
         _tasksDirtyFromReconcile = true;
       }
@@ -577,13 +568,6 @@ class DownloadService {
         );
         _tasksDirtyFromReconcile = true;
       }
-    }
-
-    for (final part in parts) {
-      await _safeDelete(part.path);
-    }
-    for (final orphan in orphans) {
-      await _safeDelete(orphan.path);
     }
 
     if (quarantineChanged) {

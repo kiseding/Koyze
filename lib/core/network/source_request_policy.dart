@@ -717,7 +717,13 @@ class SourceStreamSandbox {
     var currentOptions = Map<String, dynamic>.from(options);
     for (var redirects = 0; ; redirects++) {
       if (cancel.isCancelled) _throwSourceCancelled();
-      final request = await policy.validate(current, currentOptions);
+      final request = await Future.any([
+        policy.validate(current, currentOptions),
+        cancel.future.then<ValidatedSourceRequest>(
+          (reason) => throw SourceRequestPolicyException('cancelled', reason),
+        ),
+      ]);
+      if (cancel.isCancelled) _throwSourceCancelled();
       final response = await transport(request, cancel);
       if (cancel.isCancelled) {
         response.close();

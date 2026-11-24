@@ -797,6 +797,51 @@ void main() {
       },
     );
 
+    test('stream cancellation during DNS never invokes transport', () async {
+      final dnsStarted = Completer<void>();
+      final dnsResult = Completer<List<InternetAddress>>();
+      final cancellation = SourceRequestCancellation();
+      var transportCalls = 0;
+      final sandbox = SourceStreamSandbox(
+        policy: SourceRequestPolicy(
+          resolve: (host) {
+            dnsStarted.complete();
+            return dnsResult.future;
+          },
+        ),
+        transport: (request, cancellation) async {
+          transportCalls++;
+          return SourceTransportResponse(
+            statusCode: 200,
+            headers: const {},
+            body: const Stream.empty(),
+          );
+        },
+      );
+
+      final response = sandbox.open(
+        Uri.parse('https://example.com'),
+        {},
+        cancellation: cancellation,
+      );
+      await dnsStarted.future;
+      cancellation.cancel('Download cancelled');
+
+      await expectLater(
+        response,
+        throwsA(
+          isA<SourceRequestPolicyException>().having(
+            (error) => error.code,
+            'code',
+            'cancelled',
+          ),
+        ),
+      );
+      dnsResult.complete([publicAddress]);
+      await Future<void>.delayed(Duration.zero);
+      expect(transportCalls, 0);
+    });
+
     test('cancellation during DNS never invokes transport', () async {
       final dnsStarted = Completer<void>();
       final dnsResult = Completer<List<InternetAddress>>();

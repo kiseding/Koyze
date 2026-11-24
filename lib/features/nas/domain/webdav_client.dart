@@ -94,12 +94,13 @@ class WebDavNasClient extends NasClient {
     NasConfig config,
     NasSecrets secrets, {
     String? depth,
+    required Uri uri,
   }) {
     return {
       'Accept': 'application/xml, text/xml;q=0.9, */*;q=0.8',
       'Content-Type': 'application/xml; charset=utf-8',
       if (depth != null) 'Depth': depth,
-      ..._authHeaders(config, secrets),
+      ..._headersForUri(config, secrets, uri.toString()),
     };
   }
 
@@ -115,7 +116,7 @@ class WebDavNasClient extends NasClient {
         data: _propfindBody,
         options: Options(
           method: 'PROPFIND',
-          headers: _requestHeaders(config, secrets, depth: depth),
+          headers: _requestHeaders(config, secrets, depth: depth, uri: uri),
           responseType: ResponseType.plain,
           validateStatus: (status) =>
               status != null && status >= 200 && status < 300,
@@ -300,16 +301,32 @@ class WebDavNasClient extends NasClient {
     MusicItem music, {
     required String quality,
   }) async {
+    final url = streamUrl(config, secrets, music, quality: quality);
+    final uri = Uri.tryParse(url);
+    final sameOrigin =
+        uri != null && uri.userInfo.isEmpty && _sameOrigin(_rootUri(config), uri);
     return NasPlayUrlResult(
-      url: streamUrl(config, secrets, music, quality: quality),
-      headers: _authHeaders(config, secrets),
-      trustedNetwork: true,
+      url: url,
+      headers: _headersForUri(config, secrets, url),
+      trustedNetwork: sameOrigin,
     );
   }
 
   @override
   Map<String, String> artworkHeaders(NasConfig config, NasSecrets secrets) =>
       _authHeaders(config, secrets);
+
+  Map<String, String> _headersForUri(
+    NasConfig config,
+    NasSecrets secrets,
+    String value,
+  ) {
+    final uri = Uri.tryParse(value);
+    if (uri == null || uri.userInfo.isNotEmpty || !_sameOrigin(_rootUri(config), uri)) {
+      return const {};
+    }
+    return _authHeaders(config, secrets);
+  }
 
   @override
   Future<String?> getLyrics(
@@ -323,7 +340,7 @@ class WebDavNasClient extends NasClient {
       final response = await dio.get<dynamic>(
         url,
         options: Options(
-          headers: _authHeaders(config, secrets),
+          headers: _headersForUri(config, secrets, url),
           responseType: ResponseType.bytes,
           validateStatus: (status) =>
               status != null && status >= 200 && status < 300,
@@ -421,11 +438,13 @@ class WebDavNasClient extends NasClient {
     }
   }
 
-  /// 只比路径前缀，不再要求 scheme/host/port 完全一致。
-  ///
-  /// 反向代理（Nextcloud、OpenList、群晖套件门户）经常返回用公网域名拼出来的
-  /// 绝对 href，而用户填的是内网地址；按旧逻辑这些条目会被整批丢掉，表现为
-  /// 「连上了但一首歌都没有」。
+  bool _sameOrigin(Uri a, Uri b) =>
+      a.scheme.toLowerCase() == b.scheme.toLowerCase() &&
+      a.host.toLowerCase() == b.host.toLowerCase() &&
+      a.port == b.port;
+
+  /// 路径必须位于配置的 WebDAV 根目录内。跨源反向代理链接仍可列出，
+  /// 但播放时不会携带 NAS 凭据，也不会获得 LAN 网络豁免。
   bool _isInRoot(NasConfig config, Uri uri) {
     final rootPath = _withoutTrailingSlash(_rootUri(config).path);
     final path = _withoutTrailingSlash(uri.path);
