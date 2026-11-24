@@ -276,12 +276,13 @@ class GlassSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     // 「界面不透明度」「虚化」和「正在滚动」都是全局信号，改它们不会让外层
     // 重建；这里直接监听，拖动滑杆/起手滑动时这一块当帧重画。
+    final listenables = <Listenable>[
+      GlassEffectConfig.surfaceOpacityListenable,
+      GlassEffectConfig.surfaceBlurListenable,
+      if (!solidBehind && backdrop) GlassScrollActivity.listenable,
+    ];
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        GlassEffectConfig.surfaceOpacityListenable,
-        GlassEffectConfig.surfaceBlurListenable,
-        GlassScrollActivity.listenable,
-      ]),
+      listenable: Listenable.merge(listenables),
       builder: (context, _) => _buildSurface(context),
     );
   }

@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/theme/glass_config.dart';
+import 'package:koyze/core/theme/effect_policy.dart';
 import 'package:koyze/features/settings/presentation/settings_section_card.dart';
 
 Widget _host(Widget child) {
@@ -82,6 +83,70 @@ void main() {
       );
 
       expect(find.byType(BackdropFilter), findsNothing);
+    });
+
+    testWidgets('设置卡片滚动时不重建纯色材质面', (tester) async {
+      GlassEffectConfig.setSurfaceBlur(1);
+      await tester.pumpWidget(
+        _host(
+          const GlassSurface(
+            key: ValueKey('settings-surface'),
+            style: AppGlassStyle.regular,
+            backdrop: false,
+            solidBehind: true,
+            child: SizedBox(height: 80),
+          ),
+        ),
+      );
+      final before = tester.widget<DecoratedBox>(
+        find.descendant(
+          of: find.byKey(const ValueKey('settings-surface')),
+          matching: find.byType(DecoratedBox),
+        ).first,
+      );
+
+      GlassScrollActivity.set(true);
+      await tester.pump();
+      GlassScrollActivity.set(false);
+      await tester.pump();
+
+      final after = tester.widget<DecoratedBox>(
+        find.descendant(
+          of: find.byKey(const ValueKey('settings-surface')),
+          matching: find.byType(DecoratedBox),
+        ).first,
+      );
+      expect(identical(after, before), isTrue);
+    });
+
+    testWidgets('可采样材质面仍响应滚动通知', (tester) async {
+      GlassEffectConfig.setSurfaceBlur(1);
+      await tester.pumpWidget(
+        _host(
+          const GlassSurface(
+            key: ValueKey('scrolling-glass'),
+            style: AppGlassStyle.regular,
+            child: SizedBox(height: 80),
+          ),
+        ),
+      );
+      final before = tester.widget<BackdropFilter>(
+        find.descendant(
+          of: find.byKey(const ValueKey('scrolling-glass')),
+          matching: find.byType(BackdropFilter),
+        ),
+      );
+
+      GlassScrollActivity.set(true);
+      await tester.pump();
+
+      final after = tester.widget<BackdropFilter>(
+        find.descendant(
+          of: find.byKey(const ValueKey('scrolling-glass')),
+          matching: find.byType(BackdropFilter),
+        ),
+      );
+      expect(identical(after, before), isFalse);
     });
 
     testWidgets('没声明 solidBehind 的面仍然响应虚化滑杆', (tester) async {

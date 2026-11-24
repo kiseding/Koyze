@@ -20,6 +20,7 @@ class SpectrumPainter extends CustomPainter {
     required this.accent,
     required this.trackColor,
     this.revision = 0,
+    super.repaint,
   });
 
   /// 幅值，长度即频段数量。
@@ -102,6 +103,17 @@ class SpectrumPainter extends CustomPainter {
     final radius = math.min(barWidth / 2, 2.0);
     final paint = Paint()..style = PaintingStyle.fill;
     final peakPaint = Paint()..style = PaintingStyle.fill;
+    final gradient = LinearGradient(
+      begin: Alignment.bottomCenter,
+      end: Alignment.topCenter,
+      colors: [
+        accent.withValues(alpha: 0.55),
+        accent,
+        Color.lerp(accent, Colors.white, 0.35)!,
+      ],
+      stops: const [0.0, 0.62, 1.0],
+    );
+    final peakColor = accent.withValues(alpha: 0.38);
 
     for (var i = 0; i < count; i++) {
       final value = display[i].clamp(0.0, 1.0);
@@ -111,16 +123,7 @@ class SpectrumPainter extends CustomPainter {
       final rect = Rect.fromLTWH(left, top, barWidth, height);
 
       // 纵向渐变：低处偏暗、高处偏亮，让「响度」有纵向的读法。
-      paint.shader = LinearGradient(
-        begin: Alignment.bottomCenter,
-        end: Alignment.topCenter,
-        colors: [
-          accent.withValues(alpha: 0.55),
-          accent,
-          Color.lerp(accent, Colors.white, 0.35)!,
-        ],
-        stops: const [0.0, 0.62, 1.0],
-      ).createShader(rect);
+      paint.shader = gradient.createShader(rect);
 
       canvas.drawRRect(
         RRect.fromRectAndRadius(rect, Radius.circular(radius)),
@@ -130,7 +133,7 @@ class SpectrumPainter extends CustomPainter {
       final peakValue = peak.length > i ? peak[i].clamp(0.0, 1.0) : value;
       final peakTop = size.height - math.max(1.5, peakValue * size.height);
       if (top - peakTop > 1.5) {
-        peakPaint.color = accent.withValues(alpha: 0.38);
+        peakPaint.color = peakColor;
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTWH(left, peakTop - 1.5, barWidth, 1.5),
@@ -172,8 +175,11 @@ class SpectrumPainter extends CustomPainter {
         if (row < lit) {
           // 越靠上的格子越亮：这是「已经冲到这一档」的提示。
           final t = rows <= 1 ? 1.0 : row / (rows - 1);
-          paint.color = Color.lerp(accent, Colors.white, 0.10 + 0.45 * t)!
-              .withValues(alpha: 0.50 + 0.50 * t);
+          paint.color = Color.lerp(
+            accent,
+            Colors.white,
+            0.10 + 0.45 * t,
+          )!.withValues(alpha: 0.50 + 0.50 * t);
         } else {
           paint.color = trackColor.withValues(alpha: 0.14);
         }
@@ -310,8 +316,11 @@ class SpectrumPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.1
         ..strokeJoin = StrokeJoin.miter
-        ..color = Color.lerp(accent, Colors.white, 0.40)!
-            .withValues(alpha: 0.92),
+        ..color = Color.lerp(
+          accent,
+          Colors.white,
+          0.40,
+        )!.withValues(alpha: 0.92),
     );
   }
 

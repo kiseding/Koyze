@@ -73,6 +73,10 @@ class PlayerSpectrumStrip extends ConsumerStatefulWidget {
       _PlayerSpectrumStripState();
 }
 
+class _SpectrumRepaintNotifier extends ChangeNotifier {
+  void repaint() => notifyListeners();
+}
+
 class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     with TickerProviderStateMixin {
   /// 数据源。引擎重建后 handler 会换一个新的 source，所以不跨帧缓存。
@@ -96,6 +100,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   /// 补间是原地改 [_display] 的元素，新旧 painter 会持有同一个 List，所以
   /// `shouldRepaint` 只能靠这个数字判断——详见 [SpectrumPainter.revision]。
   int _revision = 0;
+  final _SpectrumRepaintNotifier _paintNotifier = _SpectrumRepaintNotifier();
 
   /// 在数据源迟迟没有提供首帧时隐藏空频谱。
   Timer? _firstFrameTimer;
@@ -169,7 +174,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     _subscription = null;
     _firstFrameTimer?.cancel();
     _firstFrameTimer = null;
-    _clearSpectrum();
+    _clearSpectrumAndRebuild();
     _source = source;
     if (source == null || !source.available) {
       _markSupported(false);
@@ -217,6 +222,15 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
     _stopTicker();
     _target = _display = _peak = const [];
     _revision++;
+    _paintNotifier.repaint();
+  }
+
+  void _clearSpectrumAndRebuild() {
+    if (!mounted) {
+      _clearSpectrum();
+      return;
+    }
+    setState(_clearSpectrum);
   }
 
   /// 等待首个有效帧，已经显示过频谱的暂停状态不受影响。
@@ -266,6 +280,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
         _peak = List<double>.of(bands);
         _revision++;
       });
+      _paintNotifier.repaint();
     } else {
       _target = List<double>.of(bands);
     }
@@ -336,7 +351,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
 
     if (changed && mounted) {
       _revision++;
-      setState(() {});
+      _paintNotifier.repaint();
     }
 
     // 数据断了（暂停 / 播放结束 / 页面不可见）就停：没有新帧时补间终将
@@ -350,6 +365,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
   @override
   void dispose() {
     _stopTicker();
+    _paintNotifier.dispose();
     _firstFrameTimer?.cancel();
     _firstFrameTimer = null;
     unawaited(_subscription?.cancel());
@@ -401,6 +417,7 @@ class _PlayerSpectrumStripState extends ConsumerState<PlayerSpectrumStrip>
               accent: accent,
               trackColor: track,
               revision: _revision,
+              repaint: _paintNotifier,
             ),
           ),
         ),
