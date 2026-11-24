@@ -251,7 +251,7 @@ abstract class AppLocalizations {
   /// No description provided for @autoResumeSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Continue the last song when the app opens'**
+  /// **'Resume the last song on launch'**
   String get autoResumeSubtitle;
 
   /// No description provided for @floatingPlayer.
@@ -263,7 +263,7 @@ abstract class AppLocalizations {
   /// No description provided for @floatingPlayerSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Keep playback controls visible over other apps'**
+  /// **'Show playback controls over other apps'**
   String get floatingPlayerSubtitle;
 
   /// No description provided for @floatingPlayerPermission.
@@ -281,7 +281,7 @@ abstract class AppLocalizations {
   /// No description provided for @forceLandscapeSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Always landscape, even on upright phones'**
+  /// **''**
   String get forceLandscapeSubtitle;
 
   /// No description provided for @simplifyEffects.
@@ -293,7 +293,7 @@ abstract class AppLocalizations {
   /// No description provided for @simplifyEffectsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Disable blur, transparency, and motion (on by default on low RAM)'**
+  /// **'Disable blur, transparency, and motion (default on low-memory devices)'**
   String get simplifyEffectsSubtitle;
 
   /// No description provided for @defaultSearchPlatform.
@@ -371,7 +371,7 @@ abstract class AppLocalizations {
   /// No description provided for @followSystemLanguageSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Use the device language when it is Chinese or English'**
+  /// **'Follow the device\'s Chinese or English setting'**
   String get followSystemLanguageSubtitle;
 
   /// No description provided for @themeColor.
@@ -431,7 +431,7 @@ abstract class AppLocalizations {
   /// No description provided for @glassOpacitySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'100% is solid; lower it to see through'**
+  /// **'100% is opaque; lower values are more transparent'**
   String get glassOpacitySubtitle;
 
   /// No description provided for @glassBlur.
@@ -443,7 +443,7 @@ abstract class AppLocalizations {
   /// No description provided for @glassBlurSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'0% stays sharp; raise it to frost what shows through'**
+  /// **'0% is sharp; higher values add blur'**
   String get glassBlurSubtitle;
 
   /// No description provided for @playerBackdropPreviewEmpty.
@@ -539,7 +539,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadDirectoryNote.
   ///
   /// In en, this message translates to:
-  /// **'Only new downloads use the new folder; files already downloaded stay where they are.'**
+  /// **'Only new downloads move to this folder. Existing files stay put.'**
   String get downloadDirectoryNote;
 
   /// No description provided for @downloadDirectoryChoose.
@@ -707,7 +707,7 @@ abstract class AppLocalizations {
   /// No description provided for @restoreSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Pick a backup file and overwrite the matching playlists and settings'**
+  /// **'Overwrite matching playlists and settings from a backup'**
   String get restoreSubtitle;
 
   /// No description provided for @clearCache.
@@ -719,7 +719,7 @@ abstract class AppLocalizations {
   /// No description provided for @clearCacheSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Clear playback cache, artwork, and temp files'**
+  /// **'Playback cache, artwork cache, and temporary files'**
   String get clearCacheSubtitle;
 
   /// No description provided for @about.
@@ -845,7 +845,7 @@ abstract class AppLocalizations {
   /// No description provided for @artworkCacheSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Album art stored on disk and in memory'**
+  /// **'Album artwork cache'**
   String get artworkCacheSubtitle;
 
   /// No description provided for @tempFiles.
@@ -857,7 +857,7 @@ abstract class AppLocalizations {
   /// No description provided for @tempFilesSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Intermediate files in the system temp folder'**
+  /// **'System temporary files'**
   String get tempFilesSubtitle;
 
   /// No description provided for @cacheKeepNote.
@@ -953,7 +953,7 @@ abstract class AppLocalizations {
   /// No description provided for @heroPlayModeHint.
   ///
   /// In en, this message translates to:
-  /// **'Affects the home card only, not the player.'**
+  /// **'Affects the home card only.'**
   String get heroPlayModeHint;
 
   /// No description provided for @favorites.
@@ -1007,13 +1007,13 @@ abstract class AppLocalizations {
   /// No description provided for @playInOrderHint.
   ///
   /// In en, this message translates to:
-  /// **'Play the list in order, then start over'**
+  /// **'Play the list in order and repeat'**
   String get playInOrderHint;
 
   /// No description provided for @shufflePlayHint.
   ///
   /// In en, this message translates to:
-  /// **'Shuffle, then keep picking at random'**
+  /// **'Play in random order'**
   String get shufflePlayHint;
 
   /// No description provided for @repeatOneHint.
@@ -1115,7 +1115,7 @@ abstract class AppLocalizations {
   /// No description provided for @chartSettingsHint.
   ///
   /// In en, this message translates to:
-  /// **'Hidden charts stay off the Charts tab until you turn them back on.'**
+  /// **'Turn a hidden chart back on here.'**
   String get chartSettingsHint;
 
   /// No description provided for @refreshCharts.
@@ -1445,7 +1445,7 @@ abstract class AppLocalizations {
   /// No description provided for @importPlatformLoginIntro.
   ///
   /// In en, this message translates to:
-  /// **'Choose QQ Music, Kuwo, Kugou, or NetEase Cloud Music. Official authorization and eligibility differ by platform.'**
+  /// **'Official authorization and eligibility vary by platform.'**
   String get importPlatformLoginIntro;
 
   /// No description provided for @platformLoginUnavailableQQ.
@@ -2933,7 +2933,7 @@ abstract class AppLocalizations {
   /// No description provided for @addCustomSourceHint.
   ///
   /// In en, this message translates to:
-  /// **'Koyze ships no audio source. Use + to import and enable one before playing online songs.'**
+  /// **'Import and enable a source to play online music.'**
   String get addCustomSourceHint;
 
   /// No description provided for @importScriptOk.
@@ -3209,7 +3209,7 @@ abstract class AppLocalizations {
   /// No description provided for @legacyAuthHint.
   ///
   /// In en, this message translates to:
-  /// **'Only if token sign-in fails. The password is sent as plain text.'**
+  /// **'Use only if token sign-in fails; the password is sent in plain text.'**
   String get legacyAuthHint;
 
   /// No description provided for @reconnect.
@@ -3287,13 +3287,13 @@ abstract class AppLocalizations {
   /// No description provided for @diagnosticsEmptyHint.
   ///
   /// In en, this message translates to:
-  /// **'Panel is open. New runtime events will show up here.'**
+  /// **'New logs appear here as they happen.'**
   String get diagnosticsEmptyHint;
 
   /// No description provided for @diagnosticsHint.
   ///
   /// In en, this message translates to:
-  /// **'Records only while this panel is open. Kept in memory; cleared on restart.'**
+  /// **'Logs stay in memory and normally clear when you close this panel.'**
   String get diagnosticsHint;
 
   /// No description provided for @stoppedAfterRepeatedFailures.
@@ -4253,7 +4253,7 @@ abstract class AppLocalizations {
   /// No description provided for @sourceCheckDetailsIntro.
   ///
   /// In en, this message translates to:
-  /// **'Every platform resolved one real audio URL from a sample track. Latency, size and failure reasons are below.'**
+  /// **'Each platform was tested with a sample track. See latency, size, and failures below.'**
   String get sourceCheckDetailsIntro;
 
   /// No description provided for @sourceCheckVerdictOk.
@@ -4301,7 +4301,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiSettingsIntro.
   ///
   /// In en, this message translates to:
-  /// **'Works with any OpenAI-compatible endpoint. The key goes into the system secure storage and is only sent to the URL you enter here.'**
+  /// **'Supports OpenAI-compatible endpoints. Your key is stored securely and sent only to this URL.'**
   String get aiSettingsIntro;
 
   /// No description provided for @aiBaseUrl.
@@ -4769,7 +4769,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiSchedulesIntro.
   ///
   /// In en, this message translates to:
-  /// **'Runs the prompt you write at the time you pick. It fires while the app is open; a run missed in the last 6 hours is caught up on next launch.'**
+  /// **'Runs only while the app is open. Reopen within 6 hours of a missed run to catch up.'**
   String get aiSchedulesIntro;
 
   /// No description provided for @aiSchedulesEmpty.
@@ -4781,7 +4781,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiSchedulesEmptyHint.
   ///
   /// In en, this message translates to:
-  /// **'For example: build a playlist from a few songs every morning, or recap last week\'s listening every Sunday.'**
+  /// **'For example: create a morning playlist or recap last week\'s listening each Sunday.'**
   String get aiSchedulesEmptyHint;
 
   /// No description provided for @aiSchedulesNew.
@@ -5117,7 +5117,7 @@ abstract class AppLocalizations {
   /// No description provided for @scanRuleSkipDuplicatesHint.
   ///
   /// In en, this message translates to:
-  /// **'Same title, artist and length keeps the largest file'**
+  /// **'For matching title, artist, and length, keep the largest file'**
   String get scanRuleSkipDuplicatesHint;
 
   /// No description provided for @scanRuleExcludedFolders.
@@ -5609,7 +5609,7 @@ abstract class AppLocalizations {
   /// No description provided for @lyricOffsetHint.
   ///
   /// In en, this message translates to:
-  /// **'Positive delays the lyrics; use it when they run ahead of the vocal'**
+  /// **'Increase if lyrics are early; decrease if late'**
   String get lyricOffsetHint;
 
   /// No description provided for @lyricFontScale.
@@ -5711,7 +5711,7 @@ abstract class AppLocalizations {
   /// No description provided for @lyricBlurHint.
   ///
   /// In en, this message translates to:
-  /// **'The current line stays sharp; lines further away fade out of focus. 0 turns it off'**
+  /// **'Current line stays sharp; blur increases with distance. 0 disables it'**
   String get lyricBlurHint;
 
   /// No description provided for @lyricFont.
@@ -6185,7 +6185,7 @@ abstract class AppLocalizations {
   /// No description provided for @fileManagerMoveHint.
   ///
   /// In en, this message translates to:
-  /// **'After moving, the files are no longer in a scanned folder and will drop out of your library on the next rescan.'**
+  /// **'Files moved outside scanned folders leave the library on the next scan.'**
   String get fileManagerMoveHint;
 
   /// No description provided for @fileManagerConflict.
@@ -6329,7 +6329,7 @@ abstract class AppLocalizations {
   /// No description provided for @audioEnhancementSectionHint.
   ///
   /// In en, this message translates to:
-  /// **'These sit on the same filter chain as the equalizer and apply as you change them.'**
+  /// **'Changes apply immediately through the equalizer\'s audio filter chain.'**
   String get audioEnhancementSectionHint;
 
   /// No description provided for @spectrumSection.
@@ -6341,7 +6341,7 @@ abstract class AppLocalizations {
   /// No description provided for @spectrumSectionHint.
   ///
   /// In en, this message translates to:
-  /// **'Only changes how the player draws the bars, not the sound.'**
+  /// **'Changes the player display, not the sound.'**
   String get spectrumSectionHint;
 }
 

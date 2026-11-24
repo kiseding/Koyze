@@ -27,7 +27,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cloudAccount => '云端账号';
 
   @override
-  String get cloudAccountSubtitle => '同步收藏、歌单、设置与自定义音源';
+  String get cloudAccountSubtitle => '同步收藏、歌单、设置和自定义源';
 
   @override
   String get advanced => '高级功能';
@@ -86,13 +86,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get autoResume => '自动恢复播放';
 
   @override
-  String get autoResumeSubtitle => '打开 App 时自动继续播放上次的歌曲';
+  String get autoResumeSubtitle => '启动时续播上次的歌曲';
 
   @override
   String get floatingPlayer => '悬浮窗';
 
   @override
-  String get floatingPlayerSubtitle => '离开应用后仍显示播放控制';
+  String get floatingPlayerSubtitle => '在其他应用上显示播放控件';
 
   @override
   String get floatingPlayerPermission => '请允许显示在其他应用上层，然后返回 Koyze';
@@ -101,13 +101,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get forceLandscape => '强制横屏';
 
   @override
-  String get forceLandscapeSubtitle => '始终横屏，竖屏设备会锁定方向';
+  String get forceLandscapeSubtitle => '';
 
   @override
   String get simplifyEffects => '关闭特效';
 
   @override
-  String get simplifyEffectsSubtitle => '模糊、透明与动效一并停用（低内存默认开启）';
+  String get simplifyEffectsSubtitle => '停用模糊、透明和动效（低内存默认开启）';
 
   @override
   String get defaultSearchPlatform => '默认搜索平台';
@@ -146,7 +146,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get followSystemThemeSubtitle => '';
 
   @override
-  String get followSystemLanguageSubtitle => '设备为中文或英文时自动跟随';
+  String get followSystemLanguageSubtitle => '跟随设备的中英文设置';
 
   @override
   String get themeColor => '强调色';
@@ -176,13 +176,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get glassOpacity => '界面不透明度';
 
   @override
-  String get glassOpacitySubtitle => '100% 为完全实色，调低更透';
+  String get glassOpacitySubtitle => '100% 不透明，数值越低越透';
 
   @override
   String get glassBlur => '虚化';
 
   @override
-  String get glassBlurSubtitle => '0% 为不虚化，调高后透过来的内容更糊';
+  String get glassBlurSubtitle => '0% 不模糊，数值越高越模糊';
 
   @override
   String get playerBackdropPreviewEmpty => '没有正在播放的歌曲';
@@ -230,7 +230,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadDirectoryExportMoved => '要往外拿，到「本地音乐设置」里的「导出已下载的歌」。';
 
   @override
-  String get downloadDirectoryNote => '更改后只影响之后新增的下载，已下载的文件仍留在原目录。';
+  String get downloadDirectoryNote => '仅新下载使用新目录，已下载的文件不移动。';
 
   @override
   String get downloadDirectoryChoose => '选择文件夹';
@@ -324,13 +324,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get restore => '恢复数据';
 
   @override
-  String get restoreSubtitle => '选择备份文件，覆盖对应的歌单与设置';
+  String get restoreSubtitle => '用备份覆盖对应的歌单和设置';
 
   @override
   String get clearCache => '清除缓存';
 
   @override
-  String get clearCacheSubtitle => '清除播放缓存、封面与临时文件';
+  String get clearCacheSubtitle => '播放缓存、封面缓存和临时文件';
 
   @override
   String get about => '关于';
@@ -393,13 +393,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get artworkCache => '封面缓存';
 
   @override
-  String get artworkCacheSubtitle => '专辑封面的磁盘和内存缓存';
+  String get artworkCacheSubtitle => '专辑封面缓存';
 
   @override
   String get tempFiles => '临时文件';
 
   @override
-  String get tempFilesSubtitle => '系统临时目录中的中间文件';
+  String get tempFilesSubtitle => '系统临时文件';
 
   @override
   String get cacheKeepNote => '手动下载的歌曲不会被删除；正在播放的歌曲缓存会安全保留。';
@@ -447,7 +447,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get heroPlayMode => '右侧按钮播放模式';
 
   @override
-  String get heroPlayModeHint => '仅影响首页卡片按钮，不影响播放页模式';
+  String get heroPlayModeHint => '仅影响首页卡片';
 
   @override
   String get favorites => '收藏列表';
@@ -474,10 +474,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get repeatOne => '单曲循环';
 
   @override
-  String get playInOrderHint => '按列表顺序播放，播完回到第一首';
+  String get playInOrderHint => '播完回到第一首';
 
   @override
-  String get shufflePlayHint => '打乱顺序，播完继续随机下一首';
+  String get shufflePlayHint => '每首播完随机选下一首';
 
   @override
   String get repeatOneHint => '只循环当前歌曲';
@@ -530,7 +530,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get chartSettingsHint => '隐藏的榜单不会出现在榜单页，随时可以在这里恢复。';
+  String get chartSettingsHint => '重新勾选即可恢复隐藏的榜单。';
 
   @override
   String get refreshCharts => '刷新榜单';
@@ -696,8 +696,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get importFileMalformed => '歌单格式无法解析，请确认文件完整';
 
   @override
-  String get importPlatformLoginIntro =>
-      '选择 QQ 音乐、酷我、酷狗或网易云音乐。各平台的官方授权范围和接入条件不同。';
+  String get importPlatformLoginIntro => '各平台的官方授权和接入条件不同。';
 
   @override
   String get platformLoginUnavailableQQ =>
@@ -1448,8 +1447,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noCustomSources => '暂无自定义源';
 
   @override
-  String get addCustomSourceHint =>
-      'Koyze 不内置任何音源。请点击右上角 + 导入并启用音源，否则在线歌曲无法播放。';
+  String get addCustomSourceHint => '导入并启用音源后才能播放在线歌曲。';
 
   @override
   String get importScriptOk => '导入脚本成功';
@@ -1587,7 +1585,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get legacyAuth => '旧版鉴权';
 
   @override
-  String get legacyAuthHint => '仅当 token 鉴权失败时开启，密码会以明文参数发送';
+  String get legacyAuthHint => '仅在 Token 鉴权失败时开启；密码将以明文发送。';
 
   @override
   String get reconnect => '重新连接';
@@ -1626,10 +1624,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get diagnosticsJumpLatest => '回到最新';
 
   @override
-  String get diagnosticsEmptyHint => '面板已打开，有新的运行事件会实时出现在这里。';
+  String get diagnosticsEmptyHint => '新日志会实时显示。';
 
   @override
-  String get diagnosticsHint => '只在打开这个面板时记录；仅存于内存，重启后清空。';
+  String get diagnosticsHint => '日志仅存于内存，通常关闭面板即清空。';
 
   @override
   String get stoppedAfterRepeatedFailures => '连续 5 首歌曲播放失败，已停止自动播放';
@@ -2288,7 +2286,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sourceCheckDetailsOpen => '查看检测详情';
 
   @override
-  String get sourceCheckDetailsIntro => '每个平台都按样本曲真实取了一次音频地址，下面是延迟、体积与失败原因。';
+  String get sourceCheckDetailsIntro => '按样本曲实测各平台的音频地址，查看延迟、体积和失败原因。';
 
   @override
   String get sourceCheckVerdictOk => '可用';
@@ -2314,8 +2312,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiSettingsTitle => 'AI 设置';
 
   @override
-  String get aiSettingsIntro =>
-      '兼容任何 OpenAI 格式的接口。密钥存在系统安全存储里，只会在请求时发给你填的这个地址。';
+  String get aiSettingsIntro => '兼容 OpenAI 格式接口；密钥安全保存在本机，仅发送到你填写的地址。';
 
   @override
   String get aiBaseUrl => 'API 地址';
@@ -2413,7 +2410,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiActionsTitle => '允许 AI 直接操作应用';
 
   @override
-  String get aiActionsSubtitle => '关闭后只保留查询类操作，动手的事交回给你';
+  String get aiActionsSubtitle => '关闭后只允许查询';
 
   @override
   String aiToolRunning(String tool) {
@@ -2557,13 +2554,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiSchedulesSubtitle => '到点让助手自己动手';
 
   @override
-  String get aiSchedulesIntro => '到点自动执行你写的那句话。应用运行时触发；关掉期间错过的，6 小时内会补跑一次。';
+  String get aiSchedulesIntro => '仅在应用运行时执行；重开时补跑 6 小时内错过的任务。';
 
   @override
   String get aiSchedulesEmpty => '还没有定时任务';
 
   @override
-  String get aiSchedulesEmptyHint => '比如每天早上挑几首歌建成歌单，或者每周日把上周常听的整理成一份回顾。';
+  String get aiSchedulesEmptyHint => '例如：每天早上创建推荐歌单，或每周回顾上周常听的歌曲。';
 
   @override
   String get aiSchedulesNew => '新建任务';
@@ -2745,7 +2742,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get scanRuleSkipDuplicates => '跳过重复曲目';
 
   @override
-  String get scanRuleSkipDuplicatesHint => '同标题、歌手、时长只保留体积最大的一份';
+  String get scanRuleSkipDuplicatesHint => '同名、同歌手、同时长，保留最大文件';
 
   @override
   String get scanRuleExcludedFolders => '排除的文件夹';
@@ -3017,7 +3014,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lyricOffset => '时间偏移';
 
   @override
-  String get lyricOffsetHint => '正值让歌词更晚出现；歌词比人声早时调大';
+  String get lyricOffsetHint => '歌词太早就调大，太晚就调小';
 
   @override
   String get lyricFontScale => '字号';
@@ -3070,7 +3067,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lyricBlur => '上下模糊';
 
   @override
-  String get lyricBlurHint => '中间当前行始终清晰，越往上下两侧越模糊；0 就是完全不糊';
+  String get lyricBlurHint => '当前行清晰，越远越模糊；0 关闭模糊';
 
   @override
   String get lyricFont => '歌词字体';
@@ -3331,7 +3328,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get fileManagerMoveHint => '移动后文件就不在原来的扫描目录里了，下次重扫会从本地音乐中移除。';
+  String get fileManagerMoveHint => '移出扫描目录的文件将在下次扫描时从曲库移除。';
 
   @override
   String get fileManagerConflict => '目标文件夹里已经有同名文件';
@@ -3405,11 +3402,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get audioEnhancementSection => '音频增强';
 
   @override
-  String get audioEnhancementSectionHint => '这几项和均衡器一起挂在播放引擎的滤镜链上，改完即时生效。';
+  String get audioEnhancementSectionHint => '更改后立即生效，与均衡器共用音频滤镜。';
 
   @override
   String get spectrumSection => '播放页频谱';
 
   @override
-  String get spectrumSectionHint => '只影响播放页的画法，不改声音本身。';
+  String get spectrumSectionHint => '仅改变播放页显示，不影响声音。';
 }

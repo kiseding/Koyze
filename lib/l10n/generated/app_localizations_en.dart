@@ -87,14 +87,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get autoResume => 'Resume on launch';
 
   @override
-  String get autoResumeSubtitle => 'Continue the last song when the app opens';
+  String get autoResumeSubtitle => 'Resume the last song on launch';
 
   @override
   String get floatingPlayer => 'Floating player';
 
   @override
-  String get floatingPlayerSubtitle =>
-      'Keep playback controls visible over other apps';
+  String get floatingPlayerSubtitle => 'Show playback controls over other apps';
 
   @override
   String get floatingPlayerPermission =>
@@ -104,15 +103,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get forceLandscape => 'Force landscape';
 
   @override
-  String get forceLandscapeSubtitle =>
-      'Always landscape, even on upright phones';
+  String get forceLandscapeSubtitle => '';
 
   @override
   String get simplifyEffects => 'Reduce effects';
 
   @override
   String get simplifyEffectsSubtitle =>
-      'Disable blur, transparency, and motion (on by default on low RAM)';
+      'Disable blur, transparency, and motion (default on low-memory devices)';
 
   @override
   String get defaultSearchPlatform => 'Default search source';
@@ -152,7 +150,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get followSystemLanguageSubtitle =>
-      'Use the device language when it is Chinese or English';
+      'Follow the device\'s Chinese or English setting';
 
   @override
   String get themeColor => 'Accent colour';
@@ -182,14 +180,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get glassOpacity => 'Interface opacity';
 
   @override
-  String get glassOpacitySubtitle => '100% is solid; lower it to see through';
+  String get glassOpacitySubtitle =>
+      '100% is opaque; lower values are more transparent';
 
   @override
   String get glassBlur => 'Interface blur';
 
   @override
-  String get glassBlurSubtitle =>
-      '0% stays sharp; raise it to frost what shows through';
+  String get glassBlurSubtitle => '0% is sharp; higher values add blur';
 
   @override
   String get playerBackdropPreviewEmpty => 'Nothing playing';
@@ -240,7 +238,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadDirectoryNote =>
-      'Only new downloads use the new folder; files already downloaded stay where they are.';
+      'Only new downloads move to this folder. Existing files stay put.';
 
   @override
   String get downloadDirectoryChoose => 'Choose folder';
@@ -339,14 +337,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get restoreSubtitle =>
-      'Pick a backup file and overwrite the matching playlists and settings';
+      'Overwrite matching playlists and settings from a backup';
 
   @override
   String get clearCache => 'Clear cache';
 
   @override
   String get clearCacheSubtitle =>
-      'Clear playback cache, artwork, and temp files';
+      'Playback cache, artwork cache, and temporary files';
 
   @override
   String get about => 'About';
@@ -410,14 +408,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get artworkCache => 'Artwork cache';
 
   @override
-  String get artworkCacheSubtitle => 'Album art stored on disk and in memory';
+  String get artworkCacheSubtitle => 'Album artwork cache';
 
   @override
   String get tempFiles => 'Temporary files';
 
   @override
-  String get tempFilesSubtitle =>
-      'Intermediate files in the system temp folder';
+  String get tempFilesSubtitle => 'System temporary files';
 
   @override
   String get cacheKeepNote =>
@@ -466,7 +463,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get heroPlayMode => 'Play button mode';
 
   @override
-  String get heroPlayModeHint => 'Affects the home card only, not the player.';
+  String get heroPlayModeHint => 'Affects the home card only.';
 
   @override
   String get favorites => 'Favorites';
@@ -493,10 +490,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get repeatOne => 'Repeat one';
 
   @override
-  String get playInOrderHint => 'Play the list in order, then start over';
+  String get playInOrderHint => 'Play the list in order and repeat';
 
   @override
-  String get shufflePlayHint => 'Shuffle, then keep picking at random';
+  String get shufflePlayHint => 'Play in random order';
 
   @override
   String get repeatOneHint => 'Repeat the current song';
@@ -550,8 +547,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get chartSettingsHint =>
-      'Hidden charts stay off the Charts tab until you turn them back on.';
+  String get chartSettingsHint => 'Turn a hidden chart back on here.';
 
   @override
   String get refreshCharts => 'Refresh charts';
@@ -721,7 +717,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get importPlatformLoginIntro =>
-      'Choose QQ Music, Kuwo, Kugou, or NetEase Cloud Music. Official authorization and eligibility differ by platform.';
+      'Official authorization and eligibility vary by platform.';
 
   @override
   String get platformLoginUnavailableQQ =>
@@ -1490,7 +1486,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addCustomSourceHint =>
-      'Koyze ships no audio source. Use + to import and enable one before playing online songs.';
+      'Import and enable a source to play online music.';
 
   @override
   String get importScriptOk => 'Script imported';
@@ -1630,7 +1626,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get legacyAuthHint =>
-      'Only if token sign-in fails. The password is sent as plain text.';
+      'Use only if token sign-in fails; the password is sent in plain text.';
 
   @override
   String get reconnect => 'Reconnect';
@@ -1669,12 +1665,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get diagnosticsJumpLatest => 'Jump to latest';
 
   @override
-  String get diagnosticsEmptyHint =>
-      'Panel is open. New runtime events will show up here.';
+  String get diagnosticsEmptyHint => 'New logs appear here as they happen.';
 
   @override
   String get diagnosticsHint =>
-      'Records only while this panel is open. Kept in memory; cleared on restart.';
+      'Logs stay in memory and normally clear when you close this panel.';
 
   @override
   String get stoppedAfterRepeatedFailures =>
@@ -2337,7 +2332,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sourceCheckDetailsIntro =>
-      'Every platform resolved one real audio URL from a sample track. Latency, size and failure reasons are below.';
+      'Each platform was tested with a sample track. See latency, size, and failures below.';
 
   @override
   String get sourceCheckVerdictOk => 'Works';
@@ -2364,7 +2359,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aiSettingsIntro =>
-      'Works with any OpenAI-compatible endpoint. The key goes into the system secure storage and is only sent to the URL you enter here.';
+      'Supports OpenAI-compatible endpoints. Your key is stored securely and sent only to this URL.';
 
   @override
   String get aiBaseUrl => 'API base URL';
@@ -2614,14 +2609,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aiSchedulesIntro =>
-      'Runs the prompt you write at the time you pick. It fires while the app is open; a run missed in the last 6 hours is caught up on next launch.';
+      'Runs only while the app is open. Reopen within 6 hours of a missed run to catch up.';
 
   @override
   String get aiSchedulesEmpty => 'No scheduled tasks yet';
 
   @override
   String get aiSchedulesEmptyHint =>
-      'For example: build a playlist from a few songs every morning, or recap last week\'s listening every Sunday.';
+      'For example: create a morning playlist or recap last week\'s listening each Sunday.';
 
   @override
   String get aiSchedulesNew => 'New task';
@@ -2805,7 +2800,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scanRuleSkipDuplicatesHint =>
-      'Same title, artist and length keeps the largest file';
+      'For matching title, artist, and length, keep the largest file';
 
   @override
   String get scanRuleExcludedFolders => 'Excluded folders';
@@ -3089,7 +3084,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get lyricOffsetHint =>
-      'Positive delays the lyrics; use it when they run ahead of the vocal';
+      'Increase if lyrics are early; decrease if late';
 
   @override
   String get lyricFontScale => 'Text size';
@@ -3144,7 +3139,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get lyricBlurHint =>
-      'The current line stays sharp; lines further away fade out of focus. 0 turns it off';
+      'Current line stays sharp; blur increases with distance. 0 disables it';
 
   @override
   String get lyricFont => 'Typeface';
@@ -3411,7 +3406,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fileManagerMoveHint =>
-      'After moving, the files are no longer in a scanned folder and will drop out of your library on the next rescan.';
+      'Files moved outside scanned folders leave the library on the next scan.';
 
   @override
   String get fileManagerConflict =>
@@ -3494,12 +3489,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get audioEnhancementSectionHint =>
-      'These sit on the same filter chain as the equalizer and apply as you change them.';
+      'Changes apply immediately through the equalizer\'s audio filter chain.';
 
   @override
   String get spectrumSection => 'Player spectrum';
 
   @override
   String get spectrumSectionHint =>
-      'Only changes how the player draws the bars, not the sound.';
+      'Changes the player display, not the sound.';
 }
