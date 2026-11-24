@@ -55,6 +55,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _initialFocusStarted = false;
   int? _pendingCenteredSongIndex;
+  int? _pendingPageScrollReset;
   int _pageIndex = 0;
   final Set<String> _selectedFavoriteIds = {};
   bool _selectionBusy = false;
@@ -132,6 +133,16 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }
 
   void _centerInitialSong(PageRange range) {
+    final pageToReset = _pendingPageScrollReset;
+    if (pageToReset == range.pageIndex && _scrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(0);
+        _pendingPageScrollReset = null;
+      });
+      return;
+    }
+
     final index = _pendingCenteredSongIndex;
     if (index == null ||
         PageRange.pageForItem(index: index) != range.pageIndex) {
@@ -163,8 +174,13 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   }
 
   void _setPage(int pageIndex, int itemCount) {
+    final targetPage = PageRange(
+      itemCount: itemCount,
+      pageIndex: pageIndex,
+    ).pageIndex;
     setState(() {
       _pendingCenteredSongIndex = null;
+      _pendingPageScrollReset = targetPage;
       _selectedFavoriteIds.clear();
       _pageIndex = PageRange(
         itemCount: itemCount,
