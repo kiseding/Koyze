@@ -7,7 +7,6 @@ import MethodCall from '@ohos/flutter_ohos/src/main/ets/plugin/common/MethodCall
 import { MethodCallHandler, MethodResult } from '@ohos/flutter_ohos/src/main/ets/plugin/common/MethodChannel';
 import { pasteboard } from '@kit.BasicServicesKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 
 const DOMAIN: number = 0x0000;
@@ -27,12 +26,6 @@ const TAG: string = 'KoyzeClipboard';
 /// `setData{text}` / `getData -> String`。写入不需要权限；读取从 API 12 起
 /// 受管控，未授权时回 `clipboard_denied`，由界面提示用户手动粘贴。
 export default class ClipboardBridge implements MethodCallHandler {
-  private readonly context: common.UIAbilityContext;
-
-  constructor(context: common.UIAbilityContext) {
-    this.context = context;
-  }
-
   onMethodCall(call: MethodCall, result: MethodResult): void {
     // onMethodCall 必须同步返回，真正的异步操作在 dispatch 里跑；
     // dispatch 已把全部失败转成 result.error，这里只兜底「回调都没发出去」
@@ -63,9 +56,13 @@ export default class ClipboardBridge implements MethodCallHandler {
   private async setData(call: MethodCall, result: MethodResult): Promise<void> {
     try {
       const text: string = this.strArg(call, 'text');
-      const data: pasteboard.PasteboardData =
+      // 官方类型叫 PasteData（不是 PasteboardData）；getSystemPasteboard()
+      // 也不收 context。早期 AI 生成的名字在 CI 的 ArkTS 26 SDK 上直接编译不过。
+      const data: pasteboard.PasteData =
         pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, text);
-      await pasteboard.getSystemPasteboard(this.context).setData(data);
+      const systemPasteboard: pasteboard.SystemPasteboard =
+        pasteboard.getSystemPasteboard();
+      await systemPasteboard.setData(data);
       // Dart 侧 invokeMethod<void> 不读返回值，回空串即可。
       result.success('');
     } catch (error) {
@@ -86,8 +83,9 @@ export default class ClipboardBridge implements MethodCallHandler {
   /// 否则界面会一直说「剪贴板中没有内容」，而用户明明刚复制过。
   private async getData(result: MethodResult): Promise<void> {
     try {
-      const data: pasteboard.PasteboardData =
-        await pasteboard.getSystemPasteboard(this.context).getData();
+      const systemPasteboard: pasteboard.SystemPasteboard =
+        pasteboard.getSystemPasteboard();
+      const data: pasteboard.PasteData = await systemPasteboard.getData();
       // 非文本条目（图片、文件）取不到纯文本，返回空串由 Dart 侧当作
       // 「没有可用内容」，与 Flutter 其它平台的行为一致。
       const text: string = data.getPrimaryText();

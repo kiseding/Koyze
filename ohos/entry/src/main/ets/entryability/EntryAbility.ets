@@ -36,7 +36,7 @@ export default class EntryAbility extends FlutterAbility {
       'koyze/clipboard',
       StandardMethodCodec.INSTANCE,
     );
-    clipboardChannel.setMethodCallHandler(new ClipboardBridge(this.context));
+    clipboardChannel.setMethodCallHandler(new ClipboardBridge());
     this.clipboardChannel = clipboardChannel;
   }
 
