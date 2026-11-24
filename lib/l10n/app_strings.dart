@@ -229,20 +229,16 @@ class S {
   String get downloadDirectoryDefaultLocation =>
       _l10n.downloadDirectoryDefaultLocation;
   String get downloadDirectoryNote => _l10n.downloadDirectoryNote;
-  String get downloadDirectoryExportMoved =>
-      _l10n.downloadDirectoryExportMoved;
+  String get downloadDirectoryExportMoved => _l10n.downloadDirectoryExportMoved;
   String get downloadDirectoryChoose => _l10n.downloadDirectoryChoose;
   String get downloadDirectoryPickerTitle => _l10n.downloadDirectoryPickerTitle;
   String get downloadDirectoryChanged => _l10n.downloadDirectoryChanged;
   String get downloadDirectoryRestored => _l10n.downloadDirectoryRestored;
-  String get downloadDirectoryNotWritable =>
-      _l10n.downloadDirectoryNotWritable;
-  String get downloadDirectoryUnsupported =>
-      _l10n.downloadDirectoryUnsupported;
+  String get downloadDirectoryNotWritable => _l10n.downloadDirectoryNotWritable;
+  String get downloadDirectoryUnsupported => _l10n.downloadDirectoryUnsupported;
   String get downloadDirectoryFallbackActive =>
       _l10n.downloadDirectoryFallbackActive;
-  String get downloadDirectoryUnavailable =>
-      _l10n.downloadDirectoryUnavailable;
+  String get downloadDirectoryUnavailable => _l10n.downloadDirectoryUnavailable;
   String get downloadLocation => _l10n.downloadLocation;
   String get downloadLocationSubtitle => _l10n.downloadLocationSubtitle;
   String get downloadLocationPrivate => _l10n.downloadLocationPrivate;
@@ -309,6 +305,7 @@ class S {
   String get heroPlayModeHint => _l10n.heroPlayModeHint;
   String get favorites => _l10n.favorites;
   String get forYou => _l10n.forYou;
+  String get aiRecommend => _l10n.aiRecommend;
   String get localMusic => _l10n.localMusic;
   String get nasLibrary => _l10n.nasLibrary;
   String get recentPlays => _l10n.recentPlays;
@@ -1222,8 +1219,7 @@ class S {
   String autoEqParametric(int count) => _l10n.autoEqParametric(count);
   String get autoEqParametricHint => _l10n.autoEqParametricHint;
   String get audioEnhancementSection => _l10n.audioEnhancementSection;
-  String get audioEnhancementSectionHint =>
-      _l10n.audioEnhancementSectionHint;
+  String get audioEnhancementSectionHint => _l10n.audioEnhancementSectionHint;
   String get playbackFade => _l10n.playbackFade;
   String get playbackFadeSubtitle => _l10n.playbackFadeSubtitle;
   String get exportM3u => _l10n.exportM3u;

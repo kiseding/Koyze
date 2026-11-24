@@ -986,6 +986,12 @@ abstract class AppLocalizations {
   /// **'For You'**
   String get forYou;
 
+  /// No description provided for @aiRecommend.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask AI to improve recommendations'**
+  String get aiRecommend;
+
   /// No description provided for @localMusic.
   ///
   /// In en, this message translates to:

@@ -178,6 +178,7 @@
   "heroPlayModeHint": "仅影响首页卡片",
   "favorites": "收藏列表",
   "forYou": "猜你喜欢",
+  "aiRecommend": "让 AI 改进猜你喜欢",
   "localMusic": "本地音乐",
   "nasLibrary": "NAS 乐库",
   "recentPlays": "最近播放",

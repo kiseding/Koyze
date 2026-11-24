@@ -467,6 +467,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get forYou => '猜你喜欢';
 
   @override
+  String get aiRecommend => '让 AI 改进猜你喜欢';
+
+  @override
   String get localMusic => '本地音乐';
 
   @override

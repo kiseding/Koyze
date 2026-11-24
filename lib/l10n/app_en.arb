@@ -178,6 +178,7 @@
   "heroPlayModeHint": "Affects the home card only.",
   "favorites": "Favorites",
   "forYou": "For You",
+  "aiRecommend": "Ask AI to improve recommendations",
   "localMusic": "Local music",
   "nasLibrary": "NAS library",
   "recentPlays": "Recently played",

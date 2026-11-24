@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
+import '../../../core/widgets/favorite_button.dart';
+import '../../ai/presentation/ai_provider.dart';
 import '../../player/presentation/player_provider.dart';
 import '../domain/recommendation_tuning.dart';
 import 'recommendation_provider.dart';
@@ -71,6 +73,17 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
             color: AppColors.onScaffold(context),
           ),
         ),
+        actions: [
+          FxIconButton(
+            tooltip: S.of(context).aiRecommend,
+            icon: const Icon(Icons.auto_awesome_rounded),
+            onPressed: () => ref
+                .read(aiChatProvider.notifier)
+                .send(
+                  '请在后台为我改进「猜你喜欢」歌单。先查看当前推荐内容、听歌统计和已有口味调校，再结合我的听歌偏好判断应该推荐什么；通过「猜你喜欢」调校工具更新推荐（例如补充合适的口味提示、置顶特别契合的歌曲或屏蔽不合适的内容）。不要播放歌曲或创建新歌单，只调整「猜你喜欢」。完成后简要说明调整结果。',
+                ),
+          ),
+        ],
       ),
       // 列表滚到底 / 空态 / 键盘让位时，底下露出来的必须是页面底色。
       // 只靠 Scaffold.backgroundColor 时，body 里那些透明片段会落到上层
@@ -170,19 +183,7 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
                               color: AppColors.mutedText(context),
                             ),
                           ),
-                          trailing: FxIconButton(
-                            tooltip: S.of(context).playNamed(rec.song.name),
-                            icon: const Icon(
-                              Icons.play_circle_outline,
-                              size: 24,
-                              color: kRecommendColor,
-                            ),
-                            onPressed: () => playProvider.playPlaylist(
-                              recommendations.map((r) => r.song).toList(),
-                              index: index,
-                              manualPlayName: recommendations[index].song.name,
-                            ),
-                          ),
+                          trailing: FavoriteButton(song: rec.song),
                           onTap: () => playProvider.playPlaylist(
                             recommendations.map((r) => r.song).toList(),
                             index: index,

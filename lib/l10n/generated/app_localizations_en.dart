@@ -483,6 +483,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get forYou => 'For You';
 
   @override
+  String get aiRecommend => 'Ask AI to improve recommendations';
+
+  @override
   String get localMusic => 'Local music';
 
   @override
