@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,7 @@ import '../../playlist/presentation/playlist_provider.dart';
 import 'leaderboard_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/theme/glass_config.dart';
 import '../../../core/theme/platform_colors.dart';
 import 'leaderboard_settings_screen.dart';
 
@@ -252,17 +254,22 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     return _buildPortraitBrowse(context, sections, contentWidth);
   }
 
-  /// 竖屏：方案 A 的极简单列。
+  /// 竖屏：方案 B 的极简单列。
   ///
-  /// 顶栏标题由根壳层发布（26px「榜单」），页面内不再重复大标题，只留
-  /// 一行 CHARTS 摘要 + 平台胶囊，避免同屏出现两个「榜单」。
+  /// 顶栏标题由根壳层发布（26px「榜单」），页面内不再重复大标题，也不再写
+  /// 「CHARTS / N 个榜单」——榜单数量已经进了各自的平台胶囊，列表里那条
+  /// 「QQ音乐 · 8 个榜单」分组标题同样多余：胶囊选中的就是那一家，再说一遍
+  /// 只是把同一句话说三次。
   Widget _buildPortraitBrowse(
     BuildContext context,
     List<_LeaderboardSection> sections,
     double contentWidth,
   ) {
     final shown = _filteredSections(sections);
-    final rows = _buildBrowseRows(shown);
+    final charts = _flattenCharts(shown);
+    final platforms = _platformsOf(sections);
+    final counts = _chartCountByPlatform(sections);
+    final selected = _resolvePlatformFilter(platforms);
     return CustomScrollView(
       // 用旧参数：CI 的 Flutter 3.44.9 与鸿蒙 fork 3.47.7 都要能编，
       // ScrollCacheExtent 只在 3.41+ 才有，跨版本时旧写法更保险。
@@ -273,16 +280,27 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
         // 视口必须从屏幕顶开始，滚起来的内容才会从栏背后穿过，栏上的磨砂
         // 才有东西可糊。写成外层 Padding 的话滚动视口被压到栏下沿，内容
         // 永远到不了栏背后，磨砂看起来就是「没生效」。
-        SliverToBoxAdapter(
-          child: SizedBox(height: FrostedTabHeader.extent(context)),
-        ),
-        // 摘要数「当前显示的分段」，胶囊吃「未筛选」的分段——传 shown 的话
-        // 只剩一个平台，_buildPlatformChips 里的 platforms.length < 2 会把
-        // 整条标签藏掉，用户就再也切不到别的平台了。
-        SliverToBoxAdapter(
-          child: _buildChartsSummary(context, shown, sections),
-        ),
-        if (rows.isEmpty)
+        //
+        // 平台胶囊吸在这段留白下面（见 [_PlatformTabsHeader]），所以留白改由
+        // 吸顶头自己带：写成两个 sliver 的话，吸顶头贴的是视口顶，会被状态栏
+        // 和标题栏压住。
+        if (platforms.length < 2)
+          SliverToBoxAdapter(
+            child: SizedBox(height: FrostedTabHeader.extent(context)),
+          )
+        else
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _PlatformTabsHeader(
+              topInset: FrostedTabHeader.extent(context),
+              platforms: platforms,
+              counts: counts,
+              selected: selected,
+              onSelect: (platform) =>
+                  setState(() => _platformFilter = platform),
+            ),
+          ),
+        if (charts.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
@@ -295,20 +313,14 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
           )
         else
           SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            // 顶部只留 2：胶囊下沿自带 8 的间距，再给 12 会空出一条断层。
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 0),
             sliver: SliverList.builder(
-              itemCount: rows.length,
+              itemCount: charts.length,
               itemBuilder: (context, index) {
-                final row = rows[index];
-                final section = row.section;
-                if (section != null) return _buildGroupLabel(context, section);
-                final chart = row.chart!;
+                final chart = charts[index];
                 return _LeaderboardChartTile(
                   category: chart,
-                  platformColor: _platformColor(
-                    context,
-                    chart.platform ?? 'other',
-                  ),
                   onOpen: () => _openCategory(context, chart),
                   onPlay: () => _playLeaderboard(ref, chart),
                 );
@@ -324,72 +336,30 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 
-  /// 把分段摊平成一串「分组标题 / 榜单行」，交给 SliverList 懒构建。
+  /// 把分段摊平成一串榜单，交给 SliverList 懒构建。
   ///
   /// 让一行榜单决定「要不要拉详情」的是 [_LeaderboardChartTile] 自己的
   /// build，而 SliverList 只构建可见范围（含 cacheExtent），所以四十多个榜
   /// 不会一进页面就发四十多个请求——旧实现用 SliverToBoxAdapter + Column
   /// 一次性构建全段，正是那段注释里担心的场景。
-  List<_BrowseRow> _buildBrowseRows(List<_LeaderboardSection> sections) {
-    final rows = <_BrowseRow>[];
-    for (final section in sections) {
-      if (section.platform != null) rows.add(_BrowseRow.section(section));
-      for (final chart in section.allCards) {
-        rows.add(_BrowseRow.chart(chart));
-      }
-    }
-    return rows;
-  }
-
-  /// 页面头部：CHARTS 小标 + 榜单数量 + 平台胶囊。
-  /// [shown] 决定摘要里的数字，[sections] 决定胶囊。
-  ///
-  /// 两者不能合并：胶囊必须拿到全部平台（否则选中一个之后只剩一个平台，
-  /// `platforms.length < 2` 会把整条标签藏掉，用户再也切不出去），而摘要
-  /// 只数当前显示的分段。
-  ///
-  /// 摘要不再带「N 个平台」：去掉「全部」之后视图恒定停在一个平台上，那个
-  /// 数字永远是 1，中文是废话，英文还会写成「1 platforms」。
-  Widget _buildChartsSummary(
-    BuildContext context,
-    List<_LeaderboardSection> shown,
+  List<LeaderboardCategory> _flattenCharts(
     List<_LeaderboardSection> sections,
   ) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 2, 20, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'CHARTS',
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 2.4,
-                  color: AppColors.accentOf(context),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  S.of(context).chartCount(_totalCharts(shown)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.mutedText(context),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildPlatformChips(context, sections),
-        ],
-      ),
-    );
+    return [
+      for (final section in sections) ...section.allCards,
+    ];
+  }
+
+  /// 每个平台有多少个榜。按平台累加而不是取第一条：布局里同一个平台被
+  /// 拆成两段时（用户手动排过序），总数要是两段之和。
+  Map<String, int> _chartCountByPlatform(List<_LeaderboardSection> sections) {
+    final counts = <String, int>{};
+    for (final section in sections) {
+      final platform = section.platform;
+      if (platform == null) continue;
+      counts[platform] = (counts[platform] ?? 0) + section.chartCount;
+    }
+    return counts;
   }
 
   /// 横屏：方案 A 的三列并排，一列一个平台。
@@ -426,48 +396,45 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              // 数量不再单独占一行：四家各有多少个榜已经写进下面的胶囊里，
+              // 这里再报一遍总数只是把同一件事说两次。
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'CHARTS',
-                          style: TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 2.2,
-                            color: AppColors.accentOf(context),
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          S.of(context).charts,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.6,
-                            height: 1,
-                            color: AppColors.onScaffold(context),
-                          ),
-                        ),
-                      ],
+                  Text(
+                    'CHARTS',
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 2.2,
+                      color: AppColors.accentOf(context),
                     ),
                   ),
+                  const SizedBox(height: 3),
                   Text(
-                    S.of(context).chartCount(_totalCharts(shown)),
+                    S.of(context).charts,
                     style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.mutedText(context),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                      height: 1,
+                      color: AppColors.onScaffold(context),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
-              _buildPlatformChips(context, sections, dense: true),
+              if (_platformsOf(sections).length >= 2)
+                _platformTabsRow(
+                  context,
+                  platforms: _platformsOf(sections),
+                  counts: _chartCountByPlatform(sections),
+                  selected: _resolvePlatformFilter(_platformsOf(sections)),
+                  dense: true,
+                  onSelect: (platform) =>
+                      setState(() => _platformFilter = platform),
+                ),
             ],
           ),
         ),
@@ -523,10 +490,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                       padding: const EdgeInsets.only(bottom: 6),
                       child: _LeaderboardChartCell(
                         category: chart,
-                        platformColor: _platformColor(
-                          context,
-                          chart.platform ?? 'other',
-                        ),
                         onOpen: () => _openCategory(context, chart),
                         onPlay: () => _playLeaderboard(ref, chart),
                       ),
@@ -535,45 +498,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                 ),
         ),
       ],
-    );
-  }
-
-  int _totalCharts(List<_LeaderboardSection> sections) {
-    var total = 0;
-    for (final section in sections) {
-      total += section.chartCount;
-    }
-    return total;
-  }
-
-  /// 平台筛选：方案 A 的圆角胶囊（选中实底反色）。只有一个平台时不出现。
-  ///
-  /// 胶囊是「四选一」的单选，不再有「全部」这一颗：那一颗等价于「不筛选」，
-  /// 而本页现在恒定停在一个平台上（见 [_resolvePlatformFilter]）。
-  Widget _buildPlatformChips(
-    BuildContext context,
-    List<_LeaderboardSection> sections, {
-    bool dense = false,
-  }) {
-    final platforms = _platformsOf(sections);
-    if (platforms.length < 2) return const SizedBox.shrink();
-    final selected = _resolvePlatformFilter(platforms);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var index = 0; index < platforms.length; index++) ...[
-            if (index > 0) SizedBox(width: dense ? 6 : 8),
-            _buildChip(
-              context,
-              S.of(context).platformName(platforms[index]),
-              selected == platforms[index],
-              () => setState(() => _platformFilter = platforms[index]),
-              dense: dense,
-            ),
-          ],
-        ],
-      ),
     );
   }
 
@@ -599,45 +523,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     final current = _platformFilter;
     if (current != null && platforms.contains(current)) return current;
     return platforms.first;
-  }
-
-  /// 单颗胶囊。未选中用主文字的 6% 做底——直接拿卡片色会和页面底色糊在一起。
-  Widget _buildChip(
-    BuildContext context,
-    String label,
-    bool selected,
-    VoidCallback onTap, {
-    bool dense = false,
-  }) {
-    final onColor = AppColors.onScaffold(context);
-    final background = selected ? onColor : onColor.withValues(alpha: 0.06);
-    final foreground = selected
-        ? AppColors.scaffold(context)
-        : AppColors.secondaryText(context);
-    return Pressable(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      selected: selected,
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: dense ? 12 : 14,
-          vertical: dense ? 5 : 6,
-        ),
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: dense ? 10.5 : 12,
-            fontWeight: FontWeight.w600,
-            height: 1.2,
-            color: foreground,
-          ),
-        ),
-      ),
-    );
   }
 
   /// 平台筛选后的分段。
@@ -709,41 +594,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     return sections;
   }
 
-  /// 竖屏分组标题：方案 A 的纯文字小标，靠上方留白和上一段分开。
-  Widget _buildGroupLabel(BuildContext context, _LeaderboardSection section) {
-    final platform = section.platform ?? 'other';
-    final muted = AppColors.mutedText(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 16, 0, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              S.of(context).platformName(platform),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-                color: muted,
-              ),
-            ),
-          ),
-          if (section.chartCount > 0)
-            Text(
-              S.of(context).chartCount(section.chartCount),
-              style: TextStyle(
-                fontSize: 10,
-                color: muted.withValues(alpha: 0.8),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// 横屏列头：平台色点 + 名称 + 数量，底部一条细线（方案 A 的列头形态）。
+  /// 横屏列头：平台色点 + 名称 + 数量，底部一条细线。
   Widget _buildColumnHeader(BuildContext context, _LeaderboardSection section) {
     final platform = section.platform ?? 'other';
     final divider = AppColors.onScaffold(context).withValues(alpha: 0.07);
@@ -850,13 +701,11 @@ Color _leaderboardCardFill(BuildContext context) => Color.alphaBlend(
 class _LeaderboardChartTile extends ConsumerWidget {
   const _LeaderboardChartTile({
     required this.category,
-    required this.platformColor,
     required this.onOpen,
     required this.onPlay,
   });
 
   final LeaderboardCategory category;
-  final Color platformColor;
   final VoidCallback onOpen;
   final VoidCallback onPlay;
 
@@ -980,13 +829,11 @@ class _LeaderboardChartTile extends ConsumerWidget {
 class _LeaderboardChartCell extends ConsumerWidget {
   const _LeaderboardChartCell({
     required this.category,
-    required this.platformColor,
     required this.onOpen,
     required this.onPlay,
   });
 
   final LeaderboardCategory category;
-  final Color platformColor;
   final VoidCallback onOpen;
   final VoidCallback onPlay;
 
@@ -1145,13 +992,295 @@ class _TilePlayButton extends ConsumerWidget {
   }
 }
 
-/// 摊平后的一行：要么是平台分组标题，要么是一张榜。
-class _BrowseRow {
-  const _BrowseRow.section(this.section) : chart = null;
-  const _BrowseRow.chart(this.chart) : section = null;
+/// 一排平台胶囊，选中那颗就是当前平台。
+///
+/// 数量写进胶囊里（`QQ音乐 8`），所以页面不再需要「8 个榜单」那行摘要，
+/// 也不再需要在列表里重复一遍分组标题。
+///
+/// 顶层函数而不是 `_LeaderboardScreenState` 的方法：吸顶头
+/// （[_PlatformTabsHeader]）要在一个没有 state 引用的地方重建这排胶囊。
+Widget _platformTabsRow(
+  BuildContext context, {
+  required List<String> platforms,
+  required Map<String, int> counts,
+  required String? selected,
+  required ValueChanged<String> onSelect,
+  bool dense = false,
+}) {
+  return Row(
+    children: [
+      for (var index = 0; index < platforms.length; index++) ...[
+        if (index > 0) const SizedBox(width: 6),
+        // 等分而不是按内容宽：四颗在 360dp 上也放得下，不需要横向滑动。
+        Expanded(
+          child: _PlatformTab(
+            key: ValueKey('platform-tab-${platforms[index]}'),
+            platform: platforms[index],
+            label: S.of(context).platformName(platforms[index]),
+            count: counts[platforms[index]] ?? 0,
+            selected: selected == platforms[index],
+            dense: dense,
+            onTap: () => onSelect(platforms[index]),
+          ),
+        ),
+      ],
+    ],
+  );
+}
 
-  final _LeaderboardSection? section;
-  final LeaderboardCategory? chart;
+/// 一颗平台胶囊：选中＝该平台品牌色实心 + 白字，未选中＝只有文字。
+///
+/// 未选中刻意不给底色：四颗都带色底时整排像四个徽章，视线被平均分掉；
+/// 只让当前那一颗亮起来，"现在在哪一家"才是第一眼就看到的。
+///
+/// 选中态的白字对比度由 [platformBrandFill] 保证（≥ 4.5:1）——品牌原色
+/// 直接铺白字，QQ 绿和酷我黄是读不出来的。
+class _PlatformTab extends StatelessWidget {
+  const _PlatformTab({
+    super.key,
+    required this.platform,
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    this.dense = false,
+  });
+
+  final String platform;
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+  final bool dense;
+
+  @override
+  Widget build(BuildContext context) {
+    // 不透明度和虚化是全局信号，改了不会让这一页重建——这里直接听，拖动
+    // 设置里的滑杆时胶囊当帧跟着变。
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        GlassEffectConfig.surfaceOpacityListenable,
+        GlassEffectConfig.surfaceBlurListenable,
+      ]),
+      builder: (context, _) => _buildPill(context),
+    );
+  }
+
+  Widget _buildPill(BuildContext context) {
+    final fill = platformBrandFill(platform);
+    final hue = platformBrandHue(platform);
+    // 玻璃三件套全部来自设置：染色浓度是「界面不透明度」，背后采样按
+    // 「虚化」缩放，和导航栏、迷你播放器同一套。
+    final alpha = GlassEffectConfig.surfaceAlpha;
+    final sigma = GlassEffectConfig.userBlurEnabled
+        ? GlassEffectConfig.scaleSurfaceBlur(
+            AppGlass.blurFor(AppGlassStyle.regular),
+          )
+        : 0.0;
+    final tint = fill.withValues(alpha: alpha);
+    final onTint = _textOnTint(context, tint);
+
+    return Pressable(
+      borderRadius: BorderRadius.circular(999),
+      selected: selected,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        height: dense ? 30 : 34,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          // 光晕用的是品牌原色而不是压深后的填充色：填充色做投影只是一圈
+          // 灰影，原色才看得出「这是哪一家」。原色在这里不承担文字对比。
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: hue.withValues(alpha: 0.32),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+                ]
+              : null,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: Stack(
+            children: [
+              // 未选中不铺任何底色：四颗都带色底会平均分掉视线，只让当前
+              // 那一颗亮起来，"现在在哪一家"才是第一眼看到的。
+              if (selected) ...[
+                if (sigma > 0)
+                  Positioned.fill(
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                Positioned.fill(child: ColoredBox(color: tint)),
+                // 淡到几乎看不见时，靠一圈同色发丝边把形状留住——玻璃面
+                // 在别处也都有这条边。
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: hue.withValues(alpha: 0.32),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  // 四颗等分 320dp 的宽度，英文平台名（QQ Music / NetEase）
+                  // 比中文长，真放不下时整颗等比缩一点，不要截断成「QQ Mus…」。
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: dense ? 11 : 12.5,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                            letterSpacing: -0.3,
+                            height: 1.2,
+                            color: selected
+                                ? onTint
+                                : AppColors.secondaryText(context),
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        // 数量当上标：它是标签的注脚，不该和平台名一样重。
+                        Transform.translate(
+                          offset: const Offset(0, -3),
+                          child: Text(
+                            '$count',
+                            style: TextStyle(
+                              fontSize: dense ? 9 : 9.5,
+                              fontWeight: FontWeight.w800,
+                              height: 1,
+                              letterSpacing: 0,
+                              color: selected
+                                  ? onTint
+                                  : AppColors.mutedText(context),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 胶囊上的字色。
+  ///
+  /// 玻璃是半透明的，白色压不压得住取决于「染色层盖在什么上面」，而这里
+  /// 唯一确定的衬底是页面底色：浅色主题下最亮、深色主题下最暗，其中浅色
+  /// 是白字最危险的那一侧（65% 的琥珀压在白底上只有 2.5:1）。所以拿页面
+  /// 底色算一遍：白字够 4.5 就用白字，不够就退回同色系的深色——浅色主题
+  /// 下胶囊是「淡色底 + 品牌深字」，深色主题下仍是「品牌底 + 白字」。
+  Color _textOnTint(BuildContext context, Color tint) {
+    final blended = Color.alphaBlend(tint, AppColors.scaffold(context));
+    final white = 1.05 / (blended.computeLuminance() + 0.05);
+    if (white >= 4.5) return Colors.white;
+    return Color.lerp(platformBrandFill(platform), Colors.black, 0.62)!;
+  }
+}
+
+/// 吸顶的平台胶囊条。
+///
+/// 为什么不用 `SliverToBoxAdapter`：榜单有四五十行，滚到下半屏时想换平台
+/// 得先滚回顶部。钉住之后随时能切。
+///
+/// [topInset] 是磨砂标题栏的高度，条子必须留出这一段再把胶囊画在下面：
+/// 直接贴视口顶会被状态栏和「榜单」标题压住。那一段留白保持透明，标题栏
+/// 的磨砂才照得到从背后滚过的内容（画成实色会把磨砂毁掉）。
+///
+/// 胶囊条自己没有玻璃：背后滚过的榜单用一层「页面底色 → 透明」的渐变盖住，
+/// 既不会撞字，也不会和标题栏的磨砂叠成两层采样。
+class _PlatformTabsHeader extends SliverPersistentHeaderDelegate {
+  const _PlatformTabsHeader({
+    required this.topInset,
+    required this.platforms,
+    required this.counts,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final double topInset;
+  final List<String> platforms;
+  final Map<String, int> counts;
+  final String? selected;
+  final ValueChanged<String> onSelect;
+
+  static const double _stripHeight = 34;
+  static const EdgeInsets _stripPadding = EdgeInsets.fromLTRB(20, 10, 20, 8);
+
+  @override
+  double get minExtent => topInset + _stripHeight + _stripPadding.vertical;
+
+  @override
+  double get maxExtent => minExtent;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final background = AppColors.scaffold(context);
+    return Column(
+      children: [
+        SizedBox(height: topInset),
+        Container(
+          height: _stripHeight + _stripPadding.vertical,
+          padding: _stripPadding,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                background,
+                background,
+                background.withValues(alpha: 0),
+              ],
+              stops: const [0, 0.82, 1],
+            ),
+          ),
+          child: _platformTabsRow(
+            context,
+            platforms: platforms,
+            counts: counts,
+            selected: selected,
+            onSelect: onSelect,
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PlatformTabsHeader old) {
+    return old.topInset != topInset ||
+        old.selected != selected ||
+        old.platforms.length != platforms.length ||
+        old.counts.length != counts.length;
+  }
 }
 
 /// 一个平台段：平台标题（可能为 null）+ 该平台的主卡 + 其余榜单的辅卡。

@@ -36,10 +36,18 @@ class FxSwitch extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.accent,
+    this.height = 48,
   });
 
   final bool value;
   final ValueChanged<bool>? onChanged;
+
+  /// 开关占位的高度。
+  ///
+  /// 默认 48：大多数页面里这一行没有别的东西撑着，留 48 行才不会比旁边
+  /// 的行矮。设置页现在所有行都有统一的最小高度（`kSettingsRowMinHeight`），
+  /// 那里传 40 就够放下缩到 0.88 的开关本体，行高交给下限去保证。
+  final double height;
 
   /// 打开时的强调色；null = 主题 primary。
   final Color? accent;
@@ -47,8 +55,7 @@ class FxSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      // 行高按 48 留：开关本体缩完约 35 高，直接放进 Row 会把整行高度带下来。
-      height: 48,
+      height: height,
       child: Center(
         child: buildScaledSwitch(
           value: value,

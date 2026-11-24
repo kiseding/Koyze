@@ -11,7 +11,7 @@ void main() {
   test('竖屏用 SliverList 按行懒构建', () {
     final portrait = source.substring(
       source.indexOf('Widget _buildPortraitBrowse'),
-      source.indexOf('List<_BrowseRow> _buildBrowseRows'),
+      source.indexOf('List<LeaderboardCategory> _flattenCharts'),
     );
     // 只有按行懒构建，才会「建一行订阅一次 songs provider」；退回
     // SliverToBoxAdapter + Column 就是几十个榜同时发请求。
@@ -22,10 +22,22 @@ void main() {
     expect(source, isNot(contains('SliverGrid(')));
   });
 
-  test('分段被摊平成「分组标题 + 榜单行」的序列', () {
-    expect(source, contains('List<_BrowseRow> _buildBrowseRows('));
-    expect(source, contains('_BrowseRow.section('));
-    expect(source, contains('_BrowseRow.chart('));
+  test('分段被摊平成一串榜单', () {
+    // 分组标题已经去掉：平台由吸顶的胶囊表示，列表里再挂一条「QQ音乐 ·
+    // 8 个榜单」是把同一句话说第二遍。摊平后 SliverList 仍然只建可见行。
+    expect(source, contains('List<LeaderboardCategory> _flattenCharts('));
+    expect(source, isNot(contains('_BrowseRow')));
+    expect(source, isNot(contains('_buildGroupLabel')));
+  });
+
+  test('平台胶囊钉住不随列表滚走', () {
+    // 四五十行榜滚到底还想换平台，就得先滚回顶部——所以胶囊要走吸顶头。
+    expect(source, contains('SliverPersistentHeader('));
+    expect(source, contains('pinned: true'));
+    expect(source, contains('class _PlatformTabsHeader'));
+    // 留白必须由吸顶头自己带：单独一个 Spacer sliver 在前，吸顶头贴的是
+    // 视口顶，会被状态栏和标题栏压住。
+    expect(source, contains('topInset: FrostedTabHeader.extent(context)'));
   });
 
   test('榜单行自身是 ConsumerWidget，订阅发生在自己的 build 里', () {
@@ -65,21 +77,19 @@ void main() {
     expect(source, isNot(contains('contains(kHeroChartNames')));
   });
 
-  test('platform header shows how many charts are in the block', () {
-    expect(source, contains('S.of(context).chartCount('));
+  test('榜单数量写进各自的平台胶囊', () {
+    // 以前数量在两处重复：顶部「8 个榜单」摘要、列表里的分组标题。
+    // 现在只有胶囊里那个上标。
+    expect(source, contains('Map<String, int> _chartCountByPlatform('));
+    expect(source, contains('count: counts[platforms[index]] ?? 0'));
+    expect(source, isNot(contains('S.of(context).chartCount(')));
   });
 
-  test('平台胶囊吃未筛选的分段', () {
-    // 传 shown 的话只剩一个平台，_buildPlatformChips 里的
-    // platforms.length < 2 会把整条标签藏掉，用户再也切不到别的平台。
-    expect(source, contains('_buildChartsSummary(context, shown, sections)'));
-    expect(source, contains('_buildPlatformChips(context, sections)'));
-  });
-
-  test('摘要只数当前显示的分段', () {
-    // 摘要若吃全部分段，会写着「4 个平台 · 30 个榜单」，下面却只列了
-    // 一个平台的几行——数字和内容对不上比不显示更糟。
-    expect(source, contains('_totalCharts(shown)'));
+  test('胶囊吃未筛选的分段', () {
+    // 传筛选后的分段只剩一个平台，platforms.length < 2 会把整条标签藏掉，
+    // 用户再也切不到别的平台。
+    expect(source, contains('platforms: _platformsOf(sections)'));
+    expect(source, contains('counts: _chartCountByPlatform(sections)'));
   });
 
   test('筛选胶囊只有四个平台，没有「全部」', () {

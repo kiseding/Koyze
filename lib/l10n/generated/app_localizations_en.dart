@@ -177,6 +177,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backdropScrimShort => 'Dim';
 
   @override
+  String get glassEffect => 'Surface';
+
+  @override
+  String glassEffectSummary(int opacity, int blur) {
+    return 'Opacity $opacity% · Blur $blur%';
+  }
+
+  @override
+  String get glassEffectHint => 'Drag the sliders to preview the change above';
+
+  @override
   String get glassOpacity => 'Interface opacity';
 
   @override
@@ -1525,6 +1536,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get clipboardEmpty => 'The clipboard has no link';
 
   @override
+  String get clipboardPermissionDenied =>
+      'Clipboard access is not granted. Long-press the field to paste.';
+
+  @override
   String get clipboard => 'Clipboard';
 
   @override
@@ -1541,6 +1556,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get exportCustomSource => 'Export custom source';
+
+  @override
+  String sourceExported(String file) {
+    return 'Exported $file';
+  }
+
+  @override
+  String sourceExportFailed(String error) {
+    return 'Export failed: $error';
+  }
 
   @override
   String get deleteCustomSource => 'Delete custom source';
@@ -2772,6 +2797,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get queueEditTitle => 'Edit queue';
 
   @override
+  String get editDone => 'Done';
+
+  @override
   String get playNext => 'Play next';
 
   @override
@@ -3490,11 +3518,4 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get audioEnhancementSectionHint =>
       'Changes apply immediately through the equalizer\'s audio filter chain.';
-
-  @override
-  String get spectrumSection => 'Player spectrum';
-
-  @override
-  String get spectrumSectionHint =>
-      'Changes the player display, not the sound.';
 }

@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:koyze/l10n/app_strings.dart';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../platform/app_clipboard.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_tokens.dart';
 import '../motion/motion_tokens.dart';
@@ -146,7 +146,7 @@ class _AppNotificationHostState extends State<AppNotificationHost>
   void _copyMessage() {
     final message = _current?.message;
     if (message != null) {
-      unawaited(Clipboard.setData(ClipboardData(text: message)));
+      unawaited(setClipboardText(message));
     }
   }
 

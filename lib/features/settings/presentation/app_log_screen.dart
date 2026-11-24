@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:koyze/l10n/app_strings.dart';
-import 'package:flutter/services.dart';
 
 import '../../../core/logging/app_log.dart';
 import '../../../core/monitoring/debug_probe.dart';
 import '../../../core/monitoring/performance_monitor.dart';
+import '../../../core/platform/app_clipboard.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
@@ -276,7 +276,7 @@ class _AppLogScreenState extends State<AppLogScreen> {
   Future<void> _copyLogs(List<AppLogEntry> entries) async {
     if (entries.isEmpty) return;
     final text = entries.map((entry) => entry.text).join('\n\n');
-    await Clipboard.setData(ClipboardData(text: text));
+    await setClipboardText(text);
     if (!mounted) return;
     showAppNotification(
       S.of(context).logCopied,

@@ -105,6 +105,10 @@ class S {
   String get backdropBlurShort => _l10n.backdropBlurShort;
   String get backdropScrimShort => _l10n.backdropScrimShort;
   String get playerBackdropPreviewEmpty => _l10n.playerBackdropPreviewEmpty;
+  String get glassEffect => _l10n.glassEffect;
+  String glassEffectSummary(int opacity, int blur) =>
+      _l10n.glassEffectSummary(opacity, blur);
+  String get glassEffectHint => _l10n.glassEffectHint;
   String get glassOpacity => _l10n.glassOpacity;
   String get glassOpacitySubtitle => _l10n.glassOpacitySubtitle;
   String get glassBlur => _l10n.glassBlur;
@@ -671,12 +675,15 @@ class S {
   String get importLinkBad => _l10n.importLinkBad;
   String get directDownloadHint => _l10n.directDownloadHint;
   String get clipboardEmpty => _l10n.clipboardEmpty;
+  String get clipboardPermissionDenied => _l10n.clipboardPermissionDenied;
   String get clipboard => _l10n.clipboard;
   String get importCustomSource => _l10n.importCustomSource;
   String get lxScriptHint => _l10n.lxScriptHint;
   String get pasteScriptHint => _l10n.pasteScriptHint;
   String get importFormatBad => _l10n.importFormatBad;
   String get exportCustomSource => _l10n.exportCustomSource;
+  String sourceExported(String file) => _l10n.sourceExported(file);
+  String sourceExportFailed(String error) => _l10n.sourceExportFailed(error);
   String get deleteCustomSource => _l10n.deleteCustomSource;
   String get logCopied => _l10n.logCopied;
   String get noLog => _l10n.noLog;
@@ -1133,6 +1140,7 @@ class S {
   String get fadeOutBeforeStop => _l10n.fadeOutBeforeStop;
   String get fadeOutBeforeStopHint => _l10n.fadeOutBeforeStopHint;
   String get queueEditTitle => _l10n.queueEditTitle;
+  String get editDone => _l10n.editDone;
   String get playNext => _l10n.playNext;
   String get removeFromQueue => _l10n.removeFromQueue;
   String get scanRules => _l10n.scanRules;
@@ -1216,8 +1224,6 @@ class S {
   String get audioEnhancementSection => _l10n.audioEnhancementSection;
   String get audioEnhancementSectionHint =>
       _l10n.audioEnhancementSectionHint;
-  String get spectrumSection => _l10n.spectrumSection;
-  String get spectrumSectionHint => _l10n.spectrumSectionHint;
   String get playbackFade => _l10n.playbackFade;
   String get playbackFadeSubtitle => _l10n.playbackFadeSubtitle;
   String get exportM3u => _l10n.exportM3u;

@@ -274,6 +274,37 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('title action hugs the title instead of the right edge', (
+    tester,
+  ) async {
+    // 播放列表的「心动模式」跟着标题走：标题短的时候也不能被推到面板最右，
+    // 最右边那颗位置永远留给关闭键。
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: KoyzeSheetTitle(
+            title: '播放列表 (3)',
+            titleAction: const SizedBox(
+              key: ValueKey('title-action'),
+              width: 40,
+              height: 24,
+            ),
+            onClose: () {},
+          ),
+        ),
+      ),
+    );
+
+    final titleRect = tester.getRect(find.text('播放列表 (3)'));
+    final actionRect = tester.getRect(
+      find.byKey(const ValueKey('title-action')),
+    );
+    final closeRect = tester.getRect(find.byIcon(Icons.close_rounded));
+
+    expect(actionRect.left - titleRect.right, lessThan(20));
+    expect(closeRect.left, greaterThan(actionRect.right));
+  });
+
   testWidgets('dragging a plain area pulls the sheet down and closes it', (
     tester,
   ) async {

@@ -270,6 +270,7 @@ class KoyzeSheetTitle extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.subtitleWidget,
+    this.titleAction,
     this.action,
     this.onClose,
     this.closeTooltip,
@@ -280,6 +281,12 @@ class KoyzeSheetTitle extends StatelessWidget {
 
   /// 需要自己刷新的副标题（例如倒计时），优先于 [subtitle]。
   final Widget? subtitleWidget;
+
+  /// 紧贴标题右侧的小控件（例如播放列表的"心动模式"）。
+  ///
+  /// 和 [action] 的区别是位置：这一颗跟标题走，标题短的时候也不会被推到
+  /// 面板最右边；[action] 永远贴右，和关闭键排在一起。
+  final Widget? titleAction;
 
   /// 标题右侧、关闭键左侧的附加动作（例如"新建歌单"）。
   final Widget? action;
@@ -300,17 +307,27 @@ class KoyzeSheetTitle extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.onScaffold(context),
-                    fontSize: 21,
-                    height: 1.15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.5,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.onScaffold(context),
+                          fontSize: 21,
+                          height: 1.15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                    if (titleAction != null) ...[
+                      const SizedBox(width: 10),
+                      titleAction!,
+                    ],
+                  ],
                 ),
                 if (subtitleWidget != null) ...[
                   const SizedBox(height: 3),

@@ -1,19 +1,23 @@
 import 'dart:async';
 import 'package:koyze/l10n/app_strings.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/logging/app_log.dart';
 import '../../../core/motion/motion_tokens.dart';
+import '../../../core/platform/app_clipboard.dart';
+import '../../../core/platform/save_file_target.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/auto_text_input.dart';
 import '../domain/custom_source.dart';
+import '../domain/custom_source_export.dart';
 import '../domain/custom_source_service.dart';
 import '../domain/custom_source_file_import.dart';
 import '../domain/source_script_validation.dart';
@@ -243,7 +247,7 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                 TextButton.icon(
                   icon: const Icon(Icons.share, size: 16),
                   label: Text(S.of(context).export),
-                  onPressed: () => _showExportDialog(context, ref, source),
+                  onPressed: () => _exportSource(context, source),
                 ),
                 TextButton.icon(
                   icon: Icon(
@@ -666,11 +670,17 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
                   onPressed: isLoading
                       ? null
                       : () async {
-                          final content = await Clipboard.getData(
-                            Clipboard.kTextPlain,
-                          );
+                          final clipboard = await readClipboard();
                           if (!dialogContext.mounted) return;
-                          final url = content?.text?.trim() ?? '';
+                          if (clipboard.status ==
+                              ClipboardReadStatus.denied) {
+                            showAppNotification(
+                              S.of(context).clipboardPermissionDenied,
+                              type: AppNotificationType.error,
+                            );
+                            return;
+                          }
+                          final url = clipboard.text?.trim() ?? '';
                           if (url.isEmpty) {
                             showAppNotification(
                               S.of(context).clipboardEmpty,
@@ -837,45 +847,40 @@ class _CustomSourceScreenState extends ConsumerState<CustomSourceScreen> {
     });
   }
 
-  void _showExportDialog(
-    BuildContext context,
-    WidgetRef ref,
-    CustomSource source,
-  ) {
-    final jsonStr = const JsonEncoder.withIndent('  ').convert(source.toJson());
-
-    showKoyzeDialog(
-      context: context,
-      builder: (context) => KoyzeDialog(
-        backgroundColor: AppColors.dialogBg(context),
-        title: Text(
-          S.of(context).exportCustomSource,
-          style: TextStyle(color: AppColors.onScaffold(context)),
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Text(
-              jsonStr,
-              style: TextStyle(
-                color: AppColors.onScaffold(context),
-                fontFamily: 'monospace',
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              S.of(context).close,
-              style: TextStyle(color: AppColors.mutedText(context)),
-            ),
-          ),
-        ],
-      ),
-    );
+  /// 把音源导出成 JSON 文件。
+  ///
+  /// 之前只是把 JSON 打在弹窗里让用户自己选中复制——手机上没有文本选择框的
+  /// 情况下连复制都做不到，更没法发给别人。导出的文件可以直接用「导入」
+  /// 再读回来（`CustomSourceService.importSource` 接受同一份结构）。
+  Future<void> _exportSource(BuildContext context, CustomSource source) async {
+    try {
+      final export = buildSourceExport(source);
+      final bytes = Uint8List.fromList(export.bytes);
+      final savedPath = await FilePicker.saveFile(
+        dialogTitle: S.of(context).exportCustomSource,
+        fileName: export.fileName,
+        type: FileType.custom,
+        allowedExtensions: const ['json'],
+        // 移动端（含鸿蒙）的 saveFile 由原生侧落盘，字节必须一起传；
+        // 桌面端只返回路径，内容要自己写。判据见 save_file_target.dart。
+        bytes: saveFileNeedsBytes ? bytes : null,
+      );
+      if (savedPath == null) return;
+      if (callerWritesSavedFile) {
+        await File(savedPath).writeAsBytes(bytes);
+      }
+      if (!context.mounted) return;
+      showAppNotification(
+        S.of(context).sourceExported(export.fileName),
+        type: AppNotificationType.success,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      showAppNotification(
+        S.of(context).sourceExportFailed('$error'),
+        type: AppNotificationType.error,
+      );
+    }
   }
 
   void _showDeleteDialog(
@@ -989,7 +994,7 @@ class _LogConsoleState extends ConsumerState<_LogConsole> {
       }
     }
     if (buffer.isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: buffer.toString()));
+    await setClipboardText(buffer.toString());
     if (!mounted) return;
     showAppNotification(
       S.of(context).logCopied,

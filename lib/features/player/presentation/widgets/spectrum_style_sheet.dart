@@ -26,44 +26,46 @@ String spectrumStyleLabel(S s, SpectrumStyle style) => switch (style) {
 /// 不依赖播放状态——挑样式时候很可能根本没在放歌，那时候拿不到帧，
 /// 预览会是空的，而空预览等于没预览。
 ///
-/// 播放设置页与均衡器页共用这一个面板。以前它长在设置页的私有方法里，
-/// 均衡器页要显示同一组选项就只能复制一份——两份预览的波形迟早会漂移。
-Future<void> showSpectrumStyleSheet(
-  BuildContext context,
-  WidgetRef ref, {
-  String? title,
-}) {
+/// 只在设置页「播放」区打开。它一度也挂在均衡器页，但频谱不改声音，
+/// 和调音色的那一页不是一件事；两处入口还会让同一组选项各写一份。
+///
+/// 面板和其它选择弹窗一样带右上角关闭键：这一层只有「选项」和「离开」两种
+/// 动作，没有确定键，不给关闭键就只能下滑或点遮罩。
+Future<void> showSpectrumStyleSheet(BuildContext context, WidgetRef ref) {
   final s = S.of(context);
   // 面板里不 watch：选中即 pop，不需要跟着 provider 重建；而且
   // `ref.watch` 在 build 之外调用会在调试模式下断言。
   final current = ref.read(playerSpectrumProvider).style;
   return showKoyzeSheet<void>(
     context: context,
-    builder: (sheetContext) => Padding(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 14),
-            child: Text(
-              title ?? s.playerSpectrumStyle,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+    builder: (sheetContext) => Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        KoyzeSheetTitle(
+          title: s.playerSpectrumStyle,
+          onClose: () => Navigator.of(sheetContext).pop(),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 2, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final style in SpectrumStyle.values)
+                _SpectrumStyleTile(
+                  style: style,
+                  label: spectrumStyleLabel(s, style),
+                  selected: current == style,
+                  onTap: () {
+                    ref.read(playerSpectrumProvider.notifier).setStyle(style);
+                    Navigator.of(sheetContext).pop();
+                  },
+                ),
+            ],
           ),
-          for (final style in SpectrumStyle.values)
-            _SpectrumStyleTile(
-              style: style,
-              label: spectrumStyleLabel(s, style),
-              selected: current == style,
-              onTap: () {
-                ref.read(playerSpectrumProvider.notifier).setStyle(style);
-                Navigator.of(sheetContext).pop();
-              },
-            ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }

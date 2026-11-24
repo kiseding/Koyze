@@ -173,6 +173,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backdropScrimShort => '压暗';
 
   @override
+  String get glassEffect => '界面质感';
+
+  @override
+  String glassEffectSummary(int opacity, int blur) {
+    return '不透明度 $opacity% · 虚化 $blur%';
+  }
+
+  @override
+  String get glassEffectHint => '拖动滑杆，上方预览会跟着变';
+
+  @override
   String get glassOpacity => '界面不透明度';
 
   @override
@@ -1486,6 +1497,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get clipboardEmpty => '剪切板中没有链接';
 
   @override
+  String get clipboardPermissionDenied => '系统未授权读取剪切板，请在输入框长按粘贴';
+
+  @override
   String get clipboard => '剪切板';
 
   @override
@@ -1502,6 +1516,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get exportCustomSource => '导出自定义源';
+
+  @override
+  String sourceExported(String file) {
+    return '已导出 $file';
+  }
+
+  @override
+  String sourceExportFailed(String error) {
+    return '导出失败：$error';
+  }
 
   @override
   String get deleteCustomSource => '删除自定义源';
@@ -2715,6 +2739,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get queueEditTitle => '编辑播放队列';
 
   @override
+  String get editDone => '完成';
+
+  @override
   String get playNext => '下一首播放';
 
   @override
@@ -3403,10 +3430,4 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get audioEnhancementSectionHint => '更改后立即生效，与均衡器共用音频滤镜。';
-
-  @override
-  String get spectrumSection => '播放页频谱';
-
-  @override
-  String get spectrumSectionHint => '仅改变播放页显示，不影响声音。';
 }

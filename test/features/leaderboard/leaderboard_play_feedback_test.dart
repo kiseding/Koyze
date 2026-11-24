@@ -7,7 +7,7 @@ void main() {
   test('列表行用轻量播放键', () {
     final button = source.substring(
       source.indexOf('class _TilePlayButton'),
-      source.indexOf('class _BrowseRow'),
+      source.indexOf('class _PlatformTab'),
     );
     expect(button, contains('CardPlayButton('));
     expect(button, contains('size: diameter'));

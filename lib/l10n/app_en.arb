@@ -54,6 +54,15 @@
   "playerBackdropScrim": "Scrim opacity",
   "backdropBlurShort": "Blur",
   "backdropScrimShort": "Dim",
+  "glassEffect": "Surface",
+  "glassEffectSummary": "Opacity {opacity}% · Blur {blur}%",
+  "@glassEffectSummary": {
+    "placeholders": {
+      "opacity": { "type": "int" },
+      "blur": { "type": "int" }
+    }
+  },
+  "glassEffectHint": "Drag the sliders to preview the change above",
   "glassOpacity": "Interface opacity",
   "glassOpacitySubtitle": "100% is opaque; lower values are more transparent",
   "glassBlur": "Interface blur",
@@ -510,12 +519,17 @@
   "importLinkBad": "Import failed. Check the link or the script.",
   "directDownloadHint": "Paste a direct link to the script file",
   "clipboardEmpty": "The clipboard has no link",
+  "clipboardPermissionDenied": "Clipboard access is not granted. Long-press the field to paste.",
   "clipboard": "Clipboard",
   "importCustomSource": "Import a custom source",
   "lxScriptHint": "LX Music scripts are supported",
   "pasteScriptHint": "Paste an LX Music script or JSON…",
   "importFormatBad": "Import failed. Check the script format.",
   "exportCustomSource": "Export custom source",
+  "sourceExported": "Exported {file}",
+  "@sourceExported": {"placeholders": {"file": {"type": "String"}}},
+  "sourceExportFailed": "Export failed: {error}",
+  "@sourceExportFailed": {"placeholders": {"error": {"type": "String"}}},
   "deleteCustomSource": "Delete custom source",
   "logCopied": "Log copied",
   "noLog": "No log yet",
@@ -1624,6 +1638,7 @@
   "fadeOutBeforeStop": "Fade out before stopping",
   "fadeOutBeforeStopHint": "Gently fades over the last 10 seconds",
   "queueEditTitle": "Edit queue",
+  "editDone": "Done",
   "playNext": "Play next",
   "removeFromQueue": "Remove from queue",
   "scanRules": "Scan rules",
@@ -1849,8 +1864,6 @@
   "autoEqParametricHint": "Every filter keeps its own frequency and Q — no downsampling to fixed bands",
   "audioEnhancementSection": "Audio enhancement",
   "audioEnhancementSectionHint": "Changes apply immediately through the equalizer's audio filter chain.",
-  "spectrumSection": "Player spectrum",
-  "spectrumSectionHint": "Changes the player display, not the sound.",
   "@autoEqParametric": {
     "placeholders": {
       "count": {

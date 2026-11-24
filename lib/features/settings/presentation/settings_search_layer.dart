@@ -182,10 +182,14 @@ class _SearchResultTile extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        // 搜索结果和设置页里那一行必须一样高，否则同一个设置在两处是两种
+        // 行距，看起来像两套界面。
+        constraints: const BoxConstraints(minHeight: kSettingsRowMinHeight),
         child: Row(
           children: [
             Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -221,6 +225,7 @@ class _SearchResultTile extends StatelessWidget {
                 child: FxSwitch(
                   value: entry.toggleValue!,
                   onChanged: entry.onToggle,
+                  height: 40,
                 ),
               )
             else

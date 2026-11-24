@@ -242,6 +242,28 @@ Dart 侧无需改：`AudioService.init` / `BaseAudioHandler` / `MediaItem` /
 | `record` | 只有 Android / iOS / macOS / Windows / Linux / Web 实现，没有 ohos 实现 | 鸿蒙侧不显示录音按钮（`platformSupportsVoiceInput()` 只认前四个平台），AI 助手仍可用键盘输入。依赖必须留在 `pubspec_ohos.yaml` 里——`lib/` 无条件 import 它，缺了就是编译失败 |
 | `just_audio_windows` / `home_widget` / `live_activities` / `flutter_app_group_directory` | 桌面 / iOS 专用 | HAP 构建时自然跳过，不影响打包 |
 
+#### 剪贴板：写入可用，读取受限
+
+Flutter 自带的 `Clipboard` 走 `SystemChannels.platform`，鸿蒙引擎没有实现这两个
+方法；该通道是 `OptionalMethodChannel`，缺失时不报错、只回 null，所以「复制」
+和「从剪贴板导入」都表现为静默失效。
+
+现在写入与读取都改走自有通道 `koyze/clipboard`（`ClipboardBridge.ets`）：
+
+- **写入（复制）** 用 `pasteboard.setData`，不需要权限，复制已可用。
+- **读取** 从 API 12 起受管控。普通应用只有两条路：粘贴控件
+  （`PasteButton` 安全控件），或申请 `ohos.permission.READ_PASTEBOARD`。
+  后者是 system_basic 的受限权限，需要在 AGC 申请 Profile 才会生效。
+
+本应用**没有**声明 `READ_PASTEBOARD`：声明了但签名 Profile 里没有对应 ACL，
+鸿蒙会拒绝安装，而当前发布用的是 CI 自签。因此读取被拒时按
+`clipboard_denied` 回给 Dart，界面提示「系统未授权读取剪切板，请在输入框
+长按粘贴」，不再误报「剪切板中没有链接」。
+
+如果以后要在鸿蒙上直接读取，需同时做两件事：AGC 申请带该权限的 Profile，
+并在 `module.json5` 的 `requestPermissions` 里声明——只改代码不换 Profile
+不会生效。
+
 ## 5. 可以参考的开源实现
 
 | 仓库 | 做法 |

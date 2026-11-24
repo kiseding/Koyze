@@ -7,20 +7,23 @@ import 'package:flutter/foundation.dart';
 ///
 /// 五档是**五种不同的读法**，不是同一根柱子换圆角：
 ///
+/// - [dots] 看「轨迹」：每列一个浮动的光点，尾线连着底，幅度变化是位移。
 /// - [bars] 看「包络」：柱高即幅值，最直白。
 /// - [leds] 看「灯柱」：每列由一串小方块堆起来，点亮多少格就是多响。
-/// - [dots] 看「轨迹」：每列一个浮动的光点，尾线连着底，幅度变化是位移。
 /// - [ridges] 看「地形」：三层山脊叠在一起，前低后高，有纵深。
 /// - [steps] 看「刻度」：幅值吸附到有限档位，连成一条不断的楼梯轮廓。
+///
+/// 枚举顺序就是样式面板里的显示顺序。[dots] 排在第一位并作为默认值：
+/// 它只画几个光点，比整排柱子安静，放在歌词下面不抢视线。
 enum SpectrumStyle {
-  /// 竖柱 + 顶部峰值帽。最直白的「频谱分析仪」，与均衡器页的柱状语言一致。
+  /// 浮动光点：每列一个圆点，纵向位置跟着幅值走，底部拖一条细尾线。
+  dots,
+
+  /// 竖柱 + 顶部峰值帽。最直白的那种「频谱分析仪」。
   bars,
 
   /// 分段电平表：每列由若干方块组成，点亮的格数等于幅值。
   leds,
-
-  /// 浮动光点：每列一个圆点，纵向位置跟着幅值走，底部拖一条细尾线。
-  dots,
 
   /// 三层山脊：后层更高更暗，前层更矮更亮，叠出纵深。
   ridges,
@@ -42,7 +45,7 @@ enum SpectrumStyle {
 
   static SpectrumStyle fromStorage(
     Object? value, {
-    SpectrumStyle fallback = SpectrumStyle.bars,
+    SpectrumStyle fallback = SpectrumStyle.dots,
   }) {
     if (value is! String) return fallback;
     for (final style in SpectrumStyle.values) {
@@ -57,7 +60,7 @@ enum SpectrumStyle {
 class PlayerSpectrumSettings {
   const PlayerSpectrumSettings({
     this.enabled = false,
-    this.style = SpectrumStyle.bars,
+    this.style = SpectrumStyle.dots,
   });
 
   /// 是否显示。默认关——它是纯装饰，而且会占掉一行高度；关掉之后那一行

@@ -28,7 +28,7 @@ import 'player_spectrum_painter.dart';
 class PlayerSpectrumStrip extends ConsumerStatefulWidget {
   const PlayerSpectrumStrip({
     super.key,
-    this.style = SpectrumStyle.bars,
+    this.style = SpectrumStyle.dots,
     this.height = 44,
     this.horizontalInset = 0,
     this.accentOverride,

@@ -51,18 +51,16 @@ Widget _app(EqualizerBridge bridge, StorageService storage) => ProviderScope(
 );
 
 /// 引擎能力由运行时现算（`audioHandler` 是 late 全局变量，启动早期还没初始化），
-/// 所以测试只能覆盖这两个判断本身，而不是去伪造一整台播放引擎。
+/// 所以测试只能覆盖这个判断本身，而不是去伪造一整台播放引擎。
 Widget _appWithCapabilities(
   EqualizerBridge bridge,
   StorageService storage, {
   bool enhancement = false,
-  bool spectrum = false,
 }) => ProviderScope(
   overrides: [
     equalizerBridgeProvider.overrideWithValue(bridge),
     equalizerStorageProvider.overrideWithValue(() async => storage),
     audioEnhancementSupportedProvider.overrideWithValue(enhancement),
-    playerSpectrumSupportedProvider.overrideWithValue(spectrum),
   ],
   child: const MaterialApp(home: EqualizerScreen()),
 );
@@ -208,8 +206,8 @@ void main() {
     expect(find.textContaining('Device bands: 10'), findsOneWidget);
   });
 
-  testWidgets('交叉馈送 / 响度 / 限幅与频谱都在这一页，且各自判断能力', (tester) async {
-    // 增强与频谱排在均衡器下面，默认 800×600 的视口装不下，ListView 也不会
+  testWidgets('交叉馈送 / 响度 / 限幅都在这一页，且各自判断能力', (tester) async {
+    // 增强项排在均衡器下面，默认 800×600 的视口装不下，ListView 也不会
     // 把没滚到的子项建出来。用高视口一次全建出来，按文字断言即可。
     tester.view.physicalSize = const Size(420, 2000);
     tester.view.devicePixelRatio = 1;
@@ -222,18 +220,18 @@ void main() {
         FakeEqualizerBridge(layout: fiveBandLayout),
         storage,
         enhancement: true,
-        spectrum: true,
       ),
     );
     await tester.pumpAndSettle();
 
-    // 这四项以前在「设置 > 播放」里，和淡入淡出、跳过静音挤在一起。
+    // 这三项以前在「设置 > 播放」里，和淡入淡出、跳过静音挤在一起。
     // 它们改的是声音本身，现在和均衡器同页——调音色不用来回跳两页。
     expect(find.text('Audio enhancement'), findsOneWidget);
     expect(find.text('Crossfeed'), findsOneWidget);
     expect(find.text('Loudness leveling'), findsOneWidget);
     expect(find.text('Clipping protection'), findsOneWidget);
-    expect(find.text('Live spectrum'), findsOneWidget);
+    // 频谱是纯视觉项，已经回到设置页的「播放」区，这一页不该再有入口。
+    expect(find.text('Live spectrum'), findsNothing);
     // 强度只在交叉馈送开着时才出现，和设置页里的从属关系一致。
     expect(find.text('Crossfeed strength'), findsNothing);
 
@@ -270,12 +268,11 @@ void main() {
 
     expect(find.text('Audio enhancement'), findsNothing);
     expect(find.text('Crossfeed'), findsNothing);
-    expect(find.text('Live spectrum'), findsNothing);
     // 均衡器本身仍可用：能力判断是各自独立的，不是整页一刀切。
     expect(find.byType(Slider), findsNWidgets(5));
   });
 
-  testWidgets('均衡器不可用不影响增强与频谱：它们是各自的能力', (tester) async {
+  testWidgets('均衡器不可用不影响音频增强：它们是各自的能力', (tester) async {
     tester.view.physicalSize = const Size(420, 2000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -287,7 +284,6 @@ void main() {
         FakeEqualizerBridge(supported: false),
         storage,
         enhancement: true,
-        spectrum: true,
       ),
     );
     await tester.pumpAndSettle();
@@ -296,6 +292,5 @@ void main() {
     // iOS 上没有均衡器实现，但 mpv 的 af 链照常可用——整页当一个开关会
     // 把本来能用的功能一起藏掉。
     expect(find.text('Crossfeed'), findsOneWidget);
-    expect(find.text('Live spectrum'), findsOneWidget);
   });
 }

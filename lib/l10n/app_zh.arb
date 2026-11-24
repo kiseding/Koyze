@@ -54,6 +54,15 @@
   "playerBackdropScrim": "遮罩透明度",
   "backdropBlurShort": "虚化",
   "backdropScrimShort": "压暗",
+  "glassEffect": "界面质感",
+  "glassEffectSummary": "不透明度 {opacity}% · 虚化 {blur}%",
+  "@glassEffectSummary": {
+    "placeholders": {
+      "opacity": { "type": "int" },
+      "blur": { "type": "int" }
+    }
+  },
+  "glassEffectHint": "拖动滑杆，上方预览会跟着变",
   "glassOpacity": "界面不透明度",
   "glassOpacitySubtitle": "100% 不透明，数值越低越透",
   "glassBlur": "虚化",
@@ -510,12 +519,17 @@
   "importLinkBad": "导入失败，请检查链接或脚本格式",
   "directDownloadHint": "请输入脚本文件的直接下载链接",
   "clipboardEmpty": "剪切板中没有链接",
+  "clipboardPermissionDenied": "系统未授权读取剪切板，请在输入框长按粘贴",
   "clipboard": "剪切板",
   "importCustomSource": "导入自定义源",
   "lxScriptHint": "支持 LX Music 格式脚本",
   "pasteScriptHint": "粘贴 LX Music 脚本或 JSON 配置...",
   "importFormatBad": "导入失败，请检查脚本格式",
   "exportCustomSource": "导出自定义源",
+  "sourceExported": "已导出 {file}",
+  "@sourceExported": {"placeholders": {"file": {"type": "String"}}},
+  "sourceExportFailed": "导出失败：{error}",
+  "@sourceExportFailed": {"placeholders": {"error": {"type": "String"}}},
   "deleteCustomSource": "删除自定义源",
   "logCopied": "日志已复制",
   "noLog": "暂无日志",
@@ -880,6 +894,7 @@
   "fadeOutBeforeStop": "结束前渐弱",
   "fadeOutBeforeStopHint": "最后 10 秒慢慢变小，不会突然静音",
   "queueEditTitle": "编辑播放队列",
+  "editDone": "完成",
   "playNext": "下一首播放",
   "removeFromQueue": "从播放队列移除",
   "scanRules": "扫描规则",
@@ -1097,7 +1112,5 @@
   "autoEqParametric": "按原始参数下发：{count} 个滤波器",
   "autoEqParametricHint": "已保留每个滤波器的频率与 Q 值，不再降采样到固定频段",
   "audioEnhancementSection": "音频增强",
-  "audioEnhancementSectionHint": "更改后立即生效，与均衡器共用音频滤镜。",
-  "spectrumSection": "播放页频谱",
-  "spectrumSectionHint": "仅改变播放页显示，不影响声音。"
+  "audioEnhancementSectionHint": "更改后立即生效，与均衡器共用音频滤镜。"
 }

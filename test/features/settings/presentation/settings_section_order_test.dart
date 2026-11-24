@@ -39,6 +39,8 @@ void main() {
         equalizerStorageProvider.overrideWithValue(() async => storage),
         settingsDeviceIdProvider.overrideWith((ref) async => 'device_test'),
         sleepTimerProvider.overrideWith(() => SleepTimerNotifier(() async {})),
+        // 频谱条要引擎真的吐 FFT 才可用，测试里没有播放引擎，直接放行。
+        playerSpectrumSupportedProvider.overrideWithValue(true),
       ],
     );
     addTearDown(container.dispose);
@@ -108,7 +110,7 @@ void main() {
     expect(reset, lessThan(tops[9]));
   });
 
-  testWidgets('音效项整组搬进均衡器页，设置页只剩一行入口', (tester) async {
+  testWidgets('音效项整组搬进均衡器页，频谱留在播放区', (tester) async {
     tester.view.physicalSize = const Size(390, 6000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -126,6 +128,8 @@ void main() {
         equalizerStorageProvider.overrideWithValue(() async => storage),
         settingsDeviceIdProvider.overrideWith((ref) async => 'device_test'),
         sleepTimerProvider.overrideWith(() => SleepTimerNotifier(() async {})),
+        // 频谱条要引擎真的吐 FFT 才可用，测试里没有播放引擎，直接放行。
+        playerSpectrumSupportedProvider.overrideWithValue(true),
       ],
     );
     addTearDown(container.dispose);
@@ -143,16 +147,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 这四项以前在「播放」区里，和淡入淡出、跳过静音混排。它们改的是
+    // 这三项以前在「播放」区里，和淡入淡出、跳过静音混排。它们改的是
     // 声音本身，现在归均衡器页（标题仍是「均衡器」）。如果哪天有人把它们
     // 加回设置页，这里会红——同一个开关两个入口是最容易复发的漂移。
-    for (final label in ['交叉馈送', '响度均衡', '削波保护', '实时频谱']) {
+    for (final label in ['交叉馈送', '响度均衡', '削波保护']) {
       expect(
         find.text(label),
         findsNothing,
         reason: '「$label」属于均衡器页，设置页不该再有第二处',
       );
     }
+    // 频谱只影响画面，不属于音效页；它在播放区，紧跟在音效入口之后。
+    expect(find.text('实时频谱'), findsOneWidget);
     // 入口还在，而且搜索「交叉馈送」要能落到它上面（关键词已并进入口行）。
     expect(find.text('均衡器'), findsOneWidget);
   });

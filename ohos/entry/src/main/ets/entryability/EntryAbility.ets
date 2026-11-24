@@ -2,6 +2,7 @@
 import { FlutterAbility, FlutterEngine } from '@ohos/flutter_ohos';
 import { GeneratedPluginRegistrant } from '../plugins/GeneratedPluginRegistrant';
 import CarStatusBridge from './CarStatusBridge';
+import ClipboardBridge from './ClipboardBridge';
 import LocalFileSystemBridge from './LocalFileSystemBridge';
 import MethodChannel from '@ohos/flutter_ohos/src/main/ets/plugin/common/MethodChannel';
 import StandardMethodCodec from '@ohos/flutter_ohos/src/main/ets/plugin/common/StandardMethodCodec';
@@ -9,6 +10,7 @@ import StandardMethodCodec from '@ohos/flutter_ohos/src/main/ets/plugin/common/S
 export default class EntryAbility extends FlutterAbility {
   private carStatus: CarStatusBridge | null = null;
   private fileSystemChannel: MethodChannel | null = null;
+  private clipboardChannel: MethodChannel | null = null;
 
   configureFlutterEngine(flutterEngine: FlutterEngine) {
     super.configureFlutterEngine(flutterEngine)
@@ -27,6 +29,15 @@ export default class EntryAbility extends FlutterAbility {
     );
     fileChannel.setMethodCallHandler(new LocalFileSystemBridge(this.context));
     this.fileSystemChannel = fileChannel;
+    // 剪贴板。Flutter 自带的 Clipboard 通道在鸿蒙引擎上没有实现，
+    // 且是 OptionalMethodChannel，失败时静默返回 null，只能自己补。
+    const clipboardChannel = new MethodChannel(
+      flutterEngine.getDartExecutor().getBinaryMessenger(),
+      'koyze/clipboard',
+      StandardMethodCodec.INSTANCE,
+    );
+    clipboardChannel.setMethodCallHandler(new ClipboardBridge(this.context));
+    this.clipboardChannel = clipboardChannel;
   }
 
   onDestroy(): void {
@@ -34,6 +45,8 @@ export default class EntryAbility extends FlutterAbility {
     this.carStatus = null;
     this.fileSystemChannel?.setMethodCallHandler(null);
     this.fileSystemChannel = null;
+    this.clipboardChannel?.setMethodCallHandler(null);
+    this.clipboardChannel = null;
     super.onDestroy();
   }
 }

@@ -57,7 +57,6 @@ import '../../../core/motion/motion_tokens.dart';
 import 'widgets/player_progress_bar.dart';
 import 'widgets/player_spectrum_strip.dart';
 import 'widgets/player_volume_button.dart';
-import 'queue_edit_sheet.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../core/logging/app_log.dart';
 import '../../../core/logging/ohos_hilog.dart';
@@ -65,11 +64,13 @@ import '../../../core/logging/ohos_hilog.dart';
 double _playbackQueueSheetInitialSize(BuildContext context, int itemCount) {
   final screenHeight = MediaQuery.sizeOf(context).height;
   if (screenHeight <= 0) return 0.58;
-  const headerHeight = 94.0;
+  // 标题区用统一的 [KoyzeSheetTitle]，高度比原来的「把手 + 标题行」矮一截；
+  // 少掉的那段全部还给列表，面板本身再比之前高一档。
+  const headerHeight = 56.0;
   const tileHeight = 56.0;
-  const extraHeight = 50.0;
-  const maxSheetSize = 0.78;
-  final visibleRows = itemCount <= 0 ? 1 : itemCount.clamp(1, 8);
+  const extraHeight = 64.0;
+  const maxSheetSize = 0.82;
+  final visibleRows = itemCount <= 0 ? 1 : itemCount.clamp(1, 9);
   final targetHeight = headerHeight + visibleRows * tileHeight + extraHeight;
   return (targetHeight / screenHeight).clamp(0.28, maxSheetSize).toDouble();
 }
@@ -2724,6 +2725,12 @@ class _PlaybackQueueSheet extends ConsumerStatefulWidget {
 class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
   bool _heartModeBusy = false;
 
+  /// 长按任意一首进入编辑模式：面板不换一层，标题、列表原地变成可拖拽
+  /// 的样子。这样长按就是入口，不再需要标题栏里那颗「编辑」按钮。
+  bool _editing = false;
+  List<MediaItem> _editItems = const [];
+  int _editCurrentIndex = -1;
+
   static const double _queueTileHeight = 56.0;
 
   late int _pageIndex;
@@ -2731,6 +2738,13 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
   int? _focusedPageForScroll;
   PlaylistSongPage? _displayedPage;
   int? _displayedPageIndex;
+
+  /// 队列以播放器里的实时列表为准：编辑模式里刚拖过、刚删过的顺序，
+  /// 退出编辑后要立刻反映到列表上，不能还用打开面板那一刻的快照。
+  List<MediaItem> get _currentQueue {
+    final live = widget.playerService.queue;
+    return live.isEmpty ? widget.queue : live;
+  }
 
   @override
   void initState() {
@@ -2748,6 +2762,71 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
   }
 
   Widget _wrapQueueScrollable(Widget child) => child;
+
+  /// 长按任意一行进入编辑模式。编辑的是播放器里已载入的队列，
+  /// 与原来那张独立的「编辑播放队列」面板是同一份数据，只是不再叠一层。
+  void _startEditing() {
+    final service = widget.playerService;
+    final items = _currentQueue;
+    if (items.isEmpty) return;
+    setState(() {
+      _editing = true;
+      _editItems = List<MediaItem>.of(items);
+      _editCurrentIndex = service.currentIndex;
+    });
+  }
+
+  void _finishEditing() {
+    if (!_editing) return;
+    setState(() {
+      _editing = false;
+      // 顺序变过，回到列表态时重新居中到正在播放的那一首。
+      _focusedPageForScroll = null;
+    });
+  }
+
+  Future<void> _moveEditItem(int oldIndex, int newIndex) async {
+    // `onReorderItem` 已经替我们扣掉了「先摘出再插入」造成的下标偏移。
+    if (newIndex == oldIndex) return;
+    final service = widget.playerService;
+    setState(() {
+      final item = _editItems.removeAt(oldIndex);
+      _editItems.insert(newIndex, item);
+      if (_editCurrentIndex == oldIndex) {
+        _editCurrentIndex = newIndex;
+      } else if (oldIndex < _editCurrentIndex &&
+          newIndex >= _editCurrentIndex) {
+        _editCurrentIndex -= 1;
+      } else if (oldIndex > _editCurrentIndex &&
+          newIndex <= _editCurrentIndex) {
+        _editCurrentIndex += 1;
+      }
+    });
+    await service.moveInQueue(oldIndex, newIndex);
+  }
+
+  Future<void> _removeEditItem(int index) async {
+    if (index < 0 || index >= _editItems.length) return;
+    // 正在播放的那首不能删：那是「跳过」，和用户点的「删除」不是一件事。
+    if (index == _editCurrentIndex) return;
+    final service = widget.playerService;
+    setState(() {
+      _editItems.removeAt(index);
+      if (index < _editCurrentIndex) _editCurrentIndex -= 1;
+    });
+    await service.removeFromQueue(index);
+  }
+
+  Future<void> _playNextFromEdit(int index) async {
+    if (index < 0 || index >= _editItems.length) return;
+    final song = MusicItem.fromJson(_editItems[index].extras ?? const {});
+    await widget.playerService.playNext(song);
+    if (!mounted) return;
+    setState(() {
+      _editItems = List<MediaItem>.of(widget.playerService.queue);
+      _editCurrentIndex = widget.playerService.currentIndex;
+    });
+  }
 
   int _lazyCurrentIndex() {
     final current = widget.playerService.mediaItem?.extras;
@@ -2808,11 +2887,12 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
   Future<void> _playAt(int globalIndex) async {
     final playlistId = widget.lazyPlaylistId;
     if (playlistId == null) {
+      final items = _currentQueue;
       await widget.playerService.setQueue(
-        widget.queue.map((e) => MusicItem.fromJson(e.extras ?? {})).toList(),
+        items.map((e) => MusicItem.fromJson(e.extras ?? {})).toList(),
         startIndex: globalIndex,
-        manualPlayName: globalIndex >= 0 && globalIndex < widget.queue.length
-            ? widget.queue[globalIndex].title
+        manualPlayName: globalIndex >= 0 && globalIndex < items.length
+            ? items[globalIndex].title
             : null,
       );
       return;
@@ -2910,6 +2990,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                       song: item,
                       isFavorite: isFavoriteMusic(item, favoriteSongs),
                     ),
+                    onLongPress: _startEditing,
                     onTap: loading
                         ? null
                         : () async {
@@ -2949,6 +3030,10 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
 
   @override
   Widget build(BuildContext context) {
+    // 编辑模式整块换成「已载入队列」的可拖拽列表：分页歌单的每一页只是
+    // 歌单顺序的切片，真正能调顺序的只有播放器里的那一份队列。
+    if (_editing) return _buildEditMode(context);
+
     final playlistId = widget.lazyPlaylistId;
     final currentIndex = playlistId != null
         ? _lazyCurrentIndex()
@@ -2957,7 +3042,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
     if (playlistId != null) {
       final lazySongCount = widget.playerService.currentLazyPlaylistSongCount;
       final range = PageRange(
-        itemCount: lazySongCount > 0 ? lazySongCount : widget.queue.length,
+        itemCount: lazySongCount > 0 ? lazySongCount : _currentQueue.length,
         pageIndex: _pageIndex,
       );
       final songsPage = ref.watch(
@@ -2973,39 +3058,7 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
         bottom: false,
         child: Column(
           children: [
-            Container(
-              width: 32,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.mutedText(context),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.queue_music,
-                    color: AppColors.accentOf(context),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    S.of(context).queueTitle(range.itemCount),
-                    style: TextStyle(
-                      color: AppColors.onScaffold(context),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  _heartModeButton(context),
-                ],
-              ),
-            ),
-            Divider(color: AppColors.cardBorder(context), height: 1),
+            _buildQueueHeader(context, range.itemCount),
             songsPage.when(
               skipLoadingOnRefresh: true,
               loading: () {
@@ -3062,6 +3115,124 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
     }
 
     return _buildShortQueue(context, currentIndex);
+  }
+
+  /// 列表态标题：和其它选项面板同一套 [KoyzeSheetTitle]，心动模式贴着标题。
+  Widget _buildQueueHeader(BuildContext context, int count) {
+    final s = S.of(context);
+    return KoyzeSheetTitle(
+      title: s.queueTitle(count),
+      titleAction: _heartModeButton(context),
+      onClose: () => Navigator.pop(context),
+      closeTooltip: s.close,
+    );
+  }
+
+  Widget _buildEditHeader(BuildContext context) {
+    final s = S.of(context);
+    return KoyzeSheetTitle(
+      title: s.queueEditTitle,
+      action: TextButton(
+        onPressed: _finishEditing,
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.accentOf(context),
+          minimumSize: Size.zero,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        child: Text(s.editDone),
+      ),
+      onClose: () => Navigator.pop(context),
+      closeTooltip: s.close,
+    );
+  }
+
+  Widget _buildEditMode(BuildContext context) {
+    final s = S.of(context);
+    final muted = AppColors.mutedText(context);
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          _buildEditHeader(context),
+          if (_editItems.isEmpty)
+            Expanded(
+              child: Center(
+                child: Text(
+                  s.queueEmpty,
+                  style: TextStyle(color: muted, fontSize: 14),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: ReorderableListView.builder(
+                buildDefaultDragHandles: false,
+                padding: const EdgeInsets.only(bottom: 12),
+                itemCount: _editItems.length,
+                onReorderItem: _moveEditItem,
+                itemBuilder: (context, index) {
+                  final item = _editItems[index];
+                  final isPlaying = index == _editCurrentIndex;
+                  return ListTile(
+                    key: ObjectKey(item),
+                    dense: true,
+                    minTileHeight: _queueTileHeight,
+                    leading: ReorderableDragStartListener(
+                      index: index,
+                      child: Icon(
+                        Icons.drag_handle_rounded,
+                        color: muted,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      item.title,
+                      style: TextStyle(
+                        color: isPlaying
+                            ? AppColors.accentOf(context)
+                            : AppColors.onScaffold(context),
+                        fontSize: 14,
+                        fontWeight: isPlaying
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      item.artist ?? '',
+                      style: TextStyle(color: muted, fontSize: 12),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      icon: Icon(
+                        Icons.more_horiz_rounded,
+                        color: muted,
+                        size: 20,
+                      ),
+                      onSelected: (value) {
+                        if (value == 'next') _playNextFromEdit(index);
+                        if (value == 'remove') _removeEditItem(index);
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(value: 'next', child: Text(s.playNext)),
+                        if (!isPlaying)
+                          PopupMenuItem(
+                            value: 'remove',
+                            child: Text(s.removeFromQueue),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _heartModeButton(BuildContext context) {
@@ -3126,62 +3297,21 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
     int currentIndex, {
     String? fallbackReason,
   }) {
-    final range = PageRange(
-      itemCount: widget.queue.length,
-      pageIndex: _pageIndex,
-    );
-    final queue = pageSlice(widget.queue, range);
+    final items = _currentQueue;
+    final range = PageRange(itemCount: items.length, pageIndex: _pageIndex);
+    final queue = pageSlice(items, range);
     _scrollToCurrentIfNeeded(range.pageIndex, currentIndex, range.start);
     final hasMultiplePages = range.pageCount > 1;
+    // 页面级读取一次收藏集合，避免每个可见行各建一个异步查询。
+    final favoriteSongs =
+        ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
 
     return SafeArea(
       bottom: false,
       child: Column(
         children: [
-          Container(
-            width: 32,
-            height: 4,
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.mutedText(context),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.queue_music,
-                  color: AppColors.accentOf(context),
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  S.of(context).queueTitle(widget.queue.length),
-                  style: TextStyle(
-                    color: AppColors.onScaffold(context),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                _heartModeButton(context),
-                if (widget.queue.length > 1)
-                  TextButton.icon(
-                    onPressed: () => showQueueEditSheet(context),
-                    icon: const Icon(Icons.swap_vert_rounded, size: 18),
-                    label: Text(S.of(context).edit),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.accentOf(context),
-                      textStyle: const TextStyle(fontSize: 13),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Divider(color: AppColors.cardBorder(context), height: 1),
-          if (widget.queue.isEmpty)
+          _buildQueueHeader(context, items.length),
+          if (items.isEmpty)
             Padding(
               padding: const EdgeInsets.all(32),
               child: Text(
@@ -3213,6 +3343,9 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                           final item = queue[index];
                           final queueIndex = range.start + index;
                           final isPlaying = queueIndex == currentIndex;
+                          final song = MusicItem.fromJson(
+                            item.extras ?? const {},
+                          );
                           return ListTile(
                             dense: true,
                             minTileHeight: _queueTileHeight,
@@ -3251,6 +3384,11 @@ class _PlaybackQueueSheetState extends ConsumerState<_PlaybackQueueSheet> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            trailing: FavoriteButton(
+                              song: song,
+                              isFavorite: isFavoriteMusic(song, favoriteSongs),
+                            ),
+                            onLongPress: _startEditing,
                             onTap: () async {
                               await _playAt(queueIndex);
                               if (context.mounted) Navigator.pop(context);

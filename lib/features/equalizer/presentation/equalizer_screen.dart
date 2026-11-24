@@ -15,7 +15,6 @@ import 'package:koyze/core/widgets/gradient_bar_backgrounds.dart';
 import 'package:koyze/features/equalizer/domain/equalizer_preset.dart';
 import 'package:koyze/features/equalizer/presentation/equalizer_provider.dart';
 import 'package:koyze/features/player/presentation/player_provider.dart';
-import 'package:koyze/features/player/presentation/widgets/spectrum_style_sheet.dart';
 import 'package:koyze/features/settings/presentation/settings_provider.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../core/widgets/origo_chrome.dart';
@@ -163,10 +162,6 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
                   if (ref.watch(audioEnhancementSupportedProvider)) ...[
                     const SizedBox(height: 24),
                     _buildEnhancementSection(context),
-                  ],
-                  if (ref.watch(playerSpectrumSupportedProvider)) ...[
-                    const SizedBox(height: 24),
-                    _buildSpectrumSection(context),
                   ],
                 ],
               ),
@@ -522,52 +517,6 @@ class _EqualizerScreenState extends ConsumerState<EqualizerScreen> {
       ],
     );
   }
-
-  /// 播放页实时频谱。
-  ///
-  /// 它不改声音，只是把已经播出来的声音画出来，所以和上面那段分开——把
-  /// 一个纯视觉项塞进「音频增强」会让人以为它会动声音。
-  Widget _buildSpectrumSection(BuildContext context) {
-    final s = S.of(context);
-    final spectrum = ref.watch(playerSpectrumProvider);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionTitle(text: s.spectrumSection),
-        const SizedBox(height: 10),
-        _Card(
-          child: _DividedColumn(
-            children: [
-              _SwitchRow(
-                title: s.playerSpectrum,
-                subtitle: s.playerSpectrumSubtitle,
-                value: spectrum.enabled,
-                onChanged: ref
-                    .read(playerSpectrumProvider.notifier)
-                    .setEnabled,
-              ),
-              if (spectrum.enabled)
-                _NavRow(
-                  title: s.playerSpectrumStyle,
-                  subtitle: spectrumStyleLabel(s, spectrum.style),
-                  onTap: () => showSpectrumStyleSheet(context, ref),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          s.spectrumSectionHint,
-          style: TextStyle(
-            fontSize: 11.5,
-            height: 1.5,
-            color: AppColors.mutedText(context),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// 卡片里的若干行，行与行之间插一条发丝线。
@@ -647,55 +596,6 @@ class _SwitchRow extends StatelessWidget {
           const SizedBox(width: 12),
           FxSwitch(value: value, onChanged: onChanged),
         ],
-      ),
-    );
-  }
-}
-
-/// 卡片里的一行导航：点开面板。右侧显示当前值，再一颗箭头。
-class _NavRow extends StatelessWidget {
-  const _NavRow({
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 13, 12, 13),
-        child: Row(
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w500,
-                color: AppColors.onScaffold(context),
-              ),
-            ),
-            const Spacer(),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 12.5,
-                color: AppColors.secondaryText(context),
-              ),
-            ),
-            const SizedBox(width: 2),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: AppColors.secondaryText(context),
-            ),
-          ],
-        ),
       ),
     );
   }

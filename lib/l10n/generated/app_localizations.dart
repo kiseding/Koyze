@@ -422,6 +422,24 @@ abstract class AppLocalizations {
   /// **'Dim'**
   String get backdropScrimShort;
 
+  /// No description provided for @glassEffect.
+  ///
+  /// In en, this message translates to:
+  /// **'Surface'**
+  String get glassEffect;
+
+  /// No description provided for @glassEffectSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Opacity {opacity}% · Blur {blur}%'**
+  String glassEffectSummary(int opacity, int blur);
+
+  /// No description provided for @glassEffectHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag the sliders to preview the change above'**
+  String get glassEffectHint;
+
   /// No description provided for @glassOpacity.
   ///
   /// In en, this message translates to:
@@ -3008,6 +3026,12 @@ abstract class AppLocalizations {
   /// **'The clipboard has no link'**
   String get clipboardEmpty;
 
+  /// No description provided for @clipboardPermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Clipboard access is not granted. Long-press the field to paste.'**
+  String get clipboardPermissionDenied;
+
   /// No description provided for @clipboard.
   ///
   /// In en, this message translates to:
@@ -3043,6 +3067,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Export custom source'**
   String get exportCustomSource;
+
+  /// No description provided for @sourceExported.
+  ///
+  /// In en, this message translates to:
+  /// **'Exported {file}'**
+  String sourceExported(String file);
+
+  /// No description provided for @sourceExportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Export failed: {error}'**
+  String sourceExportFailed(String error);
 
   /// No description provided for @deleteCustomSource.
   ///
@@ -5060,6 +5096,12 @@ abstract class AppLocalizations {
   /// **'Edit queue'**
   String get queueEditTitle;
 
+  /// No description provided for @editDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get editDone;
+
   /// No description provided for @playNext.
   ///
   /// In en, this message translates to:
@@ -6331,18 +6373,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Changes apply immediately through the equalizer\'s audio filter chain.'**
   String get audioEnhancementSectionHint;
-
-  /// No description provided for @spectrumSection.
-  ///
-  /// In en, this message translates to:
-  /// **'Player spectrum'**
-  String get spectrumSection;
-
-  /// No description provided for @spectrumSectionHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Changes the player display, not the sound.'**
-  String get spectrumSectionHint;
 }
 
 class _AppLocalizationsDelegate

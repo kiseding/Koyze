@@ -23,14 +23,14 @@ void main() {
       return StorageService.forTesting(await SharedPreferences.getInstance());
     }
 
-    test('空存储时默认关闭、样式为柱状', () async {
+    test('空存储时默认关闭、样式为光点', () async {
       final storage = await storageWith(<String, Object>{});
       final notifier = PlayerSpectrumNotifier(storage: () async => storage);
       await Future<void>.delayed(Duration.zero);
 
       // 默认关：这一行高度留给「下一句歌词」，信息密度更高。
       expect(notifier.value.enabled, isFalse);
-      expect(notifier.value.style, SpectrumStyle.bars);
+      expect(notifier.value.style, SpectrumStyle.dots);
     });
 
     test('拨开关与换样式都落盘，重建 notifier 能读回来', () async {
@@ -47,7 +47,7 @@ void main() {
       expect(second.value.enabled, isFalse);
     });
 
-    test('未知样式名退回柱状，坏 enabled 退回默认', () async {
+    test('未知样式名退回光点，坏 enabled 退回默认', () async {
       final storage = await storageWith(<String, Object>{
         'player_spectrum_v1': '{"enabled":"yes","style":"spiral"}',
       });
@@ -55,9 +55,9 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // 一份坏掉的设置不该让播放器起不来。`enabled` 不是 bool 时退回默认
-      // 值（现在是 false），样式名不认识时退回柱状。
+      // 值（现在是 false），样式名不认识时退回默认的光点。
       expect(notifier.value.enabled, isFalse);
-      expect(notifier.value.style, SpectrumStyle.bars);
+      expect(notifier.value.style, SpectrumStyle.dots);
     });
 
     test('样式名是稳定字符串，改枚举名不会让旧设置失效', () {
@@ -74,6 +74,13 @@ void main() {
           reason: '每个 storageValue 都必须能被解析回自身',
         );
       }
+    });
+
+    test('光点排在样式面板第一位，也是默认样式', () {
+      // 面板直接按 values 顺序渲染，所以「第一项」和「默认值」必须同时改，
+      // 否则用户看到的选中项会落在列表中间。
+      expect(SpectrumStyle.values.first, SpectrumStyle.dots);
+      expect(const PlayerSpectrumSettings().style, SpectrumStyle.dots);
     });
 
     test('相等性与 JSON 往返', () {

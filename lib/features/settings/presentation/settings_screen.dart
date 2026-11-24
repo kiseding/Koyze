@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
@@ -9,23 +9,26 @@ import '../../../core/app_version.dart';
 import '../../../core/card_expand.dart';
 import '../../../core/io/bounded_input.dart';
 import '../../../core/logging/app_log.dart';
+import '../../../core/platform/app_clipboard.dart';
 import '../../../core/platform/save_file_target.dart';
 import '../../../core/storage/cache_maintenance_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_themes.dart';
-import '../../../core/theme/glass_config.dart';
+import '../../../core/theme/cover_palette_provider.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/frosted_tab_header.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/widgets/root_shell_layout.dart';
 import '../../../core/widgets/sleep_timer_sheet.dart';
 import 'settings_provider.dart';
+import 'glass_effect_sheet.dart';
 import '../../search/presentation/search_provider.dart';
 import '../../playlist/data/playlist_repository.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../player/platform/android_floating_player.dart';
 import '../../player/domain/player_backdrop.dart';
 import '../../player/presentation/player_backdrop_sheet.dart';
+import '../../player/presentation/widgets/spectrum_style_sheet.dart';
 import '../../updates/presentation/update_sheet.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../equalizer/presentation/equalizer_provider.dart';
@@ -246,6 +249,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final language = ref.watch(appLanguageProvider);
     final backdropBlur = ref.watch(playerBackdropBlurProvider);
     final backdropScrim = ref.watch(playerBackdropScrimProvider);
+    final glassOpacity = ref.watch(glassOpacityProvider);
+    final glassBlur = ref.watch(glassBlurProvider);
+    final followsCover = ref.watch(coverThemedAccentProvider);
+    final manualAccent = ref.watch(accentColorProvider);
+    // 跟随封面开着时，行尾那颗色点要显示真正生效的强调色，而不是下次手动
+    // 选择才会用到的备用色。
+    final coverAccent = followsCover
+        ? ref.watch(coverPaletteProvider).valueOrNull?.accent
+        : null;
+    final spectrum = ref.watch(playerSpectrumProvider);
+    final spectrumSupported = ref.watch(playerSpectrumSupportedProvider);
 
     // 分组的依据是「用户对一首歌做了什么」，不是代码在哪个目录，也不是
     // 哪个功能顺手写在了这里。十个小节按一首歌的一生排下来：
@@ -492,8 +506,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => _showAudioQualityDialog(context, ref),
           ),
           // 音效入口紧跟音质：这一页里的东西改的都是「声音本身」，
-          // 剩下的是播放行为。均衡器和交叉馈送 / 响度 / 限幅 / 频谱现在
-          // 都在这一页里，所以关键词也一并收进来——搜索「交叉馈送」的人
+          // 剩下的是播放行为。均衡器和交叉馈送 / 响度 / 限幅现在都在
+          // 音效页里，所以关键词也一并收进来——搜索「交叉馈送」的人
           // 应该落到这一行，而不是搜不到。
           SettingsEntry(
             title: s.equalizer,
@@ -515,15 +529,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               'loudness',
               '削波',
               'limiter',
-              '频谱',
-              'spectrum',
-              '可视化',
-              'visualizer',
             ],
             onTap: () => context.push('/equalizer'),
             captureExpandOrigin: true,
           ),
-          // 交叉馈送 / 响度均衡 / 削波保护 / 实时频谱都搬去了均衡器页
+          // 频谱是纯视觉项，不跟交叉馈送那几项去音效页：那一页改的都是
+          // 声音。放在播放区紧跟音效入口，从旧版本找过来的人不会找不到。
+          // 引擎不支持时整项不显示——拨了没反应的开关比没有更糟。
+          if (spectrumSupported) ...[
+            SettingsEntry(
+              title: s.playerSpectrum,
+              subtitle: s.playerSpectrumSubtitle,
+              keywords: const ['频谱', 'spectrum', '可视化', 'visualizer', '律动'],
+              toggleValue: spectrum.enabled,
+              onToggle: (value) =>
+                  ref.read(playerSpectrumProvider.notifier).setEnabled(value),
+            ),
+            // 样式只在开着时有意义，和预缓存数量同一套从属关系。
+            if (spectrum.enabled)
+              SettingsEntry(
+                title: s.playerSpectrumStyle,
+                subtitle: spectrumStyleLabel(s, spectrum.style),
+                keywords: const ['样式', 'style', '频谱', 'spectrum', '光点', '柱状'],
+                onTap: () => showSpectrumStyleSheet(context, ref),
+              ),
+          ],
+          // 交叉馈送 / 响度均衡 / 削波保护搬去了均衡器页
           // （页面现在叫「音效」）。它们和均衡器一样，改的都是「声音本身」，
           // 而这里剩下的都是播放行为——两件事混在一页里，找一个音效项得先
           // 猜它归哪边。设置页只留一行入口，放在音质下面。
@@ -701,13 +732,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       SettingsSectionSpec(
         title: s.appearance,
-        // 面板浓度直接在列表里调：拖动时周围的分区卡片就是预览，不用另开
-        // 一个"看不见变化"的弹层。
-        leadIn: const [_GlassOpacitySlider(), _GlassBlurSlider()],
         entries: [
           SettingsEntry(
             title: s.themeColor,
-            subtitle: s.themeColorSubtitle,
+            // 跟随封面是强调色的一种来源，开关收进了强调色面板（见
+            // [_ThemeColorPickerDialog]），这里只回显当前状态。
+            subtitle: followsCover ? s.accentFollowsCover : s.themeColorSubtitle,
             keywords: const [
               '主题',
               'theme',
@@ -716,6 +746,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               '配色',
               'accent',
               '强调色',
+              '封面',
+              'cover',
+              '取色',
+              '跟随',
+              'follow',
+              'palette',
+              'artwork',
             ],
             onTap: () => _showThemeColorDialog(context),
             trailing: Row(
@@ -725,7 +762,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   width: 18,
                   height: 18,
                   decoration: BoxDecoration(
-                    color: ref.watch(accentColorProvider),
+                    color: coverAccent ?? manualAccent,
                     shape: BoxShape.circle,
                     border: Border.all(color: AppColors.cardBorder(context)),
                   ),
@@ -734,25 +771,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Icon(Icons.chevron_right, color: AppColors.mutedText(context)),
               ],
             ),
-          ),
-          // 紧跟主题色：它改的是同一个强调色，只是来源换成了封面。
-          SettingsEntry(
-            title: s.accentFollowsCover,
-            subtitle: s.accentFollowsCoverSubtitle,
-            keywords: const [
-              '封面',
-              'cover',
-              '取色',
-              'palette',
-              '跟随',
-              'follow',
-              '配色',
-              'accent',
-              'artwork',
-            ],
-            toggleValue: ref.watch(coverThemedAccentProvider),
-            onToggle: (value) =>
-                ref.read(coverThemedAccentProvider.notifier).setEnabled(value),
           ),
           SettingsEntry(
             title: s.themeModeRow,
@@ -779,6 +797,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               isScrollControlled: true,
               builder: (_) => const _ThemeModePickerDialog(),
             ),
+          ),
+          // 两根滑杆合并成一行，点开面板再调：这两个值调的是「整页玻璃的
+          // 观感」，在列表里拖，设置页的卡片是 solidBehind 的，虚化那一根
+          // 根本看不出变化。面板里有封面预览，两个档位各自在改什么一眼可见。
+          SettingsEntry(
+            title: s.glassEffect,
+            subtitle: s.glassEffectSummary(
+              (glassOpacity * 100).round(),
+              (glassBlur * 100).round(),
+            ),
+            keywords: const [
+              '不透明度',
+              'opacity',
+              '透明',
+              'transparent',
+              '虚化',
+              '模糊',
+              'blur',
+              '毛玻璃',
+              'glass',
+              '质感',
+              'surface',
+            ],
+            onTap: () => showGlassEffectSheet(context),
           ),
           SettingsEntry(
             title: s.playerBackdrop,
@@ -1053,10 +1095,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          // 三种行（纯标题 / 带副标题 / 带开关）统一到同一高度，见
+          // [kSettingsRowMinHeight]。
+          constraints: const BoxConstraints(minHeight: kSettingsRowMinHeight),
           child: Row(
             children: [
               Expanded(
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -1082,7 +1128,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
               IgnorePointer(
-                child: FxSwitch(value: value, onChanged: onChanged),
+                child: FxSwitch(
+                  value: value,
+                  onChanged: onChanged,
+                  // 行高由 kSettingsRowMinHeight 统一保证，开关不必再撑
+                  // 到 48——否则带开关的行会比别的行高出 8。
+                  height: 40,
+                ),
               ),
             ],
           ),
@@ -1591,10 +1643,12 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
           : widget.onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        constraints: const BoxConstraints(minHeight: kSettingsRowMinHeight),
         child: Row(
           children: [
             Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -1630,143 +1684,6 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
   }
 }
 
-/// 外观分区顶部的一枚「标题 + 说明 + 百分比 + 滑杆」控件。
-///
-/// 不透明度和虚化长得一样，只有文案、区间、落点不同，抽出来免得两份重复代码
-/// 各自漂移。
-class _GlassSlider extends StatelessWidget {
-  const _GlassSlider({
-    required this.title,
-    required this.subtitle,
-    required this.value,
-    required this.min,
-    required this.divisions,
-    required this.onChanged,
-    required this.onChangeEnd,
-  });
-
-  final String title;
-  final String subtitle;
-  final double value;
-  final double min;
-  final int divisions;
-  final ValueChanged<double> onChanged;
-  final VoidCallback onChangeEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    final percent = '${(value * 100).round()}%';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.onScaffold(context),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        height: 1.3,
-                        color: AppColors.secondaryText(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                percent,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: AppColors.secondaryText(context),
-                ),
-              ),
-            ],
-          ),
-          Slider(
-            value: value.clamp(min, 1.0),
-            min: min,
-            max: 1,
-            // 5% 一档：再细就找不到"刚好看得清"的位置了。
-            divisions: divisions,
-            label: percent,
-            onChanged: onChanged,
-            onChangeEnd: (_) => onChangeEnd(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 「界面不透明度」滑杆。
-///
-/// 这一档统一缩放玻璃面的染色浓度：拖动时设置页自己的分区卡片就是预览，
-/// 所以不需要单独的面板。
-class _GlassOpacitySlider extends ConsumerWidget {
-  const _GlassOpacitySlider();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = S.of(context);
-    return _GlassSlider(
-      title: s.glassOpacity,
-      subtitle: s.glassOpacitySubtitle,
-      value: ref.watch(glassOpacityProvider),
-      min: GlassEffectConfig.minSurfaceOpacity,
-      divisions: 14,
-      onChanged: (next) {
-        // 立刻写进静态配置，同一帧里周围的面板就跟着变。
-        GlassEffectConfig.setSurfaceOpacity(next);
-        ref.read(glassOpacityProvider.notifier).setOpacity(next);
-      },
-      onChangeEnd: () => ref.read(glassOpacityProvider.notifier).flush(),
-    );
-  }
-}
-
-/// 「虚化」滑杆。
-///
-/// 与不透明度是一对：不透明度决定「透多少」，虚化决定「透过来的东西糊不糊」。
-/// 出厂 90%，拖到 0 就是不采样背后、只剩透明混合。
-class _GlassBlurSlider extends ConsumerWidget {
-  const _GlassBlurSlider();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final s = S.of(context);
-    return _GlassSlider(
-      title: s.glassBlur,
-      subtitle: s.glassBlurSubtitle,
-      value: ref.watch(glassBlurProvider),
-      min: GlassEffectConfig.minSurfaceBlur,
-      divisions: 20,
-      onChanged: (next) {
-        GlassEffectConfig.setSurfaceBlur(next);
-        ref.read(glassBlurProvider.notifier).setBlur(next);
-      },
-      onChangeEnd: () => ref.read(glassBlurProvider.notifier).flush(),
-    );
-  }
-}
-
 class _SettingRow extends StatelessWidget {
   final String name;
   final String value;
@@ -1777,6 +1694,7 @@ class _SettingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      constraints: const BoxConstraints(minHeight: kSettingsRowMinHeight),
       child: Row(
         children: [
           Expanded(
@@ -1821,12 +1739,14 @@ class _DeviceIdRow extends StatelessWidget {
       onTap: full == null
           ? null
           : () async {
-              await Clipboard.setData(ClipboardData(text: full));
+              await setClipboardText(full);
               showAppNotification(S.of(context).deviceUuidCopied);
             },
-      child: Padding(
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        constraints: const BoxConstraints(minHeight: kSettingsRowMinHeight),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -2368,26 +2288,70 @@ class _ThemeColorPickerDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
     final current = ref.watch(accentColorProvider);
+    final followsCover = ref.watch(coverThemedAccentProvider);
     return _SettingsOptionPanel(
-      title: S.of(context).themeColor,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 22),
-        child: Wrap(
-          spacing: 14,
-          runSpacing: 14,
-          children: [
-            for (final color in AppThemes.accentColors)
-              _AccentSwatch(
-                color: color,
-                selected: current.toARGB32() == color.toARGB32(),
-                onTap: () {
-                  ref.read(accentColorProvider.notifier).setAccentColor(color);
-                  Navigator.pop(context);
-                },
+      title: s.themeColor,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
+            child: Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: [
+                for (final color in AppThemes.accentColors)
+                  _AccentSwatch(
+                    color: color,
+                    selected: current.toARGB32() == color.toARGB32(),
+                    onTap: () {
+                      // 手动挑色就是「不再跟封面走」：否则点了色块界面
+                      // 纹丝不动，用户只会以为这个色选坏了。
+                      ref
+                          .read(coverThemedAccentProvider.notifier)
+                          .setEnabled(false);
+                      ref
+                          .read(accentColorProvider.notifier)
+                          .setAccentColor(color);
+                      Navigator.pop(context);
+                    },
+                  ),
+              ],
+            ),
+          ),
+          Divider(
+            height: 1,
+            thickness: 0.5,
+            indent: 20,
+            endIndent: 20,
+            color: AppColors.cardBorder(context),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
+            child: FxSwitchTile(
+              value: followsCover,
+              onChanged: (value) =>
+                  ref.read(coverThemedAccentProvider.notifier).setEnabled(value),
+              title: Text(
+                s.accentFollowsCover,
+                // 用和列表行同一套字：这面板里的开关说明的是同一个设置，
+                // 字号或颜色差一档就会看出是后加的一块。
+                style: settingsRowTitleStyle(AppColors.onScaffold(context)),
               ),
-          ],
-        ),
+              subtitle: Text(
+                s.accentFollowsCoverSubtitle,
+                style: settingsRowSubtitleStyle(
+                  AppColors.secondaryText(context),
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              accent: AppColors.accentOf(context),
+            ),
+          ),
+        ],
       ),
     );
   }
