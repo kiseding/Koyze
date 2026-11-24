@@ -1028,10 +1028,10 @@ Widget _platformTabsRow(
   );
 }
 
-/// 一颗平台胶囊：选中＝该平台品牌色实心 + 白字，未选中＝只有文字。
+/// 一颗平台胶囊：选中＝该平台品牌玻璃底，未选中＝透明底 + 品牌色细边。
 ///
-/// 未选中刻意不给底色：四颗都带色底时整排像四个徽章，视线被平均分掉；
-/// 只让当前那一颗亮起来，"现在在哪一家"才是第一眼就看到的。
+/// 未选中不铺底色，只保留轮廓，让四颗胶囊仍然清晰可辨，同时把视觉焦点
+/// 留给当前平台。
 ///
 /// 选中态的白字对比度由 [platformBrandFill] 保证（≥ 4.5:1）——品牌原色
 /// 直接铺白字，QQ 绿和酷我黄是读不出来的。
@@ -1090,6 +1090,10 @@ class _PlatformTab extends StatelessWidget {
         height: dense ? 30 : 34,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
+          // 未选中也保留轻量品牌边缘；底色仍完全透明。
+          border: selected
+              ? null
+              : Border.all(color: hue.withValues(alpha: 0.42), width: 1),
           // 光晕用的是品牌原色而不是压深后的填充色：填充色做投影只是一圈
           // 灰影，原色才看得出「这是哪一家」。原色在这里不承担文字对比。
           boxShadow: selected
@@ -1243,25 +1247,15 @@ class _PlatformTabsHeader extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    final background = AppColors.scaffold(context);
     return Column(
       children: [
         SizedBox(height: topInset),
         Container(
           height: _stripHeight + _stripPadding.vertical,
           padding: _stripPadding,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                background,
-                background,
-                background.withValues(alpha: 0),
-              ],
-              stops: const [0, 0.82, 1],
-            ),
-          ),
+          // 吸顶栏的整行底层保持完全透明；只由各胶囊自身表达选中状态，
+          // 列表滚到后面时也能透出来。
+          color: Colors.transparent,
           child: _platformTabsRow(
             context,
             platforms: platforms,

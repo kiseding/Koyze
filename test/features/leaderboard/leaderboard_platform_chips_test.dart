@@ -151,7 +151,7 @@ void main() {
     );
   });
 
-  testWidgets('选中那颗是品牌色玻璃，未选中的没有底色', (tester) async {
+  testWidgets('胶囊条背景透明，未选中胶囊透明但保留边缘', (tester) async {
     await pumpLeaderboard(tester);
 
     Color? tintOf(String platform) {
@@ -169,8 +169,29 @@ void main() {
     );
     expect(tintOf('tx'), expected, reason: '染色浓度必须等于设置里的不透明度');
     for (final other in ['kw', 'wy', 'kg']) {
+      final pill = tester.widget<AnimatedContainer>(
+        find.descendant(
+          of: find.byKey(ValueKey('platform-tab-$other')),
+          matching: find.byType(AnimatedContainer),
+        ),
+      );
       expect(tintOf(other), isNull, reason: '$other 未选中却有底色');
+      expect(pill.decoration, isA<BoxDecoration>());
+      expect(
+        (pill.decoration as BoxDecoration).border,
+        isNotNull,
+        reason: '$other 未选中时缺少边缘',
+      );
     }
+
+    final header = tester.widget<Container>(
+      find.descendant(
+        of: find.byType(SliverPersistentHeader),
+        matching: find.byType(Container),
+      ).first,
+    );
+    expect(header.color, Colors.transparent);
+    expect(header.decoration, isNull, reason: '胶囊整行不能铺背景渐变');
   });
 
   testWidgets('调低不透明度，胶囊跟着变淡', (tester) async {
