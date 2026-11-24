@@ -266,6 +266,7 @@ class PlaybackUrlResolver<T> {
   final PlaybackUrlLoader<T> resolvePlayableUrl;
   final PlaybackCancelableUrlLoader<T>? resolvePlayableUrlWithCancel;
   final List<String> fallbackPlatforms;
+  final Future<T?> Function(T, String, CancelToken?)? matchFallbackTrack;
   final PlaybackPlatformUrlLoader<T>? resolveFallbackPlayableUrl;
   final PlaybackCancelablePlatformUrlLoader<T>?
   resolveFallbackPlayableUrlWithCancel;
@@ -288,6 +289,7 @@ class PlaybackUrlResolver<T> {
     required this.resolvePlayableUrl,
     this.resolvePlayableUrlWithCancel,
     this.fallbackPlatforms = const [],
+    this.matchFallbackTrack,
     this.resolveFallbackPlayableUrl,
     this.resolveFallbackPlayableUrlWithCancel,
     required this.acquireOrDownload,
@@ -411,8 +413,15 @@ class PlaybackUrlResolver<T> {
       }
       for (final platform in fallbackPlatforms) {
         if (attemptedPlatforms.contains(platform)) continue;
+        if (!isGenerationCurrent(gen) || cancelled()) return null;
+        final matcher = matchFallbackTrack;
+        final candidate = matcher == null
+            ? music
+            : await matcher(music, platform, cancelToken);
+        if (!isGenerationCurrent(gen) || cancelled()) return null;
+        if (candidate == null) continue;
         final fallback = await _resolvePlatformAcrossQualities(
-          music,
+          candidate,
           platform: platform,
           preferredQuality: preferredQuality,
           generation: gen,
@@ -927,7 +936,11 @@ class PlaybackCacheService {
       try {
         await initialization;
       } catch (error) {
-        AppLog.instance.record('cache.dispose', 'initialization failed during dispose: $error', level: AppLogLevel.warning);
+        AppLog.instance.record(
+          'cache.dispose',
+          'initialization failed during dispose: $error',
+          level: AppLogLevel.warning,
+        );
       }
     }
     while (_activeOperations.isNotEmpty) {
@@ -939,7 +952,11 @@ class PlaybackCacheService {
           try {
             await future;
           } catch (error) {
-            AppLog.instance.record('cache.dispose', 'in-flight cache operation failed during dispose: $error', level: AppLogLevel.warning);
+            AppLog.instance.record(
+              'cache.dispose',
+              'in-flight cache operation failed during dispose: $error',
+              level: AppLogLevel.warning,
+            );
           }
         }),
       );
@@ -952,7 +969,11 @@ class PlaybackCacheService {
       try {
         await tail;
       } catch (error) {
-        AppLog.instance.record('cache.dispose', 'pending index write failed during dispose: $error', level: AppLogLevel.warning);
+        AppLog.instance.record(
+          'cache.dispose',
+          'pending index write failed during dispose: $error',
+          level: AppLogLevel.warning,
+        );
       }
       if (identical(tail, _pendingIndexWrite)) return;
     }
@@ -1967,7 +1988,11 @@ class PlaybackCacheService {
     try {
       await _saveIndex(allowDuringDispose: true);
     } catch (error) {
-      AppLog.instance.record('cache.rollback', 'index save after rollback failed: $error', level: AppLogLevel.warning);
+      AppLog.instance.record(
+        'cache.rollback',
+        'index save after rollback failed: $error',
+        level: AppLogLevel.warning,
+      );
     }
   }
 

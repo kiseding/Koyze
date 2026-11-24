@@ -99,6 +99,7 @@ void main() {
     id: 'song-1',
     name: 'Song',
     singer: 'Singer',
+    duration: const Duration(minutes: 3),
     platform: 'tx',
     source: 'tx',
   );
@@ -108,6 +109,35 @@ void main() {
     requestedQuality: quality,
     actualQuality: actual ?? quality,
     platform: 'tx',
+  );
+
+  test(
+    'playback fallback uses target identity and rejects ambiguous matches',
+    () async {
+      final target = item.copyWith(id: 'qq-catalog-id', songmid: 'qq-mid');
+      final original = item.copyWith(id: 'kg-id', source: 'kg', platform: 'kg');
+      final results = [
+        target.copyWith(
+          id: 'live',
+          songmid: 'live',
+          duration: const Duration(minutes: 4),
+        ),
+        target.copyWith(id: 'cover', songmid: 'cover', singer: 'Singer Cover'),
+        target,
+      ];
+      final service = MusicSourceService(
+        CustomSourceService(),
+        builtInSources: BuiltInSourceManager(
+          platforms: [_SearchPlatform(platformId: 'tx', results: results)],
+        ),
+      );
+      expect(
+        await service.matchPlaybackFallback(original, 'tx', null),
+        same(target),
+      );
+      results.add(target.copyWith(id: 'other', songmid: 'other'));
+      expect(await service.matchPlaybackFallback(original, 'tx', null), isNull);
+    },
   );
 
   test('unknown platform is not remapped to another platform', () {
@@ -178,6 +208,7 @@ void main() {
         id: 'kw-1',
         name: 'Song',
         singer: 'Singer',
+        duration: const Duration(minutes: 3),
         source: 'kw',
         platform: 'kw',
         songmid: 'kw-1',
@@ -294,6 +325,7 @@ void main() {
         id: 'kw-1',
         name: 'Song',
         singer: 'Singer',
+        duration: const Duration(minutes: 3),
         source: 'kw',
         platform: 'kw',
       );

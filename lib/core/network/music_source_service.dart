@@ -47,6 +47,7 @@ class MusicSourceService {
   static const _customFailureCooldown = Duration(seconds: 5);
 
   final CustomSourceService _customSourceService;
+
   /// 音源检测结论，用来决定选源顺序；为空时按脚本启用顺序尝试。
   final SourceCheckPolicy? sourceCheckPolicy;
   final BuiltInSourceManager _builtInSources;
@@ -423,14 +424,12 @@ class MusicSourceService {
         .toList(growable: false);
     for (final platform in platforms) {
       _throwIfCancelled(cancelToken);
-      final matches = await _builtInSources
-          .search(platform, music.name, page: 1, limit: 10)
-          .catchError((_) => <MusicItem>[]);
-      final candidate = _bestSongMatch(music, matches);
-      if (candidate == null) continue;
-      debugPrint(
-        '[getPlayUrl] 跨平台回退: $sourcePlatform -> ${resolvePlatform(candidate)}',
+      final candidate = await matchPlaybackFallback(
+        music,
+        platform,
+        cancelToken,
       );
+      if (candidate == null) continue;
       final result = await _resolvePlayableUrl(
         candidate,
         preferredQuality: quality,
@@ -442,6 +441,59 @@ class MusicSourceService {
       if (result != null) return result;
     }
     return null;
+  }
+
+  Future<MusicItem?> matchPlaybackFallback(
+    MusicItem original,
+    String platform,
+    CancelToken? cancelToken,
+  ) async {
+    _throwIfCancelled(cancelToken);
+    final title = _normalizeMatchText(original.name);
+    final singer = _normalizeMatchText(original.singer);
+    if (title.isEmpty ||
+        singer.isEmpty ||
+        original.duration <= Duration.zero ||
+        platform == resolvePlatform(original) ||
+        _builtInSources.get(platform) == null) {
+      return null;
+    }
+    final search = _builtInSources
+        .search(platform, original.name, page: 1, limit: 10)
+        .timeout(const Duration(seconds: 4))
+        .catchError((_) => <MusicItem>[]);
+    final matches = cancelToken == null
+        ? await search
+        : await Future.any<List<MusicItem>>([
+            search,
+            cancelToken.whenCancel.then((_) => <MusicItem>[]),
+          ]);
+    _throwIfCancelled(cancelToken);
+    final album = _normalizeMatchText(original.album);
+    final candidates = <String, MusicItem>{};
+    for (final match in matches) {
+      final id = songIdOf(match);
+      final targetAlbum = _normalizeMatchText(match.album);
+      if (id.isEmpty ||
+          resolvePlatform(match) != platform ||
+          _normalizeMatchText(match.name) != title ||
+          _normalizeMatchText(match.singer) != singer ||
+          match.duration <= Duration.zero ||
+          (match.duration - original.duration).inMilliseconds.abs() > 2000 ||
+          (album.isNotEmpty &&
+              targetAlbum.isNotEmpty &&
+              album != targetAlbum)) {
+        continue;
+      }
+      candidates[id] = match;
+    }
+    if (candidates.length != 1) return null;
+    final candidate = candidates.values.single;
+    debugPrint(
+      '[getPlayUrl] 跨平台同曲: ${resolvePlatform(original)} -> '
+      '$platform ${candidate.name} / ${candidate.singer} id=${songIdOf(candidate)}',
+    );
+    return candidate;
   }
 
   MusicItem? _bestSongMatch(MusicItem original, List<MusicItem> matches) {
@@ -942,7 +994,11 @@ class MusicSourceService {
         );
         if (songs.isNotEmpty) return songs;
       } catch (error) {
-        AppLog.instance.record('source.fallback', 'playlist fetch via $platformId failed, trying next source: $error', level: AppLogLevel.warning);
+        AppLog.instance.record(
+          'source.fallback',
+          'playlist fetch via $platformId failed, trying next source: $error',
+          level: AppLogLevel.warning,
+        );
       }
     }
     return _builtInSources.getSongListDetail(

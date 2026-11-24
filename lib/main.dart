@@ -515,10 +515,12 @@ Future<void> _bootstrapUnsafe(
                   );
                 },
             fallbackPlatforms: MusicSourceService.fallbackPlatforms,
+            matchFallbackTrack: sourceService.matchPlaybackFallback,
             resolveFallbackPlayableUrl:
                 (music, {required platform, required preferredQuality}) {
                   return sourceService.resolvePlayableUrl(
-                    music.copyWith(source: platform, platform: platform),
+                    music,
+                    allowSamePlatformRefresh: false,
                     preferredQuality: preferredQuality,
                     allowCrossPlatformFallback: false,
                     allowQualityFallback: false,
@@ -532,7 +534,8 @@ Future<void> _bootstrapUnsafe(
                   cancelToken,
                 }) {
                   return sourceService.resolvePlayableUrl(
-                    music.copyWith(source: platform, platform: platform),
+                    music,
+                    allowSamePlatformRefresh: false,
                     preferredQuality: preferredQuality,
                     cancelToken: cancelToken,
                     allowCrossPlatformFallback: false,
@@ -712,8 +715,7 @@ Future<void> _bootstrapUnsafe(
                 // 缓存下载阶段单独计时：整首落盘可能要几十秒到几分钟，
                 // 不能和「音源多久给出地址」共用一个预算。
                 onCacheDownloadStarted: () {
-                  final notify =
-                      rawExtras['_playbackCacheDownloadStarted'];
+                  final notify = rawExtras['_playbackCacheDownloadStarted'];
                   if (notify is void Function()) notify();
                 },
               );

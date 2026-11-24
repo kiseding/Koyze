@@ -218,8 +218,13 @@ void main() {
             );
           },
           fallbackPlatforms: const ['tx', 'kw', 'wy'],
+          matchFallbackTrack: (music, platform, _) async {
+            calls.add('match:$platform');
+            return _item(platform: platform).copyWith(songmid: '$platform-mid');
+          },
           resolveFallbackPlayableUrl:
               (music, {required platform, required preferredQuality}) async {
+            expect(music.songmid, '$platform-mid');
             calls.add('$platform:$preferredQuality');
             return _playResult(
               url: 'https://cdn.example/$platform-$preferredQuality.mp3',
@@ -251,8 +256,10 @@ void main() {
         expect(calls, [
           'primary:320k',
           'primary:128k',
+          'match:kw',
           'kw:320k',
           'kw:128k',
+          'match:wy',
           'wy:320k',
         ]);
         expect(result, isA<CachedPlayback>());
