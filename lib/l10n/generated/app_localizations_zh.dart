@@ -36,7 +36,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get localLibrary => '本地音乐目录';
 
   @override
-  String get localLibrarySubtitle => '管理本地音乐目录';
+  String get localLibrarySubtitle => '';
 
   @override
   String get customSources => '自定义源';
@@ -128,7 +128,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get darkMode => '深色';
 
   @override
-  String get darkModeSubtitle => '使用深色主题';
+  String get darkModeSubtitle => '';
 
   @override
   String get themeModeRow => '主题';
@@ -137,13 +137,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get lightMode => '浅色';
 
   @override
-  String get lightModeSubtitle => '始终使用浅色主题';
+  String get lightModeSubtitle => '';
 
   @override
   String get followSystem => '跟随系统';
 
   @override
-  String get followSystemThemeSubtitle => '自动切换亮色/深色主题';
+  String get followSystemThemeSubtitle => '';
 
   @override
   String get followSystemLanguageSubtitle => '设备为中文或英文时自动跟随';
@@ -152,7 +152,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeColor => '强调色';
 
   @override
-  String get themeColorSubtitle => '整套界面配色都由它生成';
+  String get themeColorSubtitle => '';
 
   @override
   String get playerBackdrop => '全屏播放器背景';
@@ -200,13 +200,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadManager => '下载管理';
 
   @override
-  String get downloadManagerSubtitle => '查看和管理下载任务';
+  String get downloadManagerSubtitle => '';
 
   @override
   String get wifiOnly => '仅 Wi-Fi 下载';
 
   @override
-  String get wifiOnlySubtitle => '只在 Wi-Fi 下下载歌曲';
+  String get wifiOnlySubtitle => '';
 
   @override
   String get downloadQuality => '下载音质';
@@ -351,7 +351,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get diagnostics => '实时诊断日志';
 
   @override
-  String get diagnosticsSubtitle => '开启后记录播放诊断，退出即清除';
+  String get diagnosticsSubtitle => '仅面板打开时记录，关闭后清除';
 
   @override
   String get volume => '音量';
@@ -387,7 +387,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get playbackCache => '歌曲播放缓存';
 
   @override
-  String get playbackCacheSubtitle => '自动缓存的歌曲文件，不包含手动下载的歌曲';
+  String get playbackCacheSubtitle => '自动缓存的歌曲文件';
 
   @override
   String get artworkCache => '封面缓存';
@@ -441,13 +441,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get closeHeroCardSettings => '关闭首页大卡片设置';
 
   @override
-  String get heroCardHint => '对应歌单页顶部五张卡片，只能启用其中一张';
+  String get heroCardHint => '首页大卡片只能启用一张';
 
   @override
   String get heroPlayMode => '右侧按钮播放模式';
 
   @override
-  String get heroPlayModeHint => '只影响首页大卡片右侧按钮，和播放页模式互不影响';
+  String get heroPlayModeHint => '仅影响首页卡片按钮，不影响播放页模式';
 
   @override
   String get favorites => '收藏列表';
@@ -480,7 +480,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shufflePlayHint => '打乱顺序，播完继续随机下一首';
 
   @override
-  String get repeatOneHint => '只循环当前第一首';
+  String get repeatOneHint => '只循环当前歌曲';
 
   @override
   String get noFavoritesYet => '还没有收藏歌曲';
@@ -671,14 +671,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get importTabAccount => '登录';
 
   @override
-  String get importM3uHint => '选择设备上的文本歌单：M3U、M3U8、PLS、XSPF、WPL、ASX 或 TXT';
+  String get importM3uHint => '选择设备上的文本歌单';
 
   @override
   String get importM3uPick => '选择歌单文件';
 
   @override
-  String get importM3uPickHint =>
-      '歌单是文本清单，不是音频文件。支持 M3U / M3U8 / PLS / XSPF / WPL / ASX / TXT。';
+  String get importM3uPickHint => '请选择文本歌单，不能选择音频文件。';
 
   @override
   String get importM3uOnlyLocal => '只匹配本地曲库中已有的歌曲，不会在线搜索';
@@ -2127,7 +2126,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get quickSubtitle_theme => '深色 / 浅色';
 
   @override
-  String get quickSubtitle_favorites => '查看收藏歌曲';
+  String get quickSubtitle_favorites => '';
 
   @override
   String get quickSubtitle_recent => '继续最近听过的歌';
@@ -2136,7 +2135,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get quickSubtitle_leaderboard => '热门歌曲排行';
 
   @override
-  String get quickSubtitle_search => '快速查找音乐';
+  String get quickSubtitle_search => '';
 
   @override
   String get quickSubtitle_playlists => '整理自定义歌单';
@@ -2145,25 +2144,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get quickSubtitle_settings => '音质、下载与外观';
 
   @override
-  String get quickSubtitle_custom_source => '管理音乐数据源';
+  String get quickSubtitle_custom_source => '导入或管理音源';
 
   @override
   String get quickSubtitle_sync => '同步收藏和歌单';
 
   @override
-  String get quickSubtitle_local_scan => '扫描设备音乐';
+  String get quickSubtitle_local_scan => '';
 
   @override
   String get quickSubtitle_leaderboard_settings => '调整榜单显示内容';
 
   @override
-  String get quickSubtitle_audio_quality => '选择默认播放音质';
+  String get quickSubtitle_audio_quality => '默认音质';
 
   @override
-  String get quickSubtitle_download_quality => '选择默认下载音质';
+  String get quickSubtitle_download_quality => '默认音质';
 
   @override
-  String get quickSubtitle_default_search => '调整搜索默认来源';
+  String get quickSubtitle_default_search => '';
 
   @override
   String get quickSubtitle_backup => '导出歌单和设置';
@@ -2175,7 +2174,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get quickSubtitle_clear_cache => '释放播放与封面缓存';
 
   @override
-  String get quickSubtitle_diagnostic_log => '查看实时运行日志';
+  String get quickSubtitle_diagnostic_log => '实时运行日志';
 
   @override
   String get platformName_qq => 'QQ音乐';
@@ -2408,7 +2407,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiToolsTitle => '工具调用';
 
   @override
-  String get aiToolsSubtitle => '让模型自己查曲库、歌单、音源和下载，而不是凭记忆编歌名';
+  String get aiToolsSubtitle => '允许助手查询曲库、歌单、音源和下载';
 
   @override
   String get aiActionsTitle => '允许 AI 直接操作应用';
@@ -2449,7 +2448,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiAssistantEmptyTitle => '直接说要做什么';
 
   @override
-  String get aiAssistantEmptyHint => '助手在后台调用应用自己的接口完成操作，你不用自己去找按钮。';
+  String get aiAssistantEmptyHint => '';
 
   @override
   String get aiAssistantExample1 => '播放周杰伦的晴天';
@@ -2775,7 +2774,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get resetSettings => '恢复默认设置';
 
   @override
-  String get resetSettingsSubtitle => '清空偏好项，保留账号与本地库';
+  String get resetSettingsSubtitle => '保留账号、NAS、歌单、播放历史与本地库';
 
   @override
   String get resetSettingsConfirm => '将把所有偏好设置恢复为默认值。账号、NAS、歌单、播放历史与本地库索引会保留。';

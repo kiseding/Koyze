@@ -38,7 +38,7 @@ void main() {
     expect(hero, contains("'NAS 乐库'"));
     expect(hero, contains("'最近播放'"));
     final strings = readSource('lib/l10n/app_zh.arb');
-    expect(strings, contains('只能启用其中一张'));
+    expect(strings, contains('首页大卡片只能启用一张'));
     expect(strings, contains('右侧按钮播放模式'));
     expect(hero, contains('titleFor(S.of(context))'));
     expect(hero, contains('setShuffleMode'));

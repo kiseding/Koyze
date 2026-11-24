@@ -64,11 +64,13 @@ void main() {
     await tester.tap(find.text('主题'));
     await tester.pumpAndSettle();
 
-    // 三个选项同时在。用各自的说明文案定位，避免和页面上同名的
-    // 「跟随系统」副标题（语言也有一份）撞车。
-    expect(find.text('始终使用浅色主题'), findsOneWidget);
-    expect(find.text('使用深色主题'), findsOneWidget);
-    expect(find.text('自动切换亮色/深色主题'), findsOneWidget);
+    // 三个选项只显示名称，不再重复解释名称。
+    expect(find.text('浅色'), findsOneWidget);
+    expect(find.text('深色'), findsOneWidget);
+    expect(find.text('跟随系统').last, findsOneWidget);
+    expect(find.text('始终使用浅色主题'), findsNothing);
+    expect(find.text('使用深色主题'), findsNothing);
+    expect(find.text('自动切换亮色/深色主题'), findsNothing);
 
     await tester.tap(find.text('深色'));
     await tester.pumpAndSettle();

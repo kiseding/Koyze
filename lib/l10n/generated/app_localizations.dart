@@ -155,7 +155,7 @@ abstract class AppLocalizations {
   /// No description provided for @localLibrarySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Manage local music folders'**
+  /// **''**
   String get localLibrarySubtitle;
 
   /// No description provided for @customSources.
@@ -335,7 +335,7 @@ abstract class AppLocalizations {
   /// No description provided for @darkModeSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Use the dark theme'**
+  /// **''**
   String get darkModeSubtitle;
 
   /// No description provided for @themeModeRow.
@@ -353,7 +353,7 @@ abstract class AppLocalizations {
   /// No description provided for @lightModeSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Always use the light theme'**
+  /// **''**
   String get lightModeSubtitle;
 
   /// No description provided for @followSystem.
@@ -365,7 +365,7 @@ abstract class AppLocalizations {
   /// No description provided for @followSystemThemeSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Match the system light or dark theme'**
+  /// **''**
   String get followSystemThemeSubtitle;
 
   /// No description provided for @followSystemLanguageSubtitle.
@@ -383,7 +383,7 @@ abstract class AppLocalizations {
   /// No description provided for @themeColorSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'One accent builds the full palette'**
+  /// **''**
   String get themeColorSubtitle;
 
   /// No description provided for @playerBackdrop.
@@ -479,7 +479,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadManagerSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'View and manage download tasks'**
+  /// **''**
   String get downloadManagerSubtitle;
 
   /// No description provided for @wifiOnly.
@@ -491,7 +491,7 @@ abstract class AppLocalizations {
   /// No description provided for @wifiOnlySubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Download songs only on Wi-Fi'**
+  /// **''**
   String get wifiOnlySubtitle;
 
   /// No description provided for @downloadQuality.
@@ -761,7 +761,7 @@ abstract class AppLocalizations {
   /// No description provided for @diagnosticsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Record playback diagnostics; cleared when you exit'**
+  /// **'Records while the panel is open; cleared when closed'**
   String get diagnosticsSubtitle;
 
   /// No description provided for @volume.
@@ -833,7 +833,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackCacheSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Cached songs. Manual downloads are not included.'**
+  /// **'Songs cached automatically'**
   String get playbackCacheSubtitle;
 
   /// No description provided for @artworkCache.
@@ -941,7 +941,7 @@ abstract class AppLocalizations {
   /// No description provided for @heroCardHint.
   ///
   /// In en, this message translates to:
-  /// **'Same five cards as Playlists. Only one can be on.'**
+  /// **'Only one home card can be enabled.'**
   String get heroCardHint;
 
   /// No description provided for @heroPlayMode.
@@ -953,7 +953,7 @@ abstract class AppLocalizations {
   /// No description provided for @heroPlayModeHint.
   ///
   /// In en, this message translates to:
-  /// **'Only this card\'s button. The player mode stays separate.'**
+  /// **'Affects the home card only, not the player.'**
   String get heroPlayModeHint;
 
   /// No description provided for @favorites.
@@ -1397,7 +1397,7 @@ abstract class AppLocalizations {
   /// No description provided for @importM3uHint.
   ///
   /// In en, this message translates to:
-  /// **'Pick a text playlist: M3U, M3U8, PLS, XSPF, WPL, ASX or TXT'**
+  /// **'Choose a text playlist from your device'**
   String get importM3uHint;
 
   /// No description provided for @importM3uPick.
@@ -1409,7 +1409,7 @@ abstract class AppLocalizations {
   /// No description provided for @importM3uPickHint.
   ///
   /// In en, this message translates to:
-  /// **'A playlist is a text list, not an audio file. M3U / M3U8 / PLS / XSPF / WPL / ASX / TXT are supported.'**
+  /// **'Choose a text playlist file, not audio.'**
   String get importM3uPickHint;
 
   /// No description provided for @importM3uOnlyLocal.
@@ -3935,7 +3935,7 @@ abstract class AppLocalizations {
   /// No description provided for @quickSubtitle_favorites.
   ///
   /// In en, this message translates to:
-  /// **'Songs you saved'**
+  /// **''**
   String get quickSubtitle_favorites;
 
   /// No description provided for @quickSubtitle_recent.
@@ -3953,7 +3953,7 @@ abstract class AppLocalizations {
   /// No description provided for @quickSubtitle_search.
   ///
   /// In en, this message translates to:
-  /// **'Find music quickly'**
+  /// **''**
   String get quickSubtitle_search;
 
   /// No description provided for @quickSubtitle_playlists.
@@ -3971,7 +3971,7 @@ abstract class AppLocalizations {
   /// No description provided for @quickSubtitle_custom_source.
   ///
   /// In en, this message translates to:
-  /// **'Manage music sources'**
+  /// **'Add or manage sources'**
   String get quickSubtitle_custom_source;
 
   /// No description provided for @quickSubtitle_sync.
@@ -3983,7 +3983,7 @@ abstract class AppLocalizations {
   /// No description provided for @quickSubtitle_local_scan.
   ///
   /// In en, this message translates to:
-  /// **'Scan music on this device'**
+  /// **''**
   String get quickSubtitle_local_scan;
 
   /// No description provided for @quickSubtitle_leaderboard_settings.
@@ -3995,19 +3995,19 @@ abstract class AppLocalizations {
   /// No description provided for @quickSubtitle_audio_quality.
   ///
   /// In en, this message translates to:
-  /// **'Default playback quality'**
+  /// **'Default quality'**
   String get quickSubtitle_audio_quality;
 
   /// No description provided for @quickSubtitle_download_quality.
   ///
   /// In en, this message translates to:
-  /// **'Default download quality'**
+  /// **'Default quality'**
   String get quickSubtitle_download_quality;
 
   /// No description provided for @quickSubtitle_default_search.
   ///
   /// In en, this message translates to:
-  /// **'Where search starts'**
+  /// **''**
   String get quickSubtitle_default_search;
 
   /// No description provided for @quickSubtitle_backup.
@@ -4481,7 +4481,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiToolsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Let the model look up your library, playlists, sources and downloads instead of guessing titles'**
+  /// **'Allow the assistant to query your library, playlists, sources, and downloads'**
   String get aiToolsSubtitle;
 
   /// No description provided for @aiActionsTitle.
@@ -4559,7 +4559,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiAssistantEmptyHint.
   ///
   /// In en, this message translates to:
-  /// **'It calls the app\'s own APIs in the background, so you never have to hunt for a button.'**
+  /// **''**
   String get aiAssistantEmptyHint;
 
   /// No description provided for @aiAssistantExample1.
@@ -5171,7 +5171,7 @@ abstract class AppLocalizations {
   /// No description provided for @resetSettingsSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Clears preferences, keeps accounts and library'**
+  /// **'Keeps accounts, NAS, playlists, history, and library'**
   String get resetSettingsSubtitle;
 
   /// No description provided for @resetSettingsConfirm.

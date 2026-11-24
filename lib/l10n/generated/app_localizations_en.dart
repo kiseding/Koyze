@@ -37,7 +37,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get localLibrary => 'Local music folders';
 
   @override
-  String get localLibrarySubtitle => 'Manage local music folders';
+  String get localLibrarySubtitle => '';
 
   @override
   String get customSources => 'Custom sources';
@@ -133,7 +133,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get darkMode => 'Dark mode';
 
   @override
-  String get darkModeSubtitle => 'Use the dark theme';
+  String get darkModeSubtitle => '';
 
   @override
   String get themeModeRow => 'Theme';
@@ -142,14 +142,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get lightMode => 'Light';
 
   @override
-  String get lightModeSubtitle => 'Always use the light theme';
+  String get lightModeSubtitle => '';
 
   @override
   String get followSystem => 'Follow system';
 
   @override
-  String get followSystemThemeSubtitle =>
-      'Match the system light or dark theme';
+  String get followSystemThemeSubtitle => '';
 
   @override
   String get followSystemLanguageSubtitle =>
@@ -159,7 +158,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeColor => 'Accent colour';
 
   @override
-  String get themeColorSubtitle => 'One accent builds the full palette';
+  String get themeColorSubtitle => '';
 
   @override
   String get playerBackdrop => 'Player background';
@@ -208,13 +207,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadManager => 'Download manager';
 
   @override
-  String get downloadManagerSubtitle => 'View and manage download tasks';
+  String get downloadManagerSubtitle => '';
 
   @override
   String get wifiOnly => 'Wi-Fi only';
 
   @override
-  String get wifiOnlySubtitle => 'Download songs only on Wi-Fi';
+  String get wifiOnlySubtitle => '';
 
   @override
   String get downloadQuality => 'Download quality';
@@ -369,7 +368,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get diagnosticsSubtitle =>
-      'Record playback diagnostics; cleared when you exit';
+      'Records while the panel is open; cleared when closed';
 
   @override
   String get volume => 'Volume';
@@ -405,8 +404,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playbackCache => 'Playback cache';
 
   @override
-  String get playbackCacheSubtitle =>
-      'Cached songs. Manual downloads are not included.';
+  String get playbackCacheSubtitle => 'Songs cached automatically';
 
   @override
   String get artworkCache => 'Artwork cache';
@@ -462,15 +460,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeHeroCardSettings => 'Close home card settings';
 
   @override
-  String get heroCardHint =>
-      'Same five cards as Playlists. Only one can be on.';
+  String get heroCardHint => 'Only one home card can be enabled.';
 
   @override
   String get heroPlayMode => 'Play button mode';
 
   @override
-  String get heroPlayModeHint =>
-      'Only this card\'s button. The player mode stays separate.';
+  String get heroPlayModeHint => 'Affects the home card only, not the player.';
 
   @override
   String get favorites => 'Favorites';
@@ -696,15 +692,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get importTabAccount => 'Sign in';
 
   @override
-  String get importM3uHint =>
-      'Pick a text playlist: M3U, M3U8, PLS, XSPF, WPL, ASX or TXT';
+  String get importM3uHint => 'Choose a text playlist from your device';
 
   @override
   String get importM3uPick => 'Choose playlist file';
 
   @override
-  String get importM3uPickHint =>
-      'A playlist is a text list, not an audio file. M3U / M3U8 / PLS / XSPF / WPL / ASX / TXT are supported.';
+  String get importM3uPickHint => 'Choose a text playlist file, not audio.';
 
   @override
   String get importM3uOnlyLocal =>
@@ -2179,7 +2173,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get quickSubtitle_theme => 'Dark or light';
 
   @override
-  String get quickSubtitle_favorites => 'Songs you saved';
+  String get quickSubtitle_favorites => '';
 
   @override
   String get quickSubtitle_recent => 'Pick up where you left off';
@@ -2188,7 +2182,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get quickSubtitle_leaderboard => 'Popular songs';
 
   @override
-  String get quickSubtitle_search => 'Find music quickly';
+  String get quickSubtitle_search => '';
 
   @override
   String get quickSubtitle_playlists => 'Organize your playlists';
@@ -2197,25 +2191,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get quickSubtitle_settings => 'Quality, downloads, appearance';
 
   @override
-  String get quickSubtitle_custom_source => 'Manage music sources';
+  String get quickSubtitle_custom_source => 'Add or manage sources';
 
   @override
   String get quickSubtitle_sync => 'Sync favorites and playlists';
 
   @override
-  String get quickSubtitle_local_scan => 'Scan music on this device';
+  String get quickSubtitle_local_scan => '';
 
   @override
   String get quickSubtitle_leaderboard_settings => 'Choose which charts show';
 
   @override
-  String get quickSubtitle_audio_quality => 'Default playback quality';
+  String get quickSubtitle_audio_quality => 'Default quality';
 
   @override
-  String get quickSubtitle_download_quality => 'Default download quality';
+  String get quickSubtitle_download_quality => 'Default quality';
 
   @override
-  String get quickSubtitle_default_search => 'Where search starts';
+  String get quickSubtitle_default_search => '';
 
   @override
   String get quickSubtitle_backup => 'Export playlists and settings';
@@ -2466,7 +2460,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aiToolsSubtitle =>
-      'Let the model look up your library, playlists, sources and downloads instead of guessing titles';
+      'Allow the assistant to query your library, playlists, sources, and downloads';
 
   @override
   String get aiActionsTitle => 'Let the AI operate the app';
@@ -2508,8 +2502,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aiAssistantEmptyTitle => 'Just say what to do';
 
   @override
-  String get aiAssistantEmptyHint =>
-      'It calls the app\'s own APIs in the background, so you never have to hunt for a button.';
+  String get aiAssistantEmptyHint => '';
 
   @override
   String get aiAssistantExample1 => 'Play 晴天 by Jay Chou';
@@ -2842,7 +2835,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get resetSettingsSubtitle =>
-      'Clears preferences, keeps accounts and library';
+      'Keeps accounts, NAS, playlists, history, and library';
 
   @override
   String get resetSettingsConfirm =>
