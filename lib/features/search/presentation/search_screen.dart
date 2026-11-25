@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../l10n/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/text/artist_names.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../player/domain/music_item.dart';
+import '../../../core/music_source/platform/tx_source.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../playlist/presentation/playlist_provider.dart';
 import '../../playlist/presentation/playlist_picker.dart';
@@ -145,6 +148,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _onSearch(String query, {bool recordHistory = true}) {
+    ref.read(searchSuggestionsProvider.notifier).reset();
     final normalized = query.trim();
     _searchDebounce?.cancel();
     if (normalized.isEmpty) {
@@ -161,12 +165,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   void _onQueryChanged(String query) {
     _searchDebounce?.cancel();
+    ref.read(searchSuggestionsProvider.notifier).reset();
     if (query.trim().isEmpty) {
       _onSearch('');
       return;
     }
     _searchDebounce = Timer(const Duration(milliseconds: 250), () {
-      if (mounted) _onSearch(query, recordHistory: false);
+      if (!mounted) return;
+      _onSearch(query, recordHistory: false);
+      unawaited(ref.read(searchSuggestionsProvider.notifier).suggest(query));
     });
   }
 
@@ -190,6 +197,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final content = Column(
       children: [
         _buildHeader(context, allSources, selectedSourceId, searchState),
+        if (widget.liveSearch && selectedSourceId == 'tx')
+          _buildSuggestions(ref.watch(searchSuggestionsProvider)),
         if (searchState.isLoading)
           LinearProgressIndicator(
             minHeight: 2,
@@ -211,6 +220,99 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         backgroundColor: Colors.transparent,
         resizeToAvoidBottomInset: false,
         body: SafeArea(child: content),
+      ),
+    );
+  }
+
+  Widget _buildSuggestions(SearchSuggestionsState suggestions) {
+    if (!widget.liveSearch ||
+        suggestions.query != _searchController.text.trim() ||
+        suggestions.sourceId != 'tx' ||
+        (suggestions.items.isEmpty && !suggestions.isLoading)) {
+      return const SizedBox.shrink();
+    }
+    final primary = AppColors.onScaffold(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        _searchContentInset,
+        0,
+        _searchContentInset,
+        6,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Text(
+                S.of(context).searchSuggestions,
+                style: TextStyle(
+                  color: AppColors.secondaryText(context),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          if (suggestions.isLoading && suggestions.items.isEmpty)
+            const LinearProgressIndicator(minHeight: 1)
+          else
+            for (var index = 0; index < suggestions.items.length; index++) ...[
+              if (index > 0)
+                Divider(
+                  height: 1,
+                  color: AppColors.cardBorder(context).withValues(alpha: 0.35),
+                ),
+              _buildSuggestionRow(suggestions.items[index], primary),
+            ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestionRow(SearchSuggestion suggestion, Color primary) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          _searchController.value = TextEditingValue(
+            text: suggestion.text,
+            selection: TextSelection.collapsed(offset: suggestion.text.length),
+          );
+          _onSearch(suggestion.text);
+        },
+        child: SizedBox(
+          height: 38,
+          child: Row(
+            children: [
+              Icon(
+                suggestion.type == 'singer'
+                    ? Icons.person_outline_rounded
+                    : suggestion.type == 'album'
+                    ? Icons.album_outlined
+                    : Icons.search_rounded,
+                size: 15,
+                color: AppColors.mutedText(context),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  suggestion.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: primary, fontSize: 13),
+                ),
+              ),
+              Icon(
+                Icons.north_west_rounded,
+                size: 14,
+                color: AppColors.mutedText(context),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -267,11 +369,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ? EdgeInsets.zero
           : const EdgeInsets.symmetric(horizontal: 16),
       onSelected: (id) {
+        _searchDebounce?.cancel();
+        ref.read(searchSuggestionsProvider.notifier).reset();
         ref.read(selectedSourceIdProvider.notifier).state = id;
         // 记住这次选源，下次打开搜索面板直接落在这里。
         unawaited(ref.read(lastSearchSourceProvider.notifier).remember(id));
         if (_searchController.text.isNotEmpty) {
           _onSearch(_searchController.text);
+          if (widget.liveSearch && id == 'tx') {
+            unawaited(
+              ref
+                  .read(searchSuggestionsProvider.notifier)
+                  .suggest(_searchController.text),
+            );
+          }
         }
       },
     );
@@ -702,6 +813,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         isFavorite: false,
         showFavorite: false,
         onTap: play,
+        onArtistTap: () => _openArtist(local.singer, local, sourceId: 'local'),
         onMore: () => _showSongMenu(local, localMatches),
       );
     }
@@ -730,14 +842,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             letterSpacing: -0.1,
           ),
         ),
-        subtitle: Text(
-          S.of(context).localArtist(local.singer),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: AppColors.secondaryText(context),
-            fontSize: 12,
-            height: 1.3,
+        subtitle: InkWell(
+          onTap: () => _openArtist(local.singer, local, sourceId: 'local'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text(
+              local.singer,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.secondaryText(context),
+                fontSize: 12,
+                height: 1.3,
+              ),
+            ),
           ),
         ),
       ),
@@ -797,6 +915,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         isFavorite: isFavoriteMusic(item, favoriteSongs),
         showFavorite: !isSonglist,
         onTap: open,
+        onArtistTap: () => _openArtist(item.singer, item),
         onMore: menu,
       );
     }
@@ -827,18 +946,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             letterSpacing: -0.1,
           ),
         ),
-        subtitle: Text(
-          isSonglist
-              ? item.singer
-              : '${item.singer}${item.album.isNotEmpty ? ' · ${item.album}' : ''}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: AppColors.secondaryText(context),
-            fontSize: 12,
-            height: 1.3,
-          ),
-        ),
+        subtitle: isSonglist
+            ? Text(
+                item.singer,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.secondaryText(context),
+                  fontSize: 12,
+                  height: 1.3,
+                ),
+              )
+            : InkWell(
+                onTap: () => _openArtist(item.singer, item),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(
+                    '${item.singer}${item.album.isNotEmpty ? ' · ${item.album}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.secondaryText(context),
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ),
         trailing: isSonglist
             ? Icon(
                 Icons.chevron_right_rounded,
@@ -868,6 +1002,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ],
               ),
       ),
+    );
+  }
+
+  void _openArtist(String rawArtists, MusicItem song, {String? sourceId}) {
+    final artists = splitArtistNames(rawArtists);
+    if (artists.isEmpty) return;
+    context.push(
+      Uri(
+        path: '/artist',
+        queryParameters: {
+          'name': artists.first,
+          'platform': song.platform,
+          'source': sourceId ?? ref.read(searchStateProvider).sourceId,
+        },
+      ).toString(),
     );
   }
 
@@ -1304,6 +1453,7 @@ class _CompactResultTile extends StatelessWidget {
     required this.isFavorite,
     required this.showFavorite,
     required this.onTap,
+    required this.onArtistTap,
     required this.onMore,
   });
 
@@ -1313,6 +1463,7 @@ class _CompactResultTile extends StatelessWidget {
   final bool isFavorite;
   final bool showFavorite;
   final VoidCallback onTap;
+  final VoidCallback onArtistTap;
   final VoidCallback? onMore;
 
   @override
@@ -1362,16 +1513,34 @@ class _CompactResultTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.secondaryText(context),
-                      fontSize: 11,
-                      height: 1.2,
+                  if (!isSonglist)
+                    InkWell(
+                      onTap: onArtistTap,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.secondaryText(context),
+                            fontSize: 11,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.secondaryText(context),
+                        fontSize: 11,
+                        height: 1.2,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

@@ -10,6 +10,7 @@ import '../features/home/presentation/home_screen.dart';
 import '../features/home/presentation/main_scaffold.dart';
 import '../features/player/presentation/player_screen.dart';
 import '../features/search/presentation/search_screen.dart';
+import '../features/search/presentation/artist_detail_screen.dart';
 import '../features/playlist/presentation/playlist_screen.dart';
 import '../features/playlist/presentation/playlist_detail_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
@@ -240,26 +241,32 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/search',
       parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const SearchScreen()),
+    ),
+    GoRoute(
+      path: '/artist',
+      parentNavigatorKey: rootNavigatorKey,
       pageBuilder: (context, state) => expandablePage(
         state.pageKey,
-        const SearchScreen(),
+        ArtistDetailScreen(
+          artistName: state.uri.queryParameters['name'] ?? '',
+          platform: state.uri.queryParameters['platform'] ?? '',
+          source: state.uri.queryParameters['source'] ?? '',
+        ),
       ),
     ),
     GoRoute(
       path: '/quick/leaderboard',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const LeaderboardScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const LeaderboardScreen()),
     ),
     GoRoute(
       path: '/quick/playlist',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const PlaylistScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const PlaylistScreen()),
     ),
     GoRoute(
       path: '/quick/settings',
@@ -290,44 +297,34 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/local-music',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const LocalMusicScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const LocalMusicScreen()),
     ),
     GoRoute(
       path: '/local-file-manager',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const LocalFileManagerScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const LocalFileManagerScreen()),
     ),
     GoRoute(
       path: '/download',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const DownloadScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const DownloadScreen()),
     ),
     GoRoute(
       // 由「本地音乐目录」页面里那一行下载目录进入：它列的是"这个库由哪些
       // 目录组成"，下载目录本来就是不可手动移除的那一条。
       path: '/download-folder',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const DownloadFolderScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const DownloadFolderScreen()),
     ),
     GoRoute(
       path: '/custom-source',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const CustomSourceScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const CustomSourceScreen()),
     ),
     GoRoute(
       path: '/ai-assistant',
@@ -359,10 +356,8 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/equalizer',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const EqualizerScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const EqualizerScreen()),
     ),
     GoRoute(
       path: '/subsonic-settings',
@@ -380,10 +375,8 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/subsonic',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const SubsonicLibraryScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const SubsonicLibraryScreen()),
     ),
     GoRoute(
       path: '/subsonic/collection',
@@ -430,10 +423,8 @@ final appRouter = GoRouter(
         GoRoute(
           path: kind.routePrefix,
           parentNavigatorKey: rootNavigatorKey,
-          pageBuilder: (context, state) => expandablePage(
-            state.pageKey,
-            NasLibraryScreen(kind: kind),
-          ),
+          pageBuilder: (context, state) =>
+              expandablePage(state.pageKey, NasLibraryScreen(kind: kind)),
         ),
         GoRoute(
           path: '${kind.routePrefix}/playlist/:id',
@@ -475,58 +466,44 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/sync',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const SyncScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const SyncScreen()),
     ),
     GoRoute(
       path: '/smart-playlists',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const SmartPlaylistsScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const SmartPlaylistsScreen()),
     ),
     GoRoute(
       path: '/stats',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const StatsScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const StatsScreen()),
     ),
     GoRoute(
       path: '/terms',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const TermsScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const TermsScreen()),
     ),
     GoRoute(
       path: '/lyric-display',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const LyricDisplayScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const LyricDisplayScreen()),
     ),
     GoRoute(
       path: '/duplicates',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const DuplicateScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const DuplicateScreen()),
     ),
     GoRoute(
       path: '/recommend',
       parentNavigatorKey: rootNavigatorKey,
-      pageBuilder: (context, state) => expandablePage(
-        state.pageKey,
-        const RecommendationScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          expandablePage(state.pageKey, const RecommendationScreen()),
     ),
   ],
 );

@@ -197,6 +197,114 @@ void main() {
     expect(lyrics.lines.single.hasWordTiming, isFalse);
   });
 
+  group('署名清洗', () {
+    test('清除 LRC 普通行和逐字时间行中的署名', () {
+      const raw = '''
+[00:01.00]作词：林夕
+[00:02.00]<0,100>编曲：<100,100>张三
+[00:03.00]<0,100>你<100,100>好
+''';
+
+      final lyrics = LyricParser.parseLrc(raw);
+
+      expect(lyrics.lines, hasLength(1));
+      expect(lyrics.lines.single.text, '你好');
+      expect(lyrics.lines.single.hasWordTiming, isTrue);
+    });
+
+    test('清除 Tencent QRC 行和逐字文本中的署名', () {
+      const raw = r'''
+[0,500]作词：林夕(0,200)张三(200,300)
+[500,1000]作曲：张三(500,500)
+[1000,1500]你好(1000,200)呀(1200,300)
+''';
+
+      final lyrics = LyricParser.parseQrc(raw);
+
+      expect(lyrics.lines, hasLength(1));
+      expect(lyrics.lines.single.text, '你好呀');
+      expect(lyrics.lines.single.hasWordTiming, isTrue);
+    });
+
+    test('清除词曲与作词人作曲人署名', () {
+      const raw = '''
+[00:01.00]词：林夕
+[00:02.00]曲：张三
+[00:03.00]作词人：林夕
+[00:04.00]作曲人：张三
+[00:05.00]歌声还在
+''';
+
+      final lyrics = LyricParser.parseLrc(raw);
+
+      expect(lyrics.lines.map((line) => line.text), ['歌声还在']);
+    });
+
+    test('Tencent QRC 逐字时间中的词曲署名也会清除', () {
+      const raw = r'''
+[0,100]词：(0,50)林夕(50,50)
+[100,200]曲：(100,50)张三(150,50)
+[200,300]作词人：(200,50)林夕(250,50)
+[300,400]作曲人：(300,50)张三(350,50)
+[400,500]歌词(400,50)正常(450,50)
+''';
+
+      final lyrics = LyricParser.parseQrc(raw);
+
+      expect(lyrics.lines.map((line) => line.text), ['歌词正常']);
+      expect(lyrics.lines.single.hasWordTiming, isTrue);
+    });
+
+    test('保留男声、女声、合唱和段落标签', () {
+      const raw = '''
+[00:01.00]男：你
+[00:02.00]女：我
+[00:03.00]合：我们
+[00:04.00][主歌]相遇
+[00:05.00][副歌]歌唱
+[00:06.00]男
+[00:07.00]女
+[00:08.00]合
+[00:09.00][主歌]
+[00:10.00][副歌]
+''';
+
+      final lyrics = LyricParser.parseLrc(raw);
+
+      expect(lyrics.lines.map((line) => line.text), [
+        '男：你',
+        '女：我',
+        '合：我们',
+        '[主歌]相遇',
+        '[副歌]歌唱',
+        '男',
+        '女',
+        '合',
+        '[主歌]',
+        '[副歌]',
+      ]);
+    });
+
+    test('清除时钟格式 QRC 的署名但保留普通歌词', () {
+      const raw = '''
+[00:01.00]作词：林夕
+[00:02.00]制作你的梦
+[00:03.00]女：陪你
+''';
+
+      final lyrics = LyricParser.parseQrc(raw);
+
+      expect(lyrics.lines.map((line) => line.text), ['制作你的梦', '女：陪你']);
+    });
+
+    test('署名关键词作为普通歌词开头时不误删', () {
+      final lyrics = LyricParser.parseLrc('[00:01.00]制作你的梦');
+
+      expect(lyrics.lines, hasLength(1));
+      expect(lyrics.lines.single.text, '制作你的梦');
+    });
+  });
+
   test('parseQrc real Tencent XML with metadata and punctuation', () {
     const raw = r'''<?xml version="1.0" encoding="utf-8"?>
 <QrcInfos>

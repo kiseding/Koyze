@@ -738,6 +738,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchAction => '搜索';
 
   @override
+  String get searchSuggestions => '搜索建议';
+
+  @override
   String get noResults => '无结果';
 
   @override
@@ -3158,6 +3161,30 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get songInfo => '歌曲信息';
+
+  @override
+  String get songInfoTags => '歌曲标签';
+
+  @override
+  String get songInfoTitle => '标题';
+
+  @override
+  String get songInfoArtist => '歌手';
+
+  @override
+  String get songInfoAlbum => '专辑';
+
+  @override
+  String get songInfoDuration => '时长';
+
+  @override
+  String get songInfoFormat => '格式';
+
+  @override
+  String get songInfoBitrate => '码率';
+
+  @override
+  String get songInfoQuality => '音质';
 
   @override
   String get songInfoComments => '评论';

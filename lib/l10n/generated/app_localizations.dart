@@ -1514,6 +1514,12 @@ abstract class AppLocalizations {
   /// **'Search'**
   String get searchAction;
 
+  /// No description provided for @searchSuggestions.
+  ///
+  /// In en, this message translates to:
+  /// **'Suggestions'**
+  String get searchSuggestions;
+
   /// No description provided for @noResults.
   ///
   /// In en, this message translates to:
@@ -5877,10 +5883,19 @@ abstract class AppLocalizations {
   String get lyricExtras;
 
   /// No description provided for @songInfo.
+
   ///
   /// In en, this message translates to:
   /// **'About this song'**
   String get songInfo;
+  String get songInfoTags;
+  String get songInfoTitle;
+  String get songInfoArtist;
+  String get songInfoAlbum;
+  String get songInfoDuration;
+  String get songInfoFormat;
+  String get songInfoBitrate;
+  String get songInfoQuality;
 
   /// No description provided for @songInfoComments.
   ///

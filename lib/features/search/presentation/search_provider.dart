@@ -17,6 +17,7 @@ import '../../source_check/presentation/source_check_provider.dart';
 import '../../subsonic/presentation/subsonic_provider.dart';
 import '../domain/local_song_search.dart';
 import '../../../core/logging/app_log.dart';
+import '../../../core/music_source/platform/tx_source.dart';
 
 final musicSourceServiceProvider = Provider<MusicSourceService>((ref) {
   final customSourceService = ref.watch(customSourceServiceProvider);
@@ -59,6 +60,100 @@ final allSearchSourcesProvider = Provider<List<SearchSourceItem>>((ref) {
 });
 
 final searchQueryProvider = StateProvider<String>((ref) => '');
+
+final searchSuggestionsProvider =
+    NotifierProvider<SearchSuggestionsNotifier, SearchSuggestionsState>(
+      SearchSuggestionsNotifier.new,
+    );
+
+class SearchSuggestionsState {
+  const SearchSuggestionsState({
+    this.query = '',
+    this.sourceId = '',
+    this.items = const [],
+    this.isLoading = false,
+  });
+
+  final String query;
+  final String sourceId;
+  final List<SearchSuggestion> items;
+  final bool isLoading;
+}
+
+class SearchSuggestionsNotifier extends BuildlessNotifier<SearchSuggestionsState> {
+  SearchSuggestionsNotifier({
+    Future<List<SearchSuggestion>> Function(String query, String sourceId)? load,
+    String Function()? readSelectedSource,
+  }) : _load = load,
+       _readSelectedSource = readSelectedSource,
+       super(const SearchSuggestionsState());
+
+  Future<List<SearchSuggestion>> Function(String query, String sourceId)? _load;
+  String Function()? _readSelectedSource;
+  int _generation = 0;
+
+  @override
+  SearchSuggestionsState build() {
+    _load ??= (query, sourceId) async {
+      if (sourceId != 'tx') return const [];
+      final source = ref.read(musicSourceServiceProvider).builtInSources.get('tx');
+      return source is TxSource ? source.searchSuggestions(query) : const [];
+    };
+    _readSelectedSource ??= () => ref.read(selectedSourceIdProvider);
+    ref.listen<String>(selectedSourceIdProvider, (previous, next) {
+      if (next != value.sourceId) {
+        _generation++;
+        publish(SearchSuggestionsState(sourceId: next));
+      }
+    });
+    ref.onDispose(() => _generation++);
+    return super.build();
+  }
+
+  Future<void> suggest(String rawQuery) async {
+    final query = rawQuery.trim();
+    final generation = ++_generation;
+    final sourceId = _readSelectedSource?.call() ?? '';
+    if (query.isEmpty || sourceId != 'tx') {
+      publish(SearchSuggestionsState(query: query, sourceId: sourceId));
+      return;
+    }
+    publish(SearchSuggestionsState(
+      query: query,
+      sourceId: sourceId,
+      isLoading: true,
+    ));
+    try {
+      final items = await _load!(query, sourceId);
+      if (!_owns(generation, query, sourceId)) return;
+      publish(SearchSuggestionsState(
+        query: query,
+        sourceId: sourceId,
+        items: items,
+      ));
+    } catch (_) {
+      if (!_owns(generation, query, sourceId)) return;
+      publish(SearchSuggestionsState(query: query, sourceId: sourceId));
+    }
+  }
+
+  bool _owns(int generation, String query, String sourceId) =>
+      mounted &&
+      generation == _generation &&
+      value.query == query &&
+      value.sourceId == sourceId &&
+      (_readSelectedSource?.call() ?? '') == sourceId;
+
+  void reset() {
+    _generation++;
+    publish(const SearchSuggestionsState());
+  }
+
+  @override
+  void onTeardown() {
+    _generation++;
+  }
+}
 
 /// 上次在搜索面板里手动选过的音源，持久化。
 ///

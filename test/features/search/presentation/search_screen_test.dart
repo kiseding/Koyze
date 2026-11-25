@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
+import 'package:koyze/core/music_source/platform/tx_source.dart';
 import 'package:koyze/features/search/presentation/search_provider.dart';
 import 'package:koyze/features/search/presentation/search_screen.dart';
 
@@ -25,6 +26,59 @@ void main() {
 
     expect(source, contains('physics: const ClampingScrollPhysics()'));
   });
+
+  testWidgets(
+    'live QQ search shows actual suggestions and submits a selection',
+    (tester) async {
+      final suggestions = <String>[];
+      final searches = <String>[];
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            searchStateProvider.overrideWith(
+              () => SearchNotifier((query, sourceId, page) async {
+                searches.add(query);
+                return const [];
+              }, () => 'tx'),
+            ),
+            searchSuggestionsProvider.overrideWith(
+              () => SearchSuggestionsNotifier(
+                load: (query, sourceId) async {
+                  suggestions.add(query);
+                  return const [SearchSuggestion(text: '晴天', type: 'song')];
+                },
+                readSelectedSource: () => 'tx',
+              ),
+            ),
+            hotSearchProvider.overrideWith((ref) async => const []),
+            searchHistoryProvider.overrideWith(SearchHistoryNotifier.new),
+            allSearchSourcesProvider.overrideWith(
+              (ref) => [SearchSourceItem(id: 'tx', name: 'QQ')],
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: SearchScreen(liveSearch: true)),
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), '晴');
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pumpAndSettle();
+      expect(suggestions, ['晴']);
+      expect(find.text('Suggestions'), findsOneWidget);
+      expect(find.text('晴天'), findsOneWidget);
+      expect(searches, ['晴']);
+
+      await tester.tap(find.text('晴天'));
+      await tester.pumpAndSettle();
+      expect(searches, ['晴', '晴天']);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '晴天',
+      );
+    },
+  );
 
   test('embedded search follows the Origo sheet interaction model', () {
     final source = File(

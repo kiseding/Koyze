@@ -5,6 +5,22 @@ import '../../../features/player/domain/music_item.dart';
 import 'music_platform.dart';
 import 'qrc_decoder.dart';
 
+class SearchSuggestion {
+  const SearchSuggestion({required this.text, required this.type});
+
+  final String text;
+  final String type;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SearchSuggestion &&
+      other.text == text &&
+      other.type == type;
+
+  @override
+  int get hashCode => Object.hash(text, type);
+}
+
 class TxSource extends MusicPlatform {
   @override
   String get id => 'tx';
@@ -14,12 +30,64 @@ class TxSource extends MusicPlatform {
 
   late final Dio _dio;
 
-  TxSource() {
-    _dio = createDio();
+  TxSource({Dio? dio}) {
+    _dio = dio ?? createDio();
     _dio.options.baseUrl = 'https://u.y.qq.com';
     _dio.options.headers.addAll({
       'User-Agent': 'QQMusic 14090508(android 12)',
     });
+  }
+
+  Future<List<SearchSuggestion>> searchSuggestions(String keyword) async {
+    try {
+      final response = await _dio
+          .get(
+            'https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg',
+            queryParameters: {
+              'is_xml': '0',
+              'key': keyword,
+              'format': 'json',
+              'platform': 'yqq',
+              'needNewCode': '0',
+            },
+            options: Options(headers: {'Referer': 'https://y.qq.com/'}),
+          )
+          .timeout(const Duration(seconds: 5));
+      final suggestions = await compute(parseSearchSuggestions, response.data);
+      clearFailure();
+      return suggestions;
+    } catch (error) {
+      throw noteFailure('searchSuggestions', error);
+    }
+  }
+
+  static List<SearchSuggestion> parseSearchSuggestions(dynamic data) {
+    final body = data is String ? jsonDecode(data) : data;
+    if (body is! Map ||
+        (body['code'] != 0 && body['code'] != '0') ||
+        body['data'] is! Map) {
+      return const [];
+    }
+    final payload = body['data'] as Map;
+    final declaredOrder = payload['order'];
+    final types = declaredOrder is List
+        ? declaredOrder.map((type) => type.toString()).toList()
+        : const ['song', 'singer', 'album'];
+    final suggestions = <SearchSuggestion>[];
+    final seen = <String>{};
+    for (final type in types) {
+      final section = payload[type];
+      final items = section is Map ? section['itemlist'] : null;
+      if (items is! List) continue;
+      for (final item in items) {
+        if (item is! Map) continue;
+        final text = item['name']?.toString().trim() ?? '';
+        if (text.isEmpty || !seen.add(text.toLowerCase())) continue;
+        suggestions.add(SearchSuggestion(text: text, type: type));
+        if (suggestions.length == 8) return suggestions;
+      }
+    }
+    return suggestions;
   }
 
   @override

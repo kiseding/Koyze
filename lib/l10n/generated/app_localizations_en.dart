@@ -760,6 +760,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchAction => 'Search';
 
   @override
+  String get searchSuggestions => 'Suggestions';
+
+  @override
   String get noResults => 'No results';
 
   @override
@@ -3234,6 +3237,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get songInfo => 'About this song';
+
+  @override
+  String get songInfoTags => 'Track tags';
+
+  @override
+  String get songInfoTitle => 'Title';
+
+  @override
+  String get songInfoArtist => 'Artist';
+
+  @override
+  String get songInfoAlbum => 'Album';
+
+  @override
+  String get songInfoDuration => 'Duration';
+
+  @override
+  String get songInfoFormat => 'Format';
+
+  @override
+  String get songInfoBitrate => 'Bitrate';
+
+  @override
+  String get songInfoQuality => 'Quality';
 
   @override
   String get songInfoComments => 'Comments';

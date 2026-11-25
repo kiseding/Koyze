@@ -13,12 +13,7 @@ import 'song_info_provider.dart';
 
 /// 「关于这首歌」面板。
 ///
-/// 三块内容各有各的来源，所以放在一个面板里而不是三个入口：
-/// - **回忆坐标**：本地播放历史算出来的，任何平台都有；
-/// - **评论**：网易的公开接口，其他平台没有；
-/// - **相似歌曲**：网易的推荐接口，用来「顺着这首继续听」。
-///
-/// 没有网易 id 时面板不会消失，只保留回忆坐标——本地音乐也需要这个面板。
+/// 歌曲标签与播放记忆始终独立展示；网易歌曲另附公开评论和相似歌曲。
 Future<void> showSongInfoSheet(BuildContext context, MusicItem music) {
   return showKoyzeSheet<void>(
     context: context,
@@ -54,6 +49,8 @@ class SongInfoSheet extends ConsumerWidget {
             shrinkWrap: true,
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             children: [
+              _TagCard(music: music),
+              const SizedBox(height: 12),
               _MemoryCard(music: music),
               if (songId == null)
                 Padding(
@@ -74,6 +71,66 @@ class SongInfoSheet extends ConsumerWidget {
         ),
       ],
     );
+  }
+}
+
+class _TagCard extends StatelessWidget {
+  const _TagCard({required this.music});
+
+  final MusicItem music;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final primary = AppColors.onScaffold(context);
+    final secondary = AppColors.secondaryText(context);
+    final meta = music.meta ?? const <String, dynamic>{};
+    final rows = <String, String>{
+      s.songInfoTitle: music.name,
+      s.songInfoArtist: music.singer,
+      if (music.album.trim().isNotEmpty) s.songInfoAlbum: music.album,
+      if (music.duration > Duration.zero)
+        s.songInfoDuration: _formatDuration(music.duration),
+      if (meta['ext']?.toString().trim().isNotEmpty == true)
+        s.songInfoFormat: meta['ext'].toString().toUpperCase(),
+      if (meta['bitrate'] is num && (meta['bitrate'] as num) > 0)
+        s.songInfoBitrate: '${((meta['bitrate'] as num) / 1000).round()} kbps',
+      if (meta['localActualQuality']?.toString().trim().isNotEmpty == true)
+        s.songInfoQuality: meta['localActualQuality'].toString(),
+    };
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.sell_outlined, size: 15, color: AppColors.accentOf(context)),
+              const SizedBox(width: 6),
+              Text(s.songInfoTags, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.accentOf(context))),
+            ],
+          ),
+          const SizedBox(height: 9),
+          for (final entry in rows.entries)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 44, child: Text(entry.key, style: TextStyle(fontSize: 11.5, color: secondary))),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(entry.value, style: TextStyle(fontSize: 12.5, color: primary))),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatDuration(Duration value) {
+    final minutes = value.inMinutes;
+    final seconds = (value.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 }
 
@@ -98,10 +155,11 @@ class _MemoryCard extends ConsumerWidget {
     final secondary = AppColors.secondaryText(context);
 
     if (entries.isEmpty) {
-      return _Card(
+      return Padding(
+        padding: const EdgeInsets.only(left: 2),
         child: Text(
-          s.songInfoMemoryEmpty,
-          style: TextStyle(fontSize: 12.5, color: secondary),
+          '${s.songInfoMemory} · ${s.songInfoMemoryEmpty}',
+          style: TextStyle(fontSize: 11.5, color: secondary),
         ),
       );
     }

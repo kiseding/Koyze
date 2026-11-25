@@ -6,13 +6,30 @@ import 'package:koyze/core/network/music_source_service.dart';
 import 'package:koyze/core/network/play_url_result.dart';
 import 'package:koyze/core/music_source/platform/built_in_source_manager.dart';
 import 'package:koyze/core/music_source/platform/music_platform.dart';
+import 'package:koyze/features/custom_source/domain/custom_source.dart';
 import 'package:koyze/features/custom_source/domain/custom_source_service.dart';
+import 'package:koyze/features/lyric/domain/lyric.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 
+class _FakeCustomSourceService extends CustomSourceService {
+  _FakeCustomSourceService(this.sources, this.loader);
+
+  final List<CustomSource> sources;
+  final Future<String?> Function(String sourceId, MusicItem music) loader;
+
+  @override
+  List<CustomSource> get enabledSources => sources;
+
+  @override
+  Future<String?> getLyric(String sourceId, MusicItem music) =>
+      loader(sourceId, music);
+}
+
 class _LyricPlatform extends MusicPlatform {
-  _LyricPlatform(this.lyric);
+  _LyricPlatform(this.lyric, {this.payload});
 
   final String lyric;
+  final LyricPayload? payload;
 
   @override
   String get id => 'tx';
@@ -22,6 +39,10 @@ class _LyricPlatform extends MusicPlatform {
 
   @override
   Future<String?> getLyric(MusicItem music) async => lyric;
+
+  @override
+  Future<LyricPayload?> getLyricPayload(MusicItem music) async =>
+      payload ?? await super.getLyricPayload(music);
 
   @override
   MusicItem parseItem(Map<String, dynamic> raw, String source) => MusicItem(
@@ -94,7 +115,23 @@ class _TrackingSearchPlatform extends _SearchPlatform {
   }
 }
 
+CustomSource _source(String id) {
+  final now = DateTime.utc(2026);
+  return CustomSource(
+    id: id,
+    name: id,
+    description: '',
+    version: '1',
+    author: 'test',
+    script: '/* source */',
+    createdAt: now,
+    updatedAt: now,
+  );
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   final item = MusicItem(
     id: 'song-1',
     name: 'Song',
@@ -177,6 +214,91 @@ void main() {
     );
 
     expect(await service.getLyric(item), qrc);
+  });
+
+  test(
+    'parallel lyrics prefer word timing and retain selected translation',
+    () async {
+      final custom = _FakeCustomSourceService([
+        _source('custom'),
+      ], (_, _) async => '[00:01.00]普通歌词');
+      final service = MusicSourceService(
+        custom,
+        builtInSources: BuiltInSourceManager(
+          platforms: [
+            _LyricPlatform(
+              '',
+              payload: const LyricPayload(
+                main: '[00:01.00]<0,200>逐<200,200>字',
+                translation: '[00:01.00]translated',
+              ),
+            ),
+          ],
+        ),
+      );
+
+      final payload = await service.getLyricPayload(item);
+
+      expect(payload?.main, '[00:01.00]<0,200>逐<200,200>字');
+      expect(payload?.translation, '[00:01.00]translated');
+    },
+  );
+
+  test(
+    'same-quality lyric candidates preserve built-in source priority',
+    () async {
+      final custom = _FakeCustomSourceService([
+        _source('custom'),
+      ], (_, _) async => '[00:01.00]自定义普通歌词');
+      final service = MusicSourceService(
+        custom,
+        builtInSources: BuiltInSourceManager(
+          platforms: [_LyricPlatform('[00:01.00]内置普通歌词')],
+        ),
+      );
+
+      final payload = await service.getLyricPayload(item);
+
+      expect(payload?.main, '[00:01.00]内置普通歌词');
+    },
+  );
+
+  test('custom lyric timeout is isolated from built-in candidate', () async {
+    final custom = _FakeCustomSourceService([
+      _source('slow'),
+    ], (_, _) => Completer<String?>().future);
+    final service = MusicSourceService(
+      custom,
+      lyricSourceTimeout: const Duration(milliseconds: 10),
+      builtInSources: BuiltInSourceManager(
+        platforms: [_LyricPlatform('[00:01.00]内置歌词')],
+      ),
+    );
+
+    final payload = await service.getLyricPayload(item);
+
+    expect(payload?.main, '[00:01.00]内置歌词');
+  });
+
+  test('cross-platform word-timed lyric beats current plain lyric', () async {
+    final kwSong = item.copyWith(id: 'kw-1', platform: 'kw', source: 'kw');
+    final service = MusicSourceService(
+      CustomSourceService(),
+      builtInSources: BuiltInSourceManager(
+        platforms: [
+          _LyricPlatform('[00:01.00]普通歌词'),
+          _SearchPlatform(
+            platformId: 'kw',
+            results: [kwSong],
+            lyric: '[00:01.00]<0,200>逐<200,200>字',
+          ),
+        ],
+      ),
+    );
+
+    final payload = await service.getLyricPayload(item);
+
+    expect(payload?.main, '[00:01.00]<0,200>逐<200,200>字');
   });
 
   test('custom source keeps an HTTP media URL unchanged', () async {

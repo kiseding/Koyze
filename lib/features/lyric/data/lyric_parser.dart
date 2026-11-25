@@ -33,6 +33,7 @@ class LyricParser {
 
     final parsedLines = <_ParsedLine>[];
     for (final line in lineList) {
+      if (_isCreditLine(_lineBody(line))) continue;
       final parsed = _parseLrcLine(line, isKuwo: isKuwo, kuwoScale: kuwoScale);
       if (parsed != null) {
         parsedLines.add(parsed);
@@ -139,6 +140,34 @@ class LyricParser {
     final first = value ~/ 10;
     final second = value % 10;
     return first > 0 && second > 0 ? (first, second) : null;
+  }
+
+  static String _lineBody(String line) {
+    return line
+        .replaceAll(RegExp(r'\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\]'), '')
+        .replaceAll(RegExp(r'\[\d+\]'), '')
+        .replaceAll(RegExp(r'\[\d+\s*,\s*\d+\]'), '')
+        .replaceAll(RegExp(r'\(\d+\s*,\s*\d+\)'), '')
+        .replaceAll(RegExp(r'<-?\d+,-?\d+(?:,-?\d+)?>'), '')
+        .replaceAll(RegExp(r'<\d{2}:\d{2}\.\d{2,3}(?:,\d+)?>'), '')
+        .trim();
+  }
+
+  /// 删除常见的歌词贡献者/版权署名，但保留正常歌词与对唱标签。
+  static bool _isCreditLine(String body) {
+    final text = body.trim();
+    if (text.isEmpty) return false;
+    if (RegExp(
+      r'^(?:男|女|合|主歌|副歌)[:：]?$',
+      caseSensitive: false,
+    ).hasMatch(text)) {
+      return false;
+    }
+    return RegExp(
+      r'^(?:作词人?|作曲人?|词|曲|编曲|制作|监制|混音|母带|演唱|演奏|和声|歌词|版权|提供|上传|整理|翻译|译词|原唱|词曲)'
+      r'(?:\s*[:：-]\s*|\s+)[^，。；;]{1,40}$',
+      caseSensitive: false,
+    ).hasMatch(text);
   }
 
   static _ParsedLine? _parseLrcLine(
@@ -442,6 +471,7 @@ class LyricParser {
     final offset = _parseOffset(content);
 
     for (final line in lineList) {
+      if (_isCreditLine(_lineBody(line))) continue;
       final parsed = _parseQrcLine(line, offset: offset);
       if (parsed != null) {
         lines.add(parsed);

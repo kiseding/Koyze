@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../../features/lyric/domain/lyric.dart';
+import '../../features/lyric/data/lyric_parser.dart';
 import '../../features/player/domain/music_item.dart';
 import '../../features/custom_source/domain/custom_source_service.dart';
 import '../../features/source_check/domain/source_check_policy.dart';
@@ -45,6 +46,7 @@ class _QualityAttempt {
 class MusicSourceService {
   static const fallbackPlatforms = ['tx', 'kw', 'wy', 'kg'];
   static const _customFailureCooldown = Duration(seconds: 5);
+  final Duration lyricSourceTimeout;
 
   final CustomSourceService _customSourceService;
 
@@ -73,6 +75,7 @@ class MusicSourceService {
     SubsonicService? subsonicService,
     Map<NasKind, NasService>? nasServices,
     this.playUrlResolutionTimeout = const Duration(seconds: 30),
+    this.lyricSourceTimeout = const Duration(seconds: 18),
   }) : _hasEnabledCustomSources = hasEnabledCustomSources,
        _enabledCustomSourceIds = enabledCustomSourceIds,
        _customQualityResolver = customQualityResolver,
@@ -874,10 +877,8 @@ class MusicSourceService {
 
   /// 取歌词，保留翻译 / 音译。
   ///
-  /// 与 [getLyric] 走完全相同的回退链（子源 → NAS → 内置平台 → 自定义源 →
-  /// 跨平台匹配），区别只在于内置平台那一步用 [BuiltInSourceManager
-  /// .getLyricPayload]，把同一响应里的翻译与音译一并带回来。自定义源只有
-  /// 一个字符串接口，因此拿不到附行。
+  /// NAS 与 Subsonic 仍优先直接返回；在线来源并行采集后，优先选择
+  /// 逐字时间完整的候选，再比较行数和附加翻译。同分时保持来源配置顺序。
   Future<LyricPayload?> getLyricPayload(MusicItem music) async {
     debugPrint(
       '[MusicSourceService] getLyric: platform=${music.platform}, source=${music.source}, songmid=${music.songmid}',
@@ -887,11 +888,14 @@ class MusicSourceService {
     if (isSubsonicMusic(music.source, music.platform)) {
       if (subsonic != null) {
         try {
-          await subsonic.init();
-          final lyric = await subsonic.getLyric(music);
-          if (lyric != null && lyric.isNotEmpty) {
-            return LyricPayload(main: lyric);
-          }
+          final payload = await (() async {
+            await subsonic.init();
+            final lyric = await subsonic.getLyric(music);
+            return lyric == null || lyric.isEmpty
+                ? null
+                : LyricPayload(main: lyric);
+          })().timeout(lyricSourceTimeout);
+          if (payload != null) return payload;
         } catch (error) {
           debugPrint('[MusicSourceService] Subsonic 歌词失败: $error');
         }
@@ -902,11 +906,14 @@ class MusicSourceService {
         final nas = _nasServices[nasKind];
         if (nas != null) {
           try {
-            await nas.init();
-            final lyric = await nas.getLyric(music);
-            if (lyric != null && lyric.isNotEmpty) {
-              return LyricPayload(main: lyric);
-            }
+            final payload = await (() async {
+              await nas.init();
+              final lyric = await nas.getLyric(music);
+              return lyric == null || lyric.isEmpty
+                  ? null
+                  : LyricPayload(main: lyric);
+            })().timeout(lyricSourceTimeout);
+            if (payload != null) return payload;
           } catch (error) {
             debugPrint('[MusicSourceService] ${nasKind.title} 歌词失败: $error');
           }
@@ -915,66 +922,125 @@ class MusicSourceService {
     }
 
     final platform = music.platform.isNotEmpty ? music.platform : music.source;
+    final tasks = <Future<LyricPayload?>>[];
     if (platform.isNotEmpty && platform != 'custom' && platform != 'test') {
-      // Built-in platform lyrics include QQ QRC/YRC word timing. Prefer them
-      // over a custom source's plain LRC so an enabled source cannot silently
-      // remove the platform's word-by-word rendering.
-      debugPrint('[MusicSourceService] 尝试内置源 platform=$platform');
-      final payload = await _builtInSources.getLyricPayload(platform, music);
-      if (payload != null && payload.main.isNotEmpty) {
-        debugPrint('[MusicSourceService] 内置源 $platform 返回歌词');
-        return payload;
-      }
-      debugPrint('[MusicSourceService] 内置源 $platform 返回空');
+      tasks.add(
+        _tryLyricSource(
+          '内置源 $platform',
+          () => _builtInSources.getLyricPayload(platform, music),
+        ),
+      );
+    }
+    for (final source in _customSourceService.enabledSources) {
+      tasks.add(
+        _tryLyricSource('自定义源 ${source.id}', () async {
+          final lyric = await _customSourceService.getLyric(source.id, music);
+          return lyric == null || lyric.trim().isEmpty
+              ? null
+              : LyricPayload(main: lyric);
+        }),
+      );
     }
 
-    final enabledSources = _customSourceService.enabledSources;
-    if (enabledSources.isNotEmpty) {
-      debugPrint('[MusicSourceService] 尝试 ${enabledSources.length} 个自定义源');
-    }
-    for (final source in enabledSources) {
-      final lyric = await _customSourceService
-          .getLyric(source.id, music)
-          .catchError((e) {
-            debugPrint('[MusicSourceService] 自定义源 ${source.id} 歌词失败: $e');
-            return null;
-          });
-      if (lyric != null && lyric.isNotEmpty) {
-        debugPrint('[MusicSourceService] 自定义源 ${source.id} 返回歌词');
-        return LyricPayload(main: lyric);
-      }
-    }
-
-    final sourcePlatform = platform;
-    final fallbackPlatforms = MusicSourceService.fallbackPlatforms
-        .where(
-          (pid) => pid != sourcePlatform && _builtInSources.get(pid) != null,
-        )
-        .toList(growable: false);
-    for (final pid in fallbackPlatforms) {
-      final matches = await _builtInSources
-          .search(pid, music.name, page: 1, limit: 10)
-          .catchError((_) => <MusicItem>[]);
-      final candidate = _bestSongMatch(music, matches);
-      if (candidate == null) continue;
-      final payload = await _builtInSources.getLyricPayload(pid, candidate);
-      if (payload != null && payload.main.isNotEmpty) {
-        debugPrint('[MusicSourceService] 歌词跨平台回退 $sourcePlatform -> $pid');
-        return payload;
+    if (_isUsableSongMatchInput(music)) {
+      for (final pid in MusicSourceService.fallbackPlatforms) {
+        if (pid == platform || _builtInSources.get(pid) == null) continue;
+        tasks.add(
+          _tryLyricSource('跨平台源 $pid', () async {
+            final matches = await _builtInSources
+                .search(pid, music.name, page: 1, limit: 10)
+                .timeout(const Duration(seconds: 4));
+            final candidate = _bestSongMatch(music, matches);
+            if (candidate == null) return null;
+            return _builtInSources.getLyricPayload(pid, candidate);
+          }),
+        );
       }
     }
 
-    for (final pid in MusicSourceService.fallbackPlatforms) {
-      if (pid == platform) continue;
-      final payload = await _builtInSources.getLyricPayload(pid, music);
-      if (payload != null && payload.main.isNotEmpty) {
-        debugPrint('[MusicSourceService] 兜底源 $pid 返回歌词');
-        return payload;
-      }
-    }
+    final result = _bestLyricPayload(await Future.wait(tasks));
+    if (result != null) return result;
 
     debugPrint('[MusicSourceService] 所有源均未返回歌词');
     return null;
+  }
+
+  Future<LyricPayload?> _tryLyricSource(
+    String source,
+    Future<LyricPayload?> Function() load,
+  ) async {
+    try {
+      final payload = await load().timeout(lyricSourceTimeout);
+      if (payload == null || payload.main.trim().isEmpty) return null;
+      return payload;
+    } catch (error) {
+      debugPrint('[MusicSourceService] $source 歌词失败: $error');
+      return null;
+    }
+  }
+
+  LyricPayload? _bestLyricPayload(List<LyricPayload?> candidates) {
+    LyricPayload? best;
+    for (final candidate in candidates) {
+      if (candidate == null || _parseLyricPayload(candidate).isEmpty) continue;
+      if (best == null || _compareLyricPayloads(candidate, best) > 0) {
+        best = candidate;
+      }
+    }
+    return best;
+  }
+
+  bool _isUsableSongMatchInput(MusicItem music) =>
+      _normalizeMatchText(music.name).isNotEmpty &&
+      _normalizeMatchText(music.singer).isNotEmpty &&
+      music.duration > Duration.zero;
+
+  int _compareLyricPayloads(LyricPayload left, LyricPayload right) {
+    final leftLyrics = _parseLyricPayload(left);
+    final rightLyrics = _parseLyricPayload(right);
+    final leftWords = leftLyrics.lines
+        .where((line) => line.hasWordTiming)
+        .length;
+    final rightWords = rightLyrics.lines
+        .where((line) => line.hasWordTiming)
+        .length;
+    final leftTranslated = leftLyrics.lines
+        .where((line) => line.translation?.trim().isNotEmpty == true)
+        .length;
+    final rightTranslated = rightLyrics.lines
+        .where((line) => line.translation?.trim().isNotEmpty == true)
+        .length;
+
+    var result = (leftWords > 0 ? 1 : 0).compareTo(rightWords > 0 ? 1 : 0);
+    if (result != 0) return result;
+    result = leftWords.compareTo(rightWords);
+    if (result != 0) return result;
+    result = leftLyrics.lines.length.compareTo(rightLyrics.lines.length);
+    if (result != 0) return result;
+    return leftTranslated.compareTo(rightTranslated);
+  }
+
+  Lyrics _parseLyricPayload(LyricPayload payload) {
+    final isTencentQrc = RegExp(
+      r'^\s*\[\d+\s*,\s*\d+\]',
+      multiLine: true,
+    ).hasMatch(payload.main);
+    final hasLrcLineTime = RegExp(
+      r'^\s*\[(?:\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?|\d+)\]',
+      multiLine: true,
+    ).hasMatch(payload.main);
+    final isClockQrc = RegExp(
+      r'^\[\d{2}:\d{2}\.\d{2,3}\]\s*<\d{2}:\d{2}\.\d{2,3}',
+      multiLine: true,
+    ).hasMatch(payload.main);
+    final lyrics = isTencentQrc || isClockQrc || !hasLrcLineTime
+        ? LyricParser.parseQrc(payload.main)
+        : LyricParser.parseLrc(payload.main);
+    if (!payload.hasExtras) return lyrics;
+    return LyricParser.attachParallelText(
+      lyrics,
+      translation: payload.translation,
+    );
   }
 
   Future<List<MusicItem>> getSongListDetail(

@@ -4,8 +4,74 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/features/player/domain/music_item.dart';
 import 'package:koyze/features/search/presentation/search_provider.dart';
+import 'package:koyze/core/music_source/platform/tx_source.dart';
 
 void main() {
+  test('QQ smartbox parser reads ordered song singer and album suggestions', () {
+    final suggestions = TxSource.parseSearchSuggestions({
+      'code': 0,
+      'data': {
+        'order': ['singer', 'song', 'album'],
+        'singer': {
+          'itemlist': [
+            {'name': '周杰伦', 'mid': 'singer-mid'},
+          ],
+        },
+        'song': {
+          'itemlist': [
+            {'name': '晴天', 'mid': 'song-mid'},
+            {'name': '周杰伦', 'mid': 'duplicate'},
+          ],
+        },
+        'album': {
+          'itemlist': [
+            {'name': '叶惠美', 'mid': 'album-mid'},
+          ],
+        },
+      },
+    });
+
+    expect(suggestions.map((item) => (item.text, item.type)), [
+      ('周杰伦', 'singer'),
+      ('晴天', 'song'),
+      ('叶惠美', 'album'),
+    ]);
+  });
+
+  test('search suggestion requests reject stale results and source changes', () async {
+    final old = Completer<List<SearchSuggestion>>();
+    final current = Completer<List<SearchSuggestion>>();
+    var selectedSource = 'tx';
+    final notifier = SearchSuggestionsNotifier(
+      load: (query, source) => query == 'old' ? old.future : current.future,
+      readSelectedSource: () => selectedSource,
+    );
+    addTearDown(notifier.dispose);
+
+    final oldRequest = notifier.suggest('old');
+    final currentRequest = notifier.suggest('current');
+    current.complete([const SearchSuggestion(text: 'current hit', type: 'song')]);
+    await currentRequest;
+    old.complete([const SearchSuggestion(text: 'stale hit', type: 'song')]);
+    await oldRequest;
+
+    expect(notifier.value.query, 'current');
+    expect(notifier.value.items.single.text, 'current hit');
+
+    final pending = Completer<List<SearchSuggestion>>();
+    final sourceNotifier = SearchSuggestionsNotifier(
+      load: (query, source) => pending.future,
+      readSelectedSource: () => selectedSource,
+    );
+    addTearDown(sourceNotifier.dispose);
+    final pendingRequest = sourceNotifier.suggest('switch');
+    selectedSource = 'wy';
+    sourceNotifier.reset();
+    pending.complete([const SearchSuggestion(text: 'wrong source', type: 'song')]);
+    await pendingRequest;
+    expect(sourceNotifier.value.items, isEmpty);
+  });
+
   test('search sources expose a single NAS entry for all self-hosted servers', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);

@@ -150,6 +150,14 @@ class S {
   String get lyricTiming => _l10n.lyricTiming;
   String get lyricExtras => _l10n.lyricExtras;
   String get songInfo => _l10n.songInfo;
+  String get songInfoTags => _l10n.songInfoTags;
+  String get songInfoTitle => _l10n.songInfoTitle;
+  String get songInfoArtist => _l10n.songInfoArtist;
+  String get songInfoAlbum => _l10n.songInfoAlbum;
+  String get songInfoDuration => _l10n.songInfoDuration;
+  String get songInfoFormat => _l10n.songInfoFormat;
+  String get songInfoBitrate => _l10n.songInfoBitrate;
+  String get songInfoQuality => _l10n.songInfoQuality;
   String get songInfoComments => _l10n.songInfoComments;
   String get songInfoSimilar => _l10n.songInfoSimilar;
   String get songInfoMemory => _l10n.songInfoMemory;
@@ -397,6 +405,7 @@ class S {
       _l10n.platformLoginUnavailableAction;
   String get searchFieldHint => _l10n.searchFieldHint;
   String get searchAction => _l10n.searchAction;
+  String get searchSuggestions => _l10n.searchSuggestions;
   String get settingsSearch => _l10n.settingsSearch;
   String get settingsSearchHint => _l10n.settingsSearchHint;
   String get settingsSearchEmpty => _l10n.settingsSearchEmpty;

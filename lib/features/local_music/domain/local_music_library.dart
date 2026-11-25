@@ -948,7 +948,14 @@ class LocalMusicLibrary {
         if (entry['androidSource']?.toString().isNotEmpty == true)
           'androidSource': entry['androidSource']?.toString(),
         'ext': entry['extension']?.toString() ?? '',
+        'fileName': fileName,
         'local': true,
+        if (entry['bitrate'] is num && (entry['bitrate'] as num) > 0)
+          'bitrate': (entry['bitrate'] as num).toInt(),
+        if (entry['hasEmbeddedTags'] is bool)
+          'hasEmbeddedTags': entry['hasEmbeddedTags'],
+        if (entry['modifiedAt']?.toString().isNotEmpty == true)
+          'modifiedAt': entry['modifiedAt']?.toString(),
         if (_localActualQuality(entry) != null)
           'localActualQuality': _localActualQuality(entry),
         if (localLyrics != null && localLyrics.isNotEmpty)
