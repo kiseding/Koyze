@@ -604,12 +604,15 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         request.occurrenceId == _activeOccurrenceId &&
         index >= 0 &&
         index == _currentIndex &&
-        identical(_queue[index], request.item) &&
-        identical(mediaItem.value, request.item);
+        _queue[index].id == request.item.id &&
+        mediaItem.value?.id == request.item.id;
     if (!valid) {
       _trackLeaseRelease(resolution.leaseOrNull);
       return false;
     }
+    // Follow the current queue object after presentation-only MediaItem updates.
+    // patchQueueItemExtrasAt intentionally requires exact queue identity.
+    request.item = _queue[index];
     if (!patchQueueItemExtrasAt(
       index: index,
       expectedItem: request.item,
@@ -1084,8 +1087,7 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// 类型。mpv 引擎下调用会抛错——那是刻意的：需要具体类型的代码本来就
   /// 只对 just_audio 有意义。
   AudioPlayer get player =>
-      _rawPlayer ??
-      (throw StateError('player 只在 just_audio 引擎下可用，请改用 engine'));
+      _rawPlayer ?? (throw StateError('player 只在 just_audio 引擎下可用，请改用 engine'));
 
   /// 均衡器桥。设置页与均衡器界面通过它读写频段增益。
   EqualizerBridge get equalizer => _equalizer;
@@ -3619,10 +3621,14 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             _activeOccurrenceId != occurrenceId ||
             liveIndex < 0 ||
             liveIndex != _currentIndex ||
-            !identical(_queue[liveIndex], foregroundRequest.item) ||
-            !identical(mediaItem.value, foregroundRequest.item)) {
+            _queue[liveIndex].id != foregroundRequest.item.id ||
+            mediaItem.value?.id != foregroundRequest.item.id) {
           return -1;
         }
+        // MediaItem is immutable and presentation-only updates (lyrics, cover,
+        // duration) may replace the stream value while resolution is pending.
+        // The occurrence and media id above are the authority; follow the live
+        // queue object instead of treating that replacement as a stale request.
         foregroundRequest.item = _queue[liveIndex];
         return liveIndex;
       }
@@ -4504,12 +4510,16 @@ class LxAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (!identical(_queue[index], expectedItem)) return false;
     final extras = Map<String, dynamic>.from(expectedItem.extras ?? {});
     extras.addAll(patch);
-    final updatedItem = expectedItem.copyWith(extras: extras);
+    final current = mediaItem.value;
+    final isCurrentOccurrence =
+        _currentIndex == index && current?.id == expectedItem.id;
+    final updatedItem = expectedItem.copyWith(
+      extras: extras,
+      displaySubtitle: isCurrentOccurrence ? current!.displaySubtitle : null,
+    );
     _replaceQueueItem(index, updatedItem);
     queue.add(List.from(_queue));
-    if (_currentIndex == index && identical(mediaItem.value, expectedItem)) {
-      mediaItem.add(updatedItem);
-    }
+    if (isCurrentOccurrence) mediaItem.add(updatedItem);
     return true;
   }
 

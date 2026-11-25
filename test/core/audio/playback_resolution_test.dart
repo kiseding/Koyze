@@ -1445,6 +1445,45 @@ void main() {
     );
 
     test(
+      'presentation-only media item replacement does not stale foreground resolution',
+      () async {
+        final player = _ReuseAudioPlayer();
+        final handler = LxAudioHandler(player: player);
+        addTearDown(player.dispose);
+        final started = Completer<Map<String, dynamic>>();
+        final releaseResolver = Completer<void>();
+        final lease = _FakeLease('/cache/presentation.mp3', 'presentation', (_) {});
+        handler.urlResolver = (id, [extras]) async {
+          started.complete(Map<String, dynamic>.from(extras!));
+          await releaseResolver.future;
+          final generation = extras['_playbackGeneration'] as int;
+          final accepted = handler.acceptResolvedPlayback(
+            mediaId: id,
+            generation: generation,
+            resolution: CachedPlayback(lease.asLease(), {
+              'url': PlaybackCacheService.toPlayableUri(lease.path),
+              'actualQuality': 'flac',
+            }),
+          );
+          expect(accepted, isTrue);
+          return PlaybackCacheService.toPlayableUri(lease.path);
+        };
+
+        final loading = handler.setPlaylist([_unresolvedItem('presentation')]);
+        final extras = await started.future;
+        final current = handler.mediaItem.value!;
+        handler.mediaItem.add(current.copyWith(displaySubtitle: '当前歌词'));
+        releaseResolver.complete();
+        await loading;
+
+        expect(handler.mediaItem.value?.displaySubtitle, '当前歌词');
+        expect(handler.queueItems.single.extras?['actualQuality'], 'flac');
+        expect(player.sourceInstallCount, 1);
+        expect(extras['_playbackGeneration'], isA<int>());
+      },
+    );
+
+    test(
       'late cached A resolution after B switch cannot publish A extras',
         () async {
       final player = _ReuseAudioPlayer();
