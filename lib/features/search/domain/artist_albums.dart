@@ -38,6 +38,7 @@ const List<String> _timeKeys = <String>[
   'PublishDate',
   'PublishTime',
   'issueDate',
+  'musicBrainzReleaseDate',
   'year',
   'modifiedAt',
   'mtime',
