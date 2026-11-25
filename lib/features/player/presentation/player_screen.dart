@@ -4,7 +4,9 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../l10n/app_strings.dart';
+import '../../../core/text/artist_names.dart';
 import '../../../core/card_expand.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/player_route_progress.dart';
@@ -1959,15 +1961,51 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      music.singer,
-                      style: TextStyle(
-                        color: AppColors.secondaryText(context),
-                        fontSize: 15,
+                    if (music.singer.trim().isNotEmpty)
+                      InkWell(
+                        onTap: () => _openArtist(music),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  music.singer,
+                                  style: TextStyle(
+                                    color: AppColors.accentOf(context),
+                                    fontSize: 15,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: AppColors.accentOf(
+                                      context,
+                                    ).withValues(alpha: 0.45),
+                                    decorationThickness: 1,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 3),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 14,
+                                color: AppColors.accentOf(context),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Text(
+                        music.singer,
+                        style: TextStyle(
+                          color: AppColors.secondaryText(context),
+                          fontSize: 15,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
                   ],
                 ),
               ),
@@ -2011,6 +2049,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           ),
         ],
       ),
+    );
+  }
+
+  /// 从当前歌曲进入歌手详情页。多歌手时取第一位，与搜索结果入口一致。
+  void _openArtist(MusicItem music) {
+    final artists = splitArtistNames(music.singer);
+    if (artists.isEmpty || !mounted) return;
+    context.push(
+      Uri(
+        path: '/artist',
+        queryParameters: {
+          'name': artists.first,
+          'platform': music.platform,
+          'source': music.source,
+        },
+      ).toString(),
     );
   }
 
@@ -2061,16 +2115,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      music.singer,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.secondaryText(context),
-                        fontSize: 15,
-                        height: 1.2,
+                    if (music.singer.trim().isNotEmpty)
+                      InkWell(
+                        onTap: () => _openArtist(music),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                music.singer,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.accentOf(context),
+                                  fontSize: 15,
+                                  height: 1.2,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: AppColors.accentOf(
+                                    context,
+                                  ).withValues(alpha: 0.45),
+                                  decorationThickness: 1,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 13,
+                              color: AppColors.accentOf(context),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Text(
+                        music.singer,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.secondaryText(context),
+                          fontSize: 15,
+                          height: 1.2,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

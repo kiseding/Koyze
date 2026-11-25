@@ -9,6 +9,7 @@ import '../../../core/widgets/loading_widget.dart';
 import '../../../l10n/app_strings.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
+import '../domain/artist_albums.dart';
 import 'artist_detail_provider.dart';
 
 class ArtistDetailScreen extends ConsumerWidget {
@@ -43,7 +44,7 @@ class ArtistDetailScreen extends ConsumerWidget {
             data: (items) => items.isEmpty
                 ? const SizedBox.shrink()
                 : TextButton.icon(
-                    onPressed: () => _play(ref, items, 0),
+                    onPressed: () => _playAll(ref, items),
                     icon: const Icon(Icons.play_arrow_rounded),
                     label: Text(S.of(context).playAll),
                   ),
@@ -75,52 +76,84 @@ class ArtistDetailScreen extends ConsumerWidget {
             ),
           ),
         ),
-        data: (items) => items.isEmpty
-            ? Center(
-                child: Text(
-                  S.of(context).playlistEmpty,
-                  style: TextStyle(color: AppColors.mutedText(context)),
-                ),
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline_rounded,
-                          size: 18,
-                          color: AppColors.accentOf(context),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${S.of(context).songs} · ${items.length}',
-                          style: TextStyle(
-                            color: AppColors.secondaryText(context),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+        data: (items) {
+          if (items.isEmpty) {
+            return Center(
+              child: Text(
+                S.of(context).playlistEmpty,
+                style: TextStyle(color: AppColors.mutedText(context)),
+              ),
+            );
+          }
+          final groups = groupSongsByAlbum(items);
+          final ordered = groups.expand((group) => group.songs).toList();
+          final entries = <_ArtistListEntry>[];
+          var songIndex = 0;
+          for (final group in groups) {
+            entries.add(_ArtistListEntry.album(group, songIndex));
+            for (final song in group.songs) {
+              entries.add(_ArtistListEntry.song(song, songIndex));
+              songIndex++;
+            }
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.person_outline_rounded,
+                      size: 18,
+                      color: AppColors.accentOf(context),
                     ),
-                  ),
-                  Expanded(
-                    child: AdaptiveSongList.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                      itemCount: items.length,
-                      itemBuilder: (context, index) => _ArtistSongRow(
-                        song: items[index],
-                        index: index,
-                        onTap: () => _play(ref, items, index),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${S.of(context).albums} · ${groups.length}  ·  ${S.of(context).songs} · ${ordered.length}',
+                      style: TextStyle(
+                        color: AppColors.secondaryText(context),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              Expanded(
+                child: AdaptiveSongList.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  itemCount: entries.length,
+                  itemBuilder: (context, index) {
+                    final entry = entries[index];
+                    final album = entry.album;
+                    if (album != null) {
+                      return _AlbumHeader(
+                        group: album,
+                        onTap: () => _play(ref, ordered, entry.order),
+                      );
+                    }
+                    final song = entry.song!;
+                    return _ArtistSongRow(
+                      song: song,
+                      index: entry.order,
+                      onTap: () => _play(ref, ordered, entry.order),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
+  }
+
+  void _playAll(WidgetRef ref, List<MusicItem> songs) {
+    final ordered = groupSongsByAlbum(songs)
+        .expand((group) => group.songs)
+        .toList();
+    _play(ref, ordered, 0);
   }
 
   void _play(WidgetRef ref, List<MusicItem> songs, int index) {
@@ -137,6 +170,86 @@ class ArtistDetailScreen extends ConsumerWidget {
           startIndex: playableIndex < 0 ? 0 : playableIndex,
           manualPlayName: selected.name,
         );
+  }
+}
+
+class _ArtistListEntry {
+  const _ArtistListEntry.album(this.album, this.order) : song = null;
+  const _ArtistListEntry.song(this.song, this.order) : album = null;
+
+  final ArtistAlbumGroup? album;
+  final MusicItem? song;
+  final int order;
+}
+
+class _AlbumHeader extends StatelessWidget {
+  const _AlbumHeader({required this.group, required this.onTap});
+
+  final ArtistAlbumGroup group;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = AppColors.accentOf(context);
+    final year = group.time?.year;
+    final name = group.name.trim().isEmpty
+        ? S.of(context).unknownAlbum
+        : group.name;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 8),
+      child: Material(
+        color: AppColors.card(context).withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(Icons.album_rounded, size: 18, color: accent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.onScaffold(context),
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (year != null) ...[
+                  Text(
+                    '$year',
+                    style: TextStyle(
+                      color: AppColors.mutedText(context),
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Text(
+                  '${group.songs.length}',
+                  style: TextStyle(
+                    color: AppColors.secondaryText(context),
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.play_arrow_rounded,
+                  size: 16,
+                  color: accent,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
