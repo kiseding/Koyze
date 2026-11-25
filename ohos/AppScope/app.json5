@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.koyze.app",
     "vendor": "koyze",
-    "versionCode": 6000005,
-    "versionName": "6.0.5",
+    "versionCode": 6000006,
+    "versionName": "6.0.6",
     "icon": "$media:app_icon",
     "label": "$string:app_name"
   }
