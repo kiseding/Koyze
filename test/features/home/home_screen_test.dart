@@ -26,6 +26,7 @@ void main() {
     expect(source, contains('HomeHeroCardSettings'));
     expect(source, contains('_showHeroCardSettings'));
     expect(source, contains('_showQuickSettings'));
+    expect(source, isNot(contains('KoyzeSheetGrabber')));
     expect(source, contains('_QuickEditPenPainter'));
     expect(hero, contains('homeHeroCardProvider'));
     expect(hero, contains('homeHeroPlayModeProvider'));

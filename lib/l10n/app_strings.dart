@@ -453,6 +453,11 @@ class S {
   String get duplicateSongs => _l10n.duplicateSongs;
   String get clearFavorites => _l10n.clearFavorites;
   String get noSongs => _l10n.noSongs;
+  String get addLocalMusicFolder => _l10n.addLocalMusicFolder;
+  String get localArtworkMissingTitle => _l10n.localArtworkMissingTitle;
+  String get localArtworkMissingBody => _l10n.localArtworkMissingBody;
+  String get goToLocalMusic => _l10n.goToLocalMusic;
+  String get dontRemindAgain => _l10n.dontRemindAgain;
   String get locateFailed => _l10n.locateFailed;
   String get play => _l10n.play;
   String get removeFromPlaylist => _l10n.removeFromPlaylist;
@@ -806,6 +811,7 @@ class S {
   String dailyPeak(int days, int maxCount) => _l10n.dailyPeak(days, maxCount);
   String statSubtitle(String subtitle, int count) =>
       _l10n.statSubtitle(subtitle, count);
+  String statPlayCount(int count) => en ? '$count plays' : '$count次';
   String duplicateGroup(String artist, int count) =>
       _l10n.duplicateGroup(artist, count);
   String removedDuplicates(int count) => _l10n.removedDuplicates(count);

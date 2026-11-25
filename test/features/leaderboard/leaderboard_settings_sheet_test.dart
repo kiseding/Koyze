@@ -105,6 +105,21 @@ void main() {
     expect(find.text('酷我音乐'), findsNWidgets(2));
   });
 
+  testWidgets('平台标签直接显示名称，不带品牌色圆点', (tester) async {
+    await pumpSheet(tester);
+
+    final tab = find.byKey(const ValueKey('settings-platform-tab-tx'));
+    expect(tab, findsOneWidget);
+    final row = tester.widget<Row>(
+      find.descendant(of: tab, matching: find.byType(Row)),
+    );
+    expect(row.children.first, isA<Text>());
+    expect(
+      find.descendant(of: tab, matching: find.text('QQ音乐')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('点榜单行把 hidden 写回布局', (tester) async {
     final container = await pumpSheet(tester);
 

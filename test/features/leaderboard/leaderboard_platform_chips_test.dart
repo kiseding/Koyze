@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/theme/glass_config.dart';
 import 'package:koyze/core/theme/platform_colors.dart';
+import 'package:koyze/core/widgets/gradient_bar_backgrounds.dart';
 import 'package:koyze/core/widgets/root_shell_layout.dart';
 import 'package:koyze/features/leaderboard/presentation/leaderboard_provider.dart';
 import 'package:koyze/features/leaderboard/presentation/leaderboard_screen.dart';
@@ -113,12 +114,15 @@ void main() {
       final pill = find.byKey(ValueKey('platform-tab-$platform'));
       expect(pill, findsOneWidget, reason: '$platform 少了胶囊');
       expect(
-        find.descendant(of: pill, matching: find.byWidgetPredicate(
-          (widget) =>
-              widget is Text &&
-              widget.style?.fontWeight == FontWeight.w800 &&
-              int.tryParse(widget.data ?? '') != null,
-        )),
+        find.descendant(
+          of: pill,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Text &&
+                widget.style?.fontWeight == FontWeight.w800 &&
+                int.tryParse(widget.data ?? '') != null,
+          ),
+        ),
         findsOneWidget,
         reason: '$platform 的胶囊里没有榜单数量',
       );
@@ -151,7 +155,7 @@ void main() {
     );
   });
 
-  testWidgets('胶囊条背景透明，未选中胶囊透明但保留边缘', (tester) async {
+  testWidgets('胶囊条使用 tab 栏同款玻璃背景，未选中胶囊透明但保留边缘', (tester) async {
     await pumpLeaderboard(tester);
 
     Color? tintOf(String platform) {
@@ -164,9 +168,9 @@ void main() {
       return fills.isEmpty ? null : fills.first.color;
     }
 
-    final expected = platformBrandFill('tx').withValues(
-      alpha: GlassEffectConfig.surfaceAlpha,
-    );
+    final expected = platformBrandFill(
+      'tx',
+    ).withValues(alpha: GlassEffectConfig.surfaceAlpha);
     expect(tintOf('tx'), expected, reason: '染色浓度必须等于设置里的不透明度');
     for (final other in ['kw', 'wy', 'kg']) {
       final pill = tester.widget<AnimatedContainer>(
@@ -184,14 +188,13 @@ void main() {
       );
     }
 
-    final header = tester.widget<Container>(
-      find.descendant(
-        of: find.byType(SliverPersistentHeader),
-        matching: find.byType(Container),
-      ).first,
+    final headerFinder = find.descendant(
+      of: find.byType(SliverPersistentHeader),
+      matching: find.byType(GradientAppBarBackground),
     );
-    expect(header.color, Colors.transparent);
-    expect(header.decoration, isNull, reason: '胶囊整行不能铺背景渐变');
+    expect(headerFinder, findsOneWidget, reason: '吸顶胶囊条应使用与顶部 tab 栏相同的磨砂背景');
+    final header = tester.widget<GradientAppBarBackground>(headerFinder);
+    expect(header.background, isNotNull);
   });
 
   testWidgets('调低不透明度，胶囊跟着变淡', (tester) async {

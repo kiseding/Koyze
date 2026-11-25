@@ -362,6 +362,7 @@ class _PlatformTabs extends StatelessWidget {
           final color = platformBrandColor(context, platform);
           final isDark = AppColors.isDark(context);
           return Pressable(
+            key: ValueKey('settings-platform-tab-$platform'),
             borderRadius: BorderRadius.circular(13),
             selected: active,
             onTap: () => onSelect(platform),
@@ -383,15 +384,6 @@ class _PlatformTabs extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: hidden ? AppColors.mutedText(context) : color,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 7),
                   Text(
                     S.of(context).platformName(platform),
                     style: TextStyle(

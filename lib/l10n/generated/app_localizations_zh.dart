@@ -897,6 +897,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noSongs => '暂无歌曲';
 
   @override
+  String get addLocalMusicFolder => '添加文件夹';
+
+  @override
+  String get localArtworkMissingTitle => '补全本地音乐封面';
+
+  @override
+  String get localArtworkMissingBody => '部分本地音乐缺少封面，前往本地音乐设置运行刮削？';
+
+  @override
+  String get goToLocalMusic => '前往';
+
+  @override
+  String get dontRemindAgain => '不再提示';
+
+  @override
   String get locateFailed => '定位歌曲失败';
 
   @override

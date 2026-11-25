@@ -349,7 +349,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   ),
                 ),
                 subtitle: Text(
-                  S.of(context).statSubtitle(item.subtitle, item.playCount),
+                  _tab == 0
+                      ? item.subtitle
+                      : S
+                            .of(context)
+                            .statSubtitle(item.subtitle, item.playCount),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -357,6 +361,16 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     color: AppColors.mutedText(context),
                   ),
                 ),
+                trailing: _tab == 0
+                    ? Text(
+                        S.of(context).statPlayCount(item.playCount),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.secondaryText(context),
+                        ),
+                      )
+                    : null,
               ),
         ],
       ),

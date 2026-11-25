@@ -54,6 +54,14 @@ final aiConfigProvider = NotifierProvider<AiConfigNotifier, AiConfig>(
   AiConfigNotifier.new,
 );
 
+/// 当前接口地址对应的密钥。密钥只存在安全存储，页面通过这个 provider
+/// 观察它是否已经填写，从而在配置完整时点亮快捷入口。
+final aiApiKeyProvider = FutureProvider.autoDispose<String?>((ref) {
+  final config = ref.watch(aiConfigProvider);
+  if (config.validate() != null) return null;
+  return ref.read(aiConfigProvider.notifier).loadKey(baseUrl: config.baseUrl);
+});
+
 /// 当前 AI 配置。密钥不在状态里，只存进/取出系统安全存储。
 class AiConfigNotifier extends BuildlessNotifier<AiConfig> {
   AiConfigNotifier() : super(AiConfig.empty);
@@ -87,9 +95,11 @@ class AiConfigNotifier extends BuildlessNotifier<AiConfig> {
     final store = ref.read(aiCredentialStoreProvider);
     if (apiKey.trim().isEmpty) {
       await store.deleteKey(url);
+      ref.invalidate(aiApiKeyProvider);
       return;
     }
     await store.saveKey(url, apiKey.trim());
+    ref.invalidate(aiApiKeyProvider);
   }
 }
 

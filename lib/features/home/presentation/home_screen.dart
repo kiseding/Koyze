@@ -428,7 +428,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const KoyzeSheetGrabber(),
         KoyzeSheetTitle(
           title: title,
           closeTooltip: closeLabel,

@@ -342,12 +342,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   /// build，而 SliverList 只构建可见范围（含 cacheExtent），所以四十多个榜
   /// 不会一进页面就发四十多个请求——旧实现用 SliverToBoxAdapter + Column
   /// 一次性构建全段，正是那段注释里担心的场景。
-  List<LeaderboardCategory> _flattenCharts(
-    List<_LeaderboardSection> sections,
-  ) {
-    return [
-      for (final section in sections) ...section.allCards,
-    ];
+  List<LeaderboardCategory> _flattenCharts(List<_LeaderboardSection> sections) {
+    return [for (final section in sections) ...section.allCards];
   }
 
   /// 每个平台有多少个榜。按平台累加而不是取第一条：布局里同一个平台被
@@ -1215,8 +1211,8 @@ class _PlatformTab extends StatelessWidget {
 /// 直接贴视口顶会被状态栏和「榜单」标题压住。那一段留白保持透明，标题栏
 /// 的磨砂才照得到从背后滚过的内容（画成实色会把磨砂毁掉）。
 ///
-/// 胶囊条自己没有玻璃：背后滚过的榜单用一层「页面底色 → 透明」的渐变盖住，
-/// 既不会撞字，也不会和标题栏的磨砂叠成两层采样。
+/// 胶囊条的背景复用顶部 tab 栏的磨砂玻璃，滚动内容穿过时仍能保持文字可读；
+/// 上方标题栏留白不加第二层玻璃，避免和根壳层的磨砂重复采样。
 class _PlatformTabsHeader extends SliverPersistentHeaderDelegate {
   const _PlatformTabsHeader({
     required this.topInset,
@@ -1250,18 +1246,26 @@ class _PlatformTabsHeader extends SliverPersistentHeaderDelegate {
     return Column(
       children: [
         SizedBox(height: topInset),
-        Container(
+        SizedBox(
           height: _stripHeight + _stripPadding.vertical,
-          padding: _stripPadding,
-          // 吸顶栏的整行底层保持完全透明；只由各胶囊自身表达选中状态，
-          // 列表滚到后面时也能透出来。
-          color: Colors.transparent,
-          child: _platformTabsRow(
-            context,
-            platforms: platforms,
-            counts: counts,
-            selected: selected,
-            onSelect: onSelect,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              GradientAppBarBackground(
+                background: Theme.of(context).scaffoldBackgroundColor,
+                child: const SizedBox.expand(),
+              ),
+              Padding(
+                padding: _stripPadding,
+                child: _platformTabsRow(
+                  context,
+                  platforms: platforms,
+                  counts: counts,
+                  selected: selected,
+                  onSelect: onSelect,
+                ),
+              ),
+            ],
           ),
         ),
       ],

@@ -1832,6 +1832,36 @@ abstract class AppLocalizations {
   /// **'No songs'**
   String get noSongs;
 
+  /// No description provided for @addLocalMusicFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Add folder'**
+  String get addLocalMusicFolder;
+
+  /// No description provided for @localArtworkMissingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add artwork to local music'**
+  String get localArtworkMissingTitle;
+
+  /// No description provided for @localArtworkMissingBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Some local songs have no artwork. Open local music settings to run matching?'**
+  String get localArtworkMissingBody;
+
+  /// No description provided for @goToLocalMusic.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get goToLocalMusic;
+
+  /// No description provided for @dontRemindAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t remind me again'**
+  String get dontRemindAgain;
+
   /// No description provided for @locateFailed.
   ///
   /// In en, this message translates to:

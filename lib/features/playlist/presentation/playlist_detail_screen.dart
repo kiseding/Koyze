@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -11,6 +12,7 @@ import '../../../core/animations/micro_animations.dart';
 import '../../../core/motion/motion_tokens.dart';
 import '../../../core/pagination/page_range.dart';
 import '../../../core/platform/save_file_target.dart';
+import '../../../core/storage/storage_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/artwork_image.dart';
@@ -32,6 +34,10 @@ import '../../../core/widgets/koyze_sheet.dart';
 import '../../../core/widgets/koyze_menu.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import 'package:koyze/core/widgets/koyze_modal.dart';
+
+final localArtworkPromptStorageProvider = Provider<Future<StorageService>>(
+  (ref) => StorageService.instance,
+);
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const PlaylistDetailScreen({
@@ -59,6 +65,11 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   int _pageIndex = 0;
   final Set<String> _selectedFavoriteIds = {};
   bool _selectionBusy = false;
+  bool _localArtworkPromptCheckStarted = false;
+  bool _localArtworkPromptShown = false;
+
+  static const _localArtworkPromptDismissedKey =
+      'local_music_artwork_prompt_dismissed';
 
   @override
   void didUpdateWidget(covariant PlaylistDetailScreen oldWidget) {
@@ -192,6 +203,67 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     });
   }
 
+  void _checkLocalArtworkCoverage(Playlist playlist) {
+    if (playlist.id != 'local' ||
+        playlist.songCount == 0 ||
+        _localArtworkPromptCheckStarted) {
+      return;
+    }
+    _localArtworkPromptCheckStarted = true;
+    unawaited(_maybeShowLocalArtworkPrompt(playlist));
+  }
+
+  Future<void> _maybeShowLocalArtworkPrompt(Playlist playlist) async {
+    try {
+      final storage = await ref.read(localArtworkPromptStorageProvider);
+      if (!mounted ||
+          storage.getBool(_localArtworkPromptDismissedKey) == true) {
+        return;
+      }
+
+      final songs = await ref
+          .read(playlistServiceProvider)
+          .getAllSongs(playlist.id);
+      if (!mounted || songs.isEmpty) return;
+      final missingArtwork = songs
+          .where((song) => song.artwork?.trim().isNotEmpty != true)
+          .length;
+      if (missingArtwork * 10 < songs.length * 3 ||
+          _localArtworkPromptShown) {
+        return;
+      }
+
+      _localArtworkPromptShown = true;
+      final action = await showKoyzeDialog<String>(
+        context: context,
+        builder: (dialogContext) => KoyzeDialog(
+          icon: const Icon(Icons.image_search_outlined),
+          title: Text(S.of(dialogContext).localArtworkMissingTitle),
+          content: Text(S.of(dialogContext).localArtworkMissingBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'dismiss'),
+              child: Text(S.of(dialogContext).dontRemindAgain),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, 'open'),
+              child: Text(S.of(dialogContext).goToLocalMusic),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted) return;
+      if (action == 'dismiss') {
+        await storage.setBool(_localArtworkPromptDismissedKey, true);
+      } else if (action == 'open') {
+        await context.push('/local-music');
+      }
+    } catch (error) {
+      if (mounted) _showMutationError(S.of(context).loadSongsFailed, error);
+    }
+  }
+
   Widget _buildPageNavigation(PageRange range) {
     return PageNavigationBar(
       pageIndex: range.pageIndex,
@@ -233,6 +305,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       _syncReorderedSongs(playlist, force: true);
     }
     _prepareInitialFocus(playlist, playerService);
+    _checkLocalArtworkCoverage(playlist);
     final range = _pageRangeFor(playlist.songCount);
     final isFavorites = playlist.id == 'favorites';
     final isSelectionMode = isFavorites && _selectedFavoriteIds.isNotEmpty;
@@ -606,12 +679,20 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
           ],
         ),
         body: playlist.songCount == 0
-            ? Center(
-                child: Text(
-                  S.of(context).noSongs,
-                  style: TextStyle(color: AppColors.mutedText(context)),
-                ),
-              )
+            ? playlist.id == 'local'
+                ? Center(
+                    child: FilledButton.icon(
+                      onPressed: () => context.push('/local-music'),
+                      icon: const Icon(Icons.create_new_folder_outlined),
+                      label: Text(S.of(context).addLocalMusicFolder),
+                    ),
+                  )
+                : Center(
+                    child: Text(
+                      S.of(context).noSongs,
+                      style: TextStyle(color: AppColors.mutedText(context)),
+                    ),
+                  )
             : _isEditing
             ? _buildEditableList(playlist)
             : visibleSongsPage!.when(

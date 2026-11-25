@@ -40,6 +40,11 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
   Widget build(BuildContext context) {
     final recommendationsAsync = ref.watch(recommendationProvider);
     final tuning = ref.watch(recommendationTuningProvider);
+    final aiConfig = ref.watch(aiConfigProvider);
+    final aiApiKey = ref.watch(aiApiKeyProvider);
+    final aiReady =
+        aiConfig.validate() == null &&
+        aiApiKey.valueOrNull?.trim().isNotEmpty == true;
     final playProvider = ref.read(playerServiceProvider);
 
     return Scaffold(
@@ -74,14 +79,16 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
           ),
         ),
         actions: [
-          FxIconButton(
-            tooltip: S.of(context).aiRecommend,
-            icon: const Icon(Icons.auto_awesome_rounded),
-            onPressed: () => ref
-                .read(aiChatProvider.notifier)
-                .send(
-                  '请在后台为我改进「猜你喜欢」歌单。先查看当前推荐内容、听歌统计和已有口味调校，再结合我的听歌偏好判断应该推荐什么；通过「猜你喜欢」调校工具更新推荐（例如补充合适的口味提示、置顶特别契合的歌曲或屏蔽不合适的内容）。不要播放歌曲或创建新歌单，只调整「猜你喜欢」。完成后简要说明调整结果。',
-                ),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: FxIconButton(
+              tooltip: S.of(context).aiRecommend,
+              color: aiReady
+                  ? AppColors.accentOf(context)
+                  : AppColors.mutedText(context),
+              icon: const Icon(Icons.auto_awesome_rounded),
+              onPressed: () => _requestAiRecommendation(context, ref),
+            ),
           ),
         ],
       ),
@@ -197,6 +204,37 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _requestAiRecommendation(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final config = ref.read(aiConfigProvider);
+    final problem = config.validate();
+    if (problem != null) {
+      showAppNotification(
+        S.of(context).aiConfigInvalid,
+        type: AppNotificationType.error,
+      );
+      return;
+    }
+
+    final key = await ref.read(aiConfigProvider.notifier).loadKey();
+    if (!context.mounted) return;
+    if (key == null || key.trim().isEmpty) {
+      showAppNotification(
+        S.of(context).aiConfigInvalid,
+        type: AppNotificationType.error,
+      );
+      return;
+    }
+
+    await ref
+        .read(aiChatProvider.notifier)
+        .send(
+          '请在后台为我改进「猜你喜欢」歌单。先查看当前推荐内容、听歌统计和已有口味调校，再结合我的听歌偏好判断应该推荐什么；通过「猜你喜欢」调校工具更新推荐（例如补充合适的口味提示、置顶特别契合的歌曲或屏蔽不合适的内容）。不要播放歌曲或创建新歌单，只调整「猜你喜欢」。完成后简要说明调整结果。',
+        );
   }
 
   /// 调校条的高度。

@@ -920,6 +920,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noSongs => 'No songs';
 
   @override
+  String get addLocalMusicFolder => 'Add folder';
+
+  @override
+  String get localArtworkMissingTitle => 'Add artwork to local music';
+
+  @override
+  String get localArtworkMissingBody =>
+      'Some local songs have no artwork. Open local music settings to run matching?';
+
+  @override
+  String get goToLocalMusic => 'Open';
+
+  @override
+  String get dontRemindAgain => 'Don\'t remind me again';
+
+  @override
   String get locateFailed => 'Could not find the song';
 
   @override
