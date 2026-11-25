@@ -43,6 +43,16 @@ class BuiltInSourceManager {
     return platform.getLyric(music);
   }
 
+  Future<List<MusicItem>> getAlbumSongs(
+    String platformId,
+    String albumId, {
+    int limit = 300,
+  }) async {
+    final platform = _platforms[platformId];
+    if (platform == null) return const [];
+    return platform.getAlbumSongs(albumId, limit: limit);
+  }
+
   /// 带翻译 / 音译的歌词；平台未覆盖时退化成 [getLyric]。
   Future<LyricPayload?> getLyricPayload(
     String platformId,

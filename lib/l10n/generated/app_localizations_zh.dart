@@ -3475,4 +3475,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get audioEnhancementSectionHint => '更改后立即生效，与均衡器共用音频滤镜。';
+
+  @override
+  String get albumTracksFromMusicBrainz => '曲目来自 MusicBrainz';
+
+  @override
+  String get albumTracksMatchHint => '平台没有这张专辑的曲目，点击歌曲会在平台上匹配可播放版本';
+
+  @override
+  String get albumTracksEmpty => '这张专辑暂时没有可用的曲目';
+
+  @override
+  String get matchingTrack => '正在匹配音源…';
 }

@@ -335,4 +335,98 @@ void main() {
       },
     );
   });
+
+  group('MusicBrainzDiscography.tracksForRelease', () {
+    Map<String, dynamic> releaseSearch(String title, {int score = 100}) => {
+      'releases': [
+        {'id': 'rel-1', 'title': title, 'score': score},
+      ],
+    };
+
+    Map<String, dynamic> releaseDetail(List<Map<String, dynamic>> discs) => {
+      'media': discs,
+    };
+
+    test('reads every disc and offsets positions across discs', () async {
+      final dio = _fakeDio((options, index) {
+        if (options.uri.path.endsWith('/release/')) {
+          return releaseSearch('叶惠美');
+        }
+        expect(options.uri.queryParameters['inc'], 'recordings');
+        return releaseDetail([
+          {
+            'tracks': [
+              {'position': 1, 'title': '以父之名', 'length': 342000},
+              {'position': 2, 'title': '懦夫', 'length': 218000},
+            ],
+          },
+          {
+            'tracks': [
+              {'position': 1, 'title': '东风破', 'length': 315000},
+            ],
+          },
+        ]);
+      });
+      final discography = MusicBrainzDiscography(
+        dio,
+        gate: MBRequestGate(clock: () => DateTime(2026), sleep: (_) async {}),
+      );
+
+      final tracks = await discography.tracksForRelease('周杰伦', '叶惠美');
+      expect(tracks.map((t) => t.position), [1, 2, 3]);
+      expect(tracks.map((t) => t.title), ['以父之名', '懦夫', '东风破']);
+      expect(tracks.first.length, const Duration(milliseconds: 342000));
+    });
+
+    test('rejects a release whose title does not match', () async {
+      final seen = <RequestOptions>[];
+      final dio = _fakeDio(
+        (options, index) => releaseSearch('别的专辑'),
+        seen: seen,
+      );
+      final discography = MusicBrainzDiscography(
+        dio,
+        gate: MBRequestGate(clock: () => DateTime(2026), sleep: (_) async {}),
+      );
+
+      expect(await discography.tracksForRelease('周杰伦', '叶惠美'), isEmpty);
+      expect(seen, hasLength(1), reason: '标题不匹配时不再读 release 详情');
+    });
+
+    test('returns empty when the album title is blank', () async {
+      final seen = <RequestOptions>[];
+      final discography = MusicBrainzDiscography(
+        _fakeDio((options, index) => releaseSearch('x'), seen: seen),
+        gate: MBRequestGate(clock: () => DateTime(2026), sleep: (_) async {}),
+      );
+
+      expect(await discography.tracksForRelease('周杰伦', '  '), isEmpty);
+      expect(seen, isEmpty);
+    });
+
+    test('caches the track list per artist and album', () async {
+      final seen = <RequestOptions>[];
+      final dio = _fakeDio((options, index) {
+        if (options.uri.path.endsWith('/release/')) {
+          return releaseSearch('叶惠美');
+        }
+        return releaseDetail([
+          {
+            'tracks': [
+              {'position': 1, 'title': '以父之名', 'length': 342000},
+            ],
+          },
+        ]);
+      }, seen: seen);
+      final discography = MusicBrainzDiscography(
+        dio,
+        gate: MBRequestGate(clock: () => DateTime(2026), sleep: (_) async {}),
+      );
+
+      final first = await discography.tracksForRelease('周杰伦', '叶惠美');
+      final second = await discography.tracksForRelease(' 周杰伦 ', '叶惠美 ');
+      expect(identical(first, second), isTrue);
+      expect(seen, hasLength(2), reason: '第二次直接命中缓存');
+    });
+  });
 }

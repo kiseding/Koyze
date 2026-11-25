@@ -30,6 +30,21 @@ class MusicBrainzRelease {
   String get titleKey => normalizeMusicBrainzName(title);
 }
 
+/// MusicBrainz 曲目表里的一行。
+///
+/// 只是录音元数据，没有音频地址：平台专辑接口取不到时用来补全曲名与顺序。
+class MusicBrainzTrack {
+  const MusicBrainzTrack({
+    required this.position,
+    required this.title,
+    this.length,
+  });
+
+  final int position;
+  final String title;
+  final Duration? length;
+}
+
 /// 串行化 + 最小间隔的请求闸门。
 ///
 /// 同一时刻只允许一个请求在途，且相邻两次请求开始时间至少间隔
@@ -93,7 +108,10 @@ class MusicBrainzDiscography {
   final Duration cacheTtl;
   final DateTime Function() _clock;
 
-  final Map<String, _CacheEntry> _cache = <String, _CacheEntry>{};
+  final Map<String, _CacheEntry<List<MusicBrainzRelease>>> _cache =
+      <String, _CacheEntry<List<MusicBrainzRelease>>>{};
+  final Map<String, _CacheEntry<List<MusicBrainzTrack>>> _trackCache =
+      <String, _CacheEntry<List<MusicBrainzTrack>>>{};
 
   Future<List<MusicBrainzRelease>> releasesFor(String artistName) {
     final key = normalizeMusicBrainzName(artistName);
@@ -119,6 +137,118 @@ class MusicBrainzDiscography {
     } catch (_) {
       return const [];
     }
+  }
+
+  /// 按「歌手 + 专辑名」找一张 release，并读出它的完整曲目表。
+  ///
+  /// 只在平台专辑接口拿不到曲目时才调用：一次查找 + 一次读取，
+  /// 仍然排队过闸门，所以最坏要等两秒多。
+  Future<List<MusicBrainzTrack>> tracksForRelease(
+    String artistName,
+    String albumTitle,
+  ) async {
+    final albumKey = normalizeMusicBrainzName(albumTitle);
+    if (albumKey.isEmpty) return const [];
+
+    final cacheKey = 'tracks:${normalizeMusicBrainzName(artistName)}:$albumKey';
+    final cached = _trackCache[cacheKey];
+    if (cached != null && !cached.isStale(_clock(), cacheTtl)) {
+      return cached.future;
+    }
+    final future = _loadTracks(artistName, albumTitle, albumKey);
+    _trackCache[cacheKey] = _CacheEntry(future, _clock());
+    return future;
+  }
+
+  Future<List<MusicBrainzTrack>> _loadTracks(
+    String artistName,
+    String albumTitle,
+    String albumKey,
+  ) async {
+    try {
+      final releaseId = await _lookupReleaseId(
+        artistName,
+        albumTitle,
+        albumKey,
+      );
+      if (releaseId == null) return const [];
+
+      final data = await _gate.run(() async {
+        final response = await _dio.get<dynamic>(
+          '$musicBrainzBaseUrl/release/$releaseId',
+          queryParameters: {'inc': 'recordings', 'fmt': 'json'},
+        );
+        return response.data;
+      });
+      if (data is! Map) return const [];
+      final media = data['media'];
+      if (media is! List) return const [];
+
+      final tracks = <MusicBrainzTrack>[];
+      var offset = 0;
+      for (final disc in media.whereType<Map>()) {
+        final trackList = disc['tracks'];
+        if (trackList is! List) continue;
+        for (final track in trackList.whereType<Map>()) {
+          final title = track['title']?.toString().trim() ?? '';
+          if (title.isEmpty) continue;
+          final position =
+              int.tryParse(track['position']?.toString() ?? '') ??
+              tracks.length + 1;
+          final length = int.tryParse(track['length']?.toString() ?? '');
+          tracks.add(
+            MusicBrainzTrack(
+              // 多碟时 position 会从 1 重新开始，用偏移量保证全局序号唯一。
+              position: offset + position,
+              title: title,
+              length: length == null || length <= 0
+                  ? null
+                  : Duration(milliseconds: length),
+            ),
+          );
+        }
+        offset += trackList.length;
+      }
+      return tracks;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<String?> _lookupReleaseId(
+    String artistName,
+    String albumTitle,
+    String albumKey,
+  ) async {
+    final query =
+        'release:"${_sanitizeQuery(albumTitle)}"'
+        '${artistName.trim().isEmpty ? '' : ' AND artist:"${_sanitizeQuery(artistName)}"'}';
+    final data = await _gate.run(() async {
+      final response = await _dio.get<dynamic>(
+        '$musicBrainzBaseUrl/release/',
+        queryParameters: {'query': query, 'fmt': 'json', 'limit': 10},
+      );
+      return response.data;
+    });
+    if (data is! Map || data['releases'] is! List) return null;
+
+    String? bestId;
+    var bestScore = 0;
+    for (final release in (data['releases'] as List).whereType<Map>()) {
+      final title = normalizeMusicBrainzName(
+        release['title']?.toString() ?? '',
+      );
+      // 只接受同名专辑（忽略大小写/标点），避免同名但不同版本的误配。
+      if (title != albumKey) continue;
+      final score = int.tryParse(release['score']?.toString() ?? '') ?? 0;
+      final id = release['id']?.toString();
+      if (id == null || id.isEmpty) continue;
+      if (score >= bestScore) {
+        bestScore = score;
+        bestId = id;
+      }
+    }
+    return bestId;
   }
 
   Future<String?> _lookupArtistId(String artistName) async {
@@ -199,13 +329,16 @@ class MusicBrainzDiscography {
   }
 
   /// 测试与手动刷新用：清空缓存。
-  void clearCache() => _cache.clear();
+  void clearCache() {
+    _cache.clear();
+    _trackCache.clear();
+  }
 }
 
-class _CacheEntry {
+class _CacheEntry<T> {
   _CacheEntry(this.future, this.createdAt);
 
-  final Future<List<MusicBrainzRelease>> future;
+  final Future<T> future;
   final DateTime createdAt;
 
   bool isStale(DateTime now, Duration ttl) => now.difference(createdAt) > ttl;

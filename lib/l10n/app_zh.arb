@@ -1127,5 +1127,9 @@
   "autoEqParametric": "按原始参数下发：{count} 个滤波器",
   "autoEqParametricHint": "已保留每个滤波器的频率与 Q 值，不再降采样到固定频段",
   "audioEnhancementSection": "音频增强",
-  "audioEnhancementSectionHint": "更改后立即生效，与均衡器共用音频滤镜。"
+  "audioEnhancementSectionHint": "更改后立即生效，与均衡器共用音频滤镜。",
+  "albumTracksFromMusicBrainz": "曲目来自 MusicBrainz",
+  "albumTracksMatchHint": "平台没有这张专辑的曲目，点击歌曲会在平台上匹配可播放版本",
+  "albumTracksEmpty": "这张专辑暂时没有可用的曲目",
+  "matchingTrack": "正在匹配音源…"
 }

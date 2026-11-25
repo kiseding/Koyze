@@ -5883,18 +5883,57 @@ abstract class AppLocalizations {
   String get lyricExtras;
 
   /// No description provided for @songInfo.
-
   ///
   /// In en, this message translates to:
   /// **'About this song'**
   String get songInfo;
+
+  /// No description provided for @songInfoTags.
+  ///
+  /// In en, this message translates to:
+  /// **'Track tags'**
   String get songInfoTags;
+
+  /// No description provided for @songInfoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title'**
   String get songInfoTitle;
+
+  /// No description provided for @songInfoArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist'**
   String get songInfoArtist;
+
+  /// No description provided for @songInfoAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
   String get songInfoAlbum;
+
+  /// No description provided for @songInfoDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
   String get songInfoDuration;
+
+  /// No description provided for @songInfoFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Format'**
   String get songInfoFormat;
+
+  /// No description provided for @songInfoBitrate.
+  ///
+  /// In en, this message translates to:
+  /// **'Bitrate'**
   String get songInfoBitrate;
+
+  /// No description provided for @songInfoQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Quality'**
   String get songInfoQuality;
 
   /// No description provided for @songInfoComments.
@@ -6424,6 +6463,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Changes apply immediately through the equalizer\'s audio filter chain.'**
   String get audioEnhancementSectionHint;
+
+  /// No description provided for @albumTracksFromMusicBrainz.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracks from MusicBrainz'**
+  String get albumTracksFromMusicBrainz;
+
+  /// No description provided for @albumTracksMatchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The platform has no track list for this album. Tap a track to match a playable version.'**
+  String get albumTracksMatchHint;
+
+  /// No description provided for @albumTracksEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No tracks available for this album yet'**
+  String get albumTracksEmpty;
+
+  /// No description provided for @matchingTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching a source…'**
+  String get matchingTrack;
 }
 
 class _AppLocalizationsDelegate

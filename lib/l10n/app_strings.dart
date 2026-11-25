@@ -1235,6 +1235,10 @@ class S {
   String get autoEqParametricHint => _l10n.autoEqParametricHint;
   String get audioEnhancementSection => _l10n.audioEnhancementSection;
   String get audioEnhancementSectionHint => _l10n.audioEnhancementSectionHint;
+  String get albumTracksFromMusicBrainz => _l10n.albumTracksFromMusicBrainz;
+  String get albumTracksMatchHint => _l10n.albumTracksMatchHint;
+  String get albumTracksEmpty => _l10n.albumTracksEmpty;
+  String get matchingTrack => _l10n.matchingTrack;
   String get playbackFade => _l10n.playbackFade;
   String get playbackFadeSubtitle => _l10n.playbackFadeSubtitle;
   String get exportM3u => _l10n.exportM3u;

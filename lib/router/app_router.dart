@@ -11,6 +11,7 @@ import '../features/home/presentation/main_scaffold.dart';
 import '../features/player/presentation/player_screen.dart';
 import '../features/search/presentation/search_screen.dart';
 import '../features/search/presentation/artist_detail_screen.dart';
+import '../features/search/presentation/album_detail_screen.dart';
 import '../features/playlist/presentation/playlist_screen.dart';
 import '../features/playlist/presentation/playlist_detail_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
@@ -253,6 +254,21 @@ final appRouter = GoRouter(
           artistName: state.uri.queryParameters['name'] ?? '',
           platform: state.uri.queryParameters['platform'] ?? '',
           source: state.uri.queryParameters['source'] ?? '',
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/album',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        AlbumDetailScreen(
+          albumName: state.uri.queryParameters['album'] ?? '',
+          artistName: state.uri.queryParameters['artist'] ?? '',
+          albumId: state.uri.queryParameters['albumId'] ?? '',
+          platform: state.uri.queryParameters['platform'] ?? '',
+          source: state.uri.queryParameters['source'] ?? '',
+          year: int.tryParse(state.uri.queryParameters['year'] ?? ''),
         ),
       ),
     ),

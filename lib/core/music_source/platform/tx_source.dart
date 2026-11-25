@@ -13,9 +13,7 @@ class SearchSuggestion {
 
   @override
   bool operator ==(Object other) =>
-      other is SearchSuggestion &&
-      other.text == text &&
-      other.type == type;
+      other is SearchSuggestion && other.text == text && other.type == type;
 
   @override
   int get hashCode => Object.hash(text, type);
@@ -33,9 +31,7 @@ class TxSource extends MusicPlatform {
   TxSource({Dio? dio}) {
     _dio = dio ?? createDio();
     _dio.options.baseUrl = 'https://u.y.qq.com';
-    _dio.options.headers.addAll({
-      'User-Agent': 'QQMusic 14090508(android 12)',
-    });
+    _dio.options.headers.addAll({'User-Agent': 'QQMusic 14090508(android 12)'});
   }
 
   Future<List<SearchSuggestion>> searchSuggestions(String keyword) async {
@@ -91,24 +87,29 @@ class TxSource extends MusicPlatform {
   }
 
   @override
-  Future<List<MusicItem>> search(String keyword,
-      {int page = 1, int limit = 20}) async {
+  Future<List<MusicItem>> search(
+    String keyword, {
+    int page = 1,
+    int limit = 20,
+  }) async {
     try {
-      final response = await _dio.get(
-        'https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp',
-        options: Options(headers: {'Referer': 'https://y.qq.com/'}),
-        queryParameters: {
-          'w': keyword,
-          'format': 'json',
-          'p': page.toString(),
-          'n': limit.toString(),
-          'cr': '1',
-          'aggr': '1',
-          'lossless': '1',
-          'platform': 'h5',
-          'g_tk': '5381',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await _dio
+          .get(
+            'https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp',
+            options: Options(headers: {'Referer': 'https://y.qq.com/'}),
+            queryParameters: {
+              'w': keyword,
+              'format': 'json',
+              'p': page.toString(),
+              'n': limit.toString(),
+              'cr': '1',
+              'aggr': '1',
+              'lossless': '1',
+              'platform': 'h5',
+              'g_tk': '5381',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = response.data;
       if (data == null) return [];
@@ -118,6 +119,62 @@ class TxSource extends MusicPlatform {
       return results;
     } catch (e) {
       throw noteFailure('search', e);
+    }
+  }
+
+  /// 专辑曲目：`fcg_v8_album_info_cp` 一次返回整张专辑，顺序即专辑顺序。
+  /// 返回项与搜索结果同构，`_staticHandleResult` 可直接复用。
+  @override
+  Future<List<MusicItem>> getAlbumSongs(
+    String albumId, {
+    int limit = 300,
+  }) async {
+    final mid = albumId.trim();
+    if (mid.isEmpty) return const [];
+    try {
+      final response = await _dio
+          .get(
+            'https://c.y.qq.com/v8/fcg-bin/fcg_v8_album_info_cp.fcg',
+            options: Options(headers: {'Referer': 'https://y.qq.com/'}),
+            queryParameters: {
+              'albummid': mid,
+              'format': 'json',
+              'platform': 'h5',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final raw = response.data;
+      final data = raw is String ? jsonDecode(raw) : raw;
+      final body = data is Map ? data['data'] : null;
+      if (body is! Map) return const [];
+      final list = body['list'];
+      if (list is! List || list.isEmpty) return const [];
+
+      final songs = _staticHandleResult(list);
+      // 专辑接口不重复返回公开时间，这里补进 meta，供专辑页显示年份。
+      final albumDate = body['aDate']?.toString().trim() ?? '';
+      final albumName = body['name']?.toString().trim() ?? '';
+      final cover = body['mid']?.toString().trim() ?? mid;
+      clearFailure();
+      if (albumDate.isEmpty && albumName.isEmpty) return songs;
+      return songs
+          .map((song) {
+            final meta = Map<String, dynamic>.from(song.meta ?? const {});
+            if (albumDate.isNotEmpty) meta['publishDate'] = albumDate;
+            if (albumName.isNotEmpty) meta['albumName'] = albumName;
+            return song.copyWith(
+              album: song.album.isEmpty ? albumName : song.album,
+              artwork: song.artwork == null || song.artwork!.isEmpty
+                  ? 'https://y.gtimg.cn/music/photo_new/T002R500x500M000$cover.jpg'
+                  : song.artwork,
+              meta: meta,
+            );
+          })
+          .toList(growable: false);
+    } catch (e) {
+      noteFailure('album', e);
+      return const [];
     }
   }
 
@@ -147,28 +204,32 @@ class TxSource extends MusicPlatform {
       final albumMid = map['albummid'] as String? ?? '';
       final interval = int.tryParse(map['interval']?.toString() ?? '0') ?? 0;
 
-      list.add(MusicItem(
-        id: songmid,
-        name: (map['songname'] as String? ?? '').trim(),
-        singer: _staticFormatSingerName(singerList, nameKey: 'name'),
-        source: 'tx',
-        platform: 'tx',
-        artwork: albumMid.isNotEmpty && albumMid != '空'
-            ? 'https://y.gtimg.cn/music/photo_new/T002R500x500M000$albumMid.jpg'
-            : '',
-        url: '',
-        songmid: songmid,
-        duration: Duration(seconds: interval),
-        album: albumName,
-        // 自定义洛雪源会读取 strMediaMid、file、pay 等平台原始字段来签发 URL。
-        meta: Map<String, dynamic>.from(map),
-      ));
+      list.add(
+        MusicItem(
+          id: songmid,
+          name: (map['songname'] as String? ?? '').trim(),
+          singer: _staticFormatSingerName(singerList, nameKey: 'name'),
+          source: 'tx',
+          platform: 'tx',
+          artwork: albumMid.isNotEmpty && albumMid != '空'
+              ? 'https://y.gtimg.cn/music/photo_new/T002R500x500M000$albumMid.jpg'
+              : '',
+          url: '',
+          songmid: songmid,
+          duration: Duration(seconds: interval),
+          album: albumName,
+          // 自定义洛雪源会读取 strMediaMid、file、pay 等平台原始字段来签发 URL。
+          meta: Map<String, dynamic>.from(map),
+        ),
+      );
     }
     return list;
   }
 
-  static String _staticFormatSingerName(List<dynamic> singers,
-      {String nameKey = 'name'}) {
+  static String _staticFormatSingerName(
+    List<dynamic> singers, {
+    String nameKey = 'name',
+  }) {
     if (singers.isEmpty) return '未知歌手';
     return singers
         .map((s) => (s as Map)[nameKey]?.toString() ?? '')
@@ -204,11 +265,7 @@ class TxSource extends MusicPlatform {
     final resp = await lyricDio.post(
       'https://u.y.qq.com/cgi-bin/musicu.fcg',
       data: {
-        'comm': {
-          'ct': '19',
-          'cv': '1859',
-          'uin': '0',
-        },
+        'comm': {'ct': '19', 'cv': '1859', 'uin': '0'},
         'req': {
           'method': 'GetPlayLyricInfo',
           'module': 'music.musichallSong.PlayLyricInfo',
@@ -251,24 +308,17 @@ class TxSource extends MusicPlatform {
     final dio = createDioForService(
       headers: {
         'User-Agent':
-            'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)'
+            'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)',
       },
     );
     final resp = await dio.post(
       'https://u.y.qq.com/cgi-bin/musicu.fcg',
       data: {
-        'comm': {
-          'ct': '19',
-          'cv': '1859',
-          'uin': '0',
-        },
+        'comm': {'ct': '19', 'cv': '1859', 'uin': '0'},
         'req': {
           'module': 'music.pf_song_detail_svr',
           'method': 'get_song_detail_yqq',
-          'param': {
-            'song_type': 0,
-            'song_mid': songmid,
-          },
+          'param': {'song_type': 0, 'song_mid': songmid},
         },
       },
     );
@@ -288,8 +338,9 @@ class TxSource extends MusicPlatform {
       final songmid = music.songmid ?? music.id;
       if (songmid.isEmpty) return null;
 
-      final lyricDio =
-          createDioForService(headers: {'Referer': 'https://y.qq.com/'});
+      final lyricDio = createDioForService(
+        headers: {'Referer': 'https://y.qq.com/'},
+      );
 
       final resp = await lyricDio.get(
         'https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg',
@@ -340,8 +391,11 @@ class TxSource extends MusicPlatform {
   }
 
   @override
-  Future<List<MusicItem>> getLeaderboardSongs(String leaderboardId,
-      {int page = 1, int limit = 100}) async {
+  Future<List<MusicItem>> getLeaderboardSongs(
+    String leaderboardId, {
+    int page = 1,
+    int limit = 100,
+  }) async {
     try {
       final parts = leaderboardId.split(':');
       final topid = int.parse(parts.length == 2 ? parts[1] : leaderboardId);
@@ -355,18 +409,9 @@ class TxSource extends MusicPlatform {
           'toplist': {
             'module': 'musicToplist.ToplistInfoServer',
             'method': 'GetDetail',
-            'param': {
-              'topid': topid,
-              'num': limit,
-              'period': '',
-            },
+            'param': {'topid': topid, 'num': limit, 'period': ''},
           },
-          'comm': {
-            'uin': 0,
-            'format': 'json',
-            'ct': 20,
-            'cv': 1859,
-          },
+          'comm': {'uin': 0, 'format': 'json', 'ct': 20, 'cv': 1859},
         },
         options: Options(
           headers: {
@@ -390,12 +435,14 @@ class TxSource extends MusicPlatform {
           if (callbackIdx != -1 && jsonStr.endsWith(')')) {
             jsonStr = jsonStr.substring(callbackIdx + 1, jsonStr.length - 1);
           }
-          bodyMap = (jsonDecode(jsonStr) as Map)
-              .map((k, v) => MapEntry(k.toString(), v));
+          bodyMap = (jsonDecode(jsonStr) as Map).map(
+            (k, v) => MapEntry(k.toString(), v),
+          );
         } catch (e) {
           debugPrint('[TX] getLeaderboardSongs: jsonDecode failed: $e');
           debugPrint(
-              '[TX] response preview: ${body.toString().substring(0, body.toString().length > 300 ? 300 : body.toString().length)}');
+            '[TX] response preview: ${body.toString().substring(0, body.toString().length > 300 ? 300 : body.toString().length)}',
+          );
           return [];
         }
       } else {

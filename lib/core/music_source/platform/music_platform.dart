@@ -59,7 +59,8 @@ class SourceFailure implements Exception {
           cause: error,
         );
       }
-      final offline = type == DioExceptionType.connectionError ||
+      final offline =
+          type == DioExceptionType.connectionError ||
           type == DioExceptionType.connectionTimeout ||
           (type == DioExceptionType.unknown && error.error is SocketException);
       if (offline) {
@@ -95,9 +96,7 @@ class SourceFailure implements Exception {
       case SourceFailureKind.timeout:
         return '音源响应超时';
       case SourceFailureKind.http:
-        return statusCode == null
-            ? '音源接口返回错误'
-            : '音源接口返回错误（$statusCode）';
+        return statusCode == null ? '音源接口返回错误' : '音源接口返回错误（$statusCode）';
       case SourceFailureKind.unexpected:
         return '音源暂时不可用';
     }
@@ -146,16 +145,17 @@ abstract class MusicPlatform {
   SourceFailure noteFailure(String operation, Object error) {
     final failure = SourceFailure.classify(id, operation, error);
     lastFailure = failure;
-    debugPrint(
-      '[source:$id] $operation ${failure.kind.name} ${failure.cause}',
-    );
+    debugPrint('[source:$id] $operation ${failure.kind.name} ${failure.cause}');
     return failure;
   }
 
   void clearFailure() => lastFailure = null;
 
-  Future<List<MusicItem>> search(String keyword,
-      {int page = 1, int limit = 20});
+  Future<List<MusicItem>> search(
+    String keyword, {
+    int page = 1,
+    int limit = 20,
+  });
 
   // 内置平台只提供元数据（搜索、歌单、榜单、歌词、封面）。
   //
@@ -177,52 +177,73 @@ abstract class MusicPlatform {
   Future<String?> getArtwork(MusicItem music) async => null;
 
   // 歌单搜索接口（可选实现）
-  Future<List<MusicItem>> searchSongLists(String keyword,
-          {int page = 1, int limit = 20}) async =>
-      [];
+  Future<List<MusicItem>> searchSongLists(
+    String keyword, {
+    int page = 1,
+    int limit = 20,
+  }) async => [];
   // 歌单详情接口（可选实现）
-  Future<List<MusicItem>> getSongListDetail(String songListId,
-          {int page = 1, int limit = 50}) async =>
-      [];
+  Future<List<MusicItem>> getSongListDetail(
+    String songListId, {
+    int page = 1,
+    int limit = 50,
+  }) async => [];
+
+  /// 专辑曲目（可选实现）。
+  ///
+  /// 与搜索的区别是：专辑接口按专辑自身返回完整曲目和正规顺序，
+  /// 不受搜索命中率影响。[albumId] 由各平台自己的字段提供
+  /// （QQ 的 albummid、网易的专辑 id、酷狗的 AlbumID）。
+  /// 平台不支持或请求失败时返回空列表，由调用方回退。
+  Future<List<MusicItem>> getAlbumSongs(
+    String albumId, {
+    int limit = 300,
+  }) async => [];
 
   // 排行榜接口（可选实现）
   Future<List<LeaderboardCategory>> getLeaderboardCategories() async => [];
-  Future<List<MusicItem>> getLeaderboardSongs(String leaderboardId,
-          {int page = 1, int limit = 100}) async =>
-      [];
+  Future<List<MusicItem>> getLeaderboardSongs(
+    String leaderboardId, {
+    int page = 1,
+    int limit = 100,
+  }) async => [];
 
   Dio createDio() {
     return AppHttpClient.create(
-        options: BaseOptions(
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 15),
-      headers: {
-        'User-Agent':
-            'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
-      },
-    ));
+      options: BaseOptions(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 15),
+        headers: {
+          'User-Agent':
+              'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        },
+      ),
+    );
   }
 
   final Map<String, Dio> _reusedServiceClients = {};
 
-  Dio createDioForService(
-      {Duration? connectTimeout,
-      Duration? receiveTimeout,
-      Map<String, dynamic>? headers}) {
+  Dio createDioForService({
+    Duration? connectTimeout,
+    Duration? receiveTimeout,
+    Map<String, dynamic>? headers,
+  }) {
     final connect = connectTimeout ?? const Duration(seconds: 8);
     final receive = receiveTimeout ?? const Duration(seconds: 10);
-    final headerEntries = (headers ?? const <String, dynamic>{}).entries
-        .toList(growable: false)
-      ..sort((a, b) => a.key.compareTo(b.key));
-    final key = '${connect.inMilliseconds}|${receive.inMilliseconds}|'
+    final headerEntries = (headers ?? const <String, dynamic>{}).entries.toList(
+      growable: false,
+    )..sort((a, b) => a.key.compareTo(b.key));
+    final key =
+        '${connect.inMilliseconds}|${receive.inMilliseconds}|'
         '${headerEntries.map((entry) => '${entry.key}=${entry.value}').join('&')}';
     return _reusedServiceClients.putIfAbsent(key, () {
       return AppHttpClient.create(
-          options: BaseOptions(
-        connectTimeout: connect,
-        receiveTimeout: receive,
-        headers: headers,
-      ));
+        options: BaseOptions(
+          connectTimeout: connect,
+          receiveTimeout: receive,
+          headers: headers,
+        ),
+      );
     });
   }
 

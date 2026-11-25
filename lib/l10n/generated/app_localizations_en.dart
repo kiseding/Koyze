@@ -3564,4 +3564,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get audioEnhancementSectionHint =>
       'Changes apply immediately through the equalizer\'s audio filter chain.';
+
+  @override
+  String get albumTracksFromMusicBrainz => 'Tracks from MusicBrainz';
+
+  @override
+  String get albumTracksMatchHint =>
+      'The platform has no track list for this album. Tap a track to match a playable version.';
+
+  @override
+  String get albumTracksEmpty => 'No tracks available for this album yet';
+
+  @override
+  String get matchingTrack => 'Matching a source…';
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
@@ -9,6 +10,7 @@ import '../../../core/widgets/loading_widget.dart';
 import '../../../l10n/app_strings.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
+import '../domain/album_tracks.dart';
 import '../domain/artist_albums.dart';
 import 'artist_detail_provider.dart';
 
@@ -130,7 +132,8 @@ class ArtistDetailScreen extends ConsumerWidget {
                     if (album != null) {
                       return _AlbumHeader(
                         group: album,
-                        onTap: () => _play(ref, ordered, entry.order),
+                        onTap: () => _openAlbum(context, album),
+                        onPlay: () => _play(ref, ordered, entry.order),
                       );
                     }
                     final song = entry.song!;
@@ -150,10 +153,36 @@ class ArtistDetailScreen extends ConsumerWidget {
   }
 
   void _playAll(WidgetRef ref, List<MusicItem> songs) {
-    final ordered = groupSongsByAlbum(songs)
-        .expand((group) => group.songs)
-        .toList();
+    final ordered = groupSongsByAlbum(
+      songs,
+    ).expand((group) => group.songs).toList();
     _play(ref, ordered, 0);
+  }
+
+  /// 进入专辑详情：优先用分组里第一首带平台专辑 id 的歌定位专辑，
+  /// 没有 id 时专辑页会走 MusicBrainz / 搜索兜底。
+  void _openAlbum(BuildContext context, ArtistAlbumGroup group) {
+    var albumId = '';
+    for (final song in group.songs) {
+      final id = albumIdOf(song);
+      if (id.isNotEmpty) {
+        albumId = id;
+        break;
+      }
+    }
+    context.push(
+      Uri(
+        path: '/album',
+        queryParameters: {
+          'album': group.name,
+          'artist': artistName,
+          'albumId': albumId,
+          'platform': platform,
+          'source': source,
+          if (group.time != null) 'year': '${group.time!.year}',
+        },
+      ).toString(),
+    );
   }
 
   void _play(WidgetRef ref, List<MusicItem> songs, int index) {
@@ -183,10 +212,15 @@ class _ArtistListEntry {
 }
 
 class _AlbumHeader extends StatelessWidget {
-  const _AlbumHeader({required this.group, required this.onTap});
+  const _AlbumHeader({
+    required this.group,
+    required this.onTap,
+    required this.onPlay,
+  });
 
   final ArtistAlbumGroup group;
   final VoidCallback onTap;
+  final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +238,7 @@ class _AlbumHeader extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
             child: Row(
               children: [
                 Icon(Icons.album_rounded, size: 18, color: accent),
@@ -238,11 +272,19 @@ class _AlbumHeader extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 2),
+                // 播放整张专辑与进入详情分开：标题点进去看完整曲目，
+                // 图标直接按当前分组播放。
+                IconButton(
+                  tooltip: S.of(context).playAll,
+                  onPressed: onPlay,
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.play_arrow_rounded, size: 20, color: accent),
+                ),
                 Icon(
-                  Icons.play_arrow_rounded,
-                  size: 16,
-                  color: accent,
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: AppColors.mutedText(context),
                 ),
               ],
             ),

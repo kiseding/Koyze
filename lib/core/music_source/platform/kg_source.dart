@@ -60,13 +60,13 @@ class KgSource extends MusicPlatform {
   }
 
   Dio _mobileDio() => createDioForService(
-        connectTimeout: const Duration(seconds: 8),
-        receiveTimeout: const Duration(seconds: 12),
-        headers: {
-          'User-Agent': kugouMobileUserAgent,
-          'Referer': 'https://www.kugou.com/',
-        },
-      );
+    connectTimeout: const Duration(seconds: 8),
+    receiveTimeout: const Duration(seconds: 12),
+    headers: {
+      'User-Agent': kugouMobileUserAgent,
+      'Referer': 'https://www.kugou.com/',
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // 搜索
@@ -104,6 +104,72 @@ class KgSource extends MusicPlatform {
       return await compute(_parseSearchPayload, body);
     } catch (e) {
       throw noteFailure('search', e);
+    }
+  }
+
+  /// 专辑曲目：`api/v3/album/song` 一次返回整张专辑。
+  ///
+  /// 该接口的字段和搜索接口不同：没有 `SongName`/`Singers`，只有
+  /// `filename`（"歌手 - 歌名"）和 `hash`/`320hash`/`sqhash`。这里把它
+  /// 补成 [parseKugouItem] 认识的形状，避免再写一份解析。
+  @override
+  Future<List<MusicItem>> getAlbumSongs(
+    String albumId, {
+    int limit = 300,
+  }) async {
+    final id = albumId.trim();
+    if (id.isEmpty) return const [];
+    try {
+      final response = await _mobileDio()
+          .get(
+            '$kugouMobileApiBase/album/song',
+            queryParameters: {
+              'albumid': id,
+              'page': '1',
+              'pagesize': '$limit',
+              'version': '9108',
+            },
+          )
+          .timeout(const Duration(seconds: 12));
+
+      final body = _asMap(response.data);
+      if (body == null) return const [];
+      final data = body['data'];
+      if (data is! Map) return const [];
+      final info = data['info'];
+      if (info is! List || info.isEmpty) return const [];
+
+      final seen = <String>{};
+      final items = <MusicItem>[];
+      for (final raw in info) {
+        if (raw is! Map) continue;
+        final map = <String, dynamic>{
+          'hash': raw['hash'],
+          'filename': raw['filename'],
+          'duration': raw['duration'] ?? raw['Duration'],
+          'album_audio_id': raw['album_audio_id'],
+          'audio_id': raw['audio_id'],
+          'album_id': raw['album_id'],
+          if (raw['320hash'] != null) '320hash': raw['320hash'],
+          if (raw['sqhash'] != null) 'sqhash': raw['sqhash'],
+          if (raw['mvhash'] != null) 'mvhash': raw['mvhash'],
+        };
+        // 歌手名只能从 filename 前缀取（接口不给 singername）。
+        final filename = map['filename']?.toString() ?? '';
+        final split = filename.indexOf(' - ');
+        if (split > 0) {
+          map['singername'] = filename.substring(0, split).trim();
+        }
+        final hash = map['hash']?.toString() ?? '';
+        if (hash.isEmpty || !seen.add(hash)) continue;
+        final parsed = parseKugouItem(map);
+        if (parsed != null) items.add(parsed);
+      }
+      if (items.isNotEmpty) clearFailure();
+      return items;
+    } catch (e) {
+      noteFailure('album', e);
+      return const [];
     }
   }
 
@@ -149,7 +215,10 @@ class KgSource extends MusicPlatform {
 
     final singer = _singerOf(raw);
     final artwork = kugouImageUrl(
-      raw['Image'] ?? raw['AlbumImage'] ?? raw['album_sizable_cover'] ?? raw['imgurl'],
+      raw['Image'] ??
+          raw['AlbumImage'] ??
+          raw['album_sizable_cover'] ??
+          raw['imgurl'],
     );
 
     return MusicItem(
@@ -162,12 +231,13 @@ class KgSource extends MusicPlatform {
       platform: 'kg',
       artwork: artwork,
       url: '',
-      songmid: (raw['Audioid'] ??
-              raw['audio_id'] ??
-              raw['album_audio_id'] ??
-              raw['MixSongID'] ??
-              '')
-          .toString(),
+      songmid:
+          (raw['Audioid'] ??
+                  raw['audio_id'] ??
+                  raw['album_audio_id'] ??
+                  raw['MixSongID'] ??
+                  '')
+              .toString(),
       hash: hash,
       meta: {
         ...raw,
@@ -208,12 +278,9 @@ class KgSource extends MusicPlatform {
       final names = <String>[];
       for (final item in singers) {
         final name = item is Map
-            ? (item['name'] ??
-                    item['author_name'] ??
-                    item['singername'] ??
-                    '')
-                .toString()
-                .trim()
+            ? (item['name'] ?? item['author_name'] ?? item['singername'] ?? '')
+                  .toString()
+                  .trim()
             : item?.toString().trim() ?? '';
         if (name.isNotEmpty) names.add(name);
       }
@@ -449,19 +516,23 @@ class KgSource extends MusicPlatform {
       final info = data is Map ? data['info'] : null;
       if (info is! List) return [];
 
-      return info.whereType<Map>().map((raw) {
-        final map = Map<String, dynamic>.from(raw);
-        return MusicItem(
-          id: (map['specialid'] ?? '').toString(),
-          name: (map['specialname'] ?? '').toString().trim(),
-          singer: (map['nickname'] ?? '').toString().trim(),
-          album: '${_intOf(map['songcount'])} 首',
-          source: 'kg',
-          platform: 'kg',
-          artwork: kugouImageUrl(map['imgurl'], size: 480),
-          isPlayable: false,
-        );
-      }).where((item) => item.id.isNotEmpty).toList();
+      return info
+          .whereType<Map>()
+          .map((raw) {
+            final map = Map<String, dynamic>.from(raw);
+            return MusicItem(
+              id: (map['specialid'] ?? '').toString(),
+              name: (map['specialname'] ?? '').toString().trim(),
+              singer: (map['nickname'] ?? '').toString().trim(),
+              album: '${_intOf(map['songcount'])} 首',
+              source: 'kg',
+              platform: 'kg',
+              artwork: kugouImageUrl(map['imgurl'], size: 480),
+              isPlayable: false,
+            );
+          })
+          .where((item) => item.id.isNotEmpty)
+          .toList();
     } catch (e) {
       noteFailure('searchSongLists', e);
       return [];

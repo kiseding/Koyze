@@ -143,6 +143,28 @@ class MusicSourceService {
     return qualityRankIndex(actual) > qualityRankIndex(requested);
   }
 
+  /// 专辑曲目：直接走内置平台的专辑接口。
+  ///
+  /// 自定义源没有专辑接口（只有搜索/取址），所以这里不通自定义源；
+  /// 平台不支持或请求失败时返回空列表，由调用方回退。
+  Future<List<MusicItem>> getAlbumSongs(
+    String albumId, {
+    String? sourceId,
+    int limit = 300,
+  }) async {
+    final id = albumId.trim();
+    if (id.isEmpty) return const [];
+    final platformId = (sourceId ?? '').trim();
+    if (platformId.isEmpty || platformId == 'all') return const [];
+    try {
+      return await _builtInSources
+          .getAlbumSongs(platformId, id, limit: limit)
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<List<MusicItem>> search(
     String keyword, {
     String? customSourceId,
