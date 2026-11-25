@@ -90,16 +90,18 @@ class AiConfigNotifier extends BuildlessNotifier<AiConfig> {
   }
 
   /// 传空串表示清除已保存的密钥。
+  ///
+  /// 密钥状态由 [aiApiKeyProvider] 观察，它本身 watches 本 notifier；
+  /// 在这里 invalidate 会形成反向依赖（CircularDependencyError），
+  /// 所以刷新交给调用方在写完密钥后处理。
   Future<void> saveKey(String apiKey, {String? baseUrl}) async {
     final url = baseUrl ?? value.baseUrl;
     final store = ref.read(aiCredentialStoreProvider);
     if (apiKey.trim().isEmpty) {
       await store.deleteKey(url);
-      ref.invalidate(aiApiKeyProvider);
       return;
     }
     await store.saveKey(url, apiKey.trim());
-    ref.invalidate(aiApiKeyProvider);
   }
 }
 

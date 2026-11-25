@@ -85,6 +85,9 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
         await notifier.saveKey(key, baseUrl: config.baseUrl);
       }
       await notifier.save(config);
+      // 密钥不在 config 里，只改密钥时配置状态不会变化；显式刷新让
+      // 推荐页的 AI 入口立刻反映新的密钥状态。
+      ref.invalidate(aiApiKeyProvider);
       if (!mounted) return;
       showAppNotification(s.aiConfigSaved, type: AppNotificationType.success);
       Navigator.pop(context);
@@ -196,10 +199,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
         const SizedBox(width: 12),
         Padding(
           padding: const EdgeInsets.only(top: 2),
-          child: FxSwitch(
-            value: value,
-            onChanged: active ? onChanged : null,
-          ),
+          child: FxSwitch(value: value, onChanged: active ? onChanged : null),
         ),
       ],
     );
