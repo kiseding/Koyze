@@ -12,6 +12,8 @@ import '../features/player/presentation/player_screen.dart';
 import '../features/search/presentation/search_screen.dart';
 import '../features/search/presentation/artist_detail_screen.dart';
 import '../features/search/presentation/album_detail_screen.dart';
+import '../features/search/presentation/song_list_detail_screen.dart';
+import '../features/player/domain/music_item.dart';
 import '../features/playlist/presentation/playlist_screen.dart';
 import '../features/playlist/presentation/playlist_detail_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
@@ -269,6 +271,23 @@ final appRouter = GoRouter(
           platform: state.uri.queryParameters['platform'] ?? '',
           source: state.uri.queryParameters['source'] ?? '',
           year: int.tryParse(state.uri.queryParameters['year'] ?? ''),
+        ),
+      ),
+    ),
+    GoRoute(
+      path: '/songlist',
+      parentNavigatorKey: rootNavigatorKey,
+      pageBuilder: (context, state) => expandablePage(
+        state.pageKey,
+        SongListDetailScreen(
+          songList: MusicItem(
+            id: state.uri.queryParameters['id'] ?? '',
+            name: state.uri.queryParameters['name'] ?? '',
+            singer: state.uri.queryParameters['singer'] ?? '',
+            source: state.uri.queryParameters['source'] ?? '',
+            platform: state.uri.queryParameters['platform'] ?? '',
+            isPlayable: false,
+          ),
         ),
       ),
     ),

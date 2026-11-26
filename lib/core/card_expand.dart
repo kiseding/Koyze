@@ -185,9 +185,11 @@ CustomTransitionPage<Object?> expandablePage(
   final expanding = sourceRect != null;
   return _CardExpandPage(
     key: pageKey,
-    // 普通页（无卡片展开）保持不透明：iOS 上因此能启用系统级
-    // "左缘右滑返回"手势（跟手 + 从当前位置继续，浮窗缩小也由系统提供）。
-    // 卡片展开页必须透明才能透视下层做矩形 morph，走自绘左缘手势。
+    // 普通页（无卡片展开）保持不透明：稳定状态下只画最上面一页，下层
+    // 页面不参与绘制。左缘手势开始时 [EdgeSwipeDismiss] 会临时把这条
+    // 路由的 overlay 条目改成非不透明，让页面往右滑时露出真正的下层
+    // 页面而不是窗口底色，松手归位后再恢复。
+    // 卡片展开页必须透明才能透视下层做矩形 morph。
     // 整页右滑页也必须透明，飞入/飞出时才能实时露出下层页面。
     opaque: !expanding && !fullWidthSwipe,
     barrierDismissible: expanding,
@@ -420,7 +422,16 @@ class _CardExpandRoute extends PageRoute<Object?> {
 
 /// 从屏幕左缘右滑关闭当前页面。只在边缘窄条接管手势，避免影响页面
 /// 内的横向列表、播放器 PageView 和主 Tab 滑动。
-/// - 不透明路由（iOS 普通页）：不接管，交系统左缘返回手势。
+///
+/// 所有平台都走这一套自绘手势，不再区分“iOS 交给系统”。
+///
+/// 这里曾经按“不透明路由 = iOS 系统手势可用”跳过自绘手势，前提不成立：
+/// 系统左缘返回是由 `CupertinoPageTransitionsBuilder`（`MaterialPageRoute`
+/// 在 iOS 上默认用它）注入的 `_CupertinoBackGestureDetector`，而本文件的
+/// `_CardExpandRoute` 是自定义 `PageRoute` 并且重写了 `buildTransitions`，
+/// 根本没有任何组件给它装系统手势。于是“不透明 + iOS”的页面两头落空：
+/// 系统手势不存在，自绘手势又被自己关掉——表现为设置里点进去的均衡器、
+/// 同步、统计等页面完全没法右滑返回。
 /// - 透明路由（卡片展开页/播放器）：只发布 [progress]（跟手驱动
 ///   内层 morph），不叠加外层 transform——否则内容缩放与外层矩形
 ///   裁剪两条曲线打架，出现"与卡片同缩程度不一致的浮动层"。
@@ -470,6 +481,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   // 松手收拢时页面一边滑回原位一边持续收拢成卡片，绝不先放大再退出。
   double _morph = 0;
   _CardDismissSession? _session;
+  ModalRoute<Object?>? _route;
   late ValueNotifier<double> _progress;
   late final AnimationController _settleController;
   Animation<double>? _dragAnimation;
@@ -497,9 +509,36 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _session = _CardDismissScope.maybeOf(context);
+    _route = ModalRoute.of(context);
     if (widget.progress == null) {
       _progress = _session?.progress ?? cardDismissProgress;
     }
+  }
+
+  /// 拖动期间让下层页面参与绘制。
+  ///
+  /// 不透明路由稳定后 `overlayEntries.first.opaque == true`，Overlay 会跳过
+  /// 它下面所有条目——页面往右滑时腾出来的那块区域只能看到窗口底色（黑）。
+  /// 开始拖动时临时置为 false，松手归位后恢复；只在手势进行中付这份
+  /// 绘制开销，平时仍然只画最上面一页。
+  ///
+  /// [painted] 为 false 时不强行恢复：正在关闭的路由会被 Flutter 自己的
+  /// 状态回调置成 false，抢回来反而会让它重新盖住下层。
+  void _setUnderlyingPainted(bool painted) {
+    final route = _route;
+    if (route == null || !route.opaque) return;
+    final entries = route.overlayEntries;
+    if (entries.isEmpty) return;
+    final entry = entries.first;
+    if (painted) {
+      if (entry.opaque) entry.opaque = false;
+      return;
+    }
+    final animation = route.animation;
+    if (animation != null && animation.status != AnimationStatus.completed) {
+      return;
+    }
+    if (!entry.opaque) entry.opaque = true;
   }
 
   @override
@@ -607,10 +646,6 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     final route = ModalRoute.of(context);
     final opaqueRoute = route?.opaque ?? true;
     final ios = Theme.of(context).platform == TargetPlatform.iOS;
-    // 不透明路由（iOS 普通页）：系统左缘返回手势可用，自绘手势完全退出，
-    // 过渡则直接由系统手势驱动的 route 动画播放（跟手 + 从当前位置继续）。
-    // fullWidthSwipe 必须由自绘识别器接管；iOS 系统只支持左缘起手。
-    final systemBackGesture = ios && opaqueRoute && !widget.fullWidthSwipe;
     // 透明路由（卡片展开/播放器）必须只走内层矩形 morph 一套进度，
     // 避免外层 translate/scale 与内层裁剪互相打架。
     final morphOnly = !opaqueRoute;
@@ -651,69 +686,70 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
       fit: StackFit.expand,
       children: [
         page,
-        if (!systemBackGesture)
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            // iOS 系统手势区约 20pt，这里略微加宽（40）提高触发成功率；
-            // 卡片/播放器为透明路由，没有系统手势，窄条按平台取 32；
-            // 页面无横向滚动内容时可整页右滑返回。
-            right: widget.fullWidthSwipe ? 0 : null,
-            width: widget.fullWidthSwipe ? null : (ios ? 40.0 : 32.0),
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragStart: (_) {
-                _settleController.stop();
-                _setDragActive(true);
-              },
-              onHorizontalDragUpdate: (details) {
-                if (details.delta.dx <= 0 && _drag <= 0) return;
-                final max = MediaQuery.sizeOf(context).width;
-                setState(() {
-                  _drag = (_drag + details.delta.dx).clamp(0.0, max);
-                  _morph = _drag / max;
-                });
-                _syncProgress();
-              },
-              onHorizontalDragEnd: (details) {
-                final velocity = details.primaryVelocity ?? 0;
-                if (_drag > width * 0.22 || velocity > 700) {
-                  // 从当前位置继续：页面一边滑回原位（不放大），一边持续
-                  // 收拢成卡片，在源卡片位置成型后 pop（宿主此时锁定
-                  // 反向动画接管，路由关闭不再回弹放大）。
-                  _settleTo(
-                    targetDrag: widget.fullWidthSwipe ? width : 0,
-                    targetMorph: 1,
-                    duration: MotionDuration.normal,
-                    onComplete: () {
-                      widget.onDismissCommit?.call();
-                      Navigator.of(context).maybePop();
-                    },
-                  );
-                } else {
-                  _settleTo(
-                    targetDrag: 0,
-                    targetMorph: 0,
-                    duration: MotionDuration.micro,
-                    onComplete: () {
-                      _setLocked(false);
-                    },
-                  );
-                }
-              },
-              onHorizontalDragCancel: () {
+        Positioned(
+          left: 0,
+          top: 0,
+          bottom: 0,
+          // 左缘生效区与 iOS 系统手势区（约 20pt）相比略宽，提高触发
+          // 成功率；页面无横向滚动内容时可整页右滑返回。
+          right: widget.fullWidthSwipe ? 0 : null,
+          width: widget.fullWidthSwipe ? null : (ios ? 40.0 : 32.0),
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragStart: (_) {
+              _settleController.stop();
+              _setDragActive(true);
+              _setUnderlyingPainted(true);
+            },
+            onHorizontalDragUpdate: (details) {
+              if (details.delta.dx <= 0 && _drag <= 0) return;
+              final max = MediaQuery.sizeOf(context).width;
+              setState(() {
+                _drag = (_drag + details.delta.dx).clamp(0.0, max);
+                _morph = _drag / max;
+              });
+              _syncProgress();
+            },
+            onHorizontalDragEnd: (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (_drag > width * 0.22 || velocity > 700) {
+                // 从当前位置继续：页面一边滑回原位（不放大），一边持续
+                // 收拢成卡片，在源卡片位置成型后 pop（宿主此时锁定
+                // 反向动画接管，路由关闭不再回弹放大）。
+                _settleTo(
+                  targetDrag: widget.fullWidthSwipe ? width : 0,
+                  targetMorph: 1,
+                  duration: MotionDuration.normal,
+                  onComplete: () {
+                    widget.onDismissCommit?.call();
+                    Navigator.of(context).maybePop();
+                  },
+                );
+              } else {
                 _settleTo(
                   targetDrag: 0,
                   targetMorph: 0,
                   duration: MotionDuration.micro,
                   onComplete: () {
                     _setLocked(false);
+                    _setUnderlyingPainted(false);
                   },
                 );
-              },
-            ),
+              }
+            },
+            onHorizontalDragCancel: () {
+              _settleTo(
+                targetDrag: 0,
+                targetMorph: 0,
+                duration: MotionDuration.micro,
+                onComplete: () {
+                  _setLocked(false);
+                  _setUnderlyingPainted(false);
+                },
+              );
+            },
           ),
+        ),
       ],
     );
   }

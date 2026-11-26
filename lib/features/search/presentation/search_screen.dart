@@ -16,7 +16,6 @@ import '../../playlist/presentation/playlist_picker.dart';
 import '../../download/presentation/download_provider.dart';
 import 'search_controls.dart';
 import 'search_provider.dart';
-import 'song_list_detail_screen.dart';
 import '../../../core/widgets/fx_icon_button.dart';
 import '../../../core/widgets/favorite_button.dart';
 import 'package:animations/animations.dart';
@@ -874,19 +873,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     void open() {
       FocusManager.instance.primaryFocus?.unfocus();
       if (isSonglist) {
-        Navigator.push(
-          context,
-          reduceMotion(context)
-              ? PageRouteBuilder<void>(
-                  transitionDuration: Duration.zero,
-                  reverseTransitionDuration: Duration.zero,
-                  pageBuilder: (_, _, _) =>
-                      SongListDetailScreen(songList: item),
-                )
-              : MaterialPageRoute<void>(
-                  builder: (_) => SongListDetailScreen(songList: item),
-                ),
-        );
+        // 走路由表：和设置子页一样拿到卡片转场与左缘右滑返回。
+        // 之前用 `Navigator.push(MaterialPageRoute)` 绕过了路由表，
+        // Android 没有左缘返回，iOS 也只有系统手势那一套。
+        final query = Uri(
+          queryParameters: {
+            'id': item.id,
+            'name': item.name,
+            'singer': item.singer,
+            'source': item.source,
+            'platform': item.platform,
+          },
+        ).query;
+        context.push('/songlist?$query');
         return;
       }
       final playable = results.where((e) => e.isPlayable).toList();

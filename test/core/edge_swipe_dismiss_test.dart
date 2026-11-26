@@ -242,22 +242,96 @@ void main() {
     expect(observer.popCount, 0);
   });
 
-  testWidgets('opaque route on iOS does not install a custom edge gesture', (
+  testWidgets(
+    'opaque route installs the custom edge gesture on every platform',
+    (tester) async {
+      final observer = _PopObserver();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.iOS),
+          navigatorObservers: [observer],
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).push(
+                PageRouteBuilder<void>(
+                  opaque: true,
+                  pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
+                    child: ColoredBox(color: Colors.black),
+                  ),
+                ),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      // 这些页面用的是自定义 PageRoute，iOS 不会给它们注入系统左缘手势
+      // （那是 CupertinoPageTransitionsBuilder 的职责），所以自绘手势带
+      // 必须在所有平台都装上，否则页面完全没法右滑返回。
+      final edges = tester.widgetList<GestureDetector>(
+        find.byType(GestureDetector),
+      );
+      expect(edges.where((e) => e.onHorizontalDragUpdate != null), isNotEmpty);
+
+      final gesture = await tester.startGesture(const Offset(2, 300));
+      await gesture.moveBy(const Offset(240, 0));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(observer.popCount, 1);
+    },
+  );
+
+  testWidgets('opaque expandablePage pops by edge drag on iOS', (tester) async {
+    final observer = _PopObserver();
+    final page = expandablePage(
+      const ValueKey('settings-child'),
+      const ColoredBox(color: Colors.black),
+    );
+    expect(page.opaque, isTrue);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.iOS),
+        navigatorObservers: [observer],
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () =>
+                Navigator.of(context).push(page.createRoute(context)),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(observer.popCount, 0);
+
+    // 设置里点进去的普通子页（均衡器、同步、统计……）就是这条路径：
+    // 自定义 PageRoute 没有 iOS 系统手势，必须由自绘窄条接管。
+    final gesture = await tester.startGesture(const Offset(2, 300));
+    await gesture.moveBy(const Offset(240, 0));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(observer.popCount, 1);
+  });
+
+  testWidgets('opaque route exposes the page below while dragging', (
     tester,
   ) async {
+    final route = PageRouteBuilder<void>(
+      opaque: true,
+      pageBuilder: (_, _, _) =>
+          const EdgeSwipeDismiss(child: ColoredBox(color: Colors.black)),
+    );
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(platform: TargetPlatform.iOS),
         home: Builder(
           builder: (context) => TextButton(
-            onPressed: () => Navigator.of(context).push(
-              PageRouteBuilder<void>(
-                opaque: true,
-                pageBuilder: (_, _, _) => const EdgeSwipeDismiss(
-                  child: ColoredBox(color: Colors.black),
-                ),
-              ),
-            ),
+            onPressed: () => Navigator.of(context).push(route),
             child: const Text('open'),
           ),
         ),
@@ -266,12 +340,18 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
 
-    // 系统手势可用时，自绘手势带（左缘窄条）必须完全退出，把左缘
-    // 右滑交给 iOS 系统手势（跟手、从当前位置继续）。
-    final edges = tester.widgetList<GestureDetector>(
-      find.byType(GestureDetector),
-    );
-    expect(edges.where((e) => e.onHorizontalDragUpdate != null), isEmpty);
+    expect(route.overlayEntries.first.opaque, isTrue);
+
+    final gesture = await tester.startGesture(const Offset(2, 300));
+    await gesture.moveBy(const Offset(60, 0));
+    await tester.pump();
+    // 拖动中要让 Overlay 继续绘制下层页面，否则滑开的区域是窗口底色。
+    expect(route.overlayEntries.first.opaque, isFalse);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    // 未过阈值回弹后恢复，稳定状态仍只画最上面一页。
+    expect(route.overlayEntries.first.opaque, isTrue);
   });
 
   testWidgets('full-width swipe overrides iOS system edge gesture', (
