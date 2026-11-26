@@ -178,10 +178,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // 对象本身仍要现建。5.2.9 试过预排整页文本，对首滑没有改善，
                 // 那段代码已经删掉——别再走这条路。
                 //
-                // 这里把视口外的预建范围放宽到覆盖整页（内容约 4 屏），
-                // 代价转移到「打开设置页」那一帧。这是有意的取舍：转场动画里
-                // 掉一帧，比手指按在屏幕上时卡一下容易被接受。
-                cacheExtent: 5000,
                 padding: EdgeInsets.only(
                   top: isLandscapeShell ? 0 : FrostedTabHeader.extent(context),
                   bottom: RootShellLayout.obscuredBottomOf(context),

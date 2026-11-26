@@ -36,7 +36,24 @@ class ArtistDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
-  double _scrollOffset = 0;
+  final ValueNotifier<double> _scrollOffset = ValueNotifier<double>(0);
+  List<MusicItem>? _groupSource;
+  List<ArtistAlbumGroup> _albumGroups = const [];
+  final Map<String, bool> _expandedAlbums = <String, bool>{};
+
+  List<ArtistAlbumGroup> _groupsFor(List<MusicItem> songs) {
+    if (!identical(_groupSource, songs)) {
+      _groupSource = songs;
+      _albumGroups = groupSongsByAlbum(songs);
+    }
+    return _albumGroups;
+  }
+
+  String _albumSectionKey(ArtistAlbumGroup group) {
+    final first = group.songs.isEmpty ? '' : group.songs.first.identityKey;
+    final last = group.songs.isEmpty ? '' : group.songs.last.identityKey;
+    return '$_platformId:${group.name}:${group.songs.length}:$first:$last';
+  }
 
   ArtistQuery get _query => (
     name: widget.artistName,
@@ -48,16 +65,19 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
       widget.source.isNotEmpty ? widget.source : widget.platform;
 
   @override
+  void dispose() {
+    _scrollOffset.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final songs = ref.watch(artistSongsProvider(_query));
     final colors = Theme.of(context).colorScheme;
-    final frost = ((_scrollOffset - 2) / 72).clamp(0.0, 1.0);
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Theme.of(
-          context,
-        ).scaffoldBackgroundColor.withValues(alpha: 0.72 * frost),
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -79,11 +99,30 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
             orElse: () => const SizedBox.shrink(),
           ),
         ],
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 16 * frost, sigmaY: 16 * frost),
-            child: const SizedBox.expand(),
-          ),
+        flexibleSpace: ValueListenableBuilder<double>(
+          valueListenable: _scrollOffset,
+          builder: (context, offset, _) {
+            final frost = ((offset - 2) / 72).clamp(0.0, 1.0);
+            return ClipRect(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ColoredBox(
+                    color: Theme.of(
+                      context,
+                    ).scaffoldBackgroundColor.withValues(alpha: 0.72 * frost),
+                  ),
+                  BackdropFilter(
+                    filter: ImageFilter.blur(
+                      sigmaX: 16 * frost,
+                      sigmaY: 16 * frost,
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
       body: songs.when(
@@ -119,13 +158,10 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
               ),
             );
           }
-          final groups = groupSongsByAlbum(items);
+          final groups = _groupsFor(items);
           return NotificationListener<ScrollNotification>(
             onNotification: (notification) {
-              final offset = notification.metrics.pixels;
-              if ((offset - _scrollOffset).abs() > 1) {
-                setState(() => _scrollOffset = offset);
-              }
+              _scrollOffset.value = notification.metrics.pixels;
               return false;
             },
             child: AdaptiveSongList.builder(
@@ -136,12 +172,21 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 16,
               ),
               itemCount: groups.length,
-              itemBuilder: (context, index) => _ArtistAlbumSection(
-                group: groups[index],
-                artistName: widget.artistName,
-                platformId: _platformId,
-                onPlay: (songs, songIndex) => _play(ref, songs, songIndex),
-              ),
+              itemBuilder: (context, index) {
+                final group = groups[index];
+                final key = _albumSectionKey(group);
+                return _ArtistAlbumSection(
+                  key: ValueKey<String>(key),
+                  group: group,
+                  artistName: widget.artistName,
+                  platformId: _platformId,
+                  expanded: _expandedAlbums.putIfAbsent(key, () => true),
+                  onExpandedChanged: (value) {
+                    _expandedAlbums[key] = value;
+                  },
+                  onPlay: (songs, songIndex) => _play(ref, songs, songIndex),
+                );
+              },
             ),
           );
         },
@@ -176,15 +221,20 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
 /// 一张专辑及其可折叠曲目列表。
 class _ArtistAlbumSection extends ConsumerStatefulWidget {
   const _ArtistAlbumSection({
+    super.key,
     required this.group,
     required this.artistName,
     required this.platformId,
+    required this.expanded,
+    required this.onExpandedChanged,
     required this.onPlay,
   });
 
   final ArtistAlbumGroup group;
   final String artistName;
   final String platformId;
+  final bool expanded;
+  final ValueChanged<bool> onExpandedChanged;
   final void Function(List<MusicItem> songs, int index) onPlay;
 
   @override
@@ -193,7 +243,19 @@ class _ArtistAlbumSection extends ConsumerStatefulWidget {
 }
 
 class _ArtistAlbumSectionState extends ConsumerState<_ArtistAlbumSection> {
-  bool _expanded = true;
+  late bool _expanded = widget.expanded;
+  List<MusicItem>? _sourceSongs;
+  String? _filteredArtist;
+
+  @override
+  void didUpdateWidget(covariant _ArtistAlbumSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.expanded != widget.expanded) {
+      _expanded = widget.expanded;
+    }
+  }
+
+  List<MusicItem> _filteredSongs = const [];
 
   String get _albumId {
     for (final song in widget.group.songs) {
@@ -239,13 +301,19 @@ class _ArtistAlbumSectionState extends ConsumerState<_ArtistAlbumSection> {
     final sourceSongs = (full != null && full.isNotEmpty)
         ? full
         : widget.group.songs;
-    final songs = sourceSongs
-        .where(
-          (song) =>
-              song.source == 'musicbrainz' ||
-              songsForArtist([song], widget.artistName).isNotEmpty,
-        )
-        .toList(growable: false);
+    if (!identical(_sourceSongs, sourceSongs) ||
+        _filteredArtist != widget.artistName) {
+      _sourceSongs = sourceSongs;
+      _filteredArtist = widget.artistName;
+      _filteredSongs = sourceSongs
+          .where(
+            (song) =>
+                song.source == 'musicbrainz' ||
+                songsForArtist([song], widget.artistName).isNotEmpty,
+          )
+          .toList(growable: false);
+    }
+    final songs = _filteredSongs;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
@@ -261,7 +329,11 @@ class _ArtistAlbumSectionState extends ConsumerState<_ArtistAlbumSection> {
               songCount: songs.length,
               loading: async.isLoading,
               expanded: _expanded,
-              onTap: () => setState(() => _expanded = !_expanded),
+              onTap: () {
+                final next = !_expanded;
+                setState(() => _expanded = next);
+                widget.onExpandedChanged(next);
+              },
               onFavorite: () => _toggleAlbumFavorite(songs),
             ),
             AnimatedSize(
