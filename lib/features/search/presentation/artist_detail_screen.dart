@@ -234,6 +234,7 @@ class _ArtistAlbumSection extends ConsumerWidget {
       children: [
         _AlbumHeader(
           group: group,
+          coverUrl: _firstArtwork(songs) ?? _firstArtwork(group.songs),
           songCount: songs.length,
           loading: async.isLoading,
         ),
@@ -248,14 +249,24 @@ class _ArtistAlbumSection extends ConsumerWidget {
   }
 }
 
+String? _firstArtwork(List<MusicItem> songs) {
+  for (final song in songs) {
+    final artwork = song.artwork;
+    if (artwork != null && artwork.isNotEmpty) return artwork;
+  }
+  return null;
+}
+
 class _AlbumHeader extends ConsumerWidget {
   const _AlbumHeader({
     required this.group,
+    required this.coverUrl,
     required this.songCount,
     required this.loading,
   });
 
   final ArtistAlbumGroup group;
+  final String? coverUrl;
   final int songCount;
   final bool loading;
 
@@ -271,56 +282,82 @@ class _AlbumHeader extends ConsumerWidget {
     final time = group.time;
     final releaseDate = time == null
         ? null
-        : '（${time.year} 年 ${time.month.toString().padLeft(2, '0')} 月）';
+        : '${time.year} 年 ${time.month.toString().padLeft(2, '0')} 月';
     final name = group.name.trim().isEmpty
         ? S.of(context).unknownAlbum
         : group.name;
+    final cover = coverUrl;
+    final subtitle = [
+      if (releaseDate != null) releaseDate,
+      '${S.of(context).songs} $songCount',
+    ].join(' · ');
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 8),
       child: Material(
         color: AppColors.card(context).withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+          padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
           child: Row(
             children: [
-              Icon(Icons.album_rounded, size: 18, color: accent),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        releaseDate == null ? name : '$name $releaseDate',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.onScaffold(context),
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                        ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: cover == null || cover.isEmpty
+                    ? const _ArtworkPlaceholder()
+                    : ArtworkImage(
+                        cover,
+                        width: 44,
+                        height: 44,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const _ArtworkPlaceholder(),
                       ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.onScaffold(context),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.secondaryText(context),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                        if (loading) ...[
+                          const SizedBox(width: 6),
+                          SizedBox(
+                            width: 10,
+                            height: 10,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.6,
+                              color: AppColors.mutedText(context),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
               ),
-              if (loading)
-                SizedBox(
-                  width: 11,
-                  height: 11,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.6,
-                    color: AppColors.mutedText(context),
-                  ),
-                )
-              else
-                Text(
-                  '$songCount',
-                  style: TextStyle(
-                    color: AppColors.secondaryText(context),
-                    fontSize: 11,
-                  ),
-                ),
               const SizedBox(width: 4),
               IconButton(
                 tooltip: albumFavorited
@@ -402,20 +439,6 @@ class _ArtistSongRow extends ConsumerWidget {
                             color: AppColors.secondaryText(context),
                             fontSize: 12,
                           ),
-                        ),
-                ),
-                const SizedBox(width: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
-                  child: song.artwork == null || song.artwork!.isEmpty
-                      ? const _ArtworkPlaceholder()
-                      : ArtworkImage(
-                          song.artwork!,
-                          width: 42,
-                          height: 42,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) =>
-                              const _ArtworkPlaceholder(),
                         ),
                 ),
                 const SizedBox(width: 12),
