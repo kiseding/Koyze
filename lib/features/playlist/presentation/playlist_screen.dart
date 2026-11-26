@@ -1084,7 +1084,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const KoyzeSheetGrabber(),
             KoyzeSheetTitle(
               title: S.of(context).sortBy,
               onClose: () => Navigator.pop(context),

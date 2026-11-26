@@ -44,13 +44,27 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
   int _total = 0;
   String _status = '';
 
+  /// 已经点了移除、但还在等落库的目录。
+  ///
+  /// 目录行必须跟着点击立刻消失：落库要写共享偏好与索引，等它完成再刷新
+  /// 的话，用户会看到「点了删除却还留在那里」。失败时再把这行放回来。
+  final Set<String> _pendingDirectoryRemovals = <String>{};
+
   /// 文件管理入口卡片的锚点，用来记录转场起点（见 `_buildFileManagerEntry`）。
   final GlobalKey _fileManagerAnchorKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
     final libraryAsync = ref.watch(localMusicLibraryProvider);
-    final dirs = libraryAsync.value?.directories ?? const <String>[];
+    // 删除目录改的是同一个 library 实例，FutureProvider 不会自己失效。
+    // 监听变更版本，落库完成后重新读一遍目录、歌数和下载目录。
+    ref.watch(localMusicRevisionProvider);
+    final libraryDirs = libraryAsync.value?.directories ?? const <String>[];
+    final dirs = _pendingDirectoryRemovals.isEmpty
+        ? libraryDirs
+        : libraryDirs
+              .where((dir) => !_pendingDirectoryRemovals.contains(dir))
+              .toList(growable: false);
     final downloadDir = libraryAsync.value?.downloadDirectory;
     final mediaStoreEnabled =
         libraryAsync.value?.androidMediaStoreEnabled ?? false;
@@ -1303,20 +1317,27 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
   }
 
   Future<void> _removeDirectory(String directoryPath) async {
-    final library = await ref.read(localMusicLibraryProvider.future);
+    // 先撤下这一行，再去做落库和歌单同步。后两步都比一次点击慢得多。
+    setState(() => _pendingDirectoryRemovals.add(directoryPath));
     try {
+      final library = await ref.read(localMusicLibraryProvider.future);
       await library.removeDirectory(directoryPath);
+      // library 是单例：自增版本让 build 重新读取目录、歌数和下载目录。
+      ref.read(localMusicRevisionProvider.notifier).state++;
       final playlistService = ref.read(playlistServiceProvider);
       await playlistService.replaceLocalSongs(library.songs);
-      ref.read(localMusicRevisionProvider.notifier).state++;
       if (mounted) {
+        setState(() => _pendingDirectoryRemovals.remove(directoryPath));
         showAppNotification(
           S.of(context).folderRemoved,
           type: AppNotificationType.info,
         );
       }
     } catch (error) {
-      if (mounted) _showError(S.of(context).removeFailed, error);
+      if (mounted) {
+        setState(() => _pendingDirectoryRemovals.remove(directoryPath));
+        _showError(S.of(context).removeFailed, error);
+      }
     }
   }
 

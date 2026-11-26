@@ -17,6 +17,10 @@ import 'package:koyze/features/local_music/domain/local_music_scanner.dart';
 import 'package:koyze/features/local_music/presentation/local_file_manager_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_provider.dart';
 import 'package:koyze/features/local_music/presentation/local_music_screen.dart';
+import 'package:koyze/features/player/domain/music_item.dart';
+import 'package:koyze/features/playlist/data/playlist_repository.dart';
+import 'package:koyze/features/playlist/domain/playlist_service.dart';
+import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 import 'package:koyze/l10n/generated/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -34,6 +38,28 @@ class _BlockingScanner extends LocalMusicScanner {
     if (!scanStarted.isCompleted) scanStarted.complete();
     await finishScan.future;
     return const [];
+  }
+}
+
+class _EmptyPlaylistRepository implements PlaylistRepository {
+  @override
+  Future<PlaylistSnapshot> load() async =>
+      PlaylistSnapshot(schemaVersion: 1, playlists: const []);
+
+  @override
+  Future<void> save(PlaylistSnapshot snapshot) async {}
+}
+
+/// 让歌单同步卡住，用来验证目录行不会因为等落库而留在界面上。
+class _BlockingPlaylistService extends PlaylistService {
+  _BlockingPlaylistService() : super(repository: _EmptyPlaylistRepository());
+
+  final Completer<void> release = Completer<void>();
+
+  @override
+  Future<bool> replaceLocalSongs(List<MusicItem> songs) async {
+    await release.future;
+    return true;
   }
 }
 
@@ -377,5 +403,60 @@ void main() {
 
     expect(find.text('Export downloaded songs'), findsOneWidget);
     expect(find.text('1 ready to export'), findsOneWidget);
+  });
+
+  testWidgets('移除目录时该行立刻消失，不等歌单同步完成', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    SharedPreferences.setMockInitialValues({
+      'local_music_download_dir_v1': downloads,
+      'local_music_dirs_v1': <String>[downloads, musicDir],
+    });
+    final storage = StorageService.forTesting(
+      await SharedPreferences.getInstance(),
+    );
+    final library = LocalMusicLibrary(storage: storage);
+    await library.init();
+    final playlistService = _BlockingPlaylistService();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          localMusicLibraryProvider.overrideWith((ref) async => library),
+          playlistServiceProvider.overrideWithValue(playlistService),
+        ],
+        child: MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const LocalMusicScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(musicDir), findsOneWidget);
+    final libraryCard = find
+        .ancestor(of: find.text(musicDir), matching: find.byType(GlassSurface))
+        .first;
+    await tester.tap(
+      find.descendant(of: libraryCard, matching: find.byIcon(Icons.close)),
+    );
+    // 歌单同步还卡在 Completer 上，这里只推进一帧。
+    await tester.pump();
+
+    expect(
+      find.text(musicDir),
+      findsNothing,
+      reason: '点了移除就该立刻从列表撤下，不能等整条落库链路跑完',
+    );
+    expect(find.text(downloads), findsOneWidget);
+    expect(library.directories, isNot(contains(musicDir)));
+
+    playlistService.release.complete();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   });
 }

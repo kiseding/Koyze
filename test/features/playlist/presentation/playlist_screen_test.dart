@@ -158,4 +158,22 @@ void main() {
     expect(card, contains('height: _height'));
     expect((72.0 - 52.0) / 2, 10.0);
   });
+
+  test('排序面板标题与更多操作面板对齐，不再多一条抓手占位', () {
+    final source = readSource(
+      'lib/features/playlist/presentation/playlist_screen.dart',
+    );
+    final sortMenu = source.substring(
+      source.indexOf('void _showSortMenu('),
+      source.indexOf('Future<bool> _importPlaylistFile('),
+    );
+
+    expect(sortMenu, contains('KoyzeSheetTitle('));
+    expect(sortMenu, contains('KoyzeSheetAction('));
+    expect(
+      sortMenu,
+      isNot(contains('KoyzeSheetGrabber')),
+      reason: '标题前再垫 12pt 会比其它动作面板矮一截',
+    );
+  });
 }
