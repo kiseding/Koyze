@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/music_source_service.dart';
 import '../domain/album_tracks.dart';
 import '../../player/domain/music_item.dart';
+import '../domain/artist_songs.dart';
 import 'artist_detail_provider.dart';
 import 'search_provider.dart';
 
@@ -162,9 +163,12 @@ final artistAlbumTracksProvider =
           query.albumId,
           sourceId: query.platform,
         );
-        if (songs.isNotEmpty) {
+        final artistSongs = songs
+            .where((song) => songsForArtist([song], query.artist).isNotEmpty)
+            .toList(growable: false);
+        if (artistSongs.isNotEmpty) {
           return fillAlbumIdentity(
-            songs,
+            artistSongs,
             albumName: query.album,
             artistName: query.artist,
           );

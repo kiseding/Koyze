@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
@@ -10,8 +9,10 @@ import '../../../core/widgets/loading_widget.dart';
 import '../../../l10n/app_strings.dart';
 import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
+import '../../playlist/presentation/playlist_provider.dart';
 import '../domain/album_tracks.dart';
 import '../domain/artist_albums.dart';
+import '../domain/artist_songs.dart';
 import 'album_tracks_provider.dart';
 import 'artist_detail_provider.dart';
 import 'search_provider.dart';
@@ -123,7 +124,6 @@ class ArtistDetailScreen extends ConsumerWidget {
                     group: groups[index],
                     artistName: artistName,
                     platformId: _platformId,
-                    onOpenAlbum: (group) => _openAlbum(context, group),
                     onPlay: (songs, songIndex) => _play(ref, songs, songIndex),
                   ),
                 ),
@@ -142,32 +142,6 @@ class ArtistDetailScreen extends ConsumerWidget {
       songs,
     ).expand((group) => group.songs).toList();
     _play(ref, ordered, 0);
-  }
-
-  /// 进入专辑详情：优先用分组里第一首带平台专辑 id 的歌定位专辑，
-  /// 没有 id 时专辑页会走 MusicBrainz / 搜索兜底。
-  void _openAlbum(BuildContext context, ArtistAlbumGroup group) {
-    var albumId = '';
-    for (final song in group.songs) {
-      final id = albumIdOf(song);
-      if (id.isNotEmpty) {
-        albumId = id;
-        break;
-      }
-    }
-    context.push(
-      Uri(
-        path: '/album',
-        queryParameters: {
-          'album': group.name,
-          'artist': artistName,
-          'albumId': albumId,
-          'platform': platform,
-          'source': source,
-          if (group.time != null) 'year': '${group.time!.year}',
-        },
-      ).toString(),
-    );
   }
 
   void _play(WidgetRef ref, List<MusicItem> songs, int index) {
@@ -196,14 +170,12 @@ class _ArtistAlbumSection extends ConsumerWidget {
     required this.group,
     required this.artistName,
     required this.platformId,
-    required this.onOpenAlbum,
     required this.onPlay,
   });
 
   final ArtistAlbumGroup group;
   final String artistName;
   final String platformId;
-  final void Function(ArtistAlbumGroup group) onOpenAlbum;
   final void Function(List<MusicItem> songs, int index) onPlay;
 
   /// 这一段里第一首带平台专辑 id 的歌决定用哪个专辑接口。
@@ -249,7 +221,14 @@ class _ArtistAlbumSection extends ConsumerWidget {
       )),
     );
     final full = async.valueOrNull;
-    final songs = (full != null && full.isNotEmpty) ? full : group.songs;
+    final sourceSongs = (full != null && full.isNotEmpty) ? full : group.songs;
+    final songs = sourceSongs
+        .where(
+          (song) =>
+              song.source == 'musicbrainz' ||
+              songsForArtist([song], artistName).isNotEmpty,
+        )
+        .toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -257,13 +236,10 @@ class _ArtistAlbumSection extends ConsumerWidget {
           group: group,
           songCount: songs.length,
           loading: async.isLoading,
-          onTap: () => onOpenAlbum(group),
-          onPlay: () => _playTrack(context, ref, songs, 0),
         ),
         for (var index = 0; index < songs.length; index++)
           _ArtistSongRow(
             song: songs[index],
-            // 序号按专辑内部重新计数，不跨专辑累加。
             index: index,
             onTap: () => _playTrack(context, ref, songs, index),
           ),
@@ -272,25 +248,30 @@ class _ArtistAlbumSection extends ConsumerWidget {
   }
 }
 
-class _AlbumHeader extends StatelessWidget {
+class _AlbumHeader extends ConsumerWidget {
   const _AlbumHeader({
     required this.group,
     required this.songCount,
     required this.loading,
-    required this.onTap,
-    required this.onPlay,
   });
 
   final ArtistAlbumGroup group;
   final int songCount;
   final bool loading;
-  final VoidCallback onTap;
-  final VoidCallback onPlay;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final accent = AppColors.accentOf(context);
-    final year = group.time?.year;
+    final favorites =
+        ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
+    final albumSongs = group.songs.where((song) => song.isPlayable).toList();
+    final albumFavorited =
+        albumSongs.isNotEmpty &&
+        albumSongs.every((song) => isFavoriteMusic(song, favorites));
+    final time = group.time;
+    final releaseDate = time == null
+        ? null
+        : '（${time.year} 年 ${time.month.toString().padLeft(2, '0')} 月）';
     final name = group.name.trim().isEmpty
         ? S.of(context).unknownAlbum
         : group.name;
@@ -299,70 +280,76 @@ class _AlbumHeader extends StatelessWidget {
       child: Material(
         color: AppColors.card(context).withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
-            child: Row(
-              children: [
-                Icon(Icons.album_rounded, size: 18, color: accent),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.onScaffold(context),
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+          child: Row(
+            children: [
+              Icon(Icons.album_rounded, size: 18, color: accent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        releaseDate == null ? name : '$name $releaseDate',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.onScaffold(context),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
+                  ],
+                ),
+              ),
+              if (loading)
+                SizedBox(
+                  width: 11,
+                  height: 11,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.6,
+                    color: AppColors.mutedText(context),
+                  ),
+                )
+              else
+                Text(
+                  '$songCount',
+                  style: TextStyle(
+                    color: AppColors.secondaryText(context),
+                    fontSize: 11,
                   ),
                 ),
-                if (year != null) ...[
-                  Text(
-                    '$year',
-                    style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 11,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                if (loading)
-                  SizedBox(
-                    width: 11,
-                    height: 11,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.6,
-                      color: AppColors.mutedText(context),
-                    ),
-                  )
-                else
-                  Text(
-                    '$songCount',
-                    style: TextStyle(
-                      color: AppColors.secondaryText(context),
-                      fontSize: 11,
-                    ),
-                  ),
-                const SizedBox(width: 2),
-                // 播放整张专辑与进入详情分开：标题点进去看完整曲目，
-                // 图标直接按当前分组播放。
-                IconButton(
-                  tooltip: S.of(context).playAll,
-                  onPressed: onPlay,
-                  visualDensity: VisualDensity.compact,
-                  icon: Icon(Icons.play_arrow_rounded, size: 20, color: accent),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: albumFavorited
+                    ? S.of(context).unfavorite
+                    : S.of(context).favorite,
+                onPressed: albumSongs.isEmpty
+                    ? null
+                    : () async {
+                        final toggle = ref.read(toggleFavoriteProvider);
+                        for (final song in albumSongs) {
+                          if (isFavoriteMusic(song, favorites) !=
+                              albumFavorited) {
+                            await toggle(song);
+                          }
+                        }
+                        ref.invalidate(favoriteSongsProvider);
+                      },
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  albumFavorited
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  size: 19,
+                  color: albumFavorited
+                      ? accent
+                      : AppColors.secondaryText(context),
                 ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: 18,
-                  color: AppColors.mutedText(context),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -383,6 +370,9 @@ class _ArtistSongRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final favoriteSongs =
+        ref.watch(favoriteSongsProvider).valueOrNull ?? const <MusicItem>[];
+    final isFavorite = isFavoriteMusic(song, favoriteSongs);
     final playing = ref.watch(
       currentMusicProvider.select(
         (current) => current?.identityKey == song.identityKey,
@@ -430,34 +420,34 @@ class _ArtistSongRow extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        song.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: playing
-                              ? accent
-                              : AppColors.onScaffold(context),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      if (song.album.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          song.album,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.secondaryText(context),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ],
+                  child: Text(
+                    song.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: playing ? accent : AppColors.onScaffold(context),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: isFavorite
+                      ? S.of(context).unfavorite
+                      : S.of(context).favorite,
+                  onPressed: () async {
+                    await ref.read(toggleFavoriteProvider)(song);
+                    ref.invalidate(favoriteSongsProvider);
+                  },
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(
+                    isFavorite
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    size: 19,
+                    color: isFavorite
+                        ? accent
+                        : AppColors.secondaryText(context),
                   ),
                 ),
               ],
