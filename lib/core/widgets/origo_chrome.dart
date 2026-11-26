@@ -25,6 +25,7 @@ class OrigoChromeSurface extends StatelessWidget {
     this.blur,
     this.backdrop = true,
     this.solidBehind = false,
+    this.shareBackdrop = true,
   });
 
   final Widget child;
@@ -56,6 +57,10 @@ class OrigoChromeSurface extends StatelessWidget {
   /// 背后**确定**只有页面底色，没有滚动内容会经过。见 [GlassSurface.solidBehind]。
   final bool solidBehind;
 
+  /// 是否复用外层 [BackdropGroup] 的采样键。浮在滚动内容上方的搜索框等
+  /// chrome 传 false，独立采样已经绘制的列表内容。
+  final bool shareBackdrop;
+
   @override
   Widget build(BuildContext context) {
     final tint = accent ?? AppColors.accentOf(context);
@@ -67,6 +72,7 @@ class OrigoChromeSurface extends StatelessWidget {
       blur: blur,
       backdrop: backdrop,
       solidBehind: solidBehind,
+      shareBackdrop: shareBackdrop,
       border: Border.fromBorderSide(
         AppGlass.hairline(context, emphasized: emphasized),
       ),

@@ -205,6 +205,7 @@ class GlassSurface extends StatelessWidget {
     this.blurBehind = false,
     this.clipContent = true,
     this.solidBehind = false,
+    this.shareBackdrop = true,
   });
 
   final Widget child;
@@ -271,6 +272,12 @@ class GlassSurface extends StatelessWidget {
   ///
   /// 判断标准只有一条：**这块面背后会不会有滚动内容经过**。会，就别开。
   final bool solidBehind;
+
+  /// 是否复用外层 [BackdropGroup] 的采样键。
+  ///
+  /// 叠在滚动内容上方的 chrome 需要独立采样已绘制的卡片，否则同一采样键下
+  /// 重叠区域只会呈现一次滤镜结果。默认为 true，保持原有共享采样的性能。
+  final bool shareBackdrop;
 
   @override
   Widget build(BuildContext context) {
@@ -372,6 +379,7 @@ class GlassSurface extends StatelessWidget {
               sigma: sigma,
               saturation: vivid ? AppGlass.saturate : null,
               allowBlur: allowBlur,
+              shareBackdrop: shareBackdrop,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: base,
@@ -389,6 +397,7 @@ class GlassSurface extends StatelessWidget {
               border: side,
               vivid: vivid,
               allowBlur: allowBlur,
+              shareBackdrop: shareBackdrop,
               child: material,
             ),
     );
@@ -433,6 +442,7 @@ class _FadingFrost extends StatelessWidget {
     required this.vivid,
     required this.child,
     required this.allowBlur,
+    required this.shareBackdrop,
   });
 
   final double sigma;
@@ -442,6 +452,7 @@ class _FadingFrost extends StatelessWidget {
   final Border border;
   final bool vivid;
   final bool allowBlur;
+  final bool shareBackdrop;
   final Widget child;
 
   @override
@@ -460,6 +471,7 @@ class _FadingFrost extends StatelessWidget {
                 sigma: sigma,
                 saturation: vivid ? AppGlass.saturate : null,
                 allowBlur: allowBlur,
+                shareBackdrop: shareBackdrop,
                 child: const ColoredBox(color: Color(0x00000000)),
               ),
             ),

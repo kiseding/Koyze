@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:koyze/core/theme/app_tokens.dart';
 import 'package:koyze/core/theme/app_theme.dart';
 import 'package:koyze/core/theme/effect_policy.dart';
 import 'package:koyze/core/theme/glass_config.dart';
@@ -156,7 +157,7 @@ Finder get _tabBackdrop => find.descendant(
 
 Finder get _searchSurface => find.ancestor(
   of: find.byType(TextField),
-  matching: find.byType(GradientFrost),
+  matching: find.byType(OrigoChromeSurface),
 );
 
 Finder _filterIn(Finder surface) =>
@@ -298,6 +299,18 @@ void main() {
       );
 
       final searchRect = tester.getRect(_searchSurface);
+      // 细边要描在整条输入栏上，不能像自定义外壳那样只围住文字那一行。
+      final searchBorder = find.descendant(
+        of: _searchSurface,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is DecoratedBox &&
+              widget.decoration is BoxDecoration &&
+              (widget.decoration as BoxDecoration).border != null,
+        ),
+      );
+      expect(searchBorder, findsOneWidget);
+      expect(tester.getRect(searchBorder), searchRect);
       final tabRect = tester.getRect(_tabBackdrop);
       final areas = {
         'tab 栏状态区': const Rect.fromLTRB(24, 8, 140, _topInset - 6),
@@ -414,13 +427,25 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    for (final surface in [_tabBackdrop, _searchSurface]) {
-      final frost = tester.widget<GradientFrost>(surface);
-      final backdrop = tester.widget<GlassBackdrop>(
-        find.descendant(of: surface, matching: find.byType(GlassBackdrop)),
-      );
-      expect(backdrop.sigma, closeTo(frost.sigma * 0.5, 0.001));
-    }
+    final tabFrost = tester.widget<GradientFrost>(_tabBackdrop);
+    final tabFilter = tester.widget<GlassBackdrop>(
+      find.descendant(
+        of: _tabBackdrop,
+        matching: find.byType(GlassBackdrop),
+      ),
+    );
+    expect(tabFilter.sigma, closeTo(tabFrost.sigma * 0.5, 0.001));
+
+    final searchChrome = tester.widget<OrigoChromeSurface>(_searchSurface);
+    expect(searchChrome.style, AppGlassStyle.bar);
+    expect(searchChrome.shareBackdrop, isFalse);
+    final searchFilter = tester.widget<GlassBackdrop>(
+      find.descendant(
+        of: _searchSurface,
+        matching: find.byType(GlassBackdrop),
+      ),
+    );
+    expect(searchFilter.sigma, closeTo(AppGlass.blurBar * 0.5, 0.001));
 
     await tester.tap(field);
     await tester.pump();

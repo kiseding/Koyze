@@ -185,7 +185,13 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                   child: SizedBox(
                     height: 46,
-                    child: _PlaylistSearchSurface(
+                    child: OrigoChromeSurface(
+                      borderRadius: BorderRadius.circular(16),
+                      style: AppGlassStyle.bar,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      // 与首页搜索入口保持同一条玻璃材质；这里背后会有列表滚过，
+                      // 所以单独采样，避免和列表/顶栏共用采样键。
+                      shareBackdrop: false,
                       child: Row(
                         children: [
                           Icon(
@@ -1921,46 +1927,6 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-/// 固定在歌单列表上方的圆角搜索框背景。
-class _PlaylistSearchSurface extends StatelessWidget {
-  const _PlaylistSearchSurface({required this.child});
-
-  final Widget child;
-  static const _radius = BorderRadius.all(Radius.circular(16));
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: _radius,
-        boxShadow: AppGlass.shadowFor(context, style: AppGlassStyle.bar),
-      ),
-      child: ClipRRect(
-        borderRadius: _radius,
-        child: GradientFrost(
-          sigma: AppGlass.blurBar,
-          // 首屏用容器色与页面底色区分，滚动时采样从搜索框背后经过的卡片。
-          base: Theme.of(context).colorScheme.surfaceContainerHigh,
-          shareBackdrop: false,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: _radius,
-              border: Border.fromBorderSide(AppGlass.hairline(context)),
-            ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: child,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
