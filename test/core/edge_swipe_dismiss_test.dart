@@ -62,6 +62,68 @@ void main() {
     expect(page.child, isNot(isA<EdgeSwipeDismiss>()));
   });
 
+  testWidgets('plain page enters by sliding in from the right', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              expandablePage(
+                const ValueKey('plain-page'),
+                const ColoredBox(
+                  key: ValueKey('plain-content'),
+                  color: Colors.black,
+                ),
+              ).createRoute(context),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+
+    // 普通二级页要像系统返回那样横着进来：转场中途一定有一层
+    // FractionalTranslation 停在 0..1 之间。以前这里是淡出 + 下移
+    // 24px，叠在整屏深色背景上像画面溶解，看不出返回方向。
+    final slides = tester
+        .widgetList<FractionalTranslation>(find.byType(FractionalTranslation))
+        .where((w) => w.translation.dx > 0.01 && w.translation.dx < 0.99);
+    expect(slides, isNotEmpty, reason: '普通页应横向滑入，而不是淡入');
+  });
+
+  testWidgets('expandFromCard false ignores a pending card rect', (
+    tester,
+  ) async {
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(child: SizedBox(key: key, width: 120, height: 80)),
+      ),
+    );
+    final context = tester.element(find.byKey(key));
+
+    // 对照：默认页面会消费这张矩形，走透明 morph 路由。
+    captureCardExpandRect(context);
+    final expanded = expandablePage(
+      const ValueKey('card-page'),
+      const SizedBox(),
+    );
+    expect(expanded.opaque, isFalse);
+
+    // 显式声明不展开的页面必须忽略它，并保持不透明。
+    captureCardExpandRect(context);
+    final plain = expandablePage(
+      const ValueKey('plain-page-2'),
+      const SizedBox(),
+      expandFromCard: false,
+    );
+    expect(plain.opaque, isTrue);
+  });
+
   testWidgets('full-width page stays transparent for two-way fly', (
     tester,
   ) async {

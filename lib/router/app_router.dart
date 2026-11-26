@@ -257,6 +257,11 @@ final appRouter = GoRouter(
           platform: state.uri.queryParameters['platform'] ?? '',
           source: state.uri.queryParameters['source'] ?? '',
         ),
+        // 歌手页不做卡片 morph：从搜索结果卡片放大过来时，中间的
+        // 头像/标题/歌曲列表会被整体拉伸，而且这一页既可能从搜索进、
+        // 也可能从播放器进，只有前者有锚点，两种来源的动效不一致。
+        // 统一走普通横向滑入。
+        expandFromCard: false,
       ),
     ),
     GoRoute(

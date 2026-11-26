@@ -55,6 +55,21 @@ void _forgetExpandOrigin(LocalKey pageKey) {
   _expandSnapshotByPage.remove(pageKey)?.dispose();
 }
 
+/// 丢弃一次待消费的展开原点。
+///
+/// 点击卡片时 [captureCardExpandOrigin] 会先写全局矩形/快照，等目标页的
+/// pageBuilder 消费。若这一页选择不做卡片 morph，必须在这里清掉，
+/// 否则这份几何会跟到下一张真正要展开的页面上，从错误的位置长出来。
+void _dropPendingExpandOrigin(LocalKey pageKey) {
+  _cardExpandRect = null;
+  _cardExpandSnapshot?.dispose();
+  _cardExpandSnapshot = null;
+  cardExpandSourceHidden.value = false;
+  cardExpandHiddenKey = null;
+  _expandRectByPage.remove(pageKey);
+  _expandSnapshotByPage.remove(pageKey)?.dispose();
+}
+
 /// 测试之间清掉按路由记住的展开原点，避免 key 撞车串数据。
 @visibleForTesting
 void debugResetCardExpandOrigins() {
@@ -170,16 +185,25 @@ CustomTransitionPage<Object?> expandablePage(
   Rect? expandRect,
   ui.Image? expandSnapshot,
   bool fullWidthSwipe = false,
+  bool expandFromCard = true,
 }) {
   // 只有第一次出现的页面（这次真正被 push 的那一页）才消费原点；
   // 祖先页在改栈时也会重跑 pageBuilder，它们只认自己记住的那一份。
   final firstBuild = _expandPageSeen.add(pageKey);
-  expandRect = firstBuild
-      ? _adoptExpandRect(pageKey, expandRect)
-      : _expandRectByPage[pageKey];
-  expandSnapshot = firstBuild
-      ? _adoptExpandSnapshot(pageKey, expandSnapshot)
-      : _expandSnapshotByPage[pageKey];
+  if (expandFromCard) {
+    expandRect = firstBuild
+        ? _adoptExpandRect(pageKey, expandRect)
+        : _expandRectByPage[pageKey];
+    expandSnapshot = firstBuild
+        ? _adoptExpandSnapshot(pageKey, expandSnapshot)
+        : _expandSnapshotByPage[pageKey];
+  } else {
+    // 该页明确不做卡片 morph。仍然要把点击时记下的原点丢掉，
+    // 否则这张矩形会残留给下一个真正想从卡片展开的页面。
+    _dropPendingExpandOrigin(pageKey);
+    expandRect = null;
+    expandSnapshot = null;
+  }
   final sourceRect = expandRect;
   final sourceSnapshot = expandSnapshot;
   final expanding = sourceRect != null;
@@ -195,11 +219,22 @@ CustomTransitionPage<Object?> expandablePage(
     barrierDismissible: expanding,
     barrierColor: Colors.transparent,
     // 卡片容器转场比普通页面快 100ms，打开/关闭使用同一组节奏。
+    //
+    // 普通页（横向滑一整屏）不能套这个缩短值：180ms 滑满一屏接近每秒
+    // 5.5 屏，退出会显得"唰"地一下闪走。进出都用普通过渡时长。
     transitionDuration: effectsDuration(
-      Duration(milliseconds: MotionDuration.container.inMilliseconds - 100),
+      Duration(
+        milliseconds: expanding
+            ? MotionDuration.container.inMilliseconds - 100
+            : MotionDuration.normal.inMilliseconds,
+      ),
     ),
     reverseTransitionDuration: effectsDuration(
-      Duration(milliseconds: MotionDuration.normal.inMilliseconds - 100),
+      Duration(
+        milliseconds: expanding
+            ? MotionDuration.normal.inMilliseconds - 100
+            : MotionDuration.normal.inMilliseconds,
+      ),
     ),
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
@@ -280,21 +315,28 @@ CustomTransitionPage<Object?> expandablePage(
           child: child,
         );
       } else {
+        // 普通二级页：横向滑动进出，也就是系统返回的观感。
+        //
+        // 这里以前是「淡出 + 下移 24」。淡出叠在全屏播放器那种整屏深色
+        // 背景上会像画面溶解，看不出「返回」的方向；横向滑出则始终能
+        // 看见下层从左边接上来。
+        //
+        // 手势进行中不能用路由动画的位移：这一段位移已由外层
+        // [EdgeSwipeDismiss] 按手指位置负责，这里再叠一次会让页面跑得
+        // 比手指快。
         transition = AnimatedBuilder(
-          animation: Listenable.merge([curved, dismissProgress]),
+          animation: Listenable.merge([curved, dismissProgress, dismissOffset]),
           builder: (context, child) {
             final current = _CardDismissScope.maybeOf(context);
-            final progress = current?.progress ?? dismissProgress;
-            final reveal =
-                (current?.locked ?? cardDismissLocked) || progress.value > 0
-                ? 1 - progress.value
-                : curved.value;
-            return Opacity(
-              opacity: reveal,
-              child: Transform.translate(
-                offset: Offset(0, 24 * (1 - reveal)),
-                child: child,
-              ),
+            final gestureDriven =
+                (current?.dragActive ?? edgeDragActive) ||
+                (current?.locked ?? cardDismissLocked) ||
+                (current?.offset ?? dismissOffset).value > 0;
+            if (gestureDriven) return child!;
+            final t = curved.value.clamp(0.0, 1.0);
+            return FractionalTranslation(
+              translation: Offset(1 - t, 0),
+              child: child,
             );
           },
           child: child,
@@ -648,40 +690,15 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     final ios = Theme.of(context).platform == TargetPlatform.iOS;
     // 透明路由（卡片展开/播放器）必须只走内层矩形 morph 一套进度，
     // 避免外层 translate/scale 与内层裁剪互相打架。
-    final morphOnly = !opaqueRoute;
     final cardMorph = !opaqueRoute;
-    final progress = _morph;
-    final scale = morphOnly ? 1.0 : (ios ? 1 - 0.5 * progress : 1.0);
-    // 圆角只在非卡片形态叠加（卡片页圆角由内层 rect 计算）。
-    final radius = morphOnly ? 0.0 : 48.0 * progress;
-    final surface = DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radius),
-        boxShadow: ios && !morphOnly && progress > 0
-            ? [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.24 * progress),
-                  blurRadius: 28 * progress,
-                  spreadRadius: 2 * progress,
-                ),
-              ]
-            : null,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: widget.child,
-      ),
-    );
+    // 普通不透明页只做横向跟手位移，不再缩小加圆角。
+    //
+    // 以前这里在 iOS 上按收拢进度缩到 0.5、加 48 圆角并叠阴影，那是给
+    // 「收进一张卡片」准备的形态。顶层的普通页并没有一个收敛目标，
+    // 缩小只是把页面凭空捏小再消失，跟系统返回手势完全不像。
     final page = cardMorph
-        ? surface
-        : Transform.translate(
-            offset: Offset(_drag, 0),
-            child: Transform.scale(
-              alignment: Alignment.centerLeft,
-              scale: scale,
-              child: surface,
-            ),
-          );
+        ? widget.child
+        : Transform.translate(offset: Offset(_drag, 0), child: widget.child);
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -713,11 +730,11 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
             onHorizontalDragEnd: (details) {
               final velocity = details.primaryVelocity ?? 0;
               if (_drag > width * 0.22 || velocity > 700) {
-                // 从当前位置继续：页面一边滑回原位（不放大），一边持续
-                // 收拢成卡片，在源卡片位置成型后 pop（宿主此时锁定
-                // 反向动画接管，路由关闭不再回弹放大）。
+                // 从当前位置继续滑出屏幕右侧，成型后再 pop。宿主此时锁定
+                // 反向动画，路由关闭不再回弹——普通页不能先回原位再播一遍
+                // 滑出，那会看到页面"弹回去又飞走"。
                 _settleTo(
-                  targetDrag: widget.fullWidthSwipe ? width : 0,
+                  targetDrag: width,
                   targetMorph: 1,
                   duration: MotionDuration.normal,
                   onComplete: () {
