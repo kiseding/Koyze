@@ -30,31 +30,36 @@ class KwSource extends MusicPlatform {
   }
 
   @override
-  Future<List<MusicItem>> search(String keyword,
-      {int page = 1, int limit = 20}) async {
+  Future<List<MusicItem>> search(
+    String keyword, {
+    int page = 1,
+    int limit = 20,
+  }) async {
     try {
-      final response = await _dio.get(
-        '/r.s',
-        queryParameters: {
-          'client': 'kt',
-          'all': keyword,
-          'pn': (page - 1).toString(),
-          'rn': limit.toString(),
-          'uid': '794762570',
-          'ver': 'kwplayer_ar_9.2.2.1',
-          'vipver': '1',
-          'show_copyright_off': '1',
-          'newver': '1',
-          'ft': 'music',
-          'cluster': '0',
-          'strategy': '2012',
-          'encoding': 'utf8',
-          'rformat': 'json',
-          'vermerge': '1',
-          'mobi': '1',
-          'issubtitle': '1',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await _dio
+          .get(
+            '/r.s',
+            queryParameters: {
+              'client': 'kt',
+              'all': keyword,
+              'pn': (page - 1).toString(),
+              'rn': limit.toString(),
+              'uid': '794762570',
+              'ver': 'kwplayer_ar_9.2.2.1',
+              'vipver': '1',
+              'show_copyright_off': '1',
+              'newver': '1',
+              'ft': 'music',
+              'cluster': '0',
+              'strategy': '2012',
+              'encoding': 'utf8',
+              'rformat': 'json',
+              'vermerge': '1',
+              'mobi': '1',
+              'issubtitle': '1',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = response.data;
       if (data == null) return [];
@@ -65,6 +70,73 @@ class KwSource extends MusicPlatform {
       return results;
     } catch (e) {
       throw noteFailure('search', e);
+    }
+  }
+
+  /// 专辑曲目：`st=albuminfo` 一次返回整张专辑。
+  ///
+  /// 返回项与搜索结果同构（`SONGNAME`/`ARTIST`/`MUSICRID`/`DURATION`），
+  /// 所以解析直接复用 [_staticParseItem]。
+  ///
+  /// 注意 `rn` 的隐藏上限：传 100 及以上时服务端反而只给 10 首，
+  /// 所以固定每页 50 并按 `pn` 翻页。
+  @override
+  Future<List<MusicItem>> getAlbumSongs(
+    String albumId, {
+    int limit = 300,
+  }) async {
+    final id = albumId.trim();
+    if (id.isEmpty) return const [];
+    const pageSize = 50;
+    final songs = <MusicItem>[];
+    try {
+      for (var page = 0; songs.length < limit; page++) {
+        final response = await _dio
+            .get(
+              '/r.s',
+              queryParameters: {
+                'st': 'albuminfo',
+                'albumid': id,
+                'encoding': 'utf8',
+                'rformat': 'json',
+                'client': 'kt',
+                'pn': '$page',
+                'rn': '$pageSize',
+                'vipver': '1',
+                'mobi': '1',
+                'show_copyright_off': '1',
+                'newver': '1',
+              },
+            )
+            .timeout(const Duration(seconds: 10));
+
+        final raw = response.data;
+        final body = raw is Map<String, dynamic>
+            ? raw
+            : (raw is String ? jsonDecode(raw) : null);
+        if (body is! Map) break;
+        final abslist = body['abslist'];
+        if (abslist is! List || abslist.isEmpty) break;
+
+        var added = 0;
+        for (final item in abslist) {
+          if (item is! Map) continue;
+          final parsed = _staticParseItem(Map<String, dynamic>.from(item));
+          if (parsed == null) continue;
+          if (songs.any((song) => song.identityKey == parsed.identityKey)) {
+            continue;
+          }
+          songs.add(parsed);
+          added++;
+        }
+        // 短页或整页都是重复项，说明已经到底。
+        if (abslist.length < pageSize || added == 0) break;
+      }
+      if (songs.isNotEmpty) clearFailure();
+      return songs;
+    } catch (e) {
+      noteFailure('album', e);
+      return songs;
     }
   }
 
@@ -99,17 +171,18 @@ class KwSource extends MusicPlatform {
     }
     if (songmid.isEmpty) return null;
 
-    final duration = int.tryParse(item['DURATION']?.toString() ??
-            item['duration']?.toString() ??
-            '') ??
+    final duration =
+        int.tryParse(
+          item['DURATION']?.toString() ?? item['duration']?.toString() ?? '',
+        ) ??
         0;
 
     final artwork = normalizeKuwoArtwork(item);
 
     return MusicItem(
       id: songmid,
-      name:
-          (item['SONGNAME'] as String? ?? item['name'] as String? ?? '').trim(),
+      name: (item['SONGNAME'] as String? ?? item['name'] as String? ?? '')
+          .trim(),
       singer: (item['ARTIST'] as String? ?? item['artist'] as String? ?? '')
           .replaceAll('&', '、'),
       source: 'kw',
@@ -119,8 +192,8 @@ class KwSource extends MusicPlatform {
       songmid: songmid,
       hash: songmid,
       duration: Duration(seconds: duration),
-      album:
-          (item['ALBUM'] as String? ?? item['album'] as String? ?? '').trim(),
+      album: (item['ALBUM'] as String? ?? item['album'] as String? ?? '')
+          .trim(),
       // 保留 MUSICRID、rid、formats 等字段，供自定义源按平台协议解析。
       meta: Map<String, dynamic>.from(item),
     );
@@ -144,16 +217,18 @@ class KwSource extends MusicPlatform {
     if (rid.isEmpty) return null;
 
     try {
-      final response = await _dio.get(
-        kuwoArtworkEndpoint,
-        queryParameters: {
-          'corp': 'kuwo',
-          'type': 'rid_pic',
-          'pictype': '500',
-          'size': '500',
-          'rid': rid,
-        },
-      ).timeout(const Duration(seconds: 5));
+      final response = await _dio
+          .get(
+            kuwoArtworkEndpoint,
+            queryParameters: {
+              'corp': 'kuwo',
+              'type': 'rid_pic',
+              'pictype': '500',
+              'size': '500',
+              'rid': rid,
+            },
+          )
+          .timeout(const Duration(seconds: 5));
 
       final url = response.data?.toString().trim() ?? '';
       if (url.startsWith('http')) {
@@ -210,25 +285,30 @@ class KwSource extends MusicPlatform {
   }
 
   @override
-  Future<List<MusicItem>> searchSongLists(String keyword,
-      {int page = 1, int limit = 20}) async {
+  Future<List<MusicItem>> searchSongLists(
+    String keyword, {
+    int page = 1,
+    int limit = 20,
+  }) async {
     try {
-      final response = await _dio.get(
-        '/r.s',
-        queryParameters: {
-          'client': 'kt',
-          'all': keyword,
-          'pn': (page - 1).toString(),
-          'rn': limit.toString(),
-          'ft': 'songlist',
-          'cluster': '0',
-          'strategy': '2012',
-          'encoding': 'utf8',
-          'rformat': 'json',
-          'vermerge': '1',
-          'mobi': '1',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await _dio
+          .get(
+            '/r.s',
+            queryParameters: {
+              'client': 'kt',
+              'all': keyword,
+              'pn': (page - 1).toString(),
+              'rn': limit.toString(),
+              'ft': 'songlist',
+              'cluster': '0',
+              'strategy': '2012',
+              'encoding': 'utf8',
+              'rformat': 'json',
+              'vermerge': '1',
+              'mobi': '1',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = response.data;
       if (data == null) return [];
@@ -263,26 +343,33 @@ class KwSource extends MusicPlatform {
   }
 
   @override
-  Future<List<MusicItem>> getSongListDetail(String songListId,
-      {int page = 1, int limit = 50}) async {
+  Future<List<MusicItem>> getSongListDetail(
+    String songListId, {
+    int page = 1,
+    int limit = 50,
+  }) async {
     try {
-      final dio = createDioForService(headers: {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36',
-        'Referer': 'https://www.kuwo.cn/',
-      });
-      final response = await dio.get(
-        kuwoPlaylistEndpoint,
-        queryParameters: {
-          'op': 'getlistinfo',
-          'pid': songListId,
-          'pn': (page - 1).toString(),
-          'rn': limit.toString(),
-          'encode': 'utf8',
-          'keyset': 'pl2012',
-          'identity': 'kuwo',
-          'pcjson': '1',
+      final dio = createDioForService(
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36',
+          'Referer': 'https://www.kuwo.cn/',
         },
-      ).timeout(const Duration(seconds: 10));
+      );
+      final response = await dio
+          .get(
+            kuwoPlaylistEndpoint,
+            queryParameters: {
+              'op': 'getlistinfo',
+              'pid': songListId,
+              'pn': (page - 1).toString(),
+              'rn': limit.toString(),
+              'encode': 'utf8',
+              'keyset': 'pl2012',
+              'identity': 'kuwo',
+              'pcjson': '1',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final data = response.data;
       if (data == null) return [];
@@ -358,8 +445,11 @@ class KwSource extends MusicPlatform {
   }
 
   @override
-  Future<List<MusicItem>> getLeaderboardSongs(String leaderboardId,
-      {int page = 1, int limit = 100}) async {
+  Future<List<MusicItem>> getLeaderboardSongs(
+    String leaderboardId, {
+    int page = 1,
+    int limit = 100,
+  }) async {
     try {
       final parts = leaderboardId.split(':');
       final bangid = parts.length == 2 ? parts[1] : leaderboardId;
@@ -383,17 +473,15 @@ class KwSource extends MusicPlatform {
       debugPrint('[KW] Request completed');
 
       final response = await _dio
-          .get(
-            url,
-            options: Options(responseType: ResponseType.plain),
-          )
+          .get(url, options: Options(responseType: ResponseType.plain))
           .timeout(const Duration(seconds: 10));
 
       final data = response.data;
       debugPrint('[KW] Response status: ${response.statusCode}');
       debugPrint('[KW] Response type: ${data.runtimeType}');
       debugPrint(
-          '[KW] Response data (first 500 chars): ${data.toString().substring(0, data.toString().length > 500 ? 500 : data.toString().length)}');
+        '[KW] Response data (first 500 chars): ${data.toString().substring(0, data.toString().length > 500 ? 500 : data.toString().length)}',
+      );
 
       // API 返回 base64 编码的加密数据（text/plain），Dio 返回 String
       String base64Result;
@@ -414,7 +502,8 @@ class KwSource extends MusicPlatform {
       debugPrint('[KW] Decoding base64 data...');
       final decrypted = WbdCrypto.decodeData(base64Result);
       debugPrint(
-          '[KW] Decrypted data (first 500 chars): ${decrypted.substring(0, decrypted.length > 500 ? 500 : decrypted.length)}');
+        '[KW] Decrypted data (first 500 chars): ${decrypted.substring(0, decrypted.length > 500 ? 500 : decrypted.length)}',
+      );
 
       final bodyMap = jsonDecode(decrypted) as Map<String, dynamic>;
       debugPrint('[KW] Parsed JSON code: ${bodyMap['code']}');
@@ -450,5 +539,4 @@ class KwSource extends MusicPlatform {
     _dio.close();
     closeReusedServiceClients();
   }
-
 }

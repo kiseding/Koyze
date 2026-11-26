@@ -43,6 +43,12 @@ String albumIdOf(MusicItem song) {
         if (id.isNotEmpty) return id;
       }
       return '';
+    case 'kw':
+      for (final key in const ['ALBUMID', 'albumid']) {
+        final id = read(meta[key]);
+        if (id.isNotEmpty) return id;
+      }
+      return '';
     default:
       return '';
   }

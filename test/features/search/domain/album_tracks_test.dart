@@ -86,6 +86,21 @@ void main() {
       );
     });
 
+    test('reads Kuwo ALBUMID', () {
+      expect(
+        albumIdOf(
+          _song(
+            name: 'a',
+            singer: 's',
+            album: '叶惠美',
+            platform: 'kw',
+            meta: {'ALBUMID': '1293'},
+          ),
+        ),
+        '1293',
+      );
+    });
+
     test('returns empty for platforms without an album id', () {
       expect(
         albumIdOf(
