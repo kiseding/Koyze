@@ -185,6 +185,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                     height: 46,
                     child: OrigoChromeSurface(
                       borderRadius: BorderRadius.circular(16),
+                      style: AppGlassStyle.bar,
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       // 首页的搜索入口是一条玻璃条；这里原本是实心灰块，
                       // 同一应用里两种搜索入口长得不一样，翻页时很跳。

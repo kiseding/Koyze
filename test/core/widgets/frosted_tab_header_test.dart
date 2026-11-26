@@ -56,8 +56,12 @@ void main() {
     testWidgets('虚化打开时真的采样背后', (tester) async {
       GlassEffectConfig.setSurfaceBlur(1);
       await tester.pumpWidget(_host(_tabHeader()));
+      // tab 胶囊自己也有虚化层；这里只钉住标题栏那条全宽背板。
       expect(
-        find.byType(BackdropFilter),
+        find.descendant(
+          of: find.byType(GradientFrost),
+          matching: find.byType(BackdropFilter),
+        ),
         findsOneWidget,
         reason: 'tab 标题栏没有建 BackdropFilter，虚化档对它完全无效',
       );
@@ -66,7 +70,36 @@ void main() {
     testWidgets('虚化为 0 时退回平涂，不白花一次全宽采样', (tester) async {
       GlassEffectConfig.setSurfaceBlur(0);
       await tester.pumpWidget(_host(_tabHeader()));
-      expect(find.byType(BackdropFilter), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(GradientFrost),
+          matching: find.byType(BackdropFilter),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('tab 胶囊跟随虚化开关', (tester) async {
+      GlassEffectConfig.setSurfaceBlur(1);
+      await tester.pumpWidget(_host(_tabHeader()));
+      expect(
+        find.descendant(
+          of: find.byType(RootTabBar),
+          matching: find.byType(GlassBackdrop),
+        ),
+        findsWidgets,
+        reason: 'tab 胶囊没有接入全局虚化设置',
+      );
+
+      GlassEffectConfig.setSurfaceBlur(0);
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: find.byType(RootTabBar),
+          matching: find.byType(GlassBackdrop),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('滚动中与停手后半径一致，不跟着手势变', (tester) async {

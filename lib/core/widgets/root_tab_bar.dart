@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import '../motion/motion_tokens.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_config.dart';
+import 'glass_backdrop.dart';
 import '../../l10n/app_strings.dart';
 import 'pressable.dart';
 
@@ -305,47 +306,45 @@ class _RootTabBarState extends State<RootTabBar>
 
     return SizedBox(
       height: widget.height,
-      child: ValueListenableBuilder<double>(
-        // 药丸底色跟着「界面不透明度」走，滑杆拖动时要当帧重画。
-        valueListenable: GlassEffectConfig.surfaceOpacityListenable,
-        builder: (context, _, _) => ListenableBuilder(
-          // 胶囊的两条时间线：点击切换的 [AnimationController]，和手势滑动
-          // 的实时进度。任何一个变动都要重算展开度。
-          listenable: Listenable.merge([
-            _controller,
-            rootBranchDragPosition,
-          ]),
-          builder: (context, _) {
-            final pillFill = GlassEffectConfig.withSurfaceOpacity(
-              isDark ? const Color(0x28FFFFFF) : Colors.white,
-            );
-            final pillEdge = GlassEffectConfig.withSurfaceOpacity(
-              isDark ? const Color(0x24FFFFFF) : const Color(0x12000000),
-            );
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < _labels.length; i++) ...[
-                  if (i > 0) const SizedBox(width: _kItemGap),
-                  _tab(
-                    context,
-                    index: i,
-                    label: _labels[i],
-                    textWidth: _textWidths[i],
-                    selected: _to == i,
-                    accent: accent,
-                    idle: idle,
-                    pillFill: pillFill,
-                    pillEdge: pillEdge,
-                    pillShadow: pillShadow,
-                    style: style,
-                    onTap: scope == null ? null : () => scope.onTap(i),
-                  ),
-                ],
+      child: ListenableBuilder(
+        // 药丸底色跟不透明度走，虚化层还要跟着虚化开关增删；
+        // 另外两条时间线是点击动画和手势滑动的实时进度。
+        listenable: Listenable.merge([
+          GlassEffectConfig.surfaceOpacityListenable,
+          GlassEffectConfig.surfaceBlurListenable,
+          _controller,
+          rootBranchDragPosition,
+        ]),
+        builder: (context, _) {
+          final pillFill = GlassEffectConfig.withSurfaceOpacity(
+            isDark ? const Color(0x28FFFFFF) : Colors.white,
+          );
+          final pillEdge = GlassEffectConfig.withSurfaceOpacity(
+            isDark ? const Color(0x24FFFFFF) : const Color(0x12000000),
+          );
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < _labels.length; i++) ...[
+                if (i > 0) const SizedBox(width: _kItemGap),
+                _tab(
+                  context,
+                  index: i,
+                  label: _labels[i],
+                  textWidth: _textWidths[i],
+                  selected: _to == i,
+                  accent: accent,
+                  idle: idle,
+                  pillFill: pillFill,
+                  pillEdge: pillEdge,
+                  pillShadow: pillShadow,
+                  style: style,
+                  onTap: scope == null ? null : () => scope.onTap(i),
+                ),
               ],
-            );
-          },
-        ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -402,6 +401,16 @@ class _RootTabBarState extends State<RootTabBar>
                   ),
                 ),
               ),
+              if (GlassEffectConfig.userBlurEnabled)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: GlassBackdrop(
+                      sigma: GlassEffectConfig.scaleSurfaceBlur(15),
+                      allowBlur: true,
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ),
               // 图标钉在 25 的中心：收起态是热区中心，展开后仍在左侧视觉
               // 中心，切换时不会横向跳。
               Positioned(
