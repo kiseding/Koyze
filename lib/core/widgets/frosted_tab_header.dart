@@ -59,9 +59,6 @@ class FrostedTabHeader extends StatelessWidget {
     final top = MediaQuery.paddingOf(context).top;
     final tabs = RootTabScope.maybeOf(context);
     if (tabs != null) {
-      // 不再在这里包一层 ValueListenableBuilder 算底色：这层底已经交给
-      // [GradientFrost]，它自己监听「界面不透明度」「虚化」和滚动状态，
-      // 拖动滑杆时当帧重画。这里只负责把高度算给布局。
       return _buildTabHeader(context, top: top);
     }
     return _buildPlainHeader(context, top: top);
@@ -70,20 +67,8 @@ class FrostedTabHeader extends StatelessWidget {
   Widget _buildTabHeader(BuildContext context, {required double top}) {
     return Stack(
       children: [
-        // 导航行需要一层底：列表滚上来时是从图标和药丸背后穿过的，
-        // 没有这层底，文字会和封面/歌名糊在一起。
-        //
-        // 这层底走的是**和所有独立页面同一条** [GradientFrost]：根壳层这根栏
-        // 以前只铺一条纯色渐变，`surface` 乘不透明度之后确实会变淡，但背后
-        // 什么都没被糊过，于是「虚化」拖到 100% 这一栏也毫无变化——看起来
-        // 就是「tab 栏没用上虚化」。统一成一个实现之后，虚化档、滚动折扣、
-        // 不透明度三项对两根栏同时生效，不会再出现「这里跟、那里不跟」。
-        //
-        // 高度和模糊半径都跟独立页面的 AppBar 取同一个值，栏下**不再多出
-        // 一截渐隐区**。早先这里高 28pt 并让它淡出到 0，想的是「列表从栏底
-        // 钻出来时不撞硬边」；代价是这根栏整体比收藏列表浅一档——栏下三分
-        // 之一是半透明的，滚到那里的封面会透上来，看着像栏「没画满」。
-        // 收藏列表一直是没有这截渐隐的，两相对比就更明显。现在统一成硬边。
+        // 状态栏和导航行共用一块全宽背板，独立采样已经绘制的页面内容。
+        // 图标、胶囊和操作按钮都画在背板上方。
         Positioned(
           top: 0,
           left: 0,
@@ -92,6 +77,8 @@ class FrostedTabHeader extends StatelessWidget {
           child: IgnorePointer(
             child: GradientFrost(
               sigma: blur ?? GradientAppBarBackground.defaultBlur,
+              base: Theme.of(context).colorScheme.surfaceContainer,
+              shareBackdrop: false,
               child: const SizedBox.expand(),
             ),
           ),

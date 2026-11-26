@@ -109,7 +109,9 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     );
     final isLandscapeShell = RootShellLayout.usesSideNavigationOf(context);
     // 竖屏要给根壳层的标题栏让出高度；横屏走左栏，没有这根栏。
-    final headerInset = isLandscapeShell ? 0.0 : FrostedTabHeader.extent(context);
+    final headerInset = isLandscapeShell
+        ? 0.0
+        : FrostedTabHeader.extent(context);
     // 搜索块总高：46 输入框 + 10 上内边距 + 12 下内边距。
     const searchBlockHeight = 68.0;
     return Container(
@@ -183,12 +185,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                   child: SizedBox(
                     height: 46,
-                    child: OrigoChromeSurface(
-                      borderRadius: BorderRadius.circular(16),
-                      style: AppGlassStyle.bar,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      // 首页的搜索入口是一条玻璃条；这里原本是实心灰块，
-                      // 同一应用里两种搜索入口长得不一样，翻页时很跳。
+                    child: _PlaylistSearchSurface(
                       child: Row(
                         children: [
                           Icon(
@@ -1924,6 +1921,46 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+/// 固定在歌单列表上方的圆角搜索框背景。
+class _PlaylistSearchSurface extends StatelessWidget {
+  const _PlaylistSearchSurface({required this.child});
+
+  final Widget child;
+  static const _radius = BorderRadius.all(Radius.circular(16));
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: _radius,
+        boxShadow: AppGlass.shadowFor(context, style: AppGlassStyle.bar),
+      ),
+      child: ClipRRect(
+        borderRadius: _radius,
+        child: GradientFrost(
+          sigma: AppGlass.blurBar,
+          // 首屏用容器色与页面底色区分，滚动时采样从搜索框背后经过的卡片。
+          base: Theme.of(context).colorScheme.surfaceContainerHigh,
+          shareBackdrop: false,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: _radius,
+              border: Border.fromBorderSide(AppGlass.hairline(context)),
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: child,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -220,6 +220,7 @@ class GradientFrost extends StatelessWidget {
     this.sigma = 16,
     this.base,
     this.fadeOutFrom,
+    this.shareBackdrop = true,
   });
 
   final Widget child;
@@ -236,6 +237,9 @@ class GradientFrost extends StatelessWidget {
   /// 但淡出又不能从栏顶就开始（标题会压到亮色背景上读不清），所以只有下面
   /// 一小截渐变。独立页面的 AppBar 高度就是栏本身，用默认的 null 即可。
   final double? fadeOutFrom;
+
+  /// 是否复用外层采样键。叠在页面玻璃上的控件可独立采样已绘制的内容。
+  final bool shareBackdrop;
 
   @override
   Widget build(BuildContext context) {
@@ -289,10 +293,7 @@ class GradientFrost extends StatelessWidget {
         ),
       ),
     );
-    // 「虚化」大于 0 时才真的采样背后：早先这里是整条栏一层的 BackdropFilter
-    // （更早还按 6 条横带做「渐变模糊」），后来因为每帧一次全宽离屏拷贝被拿掉，
-    // 只剩一层平涂染色。现在把它作为可选档还给用户，出厂跟着全局虚化档
-    // （0.90）一起打开。
+    // 虚化归零时只画染色层，保留用户选择的不透明度。
     final frosted = !reduce && GlassEffectConfig.userBlurEnabled;
     return Stack(
       children: [
@@ -305,6 +306,7 @@ class GradientFrost extends StatelessWidget {
                   sigma: GlassEffectConfig.scaleSurfaceBlur(sigma),
                   saturation: AppGlass.saturate,
                   allowBlur: true,
+                  shareBackdrop: shareBackdrop,
                   child: const ColoredBox(color: Color(0x00000000)),
                 ),
               ),

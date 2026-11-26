@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 import '../motion/motion_tokens.dart';
 import '../theme/app_colors.dart';
 import '../theme/glass_config.dart';
-import 'glass_backdrop.dart';
 import '../../l10n/app_strings.dart';
 import 'pressable.dart';
 
@@ -307,11 +306,8 @@ class _RootTabBarState extends State<RootTabBar>
     return SizedBox(
       height: widget.height,
       child: ListenableBuilder(
-        // 药丸底色跟不透明度走，虚化层还要跟着虚化开关增删；
-        // 另外两条时间线是点击动画和手势滑动的实时进度。
         listenable: Listenable.merge([
           GlassEffectConfig.surfaceOpacityListenable,
-          GlassEffectConfig.surfaceBlurListenable,
           _controller,
           rootBranchDragPosition,
         ]),
@@ -401,16 +397,6 @@ class _RootTabBarState extends State<RootTabBar>
                   ),
                 ),
               ),
-              if (GlassEffectConfig.userBlurEnabled)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: GlassBackdrop(
-                      sigma: GlassEffectConfig.scaleSurfaceBlur(15),
-                      allowBlur: true,
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                ),
               // 图标钉在 25 的中心：收起态是热区中心，展开后仍在左侧视觉
               // 中心，切换时不会横向跳。
               Positioned(

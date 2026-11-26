@@ -53,10 +53,9 @@ void main() {
   });
 
   group('tab 标题栏的虚化', () {
-    testWidgets('虚化打开时真的采样背后', (tester) async {
+    testWidgets('虚化打开时整条背板采样', (tester) async {
       GlassEffectConfig.setSurfaceBlur(1);
       await tester.pumpWidget(_host(_tabHeader()));
-      // tab 胶囊自己也有虚化层；这里只钉住标题栏那条全宽背板。
       expect(
         find.descendant(
           of: find.byType(GradientFrost),
@@ -79,27 +78,22 @@ void main() {
       );
     });
 
-    testWidgets('tab 胶囊跟随虚化开关', (tester) async {
+    testWidgets('虚化由全宽背板承担，胶囊不另采样', (tester) async {
       GlassEffectConfig.setSurfaceBlur(1);
       await tester.pumpWidget(_host(_tabHeader()));
       expect(
         find.descendant(
           of: find.byType(RootTabBar),
-          matching: find.byType(GlassBackdrop),
-        ),
-        findsWidgets,
-        reason: 'tab 胶囊没有接入全局虚化设置',
-      );
-
-      GlassEffectConfig.setSurfaceBlur(0);
-      await tester.pump();
-      expect(
-        find.descendant(
-          of: find.byType(RootTabBar),
-          matching: find.byType(GlassBackdrop),
+          matching: find.byType(BackdropFilter),
         ),
         findsNothing,
       );
+      expect(find.byType(BackdropFilter), findsOneWidget);
+
+      final filter = tester.getRect(find.byType(BackdropFilter));
+      expect(filter.topLeft, Offset.zero);
+      expect(filter.width, tester.getSize(find.byType(FrostedTabHeader)).width);
+      expect(filter.height, 59 + FrostedTabHeader.barHeight);
     });
 
     testWidgets('滚动中与停手后半径一致，不跟着手势变', (tester) async {
@@ -123,11 +117,7 @@ void main() {
       // 早先滚动期 sigma 乘 0.5，手指一抬模糊度就跳一下。更糟的是独立页面
       // 的标题栏不在 `GlassScrollObserver` 范围内（它只包了根壳层），所以
       // 同一个组件在 tab 里会变、在收藏列表里不变——同一套材质两种观感。
-      expect(
-        scrolling,
-        idle,
-        reason: '滚动期把标题栏半径打了折，停手时会看到模糊度跳变',
-      );
+      expect(scrolling, idle, reason: '滚动期把标题栏半径打了折，停手时会看到模糊度跳变');
       expect(_backdropSigma(tester), idle);
     });
 
