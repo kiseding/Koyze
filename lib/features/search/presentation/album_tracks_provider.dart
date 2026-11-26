@@ -135,6 +135,71 @@ final albumTracksProvider = FutureProvider.autoDispose
       return build(const [], AlbumTracksOrigin.search);
     });
 
+/// 歌手页里单张专辑的完整曲目查询。
+///
+/// [albumId] 是平台专辑 id；[platform] 是已经解析好的平台源 id。
+typedef ArtistAlbumTracksQuery = ({
+  String albumId,
+  String platform,
+  String album,
+  String artist,
+});
+
+/// 歌手页每张专辑的完整曲目：平台专辑接口优先，失败时用 MusicBrainz 曲目表。
+///
+/// MusicBrainz 自身串行限速并缓存结果；只有平台接口没有给出曲目时才请求，
+/// 没有平台专辑 id 的分组也可以通过专辑名补齐。搜索命中列表始终由 UI 做即时回退。
+///
+/// 不用 autoDispose：滚动离开再回来不该重新发一次请求。
+final artistAlbumTracksProvider =
+    FutureProvider.family<List<MusicItem>, ArtistAlbumTracksQuery>((
+      ref,
+      query,
+    ) async {
+      final service = ref.watch(musicSourceServiceProvider);
+      if (query.albumId.isNotEmpty) {
+        final songs = await service.getAlbumSongs(
+          query.albumId,
+          sourceId: query.platform,
+        );
+        if (songs.isNotEmpty) {
+          return fillAlbumIdentity(
+            songs,
+            albumName: query.album,
+            artistName: query.artist,
+          );
+        }
+      }
+
+      if (query.album.trim().isEmpty || query.artist.trim().isEmpty) {
+        return const [];
+      }
+      final discography = ref.watch(musicBrainzDiscographyProvider);
+      final tracks = await discography.tracksForRelease(
+        query.artist,
+        query.album,
+      );
+      if (tracks.isEmpty) return const [];
+      return tracks
+          .map(
+            (track) => MusicItem(
+              id: 'mb:${query.albumId}:${track.position}:${track.title}',
+              name: track.title,
+              singer: query.artist,
+              album: query.album,
+              duration: track.length ?? Duration.zero,
+              source: 'musicbrainz',
+              platform: query.platform,
+              isPlayable: false,
+              meta: {
+                'albumTrackOrigin': 'musicbrainz',
+                'trackPosition': track.position,
+              },
+            ),
+          )
+          .toList(growable: false);
+    });
+
 /// MusicBrainz 曲目播放前的匹配：按歌名回平台搜一次，取第一个可播放结果。
 ///
 /// 只用于 [AlbumTracksOrigin.musicBrainz] 的行；平台曲目自身有地址，

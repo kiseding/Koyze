@@ -12,7 +12,9 @@ import '../../player/domain/music_item.dart';
 import '../../player/presentation/player_provider.dart';
 import '../domain/album_tracks.dart';
 import '../domain/artist_albums.dart';
+import 'album_tracks_provider.dart';
 import 'artist_detail_provider.dart';
+import 'search_provider.dart';
 
 class ArtistDetailScreen extends ConsumerWidget {
   const ArtistDetailScreen({
@@ -88,16 +90,7 @@ class ArtistDetailScreen extends ConsumerWidget {
             );
           }
           final groups = groupSongsByAlbum(items);
-          final ordered = groups.expand((group) => group.songs).toList();
-          final entries = <_ArtistListEntry>[];
-          var songIndex = 0;
-          for (final group in groups) {
-            entries.add(_ArtistListEntry.album(group, songIndex));
-            for (final song in group.songs) {
-              entries.add(_ArtistListEntry.song(song, songIndex));
-              songIndex++;
-            }
-          }
+          final total = groups.fold<int>(0, (sum, g) => sum + g.songs.length);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -112,7 +105,7 @@ class ArtistDetailScreen extends ConsumerWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '${S.of(context).albums} · ${groups.length}  ·  ${S.of(context).songs} · ${ordered.length}',
+                      '${S.of(context).albums} · ${groups.length}  ·  ${S.of(context).songs} · $total',
                       style: TextStyle(
                         color: AppColors.secondaryText(context),
                         fontSize: 13,
@@ -125,24 +118,14 @@ class ArtistDetailScreen extends ConsumerWidget {
               Expanded(
                 child: AdaptiveSongList.builder(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  itemCount: entries.length,
-                  itemBuilder: (context, index) {
-                    final entry = entries[index];
-                    final album = entry.album;
-                    if (album != null) {
-                      return _AlbumHeader(
-                        group: album,
-                        onTap: () => _openAlbum(context, album),
-                        onPlay: () => _play(ref, ordered, entry.order),
-                      );
-                    }
-                    final song = entry.song!;
-                    return _ArtistSongRow(
-                      song: song,
-                      index: entry.order,
-                      onTap: () => _play(ref, ordered, entry.order),
-                    );
-                  },
+                  itemCount: groups.length,
+                  itemBuilder: (context, index) => _ArtistAlbumSection(
+                    group: groups[index],
+                    artistName: artistName,
+                    platformId: _platformId,
+                    onOpenAlbum: (group) => _openAlbum(context, group),
+                    onPlay: (songs, songIndex) => _play(ref, songs, songIndex),
+                  ),
                 ),
               ),
             ],
@@ -151,6 +134,8 @@ class ArtistDetailScreen extends ConsumerWidget {
       ),
     );
   }
+
+  String get _platformId => source.isNotEmpty ? source : platform;
 
   void _playAll(WidgetRef ref, List<MusicItem> songs) {
     final ordered = groupSongsByAlbum(
@@ -202,23 +187,103 @@ class ArtistDetailScreen extends ConsumerWidget {
   }
 }
 
-class _ArtistListEntry {
-  const _ArtistListEntry.album(this.album, this.order) : song = null;
-  const _ArtistListEntry.song(this.song, this.order) : album = null;
+/// 一张专辑在歌手页里的整段内容：专辑头 + 该专辑的曲目。
+///
+/// 曲目优先用平台专辑接口拉到的完整列表（序号从 1 开始重新计数），
+/// 拉不到或还在加载时先显示搜索命中的那几首，不会让整段空着。
+class _ArtistAlbumSection extends ConsumerWidget {
+  const _ArtistAlbumSection({
+    required this.group,
+    required this.artistName,
+    required this.platformId,
+    required this.onOpenAlbum,
+    required this.onPlay,
+  });
 
-  final ArtistAlbumGroup? album;
-  final MusicItem? song;
-  final int order;
+  final ArtistAlbumGroup group;
+  final String artistName;
+  final String platformId;
+  final void Function(ArtistAlbumGroup group) onOpenAlbum;
+  final void Function(List<MusicItem> songs, int index) onPlay;
+
+  /// 这一段里第一首带平台专辑 id 的歌决定用哪个专辑接口。
+  String get _albumId {
+    for (final song in group.songs) {
+      final id = albumIdOf(song);
+      if (id.isNotEmpty) return id;
+    }
+    return '';
+  }
+
+  Future<void> _playTrack(
+    BuildContext context,
+    WidgetRef ref,
+    List<MusicItem> songs,
+    int index,
+  ) async {
+    final song = songs[index];
+    if (song.isPlayable) {
+      onPlay(songs, index);
+      return;
+    }
+    final service = ref.read(musicSourceServiceProvider);
+    final match = await resolveMusicBrainzTrack(
+      service,
+      track: song,
+      artistName: artistName,
+      platformId: platformId,
+    );
+    if (!context.mounted || match == null) return;
+    onPlay([match], 0);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final albumId = _albumId;
+    final async = ref.watch(
+      artistAlbumTracksProvider((
+        albumId: albumId,
+        platform: platformId,
+        album: group.name,
+        artist: artistName,
+      )),
+    );
+    final full = async.valueOrNull;
+    final songs = (full != null && full.isNotEmpty) ? full : group.songs;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _AlbumHeader(
+          group: group,
+          songCount: songs.length,
+          loading: async.isLoading,
+          onTap: () => onOpenAlbum(group),
+          onPlay: () => _playTrack(context, ref, songs, 0),
+        ),
+        for (var index = 0; index < songs.length; index++)
+          _ArtistSongRow(
+            song: songs[index],
+            // 序号按专辑内部重新计数，不跨专辑累加。
+            index: index,
+            onTap: () => _playTrack(context, ref, songs, index),
+          ),
+      ],
+    );
+  }
 }
 
 class _AlbumHeader extends StatelessWidget {
   const _AlbumHeader({
     required this.group,
+    required this.songCount,
+    required this.loading,
     required this.onTap,
     required this.onPlay,
   });
 
   final ArtistAlbumGroup group;
+  final int songCount;
+  final bool loading;
   final VoidCallback onTap;
   final VoidCallback onPlay;
 
@@ -265,13 +330,23 @@ class _AlbumHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                 ],
-                Text(
-                  '${group.songs.length}',
-                  style: TextStyle(
-                    color: AppColors.secondaryText(context),
-                    fontSize: 11,
+                if (loading)
+                  SizedBox(
+                    width: 11,
+                    height: 11,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.6,
+                      color: AppColors.mutedText(context),
+                    ),
+                  )
+                else
+                  Text(
+                    '$songCount',
+                    style: TextStyle(
+                      color: AppColors.secondaryText(context),
+                      fontSize: 11,
+                    ),
                   ),
-                ),
                 const SizedBox(width: 2),
                 // 播放整张专辑与进入详情分开：标题点进去看完整曲目，
                 // 图标直接按当前分组播放。
