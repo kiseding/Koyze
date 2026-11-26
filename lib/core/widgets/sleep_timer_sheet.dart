@@ -32,7 +32,6 @@ void showSleepTimerSheet(BuildContext context, WidgetRef ref) {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const KoyzeSheetGrabber(),
               KoyzeSheetTitle(
                 title: s.sleepTimer,
                 subtitleWidget: running ? _TickingSubtitle(state: state) : null,

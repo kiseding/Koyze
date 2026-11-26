@@ -37,7 +37,6 @@ void showCarModeSheet(BuildContext context, WidgetRef ref) {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const KoyzeSheetGrabber(),
               KoyzeSheetTitle(
                 title: s.carMode,
                 subtitle: carModeStatusText(connection, s),
