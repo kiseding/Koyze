@@ -1764,168 +1764,91 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     WidgetRef ref,
     Playlist playlist,
   ) {
-    final media = MediaQuery.of(context);
-    final maxH = media.size.height * 0.56;
-    final maxW = media.size.width.clamp(280.0, 420.0).toDouble();
-
-    showKoyzeDialog<void>(
+    // 歌单列表里的三点菜单和其它「更多操作」面板走同一套底部弹层：
+    // KoyzeSheetTitle 定标题行，KoyzeSheetAction 定动作行。之前这里是居中
+    // 对话框，和歌曲详情、排序面板的材质/动效都不一致。
+    showKoyzeSheet<void>(
       context: context,
-      barrierDismissible: true,
-      builder: (dialogCtx) {
-        final on = AppColors.onScaffold(context);
-        Widget action({
-          required IconData icon,
-          required String label,
-          required VoidCallback onTap,
-          Color? color,
-          bool destructive = false,
-        }) {
-          final c = color ?? (destructive ? AppColors.error : on);
-          return Pressable(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                children: [
-                  Icon(icon, color: c, size: 22),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        color: c,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
+      isScrollControlled: true,
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            KoyzeSheetTitle(
+              title: S.of(sheetCtx).moreActions,
+              subtitle: S
+                  .of(sheetCtx)
+                  .builtinPlaylistName(playlist.id, playlist.name),
+              onClose: () => Navigator.pop(sheetCtx),
+            ),
+            if (playlist.id != 'recent')
+              KoyzeSheetAction(
+                icon: Icons.edit_outlined,
+                label: S.of(sheetCtx).editPlaylist,
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _showEditDialog(context, ref, playlist);
+                },
               ),
-            ),
-          );
-        }
-
-        return KoyzeDialog(
-          maxWidth: maxW,
-          contentPadding: EdgeInsets.zero,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 28,
-            vertical: 24,
-          ),
-          content: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxH),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 10, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          S
-                              .of(context)
-                              .builtinPlaylistName(playlist.id, playlist.name),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: on,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      FxIconButton(
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => Navigator.pop(dialogCtx),
-                        color: AppColors.error,
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-                    ],
-                  ),
-                ),
-                Divider(height: 1, color: AppColors.cardBorder(context)),
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: maxH - 92),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (playlist.id != 'recent')
-                          action(
-                            icon: Icons.edit_outlined,
-                            label: S.of(context).editPlaylist,
-                            onTap: () {
-                              Navigator.pop(dialogCtx);
-                              _showEditDialog(context, ref, playlist);
-                            },
-                          ),
-                        if (playlist.id != 'favorites' &&
-                            playlist.songCount > 0)
-                          action(
-                            icon: Icons.favorite_border_rounded,
-                            label: S.of(context).addAllToFavorites,
-                            onTap: () async {
-                              final int added;
-                              try {
-                                added = await ref
-                                    .read(playlistServiceProvider)
-                                    .addAllSongsToFavorites(playlist.id);
-                              } catch (error) {
-                                if (!context.mounted) return;
-                                showAppNotification(
-                                  '${S.of(context).addFailed}: $error',
-                                  type: AppNotificationType.error,
-                                );
-                                return;
-                              }
-                              if (!dialogCtx.mounted) return;
-                              Navigator.pop(dialogCtx);
-                              if (!context.mounted) return;
-                              showAppNotification(
-                                added == 0
-                                    ? S.of(context).alreadyInFavorites
-                                    : S.of(context).addedToFavorites(added),
-                                type: added == 0
-                                    ? AppNotificationType.info
-                                    : AppNotificationType.success,
-                              );
-                            },
-                          ),
-                        if (playlist.id != 'favorites' &&
-                            playlist.id != 'recent')
-                          action(
-                            icon: Icons.delete_outline_rounded,
-                            label: S.of(context).deletePlaylist,
-                            destructive: true,
-                            onTap: () async {
-                              try {
-                                await ref
-                                    .read(playlistServiceProvider)
-                                    .deletePlaylist(playlist.id);
-                              } catch (error) {
-                                if (!context.mounted) return;
-                                showAppNotification(
-                                  '${S.of(context).deleteFailed}: $error',
-                                  type: AppNotificationType.error,
-                                );
-                                return;
-                              }
-                              if (!dialogCtx.mounted) return;
-                              Navigator.pop(dialogCtx);
-                            },
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+            if (playlist.id != 'favorites' && playlist.songCount > 0)
+              KoyzeSheetAction(
+                icon: Icons.favorite_border_rounded,
+                label: S.of(sheetCtx).addAllToFavorites,
+                onTap: () async {
+                  final int added;
+                  try {
+                    added = await ref
+                        .read(playlistServiceProvider)
+                        .addAllSongsToFavorites(playlist.id);
+                  } catch (error) {
+                    if (!context.mounted) return;
+                    showAppNotification(
+                      '${S.of(context).addFailed}: $error',
+                      type: AppNotificationType.error,
+                    );
+                    return;
+                  }
+                  if (!sheetCtx.mounted) return;
+                  Navigator.pop(sheetCtx);
+                  if (!context.mounted) return;
+                  showAppNotification(
+                    added == 0
+                        ? S.of(context).alreadyInFavorites
+                        : S.of(context).addedToFavorites(added),
+                    type: added == 0
+                        ? AppNotificationType.info
+                        : AppNotificationType.success,
+                  );
+                },
+              ),
+            if (playlist.id != 'favorites' && playlist.id != 'recent')
+              KoyzeSheetAction(
+                icon: Icons.delete_outline_rounded,
+                label: S.of(sheetCtx).deletePlaylist,
+                danger: true,
+                onTap: () async {
+                  try {
+                    await ref
+                        .read(playlistServiceProvider)
+                        .deletePlaylist(playlist.id);
+                  } catch (error) {
+                    if (!context.mounted) return;
+                    showAppNotification(
+                      '${S.of(context).deleteFailed}: $error',
+                      type: AppNotificationType.error,
+                    );
+                    return;
+                  }
+                  if (!sheetCtx.mounted) return;
+                  Navigator.pop(sheetCtx);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 }

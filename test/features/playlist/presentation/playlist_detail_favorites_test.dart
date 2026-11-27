@@ -9,30 +9,33 @@ import 'package:koyze/features/playlist/presentation/playlist_detail_screen.dart
 import 'package:koyze/features/playlist/presentation/playlist_provider.dart';
 
 void main() {
-  test('playlist list more menu uses center dialog and can add favorites', () {
-    final source = File(
-      'lib/features/playlist/presentation/playlist_screen.dart',
-    ).readAsStringSync();
-    final more = source.substring(
-      source.indexOf('void _showPlaylistMoreMenu('),
-    );
+  test(
+    'playlist list more menu uses the same bottom sheet as other actions',
+    () {
+      final source = File(
+        'lib/features/playlist/presentation/playlist_screen.dart',
+      ).readAsStringSync();
+      final more = source.substring(
+        source.indexOf('void _showPlaylistMoreMenu('),
+      );
 
-    expect(more, contains('showKoyzeDialog<void>'));
-    expect(more, contains('return KoyzeDialog('));
-    expect(more, contains('contentPadding: EdgeInsets.zero'));
-    expect(more, contains('insetPadding: const EdgeInsets.symmetric('));
-    expect(more, contains('maxHeight: maxH'));
-    expect(more, isNot(contains('return Dialog(')));
-    expect(more, isNot(contains('child: GlassSurface(')));
-    expect(more, contains('S.of(context).addAllToFavorites'));
-    expect(
-      File('lib/l10n/app_zh.arb').readAsStringSync(),
-      contains('全部添加到收藏列表'),
-    );
-    expect(more, contains('await ref'));
-    expect(more, contains('.addAllSongsToFavorites(playlist.id)'));
-    expect(more, isNot(contains('showModalBottomSheet')));
-  });
+      expect(more, contains('showKoyzeSheet<void>'));
+      expect(more, contains('KoyzeSheetTitle('));
+      expect(more, contains('KoyzeSheetAction('));
+      expect(more, contains('S.of(sheetCtx).moreActions'));
+      expect(more, contains('danger: true'));
+      expect(more, isNot(contains('KoyzeDialog')));
+      expect(more, isNot(contains('showKoyzeDialog')));
+      expect(more, isNot(contains('KoyzeSheetGrabber')));
+      expect(more, contains('S.of(sheetCtx).addAllToFavorites'));
+      expect(
+        File('lib/l10n/app_zh.arb').readAsStringSync(),
+        contains('全部添加到收藏列表'),
+      );
+      expect(more, contains('await ref'));
+      expect(more, contains('.addAllSongsToFavorites(playlist.id)'));
+    },
+  );
 
   test(
     'playlist detail more menu exposes clear favorites action only there',
