@@ -1,14 +1,20 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/fx_switch.dart';
+import '../../../core/widgets/app_notification.dart';
 import '../../../core/widgets/koyze_sheet.dart';
 import '../../../l10n/app_strings.dart';
 import '../domain/local_scan_rules.dart';
+import 'local_file_manager_provider.dart';
 import 'local_music_provider.dart';
 
 /// 打开「扫描规则」面板。
+///
+/// 和睡眠定时 / 车机模式 / 音质选择等面板同一套语言：统一标题行 +
+/// `KoyzeSheetAction` 动作行，时长和体积各自进一个同样款式的单选面板，
+/// 主面板只留四行，不把十几个选项平铺成一堵墙。
 void showScanRulesSheet(BuildContext context, WidgetRef ref) {
   showKoyzeSheet(
     context: context,
@@ -72,35 +78,80 @@ class _ScanRulesSheetState extends ConsumerState<_ScanRulesSheet> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(0)} MB';
   }
 
+  /// 排除目录走系统文件夹选择器，不让用户手敲路径。
+  ///
+  /// iOS / 鸿蒙的 `file_picker` 目录选择器给不出能长期使用的路径，统一按
+  /// 文件管理页的约定分派到原生通道；其余平台（桌面 / Android）用系统目录
+  /// 选择器，Android 那边拿到的是 SAF 树 URI，扫描器按前缀匹配同样有效。
   Future<void> _addExcludedFolder() async {
-    final controller = TextEditingController();
-    final path = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(S.of(context).scanRuleAddFolder),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: S.of(context).scanRuleFolderHint,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(S.of(context).cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text(S.of(context).add),
-          ),
-        ],
-      ),
-    );
-    if (path == null || path.isEmpty || _rules == null) return;
-    if (_rules!.excludedFolders.contains(path)) return;
+    final s = S.of(context);
+    final fs = ref.read(localFileSystemProvider);
+    String? path;
+    try {
+      path = fs.needsNativeDirectoryPicker
+          ? await fs.pickDirectory()
+          : await FilePicker.getDirectoryPath(dialogTitle: s.scanRuleAddFolder);
+    } catch (error) {
+      if (!mounted) return;
+      showAppNotification(
+        '${s.chooseFolderFailed}: $error',
+        type: AppNotificationType.error,
+      );
+      return;
+    }
+
+    final folder = path?.trim();
+    if (folder == null || folder.isEmpty || !mounted) return;
+    final rules = _rules;
+    if (rules == null) return;
+    // 命中的是「已被现有规则覆盖」的目录，不必重复占一行。
+    if (rules.excludes(folder)) return;
     await _update(
-      _rules!.copyWith(excludedFolders: [..._rules!.excludedFolders, path]),
+      rules.copyWith(excludedFolders: [...rules.excludedFolders, folder]),
+    );
+  }
+
+  /// 最小时长 / 最小体积共用的单选面板外壳，款式和音质、语言等面板一致。
+  Future<void> _showOptionSheet({
+    required String title,
+    required IconData icon,
+    required List<int> options,
+    required int current,
+    required String Function(int value) labelOf,
+    required LocalScanRules Function(int value) apply,
+  }) async {
+    await showKoyzeSheet<void>(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            KoyzeSheetTitle(
+              title: title,
+              onClose: () => Navigator.pop(sheetCtx),
+            ),
+            for (final value in options)
+              KoyzeSheetAction(
+                icon: icon,
+                label: labelOf(value),
+                selected: value == current,
+                trailing: value == current
+                    ? Icon(
+                        Icons.check_rounded,
+                        size: 20,
+                        color: AppColors.accentOf(sheetCtx),
+                      )
+                    : null,
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _update(apply(value));
+                },
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -119,201 +170,127 @@ class _ScanRulesSheetState extends ConsumerState<_ScanRulesSheet> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const KoyzeSheetGrabber(),
                 KoyzeSheetTitle(
                   title: s.scanRules,
                   subtitle: s.scanRulesHint,
                   onClose: () => Navigator.pop(context),
                 ),
-                _RuleSection(
-                  title: s.scanRuleMinDuration,
-                  children: [
-                    for (final seconds in _durationOptions)
-                      _RuleChip(
-                        label: _durationLabel(seconds, s),
-                        selected: rules.minDuration.inSeconds == seconds,
-                        onTap: () => _update(
-                          rules.copyWith(
-                            minDuration: Duration(seconds: seconds),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                _RuleSection(
-                  title: s.scanRuleMinSize,
-                  children: [
-                    for (final bytes in _sizeOptions)
-                      _RuleChip(
-                        label: _sizeLabel(bytes, s),
-                        selected: rules.minSizeBytes == bytes,
-                        onTap: () =>
-                            _update(rules.copyWith(minSizeBytes: bytes)),
-                      ),
-                  ],
-                ),
-                FxSwitchTile(
-                  dense: true,
-                  value: rules.skipDuplicates,
-                  onChanged: (value) =>
-                      _update(rules.copyWith(skipDuplicates: value)),
-                  title: Text(
-                    s.scanRuleSkipDuplicates,
-                    style: TextStyle(
-                      color: AppColors.onScaffold(context),
-                      fontSize: 14,
-                    ),
-                  ),
-                  subtitle: Text(
-                    s.scanRuleSkipDuplicatesHint,
-                    style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 12, 4),
-                  child: Row(
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.only(bottom: 10),
                     children: [
-                      Expanded(
-                        child: Text(
-                          s.scanRuleExcludedFolders,
-                          style: TextStyle(
-                            color: AppColors.onScaffold(context),
-                            fontSize: 14,
+                      KoyzeSheetAction(
+                        icon: Icons.timer_outlined,
+                        label: s.scanRuleMinDuration,
+                        subtitle: _durationLabel(
+                          rules.minDuration.inSeconds,
+                          s,
+                        ),
+                        trailing: const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                        ),
+                        onTap: () => _showOptionSheet(
+                          title: s.scanRuleMinDuration,
+                          icon: Icons.timer_outlined,
+                          options: _durationOptions,
+                          current: rules.minDuration.inSeconds,
+                          labelOf: (value) => _durationLabel(value, s),
+                          apply: (value) => rules.copyWith(
+                            minDuration: Duration(seconds: value),
                           ),
                         ),
                       ),
-                      TextButton.icon(
-                        onPressed: _addExcludedFolder,
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: Text(s.add),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.accentOf(context),
-                          textStyle: const TextStyle(fontSize: 13),
+                      KoyzeSheetAction(
+                        icon: Icons.storage_rounded,
+                        label: s.scanRuleMinSize,
+                        subtitle: _sizeLabel(rules.minSizeBytes, s),
+                        trailing: const Icon(
+                          Icons.chevron_right_rounded,
+                          size: 20,
+                        ),
+                        onTap: () => _showOptionSheet(
+                          title: s.scanRuleMinSize,
+                          icon: Icons.storage_rounded,
+                          options: _sizeOptions,
+                          current: rules.minSizeBytes,
+                          labelOf: (value) => _sizeLabel(value, s),
+                          apply: (value) => rules.copyWith(minSizeBytes: value),
+                        ),
+                      ),
+                      KoyzeSheetAction(
+                        icon: Icons.filter_alt_outlined,
+                        label: s.scanRuleSkipDuplicates,
+                        subtitle: s.scanRuleSkipDuplicatesHint,
+                        selected: rules.skipDuplicates,
+                        trailing: rules.skipDuplicates
+                            ? Icon(
+                                Icons.check_rounded,
+                                size: 20,
+                                color: AppColors.accentOf(context),
+                              )
+                            : null,
+                        onTap: () => _update(
+                          rules.copyWith(skipDuplicates: !rules.skipDuplicates),
+                        ),
+                      ),
+                      KoyzeSheetAction(
+                        icon: Icons.folder_open_rounded,
+                        label: s.scanRuleAddFolder,
+                        subtitle: rules.excludedFolders.isEmpty
+                            ? s.scanRuleNoExcludedFolders
+                            : s.scanRuleExcludedFolders,
+                        onTap: _addExcludedFolder,
+                      ),
+                      for (final folder in rules.excludedFolders)
+                        KoyzeSheetAction(
+                          icon: Icons.folder_outlined,
+                          label: folder,
+                          onTap: () {},
+                          trailing: IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            color: AppColors.mutedText(context),
+                            tooltip: s.remove,
+                            onPressed: () => _update(
+                              rules.copyWith(
+                                excludedFolders: [
+                                  for (final item in rules.excludedFolders)
+                                    if (item != folder) item,
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 14,
+                              color: AppColors.mutedText(context),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _saving ? s.savingNow : s.scanRuleRescanHint,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  height: 1.35,
+                                  color: AppColors.mutedText(context),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (rules.excludedFolders.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                    child: Text(
-                      s.scanRuleNoExcludedFolders,
-                      style: TextStyle(
-                        color: AppColors.mutedText(context),
-                        fontSize: 12,
-                      ),
-                    ),
-                  )
-                else
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 160),
-                    child: ListView(
-                      shrinkWrap: true,
-                      children: [
-                        for (final folder in rules.excludedFolders)
-                          ListTile(
-                            dense: true,
-                            minTileHeight: 40,
-                            title: Text(
-                              folder,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.mutedText(context),
-                              ),
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 18),
-                              onPressed: () => _update(
-                                rules.copyWith(
-                                  excludedFolders: [
-                                    for (final item in rules.excludedFolders)
-                                      if (item != folder) item,
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-                  child: Text(
-                    _saving ? s.savingNow : s.scanRuleRescanHint,
-                    style: TextStyle(
-                      color: AppColors.mutedText(context),
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
               ],
             ),
-    );
-  }
-}
-
-class _RuleSection extends StatelessWidget {
-  const _RuleSection({required this.title, required this.children});
-
-  final String title;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: AppColors.onScaffold(context),
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 4, children: children),
-        ],
-      ),
-    );
-  }
-}
-
-class _RuleChip extends StatelessWidget {
-  const _RuleChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = AppColors.accentOf(context);
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      labelStyle: TextStyle(
-        fontSize: 12,
-        color: selected ? accent : AppColors.onScaffold(context),
-      ),
-      selectedColor: accent.withValues(alpha: 0.16),
-      side: BorderSide(
-        color: selected ? accent : AppColors.cardBorder(context),
-      ),
-      backgroundColor: Colors.transparent,
-      showCheckmark: false,
     );
   }
 }
