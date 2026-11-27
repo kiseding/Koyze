@@ -10,6 +10,7 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/origo_chrome.dart';
 import '../data/play_history_store.dart';
+import 'listening_report_poster.dart';
 import 'play_history_provider.dart';
 
 class StatsScreen extends ConsumerStatefulWidget {
@@ -46,6 +47,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final topSongs = store.topSongs(_range);
     final topArtists = store.topArtists(_range);
     final topAlbums = store.topAlbums(_range);
+    final hourlySeconds = store.hourlySeconds(_range);
+    final favoriteHour = store.favoriteHour(_range);
 
     return Scaffold(
       backgroundColor: AppColors.scaffold(context),
@@ -64,6 +67,18 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             color: AppColors.onScaffold(context),
           ),
         ),
+        actions: [
+          if (store.entries.isNotEmpty)
+            IconButton(
+              tooltip: S.of(context).statsPosterGenerate,
+              icon: const Icon(Icons.image_outlined),
+              color: AppColors.secondaryText(context),
+              onPressed: () => showListeningReportSheet(
+                context,
+                buildListeningReportData(store, _range),
+              ),
+            ),
+        ],
       ),
       extendBodyBehindAppBar: true,
       body: SafeArea(
@@ -78,6 +93,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   _buildSummaryCards(summary),
                   const SizedBox(height: 16),
                   _buildHeatmap(heatmap),
+                  const SizedBox(height: 16),
+                  _buildHourChart(hourlySeconds, favoriteHour),
                   const SizedBox(height: 16),
                   _buildTopSection(context, topSongs, topArtists, topAlbums),
                   const SizedBox(height: 24),
@@ -256,6 +273,70 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             S.of(context).dailyPeak(days.length, maxCount),
             style: TextStyle(fontSize: 10, color: AppColors.mutedText(context)),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHourChart(List<double> hours, int? favorite) {
+    if (hours.every((value) => value <= 0)) return const SizedBox.shrink();
+    final peak = hours.fold<double>(0, (a, b) => a > b ? a : b);
+    return GlassSurface(
+      style: AppGlassStyle.regular,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.fromBorderSide(
+        AppGlass.hairline(context, emphasized: false),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            S.of(context).statsPosterHourChart,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.onScaffold(context),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 44,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < hours.length; i++)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 1),
+                      child: Container(
+                        height: hours[i] <= 0 ? 3 : 8 + 36 * (hours[i] / peak),
+                        decoration: BoxDecoration(
+                          color: hours[i] <= 0
+                              ? AppColors.fill(context)
+                              : AppColors.accentOf(context).withValues(
+                                  alpha: 0.45 + 0.55 * (hours[i] / peak),
+                                ),
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (favorite != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              S.of(context).statsPosterFavoriteHour(favorite),
+              style: TextStyle(
+                fontSize: 10,
+                color: AppColors.mutedText(context),
+              ),
+            ),
+          ],
         ],
       ),
     );

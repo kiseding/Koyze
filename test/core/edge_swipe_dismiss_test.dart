@@ -84,6 +84,8 @@ void main() {
 
     await tester.tap(find.text('open'));
     await tester.pump();
+    // 首帧先停在起点（TransitionStart 把起步推迟一帧），下一帧才开始滑。
+    await tester.pump(const Duration(milliseconds: 60));
     await tester.pump(const Duration(milliseconds: 60));
 
     // 普通二级页要像系统返回那样横着进来：转场中途一定有一层

@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -62,6 +64,11 @@ import 'widgets/player_volume_button.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../core/logging/app_log.dart';
 import '../../../core/logging/ohos_hilog.dart';
+
+/// RenderOpacity 会把透明度量化到 8 位 alpha；低于 1/255 会被当成 0 并
+/// 直接跳过绘制，抓图用的 RepaintBoundary 就拿不到 layer。留 1% 保证它
+/// 始终在图层树里，肉眼又几乎看不见。
+const double _hiddenLiveOpacity = 0.01;
 
 double _playbackQueueSheetInitialSize(BuildContext context, int itemCount) {
   final screenHeight = MediaQuery.sizeOf(context).height;
@@ -844,6 +851,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   Rect? _controlsPlayRect;
   Rect? _lyricPlayRect;
 
+  // 转场快照：整页在 RepaintBoundary 里只画一次，进出场期间缩放的是
+  // 位图而不是逐帧重建 PageView / 虚化背景 / 歌词树。正文节点保持挂载，
+  // 这样拖拽手势、PageView 页码和播放状态都不会因换层而丢失。
+  final GlobalKey _routeSnapshotKey = GlobalKey();
+  ui.Image? _routeSnapshot;
+  Size? _routeSnapshotSize;
+  bool _snapshotReady = false;
+  bool _capturingSnapshot = false;
+  int _captureAttempts = 0;
+  final ValueNotifier<double> _staggerProgress = ValueNotifier<double>(1);
+  Widget? _cachedBody;
+  Object? _cachedBodySignature;
+
   // 拖拽关闭：手指阶段直接写 playerRouteProgress，松手后用确定性的
   // 单个 controller 从当前位置继续。避免物理弹簧 overshoot / cancel 后
   // 视觉被 clamp 住，看起来像松手后没有动效甚至卡死。
@@ -868,6 +888,60 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       cancel: ref.read(cancelScrubProvider),
     );
     _seeking = false;
+    playerRouteProgress.addListener(_syncStaggerProgress);
+    // 首帧（很可能是 Hero 测量的 offstage 帧）拿不到 layer，下面会重试到
+    // 真正绘出来为止；抓不到就退回实时正文，不会把页面留白。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _requestSnapshot());
+  }
+
+  /// 交错淡入平时跟路由进度走；抓到快照之前固定在“完全展开”终态，
+  /// 否则快照里 app bar / 控件是透明的，展开时会凭空冒出来。
+  void _syncStaggerProgress() {
+    if (!_snapshotReady || !mounted) return;
+    _staggerProgress.value = playerRouteProgress.value.clamp(0.0, 1.0);
+  }
+
+  void _requestSnapshot() {
+    if (!mounted || _capturingSnapshot || _snapshotReady) return;
+    if (_captureAttempts >= 20) return;
+    _captureAttempts++;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _captureSnapshot());
+    // addPostFrameCallback 不会自己请求帧；没有动画在跑时必须补一刀，
+    // 否则重试会一直挂在队列里（页面静止时尤其明显）。
+    WidgetsBinding.instance.scheduleFrame();
+  }
+
+  Future<void> _captureSnapshot() async {
+    if (!mounted || _capturingSnapshot || _snapshotReady) return;
+    final boundary =
+        _routeSnapshotKey.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
+    // toImage 要求这一帧已经把 boundary 画完。首帧常是 Hero 测量的
+    // offstage 帧，或正文里还有淡入动画在跑，等下一帧干净了再抓。
+    if (boundary == null || boundary.size.isEmpty || boundary.debugNeedsPaint) {
+      _requestSnapshot();
+      return;
+    }
+    _capturingSnapshot = true;
+    try {
+      final pixelRatio = MediaQuery.devicePixelRatioOf(context).clamp(1.0, 2.0);
+      final image = await boundary.toImage(pixelRatio: pixelRatio);
+      if (!mounted) {
+        image.dispose();
+        return;
+      }
+      setState(() {
+        _routeSnapshot = image;
+        _routeSnapshotSize = boundary.size;
+        _snapshotReady = true;
+      });
+      _syncStaggerProgress();
+    } catch (_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _requestSnapshot());
+      WidgetsBinding.instance.scheduleFrame();
+    } finally {
+      _capturingSnapshot = false;
+    }
   }
 
   void _publishSettledProgress() {
@@ -975,6 +1049,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   @override
   void dispose() {
     _dragOperation = null;
+    playerRouteProgress.removeListener(_syncStaggerProgress);
+    _staggerProgress.dispose();
+    _routeSnapshot?.dispose();
     _scrubSession.dispose();
     _pageController.dispose();
     _settleController.dispose();
@@ -990,9 +1067,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     // （表现是「切歌也不好使」）。这里做最后一道兜底。
     ref.listen(currentMusicProvider, (previous, next) {
       if (previous?.id == next?.id) return;
-      if (!_seeking && _dragOperation == null) return;
-      _cancelActiveScrub();
-      if (mounted) setState(() => _seeking = false);
+      if (_seeking || _dragOperation != null) {
+        _cancelActiveScrub();
+        if (mounted) setState(() => _seeking = false);
+      }
+      // 封面/歌名都变了，旧快照必须重抓；抓到之前继续用实时正文。
+      // 这里不 setState：切歌本身就会触发一次 build，抓完再统一刷新。
+      _routeSnapshot?.dispose();
+      _routeSnapshot = null;
+      _routeSnapshotSize = null;
+      _snapshotReady = false;
+      _captureAttempts = 0;
+      _requestSnapshot();
     });
 
     final currentMusic = ref.watch(currentMusicProvider);
@@ -1027,9 +1113,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     }
 
     final duration = ref.watch(durationProvider).value ?? currentMusic.duration;
+    // 这几项在正文构建时被直接读取；缓存正文必须把它们计入签名，
+    // 否则频谱开关/音质变化不会刷新正文。
+    final mediaForQuality = ref.watch(currentMediaItemProvider).value;
+    final spectrumForBody = ref.watch(playerSpectrumProvider);
+    final spectrumSupported = ref.watch(playerSpectrumSupportedProvider);
+    final resolvingPlayback = ref.watch(
+      playbackStateProvider.select((state) {
+        final processing = state.value?.processingState;
+        return processing == AudioProcessingState.loading ||
+            processing == AudioProcessingState.buffering;
+      }),
+    );
 
     final screenH = MediaQuery.of(context).size.height;
     final screenW = MediaQuery.of(context).size.width;
+    // 旋屏/分屏后旧快照尺寸对不上，先退回实时正文再重抓。
+    if (_snapshotReady &&
+        _routeSnapshotSize != Size(screenW, screenH) &&
+        !_capturingSnapshot) {
+      _routeSnapshot?.dispose();
+      _routeSnapshot = null;
+      _routeSnapshotSize = null;
+      _snapshotReady = false;
+      _captureAttempts = 0;
+      _requestSnapshot();
+    }
     final forceLandscape = ref.watch(landscapeShellProvider);
     final landscape = forceLandscape || screenW > screenH;
     final usesSideNavigation = shouldUseSideNavigation(
@@ -1199,49 +1308,86 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               : Curves.easeOut.transform(
                   ((progress - 0.50) / 0.42).clamp(0.0, 1.0),
                 );
-          // 动效全程隐藏正文封面，只留飞行快照封面；progress=1 再交棒，
-          // 避免全屏/迷你栏真封面与快照叠在一起。
-          final artworkReveal = progress >= 1.0 ? 1.0 : 0.0;
-          // 背景动画期间也跟手透明（阴影已移除，不会发灰）；
-          // 非动画阶段保持纯色。
-          // 歌词页关闭：sheet 与主壳底色同色，若不变色则缩小的背景在
-          // 视觉上不可见（观感成"只有元素在缩"）。底色全程渐变成迷你栏
-          // 同款灰，让"卡片"边界从头可见、与元素同步收缩。
-          final sheetColor = lyricCollapsing
-              ? Color.lerp(
-                  Theme.of(context).scaffoldBackgroundColor,
-                  AppColors.miniBar(context),
-                  closeT,
-                )!
-              : Theme.of(context).scaffoldBackgroundColor.withValues(
-                  alpha: closing ? chromeFade : 1.0,
-                );
+          // 封面在抓图那一帧藏起来，飞行封面接管；progress=1 交棒给真封面。
           // 歌词页关闭：最后 1% 砍掉整层，由真实迷你栏接管。
           final hideLayer = lyricCollapsing && closeT >= 0.99;
-          // 单一渲染结构：Positioned.fromRect(currentRect) + 中心锚定 +
-          // 按宽度比等比缩放。封面页与歌词页共用（仅 currentRect 目标不同），
-          // 避免 lyricCollapsing 翻转时子树销毁重建导致 PageView 回退。
-          final sheetContent = Opacity(
-            opacity: contentOpacity,
-            child: _buildPlayerBody(
-              context,
-              currentMusic,
-              playerService,
-              isPlaying,
-              playMode,
-              duration,
-              screenH,
-              screenW,
-              landscape,
-              dismissThreshold,
-              artworkReveal,
-              chromeFade,
-            ),
+          // 正文常驻全屏 RepaintBoundary：只有它和它的子层会被抓成位图，
+          // 转场期间逐帧变化的只是外层那张 RawImage 的矩形/透明度。
+          // 正文节点不换父级，PageView 页码、拖拽手势和播放状态都留得住。
+          //
+          // 签名不含 progress：进度 tick 不再重建整页，但 provider 变化
+          // （频谱开关、音质、切歌…）仍会照常刷新正文。
+          final bodySignature = (
+            currentMusic,
+            playerService,
+            isPlaying,
+            playMode,
+            duration,
+            screenH,
+            screenW,
+            landscape,
+            dismissThreshold,
+            _snapshotReady,
+            mediaForQuality,
+            spectrumForBody,
+            spectrumSupported,
+            resolvingPlayback,
           );
+          final body = bodySignature == _cachedBodySignature
+              ? _cachedBody!
+              : _cachedBody = _buildPlayerBody(
+                  context,
+                  currentMusic,
+                  playerService,
+                  isPlaying,
+                  playMode,
+                  duration,
+                  screenH,
+                  screenW,
+                  landscape,
+                  dismissThreshold,
+                  // 抓图前藏起真实封面，交给飞行封面；抓完照常显示。
+                  _snapshotReady ? 1.0 : 0.0,
+                  // chrome 淡出统一在外层做，正文不再随进度重建。
+                  1.0,
+                );
+          _cachedBodySignature = bodySignature;
+          final useSnapshot =
+              _routeSnapshot != null &&
+              progress < 1 &&
+              !hideLayer &&
+              (progress > 0 || closing);
+          // 抓图那一帧必须让 layer 真的画出来（opacity 为 0 会跳过绘制）；
+          // chrome 已淡到 0 的收拢尾段例外，那时按全透明放行点击。
+          final liveOpacity = chromeFade <= 0
+              ? 0.0
+              : !_snapshotReady
+              ? _hiddenLiveOpacity
+              : useSnapshot
+              ? chromeFade * _hiddenLiveOpacity
+              : progress >= 1
+              ? chromeFade
+              : chromeFade * contentOpacity;
+          final snapshotOpacity = closing ? chromeFade : contentOpacity;
           return Stack(
             fit: StackFit.expand,
             children: [
-              if (!hideLayer && (progress > 0 || closing))
+              Positioned.fill(
+                child: Opacity(
+                  opacity: liveOpacity,
+                  // 转场期间冻结流动背景的 ticker，别为一张即将被位图
+                  // 顶替的画面继续跑整屏虚化变换。
+                  child: TickerMode(
+                    // 抓图前停掉 ticker：歌词淡入等动画会让边界一直处于
+                    // needsPaint，toImage 会直接断言失败。
+                    enabled: _snapshotReady && !useSnapshot,
+                    child: RepaintBoundary(key: _routeSnapshotKey, child: body),
+                  ),
+                ),
+              ),
+              // 全屏时不再叠 morph 层：正文已经铺满，再盖一层 DecoratedBox
+              // 会吞掉拖拽手势；快照层只在真正转场期间出现。
+              if (!hideLayer && progress < 1 && (progress > 0 || closing))
                 Positioned.fromRect(
                   rect: currentRect,
                   // 收拢锁定后 sheet 缩在目标位置且不可见，必须放行点击，
@@ -1283,22 +1429,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                           maxHeight: screenH,
                           child: Transform.scale(
                             scale: currentRect.width / screenW,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                Opacity(
-                                  opacity: chromeFade,
-                                  child: ColoredBox(
-                                    color: sheetColor,
-                                    child: _PlayerCoverBackdrop(
-                                      artwork: currentMusic.artwork,
-                                      songId: currentMusic.id,
+                            child: useSnapshot
+                                ? Opacity(
+                                    opacity: snapshotOpacity,
+                                    child: SizedBox(
+                                      width: screenW,
+                                      height: screenH,
+                                      child: RawImage(
+                                        image: _routeSnapshot,
+                                        width: screenW,
+                                        height: screenH,
+                                        fit: BoxFit.fill,
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                sheetContent,
-                              ],
-                            ),
+                                  )
+                                : const SizedBox.shrink(),
                           ),
                         ),
                       ),
@@ -1345,196 +1490,217 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Material(
-        // 背景由外层 morph rect 统一绘制为纯色；这里透明且无阴影，
-        // 避免半透明混合透出灰色阴影使界面看起来灰蒙蒙。
+        // 背景和正文一起进 RepaintBoundary，抓图才能一次拿到完整一页；
+        // 外层 morph 只负责矩形、阴影和位图缩放。
         color: Colors.transparent,
-        child: SafeArea(
-          child: GestureDetector(
-            onVerticalDragStart: (_) {
-              // 已开始关闭（pop 进行中）后不再响应新手势，防止
-              // 动画结束前后乱抢事件导致卡死。
-              if (playerRouteDismissLocked) return;
-              _settleController.stop();
-              setState(() {
-                _draggingDown = true;
-                _dragOffset = 0;
-              });
-            },
-            onVerticalDragUpdate: (d) {
-              // pop 后手势仍在（全程按住）时直接忽略，避免访问已销毁
-              // 的 controller 导致卡死。
-              if (!_draggingDown) return;
-              if (d.delta.dy > 0 || _dragOffset > 0) {
-                // 只更新进度：ValueListenableBuilder 已负责重建，避免
-                // setState + 进度监听双重建把 UI 线程拖死。
-                _dragOffset = (_dragOffset + d.delta.dy).clamp(0.0, screenH);
-                // 跟手 morph：所有元素（封面大小、按钮、透明度）随拖动
-                // 从全屏向迷你栏收拢，主壳迷你栏同步扩张接管。
-                final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0);
-                playerRouteProgress.value = v;
-              }
-            },
-            onVerticalDragEnd: (d) {
-              final shouldClose =
-                  _dragOffset > dismissThreshold ||
-                  (d.primaryVelocity ?? 0) > 900;
-              if (shouldClose) {
-                // 从当前位置继续收拢到底（不再放大回去），到位后再 pop。
-                _draggingDown = true;
-                _collapsing = true;
-                _settleRouteProgress(
-                  target: 0,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  onComplete: _completeDragDismiss,
-                );
-              } else {
-                // 回弹全屏：确定性从当前位置恢复，不会出现松手后停住。
-                _draggingDown = false;
-                _collapsing = false;
-                _settleRouteProgress(
-                  target: 1,
-                  duration: const Duration(milliseconds: 240),
-                  curve: Curves.easeOutCubic,
-                  onComplete: () {
-                    if (mounted && !_draggingDown) {
-                      setState(() => _dragOffset = 0);
-                    }
-                  },
-                );
-              }
-            },
-            onVerticalDragCancel: () {
-              // 手势被其它手势（左缘返回 / PageView 横向）抢占而失去时，
-              // 绝不把界面留在半收拢状态：动画已在进行则继续，否则按
-              // 当前位置自动收敛——过半继续收拢关闭，否则回弹全屏。
-              if (_settleController.isAnimating) return;
-              // 左缘返回手势在场：本次 cancel 是被它抢走，全权由其收敛。
-              if (edgeDragActive) return;
-              _draggingDown = false;
-              if (playerRouteProgress.value <= 0.5) {
-                _collapsing = true;
-                _settleRouteProgress(
-                  target: 0,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  onComplete: _completeDragDismiss,
-                );
-              } else {
-                _collapsing = false;
-                _settleRouteProgress(
-                  target: 1,
-                  duration: const Duration(milliseconds: 240),
-                  curve: Curves.easeOutCubic,
-                  onComplete: () {
-                    if (mounted && !_draggingDown) {
-                      setState(() => _dragOffset = 0);
-                    }
-                  },
-                );
-              }
-            },
-            child: Column(
-              children: [
-                Opacity(
-                  opacity: chromeFade,
-                  child: _StaggeredFade(
-                    delay: 0.55,
-                    child: _buildAppBar(context, currentMusic),
-                  ),
-                ),
-                Expanded(
-                  child: landscape
-                      ? Row(
-                          children: [
-                            Expanded(
-                              flex: 6,
-                              child: PageView(
-                                controller: _pageController,
-                                onPageChanged: (index) =>
-                                    setState(() => _currentPage = index),
-                                allowImplicitScrolling: false,
-                                children: [
-                                  _buildArtwork(
-                                    currentMusic.artwork,
-                                    songId: currentMusic.id,
-                                    routeReveal: artworkReveal,
-                                    fill: true,
-                                  ),
-                                  const Padding(
-                                    padding: EdgeInsets.fromLTRB(8, 4, 12, 8),
-                                    child: LyricView(isFullScreen: true),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              flex: 5,
-                              child: _buildNowPlayingDetails(
-                                currentMusic: currentMusic,
-                                playerService: playerService,
-                                isPlaying: isPlaying,
-                                playMode: playMode,
-                                duration: duration,
-                                chromeFade: chromeFade,
-                                compact: true,
-                                horizontalVolume: true,
-                              ),
-                            ),
-                          ],
-                        )
-                      : PageView(
-                          controller: _pageController,
-                          onPageChanged: (index) =>
-                              setState(() => _currentPage = index),
-                          // 不缓存相邻页：封面/歌词互斥，页面切换无动画干扰。
-                          allowImplicitScrolling: false,
-                          children: [
-                            Column(
-                              children: [
-                                const SizedBox(height: 12),
-                                Expanded(
-                                  child: _buildArtwork(
-                                    currentMusic.artwork,
-                                    songId: currentMusic.id,
-                                    routeReveal: artworkReveal,
-                                  ),
-                                ),
-                                _buildNowPlayingDetails(
-                                  currentMusic: currentMusic,
-                                  playerService: playerService,
-                                  isPlaying: isPlaying,
-                                  playMode: playMode,
-                                  duration: duration,
-                                  chromeFade: chromeFade,
-                                ),
-                                const SizedBox(height: 12),
-                              ],
-                            ),
-                            Column(
-                              children: [
-                                const Expanded(
-                                  child: LyricView(isFullScreen: true),
-                                ),
-                                Opacity(
-                                  opacity: chromeFade,
-                                  child: _StaggeredFade(
-                                    delay: 0.55,
-                                    child: _buildLyricMiniBar(
-                                      currentMusic,
-                                      playerService,
-                                      isPlaying,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                ),
-              ],
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            IgnorePointer(
+              child: _PlayerCoverBackdrop(
+                artwork: currentMusic.artwork,
+                songId: currentMusic.id,
+              ),
             ),
-          ),
+            SafeArea(
+              child: GestureDetector(
+                onVerticalDragStart: (_) {
+                  // 已开始关闭（pop 进行中）后不再响应新手势，防止
+                  // 动画结束前后乱抢事件导致卡死。
+                  if (playerRouteDismissLocked) return;
+                  _settleController.stop();
+                  setState(() {
+                    _draggingDown = true;
+                    _dragOffset = 0;
+                  });
+                },
+                onVerticalDragUpdate: (d) {
+                  // pop 后手势仍在（全程按住）时直接忽略，避免访问已销毁
+                  // 的 controller 导致卡死。
+                  if (!_draggingDown) return;
+                  if (d.delta.dy > 0 || _dragOffset > 0) {
+                    // 只更新进度：ValueListenableBuilder 已负责重建，避免
+                    // setState + 进度监听双重建把 UI 线程拖死。
+                    _dragOffset = (_dragOffset + d.delta.dy).clamp(
+                      0.0,
+                      screenH,
+                    );
+                    // 跟手 morph：所有元素（封面大小、按钮、透明度）随拖动
+                    // 从全屏向迷你栏收拢，主壳迷你栏同步扩张接管。
+                    final v = (1 - _dragOffset / _dragDistance).clamp(0.0, 1.0);
+                    playerRouteProgress.value = v;
+                  }
+                },
+                onVerticalDragEnd: (d) {
+                  final shouldClose =
+                      _dragOffset > dismissThreshold ||
+                      (d.primaryVelocity ?? 0) > 900;
+                  if (shouldClose) {
+                    // 从当前位置继续收拢到底（不再放大回去），到位后再 pop。
+                    _draggingDown = true;
+                    _collapsing = true;
+                    _settleRouteProgress(
+                      target: 0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      onComplete: _completeDragDismiss,
+                    );
+                  } else {
+                    // 回弹全屏：确定性从当前位置恢复，不会出现松手后停住。
+                    _draggingDown = false;
+                    _collapsing = false;
+                    _settleRouteProgress(
+                      target: 1,
+                      duration: const Duration(milliseconds: 240),
+                      curve: Curves.easeOutCubic,
+                      onComplete: () {
+                        if (mounted && !_draggingDown) {
+                          setState(() => _dragOffset = 0);
+                        }
+                      },
+                    );
+                  }
+                },
+                onVerticalDragCancel: () {
+                  // 手势被其它手势（左缘返回 / PageView 横向）抢占而失去时，
+                  // 绝不把界面留在半收拢状态：动画已在进行则继续，否则按
+                  // 当前位置自动收敛——过半继续收拢关闭，否则回弹全屏。
+                  if (_settleController.isAnimating) return;
+                  // 左缘返回手势在场：本次 cancel 是被它抢走，全权由其收敛。
+                  if (edgeDragActive) return;
+                  _draggingDown = false;
+                  if (playerRouteProgress.value <= 0.5) {
+                    _collapsing = true;
+                    _settleRouteProgress(
+                      target: 0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      onComplete: _completeDragDismiss,
+                    );
+                  } else {
+                    _collapsing = false;
+                    _settleRouteProgress(
+                      target: 1,
+                      duration: const Duration(milliseconds: 240),
+                      curve: Curves.easeOutCubic,
+                      onComplete: () {
+                        if (mounted && !_draggingDown) {
+                          setState(() => _dragOffset = 0);
+                        }
+                      },
+                    );
+                  }
+                },
+                child: Column(
+                  children: [
+                    Opacity(
+                      opacity: chromeFade,
+                      child: _StaggeredFade(
+                        delay: 0.55,
+                        progress: _staggerProgress,
+                        child: _buildAppBar(context, currentMusic),
+                      ),
+                    ),
+                    Expanded(
+                      child: landscape
+                          ? Row(
+                              children: [
+                                Expanded(
+                                  flex: 6,
+                                  child: PageView(
+                                    controller: _pageController,
+                                    onPageChanged: (index) =>
+                                        setState(() => _currentPage = index),
+                                    allowImplicitScrolling: false,
+                                    children: [
+                                      _buildArtwork(
+                                        currentMusic.artwork,
+                                        songId: currentMusic.id,
+                                        routeReveal: artworkReveal,
+                                        fill: true,
+                                      ),
+                                      const Padding(
+                                        padding: EdgeInsets.fromLTRB(
+                                          8,
+                                          4,
+                                          12,
+                                          8,
+                                        ),
+                                        child: LyricView(isFullScreen: true),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 5,
+                                  child: _buildNowPlayingDetails(
+                                    currentMusic: currentMusic,
+                                    playerService: playerService,
+                                    isPlaying: isPlaying,
+                                    playMode: playMode,
+                                    duration: duration,
+                                    chromeFade: chromeFade,
+                                    compact: true,
+                                    horizontalVolume: true,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : PageView(
+                              controller: _pageController,
+                              onPageChanged: (index) =>
+                                  setState(() => _currentPage = index),
+                              // 不缓存相邻页：封面/歌词互斥，页面切换无动画干扰。
+                              allowImplicitScrolling: false,
+                              children: [
+                                Column(
+                                  children: [
+                                    const SizedBox(height: 12),
+                                    Expanded(
+                                      child: _buildArtwork(
+                                        currentMusic.artwork,
+                                        songId: currentMusic.id,
+                                        routeReveal: artworkReveal,
+                                      ),
+                                    ),
+                                    _buildNowPlayingDetails(
+                                      currentMusic: currentMusic,
+                                      playerService: playerService,
+                                      isPlaying: isPlaying,
+                                      playMode: playMode,
+                                      duration: duration,
+                                      chromeFade: chromeFade,
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                ),
+                                Column(
+                                  children: [
+                                    const Expanded(
+                                      child: LyricView(isFullScreen: true),
+                                    ),
+                                    Opacity(
+                                      opacity: chromeFade,
+                                      child: _StaggeredFade(
+                                        delay: 0.55,
+                                        progress: _staggerProgress,
+                                        child: _buildLyricMiniBar(
+                                          currentMusic,
+                                          playerService,
+                                          isPlaying,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1573,7 +1739,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ? _localFallbackQualityFromUrl(urlForQuality)
                     : correctQualityFromUrl(urlForQuality, requested)
               : null);
-    final resolving = !isLocal &&
+    final resolving =
+        !isLocal &&
         ref.watch(
           playbackStateProvider.select((state) {
             final processing = state.value?.processingState;
@@ -1761,6 +1928,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 : MainAxisAlignment.start,
             children: [
               _StaggeredFade(
+                progress: _staggerProgress,
                 delay: 0.2,
                 child: _buildSongInfo(
                   currentMusic,
@@ -1770,6 +1938,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
               // 未播歌词和频谱共用一块空间，不移动当前歌词或控件。
               _StaggeredFade(
+                progress: _staggerProgress,
                 delay: 0.3,
                 child: _CurrentLyricLine(
                   compact: compact,
@@ -1789,6 +1958,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               ),
               if (!compact) const SizedBox(height: _portraitLyricBottomGap),
               _StaggeredFade(
+                progress: _staggerProgress,
                 delay: 0.45,
                 child: _PlayerProgress(
                   duration: duration,
@@ -1808,6 +1978,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 ),
               ),
               _StaggeredFade(
+                progress: _staggerProgress,
                 delay: 0.5,
                 child: _buildControls(
                   playerService,
@@ -3639,16 +3810,23 @@ class _PlayerCoverBackdropState extends ConsumerState<_PlayerCoverBackdrop>
 }
 
 class _StaggeredFade extends StatelessWidget {
-  const _StaggeredFade({required this.delay, required this.child});
+  const _StaggeredFade({
+    required this.delay,
+    required this.child,
+    this.progress,
+  });
 
   /// 淡入开始的进度阈值（0~1）。
   final double delay;
   final Widget child;
 
+  /// 抓图时由播放器状态给一个固定在终态的进度，避免快照里控件是透明的。
+  final ValueListenable<double>? progress;
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<double>(
-      valueListenable: playerRouteProgress,
+      valueListenable: progress ?? playerRouteProgress,
       builder: (context, progress, _) {
         final t = delay >= 1
             ? 1.0

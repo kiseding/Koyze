@@ -5,7 +5,7 @@
 name: koyze
 description: Koyze - 一个免费的音乐查找助手
 publish_to: 'none'
-version: 6.1.7+552
+version: 6.1.8+553
 
 homepage: https://github.com/kiseding/koyze
 repository: https://github.com/kiseding/koyze
@@ -68,6 +68,8 @@ dependencies:
   encrypt: ^5.0.3
   pointycastle: ^3.9.1
   charset: ^2.0.1
+  # 导入歌单的扫码登录：网易云/酷狗只给二维码内容，需要本地渲染（纯 Dart，无平台通道）
+  qr_flutter: ^4.1.0
 
   # iOS home widget and live activity
   home_widget: ^0.6.0
@@ -140,6 +142,12 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  # 液态玻璃的背景滤镜着色器，与 pubspec.yaml 同源。鸿蒙侧如果编译不出这个
+  # 着色器，运行时 LiquidGlassShader.available 会是 false，玻璃自动退回普通
+  # 毛玻璃，不会崩——但资源声明必须和主清单一致，否则这条退回路径就成了
+  # 唯一路径，鸿蒙用户永远看不到液态玻璃。
+  shaders:
+    - shaders/liquid_glass.frag
   # Required by `flutter gen-l10n`; without it the generated AppLocalizations
   # class is not wired into the build.
   #

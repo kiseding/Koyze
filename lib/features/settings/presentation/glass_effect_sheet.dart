@@ -5,7 +5,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/glass_config.dart';
 import '../../../core/widgets/artwork_image.dart';
+import '../../../core/widgets/fx_switch.dart';
 import '../../../core/widgets/koyze_sheet.dart';
+import '../../../core/widgets/liquid_glass_filter.dart';
 import '../../../l10n/app_strings.dart';
 import '../../player/presentation/player_provider.dart';
 import 'settings_provider.dart';
@@ -49,7 +51,9 @@ class GlassEffectSheet extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
             children: [
               const _GlassPreview(),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
+              const _LiquidGlassToggle(),
+              const SizedBox(height: 14),
               _GlassEffectSlider(
                 label: s.glassOpacity,
                 value: opacity,
@@ -79,18 +83,21 @@ class GlassEffectSheet extends ConsumerWidget {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {
-                    const opacityDefault = GlassEffectConfig
-                        .defaultSurfaceOpacity;
+                    const opacityDefault =
+                        GlassEffectConfig.defaultSurfaceOpacity;
                     const blurDefault = GlassEffectConfig.defaultSurfaceBlur;
+                    const liquidDefault = GlassEffectConfig.defaultLiquidGlass;
                     GlassEffectConfig.setSurfaceOpacity(opacityDefault);
                     GlassEffectConfig.setSurfaceBlur(blurDefault);
+                    GlassEffectConfig.setLiquidGlass(liquidDefault);
+                    ref
+                        .read(liquidGlassProvider.notifier)
+                        .setEnabled(liquidDefault);
                     ref
                         .read(glassOpacityProvider.notifier)
                         .setOpacity(opacityDefault);
                     ref.read(glassOpacityProvider.notifier).flush();
-                    ref
-                        .read(glassBlurProvider.notifier)
-                        .setBlur(blurDefault);
+                    ref.read(glassBlurProvider.notifier).setBlur(blurDefault);
                     ref.read(glassBlurProvider.notifier).flush();
                   },
                   style: TextButton.styleFrom(
@@ -307,6 +314,72 @@ class _BlobPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _BlobPainter oldDelegate) =>
       oldDelegate.accent != accent;
+}
+
+/// 液态玻璃开关。
+///
+/// 它换的是「玻璃怎么成形」，不是「玻璃有多浓」：打开后边缘会按斯涅尔定律
+/// 弯折背后的内容、分通道错位出色散，再按法线打高光，染色被压到几乎为零。
+/// 下面两根滑杆照常生效，只是虚化会被折算成更轻的档位——隔着折射看，糊满档
+/// 反而会把折射糊没，玻璃又变成一块毛玻璃。
+///
+/// 着色器只在启动时编译一次。编译不出来（软件渲染、老设备）时置灰并写明
+/// 原因，不要让人以为打开了却没效果。
+class _LiquidGlassToggle extends ConsumerWidget {
+  const _LiquidGlassToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = S.of(context);
+    final enabled = ref.watch(liquidGlassProvider);
+    final available = LiquidGlassShader.available;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                s.liquidGlass,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.onScaffold(context),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                available ? s.liquidGlassSubtitle : s.liquidGlassUnavailable,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.35,
+                  color: AppColors.secondaryText(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Opacity(
+          opacity: available ? 1 : 0.4,
+          child: IgnorePointer(
+            ignoring: !available,
+            child: FxSwitch(
+              // 不可用时一律显示为关：此刻确实没在用这套材质。
+              value: enabled && available,
+              onChanged: (next) {
+                // 先写静态配置：预览和整页的玻璃面同一帧换材质，不等外层重建。
+                GlassEffectConfig.setLiquidGlass(next);
+                ref.read(liquidGlassProvider.notifier).setEnabled(next);
+              },
+              height: 40,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _GlassEffectSlider extends StatelessWidget {

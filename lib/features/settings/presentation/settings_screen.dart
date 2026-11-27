@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
@@ -70,6 +72,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _handledInitialAction = false;
   bool _searching = false;
+
   /// Runs a row picked from search. Search closes first so the page a row
   /// pushes — or the sheet it opens — is not fighting the layer for the
   /// keyboard and the back gesture.
@@ -148,7 +151,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               // 这里**不要**再给整个 ListView 套 RepaintBoundary：那是把整页
               // 内容包成一个整屏高的超大图层，滚动时必然撑爆栅格缓存，等于
               // 每帧全页重画。分层交给下面的卡片（一卡一层）。
-              child: ListView(
+              child: _SettingsScrollList(
                 // 每张分区卡片一层，而不是「每一行一层」。别改回行级边界。
                 //
                 // 这里踩过一次坑：曾经为了避开「整张卡太大、栅格缓存装不下」
@@ -164,20 +167,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // 保留卡级分层是因为它同时满足三件事：图层数量少、单层面积
                 // 有界、卡片底色/圆角/边线/分隔线画在同一层里不会出现拼缝；
                 // 这不是「靠数字证明的最优解」，而是权衡后的稳定选择。
-                addRepaintBoundaries: false,
-                // 首屏之外的 30 来行在滑动时才第一次建 Element/RenderObject，
-                // 那一帧的 build 会到 110ms（120Hz 上等于丢 13 帧）。
                 //
-                // 真机探针（5.2.9 探针包，iPhone 17 / 120Hz）：
-                //   frames=282 worst=110.0ms build_p95=0.5 raster_p95=2.1
-                // p95 是正常的、只有单帧离群，且 raster 一直很小——说明贵的是
-                // UI 线程把那些行第一次建出来，不是光栅。
-                //
-                // 靠排版缓存解决不了这件事：TextPainter.layout 只让引擎记住
-                // shaping 与字体回退，而 Element、RenderObject、Paragraph
-                // 对象本身仍要现建。5.2.9 试过预排整页文本，对首滑没有改善，
-                // 那段代码已经删掉——别再走这条路。
-                //
+                // 首滑那一下的 110ms 单帧不靠改分层解决，见
+                // [_SettingsScrollList] 里的分帧预热。
                 padding: EdgeInsets.only(
                   top: isLandscapeShell ? 0 : FrostedTabHeader.extent(context),
                   bottom: RootShellLayout.obscuredBottomOf(context),
@@ -733,7 +725,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             title: s.themeColor,
             // 跟随封面是强调色的一种来源，开关收进了强调色面板（见
             // [_ThemeColorPickerDialog]），这里只回显当前状态。
-            subtitle: followsCover ? s.accentFollowsCover : s.themeColorSubtitle,
+            subtitle: followsCover
+                ? s.accentFollowsCover
+                : s.themeColorSubtitle,
             keywords: const [
               '主题',
               'theme',
@@ -813,6 +807,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               'blur',
               '毛玻璃',
               'glass',
+              '液态玻璃',
+              'liquid',
+              '折射',
+              'refraction',
               '质感',
               'surface',
             ],
@@ -1601,6 +1599,111 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 }
 
+/// 设置页的滚动列表：分帧把 `cacheExtent` 放大，把「首滑才第一次建行」的
+/// 开销摊到页面上不动的那几帧里。
+///
+/// 真机探针（5.2.9 探针包，iPhone 17 / 120Hz）测到的形状是：
+///   frames=282 worst=110.0ms build_p95=0.5 raster_p95=2.1
+/// p95 正常、只有单帧离群，光栅一直很小——贵的是 UI 线程把首屏之外那 30 来行
+/// 第一次建成 Element / RenderObject。预排文本解决不了：TextPainter.layout
+/// 只让引擎记住 shaping 与字体回退，Element、RenderObject、Paragraph 仍要现建
+/// （5.2.9 试过，已删）。
+///
+/// 这里换一条路，让这些行在**没有动画在跑**的时候提前建好：
+///   1. 只扩大 [ListView.scrollCacheExtent]，不滚动，所以只建 + 布局，不产生光栅；
+///   2. 一步一步加（每步 6~8 行），单帧只多十几毫秒，静止画面看不出来；
+///   3. 手指一碰就暂停，等停下再继续——不和滚动抢帧；
+///   4. 最后停在能盖住整页的 [_steps] 末项，40 来行常驻，来回滑不再反复重建。
+///
+/// 关键细节：[children] 由外层 build 出来、**按同一个 List 实例**传进来。
+/// 换 cacheExtent 只重建这个 ListView 自己和它的 sliver，子 widget 还是同一个
+/// 对象，`Element.updateChild` 直接跳过，不会把已经建好的行重新 build 一遍。
+class _SettingsScrollList extends StatefulWidget {
+  const _SettingsScrollList({required this.children, required this.padding});
+
+  final List<Widget> children;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  State<_SettingsScrollList> createState() => _SettingsScrollListState();
+}
+
+class _SettingsScrollListState extends State<_SettingsScrollList> {
+  /// 每一步放大的距离，末项要盖住整页（10 个分区约 4300~5000 逻辑像素）。
+  static const _steps = <double>[600, 1300, 2100, 3000, 4000, 5200];
+
+  double _cacheExtent = 0;
+  int _next = 0;
+
+  /// 当前 tab 是否可见（根壳层用 TickerMode 关掉隐藏分支）。
+  bool _visible = false;
+  bool _paused = false;
+  Timer? _startDelay;
+
+  @override
+  void dispose() {
+    _startDelay?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible != _visible) {
+      _visible = visible;
+      if (visible) {
+        _restart();
+      } else {
+        _startDelay?.cancel();
+      }
+    }
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: ListView(
+        scrollCacheExtent: _cacheExtent == 0
+            ? null
+            : ScrollCacheExtent.pixels(_cacheExtent),
+        addRepaintBoundaries: false,
+        padding: widget.padding,
+        children: widget.children,
+      ),
+    );
+  }
+
+  /// 切回这个 tab 时重新开始；延迟 380ms 让 tab 的交叉淡化先播完——
+  /// 预热的帧不能和任何动画抢。
+  void _restart() {
+    _startDelay?.cancel();
+    _paused = false;
+    if (_next >= _steps.length) return;
+    _startDelay = Timer(const Duration(milliseconds: 380), () {
+      if (!mounted || !_visible || _paused) return;
+      WidgetsBinding.instance.addPostFrameCallback(_advance);
+    });
+  }
+
+  void _advance(Duration _) {
+    if (!mounted || !_visible || _paused || _next >= _steps.length) return;
+    setState(() => _cacheExtent = _steps[_next++]);
+    if (_next < _steps.length) {
+      // 空一帧再走下一步：让这一步的布局先落地，避免两步挤进同一帧。
+      WidgetsBinding.instance.addPostFrameCallback(_advance);
+    }
+  }
+
+  bool _onScroll(ScrollNotification notification) {
+    if (notification is ScrollStartNotification) {
+      _paused = true;
+    } else if (notification is ScrollEndNotification && _paused) {
+      _paused = false;
+      if (_next < _steps.length) {
+        WidgetsBinding.instance.addPostFrameCallback(_advance);
+      }
+    }
+    return false;
+  }
+}
+
 class _SettingsNavTile extends StatefulWidget {
   const _SettingsNavTile({
     required this.title,
@@ -1651,9 +1754,7 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
                     widget.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: settingsRowTitleStyle(
-                      AppColors.onScaffold(context),
-                    ),
+                    style: settingsRowTitleStyle(AppColors.onScaffold(context)),
                   ),
                   if (widget.subtitle.isNotEmpty) ...[
                     const SizedBox(height: 3),
@@ -2329,8 +2430,9 @@ class _ThemeColorPickerDialog extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
             child: FxSwitchTile(
               value: followsCover,
-              onChanged: (value) =>
-                  ref.read(coverThemedAccentProvider.notifier).setEnabled(value),
+              onChanged: (value) => ref
+                  .read(coverThemedAccentProvider.notifier)
+                  .setEnabled(value),
               title: Text(
                 s.accentFollowsCover,
                 // 用和列表行同一套字：这面板里的开关说明的是同一个设置，
@@ -2400,4 +2502,3 @@ class _AccentSwatch extends StatelessWidget {
     );
   }
 }
-

@@ -90,15 +90,21 @@ class LiquidGlassSurface extends StatelessWidget {
             : const Color(0xFF3C3C43).withValues(alpha: 0.14 * opacity));
     // 播放器（blurBehind）本来就要模糊；其余界面由设置里的「虚化」决定——
     // 档位为 0 时仍是纯透明混合，与这一档上线前完全一致。
-    final allowBlur = blurBehind || GlassEffectConfig.userBlurEnabled;
+    //
+    // 液态玻璃是**独立于虚化**的采样理由：它的折射本身就是一次背景采样，
+    // 虚化拖到 0 只该让玻璃更清透，不该把材质整个关掉——那会让「开了液态
+    // 玻璃但看不到折射」变成一个没头没尾的行为。
+    final allowBlur =
+        blurBehind ||
+        GlassEffectConfig.userBlurEnabled ||
+        GlassEffectConfig.liquidGlass;
     // 滚动中只把卷积核乘个折扣，不关采样：滚起来玻璃还在，只是糊得轻一点。
     // 见 [GlassScrollActivity]。
     final scrollFactor = GlassScrollActivity.isScrolling && !blurBehind
         ? GlassScrollActivity.scrollBlurDiscount
         : 1.0;
-    final sigma = (blurBehind
-            ? blur
-            : GlassEffectConfig.scaleSurfaceBlur(blur)) *
+    final sigma =
+        (blurBehind ? blur : GlassEffectConfig.scaleSurfaceBlur(blur)) *
         scrollFactor;
     final requested = (backdrop && allowBlur) ? quality : GlassQuality.minimal;
     final resolved = resolveGlassQuality(context, requested: requested);
@@ -153,6 +159,8 @@ class LiquidGlassSurface extends StatelessWidget {
           sigma: blur,
           saturation: saturation,
           allowBlur: allowBlur,
+          radius: uniformGlassRadius(borderRadius),
+          legible: true,
           child: _layers(base: base, edge: edge, alpha: alpha, isDark: isDark),
         ),
       ),

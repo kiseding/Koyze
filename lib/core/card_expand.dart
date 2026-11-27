@@ -3,8 +3,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
 import 'motion/motion_tokens.dart';
+import 'motion/transition_snapshot.dart';
 
 /// 卡片"长成"全屏页的展开转场。
 ///
@@ -241,8 +243,11 @@ CustomTransitionPage<Object?> expandablePage(
       final session = _CardDismissScope.maybeOf(context);
       final dismissProgress = session?.progress ?? cardDismissProgress;
       final dismissOffset = session?.offset ?? cardDismissOffset;
+      // 普通滑入页的动画起点推迟到页面首帧画完之后：首帧要构建、布局整页，
+      // 页面重的时候那几十毫秒会直接算进动画，第一帧就跳过去一大截，观感
+      // 就是「点下去卡一下才开始滑」。卡片 morph 有自己的矩形节奏，不动它。
       final curved = CurvedAnimation(
-        parent: animation,
+        parent: expanding ? animation : TransitionStart.of(animation),
         curve: Curves.easeOutCubic,
         // 反向**必须线性**。
         //
@@ -272,6 +277,7 @@ CustomTransitionPage<Object?> expandablePage(
       } else if (fullWidthSwipe) {
         transition = AnimatedBuilder(
           animation: Listenable.merge([curved, dismissOffset, dismissProgress]),
+          child: _pageSnapshot(animation, child),
           builder: (context, child) {
             final width = MediaQuery.sizeOf(context).width;
             final current = _CardDismissScope.maybeOf(context);
@@ -312,7 +318,6 @@ CustomTransitionPage<Object?> expandablePage(
               ),
             );
           },
-          child: child,
         );
       } else {
         // 普通二级页：横向滑动进出，也就是系统返回的观感。
@@ -326,6 +331,7 @@ CustomTransitionPage<Object?> expandablePage(
         // 比手指快。
         transition = AnimatedBuilder(
           animation: Listenable.merge([curved, dismissProgress, dismissOffset]),
+          child: _pageSnapshot(animation, child),
           builder: (context, child) {
             final current = _CardDismissScope.maybeOf(context);
             final gestureDriven =
@@ -339,7 +345,6 @@ CustomTransitionPage<Object?> expandablePage(
               child: child,
             );
           },
-          child: child,
         );
       }
       return EdgeSwipeDismiss(
@@ -358,6 +363,16 @@ CustomTransitionPage<Object?> expandablePage(
     },
   );
 }
+
+/// 转场期间用位图代替实时页面。
+///
+/// 位移每帧都在变，实时页面就要跟着整页重画：列表文字、封面、顶栏磨砂
+/// 全在里面。换成位图后每帧只剩一次贴图，页面多复杂都一样快。
+Widget _pageSnapshot(Animation<double> animation, Widget child) =>
+    TransitionSnapshot(
+      animations: <Animation<double>>[animation],
+      child: child,
+    );
 
 class _CardExpandPage extends CustomTransitionPage<Object?> {
   _CardExpandPage({
@@ -382,6 +397,7 @@ class _CardExpandRoute extends PageRoute<Object?> {
   _CardExpandRoute({required _CardExpandPage page}) : super(settings: page);
 
   _CardExpandPage get _page => settings as _CardExpandPage;
+
   final _CardDismissSession session = _CardDismissSession();
 
   @override
@@ -451,6 +467,15 @@ class _CardExpandRoute extends PageRoute<Object?> {
       controller?.reverseDuration = Duration.zero;
     }
     return super.didPop(result);
+  }
+
+  @override
+  TickerFuture didPush() {
+    // 新页面推入的这一帧要构建、布局整页；动画若从这一帧开始计时，
+    // 下一帧直接跳过一大截，看起来就是「点下去先卡一下」。让它先在起点
+    // 画完首帧，动画下一帧再从 0 平滑起步。
+    TransitionStart.hold();
+    return super.didPush();
   }
 
   @override

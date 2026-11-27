@@ -48,6 +48,14 @@ class PlaylistService {
   bool _suppressSyncRecording = false;
   int _revision = 0;
 
+  /// 最近解出来的歌单页。
+  ///
+  /// 详情页的第一帧直接从这里取：列表要和页面一起画出来，不能等一个
+  /// microtask 之后再补——那一下正好落在入场动画放到一半的位置，看起来
+  /// 就是「打开歌单卡一下」。任何一次修改都会整表清空，不会读到旧数据。
+  final Map<_SongsPageKey, PlaylistSongPage> _pageCache = {};
+  static const int _pageCacheLimit = 8;
+
   List<Playlist> get playlists => List.unmodifiable(_playlists);
   int get revision => _revision;
   Stream<int> get revisions => _revisionController.stream;
@@ -129,6 +137,7 @@ class PlaylistService {
     _playlists
       ..clear()
       ..addAll(repaired);
+    _pageCache.clear();
     if (needsRepair) _revisionController.add(++_revision);
     _initialized = true;
   }
@@ -242,24 +251,76 @@ class PlaylistService {
     final playlist = getPlaylist(playlistId);
     if (playlist == null)
       throw StateError('Playlist $playlistId does not exist');
-    if (playlist.songs.length == playlist.songCount) {
-      final start = offset.clamp(0, playlist.songCount).toInt();
-      final end = (start + limit).clamp(0, playlist.songCount).toInt();
-      return PlaylistSongPage(
-        total: playlist.songCount,
-        offset: start,
-        songs: playlist.songs.sublist(start, end),
-      );
-    }
+    final key = _SongsPageKey(playlistId, offset, limit);
+    final cached = _pageCache[key];
+    if (cached != null) return cached;
+    final inMemory = _pageFromMemory(playlist, key);
+    if (inMemory != null) return inMemory;
 
     final repository = _repository;
     if (repository is PlaylistSongPageRepository) {
       final paged = repository as PlaylistSongPageRepository;
-      return paged.loadSongsPage(playlistId, offset: offset, limit: limit);
+      return _cachePage(
+        key,
+        await paged.loadSongsPage(playlistId, offset: offset, limit: limit),
+      );
     }
     throw StateError(
       'Playlist $playlistId does not support paged song loading',
     );
+  }
+
+  /// 同步取一页，取不到时返回 null（调用方退回 [getSongsPage]）。
+  ///
+  /// 两条快路径：列表本来就整份在内存里（收藏 / 最近 / 本地），或者仓库
+  /// 已经把整份文档读进来了、切页只是一次 substring + 解码。
+  PlaylistSongPage? peekSongsPage(
+    String playlistId, {
+    required int offset,
+    required int limit,
+  }) {
+    if (offset < 0 || limit <= 0) return null;
+    final playlist = getPlaylist(playlistId);
+    if (playlist == null) return null;
+    final key = _SongsPageKey(playlistId, offset, limit);
+    final cached = _pageCache[key];
+    if (cached != null) return cached;
+    final inMemory = _pageFromMemory(playlist, key);
+    if (inMemory != null) return inMemory;
+
+    final Object repository = _repository;
+    if (repository is SynchronousPlaylistSongPageRepository) {
+      final page = repository.peekSongsPage(
+        playlistId,
+        offset: offset,
+        limit: limit,
+      );
+      if (page != null) return _cachePage(key, page);
+    }
+    return null;
+  }
+
+  /// 列表整份都在内存里时直接切一段；分页歌单返回 null。
+  PlaylistSongPage? _pageFromMemory(Playlist playlist, _SongsPageKey key) {
+    if (playlist.songs.length != playlist.songCount) return null;
+    final start = key.offset.clamp(0, playlist.songCount).toInt();
+    final end = (start + key.limit).clamp(0, playlist.songCount).toInt();
+    return _cachePage(
+      key,
+      PlaylistSongPage(
+        total: playlist.songCount,
+        offset: start,
+        songs: playlist.songs.sublist(start, end),
+      ),
+    );
+  }
+
+  PlaylistSongPage _cachePage(_SongsPageKey key, PlaylistSongPage page) {
+    if (_pageCache.length >= _pageCacheLimit) {
+      _pageCache.remove(_pageCache.keys.first);
+    }
+    _pageCache[key] = page;
+    return page;
   }
 
   Future<List<MusicItem>> getAllSongs(String playlistId) async {
@@ -732,6 +793,9 @@ class PlaylistService {
   }
 
   void _notifyRevisions(PlaylistMutationScope scope, {bool notifySync = true}) {
+    // 数据变了，同步页缓存立刻作废：详情页下一帧重新解一页，
+    // 不会把旧列表当成新数据画出来。
+    _pageCache.clear();
     _revisionController.add(++_revision);
     if (scope == PlaylistMutationScope.all) {
       _favoritesRevisionController.add(_revision);
@@ -942,6 +1006,25 @@ final class PlaylistSongMatch {
   final Playlist playlist;
   final MusicItem song;
   final int index;
+}
+
+/// 页缓存的键：同一歌单的同一段。
+final class _SongsPageKey {
+  const _SongsPageKey(this.playlistId, this.offset, this.limit);
+
+  final String playlistId;
+  final int offset;
+  final int limit;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _SongsPageKey &&
+      other.playlistId == playlistId &&
+      other.offset == offset &&
+      other.limit == limit;
+
+  @override
+  int get hashCode => Object.hash(playlistId, offset, limit);
 }
 
 enum PlaylistMutationScope { all, favorites, recent, local }

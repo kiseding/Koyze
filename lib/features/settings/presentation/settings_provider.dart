@@ -191,6 +191,14 @@ final glassBlurProvider = NotifierProvider<GlassBlurNotifier, double>(
   GlassBlurNotifier.new,
 );
 
+/// 液态玻璃（折射着色器）开关，出厂打开。
+///
+/// 关掉即退回低 alpha 染色 + 高光的模拟材质；当前后端编译不出着色器时，
+/// 即使开着也会自动走那条路，见 [GlassEffectConfig.liquidGlass]。
+final liquidGlassProvider = NotifierProvider<LiquidGlassNotifier, bool>(
+  LiquidGlassNotifier.new,
+);
+
 final cacheMaintenanceProvider = Provider<CacheMaintenanceService>((ref) {
   return CacheMaintenanceService();
 });

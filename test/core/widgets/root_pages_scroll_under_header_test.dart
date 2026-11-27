@@ -14,6 +14,7 @@ import 'package:koyze/core/theme/effect_policy.dart';
 import 'package:koyze/core/theme/glass_config.dart';
 import 'package:koyze/core/widgets/frosted_tab_header.dart';
 import 'package:koyze/core/widgets/glass_backdrop.dart';
+import 'package:koyze/core/widgets/fx_switch.dart';
 import 'package:koyze/core/widgets/koyze_sheet.dart';
 import 'package:koyze/core/widgets/origo_chrome.dart';
 import 'package:koyze/core/widgets/root_tab_bar.dart';
@@ -411,6 +412,13 @@ void main() {
     final sheet = find.byType(GlassEffectSheet);
     final sliders = find.descendant(of: sheet, matching: find.byType(Slider));
     expect(sliders, findsNWidgets(2));
+    // 液态玻璃开关必须出现在这一面板里。测试环境没有背景着色器滤镜，它是
+    // 置灰不可点的（IgnorePointer 包着），但看不见就等于这一档不存在——
+    // 用户既不知道有它，也不知道自己为什么摸不到折射。
+    expect(
+      find.descendant(of: sheet, matching: find.byType(FxSwitch)),
+      findsOneWidget,
+    );
     final opacitySlider = tester.getRect(sliders.first);
     await tester.tapAt(
       opacitySlider.centerLeft + Offset(opacitySlider.width / 4, 0),

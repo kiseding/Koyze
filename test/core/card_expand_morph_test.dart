@@ -66,11 +66,7 @@ void main() {
     // go_router 重跑 pageBuilder 时通常不会再传 rect，
     // 此时必须复用第一次记住的矩形，否则 morph 丢失、页面变成不透明。
     final second = expandablePage(key, const ColoredBox(color: Colors.white));
-    expect(
-      second.opaque,
-      isFalse,
-      reason: '同一 pageKey 应沿用记住的源矩形，保持 morph 能力',
-    );
+    expect(second.opaque, isFalse, reason: '同一 pageKey 应沿用记住的源矩形，保持 morph 能力');
   });
 
   testWidgets('打开展开页后能正常渲染内容', (tester) async {
@@ -84,6 +80,27 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('detail'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('自绘转场关闭 Flutter 路由快照避免收尾重复合成', (tester) async {
+    final page = expandablePage(
+      const ValueKey('snapshotting'),
+      const ColoredBox(color: Colors.white),
+    );
+    late Route<Object?> route;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            route = page.createRoute(context);
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+
+    expect(route, isA<PageRoute<Object?>>());
+    expect((route as PageRoute<Object?>).allowSnapshotting, isFalse);
   });
 
   testWidgets('转场时长比普通页面短，打开与关闭使用不同节奏', (tester) async {

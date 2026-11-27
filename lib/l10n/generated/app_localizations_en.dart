@@ -201,6 +201,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get glassBlurSubtitle => '0% is sharp; higher values add blur';
 
   @override
+  String get liquidGlass => 'Liquid glass';
+
+  @override
+  String get liquidGlassSubtitle => 'Edge refraction, dispersion and glare';
+
+  @override
+  String get liquidGlassUnavailable =>
+      'Not available on this renderer; using standard frosted glass';
+
+  @override
   String get playerBackdropPreviewEmpty => 'Nothing playing';
 
   @override
@@ -730,30 +740,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'That playlist could not be parsed. Check that the file is complete.';
 
   @override
-  String get importPlatformLoginIntro =>
-      'Official authorization and eligibility vary by platform.';
-
-  @override
-  String get platformLoginUnavailableQQ =>
-      'QQ Music personal playlists require QPlay authorization on Android and an approved partner integration. The official OpenAPI is not currently available to individual developers; this app has no approved access.';
-
-  @override
-  String get platformLoginUnavailableKuwo =>
-      'Kugou\'s official disclosure lists Kuwo\'s account-authorization SDK for importing Kuwo playlists, but no application or integration docs for general third-party developers were found. This app will not use unofficial web or cookie sign-in.';
-
-  @override
-  String get platformLoginUnavailableKugou =>
-      'Kugou\'s official mini-app API supports authorized user playlists (Android SDK 1.0.8+). That does not establish a general sign-in API for standalone apps; this app has not integrated Kugou mini-app capabilities.';
-
-  @override
-  String get platformLoginUnavailableNetease =>
-      'NetEase states that individual use is limited to its official ncm-cli; vendor OpenAPI access requires business engagement. This app has not integrated ncm-cli or obtained vendor access.';
-
-  @override
-  String get platformLoginUnavailableAction =>
-      'Official sign-in is not connected yet';
-
-  @override
   String get searchFieldHint => 'Songs, playlists...';
 
   @override
@@ -1267,6 +1253,87 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get listeningStatsEmpty => 'No listening data yet';
+
+  @override
+  String get playlistLoginIntro =>
+      'Scan the code to import your playlists. Credentials stay in secure storage on this device.';
+
+  @override
+  String get playlistLoginQrWaiting => 'Scan this code with the matching app';
+
+  @override
+  String get playlistLoginQrScanned => 'Scanned — please confirm on your phone';
+
+  @override
+  String get playlistLoginQrExpired => 'QR code expired';
+
+  @override
+  String playlistLoginQrHint(Object app) {
+    return 'Open $app to scan';
+  }
+
+  @override
+  String get playlistLoginCookieIntro =>
+      'Kuwo has no QR sign-in. Sign in at kuwo.cn in a browser and paste the cookie below.';
+
+  @override
+  String get playlistLoginCookieField =>
+      'Paste cookie, e.g. Hm_lvt_xxx=...; kuwo_token=...';
+
+  @override
+  String get playlistLoginCookieAction => 'Sign in with cookie';
+
+  @override
+  String get playlistLoginMyPlaylists => 'My playlists';
+
+  @override
+  String get playlistLoginNoPlaylists =>
+      'No playlists found. Add some to your account and try again.';
+
+  @override
+  String get statsPosterGenerate => 'Listening poster';
+
+  @override
+  String get statsPosterTitle => 'Koyze · Listening Report';
+
+  @override
+  String get statsPosterPeriodWeek => 'This week';
+
+  @override
+  String get statsPosterPeriodMonth => 'This month';
+
+  @override
+  String get statsPosterPeriodYear => 'This year';
+
+  @override
+  String get statsPosterPeriodAll => 'All time';
+
+  @override
+  String statsPosterHoursMinutes(Object h, Object m) {
+    return '$h hr $m min';
+  }
+
+  @override
+  String statsPosterFacts(Object days, Object songs) {
+    return '$days days · $songs songs';
+  }
+
+  @override
+  String statsPosterFavoriteHour(Object hour) {
+    return 'Most active at $hour:00';
+  }
+
+  @override
+  String get statsPosterTopSongs => 'Top songs';
+
+  @override
+  String get statsPosterTopArtist => 'Top artist';
+
+  @override
+  String get statsPosterHourChart => 'Listening through the day';
+
+  @override
+  String get statsPosterSaved => 'Poster saved';
 
   @override
   String get listeningStatsEmptyHint =>

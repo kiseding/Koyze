@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../../../core/network/app_http_client.dart';
 import '../../../core/music_source/platform/kg_source.dart';
+import '../../../core/music_source/platform/kugou_sign.dart';
 import '../../../core/music_source/platform/source_utils.dart';
 import '../../player/domain/music_item.dart';
+import 'playlist_login.dart';
 
 class ImportedPlaylist {
   final String name;
@@ -41,6 +43,9 @@ class PlaylistImportService {
     required String input,
     String platformHint = 'tx',
     void Function(int loaded, int total)? onProgress,
+
+    /// 已登录平台的凭据（`k=v` 形式）。私密歌单只有带上它才读得到。
+    Map<String, String>? cookies,
   }) async {
     final trimmed = input.trim();
     final isRawId = _digitsOnly.hasMatch(trimmed);
@@ -89,16 +94,53 @@ class PlaylistImportService {
 
     switch (source) {
       case 'tx':
-        return _importTx(listId);
+        return _importTx(listId, cookies: cookies);
       case 'kw':
-        return _importKw(listId);
+        return _importKw(listId, cookies: cookies);
       case 'wy':
-        return _importWy(listId, onProgress: onProgress);
+        return _importWy(listId, onProgress: onProgress, cookies: cookies);
       case 'kg':
-        return _importKg(listId, onProgress: onProgress);
+        return _importKg(listId, onProgress: onProgress, cookies: cookies);
       default:
         throw Exception('不支持的平台');
     }
+  }
+
+  /// 导入已登录账号里的某个歌单。
+  ///
+  /// 和 [import] 的区别是不用再猜平台和 ID：账号从哪来、歌单叫什么都已经
+  /// 知道，直接按平台取曲目即可。酷狗的自建歌单给的是 `global_collection_id`
+  /// 而不是数字 specialid，那条要单独走网关接口。
+  Future<ImportedPlaylist> importAccountPlaylist({
+    required LinkedPlatformAccount account,
+    required MyPlaylistSummary summary,
+    void Function(int loaded, int total)? onProgress,
+  }) {
+    final cookies = account.credentials;
+    switch (account.source) {
+      case 'tx':
+        return _importTx(summary.id, cookies: cookies);
+      case 'kw':
+        return _importKw(summary.id, cookies: cookies);
+      case 'wy':
+        return _importWy(summary.id, onProgress: onProgress, cookies: cookies);
+      case 'kg':
+        return _digitsOnly.hasMatch(summary.id)
+            ? _importKg(summary.id, onProgress: onProgress, cookies: cookies)
+            : _importKgCollection(account, summary, onProgress: onProgress);
+      default:
+        throw Exception('不支持的平台');
+    }
+  }
+
+  /// 把凭据拼成 Cookie 请求头，未登录时返回 null。
+  static String? _cookieHeader(Map<String, String>? cookies) {
+    if (cookies == null || cookies.isEmpty) return null;
+    final value = cookies.entries
+        .where((entry) => entry.value.isNotEmpty)
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join('; ');
+    return value.isEmpty ? null : value;
   }
 
   /// 解析网易云歌单 ID：支持 163cn.tv 短链、music.163.com 链接与裸数字 ID。
@@ -174,15 +216,20 @@ class PlaylistImportService {
         .trim();
   }
 
-  Future<ImportedPlaylist> _importTx(String id) async {
+  Future<ImportedPlaylist> _importTx(
+    String id, {
+    Map<String, String>? cookies,
+  }) async {
     final url =
         'https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=$id&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&g_tk=5381';
+    final cookie = _cookieHeader(cookies);
     final resp = await _dio.get(
       url,
       options: Options(
         headers: {
           'Referer': 'https://y.qq.com/portal/player.html',
           'Origin': 'https://y.qq.com',
+          if (cookie != null) 'Cookie': cookie,
         },
       ),
     );
@@ -261,10 +308,17 @@ class PlaylistImportService {
     );
   }
 
-  Future<ImportedPlaylist> _importKw(String id) async {
+  Future<ImportedPlaylist> _importKw(
+    String id, {
+    Map<String, String>? cookies,
+  }) async {
     final url =
         'https://nplserver.kuwo.cn/pl.svc?op=getlistinfo&pid=$id&pn=0&rn=1000&encode=utf8&keyset=pl2012&identity=kuwo&pcmp4=1&vipver=MUSIC_9.0.5.0_W1&newver=1';
-    final resp = await _dio.get(url);
+    final cookie = _cookieHeader(cookies);
+    final resp = await _dio.get(
+      url,
+      options: Options(headers: {if (cookie != null) 'Cookie': cookie}),
+    );
     final data = resp.data is String ? jsonDecode(resp.data) : resp.data;
     if (data is! Map || data['musiclist'] == null) {
       throw Exception('获取酷我歌单失败');
@@ -320,7 +374,9 @@ class PlaylistImportService {
   Future<ImportedPlaylist> _importKg(
     String id, {
     void Function(int loaded, int total)? onProgress,
+    Map<String, String>? cookies,
   }) async {
+    final cookie = _cookieHeader(cookies);
     const base = 'https://mobiles.kugou.com/api/v3';
     Map<String, dynamic>? asMap(dynamic value) {
       if (value is Map<String, dynamic>) return value;
@@ -348,10 +404,13 @@ class PlaylistImportService {
         'plat': '0',
         'area_code': '1',
       },
+      options: Options(headers: {if (cookie != null) 'Cookie': cookie}),
     );
     final infoBody = asMap(infoResponse.data);
     final info = infoBody?['data'];
-    final name = info is Map ? (info['specialname'] ?? '').toString().trim() : '';
+    final name = info is Map
+        ? (info['specialname'] ?? '').toString().trim()
+        : '';
     final total = info is Map ? (info['songcount'] as num?)?.toInt() ?? 0 : 0;
 
     const pageSize = 100;
@@ -368,6 +427,7 @@ class PlaylistImportService {
           'plat': '0',
           'area_code': '1',
         },
+        options: Options(headers: {if (cookie != null) 'Cookie': cookie}),
       );
       final body = asMap(response.data);
       if (body == null || body['errcode'] != 0) break;
@@ -377,9 +437,7 @@ class PlaylistImportService {
 
       for (final raw in list) {
         if (raw is! Map) continue;
-        final song = KgSource.parseKugouItem(
-          Map<String, dynamic>.from(raw),
-        );
+        final song = KgSource.parseKugouItem(Map<String, dynamic>.from(raw));
         if (song != null) songs.add(song);
       }
       onProgress?.call(songs.length, total);
@@ -395,6 +453,137 @@ class PlaylistImportService {
       sourceId: id,
       songs: songs,
     );
+  }
+
+  /// 酷狗账号歌单（`global_collection_id` 形态）。
+  ///
+  /// 这类歌单不在 `mobiles.kugou.com` 的 special 接口里，只能带账号 token
+  /// 走网关的 pubsongs 服务，按 begin_idx 分页。返回结构与 special/song 不同，
+  /// 先补成 [KgSource.parseKugouItem] 认识的字段再复用同一份解析。
+  Future<ImportedPlaylist> _importKgCollection(
+    LinkedPlatformAccount account,
+    MyPlaylistSummary summary, {
+    void Function(int loaded, int total)? onProgress,
+  }) async {
+    const pageSize = 300;
+    final mid = account.extra['mid'] ?? kugouDeviceMid();
+    final token = account.credential('token') ?? '';
+    final songs = <MusicItem>[];
+    final seen = <String>{};
+
+    for (var begin = 0; begin < 3000; begin += pageSize) {
+      final params = <String, String>{
+        'dfid': '-',
+        'mid': mid,
+        'uuid': mid,
+        'appid': '1005',
+        'clientver': '20489',
+        'clienttime': '${DateTime.now().millisecondsSinceEpoch ~/ 1000}',
+        'token': token,
+        'userid': account.userId,
+        'area_code': '1',
+        'begin_idx': '$begin',
+        'plat': '1',
+        'type': '1',
+        'mode': '1',
+        'personal_switch': '1',
+        'extend_fields': 'abtags,hot_cmt,popularization',
+        'pagesize': '$pageSize',
+        'global_collection_id': summary.id,
+      };
+      params['signature'] = kugouSign(_kgAppKey, params);
+      final response = await _dio.get<String>(
+        'https://gateway.kugou.com/pubsongs/v2/get_other_list_file_nofilt',
+        queryParameters: params,
+        options: Options(
+          headers: {
+            'User-Agent':
+                'Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi',
+            'dfid': '-',
+            'mid': mid,
+            'clienttime': params['clienttime'],
+            'x-router': 'pubsongs.service.kugou.com',
+          },
+        ),
+      );
+      final body = _mapOf(response.data);
+      if (body == null || '${body['status']}' != '1') {
+        final code = body?['error_code'] ?? body?['errcode'];
+        throw Exception('获取酷狗歌单失败${code == null ? '' : '（错误码 $code）'}');
+      }
+      final data = body['data'];
+      final list = data is Map ? data['songs'] : null;
+      if (list is! List || list.isEmpty) break;
+
+      for (final raw in list) {
+        if (raw is! Map) continue;
+        final song = KgSource.parseKugouItem(_kgCollectionSong(raw));
+        if (song == null || !seen.add(song.hash ?? song.id)) continue;
+        songs.add(song);
+      }
+      onProgress?.call(songs.length, summary.trackCount);
+      if (list.length < pageSize) break;
+      if (summary.trackCount > 0 && songs.length >= summary.trackCount) break;
+    }
+
+    if (songs.isEmpty) throw Exception('歌单为空或无法解析');
+    return ImportedPlaylist(
+      name: summary.name.isEmpty ? '酷狗歌单 ${summary.id}' : summary.name,
+      source: 'kg',
+      sourceId: summary.id,
+      songs: songs,
+    );
+  }
+
+  /// pubsongs 的曲目字段名和 special/song 不一致，转成后者那一套。
+  static Map<String, dynamic> _kgCollectionSong(Map raw) {
+    final album = raw['albuminfo'] is Map
+        ? Map<String, dynamic>.from(raw['albuminfo'] as Map)
+        : const <String, dynamic>{};
+    final trans = raw['trans_param'] is Map
+        ? Map<String, dynamic>.from(raw['trans_param'] as Map)
+        : const <String, dynamic>{};
+    final title = '${raw['name'] ?? ''}';
+    final split = title.indexOf(' - ');
+    final cover = '${raw['cover'] ?? ''}'.trim();
+    final unionCover = '${trans['union_cover'] ?? ''}'.trim();
+    final albumCover = '${album['sizable_cover'] ?? album['cover'] ?? ''}'
+        .trim();
+    return <String, dynamic>{
+      'hash': raw['hash'],
+      'songname': split > 0 ? title.substring(split + 3) : title,
+      'singername': split > 0
+          ? title.substring(0, split)
+          : '${raw['singername'] ?? ''}'.replaceAll('&', '、'),
+      'album_name': '${album['name'] ?? ''}'.trim(),
+      'album_sizable_cover': cover.isNotEmpty
+          ? cover
+          : (unionCover.isNotEmpty ? unionCover : albumCover),
+      'duration': (int.tryParse('${raw['timelen'] ?? 0}') ?? 0) ~/ 1000,
+      'album_audio_id':
+          raw['album_audio_id'] ?? raw['mixsongid'] ?? raw['audio_id'] ?? '',
+      'album_id': album['id'] ?? raw['album_id'] ?? '',
+      if (raw['privilege'] != null) 'privilege': raw['privilege'],
+      if (raw['pay_type'] != null) 'pay_type': raw['pay_type'],
+    };
+  }
+
+  static Map<String, dynamic>? _mapOf(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) {
+      return value.map((key, item) => MapEntry('$key', item));
+    }
+    if (value is String) {
+      try {
+        final decoded = jsonDecode(value);
+        return decoded is Map
+            ? decoded.map((key, item) => MapEntry('$key', item))
+            : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
   }
 
   // ==================== 网易云歌单 ====================
@@ -421,24 +610,33 @@ class PlaylistImportService {
 
   static final _digitsOnly = RegExp(r'^\d+$');
 
+  /// 酷狗客户端接口的签名密钥（登录侧的网关调用用的是同一把）。
+  static const _kgAppKey = 'OIlwieks28dk2k092lksi2UIkp';
+
   static Map<String, String> get _wyHeaders => const {
-        'User-Agent': _wyUserAgent,
-        'Referer': 'https://music.163.com/',
-        'Origin': 'https://music.163.com',
-      };
+    'User-Agent': _wyUserAgent,
+    'Referer': 'https://music.163.com/',
+    'Origin': 'https://music.163.com',
+  };
 
   Future<ImportedPlaylist> _importWy(
     String id, {
     void Function(int loaded, int total)? onProgress,
+    Map<String, String>? cookies,
   }) async {
-    final playlist = await _fetchWyPlaylist(id);
+    final cookie = _cookieHeader(cookies);
+    final playlist = await _fetchWyPlaylist(id, cookie: cookie);
 
     final trackIds = wyTrackIds(playlist);
     if (trackIds.isEmpty) {
       throw Exception('歌单为空或无法解析');
     }
 
-    final details = await _fetchWySongDetails(trackIds, onProgress: onProgress);
+    final details = await _fetchWySongDetails(
+      trackIds,
+      onProgress: onProgress,
+      cookie: cookie,
+    );
     final songs = wySongsFromDetails(trackIds, details);
     if (songs.isEmpty) {
       throw Exception('歌单解析失败，歌单可能已私密或曲目全部不可用');
@@ -453,14 +651,17 @@ class PlaylistImportService {
     );
   }
 
-  Future<Map<String, dynamic>> _fetchWyPlaylist(String id) async {
+  Future<Map<String, dynamic>> _fetchWyPlaylist(
+    String id, {
+    String? cookie,
+  }) async {
     const failure = '获取网易云歌单失败，请确认歌单 ID 正确且歌单公开';
 
     final resp = await _dio.post(
       wyPlaylistDetailUrl,
       data: {'id': id},
       options: Options(
-        headers: _wyHeaders,
+        headers: {..._wyHeaders, if (cookie != null) 'Cookie': cookie},
         contentType: Headers.formUrlEncodedContentType,
         responseType: ResponseType.plain,
       ),
@@ -495,14 +696,13 @@ class PlaylistImportService {
     }
 
     final fromTrackIds = collect(playlist['trackIds']);
-    return fromTrackIds.isNotEmpty
-        ? fromTrackIds
-        : collect(playlist['tracks']);
+    return fromTrackIds.isNotEmpty ? fromTrackIds : collect(playlist['tracks']);
   }
 
   Future<Map<String, Map<String, dynamic>>> _fetchWySongDetails(
     List<String> ids, {
     void Function(int loaded, int total)? onProgress,
+    String? cookie,
   }) async {
     // 同一首歌可能有多份拷贝，请求前先去重，避免浪费批量配额。
     final uniqueIds = <String>[];
@@ -531,7 +731,7 @@ class PlaylistImportService {
       while (cursor < batches.length) {
         final batch = batches[cursor++];
         try {
-          details.addAll(await _postWySongDetail(batch));
+          details.addAll(await _postWySongDetail(batch, cookie));
         } catch (_) {
           // 单批失败不影响其他批次，缺失曲目会在回填时被跳过。
         }
@@ -547,8 +747,9 @@ class PlaylistImportService {
   }
 
   Future<Map<String, Map<String, dynamic>>> _postWySongDetail(
-    List<String> ids,
-  ) async {
+    List<String> ids, [
+    String? cookie,
+  ]) async {
     final payload = jsonEncode([
       for (final id in ids) {'id': int.parse(id), 'v': 0},
     ]);
@@ -557,7 +758,7 @@ class PlaylistImportService {
       wySongDetailUrl,
       data: {'c': payload},
       options: Options(
-        headers: _wyHeaders,
+        headers: {..._wyHeaders, if (cookie != null) 'Cookie': cookie},
         contentType: Headers.formUrlEncodedContentType,
         responseType: ResponseType.plain,
       ),

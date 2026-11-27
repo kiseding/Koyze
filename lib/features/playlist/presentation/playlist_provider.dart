@@ -94,9 +94,33 @@ final playlistSongsPageProvider = FutureProvider.autoDispose
           );
     });
 
+/// 同步可得的歌单页；null 表示这一页只能异步读。
+///
+/// 详情页第一帧就要把列表画出来：异步 provider 哪怕只晚一个 microtask，
+/// 列表也会在入场动画放到一半时才出现，那一下正好在画面移动最快的位置，
+/// 看起来就是「打开歌单卡一下」。
+final playlistSongsPageCacheProvider = Provider.autoDispose
+    .family<PlaylistSongPage?, PlaylistSongsPageRequest>((ref, request) {
+      ref.watch(playlistPageRevisionProvider);
+      if (request.playlistId == 'recent') {
+        ref.watch(playlistRecentRevisionProvider);
+      }
+      if (request.playlistId == 'favorites') {
+        ref.watch(playlistFavoritesRevisionProvider);
+      }
+      return ref
+          .watch(playlistServiceProvider)
+          .peekSongsPage(
+            request.playlistId,
+            offset: request.offset,
+            limit: PageRange.defaultPageSize,
+          );
+    });
+
 /// Clicking the heart should drop the row before persistence finishes.
-final optimisticFavoritePageProvider =
-    StateProvider<PlaylistSongPage?>((ref) => null);
+final optimisticFavoritePageProvider = StateProvider<PlaylistSongPage?>(
+  (ref) => null,
+);
 
 final playlistSongSearchProvider = FutureProvider.autoDispose
     .family<List<PlaylistSongMatch>, String>((ref, query) {

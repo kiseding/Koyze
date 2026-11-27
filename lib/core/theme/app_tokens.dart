@@ -349,7 +349,10 @@ class GlassSurface extends StatelessWidget {
         child: clipped(material),
       );
     }
-    if (solidBehind || (!backdrop && !GlassEffectConfig.userBlurEnabled)) {
+    if (solidBehind ||
+        (!backdrop &&
+            !GlassEffectConfig.userBlurEnabled &&
+            !GlassEffectConfig.liquidGlass)) {
       // 背后是纯色页面底：把底色混上去和「模糊一层纯色再混」是同一个结果，
       // 但不用每帧做一次全宽 BackdropFilter + 饱和度矩阵。
       //
@@ -360,6 +363,9 @@ class GlassSurface extends StatelessWidget {
       // * `!backdrop`：调用方只是「没声明」。这时虚化档 > 0 就当它背后可能有
       //   东西，照常采样——否则用户滑到 100% 这些面对滑杆毫无反应，那正是
       //   「虚化只对迷你播放条生效」的成因。
+      // * 液态玻璃：折射本身就要采样背景，与虚化档无关。开着它时即使虚化
+      //   拖到 0 也照常走玻璃，否则「开了液态玻璃却看不到折射」会变成一条
+      //   没有出处的规则。
       final flat = Color.alphaBlend(base, AppColors.scaffold(context));
       return DecoratedBox(
         decoration: BoxDecoration(
@@ -380,6 +386,8 @@ class GlassSurface extends StatelessWidget {
               saturation: vivid ? AppGlass.saturate : null,
               allowBlur: allowBlur,
               shareBackdrop: shareBackdrop,
+              radius: uniformGlassRadius(radius),
+              legible: true,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: base,
@@ -472,6 +480,9 @@ class _FadingFrost extends StatelessWidget {
                 saturation: vivid ? AppGlass.saturate : null,
                 allowBlur: allowBlur,
                 shareBackdrop: shareBackdrop,
+                // 外层的 ClipRRect 就是这个圆角，着色器照着画才会和外框对齐。
+                radius: uniformGlassRadius(radius),
+                legible: true,
                 child: const ColoredBox(color: Color(0x00000000)),
               ),
             ),

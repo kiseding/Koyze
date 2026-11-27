@@ -84,7 +84,8 @@ final class LocalFilenameQuery {
 class LocalMusicScraper {
   LocalMusicScraper(this._musicSourceService);
 
-  static const _durationToleranceSeconds = 2;
+  /// 时长差在这个范围内仍算同一条录音：前后静音、编码补齐都可能有几秒偏差。
+  static const _durationToleranceSeconds = 5;
   static const _minimumFilenameMatchScore = 7;
 
   final MusicSourceService _musicSourceService;
@@ -136,10 +137,7 @@ class LocalMusicScraper {
       '$logLabel queries=${_querySummary(queries)}',
     );
     if (queries.isEmpty) {
-      LocalMusicDebugLog.warning(
-        'scrape.track.skip',
-        'emptyQueries $logLabel',
-      );
+      LocalMusicDebugLog.warning('scrape.track.skip', 'emptyQueries $logLabel');
       return null;
     }
     try {
@@ -210,10 +208,7 @@ class LocalMusicScraper {
       }
       final match = matches.isEmpty ? null : matches.first;
       if (match == null) {
-        LocalMusicDebugLog.warning(
-          'scrape.track.no_match',
-          logLabel,
-        );
+        LocalMusicDebugLog.warning('scrape.track.no_match', logLabel);
         return null;
       }
 
@@ -362,17 +357,29 @@ class LocalMusicScraper {
           onDebug?.call('reject.title $summary');
           continue;
         }
+        // 伴奏 / 纯音乐 / 翻唱 / remix 是另一条录音：只因为歌名主干相同就
+        // 回填身份，会让整张专辑的封面歌词全错位。查询自己带同一个标记时
+        // （用户的文件本来就叫「晴天 (伴奏)」）才放行。
+        if (_hasForeignVersionTag(normalizedSongTitle, normalizedTitle)) {
+          onDebug?.call('reject.version_tag $summary');
+          continue;
+        }
         // Keep exact recording titles ahead of a base-title fallback, while
         // allowing filenames such as "阿刁（live）" to match "阿刁".
         var score = exactTitle ? 6 : 4;
         if (track.duration > Duration.zero && song.duration > Duration.zero) {
           final diff = (song.duration.inSeconds - track.duration.inSeconds)
               .abs();
-          if (diff > _durationToleranceSeconds) {
+          if (diff <= 2) {
+            score += diff == 0 ? 3 : 2;
+          } else if (diff <= _durationToleranceSeconds) {
+            // 3~5 秒的差多半只是前后静音，仍算同一录音，但不给满分——让时长
+            // 更贴近的那条排在前面。
+            score += 1;
+          } else {
             onDebug?.call('reject.duration diff=${diff}s $summary');
             continue;
           }
-          score += diff == 0 ? 3 : 2;
         } else if (query.artist.isEmpty) {
           // 纯歌名且没有时长时可能重名，不自动写入刮削身份。
           onDebug?.call('reject.ambiguous_no_artist_or_duration $summary');
@@ -453,19 +460,59 @@ class LocalMusicScraper {
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 
-  static String _titleWithoutVersion(String value) => value
-      .replaceAll(
-        RegExp(
-          r'\s*[\(（\[]\s*(?:live|现场|演唱会|acoustic|unplugged|remix|\d{4}版|live版|现场版)\s*[\)）\]]\s*$',
-          caseSensitive: false,
-        ),
-        '',
-      )
-      .replaceAll(
-        RegExp(r'\s+(?:live|现场|acoustic|unplugged)\s*$', caseSensitive: false),
-        '',
-      )
-      .trim();
+  /// `feat.` / `ft.` 后面的合作歌手不属于歌名主干。
+  static final _featSuffix = RegExp(
+    r'\s*[\(（\[]?\s*(?:feat|ft|featuring)\.?\s+[^\)）\]]*[\)）\]]?\s*$',
+    caseSensitive: false,
+  );
+
+  /// 同一录音的不同「包装」：单曲、重制、数字专辑、explicit/clean。
+  static final _packagingTag = RegExp(
+    r'\s*[\(（\[]\s*(?:single|单曲|remaster(?:ed)?|重制版?|母带版?|digital album|数字专辑|explicit|clean)\s*[\)）\]]\s*$'
+    r'|\s+-\s*(?:single|remaster(?:ed)?)\s*$',
+    caseSensitive: false,
+  );
+
+  /// 另一条录音的标记：带这些的候选不能只靠「歌名主干相同」就当成同一首。
+  static final _foreignVersionTag = RegExp(
+    r'伴奏|纯音乐|instrumental|karaoke|ktv|翻唱|cover|dj\s*版?|remix|混音|女声版|男声版|童声版|抖音版|片段|剪辑版',
+    caseSensitive: false,
+  );
+
+  static bool _hasForeignVersionTag(String candidate, String query) {
+    final match = _foreignVersionTag.firstMatch(candidate);
+    if (match == null) return false;
+    // 查询本身带同一个标记时放行（用户文件就叫「晴天 (伴奏)」）。
+    return !query.contains(match.group(0)!.toLowerCase());
+  }
+
+  static String _titleWithoutVersion(String value) {
+    var result = value;
+    // 可能连着好几个尾巴（「晴天 - Single (Remastered)」），剥到不再变化。
+    for (var i = 0; i < 3; i++) {
+      final next = result
+          .replaceAll(_featSuffix, '')
+          .replaceAll(_packagingTag, '');
+      if (next == result) break;
+      result = next;
+    }
+    return result
+        .replaceAll(
+          RegExp(
+            r'\s*[\(（\[]\s*(?:live|现场|演唱会|acoustic|unplugged|\d{4}版|live版|现场版)\s*[\)）\]]\s*$',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'\s+(?:live|现场|acoustic|unplugged)\s*$',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .trim();
+  }
 
   /// 解析常见文件名格式，并保留多个方向供在线结果评分：
   /// - `歌手 - 歌名` / `歌名 - 歌手`
@@ -567,10 +614,20 @@ class LocalMusicScraper {
 
   static bool _artistMatches(String expected, String actual) {
     if (expected.isEmpty || actual.isEmpty) return false;
-    return actual == expected ||
-        actual.contains(expected) ||
-        expected.contains(actual);
+    if (actual == expected) return true;
+    // 「周杰伦/费玉清」与「周杰伦」是同一条录音：按分隔符拆成名单再比，
+    // 只要有一个歌手对上就算。整串 contains 会漏掉这种多歌手写法。
+    final left = _artistSet(expected);
+    final right = _artistSet(actual);
+    if (left.any(right.contains)) return true;
+    return actual.contains(expected) || expected.contains(actual);
   }
+
+  static Set<String> _artistSet(String value) => value
+      .split(RegExp(r'\s*[/&、,，]\s*|\s+(?:feat|ft)\.?\s+'))
+      .map((part) => part.trim())
+      .where((part) => part.isNotEmpty && !_isGenericArtist(part))
+      .toSet();
 
   /// 将搜索接口常见的缩略图 URL 升级为适合播放器展示的大图 URL。
   static String? highResolutionArtworkUrl(String platform, String? artwork) {

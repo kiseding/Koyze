@@ -378,6 +378,27 @@ class PlayHistoryStore extends ChangeNotifier {
     return result;
   }
 
+  /// 一天 24 小时的收听秒数，供热能条与海报使用。索引即小时（0..23）。
+  /// 用本地时区（playedAt 是本地时间），跨日旅游时按设备当前时区归桶。
+  List<double> hourlySeconds(StatsRange range, {DateTime? now}) {
+    final buckets = List<double>.filled(24, 0);
+    for (final e in entriesIn(range, now: now)) {
+      final hour = e.playedAt.hour;
+      if (hour >= 0 && hour < 24) buckets[hour] += e.listenedSec;
+    }
+    return buckets;
+  }
+
+  /// 收听最集中的小时；没有任何收听时返回 null。
+  int? favoriteHour(StatsRange range, {DateTime? now}) {
+    final buckets = hourlySeconds(range, now: now);
+    var best = 0;
+    for (var i = 1; i < 24; i++) {
+      if (buckets[i] > buckets[best]) best = i;
+    }
+    return buckets[best] > 0 ? best : null;
+  }
+
   ({int totalPlays, double totalSec, int activeDays, int uniqueSongs}) summary(
     StatsRange range, {
     DateTime? now,

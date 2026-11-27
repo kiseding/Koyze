@@ -19,11 +19,14 @@ import '../domain/playlist.dart';
 import '../domain/m3u_import.dart';
 import '../domain/m3u_playlist.dart';
 import '../domain/playlist_import_service.dart';
+import '../domain/playlist_login.dart';
+import '../domain/playlist_login_service.dart';
 import '../domain/text_playlist.dart';
 import '../domain/playlist_service.dart';
 import '../../player/domain/music_item.dart';
 import '../../local_music/presentation/local_music_provider.dart';
 import 'playlist_provider.dart';
+import 'playlist_login_sheet.dart';
 import '../../player/presentation/player_provider.dart';
 import '../../recommend/presentation/recommendation_provider.dart';
 import '../../nas/domain/nas_kind.dart';
@@ -1218,6 +1221,7 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
   Future<void> _showImportDialog(BuildContext context, WidgetRef ref) async {
     final inputCtrl = TextEditingController();
     final inputFocus = FocusNode();
+    final loginService = PlaylistLoginService();
     var keyboardRequested = false;
     var platform = 'tx';
     var importTab = 0;
@@ -1225,6 +1229,65 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
     String? error;
     // 网易云歌单需要分批拉取曲目详情，展示进度避免用户以为卡住。
     var progress = '';
+
+    // 「登录」页的账号状态：进入时读一次安全存储，切换平台或从登录面板
+    // 返回都不再把整个对话框重建一遍，只把 accountChecked 打回 false。
+    LinkedPlatformAccount? account;
+    var accountChecked = false;
+    var checkingAccount = false;
+    var accountRequest = 0;
+
+    /// 从登录面板点选歌单后的导入。成功后先记下来，等面板收起再关掉本对话框
+    /// 并提示，避免两个路由同时在栈上抢着 pop。
+    ImportedPlaylist? importedFromAccount;
+
+    Future<bool> importAccountPlaylist(
+      BuildContext dialogCtx,
+      MyPlaylistSummary summary,
+    ) async {
+      // 面板里刚扫码登录时，本对话框的 account 还是旧值（null），补读一次存储。
+      final linked = account ?? await loginService.current(platform);
+      if (linked == null) return false;
+      final ImportedPlaylist imported;
+      try {
+        imported = await PlaylistImportService().importAccountPlaylist(
+          // 用凭据自己的平台，而不是弹窗当前选中项：两者正常一致，但前者
+          // 不会因为面板停留期间切换平台而错配。
+          account: linked,
+          summary: summary,
+        );
+      } catch (error) {
+        if (context.mounted) {
+          showAppNotification(
+            error.toString().replaceFirst('Exception: ', ''),
+            type: AppNotificationType.error,
+          );
+        }
+        return false;
+      }
+      if (!dialogCtx.mounted) return false;
+      final confirmed = await _confirmImport(dialogCtx, imported);
+      if (!confirmed || !dialogCtx.mounted) return false;
+      try {
+        await ref
+            .read(playlistServiceProvider)
+            .createPlaylist(
+              name: imported.name,
+              description: S.of(dialogCtx).importedFrom(imported.source),
+              songs: imported.songs,
+            );
+      } catch (error) {
+        if (dialogCtx.mounted) {
+          showAppNotification(
+            '${S.of(dialogCtx).addFailed}: $error',
+            type: AppNotificationType.error,
+          );
+        }
+        return false;
+      }
+      importedFromAccount = imported;
+      return true;
+    }
 
     await showKoyzeDialog(
       context: context,
@@ -1239,6 +1302,19 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                 initialDelay: const Duration(milliseconds: 280),
                 retryDelay: const Duration(milliseconds: 220),
               );
+            }
+            if (importTab == 2 && !accountChecked && !checkingAccount) {
+              checkingAccount = true;
+              final request = ++accountRequest;
+              final target = platform;
+              loginService.current(target).then((value) {
+                if (!ctx.mounted || request != accountRequest) return;
+                setLocal(() {
+                  account = value;
+                  accountChecked = true;
+                  checkingAccount = false;
+                });
+              });
             }
             return KoyzeDialog(
               backgroundColor: AppColors.dialogBg(context),
@@ -1339,6 +1415,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                   : (value) => setLocal(() {
                                       importTab = value.first;
                                       error = null;
+                                      // 每次进「登录」页都重新读账号，避免在面板里
+                                      // 登录/退出后回到这里还显示旧状态。
+                                      if (importTab == 2) {
+                                        accountChecked = false;
+                                      }
                                     }),
                             ),
                             const SizedBox(height: 20),
@@ -1472,56 +1553,117 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                               ),
                             ] else ...[
                               Text(
-                                S.of(context).importPlatformLoginIntro,
+                                S.of(context).sourcePlatform,
                                 style: TextStyle(
                                   color: AppColors.secondaryText(ctx),
-                                  fontSize: 13,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               _ImportPlatformSelector(
                                 value: platform,
                                 enabled: !busy,
-                                onChanged: (value) =>
-                                    setLocal(() => platform = value),
+                                onChanged: (value) => setLocal(() {
+                                  platform = value;
+                                  // 凭据按平台分别保存，换平台要重新读一次账号。
+                                  account = null;
+                                  accountChecked = false;
+                                  checkingAccount = false;
+                                  accountRequest++;
+                                }),
                               ),
-                              const SizedBox(height: 12),
-                              DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: AppColors.card(ctx),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: AppColors.cardBorder(ctx),
+                              const SizedBox(height: 14),
+                              if (checkingAccount)
+                                Row(
+                                  children: [
+                                    const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: AppLoadingIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      S.of(context).loading,
+                                      style: TextStyle(
+                                        color: AppColors.mutedText(ctx),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else if (account != null)
+                                _ImportAccountCard(account: account!)
+                              else
+                                DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: AppColors.card(ctx),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: AppColors.cardBorder(ctx),
+                                    ),
                                   ),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Text(
-                                    switch (platform) {
-                                      'tx' =>
-                                        S
-                                            .of(context)
-                                            .platformLoginUnavailableQQ,
-                                      'kw' =>
-                                        S
-                                            .of(context)
-                                            .platformLoginUnavailableKuwo,
-                                      'kg' =>
-                                        S
-                                            .of(context)
-                                            .platformLoginUnavailableKugou,
-                                      _ =>
-                                        S
-                                            .of(context)
-                                            .platformLoginUnavailableNetease,
-                                    },
-                                    style: TextStyle(
-                                      color: AppColors.secondaryText(ctx),
-                                      fontSize: 12,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      12,
+                                      10,
+                                      12,
+                                      12,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              PlaylistLoginService.supportsQr(
+                                                    platform,
+                                                  )
+                                                  ? Icons.qr_code_2_rounded
+                                                  : Icons.key_rounded,
+                                              size: 16,
+                                              color: AppColors.accentOf(ctx),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Expanded(
+                                              child: Text(
+                                                S
+                                                    .of(context)
+                                                    .playlistLoginIntro,
+                                                style: TextStyle(
+                                                  color:
+                                                      AppColors.secondaryText(
+                                                        ctx,
+                                                      ),
+                                                  fontSize: 12,
+                                                  height: 1.4,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (!PlaylistLoginService.supportsQr(
+                                          platform,
+                                        )) ...[
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            S
+                                                .of(context)
+                                                .playlistLoginCookieIntro,
+                                            style: TextStyle(
+                                              color: AppColors.mutedText(ctx),
+                                              fontSize: 11.5,
+                                              height: 1.45,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ),
                                 ),
-                              ),
                             ],
                             if (error != null) ...[
                               const SizedBox(height: 12),
@@ -1600,61 +1742,11 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                                         final importedDescription = S
                                             .of(context)
                                             .importedFrom(imported.source);
-                                        final ok = await showKoyzeDialog<bool>(
-                                          context: ctx,
-                                          builder: (c2) => KoyzeDialog(
-                                            backgroundColor: AppColors.dialogBg(
-                                              context,
-                                            ),
-                                            title: Text(
-                                              imported.name,
-                                              style: TextStyle(
-                                                color: AppColors.onScaffold(
-                                                  context,
-                                                ),
-                                              ),
-                                            ),
-                                            content: Text(
-                                              S
-                                                  .of(context)
-                                                  .confirmImport(
-                                                    imported.songs.length,
-                                                  ),
-                                              style: TextStyle(
-                                                color: AppColors.mutedText(
-                                                  context,
-                                                ),
-                                              ),
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(c2, false),
-                                                child: Text(
-                                                  S.of(context).cancel,
-                                                  style: TextStyle(
-                                                    color: AppColors.mutedText(
-                                                      context,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              TextButton(
-                                                onPressed: () =>
-                                                    Navigator.pop(c2, true),
-                                                child: Text(
-                                                  S.of(context).importAction,
-                                                  style: TextStyle(
-                                                    color: AppColors.accentOf(
-                                                      context,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                        final ok = await _confirmImport(
+                                          ctx,
+                                          imported,
                                         );
-                                        if (ok == true) {
+                                        if (ok) {
                                           await ref
                                               .read(playlistServiceProvider)
                                               .createPlaylist(
@@ -1739,10 +1831,54 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
                               style: FilledButton.styleFrom(
                                 minimumSize: const Size.fromHeight(50),
                               ),
-                              onPressed: null,
-                              icon: const Icon(Icons.lock_outline_rounded),
+                              onPressed: checkingAccount
+                                  ? null
+                                  : () async {
+                                      importedFromAccount = null;
+                                      await showPlaylistLoginSheet(
+                                        ctx,
+                                        source: platform,
+                                        onImport: (summary) =>
+                                            importAccountPlaylist(ctx, summary),
+                                      );
+                                      if (!ctx.mounted) return;
+                                      final imported = importedFromAccount;
+                                      if (imported != null) {
+                                        Navigator.pop(ctx);
+                                        if (context.mounted) {
+                                          showAppNotification(
+                                            S
+                                                .of(context)
+                                                .importedResult(
+                                                  imported.name,
+                                                  imported.songs.length,
+                                                ),
+                                            type: AppNotificationType.success,
+                                          );
+                                        }
+                                        return;
+                                      }
+                                      // 面板里可能登录或退出过，回来重读账号状态。
+                                      setLocal(() {
+                                        account = null;
+                                        accountChecked = false;
+                                        checkingAccount = false;
+                                        accountRequest++;
+                                      });
+                                    },
+                              icon: Icon(
+                                account != null
+                                    ? Icons.playlist_play_rounded
+                                    : PlaylistLoginService.supportsQr(platform)
+                                    ? Icons.qr_code_2_rounded
+                                    : Icons.key_rounded,
+                              ),
                               label: Text(
-                                S.of(context).platformLoginUnavailableAction,
+                                account != null
+                                    ? S.of(context).playlistLoginMyPlaylists
+                                    : PlaylistLoginService.supportsQr(platform)
+                                    ? S.of(context).login
+                                    : S.of(context).playlistLoginCookieAction,
                               ),
                             ),
                     ),
@@ -1757,6 +1893,44 @@ class _PlaylistScreenState extends ConsumerState<PlaylistScreen> {
       inputCtrl.dispose();
       inputFocus.dispose();
     });
+  }
+
+  /// 解析出歌单后的确认步骤。链接导入和账号导入共用，避免两处文案/样式跑偏。
+  Future<bool> _confirmImport(
+    BuildContext context,
+    ImportedPlaylist imported,
+  ) async {
+    final ok = await showKoyzeDialog<bool>(
+      context: context,
+      builder: (c2) => KoyzeDialog(
+        backgroundColor: AppColors.dialogBg(context),
+        title: Text(
+          imported.name,
+          style: TextStyle(color: AppColors.onScaffold(context)),
+        ),
+        content: Text(
+          S.of(context).confirmImport(imported.songs.length),
+          style: TextStyle(color: AppColors.mutedText(context)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c2, false),
+            child: Text(
+              S.of(context).cancel,
+              style: TextStyle(color: AppColors.mutedText(context)),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(c2, true),
+            child: Text(
+              S.of(context).importAction,
+              style: TextStyle(color: AppColors.accentOf(context)),
+            ),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
   }
 
   void _showPlaylistMoreMenu(
@@ -2126,6 +2300,93 @@ class _ImportPlatformSelector extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 导入弹窗里「已登录」的账号摘要。
+///
+/// 只用来确认「现在是哪个号」，歌单列表和退出登录都在登录面板里，
+/// 这里不做操作入口，免得同一个动作有两个按钮。
+class _ImportAccountCard extends StatelessWidget {
+  const _ImportAccountCard({required this.account});
+
+  final LinkedPlatformAccount account;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 9, 12, 9),
+      decoration: BoxDecoration(
+        color: AppColors.fill(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.cardBorder(context), width: 0.6),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(9),
+            child: SizedBox(
+              width: 34,
+              height: 34,
+              child: account.avatar.isEmpty
+                  ? _fallback(context)
+                  : ArtworkImage(
+                      account.avatar,
+                      width: 34,
+                      height: 34,
+                      placeholder: _fallback(context),
+                      errorBuilder: (_, _, _) => _fallback(context),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  account.nickname.isEmpty
+                      ? S.of(context).login
+                      : account.nickname,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.onScaffold(context),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  S.of(context).loggedInAs(account.userId),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.mutedText(context),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.verified_rounded,
+            size: 16,
+            color: AppColors.accentOf(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fallback(BuildContext context) => Container(
+    color: AppColors.fill2(context),
+    alignment: Alignment.center,
+    child: Icon(
+      Icons.person_rounded,
+      size: 18,
+      color: AppColors.mutedText(context),
+    ),
+  );
 }
 
 /// 导入弹窗里的格式标签：一眼看清「歌单是文本，不是音频」。

@@ -4,6 +4,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../widgets/liquid_glass_filter.dart';
+
 /// 毛玻璃参数集中管理。
 ///
 /// origo-x 的做法是：所有悬浮 chrome（顶栏、悬浮导航、底部面板）共用同一组
@@ -89,8 +91,9 @@ abstract final class GlassEffectConfig {
 
   /// 虚化档位变了会通知这里，理由同 [surfaceOpacityListenable]：滑杆拖动时
   /// 已经建好的玻璃面要当帧重画，不能等外层重建。
-  static final ValueNotifier<double> _surfaceBlurSignal =
-      ValueNotifier<double>(defaultSurfaceBlur);
+  static final ValueNotifier<double> _surfaceBlurSignal = ValueNotifier<double>(
+    defaultSurfaceBlur,
+  );
 
   static ValueListenable<double> get surfaceBlurListenable =>
       _surfaceBlurSignal;
@@ -145,6 +148,51 @@ abstract final class GlassEffectConfig {
     _disableAllGlassEffects = disabled;
     _syncBlurScale();
   }
+
+  /// 液态玻璃（折射着色器）开关的出厂值。
+  ///
+  /// 默认打开，理由和「虚化」出厂满档一样：这是材质层面的主卖点，第一次进
+  /// 设置页就该看到效果，而不是先去开一个开关才知道有这回事。它改变的是
+  /// 「玻璃怎么成形」而不是「玻璃有多浓」——染色、不透明度、虚化三档照常
+  /// 生效，只是在液态玻璃下染色会被压到很低，靠折射和高光收口。
+  static const bool defaultLiquidGlass = true;
+
+  static bool _liquidGlass = defaultLiquidGlass;
+
+  /// 开关变了会通知这里：设置页一拨，已经建好的玻璃面要当帧换成另一种材质。
+  static final ValueNotifier<bool> _liquidGlassSignal = ValueNotifier<bool>(
+    defaultLiquidGlass,
+  );
+
+  static ValueListenable<bool> get liquidGlassListenable => _liquidGlassSignal;
+
+  /// 用户是否想要液态玻璃。**不代表此刻真的用得上**——还要看着色器有没有
+  /// 编译出来，见 [liquidGlass]。
+  static bool get liquidGlassPreferred =>
+      _liquidGlass && !_disableAllGlassEffects;
+
+  static void setLiquidGlass(bool value) {
+    if (value == _liquidGlass) return;
+    _liquidGlass = value;
+    _liquidGlassSignal.value = value;
+  }
+
+  /// 此刻是否真的用液态玻璃着色器。
+  ///
+  /// 三个条件同时成立才算：用户开着、没有整体关闭玻璃效果、且当前渲染后端
+  /// 支持背景着色器滤镜。任何一条不满足都退回普通毛玻璃——宁可糊一点，也
+  /// 不能画出一块既没折射也没底的透明板。
+  static bool get liquidGlass =>
+      liquidGlassPreferred && LiquidGlassShader.available;
+
+  /// 液态玻璃下把毛玻璃的 sigma 折算成着色器前的模糊量。
+  ///
+  /// 着色器负责折射与高光，模糊只用来压住背后的细节，不需要毛玻璃那么重：
+  /// 顶栏基线的 12.75 折算后约 3.8，正好是参考实现里「柔和」材质的档位；
+  /// 再往上就该糊成普通毛玻璃、折射被糊没了。
+  static const double liquidFrostScale = 0.3;
+
+  static double liquidFrost(double sigma) => sigma * liquidFrostScale;
 
   static void _syncBlurScale() {
     if (_disableAllGlassEffects) {

@@ -53,7 +53,10 @@ class PlaylistFileSystem {
 }
 
 final class FilePlaylistRepository
-    implements PlaylistRepository, PlaylistSongPageRepository {
+    implements
+        PlaylistRepository,
+        PlaylistSongPageRepository,
+        SynchronousPlaylistSongPageRepository {
   FilePlaylistRepository({
     required this.directory,
     required this.preferences,
@@ -185,6 +188,26 @@ final class FilePlaylistRepository
   Future<List<MusicItem>> loadAllSongs(String playlistId) async {
     final entry = (await _loadDocument()).entryFor(playlistId);
     return entry.decodeSongs(0, entry.songCount);
+  }
+
+  /// 文档启动时就已经整份读进内存，切一页只是一次 substring + 解码，
+  /// 可以直接在调用方的这一帧里完成。文档缺席（还没 init 完）时返回 null。
+  @override
+  PlaylistSongPage? peekSongsPage(
+    String playlistId, {
+    required int offset,
+    required int limit,
+  }) {
+    if (offset < 0 || limit <= 0) return null;
+    final entry = _document?.entryOrNull(playlistId);
+    if (entry == null) return null;
+    final start = offset.clamp(0, entry.songCount).toInt();
+    final end = (start + limit).clamp(0, entry.songCount).toInt();
+    return PlaylistSongPage(
+      total: entry.songCount,
+      offset: start,
+      songs: entry.decodeSongs(start, end),
+    );
   }
 
   Future<bool> _isValid(String path) async => (await _decodeFile(path)) != null;
@@ -355,6 +378,8 @@ final class _LazyPlaylistDocument {
     if (entry == null) throw StateError('Playlist $playlistId does not exist');
     return entry;
   }
+
+  _LazyPlaylistEntry? entryOrNull(String playlistId) => _entries[playlistId];
 }
 
 final class _LazyPlaylistEntry {

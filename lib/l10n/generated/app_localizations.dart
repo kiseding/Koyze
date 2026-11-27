@@ -464,6 +464,24 @@ abstract class AppLocalizations {
   /// **'0% is sharp; higher values add blur'**
   String get glassBlurSubtitle;
 
+  /// No description provided for @liquidGlass.
+  ///
+  /// In en, this message translates to:
+  /// **'Liquid glass'**
+  String get liquidGlass;
+
+  /// No description provided for @liquidGlassSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edge refraction, dispersion and glare'**
+  String get liquidGlassSubtitle;
+
+  /// No description provided for @liquidGlassUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available on this renderer; using standard frosted glass'**
+  String get liquidGlassUnavailable;
+
   /// No description provided for @playerBackdropPreviewEmpty.
   ///
   /// In en, this message translates to:
@@ -1465,42 +1483,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'That playlist could not be parsed. Check that the file is complete.'**
   String get importFileMalformed;
-
-  /// No description provided for @importPlatformLoginIntro.
-  ///
-  /// In en, this message translates to:
-  /// **'Official authorization and eligibility vary by platform.'**
-  String get importPlatformLoginIntro;
-
-  /// No description provided for @platformLoginUnavailableQQ.
-  ///
-  /// In en, this message translates to:
-  /// **'QQ Music personal playlists require QPlay authorization on Android and an approved partner integration. The official OpenAPI is not currently available to individual developers; this app has no approved access.'**
-  String get platformLoginUnavailableQQ;
-
-  /// No description provided for @platformLoginUnavailableKuwo.
-  ///
-  /// In en, this message translates to:
-  /// **'Kugou\'s official disclosure lists Kuwo\'s account-authorization SDK for importing Kuwo playlists, but no application or integration docs for general third-party developers were found. This app will not use unofficial web or cookie sign-in.'**
-  String get platformLoginUnavailableKuwo;
-
-  /// No description provided for @platformLoginUnavailableKugou.
-  ///
-  /// In en, this message translates to:
-  /// **'Kugou\'s official mini-app API supports authorized user playlists (Android SDK 1.0.8+). That does not establish a general sign-in API for standalone apps; this app has not integrated Kugou mini-app capabilities.'**
-  String get platformLoginUnavailableKugou;
-
-  /// No description provided for @platformLoginUnavailableNetease.
-  ///
-  /// In en, this message translates to:
-  /// **'NetEase states that individual use is limited to its official ncm-cli; vendor OpenAPI access requires business engagement. This app has not integrated ncm-cli or obtained vendor access.'**
-  String get platformLoginUnavailableNetease;
-
-  /// No description provided for @platformLoginUnavailableAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Official sign-in is not connected yet'**
-  String get platformLoginUnavailableAction;
 
   /// No description provided for @searchFieldHint.
   ///
@@ -2509,6 +2491,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No listening data yet'**
   String get listeningStatsEmpty;
+
+  /// No description provided for @playlistLoginIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan the code to import your playlists. Credentials stay in secure storage on this device.'**
+  String get playlistLoginIntro;
+
+  /// No description provided for @playlistLoginQrWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan this code with the matching app'**
+  String get playlistLoginQrWaiting;
+
+  /// No description provided for @playlistLoginQrScanned.
+  ///
+  /// In en, this message translates to:
+  /// **'Scanned — please confirm on your phone'**
+  String get playlistLoginQrScanned;
+
+  /// No description provided for @playlistLoginQrExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'QR code expired'**
+  String get playlistLoginQrExpired;
+
+  /// No description provided for @playlistLoginQrHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Open {app} to scan'**
+  String playlistLoginQrHint(Object app);
+
+  /// No description provided for @playlistLoginCookieIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Kuwo has no QR sign-in. Sign in at kuwo.cn in a browser and paste the cookie below.'**
+  String get playlistLoginCookieIntro;
+
+  /// No description provided for @playlistLoginCookieField.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste cookie, e.g. Hm_lvt_xxx=...; kuwo_token=...'**
+  String get playlistLoginCookieField;
+
+  /// No description provided for @playlistLoginCookieAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with cookie'**
+  String get playlistLoginCookieAction;
+
+  /// No description provided for @playlistLoginMyPlaylists.
+  ///
+  /// In en, this message translates to:
+  /// **'My playlists'**
+  String get playlistLoginMyPlaylists;
+
+  /// No description provided for @playlistLoginNoPlaylists.
+  ///
+  /// In en, this message translates to:
+  /// **'No playlists found. Add some to your account and try again.'**
+  String get playlistLoginNoPlaylists;
+
+  /// No description provided for @statsPosterGenerate.
+  ///
+  /// In en, this message translates to:
+  /// **'Listening poster'**
+  String get statsPosterGenerate;
+
+  /// No description provided for @statsPosterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Koyze · Listening Report'**
+  String get statsPosterTitle;
+
+  /// No description provided for @statsPosterPeriodWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'This week'**
+  String get statsPosterPeriodWeek;
+
+  /// No description provided for @statsPosterPeriodMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'This month'**
+  String get statsPosterPeriodMonth;
+
+  /// No description provided for @statsPosterPeriodYear.
+  ///
+  /// In en, this message translates to:
+  /// **'This year'**
+  String get statsPosterPeriodYear;
+
+  /// No description provided for @statsPosterPeriodAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All time'**
+  String get statsPosterPeriodAll;
+
+  /// No description provided for @statsPosterHoursMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{h} hr {m} min'**
+  String statsPosterHoursMinutes(Object h, Object m);
+
+  /// No description provided for @statsPosterFacts.
+  ///
+  /// In en, this message translates to:
+  /// **'{days} days · {songs} songs'**
+  String statsPosterFacts(Object days, Object songs);
+
+  /// No description provided for @statsPosterFavoriteHour.
+  ///
+  /// In en, this message translates to:
+  /// **'Most active at {hour}:00'**
+  String statsPosterFavoriteHour(Object hour);
+
+  /// No description provided for @statsPosterTopSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Top songs'**
+  String get statsPosterTopSongs;
+
+  /// No description provided for @statsPosterTopArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Top artist'**
+  String get statsPosterTopArtist;
+
+  /// No description provided for @statsPosterHourChart.
+  ///
+  /// In en, this message translates to:
+  /// **'Listening through the day'**
+  String get statsPosterHourChart;
+
+  /// No description provided for @statsPosterSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Poster saved'**
+  String get statsPosterSaved;
 
   /// No description provided for @listeningStatsEmptyHint.
   ///

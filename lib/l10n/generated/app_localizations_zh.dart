@@ -196,6 +196,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get glassBlurSubtitle => '0% 不模糊，数值越高越模糊';
 
   @override
+  String get liquidGlass => '液态玻璃';
+
+  @override
+  String get liquidGlassSubtitle => '边缘折射、色散与高光，玻璃更透亮';
+
+  @override
+  String get liquidGlassUnavailable => '当前渲染后端不支持，已退回普通毛玻璃';
+
+  @override
   String get playerBackdropPreviewEmpty => '没有正在播放的歌曲';
 
   @override
@@ -710,28 +719,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get importFileMalformed => '歌单格式无法解析，请确认文件完整';
 
   @override
-  String get importPlatformLoginIntro => '各平台的官方授权和接入条件不同。';
-
-  @override
-  String get platformLoginUnavailableQQ =>
-      'QQ 音乐个人歌单需通过 QPlay Android 授权，且应用须先取得合作接入和审核。官方 OpenAPI 暂不支持个人开发者申请；本应用尚未获准接入。';
-
-  @override
-  String get platformLoginUnavailableKuwo =>
-      '酷狗 App 的官方信息清单列有酷我账号授权 SDK，用于导入酷我歌单；但尚未找到面向一般第三方开发者的申请或接入文档。本应用不会使用非官方网页登录或 Cookie 登录。';
-
-  @override
-  String get platformLoginUnavailableKugou =>
-      '酷狗官方小程序提供用户授权后的自建和收藏歌单接口（Android SDK 1.0.8 起）。该能力不等于独立 App 的通用登录接口；本应用尚未接入酷狗小程序能力。';
-
-  @override
-  String get platformLoginUnavailableNetease =>
-      '网易云官方说明个人场景仅可使用 ncm-cli；厂商 OpenAPI 需商务接入。本应用尚未集成 ncm-cli 或获批的厂商接入，因此暂不可登录。';
-
-  @override
-  String get platformLoginUnavailableAction => '该平台暂未接入官方登录';
-
-  @override
   String get searchFieldHint => '搜索歌曲、歌单...';
 
   @override
@@ -1236,6 +1223,85 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get listeningStatsEmpty => '暂无播放数据';
+
+  @override
+  String get playlistLoginIntro => '扫码后即可导入你在该平台的歌单。凭据只存系统安全存储，不上传。';
+
+  @override
+  String get playlistLoginQrWaiting => '请用对应 App 扫码登录';
+
+  @override
+  String get playlistLoginQrScanned => '已扫码，请在手机上确认';
+
+  @override
+  String get playlistLoginQrExpired => '二维码已过期';
+
+  @override
+  String playlistLoginQrHint(Object app) {
+    return '打开 $app 扫码';
+  }
+
+  @override
+  String get playlistLoginCookieIntro =>
+      '酷我暂不支持扫码。请从 kuwo.cn 网页版登录后复制 Cookie 粘贴到下方。';
+
+  @override
+  String get playlistLoginCookieField =>
+      '粘贴 Cookie，例如 Hm_lvt_xxx=...; kuwo_token=...';
+
+  @override
+  String get playlistLoginCookieAction => '用 Cookie 登录';
+
+  @override
+  String get playlistLoginMyPlaylists => '我的歌单';
+
+  @override
+  String get playlistLoginNoPlaylists => '没读到歌单，确认账号下已有歌单后再试。';
+
+  @override
+  String get statsPosterGenerate => '生成听歌海报';
+
+  @override
+  String get statsPosterTitle => 'Koyze · 听歌报告';
+
+  @override
+  String get statsPosterPeriodWeek => '本周';
+
+  @override
+  String get statsPosterPeriodMonth => '本月';
+
+  @override
+  String get statsPosterPeriodYear => '今年';
+
+  @override
+  String get statsPosterPeriodAll => '全部';
+
+  @override
+  String statsPosterHoursMinutes(Object h, Object m) {
+    return '$h 小时 $m 分钟';
+  }
+
+  @override
+  String statsPosterFacts(Object days, Object songs) {
+    return '$days 天有收听 · $songs 首歌';
+  }
+
+  @override
+  String statsPosterFavoriteHour(Object hour) {
+    return '最爱 $hour 点听歌';
+  }
+
+  @override
+  String get statsPosterTopSongs => '最常听的歌曲';
+
+  @override
+  String get statsPosterTopArtist => '最常听的歌手';
+
+  @override
+  String get statsPosterHourChart => '一天中的收听分布';
+
+  @override
+  String get statsPosterSaved => '海报已保存';
 
   @override
   String get listeningStatsEmptyHint => '多听几首歌，这里会生成你的听歌报告';

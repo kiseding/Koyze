@@ -559,6 +559,35 @@ class GlassBlurNotifier extends _SliderSettingNotifier {
   void setBlur(double value) => applyLive(value);
 }
 
+/// 液态玻璃开关（折射着色器材质）。
+///
+/// 出厂打开，理由同「虚化」：材质本身是主卖点，第一次进设置页就该看到，
+/// 而不是先去猜那个开关有什么用。它不改变浓度，只改变玻璃怎么成形——
+/// 不透明度、虚化两档照常生效。
+///
+/// 关掉就是这一版之前的样子（低 alpha 染色 + 斜向高光 + 0.8px 亮边）。
+class LiquidGlassNotifier extends _PersistedSettingNotifier<bool> {
+  LiquidGlassNotifier({StorageLoader? storage})
+    : super(GlassEffectConfig.defaultLiquidGlass, storage: storage) {
+    startLoad();
+  }
+
+  static const String storageKey = 'liquid_glass_enabled';
+
+  @override
+  bool? readFrom(StorageService storage) => storage.getBool(storageKey);
+
+  void setEnabled(bool enabled) {
+    setting.applyCommitted(enabled);
+    try {
+      if (state != setting.value) state = setting.value;
+    } catch (_) {}
+    unawaited(
+      persist(enabled, (storage) => storage.setBool(storageKey, enabled)),
+    );
+  }
+}
+
 class DefaultSearchPlatformNotifier extends _PersistedSettingNotifier<String> {
   DefaultSearchPlatformNotifier({StorageLoader? storage})
     : super('tx', storage: storage) {

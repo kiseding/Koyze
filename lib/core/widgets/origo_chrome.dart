@@ -6,6 +6,7 @@ import '../theme/app_tokens.dart';
 import '../theme/effect_policy.dart';
 import '../theme/glass_config.dart';
 import 'glass_backdrop.dart';
+import 'route_animation_gate.dart';
 
 /// Shared chrome surface for floating controls.
 ///
@@ -299,22 +300,40 @@ class GradientFrost extends StatelessWidget {
         ),
       ),
     );
-    // 虚化归零时只画染色层，保留用户选择的不透明度。
-    final frosted = !reduce && GlassEffectConfig.userBlurEnabled;
+    // 虚化归零时只画染色层，保留用户选择的不透明度。液态玻璃不受这一档
+    // 约束：折射自己就要采样背后的内容，虚化 0 只意味着「最清透的那一档」。
+    final frosted =
+        !reduce &&
+        (GlassEffectConfig.userBlurEnabled || GlassEffectConfig.liquidGlass);
     return Stack(
       children: [
         if (frosted)
           Positioned.fill(
             child: IgnorePointer(
-              child: ClipRect(
-                child: GlassBackdrop(
-                  // 恒定满档，不乘滚动折扣：见 build 里的说明。
-                  sigma: GlassEffectConfig.scaleSurfaceBlur(sigma),
-                  saturation: AppGlass.saturate,
-                  allowBlur: true,
-                  shareBackdrop: shareBackdrop,
-                  child: const ColoredBox(color: Color(0x00000000)),
-                ),
+              // 页面入场动画期间先不采样背景。
+              //
+              // 这一整根栏在这一帧里跟着页面一起移动，背景滤镜每帧都要
+              // 读回背后的内容再卷积，是整页最贵的一次绘制；而转场期间
+              // 页面本来就换成了一张位图，位图里再套背景滤镜既贵又容易
+              // 采样到空背景。入场时列表还在顶部、背后就是页面底色，
+              // 去掉它看不出差别，落地后再恢复。
+              child: RouteAnimationGate(
+                builder: (context, animating) => animating
+                    ? const SizedBox.shrink()
+                    : ClipRect(
+                        child: GlassBackdrop(
+                          // 恒定满档，不乘滚动折扣：见 build 里的说明。
+                          sigma: GlassEffectConfig.scaleSurfaceBlur(sigma),
+                          saturation: AppGlass.saturate,
+                          allowBlur: true,
+                          shareBackdrop: shareBackdrop,
+                          // 顶栏是全宽直角条：左右边缘落在屏幕外，折射出现在
+                          // 下沿和顶部，正好是一道收口的亮带。
+                          radius: 0,
+                          legible: true,
+                          child: const ColoredBox(color: Color(0x00000000)),
+                        ),
+                      ),
               ),
             ),
           ),

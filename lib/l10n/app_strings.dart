@@ -113,6 +113,9 @@ class S {
   String get glassOpacitySubtitle => _l10n.glassOpacitySubtitle;
   String get glassBlur => _l10n.glassBlur;
   String get glassBlurSubtitle => _l10n.glassBlurSubtitle;
+  String get liquidGlass => _l10n.liquidGlass;
+  String get liquidGlassSubtitle => _l10n.liquidGlassSubtitle;
+  String get liquidGlassUnavailable => _l10n.liquidGlassUnavailable;
   String get resetToDefault => _l10n.resetToDefault;
   String get lyricDisplay => _l10n.lyricDisplay;
   String get lyricDisplaySubtitle => _l10n.lyricDisplaySubtitle;
@@ -394,15 +397,6 @@ class S {
   String get importFileBinary => _l10n.importFileBinary;
   String get importFileEmpty => _l10n.importFileEmpty;
   String get importFileMalformed => _l10n.importFileMalformed;
-  String get importPlatformLoginIntro => _l10n.importPlatformLoginIntro;
-  String get platformLoginUnavailableQQ => _l10n.platformLoginUnavailableQQ;
-  String get platformLoginUnavailableKuwo => _l10n.platformLoginUnavailableKuwo;
-  String get platformLoginUnavailableKugou =>
-      _l10n.platformLoginUnavailableKugou;
-  String get platformLoginUnavailableNetease =>
-      _l10n.platformLoginUnavailableNetease;
-  String get platformLoginUnavailableAction =>
-      _l10n.platformLoginUnavailableAction;
   String get searchFieldHint => _l10n.searchFieldHint;
   String get searchAction => _l10n.searchAction;
   String get searchSuggestions => _l10n.searchSuggestions;
@@ -576,6 +570,32 @@ class S {
   String get clearFailedAction => _l10n.clearFailedAction;
   String get listeningStatsEmpty => _l10n.listeningStatsEmpty;
   String get listeningStatsEmptyHint => _l10n.listeningStatsEmptyHint;
+  String get playlistLoginIntro => _l10n.playlistLoginIntro;
+  String get playlistLoginQrWaiting => _l10n.playlistLoginQrWaiting;
+  String get playlistLoginQrScanned => _l10n.playlistLoginQrScanned;
+  String get playlistLoginQrExpired => _l10n.playlistLoginQrExpired;
+  String playlistLoginQrHint(Object app) => _l10n.playlistLoginQrHint(app);
+  String get playlistLoginCookieIntro => _l10n.playlistLoginCookieIntro;
+  String get playlistLoginCookieField => _l10n.playlistLoginCookieField;
+  String get playlistLoginCookieAction => _l10n.playlistLoginCookieAction;
+  String get playlistLoginMyPlaylists => _l10n.playlistLoginMyPlaylists;
+  String get playlistLoginNoPlaylists => _l10n.playlistLoginNoPlaylists;
+  String get statsPosterGenerate => _l10n.statsPosterGenerate;
+  String get statsPosterTitle => _l10n.statsPosterTitle;
+  String get statsPosterPeriodWeek => _l10n.statsPosterPeriodWeek;
+  String get statsPosterPeriodMonth => _l10n.statsPosterPeriodMonth;
+  String get statsPosterPeriodYear => _l10n.statsPosterPeriodYear;
+  String get statsPosterPeriodAll => _l10n.statsPosterPeriodAll;
+  String statsPosterHoursMinutes(int h, int m) =>
+      _l10n.statsPosterHoursMinutes(h, m);
+  String statsPosterFacts(int days, int songs) =>
+      _l10n.statsPosterFacts(days, songs);
+  String statsPosterFavoriteHour(int hour) =>
+      _l10n.statsPosterFavoriteHour(hour);
+  String get statsPosterTopSongs => _l10n.statsPosterTopSongs;
+  String get statsPosterTopArtist => _l10n.statsPosterTopArtist;
+  String get statsPosterHourChart => _l10n.statsPosterHourChart;
+  String get statsPosterSaved => _l10n.statsPosterSaved;
   String get playCount => _l10n.playCount;
   String get listenTime => _l10n.listenTime;
   String get activeDays => _l10n.activeDays;

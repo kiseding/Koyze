@@ -228,8 +228,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       final missingArtwork = songs
           .where((song) => song.artwork?.trim().isNotEmpty != true)
           .length;
-      if (missingArtwork * 10 < songs.length * 3 ||
-          _localArtworkPromptShown) {
+      if (missingArtwork * 10 < songs.length * 3 || _localArtworkPromptShown) {
         return;
       }
 
@@ -309,15 +308,19 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final range = _pageRangeFor(playlist.songCount);
     final isFavorites = playlist.id == 'favorites';
     final isSelectionMode = isFavorites && _selectedFavoriteIds.isNotEmpty;
+    final songsRequest = PlaylistSongsPageRequest(
+      playlistId: playlist.id,
+      pageIndex: range.pageIndex,
+    );
+    // 先要同步页：列表必须和页面一起出现在第一帧，不能等异步 provider
+    // 补上来——那一下会落在入场动画放到一半的位置，看起来就是卡一下。
+    final cachedSongsPage = !_isEditing && playlist.songCount > 0
+        ? ref.watch(playlistSongsPageCacheProvider(songsRequest))
+        : null;
     final songsPage = !_isEditing && playlist.songCount > 0
-        ? ref.watch(
-            playlistSongsPageProvider(
-              PlaylistSongsPageRequest(
-                playlistId: playlist.id,
-                pageIndex: range.pageIndex,
-              ),
-            ),
-          )
+        ? cachedSongsPage != null
+              ? AsyncData(cachedSongsPage)
+              : ref.watch(playlistSongsPageProvider(songsRequest))
         : null;
     final optimisticFavorites = isFavorites
         ? ref.watch(optimisticFavoritePageProvider)
@@ -680,19 +683,19 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         ),
         body: playlist.songCount == 0
             ? playlist.id == 'local'
-                ? Center(
-                    child: FilledButton.icon(
-                      onPressed: () => context.push('/local-music'),
-                      icon: const Icon(Icons.create_new_folder_outlined),
-                      label: Text(S.of(context).addLocalMusicFolder),
-                    ),
-                  )
-                : Center(
-                    child: Text(
-                      S.of(context).noSongs,
-                      style: TextStyle(color: AppColors.mutedText(context)),
-                    ),
-                  )
+                  ? Center(
+                      child: FilledButton.icon(
+                        onPressed: () => context.push('/local-music'),
+                        icon: const Icon(Icons.create_new_folder_outlined),
+                        label: Text(S.of(context).addLocalMusicFolder),
+                      ),
+                    )
+                  : Center(
+                      child: Text(
+                        S.of(context).noSongs,
+                        style: TextStyle(color: AppColors.mutedText(context)),
+                      ),
+                    )
             : _isEditing
             ? _buildEditableList(playlist)
             : visibleSongsPage!.when(
@@ -797,184 +800,177 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       children: [
         Positioned.fill(
           child: RepaintBoundary(
-              child: AdaptiveSongList.builder(
-                key: PageStorageKey(
-                  'playlist-${playlist.id}-${range.pageIndex}',
-                ),
-                controller: _scrollController,
-                itemExtent: 72,
-                landscapeItemExtent: 80,
-                itemCount: songs.length,
-                padding: EdgeInsets.only(
-                  top: topInset,
-                  // 页码栏是悬浮控件，列表继续延伸到屏幕底部。
-                  bottom:
-                      bottomInset +
-                      (range.pageCount > 1
-                          ? PageNavigationBar.listBottomPadding
-                          : 0),
-                ),
-                itemBuilder: (context, index) {
-                  final song = songs[index];
-                  final songIndex = range.start + index;
-                  final focused = focusId != null && song.id == focusId;
-                  final selected = _selectedFavoriteIds.contains(
-                    song.identityKey,
-                  );
-                  return ListTile(
-                    // 底色交给 ListTile 自己画：外面再套一层 ColoredBox，
-                    // 它的底色会把水波纹（画在最近的 Material 上）压住，
-                    // debug 里还会触发 "ink splashes may be invisible" 断言。
-                    // tileColor 只在未选中时生效，选中时走 selectedTileColor。
-                    tileColor: focused
-                        ? AppColors.accentOf(context).withAlpha(28)
-                        : null,
-                    selected: selected,
-                    selectedTileColor: AppColors.accentOf(
-                      context,
-                    ).withAlpha(34),
-                    onLongPress: isFavorites
-                        ? () => _toggleFavoriteSelection(song)
-                        : null,
-                    onTap: isSelectionMode
-                        ? () => _toggleFavoriteSelection(song)
-                        : () => _playSong(playerService, playlist, songIndex),
-                    leading: isSelectionMode
-                        ? Checkbox(
-                            value: selected,
-                            activeColor: AppColors.accentOf(context),
-                            onChanged: (_) => _toggleFavoriteSelection(song),
-                          )
-                        : ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: SizedBox(
-                              width: 48,
-                              height: 48,
-                              child:
-                                  song.artwork != null &&
-                                      song.artwork!.isNotEmpty
-                                  ? ArtworkImage(
-                                      song.artwork!,
-                                      fit: BoxFit.cover,
-                                      cacheWidth: 96,
-                                      errorBuilder: (_, __, ___) => Icon(
-                                        Icons.music_note,
-                                        color: AppColors.mutedText(context),
-                                      ),
-                                    )
-                                  : Icon(
+            child: AdaptiveSongList.builder(
+              key: PageStorageKey('playlist-${playlist.id}-${range.pageIndex}'),
+              controller: _scrollController,
+              itemExtent: 72,
+              landscapeItemExtent: 80,
+              itemCount: songs.length,
+              padding: EdgeInsets.only(
+                top: topInset,
+                // 页码栏是悬浮控件，列表继续延伸到屏幕底部。
+                bottom:
+                    bottomInset +
+                    (range.pageCount > 1
+                        ? PageNavigationBar.listBottomPadding
+                        : 0),
+              ),
+              itemBuilder: (context, index) {
+                final song = songs[index];
+                final songIndex = range.start + index;
+                final focused = focusId != null && song.id == focusId;
+                final selected = _selectedFavoriteIds.contains(
+                  song.identityKey,
+                );
+                return ListTile(
+                  // 底色交给 ListTile 自己画：外面再套一层 ColoredBox，
+                  // 它的底色会把水波纹（画在最近的 Material 上）压住，
+                  // debug 里还会触发 "ink splashes may be invisible" 断言。
+                  // tileColor 只在未选中时生效，选中时走 selectedTileColor。
+                  tileColor: focused
+                      ? AppColors.accentOf(context).withAlpha(28)
+                      : null,
+                  selected: selected,
+                  selectedTileColor: AppColors.accentOf(context).withAlpha(34),
+                  onLongPress: isFavorites
+                      ? () => _toggleFavoriteSelection(song)
+                      : null,
+                  onTap: isSelectionMode
+                      ? () => _toggleFavoriteSelection(song)
+                      : () => _playSong(playerService, playlist, songIndex),
+                  leading: isSelectionMode
+                      ? Checkbox(
+                          value: selected,
+                          activeColor: AppColors.accentOf(context),
+                          onChanged: (_) => _toggleFavoriteSelection(song),
+                        )
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child:
+                                song.artwork != null && song.artwork!.isNotEmpty
+                                ? ArtworkImage(
+                                    song.artwork!,
+                                    fit: BoxFit.cover,
+                                    cacheWidth: 96,
+                                    errorBuilder: (_, __, ___) => Icon(
                                       Icons.music_note,
                                       color: AppColors.mutedText(context),
                                     ),
+                                  )
+                                : Icon(
+                                    Icons.music_note,
+                                    color: AppColors.mutedText(context),
+                                  ),
+                          ),
+                        ),
+                  title: Text(
+                    song.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.onScaffold(context),
+                      fontWeight: focused || selected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                    ),
+                  ),
+                  subtitle: Text(
+                    song.singer,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.mutedText(context),
+                      fontSize: 12,
+                    ),
+                  ),
+                  trailing: isSelectionMode
+                      ? null
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // 收藏按钮与更多按钮分开，留出呼吸感避免误触。
+                            FavoriteButton(
+                              song: song,
+                              isFavorite: isFavorites
+                                  ? true
+                                  : isFavoriteMusic(song, favoriteSongs),
                             ),
-                          ),
-                    title: Text(
-                      song.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.onScaffold(context),
-                        fontWeight: focused || selected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                      ),
-                    ),
-                    subtitle: Text(
-                      song.singer,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.mutedText(context),
-                        fontSize: 12,
-                      ),
-                    ),
-                    trailing: isSelectionMode
-                        ? null
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // 收藏按钮与更多按钮分开，留出呼吸感避免误触。
-                              FavoriteButton(
-                                song: song,
-                                isFavorite: isFavorites
-                                    ? true
-                                    : isFavoriteMusic(song, favoriteSongs),
+                            FxIconButton(
+                              tooltip: S.of(context).moreActions,
+                              icon: Icon(
+                                Icons.more_vert,
+                                color: AppColors.mutedText(context),
+                                size: 20,
                               ),
-                              FxIconButton(
-                                tooltip: S.of(context).moreActions,
-                                icon: Icon(
-                                  Icons.more_vert,
-                                  color: AppColors.mutedText(context),
-                                  size: 20,
-                                ),
-                                onPressed: () {
-                                  showKoyzeSheet(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    builder: (ctx) => SafeArea(
-                                      top: false,
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          KoyzeSheetTitle(
-                                            title: S.of(context).moreActions,
-                                            onClose: () => Navigator.pop(ctx),
-                                          ),
-                                          KoyzeSheetAction(
-                                            icon: Icons.play_arrow_rounded,
-                                            label: S.of(context).play,
-                                            onTap: () {
-                                              Navigator.pop(ctx);
-                                              _playSong(
-                                                playerService,
-                                                playlist,
-                                                songIndex,
-                                              );
-                                            },
-                                          ),
-                                          KoyzeSheetAction(
-                                            icon: Icons.playlist_remove_rounded,
-                                            label: S
-                                                .of(context)
-                                                .removeFromPlaylist,
-                                            danger: true,
-                                            onTap: () async {
-                                              try {
-                                                await ref
-                                                    .read(
-                                                      playlistServiceProvider,
-                                                    )
-                                                    .removeSongOccurrence(
-                                                      playlist.id,
-                                                      songIndex,
-                                                    );
-                                              } catch (error) {
-                                                if (mounted) {
-                                                  _showMutationError(
-                                                    S.of(context).removeFailed,
-                                                    error,
+                              onPressed: () {
+                                showKoyzeSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  builder: (ctx) => SafeArea(
+                                    top: false,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        KoyzeSheetTitle(
+                                          title: S.of(context).moreActions,
+                                          onClose: () => Navigator.pop(ctx),
+                                        ),
+                                        KoyzeSheetAction(
+                                          icon: Icons.play_arrow_rounded,
+                                          label: S.of(context).play,
+                                          onTap: () {
+                                            Navigator.pop(ctx);
+                                            _playSong(
+                                              playerService,
+                                              playlist,
+                                              songIndex,
+                                            );
+                                          },
+                                        ),
+                                        KoyzeSheetAction(
+                                          icon: Icons.playlist_remove_rounded,
+                                          label: S
+                                              .of(context)
+                                              .removeFromPlaylist,
+                                          danger: true,
+                                          onTap: () async {
+                                            try {
+                                              await ref
+                                                  .read(playlistServiceProvider)
+                                                  .removeSongOccurrence(
+                                                    playlist.id,
+                                                    songIndex,
                                                   );
-                                                }
-                                                return;
+                                            } catch (error) {
+                                              if (mounted) {
+                                                _showMutationError(
+                                                  S.of(context).removeFailed,
+                                                  error,
+                                                );
                                               }
-                                              if (!ctx.mounted) return;
-                                              Navigator.pop(ctx);
-                                            },
-                                          ),
-                                          const SizedBox(height: 4),
-                                        ],
-                                      ),
+                                              return;
+                                            }
+                                            if (!ctx.mounted) return;
+                                            Navigator.pop(ctx);
+                                          },
+                                        ),
+                                        const SizedBox(height: 4),
+                                      ],
                                     ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                  );
-                },
-              ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                );
+              },
+            ),
           ),
         ),
         // 底栏悬浮在列表之上（栏高度不变），列表可滚动到栏内部。

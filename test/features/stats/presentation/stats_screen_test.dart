@@ -50,4 +50,58 @@ void main() {
 
     store.dispose();
   });
+
+  testWidgets('有数据时显示生成听歌海报入口', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final store = PlayHistoryStore(() async => throw StateError('unused'))
+      ..record(
+        songId: 'song-1',
+        songTitle: '测试歌曲',
+        artistName: '测试歌手',
+        albumTitle: '测试专辑',
+        source: 'tx',
+        startedAt: DateTime.now(),
+        listenedSec: 45,
+      );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [playHistoryStoreProvider.overrideWithValue(store)],
+        child: const MaterialApp(
+          locale: Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: StatsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('生成听歌海报'), findsOneWidget);
+    // 时段分布卡片：有播放数据时应渲染出来。
+    expect(find.text('一天中的收听分布'), findsOneWidget);
+
+    store.dispose();
+  });
+
+  testWidgets('无播放数据时不显示海报入口', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final store = PlayHistoryStore(() async => throw StateError('unused'));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [playHistoryStoreProvider.overrideWithValue(store)],
+        child: const MaterialApp(
+          locale: Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: StatsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('生成听歌海报'), findsNothing);
+    store.dispose();
+  });
 }

@@ -93,6 +93,9 @@ class LxMusicApp extends ConsumerWidget {
     GlassEffectConfig.setSurfaceOpacity(ref.watch(glassOpacityProvider));
     // 「虚化」同理：0 为出厂档（不采样背后），往上才逐级打开毛玻璃。
     GlassEffectConfig.setSurfaceBlur(ref.watch(glassBlurProvider));
+    // 液态玻璃：玻璃面的成形方式（折射着色器 / 模拟材质），同样写进静态配置，
+    // 已建好的玻璃面靠 liquidGlassListenable 当帧换材质。
+    GlassEffectConfig.setLiquidGlass(ref.watch(liquidGlassProvider));
     ref.watch(playbackSessionRecorderProvider);
     ref.watch(playbackVolumeBindingProvider);
     ref.watch(playbackSpeedBindingProvider);

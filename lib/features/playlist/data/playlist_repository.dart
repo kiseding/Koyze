@@ -128,6 +128,20 @@ abstract interface class PlaylistSongPageRepository {
   Future<List<MusicItem>> loadAllSongs(String playlistId);
 }
 
+/// 已经把整份歌单文档读进内存、能同步切出一页的仓库。
+///
+/// 歌单详情页的第一帧就靠它：异步仓库（哪怕只差一个 microtask）会让页面
+/// 先画一个空壳，等列表在入场动画放到一半时才补上来——那一下正好落在
+/// 画面移动最快的位置，看起来就是「打开歌单卡一下」。
+abstract interface class SynchronousPlaylistSongPageRepository {
+  /// 文档还没读进内存时返回 null，调用方退回异步加载。
+  PlaylistSongPage? peekSongsPage(
+    String playlistId, {
+    required int offset,
+    required int limit,
+  });
+}
+
 final class PlaylistSnapshotCodec {
   const PlaylistSnapshotCodec();
 

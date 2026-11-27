@@ -18,6 +18,7 @@ import 'package:koyze/core/network/music_source_service.dart';
 import 'package:koyze/core/storage/cache_maintenance_service.dart';
 import 'package:koyze/core/storage/portable_mode.dart';
 import 'package:koyze/core/widgets/artwork_disk_cache.dart';
+import 'package:koyze/core/widgets/liquid_glass_filter.dart';
 import 'package:koyze/core/desktop/desktop_media_channel.dart';
 import 'package:koyze/core/desktop/desktop_media_session.dart';
 import 'package:koyze/core/desktop/desktop_lyric_window_channel.dart';
@@ -100,6 +101,11 @@ Future<void> _bootstrapUnsafe(
     );
   }
   await LowMemory.detect();
+  // 液态玻璃的背景滤镜着色器：只在启动时编译一次，之后所有玻璃面共用。
+  // 放在这里是为了让首帧就能用上真材质——玻璃面在启动画面之后立刻就出现，
+  // 晚一步加载会看到一次「毛玻璃 → 液态玻璃」的跳变。编译失败只记日志，
+  // 设置里的开关随之置灰，材质退回普通毛玻璃，不影响启动。
+  await LiquidGlassShader.init();
   await PortableMode.initialize();
   final portableRoot = PortableMode.root;
   if (portableRoot != null) {

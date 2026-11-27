@@ -62,32 +62,55 @@ void main() {
       // 文件页读的是文本歌单，不是音频。
       expect(importDialog, contains('_importPlaylistFile('));
       expect(importDialog, contains('_PlaylistFormatChips'));
-      expect(importDialog, contains('onPressed: null'));
+      // 登录页不再是禁用占位：按钮直接打开扫码面板，解析逻辑由面板回调。
+      expect(importDialog, contains('showPlaylistLoginSheet('));
+      expect(importDialog, contains('importAccountPlaylist'));
+      expect(importDialog, isNot(contains('platformLoginUnavailableAction')));
       expect(importDialog, isNot(contains('importAccountIntro')));
     },
   );
 
-  test('platform sign-in notices match verified official access scopes', () {
+  test('platform sign-in copy is complete in both locales', () {
     final zh =
         jsonDecode(readSource('lib/l10n/app_zh.arb')) as Map<String, dynamic>;
     final en =
         jsonDecode(readSource('lib/l10n/app_en.arb')) as Map<String, dynamic>;
 
-    expect(zh['platformLoginUnavailableQQ'], contains('合作接入和审核'));
-    expect(zh['platformLoginUnavailableQQ'], contains('个人开发者'));
-    expect(zh['platformLoginUnavailableKuwo'], contains('酷狗 App 的官方信息清单'));
-    expect(zh['platformLoginUnavailableKuwo'], contains('第三方开发者'));
-    expect(zh['platformLoginUnavailableKugou'], contains('官方小程序'));
-    expect(zh['platformLoginUnavailableKugou'], contains('独立 App'));
-    expect(zh['platformLoginUnavailableNetease'], contains('ncm-cli'));
-    expect(zh['platformLoginUnavailableNetease'], contains('商务接入'));
-    expect(en['platformLoginUnavailableQQ'], contains('individual developers'));
+    // 已经接了扫码登录，原来那套「官方授权未获批」的说明必须一起消失，
+    // 否则界面在登录、文案却说不能登录。
     expect(
-      en['platformLoginUnavailableKuwo'],
-      contains('third-party developer'),
+      zh.keys.where((key) => key.startsWith('platformLoginUnavailable')),
+      isEmpty,
     );
-    expect(en['platformLoginUnavailableKugou'], contains('mini-app API'));
-    expect(en['platformLoginUnavailableNetease'], contains('ncm-cli'));
+    expect(
+      en.keys.where((key) => key.startsWith('platformLoginUnavailable')),
+      isEmpty,
+    );
+
+    final keys =
+        zh.keys.where((key) => key.startsWith('playlistLogin')).toList()
+          ..sort();
+    expect(keys, isNotEmpty);
+    final placeholder = RegExp(r'\{(\w+)\}');
+    for (final key in keys) {
+      expect(en[key], isA<String>(), reason: '英文缺少 $key');
+      expect((en[key] as String).trim(), isNotEmpty, reason: '英文 $key 为空');
+      expect(
+        placeholder
+            .allMatches(en[key] as String)
+            .map((match) => match[1])
+            .toSet(),
+        placeholder
+            .allMatches(zh[key] as String)
+            .map((match) => match[1])
+            .toSet(),
+        reason: '$key 的占位符中英不一致',
+      );
+    }
+
+    expect(zh['playlistLoginQrHint'], contains('{app}'));
+    expect(zh['playlistLoginIntro'], contains('安全存储'));
+    expect(zh['playlistLoginCookieIntro'], contains('kuwo.cn'));
   });
 
   test('local music card opens the playlist player view', () {
