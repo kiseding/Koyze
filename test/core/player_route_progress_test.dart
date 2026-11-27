@@ -21,6 +21,31 @@ void main() {
   const background = Color(0xFF111318);
   const shell = Color(0xFFB8D4FF);
 
+  testWidgets(
+    'route progress bridge synchronizes after an offstage first frame',
+    (tester) async {
+      tester.view.physicalSize = const Size(420, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final navigatorKey = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigatorKey,
+          home: const Scaffold(body: ColoredBox(color: shell)),
+        ),
+      );
+      await tester.pump();
+
+      unawaited(navigatorKey.currentState!.push(_PlayerLikeRoute()));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 240));
+      expect(playerRouteProgress.value, 1.0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('推送播放器路由时主壳不会先闪一帧全透明', (tester) async {
     tester.view.physicalSize = const Size(420, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -68,11 +93,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 8));
     }
 
-    expect(
-      tester.takeException(),
-      isNull,
-      reason: '构建期回写进度不能让监听者在本帧被标脏',
-    );
+    expect(tester.takeException(), isNull, reason: '构建期回写进度不能让监听者在本帧被标脏');
     expect(shellSaw.first, 0.0, reason: '推送首帧主壳必须还停在"未打开"');
     for (var i = 1; i < shellSaw.length; i++) {
       expect(

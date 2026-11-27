@@ -285,7 +285,10 @@ class DownloadDirectoryNotifier extends _PersistedSettingNotifier<String?> {
       await persist(null, (storage) => storage.remove(_storageKey));
       return;
     }
-    await persist(trimmed, (storage) => storage.setString(_storageKey, trimmed));
+    await persist(
+      trimmed,
+      (storage) => storage.setString(_storageKey, trimmed),
+    );
   }
 
   void applyCommitted(String? value) {
@@ -492,7 +495,7 @@ class PlayerBackdropScrimNotifier extends _SliderSettingNotifier {
   Future<void> commitScrim(double value) => resetTo(value);
 }
 
-/// 界面材质的不透明度倍率（0.3~1，默认 0.65）。
+/// 界面材质的不透明度倍率（0~1，默认 0）。
 ///
 /// 界面上所有玻璃面（顶栏、卡片、菜单、胶囊）共用这一档，它统一缩放它们的
 /// 染色浓度。播放器那层模糊背景不受影响。
@@ -522,7 +525,7 @@ class GlassOpacityNotifier extends _SliderSettingNotifier {
   Future<void> commitOpacity(double value) => resetTo(value);
 }
 
-/// 玻璃面的「虚化」档位（0~1，出厂 1.00）。
+/// 玻璃面的「虚化」档位（0~1，默认 0.50；对应旧版满档强度）。
 ///
 /// 0 就是不采样背后、只用透明混合；往上拖才逐级打开 BackdropFilter，1 是
 /// 设计基线强度。它是倍率不是 sigma：各材质自带基线半径（顶栏 15、弹窗 25、
@@ -1347,7 +1350,10 @@ class AudioEnhancementNotifier
 
   Future<void> _commit(AudioEnhancementSettings next) async {
     if (next == setting.value) return;
-    await persist(next, (storage) => storage.setJson(storageKey, next.toJson()));
+    await persist(
+      next,
+      (storage) => storage.setJson(storageKey, next.toJson()),
+    );
   }
 }
 
@@ -1356,7 +1362,8 @@ class AudioEnhancementNotifier
 /// 与 [AudioEnhancementNotifier] 同样是「一小组总是一起读的属性」，因此存在
 /// 同一个 JSON 键里。但它和音频增强没有因果关系：频谱只是把已经播出来的
 /// 声音画出来，不改声音本身，所以是独立一项。
-class PlayerSpectrumNotifier extends _PersistedSettingNotifier<PlayerSpectrumSettings> {
+class PlayerSpectrumNotifier
+    extends _PersistedSettingNotifier<PlayerSpectrumSettings> {
   PlayerSpectrumNotifier({StorageLoader? storage})
     : super(const PlayerSpectrumSettings(), storage: storage) {
     startLoad();
@@ -1379,6 +1386,9 @@ class PlayerSpectrumNotifier extends _PersistedSettingNotifier<PlayerSpectrumSet
 
   Future<void> _commit(PlayerSpectrumSettings next) async {
     if (next == setting.value) return;
-    await persist(next, (storage) => storage.setJson(storageKey, next.toJson()));
+    await persist(
+      next,
+      (storage) => storage.setJson(storageKey, next.toJson()),
+    );
   }
 }

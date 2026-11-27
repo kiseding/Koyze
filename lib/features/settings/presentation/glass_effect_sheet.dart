@@ -58,7 +58,7 @@ class GlassEffectSheet extends ConsumerWidget {
                 label: s.glassOpacity,
                 value: opacity,
                 min: GlassEffectConfig.minSurfaceOpacity,
-                divisions: 14,
+                divisions: 20,
                 onChanged: (next) {
                   // 立刻写进静态配置，预览和整页的玻璃面同一帧跟着变。
                   GlassEffectConfig.setSurfaceOpacity(next);

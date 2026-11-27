@@ -27,20 +27,11 @@ abstract final class GlassEffectConfig {
   static double _surfaceBlur = defaultSurfaceBlur;
 
   /// 设置页暴露的「界面不透明度」下限。
-  ///
-  /// 再往下玻璃就只剩一条边，列表文字会直接压在下面的内容上；0.3 是还能
-  /// 认出「这里有一块面板」的最后一档。
-  static const double minSurfaceOpacity = 0.3;
+  static const double minSurfaceOpacity = 0.0;
 
-  /// 「界面不透明度」的默认档。
-  ///
-  /// 只是出厂值，不参与任何换算——见 [surfaceAlpha]。0.65 是出厂给的
-  /// 「半透明但不飘」档：配合 [defaultSurfaceBlur] 的 1.00 一起，玻璃面才有
-  /// 毛玻璃的观感。早先这里是 0.95（几乎实色），那是「全 App 不模糊、只用
-  /// 透明度」时期的默认——在那套观感下太透会让文字压在滚动内容上发灰。
-  /// 后来又试过 0.30，太透了：模糊虽然抹平了背景细节，但整块面板的轮廓
-  /// 也跟着消失，读起来像「没有底」。0.65 是两者的中点。
-  static const double defaultSurfaceOpacity = 0.65;
+  /// 「界面不透明度」的默认档。0 表示不额外叠加染色底色，由虚化和边线建立
+  /// 面板轮廓；用户仍可在设置里提高不透明度以适配不同背景和阅读习惯。
+  static const double defaultSurfaceOpacity = 0.0;
 
   static void applyPerformanceMode({required bool reduceEffects}) {
     _reduceEffects = reduceEffects;
@@ -79,15 +70,10 @@ abstract final class GlassEffectConfig {
   /// 解析不出有效档位时退回不模糊，而不是退回满档模糊。
   static const double minSurfaceBlur = 0.0;
 
-  /// 「虚化」的出厂档：1.00，即设计基线的满档。
-  ///
-  /// 它是倍率：各材质本来就有自己的基线半径（顶栏 15、弹窗 25、播放器 60），
-  /// 这一档统一缩放它们。出厂给满档，是因为「虚化」是这一版的主卖点——第一次
-  /// 打开设置页的人应该立刻看到效果，而不是先去拖滑杆。觉得糊过头的人往下调，
-  /// 那条路比「默认没效果、不知道能调」友好得多。
-  ///
-  /// 早先这里是 0：那时全 App 只有播放器允许模糊，其余界面靠透明度撑着。
-  static const double defaultSurfaceBlur = 1.00;
+  /// 旧版 100% 虚化在新滑杆上对应 50%。因此这一倍率在渲染时会乘 2，
+  /// 保持 50% 的实际半径与旧版满档一致；上半段允许更强的虚化。
+  static const double defaultSurfaceBlur = 0.50;
+  static const double surfaceBlurLegacyFullScale = 0.50;
 
   /// 虚化档位变了会通知这里，理由同 [surfaceOpacityListenable]：滑杆拖动时
   /// 已经建好的玻璃面要当帧重画，不能等外层重建。
@@ -98,7 +84,7 @@ abstract final class GlassEffectConfig {
   static ValueListenable<double> get surfaceBlurListenable =>
       _surfaceBlurSignal;
 
-  /// 全局虚化档位（0~1）。0 为不虚化，1 为设计基线强度。
+  /// 全局虚化档位（0~1）。50% 保持旧版满档强度；100% 是旧版的两倍基线。
   ///
   /// 它是**倍率**不是 sigma：各材质（顶栏、弹窗、卡片）本来就有自己的基线
   /// 半径，这一档统一缩放它们，所以同一个百分比在每块面上的实际糊度不同，
@@ -122,7 +108,8 @@ abstract final class GlassEffectConfig {
   static bool get userBlurEnabled => surfaceBlur > 0;
 
   /// 把一块面的基线模糊半径按档位缩放。
-  static double scaleSurfaceBlur(double sigma) => sigma * surfaceBlur;
+  static double scaleSurfaceBlur(double sigma) =>
+      sigma * (surfaceBlur / surfaceBlurLegacyFullScale);
 
   /// 此刻真正画到玻璃上的 alpha——**就是设置里选的那个百分比**。
   ///

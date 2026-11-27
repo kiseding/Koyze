@@ -63,6 +63,10 @@ class _PlaylistLoginSheetState extends State<_PlaylistLoginSheet> {
   int _failures = 0;
   int _request = 0;
 
+  /// 酷我的扫码依赖网页版的微信回调链，官方随时可能改。这里留一个
+  /// 显式开关：扫码失败时用户还能退回粘贴 Cookie，不至于整个入口不可用。
+  bool _cookieFallback = false;
+
   List<MyPlaylistSummary> _playlists = const [];
   bool _loadingPlaylists = false;
   String? _playlistError;
@@ -294,7 +298,7 @@ class _PlaylistLoginSheetState extends State<_PlaylistLoginSheet> {
   // ── 未登录 ─────────────────────────────────────────────
 
   List<Widget> _loggedOutBody(S s) {
-    if (!PlaylistLoginService.supportsQr(_source)) {
+    if (_cookieFallback || !PlaylistLoginService.supportsQr(_source)) {
       return _cookieBody(s);
     }
     final ticket = _ticket;
@@ -379,6 +383,20 @@ class _PlaylistLoginSheetState extends State<_PlaylistLoginSheet> {
           ),
         ),
       ],
+      /** 扫码链路失败时的保底入口：酷我的登录凭据最终仍以网页 Cookie 为准。 */
+      if (_source == 'kw') ...[
+        const SizedBox(height: 10),
+        Center(
+          child: TextButton(
+            onPressed: () => setState(() => _cookieFallback = true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.mutedText(context),
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+            child: Text(s.playlistLoginCookieAction),
+          ),
+        ),
+      ],
     ];
   }
 
@@ -422,6 +440,27 @@ class _PlaylistLoginSheetState extends State<_PlaylistLoginSheet> {
       Text(
         _error!,
         style: const TextStyle(color: AppColors.error, fontSize: 12),
+      ),
+    ],
+    if (_source == 'kw' &&
+        _cookieFallback &&
+        PlaylistLoginService.supportsQr(_source)) ...[
+      const SizedBox(height: 6),
+      Center(
+        child: TextButton(
+          onPressed: () {
+            setState(() {
+              _cookieFallback = false;
+              _error = null;
+            });
+            _createQr();
+          },
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.mutedText(context),
+            textStyle: const TextStyle(fontSize: 12),
+          ),
+          child: Text(s.playlistLoginUseQr),
+        ),
       ),
     ],
   ];

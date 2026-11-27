@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/adaptive_song_list.dart';
 import '../../../core/widgets/artwork_image.dart';
 import '../../../core/widgets/fx_icon_button.dart';
+import '../../../core/widgets/gradient_bar_backgrounds.dart';
 import '../../../core/widgets/loading_widget.dart';
 import '../../../l10n/app_strings.dart';
 import '../../player/domain/music_item.dart';
@@ -167,7 +168,7 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
             child: AdaptiveSongList.builder(
               padding: EdgeInsets.fromLTRB(
                 16,
-                MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
+                MediaQuery.paddingOf(context).top + koyzeToolbarHeight + 8,
                 16,
                 16,
               ),

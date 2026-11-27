@@ -10,6 +10,7 @@ void main() {
       final theme = AppTheme.darkTheme();
       expect(theme.brightness, Brightness.dark);
       expect(theme.useMaterial3, true);
+      expect(theme.appBarTheme.toolbarHeight, 60);
     });
 
     test('darkTheme has correct scaffold background', () {
@@ -40,9 +41,7 @@ void main() {
 
     test('changing the accent leaves page surfaces neutral', () {
       final blue = AppTheme.lightTheme();
-      final magenta = AppTheme.lightTheme(
-        seedColor: const Color(0xFFD81B60),
-      );
+      final magenta = AppTheme.lightTheme(seedColor: const Color(0xFFD81B60));
 
       expect(magenta.scaffoldBackgroundColor, blue.scaffoldBackgroundColor);
       expect(magenta.colorScheme.surface, blue.colorScheme.surface);
@@ -50,7 +49,10 @@ void main() {
         magenta.colorScheme.surfaceContainer,
         blue.colorScheme.surfaceContainer,
       );
-      expect(magenta.colorScheme.outlineVariant, blue.colorScheme.outlineVariant);
+      expect(
+        magenta.colorScheme.outlineVariant,
+        blue.colorScheme.outlineVariant,
+      );
       // 只有 primary 这一路跟着强调色走。
       expect(magenta.colorScheme.primary, isNot(blue.colorScheme.primary));
     });

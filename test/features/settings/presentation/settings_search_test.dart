@@ -105,6 +105,44 @@ void main() {
     expect(activated, ['Language']);
   });
 
+  testWidgets('keyboard inset replaces the mini-player bottom reservation', (
+    tester,
+  ) async {
+    _setViewport(tester, const Size(390, 844));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          resizeToAvoidBottomInset: true,
+          body: RootShellLayout(
+            usesSideNavigation: false,
+            obscuredBottom: 96,
+            child: const SettingsSearchLayer(
+              sections: [
+                SettingsSectionSpec(
+                  title: 'Playback',
+                  entries: [SettingsEntry(title: 'Audio quality')],
+                ),
+              ],
+              topInset: 0,
+              bottomInset: 96,
+              keyboardVisible: true,
+              onClose: _noop,
+              onActivate: _noop2,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final list = tester.getRect(find.byType(ListView));
+    expect(list.bottom, closeTo(544, 1));
+    expect(list.bottom, lessThan(844 - 96));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('a switch row flips in the results instead of navigating', (
     tester,
   ) async {
@@ -215,9 +253,7 @@ void main() {
         ),
         equalizerStorageProvider.overrideWithValue(() async => storage),
         settingsDeviceIdProvider.overrideWith((ref) async => 'device_test'),
-        sleepTimerProvider.overrideWith(
-          () => SleepTimerNotifier(() async {}),
-        ),
+        sleepTimerProvider.overrideWith(() => SleepTimerNotifier(() async {})),
       ],
     );
     addTearDown(container.dispose);
@@ -234,9 +270,8 @@ void main() {
               children: [
                 ListenableBuilder(
                   listenable: headers,
-                  builder: (context, _) => Row(
-                    children: headers.headerFor(3)?.actions ?? const [],
-                  ),
+                  builder: (context, _) =>
+                      Row(children: headers.headerFor(3)?.actions ?? const []),
                 ),
                 const Expanded(child: SettingsScreen()),
               ],
@@ -289,9 +324,7 @@ void main() {
         ),
         equalizerStorageProvider.overrideWithValue(() async => storage),
         settingsDeviceIdProvider.overrideWith((ref) async => 'device_test'),
-        sleepTimerProvider.overrideWith(
-          () => SleepTimerNotifier(() async {}),
-        ),
+        sleepTimerProvider.overrideWith(() => SleepTimerNotifier(() async {})),
       ],
     );
     addTearDown(container.dispose);
@@ -308,9 +341,8 @@ void main() {
               children: [
                 ListenableBuilder(
                   listenable: headers,
-                  builder: (context, _) => Row(
-                    children: headers.headerFor(3)?.actions ?? const [],
-                  ),
+                  builder: (context, _) =>
+                      Row(children: headers.headerFor(3)?.actions ?? const []),
                 ),
                 const Expanded(child: SettingsScreen()),
               ],

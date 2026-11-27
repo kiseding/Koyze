@@ -1243,14 +1243,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get playlistLoginCookieIntro =>
-      '酷我暂不支持扫码。请从 kuwo.cn 网页版登录后复制 Cookie 粘贴到下方。';
+      '如果扫码登录失败，可退回网页 Cookie：在 kuwo.cn 登录后复制 Cookie 粘贴到下方。';
 
   @override
   String get playlistLoginCookieField =>
-      '粘贴 Cookie，例如 Hm_lvt_xxx=...; kuwo_token=...';
+      '粘贴 Cookie，例如 Hm_lvt_xxx=...; kw_token=...';
 
   @override
   String get playlistLoginCookieAction => '用 Cookie 登录';
+
+  @override
+  String get playlistLoginUseQr => '改用扫码登录';
 
   @override
   String get playlistLoginMyPlaylists => '我的歌单';

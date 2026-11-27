@@ -96,7 +96,7 @@ class _DuplicateScreenState extends ConsumerState<DuplicateScreen> {
               final selected = _selectionFor(groups);
               return ListView.separated(
                 padding: EdgeInsets.only(
-                  top: MediaQuery.paddingOf(context).top + kToolbarHeight,
+                  top: MediaQuery.paddingOf(context).top + koyzeToolbarHeight,
                   left: 16,
                   right: 16,
                   bottom: 16,

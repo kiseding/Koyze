@@ -816,6 +816,7 @@ class _CardRevealTransition extends StatefulWidget {
 
 class _CardRevealTransitionState extends State<_CardRevealTransition> {
   _CardDismissSession? _session;
+  bool _sourceHandoffComplete = false;
 
   @override
   void didChangeDependencies() {
@@ -914,30 +915,39 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         //
         // 阈值 1.02 / 1.06 留亚像素余量：松到 1.06 / 1.12 会正好把
         // 402px（源卡片 380）判成"已到位"，收尾提前 40ms 结束。
+        // 交棒只能发生在转场窗口已经完整覆盖源卡片之后。旧阈值允许窗口
+        // 比源卡片大 2%/6% 就提前退场；源卡片宽度较小时，这几像素会在
+        // 收尾露出窗口边缘外的底色，看起来像左右被裁切。
         final handoffReady =
-            currentRect.width <= sourceRect.width * 1.02 &&
-            currentRect.height <= sourceRect.height * 1.06;
+            currentRect.width <= sourceRect.width + 0.5 &&
+            currentRect.height <= sourceRect.height + 0.5;
         // 源卡片只在快照交接窗口隐藏。
         //
         // 起点 0.58 与下面 snapshotOpacity 的淡入起点对齐：早了是重影
         // （快照还没浮现、源卡片也没隐藏），晚了会露出真实卡片。
         // 终点不写死，交给 `handoffReady`——转场层什么时候退场，源卡片
         // 就什么时候恢复，两者是同一件事。
+        if (dismissing && handoffReady && cardExpandSourceHidden.value) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || _sourceHandoffComplete) return;
+            if (cardExpandSourceHidden.value) {
+              cardExpandSourceHidden.value = false;
+              setState(() {});
+            }
+          });
+        }
         final hideSource =
             widget.sourceSnapshot != null &&
             dismissing &&
             t >= 0.58 &&
             !handoffReady;
-        if (cardExpandSourceHidden.value != hideSource) {
-          // 不能在 build 里直接写这个全局 notifier：它的监听者
-          // （Pressable 的 ValueListenableBuilder）会在本帧的构建过程中被
-          // 标脏，`Element.rebuild` 结束时 `!_dirty` 断言就会失败——横竖屏
-          // 切换时整棵树重建，正好踩中这条路径，表现为旋转即红屏。
-          // 放到帧末写入，交接只晚一帧，肉眼看不出来。
+        if (cardExpandSourceHidden.value != hideSource &&
+            !(dismissing && handoffReady)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             if (cardExpandSourceHidden.value != hideSource) {
               cardExpandSourceHidden.value = hideSource;
+              if (hideSource) _sourceHandoffComplete = false;
             }
           });
         }
@@ -973,8 +983,15 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
 
         // 收拢完成时提前交棒：转场层退场，真实页面直接接管。
         // 判定见上面的 handoffReady（按窗口尺寸，不按 t）。
-        if (dismissing && handoffReady) {
-          return const SizedBox.shrink();
+        if (dismissing && handoffReady && !cardExpandSourceHidden.value) {
+          if (!_sourceHandoffComplete) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || _sourceHandoffComplete) return;
+              setState(() => _sourceHandoffComplete = true);
+            });
+          } else {
+            return const SizedBox.shrink();
+          }
         }
 
         return Stack(

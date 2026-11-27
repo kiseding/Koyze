@@ -6,13 +6,8 @@ import 'package:koyze/core/theme/glass_config.dart';
 import 'package:koyze/features/settings/presentation/settings_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 「虚化」这一档：出厂 0、越界收敛、倍率而非 sigma、拖动时的「立刻生效 +
-/// 合并落盘」，以及它确实驱动玻璃面重画。
-///
-/// 这一档的默认值从 0（关）改成了 0.9（接近满档）：原先「关上更省」的考虑
-/// 建立在「只有播放器允许模糊」那套观感上，现在虚化本身就是用户可调的外观
-/// 项，出厂关着会让第一次打开设置页的人以为开关坏了。0 仍然是个合法值，
-/// 拖到底就退回「这一档上线前」的观感。
+/// 「虚化」这一档：默认 50%（对应旧版 100% 的基线强度）、越界收敛、倍率
+/// 而非 sigma、拖动时的「立刻生效 + 合并落盘」，以及它确实驱动玻璃面重画。
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -34,8 +29,9 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(notifier.value, GlassEffectConfig.defaultSurfaceBlur);
-      // 出厂就是满档虚化的：用户没动过滑杆时，界面也该是毛玻璃而不是一片实色。
-      expect(notifier.value, 1.0);
+      expect(notifier.value, 0.5);
+      // 新滑杆 50% 保持旧版 100% 对应的实际基线模糊强度。
+      expect(GlassEffectConfig.scaleSurfaceBlur(20), closeTo(20, 1e-9));
     },
   );
 
@@ -88,7 +84,7 @@ void main() {
       GlassEffectConfig.setSurfaceBlur(value);
       expect(
         GlassEffectConfig.scaleSurfaceBlur(sigma),
-        closeTo(sigma * value, 1e-9),
+        closeTo(sigma * (value / 0.5), 1e-9),
       );
     }
   });

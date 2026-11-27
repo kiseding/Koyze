@@ -1274,14 +1274,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playlistLoginCookieIntro =>
-      'Kuwo has no QR sign-in. Sign in at kuwo.cn in a browser and paste the cookie below.';
+      'If QR sign-in fails, fall back to a web cookie: sign in at kuwo.cn and paste the cookie below.';
 
   @override
   String get playlistLoginCookieField =>
-      'Paste cookie, e.g. Hm_lvt_xxx=...; kuwo_token=...';
+      'Paste cookie, e.g. Hm_lvt_xxx=...; kw_token=...';
 
   @override
   String get playlistLoginCookieAction => 'Sign in with cookie';
+
+  @override
+  String get playlistLoginUseQr => 'Use QR sign-in';
 
   @override
   String get playlistLoginMyPlaylists => 'My playlists';

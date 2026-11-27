@@ -165,11 +165,11 @@ void main() {
     });
   });
 
-  test('只有网易云、QQ、酷狗支持扫码，酷我走 Cookie', () {
+  test('四家平台都支持扫码：酷我走微信开放平台', () {
     expect(PlaylistLoginService.supportsQr('wy'), isTrue);
     expect(PlaylistLoginService.supportsQr('tx'), isTrue);
     expect(PlaylistLoginService.supportsQr('kg'), isTrue);
-    expect(PlaylistLoginService.supportsQr('kw'), isFalse);
+    expect(PlaylistLoginService.supportsQr('kw'), isTrue);
     expect(PlaylistLoginService.supportsQr('unknown'), isFalse);
   });
 

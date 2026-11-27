@@ -198,6 +198,13 @@ void main() {
   });
 
   testWidgets('调低不透明度，胶囊跟着变淡', (tester) async {
+    // 默认不透明度是 0，先把这一档拉满，再验证调低时胶囊确实跟着变淡。
+    GlassEffectConfig.setSurfaceOpacity(1);
+    addTearDown(
+      () => GlassEffectConfig.setSurfaceOpacity(
+        GlassEffectConfig.defaultSurfaceOpacity,
+      ),
+    );
     await pumpLeaderboard(tester);
 
     Color? tint() {
@@ -211,6 +218,7 @@ void main() {
     }
 
     final before = tint()!;
+    expect(before.a, closeTo(1, 1e-9));
     GlassEffectConfig.setSurfaceOpacity(GlassEffectConfig.minSurfaceOpacity);
     await tester.pumpAndSettle();
 

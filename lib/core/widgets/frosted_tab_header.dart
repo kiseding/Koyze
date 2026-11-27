@@ -134,6 +134,7 @@ class FrostedTabHeader extends StatelessWidget {
       background: Theme.of(context).scaffoldBackgroundColor,
       blur: blur,
       vivid: vivid,
+      keepGlassDuringRouteTransition: true,
       child: Padding(
         padding: EdgeInsets.fromLTRB(16, top + 6, 14, bottomPadding),
         child: Column(

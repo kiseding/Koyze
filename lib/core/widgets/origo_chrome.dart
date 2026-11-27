@@ -228,6 +228,8 @@ class GradientFrost extends StatelessWidget {
     this.base,
     this.fadeOutFrom,
     this.shareBackdrop = true,
+    this.keepGlassDuringRouteTransition = false,
+    this.bottomEdgeOnly = false,
   });
 
   final Widget child;
@@ -247,6 +249,12 @@ class GradientFrost extends StatelessWidget {
 
   /// 是否复用外层采样键。叠在页面玻璃上的控件可独立采样已绘制的内容。
   final bool shareBackdrop;
+
+  /// 转场期间保持标题栏玻璃连续绘制，避免材质闪变。
+  final bool keepGlassDuringRouteTransition;
+
+  /// 仅折射下缘，避免标题栏左右和上边缘出现液态玻璃高光。
+  final bool bottomEdgeOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -308,7 +316,12 @@ class GradientFrost extends StatelessWidget {
     return Stack(
       children: [
         if (frosted)
-          Positioned.fill(
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: bottomEdgeOnly ? 12 : null,
+            top: bottomEdgeOnly ? null : 0,
             child: IgnorePointer(
               // 页面入场动画期间先不采样背景。
               //
@@ -317,24 +330,37 @@ class GradientFrost extends StatelessWidget {
               // 页面本来就换成了一张位图，位图里再套背景滤镜既贵又容易
               // 采样到空背景。入场时列表还在顶部、背后就是页面底色，
               // 去掉它看不出差别，落地后再恢复。
-              child: RouteAnimationGate(
-                builder: (context, animating) => animating
-                    ? const SizedBox.shrink()
-                    : ClipRect(
-                        child: GlassBackdrop(
-                          // 恒定满档，不乘滚动折扣：见 build 里的说明。
-                          sigma: GlassEffectConfig.scaleSurfaceBlur(sigma),
-                          saturation: AppGlass.saturate,
-                          allowBlur: true,
-                          shareBackdrop: shareBackdrop,
-                          // 顶栏是全宽直角条：左右边缘落在屏幕外，折射出现在
-                          // 下沿和顶部，正好是一道收口的亮带。
-                          radius: 0,
-                          legible: true,
-                          child: const ColoredBox(color: Color(0x00000000)),
-                        ),
+              child: keepGlassDuringRouteTransition
+                  ? ClipRect(
+                      child: GlassBackdrop(
+                        sigma: GlassEffectConfig.scaleSurfaceBlur(sigma),
+                        saturation: AppGlass.saturate,
+                        allowBlur: true,
+                        shareBackdrop: shareBackdrop,
+                        radius: 0,
+                        legible: true,
+                        child: const ColoredBox(color: Color(0x00000000)),
                       ),
-              ),
+                    )
+                  : RouteAnimationGate(
+                      builder: (context, animating) => animating
+                          ? const SizedBox.shrink()
+                          : ClipRect(
+                              child: GlassBackdrop(
+                                sigma: GlassEffectConfig.scaleSurfaceBlur(
+                                  sigma,
+                                ),
+                                saturation: AppGlass.saturate,
+                                allowBlur: true,
+                                shareBackdrop: shareBackdrop,
+                                radius: 0,
+                                legible: true,
+                                child: const ColoredBox(
+                                  color: Color(0x00000000),
+                                ),
+                              ),
+                            ),
+                    ),
             ),
           ),
         Positioned.fill(child: tintLayer),

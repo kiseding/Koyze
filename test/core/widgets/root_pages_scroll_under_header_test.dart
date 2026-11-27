@@ -402,6 +402,9 @@ void main() {
   }
 
   testWidgets('调过界面质感后仍能搜索、滚动和切换 tab', (tester) async {
+    // setUp 会把虚化拉满，那是给「有没有真的糊」的用例用的；这条看的是
+    // 面板打开后的出厂值，先还原成默认的半档。
+    GlassEffectConfig.setSurfaceBlur(GlassEffectConfig.defaultSurfaceBlur);
     await _mount(tester, playlists: _samplePlaylists());
     final field = find.byType(TextField);
     final context = tester.element(field);
@@ -420,15 +423,23 @@ void main() {
       findsOneWidget,
     );
     final opacitySlider = tester.getRect(sliders.first);
+    // 默认不透明度是 0（界面不透明度这一档出厂关闭），所以从 0 往上拖，
+    // 验证的是「拖动真的写进静态配置」，而不是「默认值偏淡」。
+    expect(GlassEffectConfig.surfaceOpacity, 0);
+    expect(
+      GlassEffectConfig.surfaceBlur,
+      GlassEffectConfig.defaultSurfaceBlur,
+      reason: '虚化出厂就是半档，50% 即旧版满档强度',
+    );
     await tester.tapAt(
       opacitySlider.centerLeft + Offset(opacitySlider.width / 4, 0),
     );
-    await tester.tap(sliders.last);
     await tester.pumpAndSettle();
     expect(
       GlassEffectConfig.surfaceOpacity,
-      lessThan(GlassEffectConfig.defaultSurfaceOpacity),
+      greaterThan(GlassEffectConfig.defaultSurfaceOpacity),
     );
+    // 虚化滑杆不动，保持出厂 0.5：新滑杆的 50% 等于旧版的满档。
     expect(GlassEffectConfig.surfaceBlur, 0.5);
     await tester.tap(
       find.descendant(of: sheet, matching: find.byType(KoyzeSheetClose)),
@@ -437,23 +448,22 @@ void main() {
 
     final tabFrost = tester.widget<GradientFrost>(_tabBackdrop);
     final tabFilter = tester.widget<GlassBackdrop>(
-      find.descendant(
-        of: _tabBackdrop,
-        matching: find.byType(GlassBackdrop),
-      ),
+      find.descendant(of: _tabBackdrop, matching: find.byType(GlassBackdrop)),
     );
-    expect(tabFilter.sigma, closeTo(tabFrost.sigma * 0.5, 0.001));
+    // 虚化按「新滑杆 50% = 旧版满档」换算：实际 sigma 是基线的
+    // surfaceBlur / 0.5 倍。出厂 0.5 时倍率正好 1.0（旧版满档）。
+    final blurScale =
+        GlassEffectConfig.surfaceBlur /
+        GlassEffectConfig.surfaceBlurLegacyFullScale;
+    expect(tabFilter.sigma, closeTo(tabFrost.sigma * blurScale, 0.001));
 
     final searchChrome = tester.widget<OrigoChromeSurface>(_searchSurface);
     expect(searchChrome.style, AppGlassStyle.bar);
     expect(searchChrome.shareBackdrop, isFalse);
     final searchFilter = tester.widget<GlassBackdrop>(
-      find.descendant(
-        of: _searchSurface,
-        matching: find.byType(GlassBackdrop),
-      ),
+      find.descendant(of: _searchSurface, matching: find.byType(GlassBackdrop)),
     );
-    expect(searchFilter.sigma, closeTo(AppGlass.blurBar * 0.5, 0.001));
+    expect(searchFilter.sigma, closeTo(AppGlass.blurBar * blurScale, 0.001));
 
     await tester.tap(field);
     await tester.pump();

@@ -106,11 +106,21 @@ void main() {
 
   testWidgets('拖动面板里的滑杆会即时改掉全局不透明度', (tester) async {
     final container = await pumpSettings(tester);
+    // 默认是 0（出厂关掉界面不透明度），先把它拉起来才有可往下拖的余量。
+    // 要放在 pumpSettings 之后：它会把偏好设置重建成空表。
+    container.read(glassOpacityProvider.notifier).setOpacity(1);
+    await tester.pumpAndSettle();
+    addTearDown(
+      () => GlassEffectConfig.setSurfaceOpacity(
+        GlassEffectConfig.defaultSurfaceOpacity,
+      ),
+    );
 
     await tester.tap(find.text('界面质感'));
     await tester.pumpAndSettle();
 
     final before = container.read(glassOpacityProvider);
+    expect(before, 1);
     await tester.drag(find.byType(Slider).first, const Offset(-80, 0));
     await tester.pumpAndSettle();
 

@@ -2525,13 +2525,13 @@ abstract class AppLocalizations {
   /// No description provided for @playlistLoginCookieIntro.
   ///
   /// In en, this message translates to:
-  /// **'Kuwo has no QR sign-in. Sign in at kuwo.cn in a browser and paste the cookie below.'**
+  /// **'If QR sign-in fails, fall back to a web cookie: sign in at kuwo.cn and paste the cookie below.'**
   String get playlistLoginCookieIntro;
 
   /// No description provided for @playlistLoginCookieField.
   ///
   /// In en, this message translates to:
-  /// **'Paste cookie, e.g. Hm_lvt_xxx=...; kuwo_token=...'**
+  /// **'Paste cookie, e.g. Hm_lvt_xxx=...; kw_token=...'**
   String get playlistLoginCookieField;
 
   /// No description provided for @playlistLoginCookieAction.
@@ -2539,6 +2539,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sign in with cookie'**
   String get playlistLoginCookieAction;
+
+  /// No description provided for @playlistLoginUseQr.
+  ///
+  /// In en, this message translates to:
+  /// **'Use QR sign-in'**
+  String get playlistLoginUseQr;
 
   /// No description provided for @playlistLoginMyPlaylists.
   ///

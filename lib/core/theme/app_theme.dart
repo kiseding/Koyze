@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../widgets/gradient_bar_backgrounds.dart';
 import 'app_themes.dart';
 
 /// 主题构建，照搬 origo-x：一个种子色 + Material 3 默认组件外观。
@@ -12,8 +13,9 @@ import 'app_themes.dart';
 /// - 状态栏图标随明暗切换；
 /// - 输入框聚焦不套强调色描边（强调色描边会让搜索、重命名这类浮层同时亮圈）。
 abstract final class AppTheme {
-  static ThemeData darkTheme({Color seedColor = AppThemes.defaultAccentColor}) =>
-      _build(seedColor, Brightness.dark);
+  static ThemeData darkTheme({
+    Color seedColor = AppThemes.defaultAccentColor,
+  }) => _build(seedColor, Brightness.dark);
 
   static ThemeData lightTheme({
     Color seedColor = AppThemes.defaultAccentColor,
@@ -35,7 +37,7 @@ abstract final class AppTheme {
       scaffoldBackgroundColor: scheme.surface,
       canvasColor: scheme.surface,
       dividerColor: scheme.outlineVariant,
-      appBarTheme: AppBarTheme(
+      appBarTheme: const AppBarTheme(toolbarHeight: koyzeToolbarHeight).copyWith(
         backgroundColor: scheme.surface,
         foregroundColor: scheme.onSurface,
         elevation: 0,
@@ -113,9 +115,7 @@ abstract final class AppTheme {
         dividerColor: Colors.transparent,
         dividerHeight: 0,
       ),
-      progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: scheme.primary,
-      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
     );
   }
 }

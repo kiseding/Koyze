@@ -22,7 +22,10 @@ import 'playlist_login.dart';
 ///   check_sig → graph.qq.com authorize → QQLogin 换 musickey。
 /// - 酷狗：`login-user.kugou.com/v2/qrcode` 取码，`get_userinfo_qrcode` 轮询，
 ///   状态 4 时拿到 token 与 userid。
-/// - 酷我：没有可用的扫码接口，只能粘贴网页 Cookie。
+/// - 酷我：没有自家的扫码接口，网页版的第三方登录走微信开放平台扫码
+///   （appid `wx41c1275bb3e28427`，redirect 到酷我的 WeixinCallback）。
+///   扫完确认后酷我服务端把登录态写进回调链的 Set-Cookie，整条链路和
+///   网页版一致，不需要任何人肉复制 Cookie。
 class PlaylistLoginService {
   PlaylistLoginService({Dio? dio, PlaylistAccountStore? store})
     : _dio =
@@ -52,6 +55,11 @@ class PlaylistLoginService {
   Future<LinkedPlatformAccount>? _qqFinishing;
   String? _qqFinishingKey;
 
+  /// 酷我微信扫码过程中各域名下发的 Cookie，键为 `域名|名称`。
+  /// 回调链会把 `kw_token` / `userid` 写进这里；不含它时回调页只发一个
+  /// 反爬 Cookie，所以整条链必须复用同一个 jar。
+  final Map<String, String> _kwJar = {};
+
   /// 酷狗的设备标识。扫码登录只需要 mid；dfid 注册要走 RSA 加密的设备注册，
   /// 这里按未注册设备（`-`）请求，取不到歌单时由上层提示手动链接导入。
   late final String _kgMid = kugouDeviceMid();
@@ -64,21 +72,36 @@ class PlaylistLoginService {
   static const _kgAppId = 1005;
   static const _kgClientVer = 20489;
 
+  /// 酷我网页版用的微信开放平台网站应用。扫码页、二维码与长轮询都在
+  /// open.weixin.qq.com，网页版就是这套参数，改不了也不该改。
+  static const _kwWxAppId = 'wx41c1275bb3e28427';
+
+  /// 微信回调先打到酷我的中转页，再由它 302 到网页回调页。
+  /// 中转页支持 HTTPS，走 https 既符合项目的出网策略，也省一次协议升级跳转。
+  static const _kwWxCallback =
+      'https://i.kuwo.cn/US/platform/WeixinCallback.jsp?f=web'
+      '&callbackUrl=https%3A%2F%2Fwww.kuwo.cn%2Fcallback';
+
+  static const _kwWxQrPage = 'https://open.weixin.qq.com/connect/qrconnect';
+  static const _kwWxLongPoll =
+      'https://long.open.weixin.qq.com/connect/l/qrconnect';
+
   static const _desktopUa =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   // ── 对外接口 ───────────────────────────────────────────
 
-  /// 该平台是否支持扫码登录。酷我只有网页 Cookie 登录。
+  /// 该平台是否支持扫码登录。四家现在都有扫码入口：酷我走微信开放平台。
   static bool supportsQr(String source) =>
-      source == 'wy' || source == 'tx' || source == 'kg';
+      source == 'wy' || source == 'tx' || source == 'kg' || source == 'kw';
 
   Future<PlatformQrTicket> createQr(String source) {
     return switch (source) {
       'wy' => _createWyQr(),
       'tx' => _createTxQr(),
       'kg' => _createKgQr(),
+      'kw' => _createKwQr(),
       _ => Future.error(UnsupportedError('该平台不支持扫码登录')),
     };
   }
@@ -88,6 +111,7 @@ class PlaylistLoginService {
       'wy' => _pollWyQr(ticket),
       'tx' => _pollTxQr(ticket),
       'kg' => _pollKgQr(ticket),
+      'kw' => _pollKwQr(ticket),
       _ => Future.error(UnsupportedError('该平台不支持扫码登录')),
     };
   }
@@ -102,6 +126,8 @@ class PlaylistLoginService {
         _qqQrKey = null;
         _qqFinishing = null;
         _qqFinishingKey = null;
+      case 'kw':
+        _kwJar.clear();
       default:
         break;
     }
@@ -114,7 +140,7 @@ class PlaylistLoginService {
     await _store.clear(source);
   }
 
-  /// 用网页 Cookie 登录。酷我没有扫码接口，只能走这条路。
+  /// 用网页 Cookie 登录。酷我扫码偶有被网页改版打断的时候，这是它的兜底路径。
   Future<LinkedPlatformAccount> loginWithCookie(
     String source,
     String rawCookie,
@@ -969,7 +995,211 @@ class PlaylistLoginService {
 
   // ── 酷我 ───────────────────────────────────────────────
 
-  /// 酷我没有扫码接口。Cookie 登录后按网页歌单接口尽力取一次，
+  /// 取一张微信扫码票。
+  ///
+  /// 酷我没有自家 App 的扫码接口，网页版的「扫码登录」用的是微信开放
+  /// 平台网站应用：扫码页本身返回一个 uuid，二维码图片直接由
+  /// `open.weixin.qq.com/connect/qrcode/<uuid>` 下发，长轮询也在微信侧。
+  /// 这三步都不需要登录，只要 appid 与 redirect 与网页版一致。
+  Future<PlatformQrTicket> _createKwQr() async {
+    _kwJar.clear();
+    final redirect = Uri.encodeComponent(_kwWxCallback);
+    final page = Uri.parse(_kwWxQrPage).replace(
+      queryParameters: {
+        'appid': _kwWxAppId,
+        'response_type': 'code',
+        'scope': 'snsapi_login',
+        'redirect_uri': redirect,
+      },
+    );
+    final response = await _dio.get<String>(
+      page.toString(),
+      options: Options(
+        headers: {'User-Agent': _desktopUa, 'Referer': 'https://www.kuwo.cn/'},
+      ),
+    );
+    _absorbCookies(response.headers, page, _kwJar);
+    final html = response.data ?? '';
+    final uuid = _kwWxUuidOf(html);
+    if (uuid.isEmpty) {
+      throw Exception('微信没有返回登录二维码，请稍后重试');
+    }
+    final image = await _kwWxQrImage(uuid);
+    return PlatformQrTicket(
+      source: 'kw',
+      key: uuid,
+      appName: '微信',
+      // 二维码用微信下发的 JPEG，本地不再重绘：这枚码里的 url 带 uuid，
+      // 自己画的二维码与网页版可能不一致。
+      image: image,
+    );
+  }
+
+  /// 微信的二维码图片接口，返回 JPEG 字节。
+  Future<Uint8List> _kwWxQrImage(String uuid) async {
+    final response = await _dio.get<List<int>>(
+      'https://open.weixin.qq.com/connect/qrcode/$uuid',
+      options: Options(
+        responseType: ResponseType.bytes,
+        headers: {
+          'User-Agent': _desktopUa,
+          'Referer': 'https://open.weixin.qq.com/',
+        },
+      ),
+    );
+    final bytes = response.data;
+    if (bytes == null || bytes.isEmpty) {
+      throw Exception('微信二维码图片下载失败，请重新获取');
+    }
+    return Uint8List.fromList(bytes);
+  }
+
+  Future<PlatformQrPoll> _pollKwQr(PlatformQrTicket ticket) async {
+    final pollUri = Uri.parse(
+      _kwWxLongPoll,
+    ).replace(queryParameters: {'f': 'json', 'uuid': ticket.key});
+    final response = await _dio.get<String>(
+      pollUri.toString(),
+      options: Options(
+        headers: {
+          'User-Agent': _desktopUa,
+          'Referer': 'https://open.weixin.qq.com/',
+        },
+      ),
+    );
+    final body = _decodeJson(response.data) ?? const {};
+    final code = '${body['wx_errcode'] ?? ''}'.trim();
+    final wxCode = '${body['wx_code'] ?? ''}'.trim();
+    switch (code) {
+      case '408':
+        return const PlatformQrPoll(PlatformQrState.waiting);
+      case '404':
+        return const PlatformQrPoll(PlatformQrState.scanned);
+      case '402':
+        return const PlatformQrPoll(PlatformQrState.expired);
+      case '405':
+        if (wxCode.isEmpty) {
+          throw Exception('微信没有返回授权码，请重新扫码');
+        }
+        final account = await _kwExchange(wxCode);
+        return PlatformQrPoll(PlatformQrState.confirmed, account);
+      case '403':
+        throw Exception('已取消微信授权');
+      default:
+        // 其余未知码按等待处理，避免一次抖动就判死整张码。
+        return const PlatformQrPoll(PlatformQrState.waiting);
+    }
+  }
+
+  /// 用微信授权码走一遍酷我网页版的回调链，把登录 Cookie 换到本地。
+  ///
+  /// 链路是 `WeixinCallback.jsp?code=…` → `login_by_weixin_web?code=…` →
+  /// `www.kuwo.cn/callback?res=…`。三段必须共用同一个 jar：中转页会先发
+  /// JSESSIONID，最后一段才把 `kw_token` / `userid` 写进来。
+  Future<LinkedPlatformAccount> _kwExchange(String code) async {
+    final encoded = Uri.encodeComponent(code);
+    var current = Uri.parse(
+      'https://i.kuwo.cn/US/platform/WeixinCallback.jsp'
+      '?f=web&code=$encoded&callbackUrl=${Uri.encodeComponent('https://www.kuwo.cn/callback')}',
+    );
+    for (var hop = 0; hop < 6; hop++) {
+      final response = await _dio.get<String>(
+        current.toString(),
+        options: Options(
+          followRedirects: false,
+          headers: {
+            'User-Agent': _desktopUa,
+            'Referer': 'https://open.weixin.qq.com/',
+            'Cookie': _kwCookiesFor(current),
+          },
+        ),
+      );
+      _absorbCookies(response.headers, current, _kwJar);
+      final token = _kwJarValue('kw_token');
+      final userId = _kwJarValue('userid');
+      if (token != null &&
+          token.isNotEmpty &&
+          userId != null &&
+          userId.isNotEmpty) {
+        break;
+      }
+      final location = response.headers.value('location');
+      final status = response.statusCode ?? 0;
+      if (status < 300 ||
+          status >= 400 ||
+          location == null ||
+          location.isEmpty) {
+        break;
+      }
+      current = _kwTrustedUri(current.resolve(location));
+    }
+    final token = _kwJarValue('kw_token') ?? '';
+    final userId = _kwJarValue('userid') ?? '';
+    if (token.isEmpty || userId.isEmpty) {
+      // 酷我网页最近把登录态放在了最后一段的 200 响应里，若没拿到就明确
+      // 报错，让用户退回粘贴 Cookie，而不是把半截 Cookie 存下来。
+      throw Exception('没有换到酷我登录凭据，请在酷我网页版登录后改用 Cookie 登录');
+    }
+    final credentials = <String, String>{
+      'kw_token': token,
+      'userid': userId,
+      if ((_kwJarValue('kw_id') ?? '').isNotEmpty)
+        'kw_id': _kwJarValue('kw_id')!,
+    };
+    var account = LinkedPlatformAccount(
+      source: 'kw',
+      userId: userId,
+      nickname: '酷我账号',
+      credentials: credentials,
+    );
+    final profile = await _kwProfile(account);
+    if (profile != null) {
+      account = account.copyWith(
+        nickname: '${profile['nickname'] ?? profile['name'] ?? ''}'.trim(),
+        avatar: '${profile['pic'] ?? profile['avatar'] ?? ''}'.trim(),
+      );
+    }
+    await _store.write(account);
+    return account;
+  }
+
+  /// 从微信扫码页里取 uuid。页面把 uuid 同时写进脚本变量与若干链接，
+  /// 取第一个非空即可。
+  static String _kwWxUuidOf(String html) {
+    final match = RegExp(r'uuid=([A-Za-z0-9_\-]{8,})').firstMatch(html);
+    if (match != null) return match.group(1) ?? '';
+    final alt = RegExp(
+      r'/connect/qrcode/([A-Za-z0-9_\-]{8,})',
+    ).firstMatch(html);
+    return alt?.group(1) ?? '';
+  }
+
+  /// 读取账号资料，失败返回 null（昵称头像不是必需信息）。
+  Future<Map<String, dynamic>?> _kwProfile(
+    LinkedPlatformAccount account,
+  ) async {
+    try {
+      final response = await _dio.get<String>(
+        'https://www.kuwo.cn/api/www/user/userInfo',
+        queryParameters: const {'httpsStatus': '1'},
+        options: Options(
+          headers: {
+            'User-Agent': _desktopUa,
+            'Referer': 'https://www.kuwo.cn/',
+            'csrf': account.credential('kw_token') ?? '',
+            'Cookie': account.cookieHeader,
+          },
+        ),
+      );
+      final body = _decodeJson(response.data);
+      final data = body?['data'];
+      return data is Map ? data.map((k, v) => MapEntry('$k', v)) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 账号歌单：网页版歌单接口。扫码与 Cookie 两条路径都走它，
   /// 取不到就返回空列表，界面提示改用链接导入。
   Future<List<MyPlaylistSummary>> _kwPlaylists(
     LinkedPlatformAccount account,
@@ -1122,6 +1352,45 @@ class PlaylistLoginService {
       if (entry.key.endsWith('|$name')) return entry.value;
     }
     return null;
+  }
+
+  /// 拼给 [to] 的 Cookie 头：只带上域名匹配的项，避免把 i.kuwo.cn 的
+  /// JSESSIONID 发给 www.kuwo.cn（反过来也一样）。
+  String _kwCookiesFor(Uri to) {
+    final host = to.host.toLowerCase();
+    return _kwJar.entries
+        .where((entry) {
+          final domain = entry.key.substring(0, entry.key.indexOf('|'));
+          return host == domain || host.endsWith('.$domain');
+        })
+        .map(
+          (entry) =>
+              '${entry.key.substring(entry.key.indexOf('|') + 1)}=${entry.value}',
+        )
+        .join('; ');
+  }
+
+  String? _kwJarValue(String name) {
+    for (final entry in _kwJar.entries) {
+      if (entry.key.endsWith('|$name')) return entry.value;
+    }
+    return null;
+  }
+
+  /// 酷我的回调链只允许在 kuwo.cn 与 open.weixin.qq.com 之间跳转，
+  /// 避免服务端被篡改时把 Cookie 带去别处。
+  static Uri _kwTrustedUri(Uri uri) {
+    final host = uri.host.toLowerCase();
+    final trusted =
+        host == 'kuwo.cn' ||
+        host.endsWith('.kuwo.cn') ||
+        host == 'open.weixin.qq.com' ||
+        host == 'long.open.weixin.qq.com';
+    if (!trusted || uri.userInfo.isNotEmpty) {
+      throw const FormatException('登录失败：授权跳转地址不属于可信的酷我服务器');
+    }
+    // 中转页给的是 http，酷我已经全站 https，统一升上去省一次跳转。
+    return uri.replace(scheme: 'https', port: 443);
   }
 
   static String _qqCookieHeader(String uin, String key) =>

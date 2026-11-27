@@ -120,7 +120,7 @@ class SmartPlaylistsScreen extends ConsumerWidget {
             return ListView(
               padding: EdgeInsets.fromLTRB(
                 16,
-                MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
+                MediaQuery.paddingOf(context).top + koyzeToolbarHeight + 8,
                 16,
                 32,
               ),

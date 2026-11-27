@@ -157,7 +157,7 @@ class _SongListDetailScreenState extends ConsumerState<SongListDetailScreen> {
               )
             : AdaptiveSongList.builder(
                 padding: EdgeInsets.only(
-                  top: MediaQuery.paddingOf(context).top + kToolbarHeight,
+                  top: MediaQuery.paddingOf(context).top + koyzeToolbarHeight,
                   bottom: 16,
                   left: 16,
                   right: 16,

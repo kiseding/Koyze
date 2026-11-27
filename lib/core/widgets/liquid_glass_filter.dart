@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../theme/effect_policy.dart';
+
 /// 液态玻璃着色器。
 ///
 /// 只有 Impeller 等支持背景着色器滤镜的后端能用；软件渲染、Web 与部分老设备
@@ -122,6 +124,8 @@ class RenderLiquidGlass extends RenderProxyBox {
   /// 上一次绘制时的屏幕位置。着色器参数里带着坐标，靠它判断"位置变了但没重绘"。
   Offset? _painted;
   bool _checkScheduled = false;
+  bool _scrollListenerAttached = false;
+  bool _positionListenerAttached = false;
 
   ui.FragmentShader? _shader;
   final _clip = LayerHandle<ClipRectLayer>();
@@ -167,6 +171,40 @@ class RenderLiquidGlass extends RenderProxyBox {
     if (value == _dark) return;
     _dark = value;
     markNeedsPaint();
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    if (!_scrollListenerAttached) {
+      GlassScrollActivity.listenable.addListener(_handleScrollActivityChanged);
+      GlassScrollActivity.positionListenable.addListener(
+        _handleScrollActivityChanged,
+      );
+      _scrollListenerAttached = true;
+      _positionListenerAttached = true;
+    }
+  }
+
+  @override
+  void detach() {
+    if (_scrollListenerAttached) {
+      GlassScrollActivity.listenable.removeListener(
+        _handleScrollActivityChanged,
+      );
+      if (_positionListenerAttached) {
+        GlassScrollActivity.positionListenable.removeListener(
+          _handleScrollActivityChanged,
+        );
+        _positionListenerAttached = false;
+      }
+      _scrollListenerAttached = false;
+    }
+    super.detach();
+  }
+
+  void _handleScrollActivityChanged() {
+    if (attached) markNeedsPaint();
   }
 
   @override

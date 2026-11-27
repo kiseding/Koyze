@@ -30,12 +30,28 @@ void main() {
     expect(notifier.value, GlassEffectConfig.defaultSurfaceOpacity);
   });
 
-  test('values below the floor are clamped on load', () async {
+  test('zero opacity is valid and persists as fully transparent', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final prefs = await SharedPreferences.getInstance();
+    final notifier = GlassOpacityNotifier(
+      storage: () async => StorageService.forTesting(prefs),
+    );
+
+    notifier.setOpacity(0);
+    expect(notifier.value, 0);
+    expect(GlassEffectConfig.surfaceAlpha, 0);
+    notifier.flush();
+    await Future<void>.delayed(Duration.zero);
+    expect(prefs.getDouble(GlassOpacityNotifier.storageKey), 0);
+  });
+
+  test('negative opacity is clamped to zero', () async {
     final storage = await storageWith({'glass_surface_opacity': -3.0});
     final notifier = GlassOpacityNotifier(storage: () async => storage);
     await Future<void>.delayed(Duration.zero);
 
     expect(notifier.value, GlassEffectConfig.minSurfaceOpacity);
+    expect(notifier.value, 0);
   });
 
   test('dragging applies at once and writes once after it settles', () async {
@@ -60,7 +76,7 @@ void main() {
   test('the slider percentage is the alpha itself, with no curve', () {
     // 选 45% 就画 0.45。以前这里要按各材质的基础浓度分两段换算，同一个数字
     // 在顶栏、卡片、菜单上会显示成四种深浅，滑杆等于白调。
-    for (final value in [0.3, 0.45, 0.6, 0.8, 0.93]) {
+    for (final value in [0.0, 0.3, 0.45, 0.6, 0.8, 0.93]) {
       GlassEffectConfig.setSurfaceOpacity(value);
       expect(GlassEffectConfig.surfaceAlpha, closeTo(value, 1e-9));
     }
@@ -94,7 +110,7 @@ void main() {
     expect(
       full.a,
       closeTo(GlassEffectConfig.defaultSurfaceOpacity, 0.001),
-      reason: '默认档就是 0.95，不是 0.82 或 0.66',
+      reason: '默认档应为用户设置的 0%',
     );
     expect(half.a, closeTo(0.4, 0.001));
   });

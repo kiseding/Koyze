@@ -858,6 +858,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   ui.Image? _routeSnapshot;
   Size? _routeSnapshotSize;
   bool _snapshotReady = false;
+  bool _snapshotCaptureFailed = false;
   bool _capturingSnapshot = false;
   int _captureAttempts = 0;
   final ValueNotifier<double> _staggerProgress = ValueNotifier<double>(1);
@@ -903,7 +904,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   void _requestSnapshot() {
     if (!mounted || _capturingSnapshot || _snapshotReady) return;
-    if (_captureAttempts >= 20) return;
+    if (_captureAttempts >= 20) {
+      if (!_snapshotCaptureFailed) {
+        setState(() => _snapshotCaptureFailed = true);
+      }
+      return;
+    }
     _captureAttempts++;
     WidgetsBinding.instance.addPostFrameCallback((_) => _captureSnapshot());
     // addPostFrameCallback 不会自己请求帧；没有动画在跑时必须补一刀，
@@ -1077,6 +1083,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _routeSnapshot = null;
       _routeSnapshotSize = null;
       _snapshotReady = false;
+      _snapshotCaptureFailed = false;
       _captureAttempts = 0;
       _requestSnapshot();
     });
@@ -1136,6 +1143,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _routeSnapshot = null;
       _routeSnapshotSize = null;
       _snapshotReady = false;
+      _snapshotCaptureFailed = false;
       _captureAttempts = 0;
       _requestSnapshot();
     }
@@ -1347,7 +1355,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   landscape,
                   dismissThreshold,
                   // 抓图前藏起真实封面，交给飞行封面；抓完照常显示。
-                  _snapshotReady ? 1.0 : 0.0,
+                  _snapshotReady || _snapshotCaptureFailed ? 1.0 : 0.0,
                   // chrome 淡出统一在外层做，正文不再随进度重建。
                   1.0,
                 );
@@ -1359,7 +1367,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               (progress > 0 || closing);
           // 抓图那一帧必须让 layer 真的画出来（opacity 为 0 会跳过绘制）；
           // chrome 已淡到 0 的收拢尾段例外，那时按全透明放行点击。
-          final liveOpacity = chromeFade <= 0
+          final liveOpacity = _snapshotCaptureFailed
+              ? 1.0
+              : chromeFade <= 0
               ? 0.0
               : !_snapshotReady
               ? _hiddenLiveOpacity

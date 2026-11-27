@@ -235,13 +235,52 @@ void main() {
     expect(service.qrRequests, 1);
   });
 
-  testWidgets('酷我没有扫码：给 Cookie 输入框，不画二维码', (tester) async {
-    final service = _FakeService(ticket: _qrTicket);
+  testWidgets('酷我走微信扫码；失败后可退回 Cookie 输入', (tester) async {
+    final service = _FakeService(
+      ticket: PlatformQrTicket(
+        source: 'kw',
+        key: 'uuid-1',
+        appName: '微信',
+        image: _qqImageTicket.image,
+      ),
+      pollResult: const PlatformQrPoll(PlatformQrState.expired),
+    );
     await _openSheet(tester, service, source: 'kw');
 
+    // 默认展示扫码，不再一上来就要求粘贴 Cookie。
+    expect(find.byType(TextField), findsNothing);
+    expect(service.qrRequests, 1);
+
+    // 过期后再点「用 Cookie 登录」才切换到输入框。
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.tap(find.text('用 Cookie 登录'));
+    await tester.pump();
+
     expect(find.byType(TextField), findsOneWidget);
-    expect(find.byType(QrImageView), findsNothing);
-    expect(service.qrRequests, 0);
+    expect(find.text('改用扫码登录'), findsOneWidget);
+  });
+
+  testWidgets('Cookie 兜底页可以回到扫码', (tester) async {
+    final service = _FakeService(
+      ticket: PlatformQrTicket(
+        source: 'kw',
+        key: 'uuid-1',
+        appName: '微信',
+        image: _qqImageTicket.image,
+      ),
+    );
+    await _openSheet(tester, service, source: 'kw');
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.tap(find.text('用 Cookie 登录'));
+    await tester.pump();
+    await tester.tap(find.text('改用扫码登录'));
+    await tester.pump();
+
+    expect(find.byType(TextField), findsNothing);
+    expect(service.qrRequests, 2);
   });
 
   testWidgets('关闭面板会释放平台侧票据', (tester) async {

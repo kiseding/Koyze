@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import '../theme/app_tokens.dart';
 import 'origo_chrome.dart';
 
+/// 独立页面标题栏的工具栏高度（不含系统状态栏）。
+///
+/// 与根 Tab 栏的导航行同高——`FrostedTabHeader.barHeight` 也是 60。全站只有
+/// 这一个值：`AppBarTheme.toolbarHeight` 用它，页面自己算「内容从哪开始」也
+/// 用它。以前两处各写各的（Tab 是 60、Material 默认 56），页面切换时标题栏
+/// 会矮一截再长回来，看着就像栏在闪。
+const double koyzeToolbarHeight = 60;
+
 /// 顶栏（状态栏 + toolbar）占的高度，即「内容起点应该从屏幕往下让多少」。
 ///
 /// 页面的 `extendBodyBehindAppBar` 一打开，body 就从屏幕最顶开始画；滚动内容
@@ -22,7 +30,7 @@ double koyzeAppBarExtent(BuildContext context) {
   final statusBar = MediaQuery.paddingOf(context).top;
   final scaffold = Scaffold.maybeOf(context);
   // 没有 Scaffold 祖先（全屏浮层、独立 Overlay）：自己补一个工具栏高度。
-  if (scaffold == null) return statusBar + kToolbarHeight;
+  if (scaffold == null) return statusBar + koyzeToolbarHeight;
   if (scaffold.widget.appBar == null) return statusBar;
   if (!scaffold.widget.extendBodyBehindAppBar) return 0;
   return statusBar;
@@ -80,6 +88,7 @@ class GradientAppBarBackground extends StatelessWidget {
     this.child,
     this.blur,
     this.vivid = true,
+    this.keepGlassDuringRouteTransition = true,
   });
 
   /// 所有标题栏共用的模糊半径。
@@ -107,10 +116,15 @@ class GradientAppBarBackground extends StatelessWidget {
   /// 保留参数以兼容现有调用；渐变磨砂本身就是多段淡出。
   final bool vivid;
 
+  /// 标题栏在页面转场中保持同一层材质，避免入场时先露出底色再补磨砂。
+  final bool keepGlassDuringRouteTransition;
+
   @override
   Widget build(BuildContext context) {
     final frost = GradientFrost(
       sigma: blur ?? defaultBlur,
+      keepGlassDuringRouteTransition: keepGlassDuringRouteTransition,
+      bottomEdgeOnly: true,
       child: child ?? const SizedBox.expand(),
     );
     if (child != null) return frost;

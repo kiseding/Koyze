@@ -233,6 +233,51 @@ void main() {
     );
   });
 
+  testWidgets('收尾窗口贴合源卡片边缘，源页面接棒时无空帧', (tester) async {
+    debugResetCardExpandOrigins();
+    const sourceRect = Rect.fromLTWH(16, 300, 380, 150);
+    await pushExpandable(
+      tester,
+      pageKey: const ValueKey('handoff-probe'),
+      sourceRect: sourceRect,
+      body: const ColoredBox(color: Color(0xFFFF00FF)),
+    );
+
+    for (var i = 0; i < 22; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator).last);
+    navigator.pop();
+    await tester.pump();
+
+    var sawTransition = false;
+    var sawHandoff = false;
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      final windows = transitionWindows();
+      if (windows.isNotEmpty) {
+        sawTransition = true;
+        final window = windows.first;
+        if (window.width <= sourceRect.width + 1 &&
+            window.height <= sourceRect.height + 1) {
+          expect(window.left, closeTo(sourceRect.left, 1));
+          expect(window.top, closeTo(sourceRect.top, 1));
+          expect(window.right, closeTo(sourceRect.right, 1));
+          expect(window.bottom, closeTo(sourceRect.bottom, 1));
+        }
+      } else if (sawTransition) {
+        sawHandoff = true;
+        expect(find.byType(ColoredBox), findsWidgets);
+        break;
+      }
+    }
+
+    expect(sawTransition, isTrue, reason: '收拢阶段应保留 morph 窗口');
+    expect(sawHandoff, isTrue, reason: '窗口退场后源页面应立即可见并接棒');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('收拢节奏均匀：末段每帧仍可见位移，不会越走越慢直到静止', (tester) async {
     debugResetCardExpandOrigins();
     const sourceRect = Rect.fromLTWH(16, 300, 380, 150);

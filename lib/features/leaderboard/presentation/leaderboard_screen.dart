@@ -1484,7 +1484,7 @@ class LeaderboardDetailScreenById extends ConsumerWidget {
               cacheExtent: 420,
               landscapeItemExtent: 82,
               padding: EdgeInsets.only(
-                top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
+                top: MediaQuery.paddingOf(context).top + koyzeToolbarHeight + 8,
                 left: 16,
                 right: 16,
                 bottom: 16,

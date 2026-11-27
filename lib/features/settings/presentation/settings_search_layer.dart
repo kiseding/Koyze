@@ -21,6 +21,7 @@ class SettingsSearchLayer extends StatefulWidget {
     required this.sections,
     required this.topInset,
     required this.bottomInset,
+    this.keyboardVisible,
     required this.onClose,
     required this.onActivate,
   });
@@ -32,6 +33,9 @@ class SettingsSearchLayer extends StatefulWidget {
 
   /// Space covered by the floating mini player.
   final double bottomInset;
+
+  /// Override when an ancestor Scaffold has already consumed viewInsets.
+  final bool? keyboardVisible;
 
   final VoidCallback onClose;
 
@@ -83,10 +87,15 @@ class _SettingsSearchLayerState extends State<SettingsSearchLayer> {
       grouped.putIfAbsent(hit.sectionLabel, () => []).add(hit);
     }
 
+    final keyboardIsVisible =
+        widget.keyboardVisible ?? MediaQuery.viewInsetsOf(context).bottom > 0;
     final content = Padding(
       padding: EdgeInsets.only(
         top: widget.topInset,
-        bottom: widget.bottomInset,
+        // The settings Scaffold resizes its body above the keyboard. The
+        // mini-player is outside that resized viewport, so keep its extra
+        // reservation only while the keyboard is hidden.
+        bottom: keyboardIsVisible ? 0 : widget.bottomInset,
       ),
       child: ShellContentFrame(
         child: Column(

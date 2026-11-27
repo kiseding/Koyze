@@ -98,7 +98,7 @@ class NasPlaylistDetailScreen extends ConsumerWidget {
           }
           return AdaptiveSongList.builder(
             padding: EdgeInsets.only(
-              top: MediaQuery.paddingOf(context).top + kToolbarHeight + 8,
+              top: MediaQuery.paddingOf(context).top + koyzeToolbarHeight + 8,
               bottom: 32,
             ),
             landscapeItemExtent: 82,

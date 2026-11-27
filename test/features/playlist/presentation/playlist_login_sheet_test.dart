@@ -97,10 +97,12 @@ void main() {
       expect(sheet, contains('_service.cancelQr('));
     });
 
-    test('酷我没有扫码，回落到 Cookie 输入', () {
+    test('酷我扫码失败时保留 Cookie 兜底，两条路径都能回到对方', () {
       expect(sheet, contains('!PlaylistLoginService.supportsQr(_source)'));
+      expect(sheet, contains('_cookieFallback'));
       expect(sheet, contains('_cookieBody'));
       expect(sheet, contains('playlistLoginCookieAction'));
+      expect(sheet, contains('playlistLoginUseQr'));
     });
 
     test('已登录时列出我的歌单，点一个就回调导入', () {

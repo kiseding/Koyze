@@ -578,6 +578,7 @@ class S {
   String get playlistLoginCookieIntro => _l10n.playlistLoginCookieIntro;
   String get playlistLoginCookieField => _l10n.playlistLoginCookieField;
   String get playlistLoginCookieAction => _l10n.playlistLoginCookieAction;
+  String get playlistLoginUseQr => _l10n.playlistLoginUseQr;
   String get playlistLoginMyPlaylists => _l10n.playlistLoginMyPlaylists;
   String get playlistLoginNoPlaylists => _l10n.playlistLoginNoPlaylists;
   String get statsPosterGenerate => _l10n.statsPosterGenerate;

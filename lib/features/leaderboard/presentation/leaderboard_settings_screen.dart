@@ -647,7 +647,7 @@ class LeaderboardSettingsScreen extends ConsumerWidget {
         ),
         body: Padding(
           padding: EdgeInsets.only(
-            top: MediaQuery.paddingOf(context).top + kToolbarHeight + 4,
+            top: MediaQuery.paddingOf(context).top + koyzeToolbarHeight + 4,
           ),
           child: const LeaderboardSettingsView(),
         ),

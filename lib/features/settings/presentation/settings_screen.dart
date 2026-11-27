@@ -138,12 +138,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final s = S.of(context);
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final isLandscapeShell = RootShellLayout.usesSideNavigationOf(context);
     final sections = _buildSections(context, ref, s);
 
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Scaffold(
+        // The root shell stays fixed behind the keyboard; let this tab resize
+        // so its inline search layer can use the reduced viewport.
+        resizeToAvoidBottomInset: true,
         backgroundColor: Colors.transparent,
         body: Stack(
           children: [
@@ -200,6 +204,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ? 0
                       : FrostedTabHeader.extent(context),
                   bottomInset: RootShellLayout.obscuredBottomOf(context),
+                  keyboardVisible: keyboardVisible,
                   onClose: () => setState(() => _searching = false),
                   onActivate: _activateFromSearch,
                 ),

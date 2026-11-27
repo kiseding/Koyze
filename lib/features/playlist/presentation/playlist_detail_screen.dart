@@ -177,7 +177,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
   /// 所以统一让出一个状态栏 + 工具栏。以前收藏 / 最近 / 本地这三个只让 4pt
   /// （它们那时没有磨砂栏、body 也不延伸到栏下），现在并入同一套。
   double _listTopInset(BuildContext context) {
-    return MediaQuery.paddingOf(context).top + kToolbarHeight;
+    return MediaQuery.paddingOf(context).top + koyzeToolbarHeight;
   }
 
   PageRange _pageRangeFor(int itemCount) {

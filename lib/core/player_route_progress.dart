@@ -45,10 +45,16 @@ class _PlayerRouteProgressBridgeState extends State<PlayerRouteProgressBridge> {
     // `_ModalScopeStatus` 之下，能直接问到播放器这条路由本身；offstage 是
     // 实时读的，见 [_sync]。
     //
-    // 首次同步放在这里而不是 initState：那时还没拿到路由，判断不了 offstage，
-    // 而挂载这一帧恰好可能就是目标路由被 HeroController 藏起来的一帧。
+    // 首次同步放在这里而不是 initState：那时还没拿到路由，判断不了 offstage。
     _route = ModalRoute.of(context);
     _sync();
+    // HeroController 会把目标路由临时 offstage 一帧来量 Hero 位置。若该帧
+    // 正好发生在首次依赖建立时，动画恢复后不一定再有 status tick（例如零时长
+    // 或已完成的 route）；帧末补一次同步，避免全屏播放器保持 progress=0，正文
+    // 完全透明而透明 barrier 仍挡住底层。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _sync();
+    });
   }
 
   @override

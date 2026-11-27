@@ -91,13 +91,21 @@ abstract final class GlassScrollActivity {
   static const double scrollBlurDiscount = 0.5;
 
   static final ValueNotifier<bool> _scrolling = ValueNotifier<bool>(false);
+  static final ValueNotifier<int> _positionRevision = ValueNotifier<int>(0);
 
   static ValueListenable<bool> get listenable => _scrolling;
+  static ValueListenable<int> get positionListenable => _positionRevision;
 
   static bool get isScrolling => _scrolling.value;
 
   /// 此刻该用的模糊折扣：静止 1.0，滚动中 [scrollBlurDiscount]。
   static double get blurFactor => _scrolling.value ? scrollBlurDiscount : 1.0;
+
+  /// ScrollUpdate 时调用：只通知依赖空间坐标的玻璃刷新 shader 原点。
+  static void positionChanged() => _positionRevision.value++;
+
+  @visibleForTesting
+  static void resetPositionRevision() => _positionRevision.value = 0;
 
   /// 滚动开始时置 true、结束时置 false。
   ///
@@ -133,6 +141,8 @@ class GlassScrollObserver extends StatelessWidget {
         switch (notification) {
           case ScrollStartNotification():
             GlassScrollActivity.set(true);
+          case ScrollUpdateNotification():
+            GlassScrollActivity.positionChanged();
           case ScrollEndNotification():
             GlassScrollActivity.set(false);
           default:

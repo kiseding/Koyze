@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:koyze/core/storage/storage_service.dart';
+import 'package:koyze/core/theme/effect_policy.dart';
 import 'package:koyze/core/theme/glass_config.dart';
 import 'package:koyze/core/widgets/glass_backdrop.dart';
 import 'package:koyze/core/widgets/liquid_glass_filter.dart';
@@ -19,10 +20,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  tearDown(
-    () =>
-        GlassEffectConfig.setLiquidGlass(GlassEffectConfig.defaultLiquidGlass),
-  );
+  tearDown(() {
+    GlassEffectConfig.setLiquidGlass(GlassEffectConfig.defaultLiquidGlass);
+    GlassScrollActivity.reset();
+    GlassScrollActivity.resetPositionRevision();
+  });
 
   group('着色器不可用时的退化', () {
     test('测试环境本身就不支持背景着色器滤镜', () {
@@ -85,6 +87,38 @@ void main() {
 
       expect(find.byType(LiquidGlassBackdrop), findsNothing);
     });
+  });
+
+  testWidgets('滚动开始和结束都会让液态玻璃重新绘制位置参数', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: LiquidGlassBackdrop(
+            radius: 16,
+            frost: 0,
+            child: SizedBox(width: 100, height: 40),
+          ),
+        ),
+      ),
+    );
+    final renderObject = tester.renderObject<RenderLiquidGlass>(
+      find.byType(LiquidGlassBackdrop),
+    );
+    addTearDown(GlassScrollActivity.reset);
+
+    GlassScrollActivity.set(true);
+    await tester.pump();
+
+    GlassScrollActivity.positionChanged();
+    expect(renderObject.debugNeedsPaint, isTrue);
+    await tester.pump();
+    expect(renderObject.debugNeedsPaint, isFalse);
+
+    GlassScrollActivity.positionChanged();
+    expect(renderObject.debugNeedsPaint, isTrue);
+    await tester.pump();
+    expect(renderObject.debugNeedsPaint, isFalse);
+    GlassScrollActivity.set(false);
   });
 
   group('着色器本身', () {
