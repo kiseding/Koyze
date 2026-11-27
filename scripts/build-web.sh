@@ -32,7 +32,10 @@ python3 - "$ROOT" "$WORK" <<'PY'
 import os, shutil, sys
 root, work = sys.argv[1], sys.argv[2]
 # 只同步构建需要的目录，跳过 build/、.git/ 和各平台原生工程。
-items = ['lib', 'assets', 'pubspec.yaml', 'pubspec.lock',
+# shaders/ 必须在列：pubspec.yaml 声明的 shader 资源缺文件会让 Web 打包
+# 直接失败（"No file or variants found for asset"），而且这条只在 Web 生效，
+# 其它平台本地构建发现不了。
+items = ['lib', 'assets', 'shaders', 'pubspec.yaml', 'pubspec.lock',
          'analysis_options.yaml', 'l10n.yaml', '.metadata', 'third_party']
 
 def prune_and_copy(relative):
