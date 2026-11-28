@@ -233,7 +233,7 @@ void main() {
     );
   });
 
-  testWidgets('收尾窗口贴合源卡片边缘，源页面接棒时无空帧', (tester) async {
+  testWidgets('收尾窗口贴合源卡片边缘，源页面接棒时无空帧且不重叠', (tester) async {
     debugResetCardExpandOrigins();
     const sourceRect = Rect.fromLTWH(16, 300, 380, 150);
     await pushExpandable(
@@ -269,6 +269,16 @@ void main() {
       } else if (sawTransition) {
         sawHandoff = true;
         expect(find.byType(ColoredBox), findsWidgets);
+        expect(
+          cardExpandSourceHidden.value,
+          isFalse,
+          reason: 'morph 层退场时源卡片必须已恢复，不能再额外等待一帧',
+        );
+        expect(
+          find.text('open'),
+          findsOneWidget,
+          reason: 'morph 层退出时下层源页面应仍然挂载并立即接管',
+        );
         break;
       }
     }

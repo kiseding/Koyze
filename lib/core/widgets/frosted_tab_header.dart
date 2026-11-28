@@ -36,8 +36,9 @@ class FrostedTabHeader extends StatelessWidget {
   /// 根壳层里的状态栏以下高度：一条导航行。
   static const double barHeight = _topPadding + _navRowHeight + _bottomPadding;
 
-  /// 回退标题栏（推送页、独立预览）的状态栏以下高度。
-  static const double _plainBarHeight = 72;
+  /// 回退标题栏（推送页、独立预览）的状态栏以下基础高度。
+  /// 与根 Tab 导航行共用 60 逻辑像素；额外 bottom 内容另行增加。
+  static const double _plainBarHeight = barHeight;
 
   static const double _topPadding = 6;
   static const double _navRowHeight = 46;
@@ -142,7 +143,7 @@ class FrostedTabHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              height: 56,
+              height: _navRowHeight,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [

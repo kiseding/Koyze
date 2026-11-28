@@ -17,6 +17,7 @@ import 'motion/transition_snapshot.dart';
 /// 其他入口进入（未记录矩形）时退化为默认的上滑淡入。
 Rect? _cardExpandRect;
 ui.Image? _cardExpandSnapshot;
+int _cardExpandCaptureGeneration = 0;
 
 /// go_router 每次改栈都会重跑 pageBuilder，[consumeCardExpandRect] 又是
 /// 一次性的。同一条路由（同一个 [Page.key]）必须记住第一次吃到的源矩形，
@@ -24,6 +25,9 @@ ui.Image? _cardExpandSnapshot;
 /// 自绘右滑也没了（[_CardExpandRoute] 并没有 iOS 系统返回手势）。
 final Map<LocalKey, Rect> _expandRectByPage = <LocalKey, Rect>{};
 final Map<LocalKey, ui.Image> _expandSnapshotByPage = <LocalKey, ui.Image>{};
+final Map<LocalKey, int> _expandGenerationByPage = <LocalKey, int>{};
+int? _pendingCaptureGeneration;
+LocalKey? _claimedCapturePage;
 
 /// 已经建过一次的页面。改栈时整栈的 pageBuilder 都会重跑，祖先页重跑时
 /// 不能把这次 push 新记录的原点抢走——否则真正被 push 的那一页永远拿不到
@@ -33,8 +37,14 @@ final Set<LocalKey> _expandPageSeen = <LocalKey>{};
 
 Rect? _adoptExpandRect(ValueKey<String> pageKey, Rect? explicit) {
   final rect = explicit ?? _cardExpandRect;
-  _cardExpandRect = null;
   if (rect == null) return _expandRectByPage[pageKey];
+  _cardExpandRect = null;
+  _claimedCapturePage = pageKey;
+  final generation = _pendingCaptureGeneration;
+  if (generation != null) {
+    _expandGenerationByPage[pageKey] = generation;
+    _pendingCaptureGeneration = null;
+  }
   _expandRectByPage[pageKey] = rect;
   return rect;
 }
@@ -55,6 +65,8 @@ void _forgetExpandOrigin(LocalKey pageKey) {
   _expandPageSeen.remove(pageKey);
   _expandRectByPage.remove(pageKey);
   _expandSnapshotByPage.remove(pageKey)?.dispose();
+  _expandGenerationByPage.remove(pageKey);
+  if (_claimedCapturePage == pageKey) _claimedCapturePage = null;
 }
 
 /// 丢弃一次待消费的展开原点。
@@ -63,6 +75,9 @@ void _forgetExpandOrigin(LocalKey pageKey) {
 /// pageBuilder 消费。若这一页选择不做卡片 morph，必须在这里清掉，
 /// 否则这份几何会跟到下一张真正要展开的页面上，从错误的位置长出来。
 void _dropPendingExpandOrigin(LocalKey pageKey) {
+  _cardExpandCaptureGeneration++;
+  _pendingCaptureGeneration = null;
+  _claimedCapturePage = null;
   _cardExpandRect = null;
   _cardExpandSnapshot?.dispose();
   _cardExpandSnapshot = null;
@@ -76,6 +91,9 @@ void _dropPendingExpandOrigin(LocalKey pageKey) {
 @visibleForTesting
 void debugResetCardExpandOrigins() {
   _expandPageSeen.clear();
+  _expandGenerationByPage.clear();
+  _claimedCapturePage = null;
+  _pendingCaptureGeneration = null;
   _expandRectByPage.clear();
   for (final image in _expandSnapshotByPage.values) {
     image.dispose();
@@ -98,6 +116,11 @@ void captureCardExpandRect(BuildContext context) {
 /// 同时记录卡片几何和像素快照。快照只在转场前短暂保留，用于让源卡片
 /// 本体先随边界长大，再交给目标页面内容。
 Future<void> captureCardExpandOrigin(BuildContext context) async {
+  // 每次点击都开启独立代次。GPU 回读可能晚于路由建立；过期结果不能
+  // 覆盖下一次点击的源卡片，否则会出现 A 的位图配 B 的矩形。
+  final captureGeneration = ++_cardExpandCaptureGeneration;
+  _pendingCaptureGeneration = captureGeneration;
+  _claimedCapturePage = null;
   // 开启动画不隐藏源卡片；隐藏只由关闭阶段的 morph 进度控制。
   cardExpandSourceHidden.value = false;
   captureCardExpandRect(context);
@@ -111,8 +134,20 @@ Future<void> captureCardExpandOrigin(BuildContext context) async {
     // 文字发虚。
     final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1.0;
     final snapshot = await boundary.toImage(pixelRatio: dpr.clamp(1.0, 2.0));
-    _cardExpandSnapshot?.dispose();
-    _cardExpandSnapshot = snapshot;
+    if (captureGeneration != _cardExpandCaptureGeneration) {
+      snapshot.dispose();
+      return;
+    }
+    final owner = _claimedCapturePage;
+    if (owner != null && _expandGenerationByPage[owner] == captureGeneration) {
+      _expandSnapshotByPage[owner]?.dispose();
+      _expandSnapshotByPage[owner] = snapshot;
+    } else if (_pendingCaptureGeneration == captureGeneration) {
+      _cardExpandSnapshot?.dispose();
+      _cardExpandSnapshot = snapshot;
+    } else {
+      snapshot.dispose();
+    }
   } catch (_) {
     // GPU 快照偶发失败时仍使用几何转场，不能阻断导航。
   }
@@ -553,6 +588,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
   late final AnimationController _settleController;
   Animation<double>? _dragAnimation;
   Animation<double>? _morphAnimation;
+  int _settleGeneration = 0;
 
   @override
   void initState() {
@@ -668,6 +704,7 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     VoidCallback? onStart,
     required VoidCallback onComplete,
   }) {
+    final settleGeneration = ++_settleGeneration;
     _settleController
       ..stop()
       ..duration = motionDuration(context, duration);
@@ -686,7 +723,13 @@ class _EdgeSwipeDismissState extends State<EdgeSwipeDismiss>
     ).animate(curved);
     onStart?.call();
     void settleListener(AnimationStatus status) {
-      if (status != AnimationStatus.completed) return;
+      if (status != AnimationStatus.completed ||
+          settleGeneration != _settleGeneration) {
+        if (status == AnimationStatus.completed) {
+          _settleController.removeStatusListener(settleListener);
+        }
+        return;
+      }
       _settleController.removeStatusListener(settleListener);
       // 0 时长动画会在 forward() 内同步完成；先清理全局手势状态，
       // 否则透明播放器会一直被当成“正在收起”，只显示半透明遮罩。
@@ -843,11 +886,16 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
 
   @override
   Widget build(BuildContext context) {
-    // 卡片矩形直接使用记录时的屏幕坐标：路由页面与 Navigator 同坐标系，
-    // 收拢终点即源卡片原位，避免坐标换算引入偏移。
-    final sourceTopLeft = widget.sourceGlobalRect.topLeft;
-    final sourceRect = sourceTopLeft & widget.sourceGlobalRect.size;
-    final targetRect = Offset.zero & MediaQuery.sizeOf(context);
+    // 源矩形在捕获时记录为全局坐标，但横屏侧栏会把 Navigator 放进
+    // Row 的右侧 pane。必须转换到当前 morph Stack 的局部坐标，否则源卡片
+    // 会在 pane 内额外偏移一次。
+    final stackBox = context.findRenderObject() as RenderBox?;
+    final sourceRect = stackBox == null
+        ? widget.sourceGlobalRect
+        : (stackBox.globalToLocal(widget.sourceGlobalRect.topLeft) &
+              widget.sourceGlobalRect.size);
+    final targetSize = stackBox?.size ?? MediaQuery.sizeOf(context);
+    final targetRect = Offset.zero & targetSize;
     final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
     final session = _CardDismissScope.maybeOf(context);
     final dismissProgress = session?.progress ?? cardDismissProgress;
@@ -921,6 +969,14 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         final handoffReady =
             currentRect.width <= sourceRect.width + 0.5 &&
             currentRect.height <= sourceRect.height + 0.5;
+        // 交棒前最后一帧仍可能把窗口约束到比源卡片窄的亚像素尺寸，
+        // ClipRRect 会先裁掉左右边缘，再由真实源卡片接管，形成短促的
+        // "两边被削掉" 闪烁。达到源尺寸附近后直接放宽窗口裁剪，保证
+        // 快照完整覆盖源卡片；真正的交棒仍由 handoffReady 控制。
+        final relaxSourceClip =
+            dismissing &&
+            currentRect.width <= sourceRect.width + 3.0 &&
+            currentRect.height <= sourceRect.height + 3.0;
         // 源卡片只在快照交接窗口隐藏。
         //
         // 起点 0.58 与下面 snapshotOpacity 的淡入起点对齐：早了是重影
@@ -928,12 +984,14 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         // 终点不写死，交给 `handoffReady`——转场层什么时候退场，源卡片
         // 就什么时候恢复，两者是同一件事。
         if (dismissing && handoffReady && cardExpandSourceHidden.value) {
+          // 源卡片和 morph 层必须在同一次 rebuild 里完成交接。
+          // 先恢复源卡片、下一帧才移除 morph 会让落点内容与快照重叠一帧；
+          // 这里同时标记退场和恢复源卡片，下一帧只会画真实源卡片。
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted || _sourceHandoffComplete) return;
-            if (cardExpandSourceHidden.value) {
-              cardExpandSourceHidden.value = false;
-              setState(() {});
-            }
+            _sourceHandoffComplete = true;
+            cardExpandSourceHidden.value = false;
+            setState(() {});
           });
         }
         final hideSource =
@@ -971,7 +1029,9 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         //
         // 现在 58% 开始淡入快照、70% 完成实时页淡出（此时窗口还有 30%
         // 的行程，足够铺满整个交接过程），终点交给上面的 handoffReady。
-        final reveal = dismissing
+        final reveal = widget.sourceSnapshot == null
+            ? 1.0
+            : dismissing
             ? ((0.70 - t) / 0.12).clamp(0.0, 1.0)
             : ((1 - t) / 0.18).clamp(0.0, 1.0);
         final snapshotOpacity = dismissing
@@ -983,15 +1043,8 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
 
         // 收拢完成时提前交棒：转场层退场，真实页面直接接管。
         // 判定见上面的 handoffReady（按窗口尺寸，不按 t）。
-        if (dismissing && handoffReady && !cardExpandSourceHidden.value) {
-          if (!_sourceHandoffComplete) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted || _sourceHandoffComplete) return;
-              setState(() => _sourceHandoffComplete = true);
-            });
-          } else {
-            return const SizedBox.shrink();
-          }
+        if (dismissing && handoffReady && _sourceHandoffComplete) {
+          return const SizedBox.shrink();
         }
 
         return Stack(
@@ -1017,6 +1070,7 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
               rect: currentRect,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(radius),
+                clipBehavior: relaxSourceClip ? Clip.none : Clip.antiAlias,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -1029,17 +1083,11 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                     if (widget.sourceSnapshot != null)
                       Opacity(
                         opacity: snapshotOpacity,
-                        child: Transform.scale(
-                          alignment: Alignment.center,
-                          scale: currentRect.width / sourceRect.width,
-                          child: SizedBox(
-                            width: sourceRect.width,
-                            height: sourceRect.height,
-                            child: RawImage(
-                              image: widget.sourceSnapshot,
-                              fit: BoxFit.contain,
-                              filterQuality: FilterQuality.high,
-                            ),
+                        child: SizedBox.expand(
+                          child: RawImage(
+                            image: widget.sourceSnapshot,
+                            fit: BoxFit.fill,
+                            filterQuality: FilterQuality.high,
                           ),
                         ),
                       ),

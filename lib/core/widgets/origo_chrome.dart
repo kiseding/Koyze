@@ -313,6 +313,10 @@ class GradientFrost extends StatelessWidget {
     final frosted =
         !reduce &&
         (GlassEffectConfig.userBlurEnabled || GlassEffectConfig.liquidGlass);
+    // 普通高斯磨砂覆盖整根标题栏；只有液态折射/高光受 bottomEdgeOnly
+    // 限制，避免顶部和左右出现折射边框。
+    final restrictGlassToBottom =
+        bottomEdgeOnly && GlassEffectConfig.liquidGlass;
     return Stack(
       children: [
         if (frosted)
@@ -320,8 +324,8 @@ class GradientFrost extends StatelessWidget {
             left: 0,
             right: 0,
             bottom: 0,
-            height: bottomEdgeOnly ? 12 : null,
-            top: bottomEdgeOnly ? null : 0,
+            height: restrictGlassToBottom ? 12 : null,
+            top: restrictGlassToBottom ? null : 0,
             child: IgnorePointer(
               // 页面入场动画期间先不采样背景。
               //

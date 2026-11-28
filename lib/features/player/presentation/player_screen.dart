@@ -847,6 +847,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   final GlobalKey _artworkKey = GlobalKey();
   final GlobalKey _controlsPlayKey = GlobalKey();
   final GlobalKey _lyricPlayKey = GlobalKey();
+  final GlobalKey _morphStackKey = GlobalKey();
   Rect? _artworkRect;
   Rect? _controlsPlayRect;
   Rect? _lyricPlayRect;
@@ -924,7 +925,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             as RenderRepaintBoundary?;
     // toImage 要求这一帧已经把 boundary 画完。首帧常是 Hero 测量的
     // offstage 帧，或正文里还有淡入动画在跑，等下一帧干净了再抓。
-    if (boundary == null || boundary.size.isEmpty || boundary.debugNeedsPaint) {
+    if (boundary == null || !boundary.attached || boundary.size.isEmpty) {
       _requestSnapshot();
       return;
     }
@@ -1009,11 +1010,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (context == null || !context.mounted) return null;
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize || !box.attached) return null;
-    return box.localToGlobal(Offset.zero) & box.size;
+    final stackContext = _morphStackKey.currentContext;
+    final stackBox = stackContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null || !stackBox.hasSize || !stackBox.attached)
+      return null;
+    final globalOrigin = box.localToGlobal(Offset.zero);
+    return stackBox.globalToLocal(globalOrigin) & box.size;
   }
 
   void _completeDragDismiss() {
-    if (!_draggingDown || !mounted) return;
+    // onVerticalDragCancel 会先清掉 _draggingDown，再启动关闭 settle；
+    // 完成回调仍然必须弹出透明播放器路由，否则 barrier 会继续挡住主壳。
+    if (!mounted || playerRouteDismissLocked) return;
     _finishDismiss();
   }
 
@@ -1336,6 +1344,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
             landscape,
             dismissThreshold,
             _snapshotReady,
+            _snapshotCaptureFailed,
             mediaForQuality,
             spectrumForBody,
             spectrumSupported,
@@ -1354,8 +1363,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   screenW,
                   landscape,
                   dismissThreshold,
-                  // 抓图前藏起真实封面，交给飞行封面；抓完照常显示。
-                  _snapshotReady || _snapshotCaptureFailed ? 1.0 : 0.0,
+                  // 只有有效位图已经准备好才交给飞行封面；抓图失败或
+                  // 发布构建不支持回读时，真实封面必须保持可见。
+                  _snapshotReady || _snapshotCaptureFailed ? 1.0 : 1.0,
                   // chrome 淡出统一在外层做，正文不再随进度重建。
                   1.0,
                 );
@@ -1372,7 +1382,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               : chromeFade <= 0
               ? 0.0
               : !_snapshotReady
-              ? _hiddenLiveOpacity
+              // 没有有效位图时实时正文就是唯一内容源，必须完整可见；
+              // 透明 barrier 已经接管命中测试，但不能因此把正文压成 1%。
+              ? 1.0
               : useSnapshot
               ? chromeFade * _hiddenLiveOpacity
               : progress >= 1
@@ -1380,6 +1392,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
               : chromeFade * contentOpacity;
           final snapshotOpacity = closing ? chromeFade : contentOpacity;
           return Stack(
+            key: _morphStackKey,
             fit: StackFit.expand,
             children: [
               Positioned.fill(
@@ -1390,7 +1403,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   child: TickerMode(
                     // 抓图前停掉 ticker：歌词淡入等动画会让边界一直处于
                     // needsPaint，toImage 会直接断言失败。
-                    enabled: _snapshotReady && !useSnapshot,
+                    // 没有快照时正文就是唯一画面源，不能因为等待 GPU
+                    // 回读而关闭 ticker；发布构建下回读可能一直失败。
+                    enabled: !useSnapshot,
                     child: RepaintBoundary(key: _routeSnapshotKey, child: body),
                   ),
                 ),

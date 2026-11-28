@@ -1,3 +1,4 @@
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 /// 全屏播放器路由过渡进度（0 = 未打开，1 = 完全打开）。
@@ -31,30 +32,20 @@ class PlayerRouteProgressBridge extends StatefulWidget {
 
 class _PlayerRouteProgressBridgeState extends State<PlayerRouteProgressBridge> {
   ModalRoute<dynamic>? _route;
+  bool _syncScheduled = false;
 
   @override
   void initState() {
     super.initState();
+    playerRouteDismissLocked = false;
     widget.animation.addListener(_sync);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 本组件由 `ModalRoute.buildTransitions` 创建，所在位置就在
-    // `_ModalScopeStatus` 之下，能直接问到播放器这条路由本身；offstage 是
-    // 实时读的，见 [_sync]。
-    //
-    // 首次同步放在这里而不是 initState：那时还没拿到路由，判断不了 offstage。
     _route = ModalRoute.of(context);
-    _sync();
-    // HeroController 会把目标路由临时 offstage 一帧来量 Hero 位置。若该帧
-    // 正好发生在首次依赖建立时，动画恢复后不一定再有 status tick（例如零时长
-    // 或已完成的 route）；帧末补一次同步，避免全屏播放器保持 progress=0，正文
-    // 完全透明而透明 barrier 仍挡住底层。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _sync();
-    });
+    _scheduleSync();
   }
 
   @override
@@ -63,33 +54,30 @@ class _PlayerRouteProgressBridgeState extends State<PlayerRouteProgressBridge> {
     if (oldWidget.animation != widget.animation) {
       oldWidget.animation.removeListener(_sync);
       widget.animation.addListener(_sync);
-      _sync();
+      _scheduleSync();
     }
+  }
+
+  void _scheduleSync() {
+    if (_syncScheduled) return;
+    _syncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncScheduled = false;
+      if (mounted) _sync();
+    });
   }
 
   void _sync() {
     if (playerRouteDismissLocked) return;
-
-    // 路由处于 offstage 时读到的动画值不可信。
-    //
-    // HeroController 每次 push 都会把**目标路由**临时 offstage 一帧：先在
-    // 屏幕外完成目标页布局、量出 Hero 的终点位置，帧末再放回屏上（见
-    // `HeroController._maybeStartHeroTransition`）。而
-    // `ModalRoute.offstage = true` 会把该路由的动画代理换成
-    // `kAlwaysCompleteAnimation`，value 恒为 1.0。
-    //
-    // 本组件正好在这一帧首次挂载并同步一次：读到 1.0 就当成"播放器已全屏"，
-    // 主壳据此把 chrome 淡成全透明（MainScaffold 的 visibleProgress 只认
-    // >0.92），而播放器此刻自己是 offstage 不画的——整屏只剩一层底色，
-    // 一帧后才恢复，肉眼看就是打开播放器前闪一下黑。
-    //
-    // 隐藏态一律不写；帧末 offstage 复位时代理会换回真实动画并再通知一次，
-    // 进度自然接上。
+    // Hero 测量期间动画代理会暂时变成恒为 1 的动画；恢复真实代理时
+    // 会再通知。零时长路由可能已在组件挂载前结束，因此挂载时也要补同步。
     if (_route?.offstage ?? false) return;
-
-    // 曲线整形只在"路由自动动画"这一端做（CurvedAnimation 已套
-    // easeOutCubic，与手势 settle 同曲线同时长）；拖动/左缘等手动
-    // 驱动直接写值，播放器线性消费，保证跟手无固定路径。
+    // 进度同时被底下的主壳监听，不能在播放器的 build/layout 中写入。
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      _scheduleSync();
+      return;
+    }
     playerRouteProgress.value = widget.animation.value;
   }
 
@@ -97,7 +85,11 @@ class _PlayerRouteProgressBridgeState extends State<PlayerRouteProgressBridge> {
   void dispose() {
     widget.animation.removeListener(_sync);
     playerRouteDismissLocked = false;
-    playerRouteProgress.value = 0;
+    // 最终反向 tick 通常已写入 0。手势锁定、移除路由等路径也要复位，
+    // 在帧末通知主壳，避免它在 Navigator 正拆除路由时被标脏。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!playerRouteDismissLocked) playerRouteProgress.value = 0;
+    });
     super.dispose();
   }
 
