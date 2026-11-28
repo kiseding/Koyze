@@ -26,6 +26,8 @@ int _cardExpandCaptureGeneration = 0;
 final Map<LocalKey, Rect> _expandRectByPage = <LocalKey, Rect>{};
 final Map<LocalKey, ui.Image> _expandSnapshotByPage = <LocalKey, ui.Image>{};
 final Map<LocalKey, int> _expandGenerationByPage = <LocalKey, int>{};
+final Map<LocalKey, GlobalKey> _expandSourceByPage = {};
+GlobalKey? _pendingSourceKey;
 int? _pendingCaptureGeneration;
 LocalKey? _claimedCapturePage;
 
@@ -43,6 +45,9 @@ Rect? _adoptExpandRect(ValueKey<String> pageKey, Rect? explicit) {
   final generation = _pendingCaptureGeneration;
   if (generation != null) {
     _expandGenerationByPage[pageKey] = generation;
+    final sourceKey = _pendingSourceKey;
+    if (sourceKey != null) _expandSourceByPage[pageKey] = sourceKey;
+    _pendingSourceKey = null;
     _pendingCaptureGeneration = null;
   }
   _expandRectByPage[pageKey] = rect;
@@ -64,6 +69,7 @@ ui.Image? _adoptExpandSnapshot(ValueKey<String> pageKey, ui.Image? explicit) {
 void _forgetExpandOrigin(LocalKey pageKey) {
   _expandPageSeen.remove(pageKey);
   _expandRectByPage.remove(pageKey);
+  _expandSourceByPage.remove(pageKey);
   _expandSnapshotByPage.remove(pageKey)?.dispose();
   _expandGenerationByPage.remove(pageKey);
   if (_claimedCapturePage == pageKey) _claimedCapturePage = null;
@@ -77,11 +83,13 @@ void _forgetExpandOrigin(LocalKey pageKey) {
 void _dropPendingExpandOrigin(LocalKey pageKey) {
   _cardExpandCaptureGeneration++;
   _pendingCaptureGeneration = null;
+  _pendingSourceKey = null;
   _claimedCapturePage = null;
   _cardExpandRect = null;
   _cardExpandSnapshot?.dispose();
   _cardExpandSnapshot = null;
   _expandRectByPage.remove(pageKey);
+  _expandSourceByPage.remove(pageKey);
   _expandSnapshotByPage.remove(pageKey)?.dispose();
 }
 
@@ -92,6 +100,8 @@ void debugResetCardExpandOrigins() {
   _expandGenerationByPage.clear();
   _claimedCapturePage = null;
   _pendingCaptureGeneration = null;
+  _pendingSourceKey = null;
+  _expandSourceByPage.clear();
   _expandRectByPage.clear();
   for (final image in _expandSnapshotByPage.values) {
     image.dispose();
@@ -99,7 +109,7 @@ void debugResetCardExpandOrigins() {
   _expandSnapshotByPage.clear();
 }
 
-/// 当前参与转场的源卡片只在关闭后段隐藏，避免实时页面与源卡片快照重影。
+/// 当前返回转场的真实落点，从收拢开始隐藏，到转场结束恢复。
 final ValueNotifier<bool> cardExpandSourceHidden = ValueNotifier<bool>(false);
 GlobalKey? cardExpandHiddenKey;
 
@@ -146,6 +156,15 @@ Future<void> captureCardExpandOrigin(BuildContext context) async {
   final captureGeneration = ++_cardExpandCaptureGeneration;
   _pendingCaptureGeneration = captureGeneration;
   _claimedCapturePage = null;
+  final key = context.widget.key;
+  _pendingSourceKey =
+      key is GlobalKey &&
+          context
+                  .findAncestorWidgetOfExactType<CardExpandSourceVisibility>()
+                  ?.sourceKey ==
+              key
+      ? key
+      : null;
   captureCardExpandRect(context);
   final boundary = context.findRenderObject() as RenderRepaintBoundary?;
   if (boundary == null || !boundary.attached || !boundary.hasSize) return;
@@ -266,6 +285,9 @@ CustomTransitionPage<Object?> expandablePage(
   final expanding = sourceRect != null;
   return _CardExpandPage(
     key: pageKey,
+    returnSourceKey: expanding && sourceSnapshot != null
+        ? _expandSourceByPage[pageKey]
+        : null,
     // 普通页（无卡片展开）保持不透明：稳定状态下只画最上面一页，下层
     // 页面不参与绘制。左缘手势开始时 [EdgeSwipeDismiss] 会临时把这条
     // 路由的 overlay 条目改成非不透明，让页面往右滑时露出真正的下层
@@ -327,6 +349,7 @@ CustomTransitionPage<Object?> expandablePage(
           animation: curved,
           sourceGlobalRect: sourceRect,
           sourceSnapshot: sourceSnapshot,
+          returnSourceKey: _expandSourceByPage[pageKey],
           child: child,
         );
       } else if (fullWidthSwipe) {
@@ -436,10 +459,13 @@ class _CardExpandPage extends CustomTransitionPage<Object?> {
     required super.transitionsBuilder,
     required super.opaque,
     required super.barrierDismissible,
+    required this.returnSourceKey,
     super.barrierColor,
     super.transitionDuration,
     super.reverseTransitionDuration,
   });
+
+  final GlobalKey? returnSourceKey;
 
   @override
   Route<Object?> createRoute(BuildContext context) =>
@@ -454,6 +480,63 @@ class _CardExpandRoute extends PageRoute<Object?> {
   _CardExpandPage get _page => settings as _CardExpandPage;
 
   final _CardDismissSession session = _CardDismissSession();
+  GlobalKey? _hiddenSource;
+  bool _visibilityUpdateQueued = false;
+
+  @override
+  void install() {
+    super.install();
+    animation!.addStatusListener(_handleAnimationStatus);
+    session.progress.addListener(_syncSourceVisibility);
+    session.offset.addListener(_syncSourceVisibility);
+  }
+
+  void _handleAnimationStatus(AnimationStatus _) => _syncSourceVisibility();
+
+  void _syncSourceVisibility() {
+    // Route events and gesture ticks normally run before build. Declarative
+    // stack changes can also arrive during build; defer that notification.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      if (_visibilityUpdateQueued) return;
+      _visibilityUpdateQueued = true;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        _visibilityUpdateQueued = false;
+        if (navigator != null) _syncSourceVisibility();
+      });
+      return;
+    }
+    final status = animation?.status;
+    final returning =
+        status == AnimationStatus.reverse ||
+        (status == AnimationStatus.completed &&
+            (session.progress.value > 0 || session.offset.value > 0));
+    final source = returning ? _page.returnSourceKey : null;
+    if (source == _hiddenSource) return;
+    _restoreSource();
+    if (source?.currentContext == null) return;
+    _hiddenSource = source;
+    cardExpandHiddenKey = source;
+    cardExpandSourceHidden.value = true;
+  }
+
+  void _restoreSource() {
+    final source = _hiddenSource;
+    _hiddenSource = null;
+    if (source == null) return;
+    void restore() {
+      if (!identical(cardExpandHiddenKey, source)) return;
+      cardExpandHiddenKey = null;
+      cardExpandSourceHidden.value = false;
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) => restore());
+    } else {
+      restore();
+    }
+  }
 
   @override
   bool get opaque => _page.opaque;
@@ -536,6 +619,10 @@ class _CardExpandRoute extends PageRoute<Object?> {
   @override
   void dispose() {
     final key = _page.key;
+    animation?.removeStatusListener(_handleAnimationStatus);
+    session.progress.removeListener(_syncSourceVisibility);
+    session.offset.removeListener(_syncSourceVisibility);
+    _restoreSource();
     super.dispose();
     session.dispose();
     if (key != null) _forgetExpandOrigin(key);
@@ -865,12 +952,14 @@ class _CardRevealTransition extends StatefulWidget {
     required this.animation,
     required this.sourceGlobalRect,
     this.sourceSnapshot,
+    this.returnSourceKey,
     required this.child,
   });
 
   final Animation<double> animation;
   final Rect sourceGlobalRect;
   final ui.Image? sourceSnapshot;
+  final GlobalKey? returnSourceKey;
   final Widget child;
 
   @override
@@ -977,22 +1066,36 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
             currentRect.height,
           );
         }
-        // 返回时只收拢实时子页；四边到达落点后直接交给下层真实页面。
+        // 有快照时保留到路由结束，和真实落点同帧交接。不按几何容差
+        // 提前撤掉快照，否则落点仍隐藏时会空一帧。
+        final returningWithSnapshot =
+            dismissing &&
+            widget.sourceSnapshot != null &&
+            widget.returnSourceKey != null &&
+            identical(cardExpandHiddenKey, widget.returnSourceKey) &&
+            cardExpandSourceHidden.value;
         const landingTolerance = 0.5;
         final handoffReady =
             (currentRect.left - sourceRect.left).abs() <= landingTolerance &&
             (currentRect.top - sourceRect.top).abs() <= landingTolerance &&
             (currentRect.right - sourceRect.right).abs() <= landingTolerance &&
             (currentRect.bottom - sourceRect.bottom).abs() <= landingTolerance;
-        if (dismissing && handoffReady) return const SizedBox.shrink();
+        if (dismissing && handoffReady && !returningWithSnapshot) {
+          return const SizedBox.shrink();
+        }
 
-        final reveal = dismissing
+        final reveal = returningWithSnapshot
+            ? ((0.70 - t) / 0.12).clamp(0.0, 1.0)
+            : dismissing
             ? ((1 - t) / 0.35).clamp(0.0, 1.0)
             : widget.sourceSnapshot == null
             ? 1.0
             : ((1 - t) / 0.18).clamp(0.0, 1.0);
-        final showSnapshot =
-            !dismissing && widget.sourceSnapshot != null && t > 0.8;
+        final snapshotOpacity = returningWithSnapshot
+            ? ((t - 0.58) / 0.12).clamp(0.0, 1.0)
+            : !dismissing && widget.sourceSnapshot != null
+            ? ((t - 0.8) / 0.2).clamp(0.0, 1.0)
+            : 0.0;
         const radius = 18.0;
 
         return Stack(
@@ -1026,10 +1129,9 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                       opacity: reveal,
                       child: ColoredBox(color: backgroundColor),
                     ),
-                    // 原行快照只用于入场，返回时不挂载这层。
-                    if (showSnapshot)
+                    if (snapshotOpacity > 0)
                       Opacity(
-                        opacity: ((t - 0.8) / 0.2).clamp(0.0, 1.0),
+                        opacity: snapshotOpacity,
                         child: SizedBox.expand(
                           child: RawImage(
                             image: widget.sourceSnapshot,

@@ -108,7 +108,7 @@ void main() {
       expect(
         find.byWidgetPredicate((w) => w is RawImage && w.image != null),
         findsOneWidget,
-        reason: '入场必须确实拿到原行快照，才能验证返回时没有绘制它',
+        reason: '测试必须捕获到真实的原行快照',
       );
       await tester.pumpAndSettle();
     }
@@ -134,16 +134,41 @@ void main() {
       final rawImages = find.byWidgetPredicate(
         (widget) => widget is RawImage && widget.image != null,
       );
+      expect(opacityOf(source), 1);
       router.pop();
       await tester.pump();
-      for (var frame = 0; frame < 46; frame++) {
-        expect(rawImages, findsNothing, reason: '返回第 $frame 帧不得挂载原行快照');
-        expect(opacityOf(source), 1, reason: '真实原行不需要为快照让位');
+      expect(opacityOf(source), 0, reason: '返回第一帧即隐藏真实原行');
+      var sawSnapshot = false;
+      var landed = false;
+      for (var frame = 0; frame < 50; frame++) {
+        final visible = opacityOf(source) == 1;
+        final hasSnapshot = rawImages.evaluate().isNotEmpty;
+        if (hasSnapshot) {
+          sawSnapshot = true;
+          expect(visible, isFalse, reason: '第 $frame 帧不能同时显示快照和真实原行');
+        } else if (sawSnapshot) {
+          expect(visible, isTrue, reason: '快照退场的同一帧必须恢复真实原行');
+          landed = true;
+        }
+        if (!landed) expect(visible, isFalse, reason: '落位前保持隐藏');
         await tester.pump(const Duration(milliseconds: 4));
       }
       await tester.pumpAndSettle();
+      expect(sawSnapshot, isTrue, reason: '返回收尾仍然使用快照');
+      expect(landed, isTrue);
       expect(opacityOf(source), 1);
     }
+
+    final gesture = await tester.startGesture(const Offset(8, 240));
+    await gesture.moveBy(const Offset(48, 0));
+    await gesture.moveBy(const Offset(48, 0));
+    await tester.pump();
+    expect(opacityOf(find.byKey(childAnchor)), 0, reason: '侧滑开始即隐藏落点');
+    expect(opacityOf(find.byKey(parentAnchor)), 1, reason: '不影响上一层的落点');
+    await gesture.cancel();
+    await tester.pumpAndSettle();
+    expect(find.text('child'), findsOneWidget);
+    expect(opacityOf(find.byKey(childAnchor)), 1, reason: '取消侧滑应恢复原行');
 
     await popAndCheck(childAnchor);
     await popAndCheck(parentAnchor);
