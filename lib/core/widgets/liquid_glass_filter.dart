@@ -49,6 +49,7 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
     required this.frost,
     this.legible = false,
     this.tint,
+    this.bottomEdgeOnly = false,
     super.child,
   });
 
@@ -68,6 +69,9 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
   /// 覆盖色调强度；为 null 时按 [legible] 与明暗取默认值。
   final double? tint;
 
+  /// 只让液态玻璃的光学边缘出现在下缘。
+  final bool bottomEdgeOnly;
+
   @override
   RenderObject createRenderObject(BuildContext context) {
     return RenderLiquidGlass(
@@ -77,6 +81,7 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
       BackdropGroup.of(context)?.backdropKey,
       legible,
       tint,
+      bottomEdgeOnly,
     )..dark = Theme.of(context).brightness == Brightness.dark;
   }
 
@@ -92,6 +97,7 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
       ..backdropKey = BackdropGroup.of(context)?.backdropKey
       ..legible = legible
       ..tint = tint
+      ..bottomEdgeOnly = bottomEdgeOnly
       ..dark = Theme.of(context).brightness == Brightness.dark;
   }
 }
@@ -106,6 +112,7 @@ class RenderLiquidGlass extends RenderProxyBox {
     this._backdropKey,
     this._legible,
     this._tint,
+    this._bottomEdgeOnly,
   );
 
   /// 裁剪区域每边多出的逻辑像素：折射会把玻璃外侧一两像素的背景弯进来，
@@ -118,6 +125,7 @@ class RenderLiquidGlass extends RenderProxyBox {
   BackdropKey? _backdropKey;
   bool _legible;
   double? _tint;
+  bool _bottomEdgeOnly;
 
   bool _dark = false;
 
@@ -164,6 +172,12 @@ class RenderLiquidGlass extends RenderProxyBox {
   set tint(double? value) {
     if (value == _tint) return;
     _tint = value;
+    markNeedsPaint();
+  }
+
+  set bottomEdgeOnly(bool value) {
+    if (value == _bottomEdgeOnly) return;
+    _bottomEdgeOnly = value;
     markNeedsPaint();
   }
 
@@ -255,6 +269,7 @@ class RenderLiquidGlass extends RenderProxyBox {
     f(global.dx * _dpr);
     f(global.dy * _dpr);
     f(_pad * _dpr);
+    f(_bottomEdgeOnly ? 1 : 0);
     if (_dark) {
       f(0.11);
       f(0.11);

@@ -180,15 +180,20 @@ void main() {
       expect(layer.gradient, isNull);
     });
 
-    testWidgets('独立标题栏转场期间不卸载磨砂层，玻璃只画底缘', (tester) async {
+    testWidgets('独立标题栏转场期间保留整栏磨砂，不再绘制窄折射带', (tester) async {
       GlassEffectConfig.setSurfaceBlur(1);
       await tester.pumpWidget(
         _host(const GradientAppBarBackground(background: Colors.transparent)),
       );
       final frost = _frost(tester);
       expect(frost.keepGlassDuringRouteTransition, isTrue);
-      expect(frost.bottomEdgeOnly, isTrue);
-      expect(find.byType(GlassBackdrop), findsOneWidget);
+      final backdrop = find.byType(GlassBackdrop);
+      expect(backdrop, findsOneWidget);
+      expect(tester.widget<GlassBackdrop>(backdrop).radius, isNull);
+      expect(
+        tester.getRect(backdrop),
+        tester.getRect(find.byType(GradientFrost)),
+      );
     });
 
     testWidgets('背景层高度就是栏本体，不多留一截', (tester) async {

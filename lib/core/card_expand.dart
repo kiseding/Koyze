@@ -24,6 +24,8 @@ int _cardExpandCaptureGeneration = 0;
 /// 否则从叠在上面的设置页返回后会变成不透明普通页：卡片 morph 没了，
 /// 自绘右滑也没了（[_CardExpandRoute] 并没有 iOS 系统返回手势）。
 final Map<LocalKey, Rect> _expandRectByPage = <LocalKey, Rect>{};
+final Map<LocalKey, GlobalKey> _expandSourceByPage = {};
+GlobalKey? _pendingSourceKey;
 final Map<LocalKey, ui.Image> _expandSnapshotByPage = <LocalKey, ui.Image>{};
 final Map<LocalKey, int> _expandGenerationByPage = <LocalKey, int>{};
 int? _pendingCaptureGeneration;
@@ -43,6 +45,9 @@ Rect? _adoptExpandRect(ValueKey<String> pageKey, Rect? explicit) {
   final generation = _pendingCaptureGeneration;
   if (generation != null) {
     _expandGenerationByPage[pageKey] = generation;
+    final key = _pendingSourceKey;
+    if (key != null) _expandSourceByPage[pageKey] = key;
+    _pendingSourceKey = null;
     _pendingCaptureGeneration = null;
   }
   _expandRectByPage[pageKey] = rect;
@@ -64,6 +69,7 @@ ui.Image? _adoptExpandSnapshot(ValueKey<String> pageKey, ui.Image? explicit) {
 void _forgetExpandOrigin(LocalKey pageKey) {
   _expandPageSeen.remove(pageKey);
   _expandRectByPage.remove(pageKey);
+  _expandSourceByPage.remove(pageKey);
   _expandSnapshotByPage.remove(pageKey)?.dispose();
   _expandGenerationByPage.remove(pageKey);
   if (_claimedCapturePage == pageKey) _claimedCapturePage = null;
@@ -81,9 +87,9 @@ void _dropPendingExpandOrigin(LocalKey pageKey) {
   _cardExpandRect = null;
   _cardExpandSnapshot?.dispose();
   _cardExpandSnapshot = null;
-  cardExpandSourceHidden.value = false;
-  cardExpandHiddenKey = null;
+  _pendingSourceKey = null;
   _expandRectByPage.remove(pageKey);
+  _expandSourceByPage.remove(pageKey);
   _expandSnapshotByPage.remove(pageKey)?.dispose();
 }
 
@@ -94,6 +100,8 @@ void debugResetCardExpandOrigins() {
   _expandGenerationByPage.clear();
   _claimedCapturePage = null;
   _pendingCaptureGeneration = null;
+  _pendingSourceKey = null;
+  _expandSourceByPage.clear();
   _expandRectByPage.clear();
   for (final image in _expandSnapshotByPage.values) {
     image.dispose();
@@ -104,6 +112,33 @@ void debugResetCardExpandOrigins() {
 /// 当前参与转场的源卡片只在关闭后段隐藏，避免实时页面与源卡片快照重影。
 final ValueNotifier<bool> cardExpandSourceHidden = ValueNotifier<bool>(false);
 GlobalKey? cardExpandHiddenKey;
+
+/// Hides the exact captured source row during the closing morph.
+///
+/// The opacity lives outside the repaint boundary so a late visibility update
+/// cannot invalidate the pixels that were captured for the morph.
+class CardExpandSourceVisibility extends StatelessWidget {
+  const CardExpandSourceVisibility({
+    super.key,
+    required this.sourceKey,
+    required this.child,
+  });
+
+  final GlobalKey sourceKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: cardExpandSourceHidden,
+      builder: (context, hidden, child) {
+        final visible = !hidden || !identical(cardExpandHiddenKey, sourceKey);
+        return Opacity(opacity: visible ? 1 : 0, child: child);
+      },
+      child: child,
+    );
+  }
+}
 
 /// 记录当前卡片的屏幕矩形（供展开转场使用）。
 void captureCardExpandRect(BuildContext context) {
@@ -121,10 +156,8 @@ Future<void> captureCardExpandOrigin(BuildContext context) async {
   final captureGeneration = ++_cardExpandCaptureGeneration;
   _pendingCaptureGeneration = captureGeneration;
   _claimedCapturePage = null;
-  // 开启动画不隐藏源卡片；隐藏只由关闭阶段的 morph 进度控制。
-  cardExpandSourceHidden.value = false;
   captureCardExpandRect(context);
-  cardExpandHiddenKey = context.widget.key is GlobalKey
+  _pendingSourceKey = context.widget.key is GlobalKey
       ? context.widget.key as GlobalKey
       : null;
   final boundary = context.findRenderObject() as RenderRepaintBoundary?;
@@ -237,7 +270,7 @@ CustomTransitionPage<Object?> expandablePage(
   } else {
     // 该页明确不做卡片 morph。仍然要把点击时记下的原点丢掉，
     // 否则这张矩形会残留给下一个真正想从卡片展开的页面。
-    _dropPendingExpandOrigin(pageKey);
+    if (firstBuild) _dropPendingExpandOrigin(pageKey);
     expandRect = null;
     expandSnapshot = null;
   }
@@ -307,6 +340,7 @@ CustomTransitionPage<Object?> expandablePage(
           animation: curved,
           sourceGlobalRect: sourceRect,
           sourceSnapshot: sourceSnapshot,
+          sourceKey: _expandSourceByPage[pageKey],
           child: child,
         );
       } else if (fullWidthSwipe) {
@@ -845,12 +879,14 @@ class _CardRevealTransition extends StatefulWidget {
     required this.animation,
     required this.sourceGlobalRect,
     this.sourceSnapshot,
+    this.sourceKey,
     required this.child,
   });
 
   final Animation<double> animation;
   final Rect sourceGlobalRect;
   final ui.Image? sourceSnapshot;
+  final GlobalKey? sourceKey;
   final Widget child;
 
   @override
@@ -859,7 +895,20 @@ class _CardRevealTransition extends StatefulWidget {
 
 class _CardRevealTransitionState extends State<_CardRevealTransition> {
   _CardDismissSession? _session;
-  bool _sourceHandoffComplete = false;
+  bool get _ownsHiddenSource =>
+      widget.sourceKey != null &&
+      identical(cardExpandHiddenKey, widget.sourceKey) &&
+      cardExpandSourceHidden.value;
+
+  void _setSourceHidden(bool hide) {
+    if (hide) {
+      cardExpandHiddenKey = widget.sourceKey;
+      cardExpandSourceHidden.value = true;
+    } else if (_ownsHiddenSource) {
+      cardExpandSourceHidden.value = false;
+      cardExpandHiddenKey = null;
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -869,8 +918,7 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
 
   @override
   void dispose() {
-    cardExpandSourceHidden.value = false;
-    cardExpandHiddenKey = null;
+    _setSourceHidden(false);
     final session = _session;
     if (session != null) {
       if (session.locked) {
@@ -929,7 +977,9 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         //   手指的位移归位，路由动画负责形态收拢，两条曲线互不抢权。
         //
         // locked（拖拽已完成、只等路由移除）同样不再参与几何。
-        final t = dragActive && !locked
+        final t = locked
+            ? progress.value.clamp(0.0, 1.0)
+            : dragActive
             ? progress.value.clamp(0.0, 1.0)
             : (1 - widget.animation.value).clamp(0.0, 1.0);
         // 窗口从源卡片矩形 lerp 到全屏：四边各自长到屏幕边。
@@ -977,36 +1027,22 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
             dismissing &&
             currentRect.width <= sourceRect.width + 3.0 &&
             currentRect.height <= sourceRect.height + 3.0;
-        // 源卡片只在快照交接窗口隐藏。
-        //
-        // 起点 0.58 与下面 snapshotOpacity 的淡入起点对齐：早了是重影
-        // （快照还没浮现、源卡片也没隐藏），晚了会露出真实卡片。
-        // 终点不写死，交给 `handoffReady`——转场层什么时候退场，源卡片
-        // 就什么时候恢复，两者是同一件事。
-        if (dismissing && handoffReady && cardExpandSourceHidden.value) {
-          // 源卡片和 morph 层必须在同一次 rebuild 里完成交接。
-          // 先恢复源卡片、下一帧才移除 morph 会让落点内容与快照重叠一帧；
-          // 这里同时标记退场和恢复源卡片，下一帧只会画真实源卡片。
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted || _sourceHandoffComplete) return;
-            _sourceHandoffComplete = true;
-            cardExpandSourceHidden.value = false;
-            setState(() {});
-          });
-        }
-        final hideSource =
+        final sourceContext = widget.sourceKey?.currentContext;
+        final canHandoffSnapshot =
             widget.sourceSnapshot != null &&
-            dismissing &&
-            t >= 0.58 &&
-            !handoffReady;
-        if (cardExpandSourceHidden.value != hideSource &&
-            !(dismissing && handoffReady)) {
+            sourceContext != null &&
+            sourceContext
+                    .findAncestorWidgetOfExactType<CardExpandSourceVisibility>()
+                    ?.sourceKey ==
+                widget.sourceKey;
+        final hideSource =
+            canHandoffSnapshot && dismissing && t > 0.58 && !handoffReady;
+        final sourceHidden = _ownsHiddenSource;
+        if (sourceHidden != hideSource) {
+          // 同一帧更新原行与转场层。回调提交前，快照仍不能亮起。
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
-            if (cardExpandSourceHidden.value != hideSource) {
-              cardExpandSourceHidden.value = hideSource;
-              if (hideSource) _sourceHandoffComplete = false;
-            }
+            setState(() => _setSourceHidden(hideSource));
           });
         }
         if (dragging) {
@@ -1029,13 +1065,17 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
         //
         // 现在 58% 开始淡入快照、70% 完成实时页淡出（此时窗口还有 30%
         // 的行程，足够铺满整个交接过程），终点交给上面的 handoffReady。
-        final reveal = widget.sourceSnapshot == null
+        final reveal = dismissing
+            ? sourceHidden
+                  ? ((0.70 - t) / 0.12).clamp(0.0, 1.0)
+                  : ((1 - t) / 0.35).clamp(0.0, 1.0)
+            : widget.sourceSnapshot == null
             ? 1.0
-            : dismissing
-            ? ((0.70 - t) / 0.12).clamp(0.0, 1.0)
             : ((1 - t) / 0.18).clamp(0.0, 1.0);
         final snapshotOpacity = dismissing
-            ? ((t - 0.58) / 0.12).clamp(0.0, 1.0)
+            ? sourceHidden
+                  ? ((t - 0.58) / 0.12).clamp(0.0, 1.0)
+                  : 0.0
             : ((t - 0.8) / 0.2).clamp(0.0, 1.0);
         // 背景/表面圆角全程保持与源卡片一致（18），
         // 动效行进中矩形扩张/收缩不改变圆角。
@@ -1043,7 +1083,7 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
 
         // 收拢完成时提前交棒：转场层退场，真实页面直接接管。
         // 判定见上面的 handoffReady（按窗口尺寸，不按 t）。
-        if (dismissing && handoffReady && _sourceHandoffComplete) {
+        if (dismissing && handoffReady && !sourceHidden) {
           return const SizedBox.shrink();
         }
 
@@ -1086,7 +1126,7 @@ class _CardRevealTransitionState extends State<_CardRevealTransition> {
                         child: SizedBox.expand(
                           child: RawImage(
                             image: widget.sourceSnapshot,
-                            fit: BoxFit.fill,
+                            fit: BoxFit.contain,
                             filterQuality: FilterQuality.high,
                           ),
                         ),

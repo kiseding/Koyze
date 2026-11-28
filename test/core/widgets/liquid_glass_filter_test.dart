@@ -131,19 +131,17 @@ void main() {
       );
       final shader = program.fragmentShader();
 
-      // 0、1 是引擎填写的输入纹理尺寸；2..17 是 RenderLiquidGlass.paint 里
-      // 按顺序写的 16 个参数（玻璃宽高、圆角、像素比、边缘厚度、折射、色散、
-      // 高光、色调、圆角指数、原点 xy、留边、色调色 rgb）。
-      for (var index = 0; index < 18; index++) {
+      // 0、1 是引擎填写的输入纹理尺寸；2..18 是 RenderLiquidGlass.paint 里
+      // 按顺序写的 17 个参数（含末尾的底缘开关）。
+      for (var index = 0; index < 19; index++) {
         expect(
           () => shader.setFloat(index, 1),
           returnsNormally,
           reason: 'uniform $index 越界，说明 shader 的参数表比 Dart 侧短',
         );
       }
-      // 第 19 个必须越界。哪天往 shader 里加了 uniform 却忘了在 paint 里补
-      // setFloat（或改了顺序），这条会先拦下来。
-      expect(() => shader.setFloat(18, 1), throwsRangeError);
+      // 索引 19 必须越界，防止着色器新增参数却没有同步 Dart 写入端。
+      expect(() => shader.setFloat(19, 1), throwsRangeError);
     });
   });
 

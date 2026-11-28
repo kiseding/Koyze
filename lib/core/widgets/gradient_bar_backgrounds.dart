@@ -124,7 +124,6 @@ class GradientAppBarBackground extends StatelessWidget {
     final frost = GradientFrost(
       sigma: blur ?? defaultBlur,
       keepGlassDuringRouteTransition: keepGlassDuringRouteTransition,
-      bottomEdgeOnly: true,
       child: child ?? const SizedBox.expand(),
     );
     if (child != null) return frost;

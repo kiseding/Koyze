@@ -229,7 +229,6 @@ class GradientFrost extends StatelessWidget {
     this.fadeOutFrom,
     this.shareBackdrop = true,
     this.keepGlassDuringRouteTransition = false,
-    this.bottomEdgeOnly = false,
   });
 
   final Widget child;
@@ -252,9 +251,6 @@ class GradientFrost extends StatelessWidget {
 
   /// 转场期间保持标题栏玻璃连续绘制，避免材质闪变。
   final bool keepGlassDuringRouteTransition;
-
-  /// 仅折射下缘，避免标题栏左右和上边缘出现液态玻璃高光。
-  final bool bottomEdgeOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -308,24 +304,12 @@ class GradientFrost extends StatelessWidget {
         ),
       ),
     );
-    // 虚化归零时只画染色层，保留用户选择的不透明度。液态玻璃不受这一档
-    // 约束：折射自己就要采样背后的内容，虚化 0 只意味着「最清透的那一档」。
-    final frosted =
-        !reduce &&
-        (GlassEffectConfig.userBlurEnabled || GlassEffectConfig.liquidGlass);
-    // 普通高斯磨砂覆盖整根标题栏；只有液态折射/高光受 bottomEdgeOnly
-    // 限制，避免顶部和左右出现折射边框。
-    final restrictGlassToBottom =
-        bottomEdgeOnly && GlassEffectConfig.liquidGlass;
+    // 全宽顶栏只做整栏磨砂。窄幅折射会在背板上留下两条横向采样边界。
+    final frosted = !reduce && GlassEffectConfig.userBlurEnabled;
     return Stack(
       children: [
         if (frosted)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: restrictGlassToBottom ? 12 : null,
-            top: restrictGlassToBottom ? null : 0,
+          Positioned.fill(
             child: IgnorePointer(
               // 页面入场动画期间先不采样背景。
               //
@@ -341,8 +325,6 @@ class GradientFrost extends StatelessWidget {
                         saturation: AppGlass.saturate,
                         allowBlur: true,
                         shareBackdrop: shareBackdrop,
-                        radius: 0,
-                        legible: true,
                         child: const ColoredBox(color: Color(0x00000000)),
                       ),
                     )
@@ -357,8 +339,6 @@ class GradientFrost extends StatelessWidget {
                                 saturation: AppGlass.saturate,
                                 allowBlur: true,
                                 shareBackdrop: shareBackdrop,
-                                radius: 0,
-                                legible: true,
                                 child: const ColoredBox(
                                   color: Color(0x00000000),
                                 ),

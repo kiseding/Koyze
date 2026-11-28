@@ -1782,7 +1782,10 @@ class _SettingsNavTileState extends State<_SettingsNavTile> {
       ),
     );
     if (!widget.captureExpandOrigin) return tile;
-    return RepaintBoundary(key: _anchorKey, child: tile);
+    return CardExpandSourceVisibility(
+      sourceKey: _anchorKey,
+      child: RepaintBoundary(key: _anchorKey, child: tile),
+    );
   }
 }
 

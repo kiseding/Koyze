@@ -123,15 +123,8 @@ class _PressableState extends State<Pressable> {
         : interactiveChild;
 
     final visibleChild = widget.captureExpandRect
-        ? ValueListenableBuilder<bool>(
-            valueListenable: cardExpandSourceHidden,
-            builder: (context, hidden, child) => Opacity(
-              opacity:
-                  hidden && identical(_expandAnchorKey, cardExpandHiddenKey)
-                  ? 0
-                  : 1,
-              child: child,
-            ),
+        ? CardExpandSourceVisibility(
+            sourceKey: _expandAnchorKey,
             child: anchoredChild,
           )
         : anchoredChild;

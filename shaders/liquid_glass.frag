@@ -30,6 +30,7 @@ uniform float uTint;       // 白色色调强度（清透 0，柔和 0.11）
 uniform float uRoundness;  // 圆角指数：2 为正圆弧（与普通圆角矩形一致）
 uniform vec2 uOrigin;      // 玻璃在画面中的左上角，物理像素
 uniform float uPad;        // 裁剪区域每边多出的物理像素
+uniform float uBottomEdgeOnly; // 只显示朝下的窄边缘光学效果
 uniform vec3 uTintColor;   // 色调颜色（浅色模式为白色；深色模式为深灰，使玻璃在深色背景上呈现为一整块面板）
 
 uniform sampler2D uTexture;
@@ -122,9 +123,12 @@ void main() {
   // 进入玻璃的深度（逻辑像素）。小尺寸控件限制厚度，避免整块都处在弯折区。
   float depth = -sd / uDpr;
   float thickness = min(uThickness, 0.4 * min(uShape.x, uShape.y) / uDpr);
-
+  vec2 e = vec2(1.0, 0.0);
+  vec2 grad = vec2(shapeSDF(p + e.xy) - shapeSDF(p - e.xy), shapeSDF(p + e.yx) - shapeSDF(p - e.yx));
+  vec2 normal = length(grad) > 0.0 ? normalize(grad) : vec2(0.0);
   float edgeFactor = 0.0;
-  if (depth < thickness) {
+  bool bottomEdge = uBottomEdgeOnly < 0.5 || (normal.y > 0.7 && depth < 12.0);
+  if (bottomEdge && depth < thickness) {
     float ratio = 1.0 - max(depth, 0.0) / thickness;
     float thetaI = asin(clamp(ratio * ratio, -1.0, 1.0));
     float thetaT = asin(clamp(sin(thetaI) / REF_FACTOR, -1.0, 1.0));
@@ -135,10 +139,7 @@ void main() {
   if (edgeFactor <= 0.0) {
     outColor = mix(bg, vec4(uTintColor, 1.0), uTint * 0.8);
   } else {
-    // 外法线（y 向下）。
-    vec2 e = vec2(1.0, 0.0);
-    vec2 grad = vec2(shapeSDF(p + e.xy) - shapeSDF(p - e.xy), shapeSDF(p + e.yx) - shapeSDF(p - e.yx));
-    vec2 normal = length(grad) > 0.0 ? normalize(grad) : vec2(0.0);
+    // 外法线（y 向下）已在边缘判断前计算。
 
     // 原版位移：法线 × edgeFactor × 0.05 × 设备像素比，换算为像素约 70.7 × edgeFactor 逻辑像素。
     vec2 offset = -normal * edgeFactor * 70.7 * uRefraction * uDpr / uSize;

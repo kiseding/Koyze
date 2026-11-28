@@ -20,20 +20,27 @@ class _RouteRecorder extends NavigatorObserver {
 
 /// 模拟「卡片 / 设置行」：点一下先记住自己的矩形，再跳到 [path]。
 class _Opener extends StatelessWidget {
-  const _Opener({required this.label, required this.path});
+  const _Opener({
+    required this.label,
+    required this.path,
+    required this.anchor,
+  });
 
   final String label;
   final String path;
+  final GlobalKey anchor;
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Builder(
-        builder: (inner) => RepaintBoundary(
+      child: CardExpandSourceVisibility(
+        sourceKey: anchor,
+        child: RepaintBoundary(
+          key: anchor,
           child: ElevatedButton(
             onPressed: () async {
-              await captureCardExpandOrigin(inner);
-              if (inner.mounted) inner.push(path);
+              await captureCardExpandOrigin(anchor.currentContext!);
+              if (context.mounted) context.push(path);
             },
             child: Text(label),
           ),
@@ -49,27 +56,40 @@ void main() {
     addTearDown(debugResetCardExpandOrigins);
 
     final recorder = _RouteRecorder();
+    final parentAnchor = GlobalKey();
+    final childAnchor = GlobalKey();
     final router = GoRouter(
       observers: [recorder],
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) =>
-              const _Opener(label: 'open-parent', path: '/parent'),
+          builder: (context, state) => Scaffold(
+            body: _Opener(
+              label: 'open-parent',
+              path: '/parent',
+              anchor: parentAnchor,
+            ),
+          ),
         ),
         GoRoute(
           path: '/parent',
           pageBuilder: (context, state) => expandablePage(
             state.pageKey,
-            const Scaffold(
-              body: _Opener(label: 'open-child', path: '/child'),
+            Scaffold(
+              body: _Opener(
+                label: 'open-child',
+                path: '/child',
+                anchor: childAnchor,
+              ),
             ),
           ),
         ),
         GoRoute(
           path: '/child',
-          pageBuilder: (context, state) =>
-              expandablePage(state.pageKey, const Scaffold(body: Text('child'))),
+          pageBuilder: (context, state) => expandablePage(
+            state.pageKey,
+            const Scaffold(body: Text('child')),
+          ),
         ),
       ],
     );
@@ -78,16 +98,63 @@ void main() {
     await tester.pumpWidget(MaterialApp.router(routerConfig: router));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('open-parent'));
-    await tester.pumpAndSettle();
+    Future<void> open(GlobalKey anchor, String path) async {
+      await tester.runAsync(
+        () => captureCardExpandOrigin(anchor.currentContext!),
+      );
+      router.push(path);
+      await tester.pumpAndSettle();
+    }
+
+    await open(parentAnchor, '/parent');
     expect(recorder.lastOpaque, isFalse, reason: '第一层应当从卡片矩形展开');
 
-    await tester.tap(find.text('open-child'));
-    await tester.pumpAndSettle();
+    await open(childAnchor, '/child');
     expect(find.text('child'), findsOneWidget);
     // 关键：改栈时整栈的 pageBuilder 都会重跑，祖先页先跑。若祖先把这次
     // 新记录的原点消费掉，第三层（设置 → 本地音乐 → 文件管理）就永远只能
     // 上滑淡入——和别的设置页手感对不上。
     expect(recorder.lastOpaque, isFalse, reason: '祖先页不能抢走子页的展开原点');
+
+    double opacityOf(Finder child) => tester
+        .widget<Opacity>(
+          find.ancestor(of: child, matching: find.byType(Opacity)).first,
+        )
+        .opacity;
+
+    Future<void> popAndCheck(GlobalKey anchor) async {
+      final snapshot = find
+          .byWidgetPredicate(
+            (widget) => widget is RawImage && widget.image != null,
+          )
+          .last;
+      expect(snapshot, findsOneWidget, reason: '测试必须捕获到真快照');
+      final source = find.byKey(anchor);
+      var sawSnapshot = false;
+      router.pop();
+      await tester.pump();
+      for (var frame = 0; frame < 46; frame++) {
+        await tester.pump(const Duration(milliseconds: 4));
+        final rawImages = find.byWidgetPredicate(
+          (widget) => widget is RawImage && widget.image != null,
+        );
+        // 下层展开页仍可能保有透明度为零的 RawImage。
+        final visible = rawImages.evaluate().any(
+          (element) => opacityOf(find.byWidget(element.widget)) > 0,
+        );
+        if (visible) sawSnapshot = true;
+        expect(
+          opacityOf(source),
+          visible ? 0 : 1,
+          reason: '第 $frame 帧只能绘制原行或其快照，不能同时绘制或同时隐藏',
+        );
+      }
+      await tester.pumpAndSettle();
+      expect(sawSnapshot, isTrue);
+      expect(opacityOf(source), 1);
+    }
+
+    await popAndCheck(childAnchor);
+    await popAndCheck(parentAnchor);
   });
 }

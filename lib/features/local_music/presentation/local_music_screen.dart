@@ -217,7 +217,9 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
   ) {
     final accent = AppColors.accentOf(context);
     final hasSources =
-        mediaStoreEnabled || directories.isNotEmpty || downloadDirectory != null;
+        mediaStoreEnabled ||
+        directories.isNotEmpty ||
+        downloadDirectory != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       child: Column(
@@ -248,10 +250,7 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                           color: accent.withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Icon(
-                          Icons.library_music_rounded,
-                          color: accent,
-                        ),
+                        child: Icon(Icons.library_music_rounded, color: accent),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -269,9 +268,9 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
                             const SizedBox(height: 4),
                             Text(
                               hasSources
-                                  ? S.of(
-                                      context,
-                                    ).mediaStoreHint(directories.length)
+                                  ? S
+                                        .of(context)
+                                        .mediaStoreHint(directories.length)
                                   : S.of(context).folderPickerHint,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -520,69 +519,72 @@ class _LocalMusicScreenState extends ConsumerState<LocalMusicScreen> {
       // 做「卡片长成整页 / 收回卡片」的 morph。少了这一步，expandablePage
       // 拿不到源矩形，就退化成上滑淡入——这就是这一页打开/关闭和设置页
       // 手感不一致的原因。
-      child: RepaintBoundary(
-        key: _fileManagerAnchorKey,
-        child: GlassSurface(
-          style: AppGlassStyle.regular,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.fromBorderSide(
-            AppGlass.hairline(context, emphasized: false),
-          ),
-          padding: EdgeInsets.zero,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: () async {
-                final anchor = _fileManagerAnchorKey.currentContext;
-                if (anchor != null) await captureCardExpandOrigin(anchor);
-                if (!context.mounted) return;
-                unawaited(context.push('/local-file-manager'));
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(14),
+      child: CardExpandSourceVisibility(
+        sourceKey: _fileManagerAnchorKey,
+        child: RepaintBoundary(
+          key: _fileManagerAnchorKey,
+          child: GlassSurface(
+            style: AppGlassStyle.regular,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.fromBorderSide(
+              AppGlass.hairline(context, emphasized: false),
+            ),
+            padding: EdgeInsets.zero,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () async {
+                  final anchor = _fileManagerAnchorKey.currentContext;
+                  if (anchor != null) await captureCardExpandOrigin(anchor);
+                  if (!context.mounted) return;
+                  unawaited(context.push('/local-file-manager'));
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(Icons.folder_copy_rounded, color: accent),
                       ),
-                      child: Icon(Icons.folder_copy_rounded, color: accent),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            S.of(context).fileManagerEntry,
-                            style: TextStyle(
-                              color: AppColors.onScaffold(context),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              S.of(context).fileManagerEntry,
+                              style: TextStyle(
+                                color: AppColors.onScaffold(context),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            S.of(context).fileManagerEntrySubtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: AppColors.mutedText(context),
-                              fontSize: 12,
+                            const SizedBox(height: 4),
+                            Text(
+                              S.of(context).fileManagerEntrySubtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.mutedText(context),
+                                fontSize: 12,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppColors.mutedText(context),
-                    ),
-                  ],
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.mutedText(context),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

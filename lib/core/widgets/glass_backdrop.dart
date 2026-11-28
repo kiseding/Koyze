@@ -44,6 +44,7 @@ class GlassBackdrop extends StatelessWidget {
     this.shareBackdrop = true,
     this.radius,
     this.legible = false,
+    this.bottomEdgeOnly = false,
   });
 
   /// 高斯模糊标准差。小于等于 0 时直接返回 [child]，连图层都不建。
@@ -73,6 +74,9 @@ class GlassBackdrop extends StatelessWidget {
   /// 背后内容的对比度，否则下面的列表文字会和这块玻璃自己的标题叠在一起。
   final bool legible;
 
+  /// 只让液态玻璃的光学边缘出现在下缘。
+  final bool bottomEdgeOnly;
+
   final Widget child;
 
   @override
@@ -93,6 +97,7 @@ class GlassBackdrop extends StatelessWidget {
         radius: liquidRadius,
         frost: GlassEffectConfig.liquidFrost(sigma),
         legible: legible,
+        bottomEdgeOnly: bottomEdgeOnly,
         child: child,
       );
     }
