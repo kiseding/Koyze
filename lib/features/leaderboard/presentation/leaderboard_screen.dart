@@ -1253,6 +1253,7 @@ class _PlatformTabsHeader extends SliverPersistentHeaderDelegate {
             children: [
               GradientAppBarBackground(
                 background: Theme.of(context).scaffoldBackgroundColor,
+                liquidBottomEdge: false,
                 child: const SizedBox.expand(),
               ),
               Padding(
@@ -1445,6 +1446,7 @@ class LeaderboardDetailScreenById extends ConsumerWidget {
         // 列表可滚动到栏内部（栏高度不变），顶栏磨砂才可见。
         extendBodyBehindAppBar: true,
         appBar: AppBar(
+          toolbarHeight: koyzeToolbarHeight,
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,

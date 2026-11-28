@@ -103,6 +103,13 @@ void main() {
         () => captureCardExpandOrigin(anchor.currentContext!),
       );
       router.push(path);
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.byWidgetPredicate((w) => w is RawImage && w.image != null),
+        findsOneWidget,
+        reason: '入场必须确实拿到原行快照，才能验证返回时没有绘制它',
+      );
       await tester.pumpAndSettle();
     }
 
@@ -123,34 +130,18 @@ void main() {
         .opacity;
 
     Future<void> popAndCheck(GlobalKey anchor) async {
-      final snapshot = find
-          .byWidgetPredicate(
-            (widget) => widget is RawImage && widget.image != null,
-          )
-          .last;
-      expect(snapshot, findsOneWidget, reason: '测试必须捕获到真快照');
       final source = find.byKey(anchor);
-      var sawSnapshot = false;
+      final rawImages = find.byWidgetPredicate(
+        (widget) => widget is RawImage && widget.image != null,
+      );
       router.pop();
       await tester.pump();
       for (var frame = 0; frame < 46; frame++) {
+        expect(rawImages, findsNothing, reason: '返回第 $frame 帧不得挂载原行快照');
+        expect(opacityOf(source), 1, reason: '真实原行不需要为快照让位');
         await tester.pump(const Duration(milliseconds: 4));
-        final rawImages = find.byWidgetPredicate(
-          (widget) => widget is RawImage && widget.image != null,
-        );
-        // 下层展开页仍可能保有透明度为零的 RawImage。
-        final visible = rawImages.evaluate().any(
-          (element) => opacityOf(find.byWidget(element.widget)) > 0,
-        );
-        if (visible) sawSnapshot = true;
-        expect(
-          opacityOf(source),
-          visible ? 0 : 1,
-          reason: '第 $frame 帧只能绘制原行或其快照，不能同时绘制或同时隐藏',
-        );
       }
       await tester.pumpAndSettle();
-      expect(sawSnapshot, isTrue);
       expect(opacityOf(source), 1);
     }
 

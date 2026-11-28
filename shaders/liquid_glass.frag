@@ -123,12 +123,19 @@ void main() {
   // 进入玻璃的深度（逻辑像素）。小尺寸控件限制厚度，避免整块都处在弯折区。
   float depth = -sd / uDpr;
   float thickness = min(uThickness, 0.4 * min(uShape.x, uShape.y) / uDpr);
-  vec2 e = vec2(1.0, 0.0);
-  vec2 grad = vec2(shapeSDF(p + e.xy) - shapeSDF(p - e.xy), shapeSDF(p + e.yx) - shapeSDF(p - e.yx));
-  vec2 normal = length(grad) > 0.0 ? normalize(grad) : vec2(0.0);
+  vec2 normal;
+  if (uBottomEdgeOnly > 0.5) {
+    // 顶栏的光学边缘以真实底边为准，不在折射带内侧裁切背景。
+    depth = (uShape.y * 0.5 - p.y) / uDpr;
+    thickness = min(thickness, 12.0);
+    normal = vec2(0.0, 1.0);
+  } else {
+    vec2 e = vec2(1.0, 0.0);
+    vec2 grad = vec2(shapeSDF(p + e.xy) - shapeSDF(p - e.xy), shapeSDF(p + e.yx) - shapeSDF(p - e.yx));
+    normal = length(grad) > 0.0 ? normalize(grad) : vec2(0.0);
+  }
   float edgeFactor = 0.0;
-  bool bottomEdge = uBottomEdgeOnly < 0.5 || (normal.y > 0.7 && depth < 12.0);
-  if (bottomEdge && depth < thickness) {
+  if (depth < thickness) {
     float ratio = 1.0 - max(depth, 0.0) / thickness;
     float thetaI = asin(clamp(ratio * ratio, -1.0, 1.0));
     float thetaT = asin(clamp(sin(thetaI) / REF_FACTOR, -1.0, 1.0));
@@ -168,6 +175,12 @@ void main() {
     glareLch.x = clamp(glareLch.x + 150.0 * glareFactor * glareGeo, 0.0, 120.0);
     glareLch.y += 30.0 * glareFactor * glareGeo;
     outColor = mix(outColor, vec4(clamp(lchToSrgb(glareLch), 0.0, 1.0), 1.0), glareFactor * glareGeo);
+  }
+
+  if (uBottomEdgeOnly > 0.5) {
+    // 将折射、色散和高光一起淡回同一份背景，内缘没有第二次材质切换。
+    float weight = 1.0 - smoothstep(thickness * 0.5, thickness, depth);
+    outColor = mix(mix(bg, vec4(uTintColor, 1.0), uTint * 0.8), outColor, weight);
   }
 
   // 形状边缘 1 像素抗锯齿；形状以外透明（预乘 alpha）。

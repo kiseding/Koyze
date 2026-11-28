@@ -98,6 +98,7 @@ class GlassBackdrop extends StatelessWidget {
         frost: GlassEffectConfig.liquidFrost(sigma),
         legible: legible,
         bottomEdgeOnly: bottomEdgeOnly,
+        shareBackdrop: shareBackdrop,
         child: child,
       );
     }

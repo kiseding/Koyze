@@ -89,6 +89,7 @@ class GradientAppBarBackground extends StatelessWidget {
     this.blur,
     this.vivid = true,
     this.keepGlassDuringRouteTransition = true,
+    this.liquidBottomEdge = true,
   });
 
   /// 所有标题栏共用的模糊半径。
@@ -119,11 +120,15 @@ class GradientAppBarBackground extends StatelessWidget {
   /// 标题栏在页面转场中保持同一层材质，避免入场时先露出底色再补磨砂。
   final bool keepGlassDuringRouteTransition;
 
+  /// False for secondary backgrounds that must not create another glass edge.
+  final bool liquidBottomEdge;
+
   @override
   Widget build(BuildContext context) {
     final frost = GradientFrost(
       sigma: blur ?? defaultBlur,
       keepGlassDuringRouteTransition: keepGlassDuringRouteTransition,
+      liquidBottomEdge: liquidBottomEdge,
       child: child ?? const SizedBox.expand(),
     );
     if (child != null) return frost;

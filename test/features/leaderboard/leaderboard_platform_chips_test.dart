@@ -195,6 +195,7 @@ void main() {
     expect(headerFinder, findsOneWidget, reason: '吸顶胶囊条应使用与顶部 tab 栏相同的磨砂背景');
     final header = tester.widget<GradientAppBarBackground>(headerFinder);
     expect(header.background, isNotNull);
+    expect(header.liquidBottomEdge, isFalse, reason: '筛选条不能再画第二条液态底缘');
   });
 
   testWidgets('调低不透明度，胶囊跟着变淡', (tester) async {

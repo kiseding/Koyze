@@ -364,6 +364,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         // 这三个页面毫无变化。统一之后每个页面的顶部都是同一块材质。
         extendBodyBehindAppBar: true,
         appBar: AppBar(
+          toolbarHeight: koyzeToolbarHeight,
           backgroundColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,

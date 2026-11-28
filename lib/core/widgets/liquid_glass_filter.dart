@@ -50,6 +50,7 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
     this.legible = false,
     this.tint,
     this.bottomEdgeOnly = false,
+    this.shareBackdrop = true,
     super.child,
   });
 
@@ -72,13 +73,16 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
   /// 只让液态玻璃的光学边缘出现在下缘。
   final bool bottomEdgeOnly;
 
+  /// Whether this surface can share an ancestor's backdrop capture.
+  final bool shareBackdrop;
+
   @override
   RenderObject createRenderObject(BuildContext context) {
     return RenderLiquidGlass(
       radius,
       frost,
       MediaQuery.devicePixelRatioOf(context),
-      BackdropGroup.of(context)?.backdropKey,
+      (shareBackdrop ? BackdropGroup.of(context)?.backdropKey : null),
       legible,
       tint,
       bottomEdgeOnly,
@@ -94,7 +98,9 @@ class LiquidGlassBackdrop extends SingleChildRenderObjectWidget {
       ..radius = radius
       ..frost = frost
       ..dpr = MediaQuery.devicePixelRatioOf(context)
-      ..backdropKey = BackdropGroup.of(context)?.backdropKey
+      ..backdropKey = (shareBackdrop
+          ? BackdropGroup.of(context)?.backdropKey
+          : null)
       ..legible = legible
       ..tint = tint
       ..bottomEdgeOnly = bottomEdgeOnly

@@ -34,25 +34,16 @@ class FrostedTabHeader extends StatelessWidget {
   final bool vivid;
 
   /// 根壳层里的状态栏以下高度：一条导航行。
-  static const double barHeight = _topPadding + _navRowHeight + _bottomPadding;
-
-  /// 回退标题栏（推送页、独立预览）的状态栏以下基础高度。
-  /// 与根 Tab 导航行共用 60 逻辑像素；额外 bottom 内容另行增加。
-  static const double _plainBarHeight = barHeight;
+  static const double barHeight = koyzeToolbarHeight;
 
   static const double _topPadding = 6;
-  static const double _navRowHeight = 46;
   static const double _bottomPadding = 8;
+  static const double _navRowHeight = barHeight - _topPadding - _bottomPadding;
 
   static const double bottomPadding = 10;
 
   static double extent(BuildContext context, {double extra = 0}) {
-    // 有 tab 条的壳层比回退标题栏高一条 tab 的高度，滚动留白必须跟着走，
-    // 否则列表会从图标底下钻出来。
-    final hasTabs = RootTabScope.readOf(context) != null;
-    return MediaQuery.paddingOf(context).top +
-        (hasTabs ? barHeight : _plainBarHeight) +
-        extra;
+    return MediaQuery.paddingOf(context).top + barHeight + extra;
   }
 
   @override
@@ -137,7 +128,7 @@ class FrostedTabHeader extends StatelessWidget {
       vivid: vivid,
       keepGlassDuringRouteTransition: true,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, top + 6, 14, bottomPadding),
+        padding: EdgeInsets.fromLTRB(16, top + _topPadding, 14, _bottomPadding),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

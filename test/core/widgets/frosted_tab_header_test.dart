@@ -180,19 +180,64 @@ void main() {
       expect(layer.gradient, isNull);
     });
 
-    testWidgets('独立标题栏转场期间保留整栏磨砂，不再绘制窄折射带', (tester) async {
+    testWidgets('Tab 栏与独立标题栏使用全尺寸玻璃，折射仅在底缘', (tester) async {
       GlassEffectConfig.setSurfaceBlur(1);
-      await tester.pumpWidget(
-        _host(const GradientAppBarBackground(background: Colors.transparent)),
+      final appBar = const GradientAppBarBackground(
+        background: Colors.transparent,
       );
-      final frost = _frost(tester);
-      expect(frost.keepGlassDuringRouteTransition, isTrue);
-      final backdrop = find.byType(GlassBackdrop);
-      expect(backdrop, findsOneWidget);
-      expect(tester.widget<GlassBackdrop>(backdrop).radius, isNull);
+      for (final header in [_tabHeader(), appBar]) {
+        await tester.pumpWidget(_host(header));
+        if (identical(header, appBar)) {
+          expect(_frost(tester).keepGlassDuringRouteTransition, isTrue);
+        }
+        final backdrop = find.byType(GlassBackdrop);
+        expect(backdrop, findsOneWidget);
+        final glass = tester.widget<GlassBackdrop>(backdrop);
+        expect(glass.radius, 0, reason: '矩形顶栏也必须接入液态着色器');
+        expect(glass.bottomEdgeOnly, isTrue);
+        expect(
+          tester.getRect(backdrop),
+          tester.getRect(find.byType(GradientFrost)),
+          reason: '不能只在底缘另裁一条背景滤镜',
+        );
+      }
+    });
+
+    testWidgets('Tab、回退标题栏和原有 AppBar 同高且各只有一块玻璃', (tester) async {
+      GlassEffectConfig.setSurfaceBlur(1);
+      const statusBar = 59.0;
+      await tester.pumpWidget(_host(_tabHeader()));
+      final height = tester.getSize(find.byType(GradientFrost)).height;
+      expect(height, statusBar + koyzeToolbarHeight);
+
+      await tester.pumpWidget(_host(const FrostedTabHeader(title: 'Title')));
+      expect(tester.getSize(find.byType(FrostedTabHeader)).height, height);
+      expect(find.byType(GlassBackdrop), findsOneWidget);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: const MediaQueryData(
+              padding: EdgeInsets.only(top: statusBar),
+            ),
+            child: Scaffold(
+              appBar: AppBar(
+                toolbarHeight: koyzeToolbarHeight,
+                title: const Text('Title'),
+                flexibleSpace: const GradientAppBarBackground(
+                  background: Colors.transparent,
+                ),
+              ),
+              body: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      );
+      expect(tester.getSize(find.byType(AppBar)).height, height);
+      expect(find.byType(GlassBackdrop), findsOneWidget);
       expect(
-        tester.getRect(backdrop),
-        tester.getRect(find.byType(GradientFrost)),
+        tester.getRect(find.byType(GlassBackdrop)),
+        tester.getRect(find.byType(AppBar)),
       );
     });
 

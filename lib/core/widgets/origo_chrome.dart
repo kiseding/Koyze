@@ -229,6 +229,7 @@ class GradientFrost extends StatelessWidget {
     this.fadeOutFrom,
     this.shareBackdrop = true,
     this.keepGlassDuringRouteTransition = false,
+    this.liquidBottomEdge = true,
   });
 
   final Widget child;
@@ -252,6 +253,9 @@ class GradientFrost extends StatelessWidget {
   /// 转场期间保持标题栏玻璃连续绘制，避免材质闪变。
   final bool keepGlassDuringRouteTransition;
 
+  /// Full-width navigation chrome has one optical edge, at the bottom.
+  final bool liquidBottomEdge;
+
   @override
   Widget build(BuildContext context) {
     // 顶栏染色浓度吃「界面不透明度」，磨砂吃「虚化」——两档都要随滑杆当场重画。
@@ -265,6 +269,7 @@ class GradientFrost extends StatelessWidget {
       listenable: Listenable.merge([
         GlassEffectConfig.surfaceOpacityListenable,
         GlassEffectConfig.surfaceBlurListenable,
+        GlassEffectConfig.liquidGlassListenable,
       ]),
       builder: (context, _) => _buildTint(context),
     );
@@ -304,46 +309,33 @@ class GradientFrost extends StatelessWidget {
         ),
       ),
     );
-    // 全宽顶栏只做整栏磨砂。窄幅折射会在背板上留下两条横向采样边界。
-    final frosted = !reduce && GlassEffectConfig.userBlurEnabled;
+    final frosted =
+        !reduce &&
+        (GlassEffectConfig.userBlurEnabled ||
+            (liquidBottomEdge && GlassEffectConfig.liquidGlass));
+    // 滤镜覆盖整栏，窄边缘的衰减由着色器处理，避免在栏内再裁出一条硬边。
+    final backdrop = ClipRect(
+      child: GlassBackdrop(
+        sigma: GlassEffectConfig.scaleSurfaceBlur(sigma),
+        saturation: AppGlass.saturate,
+        allowBlur: true,
+        shareBackdrop: shareBackdrop,
+        radius: liquidBottomEdge ? 0 : null,
+        legible: true,
+        bottomEdgeOnly: liquidBottomEdge,
+        child: const ColoredBox(color: Color(0x00000000)),
+      ),
+    );
     return Stack(
       children: [
         if (frosted)
           Positioned.fill(
             child: IgnorePointer(
-              // 页面入场动画期间先不采样背景。
-              //
-              // 这一整根栏在这一帧里跟着页面一起移动，背景滤镜每帧都要
-              // 读回背后的内容再卷积，是整页最贵的一次绘制；而转场期间
-              // 页面本来就换成了一张位图，位图里再套背景滤镜既贵又容易
-              // 采样到空背景。入场时列表还在顶部、背后就是页面底色，
-              // 去掉它看不出差别，落地后再恢复。
               child: keepGlassDuringRouteTransition
-                  ? ClipRect(
-                      child: GlassBackdrop(
-                        sigma: GlassEffectConfig.scaleSurfaceBlur(sigma),
-                        saturation: AppGlass.saturate,
-                        allowBlur: true,
-                        shareBackdrop: shareBackdrop,
-                        child: const ColoredBox(color: Color(0x00000000)),
-                      ),
-                    )
+                  ? backdrop
                   : RouteAnimationGate(
-                      builder: (context, animating) => animating
-                          ? const SizedBox.shrink()
-                          : ClipRect(
-                              child: GlassBackdrop(
-                                sigma: GlassEffectConfig.scaleSurfaceBlur(
-                                  sigma,
-                                ),
-                                saturation: AppGlass.saturate,
-                                allowBlur: true,
-                                shareBackdrop: shareBackdrop,
-                                child: const ColoredBox(
-                                  color: Color(0x00000000),
-                                ),
-                              ),
-                            ),
+                      builder: (context, animating) =>
+                          animating ? const SizedBox.shrink() : backdrop,
                     ),
             ),
           ),
